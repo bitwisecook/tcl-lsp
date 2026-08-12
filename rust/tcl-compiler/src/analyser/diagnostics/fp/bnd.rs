@@ -18,7 +18,6 @@
 
 //! BND family — bounds / intervals (W230/W231/W232/W233), driven by the
 //! Phase-3 interval domain.
-//! Pairs to `tests/test_fp_bnd.py` and the §BND entries in `docs/design/compiler/FP.md`.
 
 use super::D;
 use crate::analyser::Analyser;

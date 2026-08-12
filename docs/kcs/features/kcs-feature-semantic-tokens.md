@@ -51,11 +51,6 @@ else (`puts {$n}`) stays a string.
 
 ## File-path anchors
 
-- `server/features/_semantic_tokens/`
-- `shared/document_buffer.py`
-- `server/workspace/document_state.py` — chunk cache storage and `update_source_quick()`
-- `server/server.py` — `on_semantic_tokens_full`, `on_semantic_tokens_delta`
-- `rust/tcl-lsp-server/src/lib.rs` — `semantic_tokens_core_data` (fast-path
   race), `SemanticTokensRefreshCtx`, `db_semantic_tokens`
 - `rust/tcl-lsp-db/src/lib.rs` — `semantic_tokens` salsa query
 
@@ -65,11 +60,6 @@ else (`puts {$n}`) stays a string.
 - Tokens not applied for new embedded DSL patterns.
 - Chunk cache returns stale tokens after an offset-shifting edit (cache is invalidated when chunk hashes change).
 - Delta encoding produces incorrect edits if token arrays are not sorted by position before encoding.
-
-## Test anchors
-
-- `tests/test_semantic_tokens.py`
-- `tests/test_semantic_tokens_delta.py` — delta encoding, chunk boundary, multi-cursor edits, batch role lookup
 
 ## Screenshots
 

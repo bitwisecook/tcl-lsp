@@ -66,11 +66,8 @@ and the dead-store/unused diagnostics, plus `rust/tcl-lsp-core` hover.
 
 - `rust/tcl-syntax/src/naming.rs` — `element_var_name{,_braced}`,
   `array_key_is_literal`
-- `rust/tcl-compiler/src/ssa.rs` — `collect_array_elems`, `expand_defs`,
   `SsaStatement::may_defs`, `SsaFunction::is_synthetic_def`
-- `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/type_infer.rs`
   — may-def join + valueless base rules
-- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`,
   `rust/tcl-compiler/src/optimiser/elimination.rs` — synthetic-def skips,
   base-keyed policy checks
 
@@ -83,14 +80,6 @@ and the dead-store/unused diagnostics, plus `rust/tcl-lsp-core` hover.
   value) — the join rule exists precisely to prevent this.
 - Checking a base-keyed policy set with the element-qualified name makes
   `set env(FOO) x` (and traced/instance elements) falsely reportable.
-
-## Test anchors
-
-- `rust/tcl-compiler/src/type_infer.rs` — P5 unit tests
-- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` — FP-SH-13 pair
-  (independent-silent / same-element-fires)
-- `rust/tcl-compiler/tests/checks.rs` — dead-store + read-before-set rows
-- `rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs` — array rows
 
 ## Discoverability
 

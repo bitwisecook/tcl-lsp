@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The Tcl bytecode VM as a self-contained `wasm32-unknown-unknown` cdylib
-//! (RUST_ISSUE_008 — a self-contained runtime artefact).
+//! The Tcl bytecode VM as a self-contained `wasm32-unknown-unknown` cdylib.
 //!
 //! The VM and compiler are statically linked, so the module has **no host
 //! imports and needs no WASI** (the VM's numeric tower is pure-Rust

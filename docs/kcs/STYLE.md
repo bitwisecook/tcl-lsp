@@ -71,7 +71,7 @@ The three audiences are:
   not read source files for tcl-lsp itself and do not know its internal
   names.
 - **Contributor** — someone writing code for tcl-lsp. They understand
-  Python, the repo layout, and can read the compiler pipeline.
+  Rust, the repo layout, and can read the compiler pipeline.
 - **Maintainer** — someone with merge rights who makes cross-cutting
   decisions.
 
@@ -248,9 +248,9 @@ list**, not bullet points. Each item is a tag. The build and query
 scripts normalise each tag by lowercasing it and replacing internal
 spaces with a hyphen, so `VS Code` and `vs-code` are the same tag.
 
-The canonical tag vocabulary lives in
-`shared/help/kcs_db.py`. The mini
-glossary below lists every tag the build and query scripts recognise.
+The canonical tag vocabulary lives in the `tcl-cli` KCS/help data
+(`rust/tcl-cli/build.rs`). The mini glossary below lists every tag the
+build and query paths recognise.
 
 #### Editor tags (driven by the LSP server)
 
@@ -392,10 +392,9 @@ before storing tags.
 When you need a tag that is not already in the glossary above, add
 it in the same change that introduces it. The three steps are:
 
-1. **Add the tag to `TAG_DISPLAY`** in
-   `shared/help/kcs_db.py` with its
-   human-readable display form. If the tag should count as an LSP
-   editor, also add it to `LSP_EDITOR_TAGS`.
+1. **Add the tag to the vocabulary** in `rust/tcl-cli/build.rs` with
+   its human-readable display form. If the tag should count as an LSP
+   editor, also add it to `LSP_EDITOR_TAGS` there.
 2. **Add a row** to the appropriate table in this file (rule 11)
    with a one-line description of what the tag means. Keep the
    table ordered alphabetically within its group.

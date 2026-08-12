@@ -19,12 +19,10 @@ all-editors, MCP, analyser
 
 ## Operational context
 
-Resolves proc calls, variable references, namespace-qualified names, and BIG-IP cross-object references to their definition locations. Uses shared proc-reference matching from `analyser/proc_lookup.py`.
+Resolves proc calls, variable references, namespace-qualified names, and BIG-IP cross-object references to their definition locations. Proc-reference matching is shared with Find References, so the two always agree.
 
 ## File-path anchors
 
-- `server/features/definition.py`
-- `analyser/proc_lookup.py`
 
 Go to Definition follows the **command table as it stands where the cursor
 is**, not merely how the word is spelled. A `rename OLD NEW` makes `NEW`
@@ -285,37 +283,6 @@ same name — Tcl keeps those in a separate table from variables.
 - A callee whose `upvar` level is not `1` (`upvar 0`, `upvar #0`, `upvar 2`)
   aliases some other frame, so its call site defines nothing where you are
   reading and no location is reported.
-
-## Test anchors
-
-- `tests/test_definition.py`
-- `rust/tcl-lsp-server/tests/e2e/navigation.rs` — the caller-frame cases
-- `rust/tcl-lsp-core/src/caller_frame.rs` — unit tests for the binding scan
-- `rust/tcl-lsp-core/src/definition.rs` (`mod tests`)
-- `rust/tcl-lsp-core/src/namespace_import.rs` (`mod tests`) — the
-  per-import-site export snapshot and the import edge's own lifecycle
-  (`alias_live_at`), both shared by the same-document and workspace resolvers
-- `rust/tcl-lsp-server/tests/e2e/definition.rs`
-  (`wildcard_import_survives_a_later_export_clear_cross_document`,
-  `wildcard_import_ignores_an_export_written_after_it_cross_document`,
-  `a_forgotten_wildcard_import_stops_resolving_cross_document`,
-  `a_forced_import_shadows_the_local_command_cross_document`,
-  `a_wildcard_import_chain_follows_to_the_original_source_cross_document`,
-  `deleting_the_source_command_kills_the_import_cross_document`)
-- `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
-  variables, cross-file class-reference arguments)
-- `rust/tcl-lsp-core/src/namespace_symbol.rs` (`mod tests`) — the shared
-  namespace resolver definition, hover, and references all answer through
-- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` (namespace
-  names as jump targets, in one file and across files)
-- `rust/tcl-lsp-server/src/lib.rs` unit tests
-  (`definition_resolves_through_a_document_auto_path_package`,
-  `set_auto_path_puts_every_list_element_on_the_search_path`,
-  `a_versioned_require_indexes_the_release_it_asks_for`)
-- `rust/tcl-compiler/src/auto_path_eval.rs` (`mod tests`) — the list-arity and
-  slash-form path rules
-- `rust/tcl-lsp-core/src/package_resolver/tests.rs`
-  (`resolve_picks_the_highest_release_satisfying_the_constraint`)
 
 ## Screenshots
 

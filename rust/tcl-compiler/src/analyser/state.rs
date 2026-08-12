@@ -5069,7 +5069,8 @@ mod tests {
     fn analyse_w001_no_diagnostic_at_all_when_shadowed_by_proc() {
         // A same-file `proc string {...}` must suppress W001 (and its
         // subcommand-level W002 sibling) completely — not just avoid the
-        // specific message text. See FP-STY-17 in docs/design/compiler/FP.md.
+        // specific message text. The FP-STY-17 reproducers live in
+        // `analyser/diagnostics/fp/sty.rs::fp_sty_17_*`.
         let mut a = Analyser::new();
         let src = "proc string {op args} { return $op }\nstring reverse hello\n";
         let r = a.analyse(src, "tcl");
@@ -5103,7 +5104,8 @@ mod tests {
         // `{*}{create a b}` splices the elements `create`, `a`, `b` into the
         // argument list (confirmed against tclsh 8.6.14) — the raw source
         // text "create a b" must never be compared against the subcommand
-        // set. See FP-STY-18 in docs/design/compiler/FP.md.
+        // set. The FP-STY-18 reproducers live in
+        // `analyser/diagnostics/fp/sty.rs::fp_sty_18_*`.
         let mut a = Analyser::new();
         let r = a.analyse("dict {*}{create a b}\n", "tcl");
         assert!(

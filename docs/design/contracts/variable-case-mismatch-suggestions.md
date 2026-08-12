@@ -1,4 +1,4 @@
-# KCS: variable case-mismatch suggestions
+# Variable case-mismatch suggestions
 
 ## Symptom
 
@@ -31,15 +31,15 @@ lexicographically smallest name is chosen.
 
 ## File-path anchors
 
-- `analyser/_analyser/_diag_var_lifecycle.py` -- `_collect_defined_vars()`, `_find_case_mismatch()`
-- `compiler/registry/models.py` -- `safe_on_uninit` field
-
-## Test anchors
-
-- `tests/test_upstream_var.py` -- `TestCaseMismatchSuggestions`
+- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `find_case_mismatch`
+  and the two sites that append the `; did you mean 'X'?` suffix.
+- `rust/tcl-registry/src/spec.rs` — the `safe_on_uninit` field on `CommandSpec`.
+- `rust/tcl-compiler/src/text.rs` — the shared suggestion-ranking cores
+  (`rank_suggestions`), which every did-you-mean suffix goes through
+  ([shared-utility-contracts-rust.md](shared-utility-contracts-rust.md)).
 
 ## Discoverability
 
-- [KCS index](../../../docs/design/README.md)
-- [LSP diagnostics publication](../../../docs/design/contracts/lsp-diagnostics-publication.md)
-- [compiler diagnostics integration](../../../docs/design/compiler/diagnostics-integration.md)
+- [Design doc index](../README.md)
+- [LSP diagnostics publication](lsp-diagnostics-publication.md)
+- [compiler diagnostics integration](../compiler/diagnostics-integration.md)

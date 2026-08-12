@@ -33,17 +33,12 @@ The translator maps iRule event handlers and commands to XC route and service po
 
 ## File-path anchors
 
-- `dialects/f5/xc/translator.py`
 - `editors/vscode/src/extension.ts`
 
 ## Failure modes
 
 - Unsupported iRule patterns silently dropped.
 - XC output not valid YAML/JSON.
-
-## Test anchors
-
-- `tests/test_xc_translator.py`
 
 ## Example
 

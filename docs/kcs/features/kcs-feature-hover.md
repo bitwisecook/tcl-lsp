@@ -156,18 +156,13 @@ in separate tables, so `$dataset` can never mean a method called `dataset`.
 
 ## File-path anchors
 
-- `rust/tcl-lsp-core/src/hover.rs` — the provider and its renderers, including
   `qualified_symbol_hover` for a symbol defined in another document and
   `qualified_variable_hover` for a namespace variable declared in one
-- `rust/tcl-lsp-core/src/caller_frame.rs` — caller-frame variable resolution
   and the `$`-led abstention shared with Go to Definition and Find References
-- `rust/tcl-lsp-core/src/expr_context.rs` — the shared "is the cursor on an
   `expr` math-function call, and what does it resolve to" helper
-- `rust/tcl-lsp-core/src/inert_text.rs` — the comment / data-brace tests that
   keep hover silent on text Tcl never substitutes
 - `rust/tcl-registry/src/mathfunc.rs` — the registry's math-function query
   (bare name to command name, plus the two version axes)
-- `rust/tcl-lsp-server/src/lib.rs` — `cross_document_hover` /
   `cross_document_variable_hover`, the workspace and library-index fallbacks
 
 ## Failure modes
@@ -176,17 +171,6 @@ in separate tables, so `$dataset` can never mean a method called `dataset`.
 - Incorrect position mapping in multi-line constructs.
 - A command reached only at run time (built by `eval`, or dispatched through a
   variable) has no declaration to point at, so hover shows nothing.
-
-## Test anchors
-
-- `rust/tcl-lsp-server/tests/e2e/hover.rs`
-- `rust/tcl-lsp-core/src/hover.rs` — renderer unit tests
-- `rust/tcl-lsp-core/tests/mathfunc_and_word_recognition.rs` — the `expr`
-  math-function and not-a-reference cases
-- `rust/tcl-lsp-core/src/namespace_symbol.rs` (`mod tests`) — the namespace
-  resolver and its hover text
-- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` — namespace
-  hover in one file and across files
 
 ## Screenshots
 

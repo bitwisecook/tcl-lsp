@@ -159,14 +159,17 @@ collection — wrap it: `[.ltm.virtual[].name] | sort`.
 
 ## Builtin catalogue {#builtin-catalogue}
 
-The full alphabetical catalogue lives in the auto-generated
-[`docs/references/f5_query/builtins.md`](builtins.md)
-and is also emitted by `f5 query --help-builtins`.  Each builtin
-has its own anchor in that file — to look one up:
+The full alphabetical catalogue lives in the hand-maintained
+[`docs/references/f5_query/builtins.md`](builtins.md), kept in sync
+by hand against the registry in `rust/tcl-bigip-query/src/builtins/`.
+`f5 query --help-builtins` emits a metadata-only summary from the
+same registry (name / category / arity / flags, not the full prose).
+Each builtin has its own anchor in `builtins.md` — to look one up:
 
-- `f5 query --help-builtins NAME` — single function from the CLI.
-- `docs/references/f5_query/builtins.md#NAME` — anchor in the
-  Markdown file.
+- `f5 query --help-builtins NAME` — that builtin's metadata from the
+  CLI.
+- `docs/references/f5_query/builtins.md#NAME` — the full prose +
+  examples, in the Markdown file.
 
 Major families:
 
@@ -371,7 +374,7 @@ the long-form recipes:
 - [`docs/references/f5_query/dsl.md`](dsl.md) — the
   full DSL grammar reference.
 - [`docs/references/f5_query/builtins.md`](builtins.md)
-  — auto-generated catalogue of every builtin (one section per
+  — hand-maintained catalogue of every builtin (one section per
   function, every one with its own anchor for direct linking).
 - [`docs/references/f5_query/f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md)
   — F5 KB articles cross-referenced by the cert / monitor probe
@@ -386,7 +389,9 @@ CLI and from the native `tcl-mcp` MCP server:
 
 - `f5 query --help-dsl` — full grammar reference.
 - `f5 query --help-builtins [NAME]` — every builtin (or one named
-  function), with signature, examples, and category.
+  function), with category, arity, and dispatch flags — metadata
+  only; for full signatures, prose, and examples see
+  [`builtins.md`](builtins.md).
 - `f5 query --help-examples` — the worked-example cookbook.
 - `f5 query --help-manual` — the whole reference concatenated.
 
@@ -718,11 +723,8 @@ every example concatenated with section banners):
 f5 query --help-manual
 ```
 
-To see the F5 KB cross-reference doc:
-
-```sh
-f5 query --help-references
-```
+The F5 KB cross-reference doc has no dedicated CLI help flag — read it
+directly: [`f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md).
 
 ## 100% coverage map {#coverage-map}
 
@@ -731,9 +733,9 @@ is the source-of-truth index for what lives where.
 
 | Behaviour | Canonical reference |
 |---|---|
-| Grammar (parser, precedence, EBNF) | [`f5-query-dsl.md`](dsl.md) + `f5 query --help-dsl` |
-| Every builtin with examples | [`f5-query-dsl-builtins.md`](builtins.md) + `f5 query --help-builtins NAME` |
-| jq divergences | [`f5-query-dsl.md`](dsl.md) §"Divergences from jq" |
+| Grammar (parser, precedence, EBNF) | [`dsl.md`](dsl.md) + `f5 query --help-dsl` |
+| Every builtin with examples | [`builtins.md`](builtins.md) + `f5 query --help-builtins NAME` |
+| jq divergences | [`dsl.md`](dsl.md) §"Divergences from jq" |
 | Probe gate + reason taxonomy | [Reason taxonomy](#reason-taxonomy) section above |
 | Cert dict shape | [X.509 cert dict shape](#x509-cert-dict-shape) section above |
 | Mutating-query apply order | [Edit planning](#edit-planning) section above |
@@ -743,7 +745,7 @@ is the source-of-truth index for what lives where.
 | If / elif / else | [Control flow](#control-flow) section above |
 | External inputs (JSON / CSV / f5log) | [External inputs](#external-inputs) section above |
 | Output rendering | [Output modes](#output-modes) section above |
-| End-to-end cookbook | [`f5-query-dsl-builtins.md`](builtins.md) + KCS HOW-TOs |
+| End-to-end cookbook | [`builtins.md`](builtins.md) + KCS HOW-TOs |
 | Operational recipes (setup, certs, servers) | [Operator handbook](#operator-handbook) section above |
 | F5 KB articles | [`f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md) |
 | AI / MCP integration | the native `tcl-mcp` MCP server (`f5-query` skill) |

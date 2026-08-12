@@ -77,8 +77,6 @@ namespace and keep their dots; the server accepts both spellings as a
 
 ## File-path anchors
 
-- `rust/tcl-lsp-core/src/folding.rs` — Tcl folding walk (native server)
-- `rust/tcl-lsp-core/src/bigip.rs` — `folding_ranges` (BIG-IP stanza folds)
 - `editors/vscode/package.json` — `configurationDefaults` sticky-scroll model per language
 
 ## Failure modes
@@ -90,10 +88,6 @@ namespace and keep their dots; the server accepts both spellings as a
 
 ## Test anchors
 
-- `rust/tcl-lsp-core/src/folding.rs` — fold-walk unit tests, EOF/CRLF bounds
-- `rust/tcl-lsp-server/tests/e2e/issue1122_sticky_scroll.rs` — null-not-empty contract + sticky candidate bounds
-- `rust/tcl-lsp-core/src/bigip.rs` — stanza / embedded-rule / unbalanced-input fold unit tests
-- `rust/tcl-lsp-server/tests/e2e/bigip.rs` — `conf_stanzas_and_their_nested_blocks_fold`
 - `editors/vscode/src/test/stickyScroll.test.ts` — per-language sticky-scroll defaults
 
 ## Screenshots

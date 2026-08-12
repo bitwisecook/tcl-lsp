@@ -190,7 +190,9 @@ value per line versus a single JSON array.
 ## Tree shape
 
 The DSL exposes the parsed `BigipConfig` as a nested mapping, with one
-top-level child per recognised module:
+top-level child per recognised module. Only `ltm`, `gtm`, and
+`security` currently have a **typed** projection (see the coverage
+note below); their shape is:
 
 ```
 .ltm
@@ -227,118 +229,10 @@ top-level child per recognised module:
                                 .actions[].target
                                            .verb
                                            .pool   (path-ref → ltm pool)
-.net
-  .route["/Common/default_gw"].network
-                              .gw
-                              .pool          (path-ref → ltm pool)
-  .vlan["/Common/external"].tag
-                           .interfaces[]
-  .self["/Common/198.51.100.5"].address
-                               .vlan         (path-ref → net vlan)
-                               .traffic-group
-                               .allow-service[]
-  .route-domain["/Common/0"].id
-                            .vlans[]         (path-refs → net vlan)
-  .port-list["/Common/web_ports"].ports[]
-  .interface["1.1"].media-fixed
-  .dns-resolver["/Common/r1"].route-domain   (path-ref → net route-domain)
-                              .forward-zones[]
-  .tunnels-tunnel["/Common/t1"].profile      (path-ref → ltm profile)
-                               .local-address
-                               .remote-address
-                               .description
-  .stp["/Common/cist"].interfaces[]
-.sys
-  .dns[].name-servers[]                    (singleton; one entry)
-  .ntp[].servers[]                         (singleton; one entry)
-  .snmp[].agent-addresses[]                (singleton; one entry)
-        .communities[]
-  .global-settings[].hostname              (singleton; one entry)
-  .provision["ltm"].level
-  .folder["/Common"].traffic-group
-  .file-ssl-cert["/Common/f5.crt"].source-path
-                                  .cache-path
-  .file-ssl-key["/Common/f5.key"].source-path
-                                 .passphrase
-  .management-route["/Common/default"].gateway
-                                      .network
-```
-
-Singletons (``sys.dns``, ``sys.ntp``, ``sys.snmp``,
-``sys.global-settings``) have no full-path — they're stored under
-the empty-string key, so ``.sys.dns[]`` streams the one entry and
-``.sys.dns[""]`` is an exact lookup.
-
-```
-.security
-  .firewall-port-list["/Common/web"].ports[]
-  .firewall-rule-list["/Common/rl1"].rules[]
-  .firewall-config-entity-id["/Common/id1"].entity-id
-  .ip-intelligence-policy["/Common/ip-intel"].name
-  .protocol-inspection-compliance-map["/Common/m1"].insp-id
-                                                   .key-type
-                                                   .value-type
-  .protocol-inspection-compliance-objects["/Common/o1"].insp-id
-                                                       .type
-  .device-id-attribute["/Common/att01"].id
-.apm
-  .access-policy["/Common/p1"].start-item       (path-ref → policy-item)
-                              .default-ending  (path-ref → policy-item)
-                              .items[]         (path-refs → policy-item)
-  .policy-item["/Common/i1"].caption
-                            .color
-                            .item-type
-                            .agents[]          (path-refs → policy-agent)
-  .policy-agent["/Common/a1"].agent-type
-                             .customization-group
-  .customization-source["/Common/cs"].name
-  .oauth-db-instance["/Common/oauthdb"].description
-  .ssh-security-config["/Common/cfg"].ciphers[]
-                                     .hmacs[]
-                                     .kex-methods[]
-  .default-report[].report-name              (singleton; one entry)
-                   .user
-```
-
-PathRefs auto-deref from ``access-policy`` into the referenced
-``policy-item`` and from ``policy-item.agents[]`` into the matching
-``policy-agent`` — chained queries like
-``.apm.access-policy[].start-item.caption`` walk
-``access-policy → policy-item → caption`` in one step.
-
-```
-.cm
-  .cert["/Common/dtca.crt"].cache-path
-                           .checksum
-                           .revision
-  .key["/Common/dtca.key"].cache-path
-                          .checksum
-  .device["/Common/host1"].hostname
-                          .management-ip
-                          .version
-                          .cert            (path-ref → cm cert)
-                          .key             (path-ref → cm key)
-  .device-group["/Common/dg1"].auto-sync
-                              .devices[]   (path-refs → cm device)
-  .traffic-group["/Common/tg1"].unit-id
-  .trust-domain["/Common/Root"].ca-cert    (path-ref → cm cert)
-                               .ca-cert-bundle
-                               .ca-key     (path-ref → cm key)
-                               .ca-devices[] (path-refs → cm device)
-                               .trust-group (path-ref → cm device-group)
-                               .guid
-                               .status
-```
-
-PathRefs from ``cm device.cert`` / ``cm device.key`` and from every
-``cm trust-domain`` reference auto-deref into the target object —
-``.cm.trust-domain[].trust-group.devices`` walks
-``trust-domain → device-group → devices[]`` end-to-end.
-
-```
 .gtm
   .datacenter["/Common/dc1"].contact
                             .location
+                            .prober-pool     (path-ref; target kind not itself navigable)
   .server["/Common/s1"].datacenter         (path-ref → gtm datacenter)
                        .monitor
                        .product
@@ -354,9 +248,28 @@ PathRefs from ``cm device.cert`` / ``cm device.key`` and from every
                         .aliases[]
                         .pool-lb-mode
                         .last-resort-pool  (path-ref → gtm pool)
-  .prober-pool["/Common/pp"].members[]     (path-refs → gtm server)
-  .region["/Common/r1"].region-members[]
-  .rule["/AS3/app/r1"].body
+  .listener["/Common/l1"].address
+                         .port
+                         .pool             (path-ref → gtm pool)
+                         .rules[]
+.security
+  .firewall-policy["/Common/fp1"].rules[]
+                                 .rule-lists[]
+  .firewall-rule-list["/Common/rl1"].rules[].action
+                                            .source
+                                            .destination
+  .firewall-address-list["/Common/al1"].addresses[]
+                                       .address-lists[]
+                                       .fqdns[]
+  .firewall-port-list["/Common/web"].ports[]
+  .nat-policy["/Common/np1"].rules[]
+                            .rule-lists[]
+  .nat-source-translation["/Common/nst1"].type
+                                         .addresses[]
+                                         .ports[]
+  .nat-destination-translation["/Common/ndt1"].type
+                                              .addresses[]
+                                              .ports[]
 ```
 
 ``gtm pool a|aaaa|cname|mx|srv|naptr`` and ``gtm wideip <type>`` are
@@ -365,23 +278,28 @@ the DNS record kind.  PathRefs from ``wideip.pools[]`` /
 ``last-resort-pool`` deref into the unified ``gtm pool`` so
 ``.gtm.wideip[].pools[].ttl`` walks the full chain.
 
-PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
-`net self → net vlan → tag` in one chain, and
-`.ltm.virtual[].pool.members[].address` walks the existing
-`virtual → pool → member → address` chain — same auto-deref engine.
+`.ltm.virtual[].pool.members[].address` walks the
+`virtual → pool → member → address` chain in one step — PathRefs
+auto-deref on field access whenever the target kind is itself
+projected.
 
 `ltm.*`, `gtm.*`, and `security.*` are projected and navigable — the
 `LTM_KINDS` / `GTM_KINDS` / `SECURITY_KINDS` tables (looked up via
 `module_kinds()`) in
 [`projection.rs`](../../../rust/tcl-bigip-query/src/projection.rs)
-enumerate the supported kinds per module.  Any TMSH stanza the parser
-sees but no typed projection covers still lands in the source's
-generic-object fallback with full byte ranges and is reachable via
-source-level operations (`rename_partition` cascades, `--scf` selection
-through grep / a real SCF concatenation), but is not navigable from
-the DSL. Other modules (`apm.*`, `sys.*`, `cm.*`, `pem.*`, `auth.*`,
-`vcmp.*`, `cli.*`, `api-protection.*`, `asm.*`, `ilx.*`, `wom.*`,
-`analytics.*`) are not yet covered by a typed projection.
+enumerate the exact set of kinds covered per module (e.g. `gtm`
+covers `datacenter` / `server` / `pool` / `wideip` / `listener` —
+notably **not** `prober-pool`, `region`, or `rule`). Any TMSH stanza
+the parser sees but no typed projection covers still lands in the
+source's generic-object fallback with full byte ranges and is
+reachable via source-level operations (`rename_partition` cascades,
+`--scf` selection through grep / a real SCF concatenation), but is
+not navigable from the DSL. `net.*`, `sys.*`, `apm.*`, `cm.*`,
+`pem.*`, `auth.*`, `vcmp.*`, `cli.*`, `api-protection.*`, `asm.*`,
+`ilx.*`, `wom.*`, and `analytics.*` currently have **no** typed
+projection at all — `.net.self[]`, `.sys.dns`, `.apm.access-policy`,
+`.cm.device`, and similar paths from earlier (Python-era) revisions
+of this document are not reachable today.
 
 The per-kind field construction lives in `project_fields()` and its
 per-kind helpers (`project_virtual`, `project_pool`, …) in the same

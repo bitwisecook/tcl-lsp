@@ -1,4 +1,4 @@
-# KCS: Dialect command stubs
+# Dialect command stubs
 
 ## Purpose
 
@@ -10,10 +10,17 @@ extension that adds commands the LSP does not know about.
 
 ## Delivery mechanisms
 
-### External stub files
+### Workspace sidecar files
 
-`<dialect>.tcl.stubs` files contain stub definitions, one per line.
-No `#` prefix is needed.  Comments start with `#`.
+A `<dialect>.tcl.stubs` file contains stub definitions, one per line, with no
+`#` prefix; `#` starts a comment. `scan_sidecar_stubs` walks up from the
+analysed document to the nearest such file for the active dialect.
+
+Sidecar declarations participate in resolution exactly like inline ones, but
+are flagged `from_sidecar` — their spans are synthetic, so they can never
+produce a source-positioned shadow diagnostic in the document being analysed.
+The incremental analyser also gates on sidecar readability, because a sidecar
+signature affects every document under it.
 
 ```
 # synopsys.tcl.stubs
@@ -63,14 +70,17 @@ Wrap in `?...?` to mark as optional: `?-filter?`, `?count:value?`.
 
 ### Flags
 
-| Flag | CommandSpec equivalent |
-|------|----------------------|
-| `-barrier` | `creates_dynamic_barrier=True` |
-| `-loop` | `has_loop_body=True` |
-| `-pure` | `pure=True` |
-| `-mutator` | `mutator=True` (on forms) |
-| `-unsafe` | `unsafe=True` |
-| `-scope_alias` | `creates_scope_alias=True` |
+The trailing flag set becomes `StubFlags`, whose bits line up one-for-one with
+the registry-side `Traits` they stand for:
+
+| Flag | Meaning |
+|---|---|
+| `-barrier` | creates a dynamic barrier |
+| `-loop` | has a loop body |
+| `-pure` | no side effects |
+| `-mutator` | mutates its target |
+| `-unsafe` | unsafe in a safe interpreter |
+| `-scope_alias` | creates a scope alias |
 
 ## Expression stubs
 
@@ -91,65 +101,60 @@ stub expr-op starts_with 2
 
 ## Data model
 
-```python
-@dataclass(frozen=True, slots=True)
-class StubArgDef:
-    name: str
-    role: str = "value"
-    optional: bool = False
+`StubCommandDef` / `StubArgDef` / `StubExprDef`
+(`rust/tcl-compiler/src/analyser/types.rs`) are the analyser-side records:
+name, parsed argument list, the span of the declaring comment line, a
+`StubFlags` bitflag set, and the `from_sidecar` marker. They are collected onto
+`AnalysisResult` and keep their spans so diagnostics can point at the
+declaration.
 
-@dataclass(frozen=True, slots=True)
-class StubCommandDef:
-    name: str
-    args: tuple[StubArgDef, ...]
-    range: Range
-    barrier: bool = False
-    loop: bool = False
-    pure: bool = False
-    mutator: bool = False
-    unsafe: bool = False
-    scope_alias: bool = False
+## The registry overlay
 
-@dataclass(frozen=True, slots=True)
-class StubExprDef:
-    name: str
-    kind: str       # "function" or "operator"
-    arity: int = 1
-    pure: bool = True
-    range: Range
-```
+A stub is a **per-document** declaration, so it must not pollute the
+`CommandRegistry` that every document in a workspace shares — mutating the
+global registry per analysis call would also defeat the interning and caching
+the registry relies on. Instead, `tcl_registry::stub_overlay::StubOverlay` is
+a per-document overlay rebuilt on each `analyse()` call. Consumers consult the
+registry first, then the overlay.
 
-Stubs are stored on `AnalysisResult`:
-- `stub_commands: list[StubCommandDef]`
-- `stub_expr_defs: list[StubExprDef]`
+Two properties of that design are load-bearing:
 
-## AI-assisted stub generation
+- **Roles are typed at overlay-construction time.** The source string
+  (`"body"`, `"var"`, …) is canonicalised to `ArgRole` through
+  `StubOverlay::parse_role` once, so every subsequent query is typed and no
+  consumer re-parses a role word.
+- **The overlay is fingerprinted.** `StubOverlay::fingerprint` is a stable
+  64-bit hash of its contents, included in the compilation-unit and
+  interprocedural-summary cache keys, so editing a stub invalidates exactly
+  the cached entries that depended on the previous stub set.
 
-Users can describe a command or provide a man page and have AI translate
-it to a stub.  This is supported via:
-
-1. **MCP tool** — `generate_dialect_stub` accepts a command description
-   or man page excerpt and returns a properly formatted stub line.
-2. **Editor skill** — `/generate-stub` slash command in Claude Code.
-3. **Inline assist** — when the LSP detects an unknown command, it can
-   offer a code action to generate a stub from usage context.
+The overlay is what feeds parameter-trait inference, role lookup, scope-alias
+detection, and barrier detection for stubbed commands.
 
 ## Parsing
 
-`scan_source_for_stubs(source)` performs a line-based pre-scan of the
-source text before lexing.  It finds stubs-begin/end markers and
-parses all stub definitions between them.
+`tcl_compiler::analyser::utils::scan_source_for_stubs(source)` is a line-based
+pre-scan run before lexing: it finds the begin/end markers and parses every
+stub definition between them. `scan_sidecar_stubs` does the same for the
+nearest `<dialect>.tcl.stubs` ancestor file.
 
-`parse_stubs_file(path)` reads a `.tcl.stubs` file and returns both
-command stubs and expression stubs.
+## Stub generation
 
-## Files
+The spec studio renders a `CommandSpec` back out as a stub line
+(`rust/tcl-spec-studio/src/render_stub.rs`), in either the inline
+`# tcl-lsp: stubs-begin` form or a standalone sidecar file. The stub language
+is narrower than a full spec, so **what a stub cannot carry is emitted as a
+comment beside it** rather than dropped — see
+[command-spec-studio.md](command-spec-studio.md). Roles map through the
+inverse of `StubOverlay::parse_role`, so a rendered stub parses back to the
+roles the draft declared.
+
+## Key files
 
 | File | Purpose |
-|------|---------|
-| `compiler/registry/stub_comments.py` | Stub parser (inline + file) |
-| `analyser/semantic_model.py` | `StubCommandDef`, `StubExprDef`, `StubArgDef` |
-| `analyser/_analyser/__init__.py` | Pre-scan integration |
-| `samples/synopsys.tcl.stubs` | Example external stubs file |
-| `samples/dialect_stubs_inline_example.tcl` | Example inline stubs |
-| `tests/test_stub_comments.py` | Unit tests |
+|---|---|
+| `rust/tcl-compiler/src/analyser/utils.rs` | `scan_source_for_stubs`, `scan_sidecar_stubs` |
+| `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags` |
+| `rust/tcl-registry/src/stub_overlay.rs` | `StubOverlay`, `StubSig`, `StubArg`, `parse_role`, `fingerprint` |
+| `rust/tcl-spec-studio/src/render_stub.rs` | stub rendering |
+| `samples/` | example sidecar and inline stub files |

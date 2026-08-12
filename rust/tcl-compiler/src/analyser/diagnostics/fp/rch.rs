@@ -18,7 +18,6 @@
 
 //! RCH family — reachability (O107) + the read-before-set (W210) fallout of
 //! handler bodies that used to be CFG islands.
-//! Pairs to `tests/test_fp_rch.py` and the §RCH entries in `docs/design/compiler/FP.md`.
 
 use super::{D, fires};
 use crate::analyser::Analyser;

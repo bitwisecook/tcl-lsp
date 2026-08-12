@@ -174,7 +174,8 @@ redefinition.
   variable-layer parallel (cell/frame indirection, aliasing, re-entrancy).
 - [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md) —
   the binding lattice's sibling for *variable* scope and barrier lowering.
-- [namespace-model.md](namespace-model.md) — namespace scope tracking.
+- [command-resolution.md](command-resolution.md) — the conformance-gated
+  resolution algorithm this contract's `resolve` is the runtime view of.
 - [runtime/rename-alias.md](../runtime/rename-alias.md),
   [runtime/namespace-tree.md](../runtime/namespace-tree.md),
   [runtime/command-introspection.md](../runtime/command-introspection.md) —

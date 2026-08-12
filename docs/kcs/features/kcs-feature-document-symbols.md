@@ -41,16 +41,8 @@ A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf
 
 ## File-path anchors
 
-- `server/features/document_symbols.py`
-- `server/features/_bigip_symbols.py` — BIG-IP `module → kind → object` outline (Python)
-- `rust/tcl-lsp-core/src/bigip.rs` — BIG-IP outline + basename detection (native server)
-- `rust/tcl-lsp-core/src/document_symbols.rs` — native outline builder (walks the analyser scope tree)
 - `rust/tcl-registry/src/symbol_def.rs` — `SymbolDef` / `DefinedSymbolKind` (registry-driven symbol-definer commands)
 - `rust/tcl-registry/src/commands/irules/when.rs` — `when` declares its event name as the handler's outline entry
-- `rust/tcl-compiler/src/analyser/handlers.rs` — `handle_defines_symbol` (records test cases, constant-propagated name)
-- `rust/tcl-compiler/src/analyser/oo.rs` — `expand_wrapper_block_members` (`self { … }` / `private { … }` block forms), `apply_oo_self`, `apply_sided_member_effects` (the one decision path all three spellings take: `retract_named_members` / `apply_visibility_member` / `apply_filter_member`, each scoped by `MemberSide`)
-- `rust/tcl-lsp-core/src/workspace_index.rs` — `WorkspaceClass::retracted_members` / `class_exports` / `class_unexports` + `method_dispatch_chain` / `class_method_dispatch_chain` (cross-document retraction tombstones, the per-side effective-export union, and the one shared `dispatch_chain` walk both sides go through)
-- `rust/tcl-compiler/src/analyser/handlers.rs` — `emit_w315_definition_cannot_run` (the `via_define` gate that decides whether a retraction is a cross-file tombstone or a definition-aborting error)
 - `rust/tcl-registry/src/definer.rs` — `MemberSpec::wrapper_or_body` (which members take a bare script block), `MemberSpec::retraction` / `MemberRetraction` (which member words delete the members they name, and which of their arguments), `MemberSpec::visibility_effect` / `MemberVisibility` (which words export / unexport) — each with its oracle transcript
 
 ## Failure modes
@@ -60,12 +52,6 @@ A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf
 
 ## Test anchors
 
-- `tests/test_document_symbols.py`
-- `tests/lsp_e2e/test_bigip_e2e.py` — BIG-IP outline + diagnostic suppression, both backends
-- `rust/tcl-lsp-core/src/document_symbols.rs` — TP/FP/TN/FN unit tests for `tcltest` test cases
-- `rust/tcl-lsp-server/tests/e2e/document_symbols.rs` — `tcltest_*` e2e cases (document + workspace symbols)
-- `rust/tcl-registry/tests/tcltest_specs.rs::test_command_declares_a_symbol_definer`
-- `rust/tcl-registry/tests/registry_commands.rs::when_defines_its_event_as_an_outline_symbol`
 - `editors/vscode/src/test/documentSymbols.test.ts` — "lists tcltest test cases as symbols", "lists iRules event handlers as Event symbols"
 
 ## Screenshots

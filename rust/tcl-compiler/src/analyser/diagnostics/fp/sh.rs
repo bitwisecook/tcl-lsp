@@ -17,7 +17,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! SH family — shimmer (S100/S101/S102) FP/TP catalogue.
-//! Pairs to `tests/test_fp_sh.py` and the §SH entries in FP.md.
 
 use super::{D, codes, fires};
 

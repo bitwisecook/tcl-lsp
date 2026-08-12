@@ -114,7 +114,7 @@ pub(crate) struct Frame {
     /// scans a `subst` template, running each top-level `[…]` as a yieldable child
     /// script frame and folding its completion back in by subst rules. Resumable
     /// once per bracket, so a `yield` inside a bracket freezes the whole scan with
-    /// the coroutine (`RUST_ISSUE_008`).
+    /// the coroutine.
     subst: Option<Box<crate::subst::SubstState>>,
     /// Set on an **each-loop** activation: a scanner-driven frame (no bytecode,
     /// like `subst`) running a `foreach`/`lmap` runtime-fallback loop, one
@@ -3008,7 +3008,7 @@ impl Vm {
             Op::EVAL_STK => {
                 // Run the script on the *explicit* stack (a transparent script
                 // frame) rather than a nested drive, so a `yield` inside it stays
-                // yieldable (RUST_ISSUE_008). Its result/`break`/`continue`/error
+                // yieldable. Its result/`break`/`continue`/error
                 // is delivered to this frame by `unwind` exactly as the old inline
                 // push/`Tick::Return` did.
                 let script = pop(f).to_str().to_string();

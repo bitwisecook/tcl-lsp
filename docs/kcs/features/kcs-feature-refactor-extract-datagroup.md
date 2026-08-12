@@ -202,9 +202,6 @@ Type inference uses Python's `ipaddress` module for IP/CIDR detection, which nat
 
 ## File-path anchors
 
-- `tooling/refactoring/_extract_datagroup.py`
-- `server/features/code_actions.py`
-- `ai/mcp/tcl_mcp_server.py`
 - `ai/claude/skills/irule-datagroup/SKILL.md`
 
 ## Failure modes
@@ -213,11 +210,6 @@ Type inference uses Python's `ipaddress` module for IP/CIDR detection, which nat
 - Complex body shape — multi-statement or mixed patterns across arms.
 - Branches test different variables.
 - Non-literal test values (variables, command substitutions).
-
-## Test anchors
-
-- `tests/test_refactoring.py::TestExtractDatagroup`
-- `tests/test_refactoring.py::TestSuggestDatagroupExtraction`
 
 ## Samples
 

@@ -212,11 +212,6 @@ The `SymbolMap.parse()` method is the inverse of `SymbolMap.format()` — it rea
 
 ## File-path anchors
 
-- `tooling/minifier/minifier.py` (`unminify_error`, `SymbolMap.parse`, `SymbolMap.reverse`)
-- `tooling/minifier/__init__.py` (exports `unminify_error`)
-- `tooling/tcl/main.py` (`unminify-error` verb with `--symbol-map`, `--error`, `--error-file`, `--minified`, `--original`)
-- `server/server.py` (`tcl-lsp.unminifyError` command)
-- `ai/mcp/tcl_mcp_server.py` (`unminify_error` MCP tool)
 - `editors/vscode/src/extension.ts` (`unminifyError` handler)
 - `editors/vscode/package.json` (`tclLsp.unminifyError` command registration)
 - `editors/sublime-text/plugin.py` (`TclUnminifyErrorCommand`)
@@ -226,10 +221,6 @@ The `SymbolMap.parse()` method is the inverse of `SymbolMap.format()` — it rea
 - Symbol map file doesn't match the deployed minified code (different version).
 - Short identifier collides with a real word in the error text (false positive replacement).
 - Line remapping is approximate — proportional mapping may be off for code with large comment blocks or uneven command density.
-
-## Test anchors
-
-- `tests/test_minifier.py` — `TestSymbolMapParse` (round-trip format/parse) and `TestUnminifyError` (error translation, variable/proc/alias substitution, line remapping).
 
 ## Discoverability
 

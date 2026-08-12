@@ -81,24 +81,12 @@ there.
 
 ## File-path anchors
 
-- `rust/tcl-lsp-core/src/completion.rs`
-- `rust/tcl-lsp-core/src/oo_dispatch.rs` — same-document member visibility (`method_dispatch_provider`, per `MethodBucket`)
-- `rust/tcl-lsp-core/src/workspace_index.rs` — `method_dispatch_chain` / `class_method_dispatch_chain` (the cross-file per-side export union)
-- `rust/tcl-lsp-core/src/expr_context.rs` — the expression-argument test
 - `rust/tcl-registry/src/mathfunc.rs` — the registry's math-function query
 
 ## Failure modes
 
 - Missing completions after registry or parser changes.
 - Wrong context detection (e.g. offering commands where variables are expected).
-
-## Test anchors
-
-- `rust/tcl-lsp-core/src/completion.rs` (unit tests)
-- `rust/tcl-lsp-core/src/expr_context.rs` (expression-context unit tests)
-- `rust/tcl-lsp-server/tests/e2e/completion.rs`
-- `rust/tcl-lsp-core/tests/mathfunc_and_word_recognition.rs` — the `expr`
-  math-function cases
 
 ## Screenshots
 

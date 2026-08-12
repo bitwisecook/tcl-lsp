@@ -20,17 +20,9 @@ all-editors, analyser
 
 The provider scans comments and string literals for URLs and file paths, making them clickable in the editor.
 
-## File-path anchors
-
-- `server/features/document_links.py`
-
 ## Failure modes
 
 - Links not detected for unusual URL schemes.
-
-## Test anchors
-
-- `tests/test_document_links.py`
 
 ## Example
 

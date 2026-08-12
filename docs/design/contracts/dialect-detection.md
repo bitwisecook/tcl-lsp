@@ -1,4 +1,4 @@
-# KCS: Dialect Detection Priority Chain
+# Dialect detection priority chain
 
 ## Summary
 
@@ -86,9 +86,10 @@ dialect = tcl8.4
 - **VS Code extension** (`detectDialectFromDocument` in `extension.ts`):
   runs when a document is opened, focused, or when the first few lines change.
   Sends the detected dialect to the server via `workspace/didChangeConfiguration`.
-- **LSP server** (`did_open` in `server.py`): runs server-side detection from
-  source content (comment directive + shebang) for non-VS Code editors that
-  do not perform client-side detection.
+- **LSP server** (`did_open` in `rust/tcl-lsp-server/src/lib.rs`): runs
+  server-side detection from source content (comment directive + shebang) for
+  editors that do not perform client-side detection. The canonical detection
+  itself lives in `rust/tcl-dialect`, so client and server cannot disagree.
 
 ## Re-detection triggers
 

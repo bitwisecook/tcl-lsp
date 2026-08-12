@@ -12,28 +12,36 @@ is grep-able against the codebase.
 ## Module layout
 
 ```
-dialects/f5/query/
-├── __init__.py           # Public re-exports: run_query, format_*, list_builtins
-├── lexer.py              # Tokeniser — single pass, no lookahead beyond one char
-├── parser.py             # Recursive-descent parser → ast.* nodes
-├── ast.py                # Frozen dataclasses for every expression form
-├── evaluator.py          # Walks the AST against a Root / BigipConfig
-├── projection/
-│   ├── _engine.py        # _project_field — the dispatch core, ObjectRef caching
-│   ├── _classes.py       # Container, FieldSpec, ObjectRef construction helpers
-│   └── _data.py          # Per-kind field maps (manually curated)
-├── builtins.py           # @_register decorator + 260 builtin catalogue
-├── _probes.py            # Network builtins (gated by --enable-probes)
-├── _inputs.py            # External input parsers (JSON / JSONL / CSV / f5log)
-├── values.py             # ObjectRef, PathRef, Stream, Root, FieldSlot
-├── edit_plan.py          # EditOp, EditPlan, PrefixRewrite, apply()
-├── output.py             # Renderers: auto / scf / raw / paths / json / tmsh
-├── runner.py             # run_query orchestration, multi-statement loop
-├── source_map.py         # offset → (line, col) for error reporting
-├── graph.py              # refs / referenced_by builtin plumbing
-├── grammar.py            # `--help-dsl` plain-text grammar reference
-├── examples.py           # `--help-examples` cookbook
-└── errors.py             # ParseError, EvalError, BuiltinError, QueryError
+rust/tcl-bigip-query/src/
+├── lib.rs                # Public re-exports: run_query, render, the value model
+├── lexer.rs              # Tokeniser — single pass, one-char lookahead
+├── parser.rs             # Recursive-descent parser → ast::Expr nodes
+├── ast.rs                # The Expr enum: every expression form
+├── eval.rs               # Walks the AST against a Root / BigipConfig; EvalContext
+├── special.rs            # Special-form builtins (select, map, if, as, …)
+├── projection.rs         # Lazy Container / ObjectRef tree over a BigipConfig
+├── builtins/
+│   ├── mod.rs            # BuiltinSpec, the registry, shared coercion helpers
+│   ├── string.rs, math.rs, time_dt.rs, regex_str.rs, encoding.rs, value2.rs
+│   ├── net.rs, graph.rs, rename.rs, files.rs, f5profile.rs
+│   ├── inputs_load.rs    # json_load / jsonl_load / csv_load / f5log_load
+│   └── extras.rs
+├── probes/               # Network builtins (gated by --enable-probes)
+│   ├── http.rs
+│   └── tls.rs
+├── inputs.rs             # External input parsers (JSON / JSONL / CSV / f5log / zone)
+├── value.rs              # Value, ObjectRef, PathRef, FieldSlot
+├── edit_plan.rs          # EditOp, EditPlan, PrefixRewrite, apply()
+├── rewrite.rs            # Token-bounded source rewriter (the rename half)
+├── output.rs             # Renderers: auto / scf / raw / paths / json / tmsh / table
+├── renderers/            # Pluggable output renderers: gantt, ascii-blocks, mermaid
+├── jsonfmt.rs            # Canonical JSON serialisation of a Value
+├── architecture.rs       # Multi-device tiering across loaded configs
+├── runner.rs             # run_query orchestration, multi-statement loop
+├── grammar.rs            # `--help-dsl` plain-text grammar reference
+├── examples.rs           # `--help-examples` cookbook
+├── manual.rs             # The combined `--help-manual` surface
+└── errors.rs             # QueryError — parse / eval / builtin / input variants
 ```
 
 ## Pipeline
@@ -41,18 +49,18 @@ dialects/f5/query/
 A query goes through five distinct stages, each owned by one
 module:
 
-1. **Lex** — `lexer.py::tokenise(source)` → `list[Token]`.
-2. **Parse** — `parser.py::parse(source)` → `ast.Program`.
-3. **Project** — `projection._engine` lazily wraps a
+1. **Lex** — `lexer::tokenise(source)` → `Vec<Token>`.
+2. **Parse** — `parser::parse(source)` → `ast::Program`.
+3. **Project** — `projection` lazily wraps a
    `BigipConfig` in navigable `Container` / `ObjectRef` nodes
    the evaluator can index into.
-4. **Evaluate** — `evaluator.py::evaluate(program, ctx)` →
-   `list[Any]`.  Assignment nodes emit `EditOp` into
+4. **Evaluate** — `eval::evaluate(program, ctx)` →
+   `Vec<Value>`.  Assignment nodes emit `EditOp` into
    `ctx.edits.ops` rather than mutating in place.
-5. **Apply + render** — `runner.py::run_query` applies the edit
-   plan to each source's text via `edit_plan.apply`, re-parses
+5. **Apply + render** — `runner::run_query` applies the edit
+   plan to each source's text via `edit_plan::apply`, re-parses
    the rewritten text, and hands the values + sources to
-   `output.py::render`.
+   `output::render`.
 
 Multi-statement queries (`a ; b ; c`) loop over statements; each
 statement sees the edits applied by the previous one.
@@ -64,16 +72,16 @@ statement sees the edits applied by the previous one.
                      │                                │
                      │                                ▼
                      │                       ┌────────────────┐
-                     │                       │   lexer.py     │
+                     │                       │   lexer.rs     │
                      │                       │  tokenise()    │
                      │                       └───────┬────────┘
-                     │                               │ list[Token]
+                     │                               │ Vec<Token>
                      │                               ▼
                      │                       ┌────────────────┐
-                     │                       │   parser.py    │
+                     │                       │   parser.rs    │
                      │                       │   parse()      │
                      │                       └───────┬────────┘
-                     │                               │ ast.Program
+                     │                               │ ast::Program
                      │                               │
                      ▼                               │
             ┌────────────────┐                       │
@@ -84,32 +92,32 @@ statement sees the edits applied by the previous one.
                     │   + source ranges              │
                     ▼                                │
             ┌────────────────┐                       │
-            │ projection/    │  ◄──────── lazy access from evaluator
-            │ _engine.py     │                       │
+            │ projection.rs  │  ◄──────── lazy access from evaluator
+            │                │                       │
             │ Container /    │                       │
             │ ObjectRef tree │                       │
             └───────┬────────┘                       │
                     │                                ▼
                     │            ┌──────────────────────────────┐
-                    └───────────►│        evaluator.py          │
+                    └───────────►│           eval.rs            │
                                  │   evaluate(program, ctx)     │
                                  │                              │
                                  │  reads  ─► ObjectRef / Stream│
                                  │  emits  ─► EditOp into       │
                                  │            ctx.edits.ops     │
                                  └──────────────┬───────────────┘
-                                                │ list[Any]
+                                                │ Vec<Value>
                                                 │  + EditPlan
                                                 ▼
                                         ┌───────────────┐
-                                        │ edit_plan.py  │
+                                        │ edit_plan.rs  │
                                         │   apply()     │
                                         └───────┬───────┘
                                                 │ AppliedSource
                                                 │  (new_source)
                                                 ▼
                                         ┌───────────────┐
-                                        │   output.py   │
+                                        │   output.rs   │
                                         │   render()    │
                                         └───────┬───────┘
                                                 │ rendered text
@@ -117,14 +125,14 @@ statement sees the edits applied by the previous one.
                                           stdout / files
 ```
 
-The reparse step inside `edit_plan.apply` (not shown — it round-
+The reparse step inside `edit_plan::apply` (not shown — it round-
 trips `new_source` through `parse_bigip_conf` to validate) is
 what makes mutation safe: the engine never ships output a fresh
 parse couldn't read back in.
 
 ## Module-by-module reference
 
-### `lexer.py` — Tokeniser
+### `lexer.rs` — Tokeniser
 
 Hand-rolled scanner.  Single pass, one-character lookahead.  Key
 symbols:
@@ -135,27 +143,26 @@ symbols:
   `QUESTION`), keywords (`AND`, `OR`, `NOT`, `IF`, `THEN`,
   `ELIF`, `ELSE`, `END`, `AS`, `TRUE`, `FALSE`, `NULL`),
   literals (`NUMBER`, `STRING`, `REGEX`, `IDENT`, `VAR`).
-- `Token` (frozen dataclass) — carries `kind`, `text`, byte
+- `Token` (struct) — carries `kind`, `text`, byte
   `offset`, optional `value` for already-parsed literals.
-- `tokenise(source: str) → list[Token]` — entry point.  Comment
+- `tokenise(source: &str) -> Result<Vec<Token>, QueryError>` — entry point.  Comment
   syntax is `#` to end-of-line.  Barewords (identifiers) may
   contain `-` so TMSH names like `source-address-translation`
   lex as one ident.
-- `_KEYWORDS` (module dict) — keyword → `TokenKind` mapping.
+- `keyword(text) -> Option<TokenKind>` — the keyword table.
 
 If you need to add a new operator, this is the first edit — add
 the `TokenKind`, add the two-char lookahead in `tokenise`, then
 wire it into the parser's precedence cascade.
 
-### `parser.py` — Recursive-descent parser
+### `parser.rs` — Recursive-descent parser
 
 Hand-written, no parser generator.  Grammar in
 [`docs/references/f5_query/dsl.md`](../references/f5_query/dsl.md).
 
-- `_Parser` (internal class) — stateful, holds the token stream
-  and a position index.  Most methods are private precedence
-  layers.
-- `parse(source: str) → ast.Program` — public entry; calls
+- The parser is stateful: it holds the token stream and a position
+  index. Most of its methods are private precedence layers.
+- `parse(source: &str) -> Result<Program, QueryError>` — public entry; calls
   `tokenise` then `_Parser(tokens).parse_program()`.
 - `parse_program() → Program` — handles multi-statement `;`
   separation.
@@ -163,145 +170,146 @@ Hand-written, no parser generator.  Grammar in
   assignment → ternary `if` → `or` → `and` → `not` →
   comparison → addition → multiplication → unary → primary.
   Each layer descends to the next.
-- `_parse_pipe_stage` — emits assignment operators (`=`, `|=`,
+- The pipe-stage layer emits assignment operators (`=`, `|=`,
   `+=`, `-=`) as trailing ops on the LHS, not infix nodes.
-- `_parse_primary` — literals, variable refs (`$name`), object
+- The primary layer handles literals, variable refs (`$name`), object
   literals (`{k: v}`), list literals (`[…]`), `if/then/else`
   blocks, parenthesised expressions, and the path-expression
   prefix (`.` or `..`).
-- `_ASSIGN_OPS` / `_CMP_OPS` (module-level dicts) — operator
-  token → AST node-tag lookup.
+- The assignment- and comparison-operator tables map an operator token to
+  the AST node tag.
 
-To add a new infix operator: pick the precedence level, add to
-the `_*_OPS` map (if comparison-flavoured) or write the layer
-yourself, mint a `BinOp.op` token, then handle it in
-`evaluator.py::_eval_binop`.
+To add a new infix operator: pick the precedence level, extend the
+comparison-operator table (or write the layer yourself), mint a
+`BinOp { op }` token, then handle it in `eval.rs`'s binary-operator arm.
 
-### `ast.py` — AST node types
+### `ast.rs` — AST node types
 
-Every node is a `@dataclass(frozen=True, slots=True)`.  All
-carry `offset: int` (byte offset into the source for error
-underlining).  Key node types:
+Every form is a variant of one `Expr` enum, and every variant carries an
+`offset: usize` — the byte offset into the source, used to underline the
+error. The variants:
 
 | Node | Carries | Form |
 |---|---|---|
-| `Literal` | `value: object` | `42`, `"foo"`, `true`, `null` |
+| `Literal` | `value: LitValue` | `42`, `"foo"`, `true`, `null` |
 | `Identity` | — | bare `.` |
-| `Variable` | `name: str` | `$x` |
-| `Field` | `name: str`, `optional: bool` | `.foo` / `.foo?` |
+| `Variable` | `name: String` | `$x` |
+| `Field` | `name: String`, `optional: bool` | `.foo` / `.foo?` |
 | `Subscript` | `index, stream, regex, optional` | `[i]` / `[]` / `[~"re"]` |
-| `PathExpr` | `head: Expr | None`, `steps: tuple` | `.a.b[0]` / `$x.a.b` |
-| `ObjectLiteral` | `entries: tuple[ObjectEntry]` | `{k: v, k2}` |
-| `ListLiteral` | `body: Expr` | `[ ... ]` |
-| `Call` | `name: str`, `args: tuple` | `select(.x > 1)` |
-| `BinOp` | `op: str`, `lhs, rhs` | `a + b` |
-| `UnaryOp` | `op: str`, `value` | `-x`, `not x` |
+| `PathExpr` | `head: Option<Box<Expr>>`, `steps: Vec<PathStep>` | `.a.b[0]` / `$x.a.b` |
+| `ObjectLiteral` | `entries: Vec<(String, Expr)>` | `{k: v, k2}` |
+| `ListLiteral` | `inner: Option<Box<Expr>>` | `[ ... ]` |
+| `Call` | `name: String`, `args: Vec<Expr>` | `select(.x > 1)` |
+| `BinOp` | `op: String`, `lhs`, `rhs` | `a + b` |
+| `UnaryOp` | `op: String`, `operand` | `-x`, `not x` |
 | `Pipe` | `lhs, rhs` | `a | b` |
-| `Assignment` | `op: str`, `target: PathExpr`, `value` | `.x = 1` / `.x |= f` |
-| `LetBinding` | `value, name, body` | `1 as $x | …` |
+| `Assignment` | `op: String`, `target: PathExpr`, `value` | `.x = 1` / `.x |= f` |
+| `LetBinding` | `source`, `name`, `body` | `1 as $x | …` |
 | `IfThenElse` | `condition, then_body, elif_branches, else_body` | `if/then/elif/else/end` |
-| `CommaStream` | `parts: tuple[Expr]` | `a, b, c` |
-| `Program` | `statements: tuple[Expr]` | `a ; b ; c` |
+| `CommaStream` | `parts: Vec<Expr>` | `a, b, c` |
+| `Program` | `statements: Vec<Expr>` | `a ; b ; c` |
 
 Assignment targets must always be `PathExpr` (or `Field` /
 `Subscript` chains rooted in one); the evaluator rejects writes
 to literals or calls at runtime.
 
-### `evaluator.py` — AST walker
+### `eval.rs` — AST walker
 
-`EvalContext` (dataclass):
+`EvalContext` carries every piece of per-run state the walker needs, so
+nothing is ambient:
 
+```rust
+pub struct EvalContext {
+    pub root: Rc<Root>,
+    pub named_roots: HashMap<String, Rc<Root>>,   // --name=alias=path
+    pub merge_mode: bool,                         // --merge active
+    pub merge_roots: Vec<Rc<Root>>,               // every loaded root, in order
+    pub bindings: HashMap<String, Value>,         // `expr as $name` bindings
+    pub edits: EditPlan,                          // queued by assignments
+    pub probes_enabled: bool,                     // --enable-probes
+    pub ca_bundle: Option<String>,                // TLS trust override
+    pub ucs_cert_reader: Option<UcsCertReader>,   // host hooks; None = unwired
+    pub files_reader: Option<FilesReader>,
+    pub merge_graph: RefCell<Option<Rc<ObjectGraph>>>,  // memoised in merge mode
+}
 ```
-EvalContext:
-    root: Root
-    edits: EditPlan
-    named_roots: dict[str, Root]      # --name=alias=path
-    bindings: list[dict[str, Any]]    # let-binding stack
-    merge_mode: bool                  # --merge active
-```
+
+The two reader hooks are how the engine stays embeddable: the CLI wires
+them, and the in-browser console leaves them `None`, which makes the
+forensic `files` / `glob` / `grep` and `ucs_cert` builtins report that
+they are unavailable rather than reaching for a filesystem that isn't
+there.
 
 Core entry points:
 
-- `evaluate(program, ctx) → list[Any]` — loops
-  `program.statements`; the last statement's values are the
-  return; intermediate statements still emit edits.
-- `evaluate_statement(stmt, ctx) → list[Any]` — runs one
-  statement; flattens streams.
+- `evaluate(program, ctx) -> Result<Vec<Value>, QueryError>` — loops
+  `program.statements`; the last statement's values are the return, and
+  intermediate statements still emit edits.
+- `evaluate_statement(stmt, ctx) -> Result<Vec<Value>, QueryError>` — runs
+  one statement and flattens streams.
 
 Dispatch core:
 
-- `_eval(node, current, ctx)` — recursive walker.  Dispatches
-  on `type(node)` via `isinstance` chain; this is the hottest
-  function in the engine.
-- `_pipe_through(values, rhs, ctx)` — the pipe operator's
-  stream semantics.  Streams (from `[]` or stream-emitting
-  builtins) are flattened element-by-element; lists pass
-  through whole.
-- `_eval_path(node, current, ctx)` — walks `PathExpr.steps`;
-  returns (value, location-trail) so the assignment machinery
-  can find the byte span to splice.
-- `_step` / `_field_step` / `_subscript_step` — one path step;
-  field-access dispatches through
-  `QueryFieldProvider.query_fields` for typed value objects,
-  plain `getattr` / dict lookup for scalars.
-- `_resolve_pathref(ref, ctx)` — derefs a `PathRef` against the
-  active root's `BigipConfig`.  Uses `expected_kind` when set
-  to keep lookup proportional.
-- `_eval_call(node, current, ctx)` — builtin dispatch.
-  Implements two jq-style shorthands:
+- The recursive walker matches on the `Expr` variant. This is the hottest
+  code in the engine.
+- The pipe arm implements the operator's stream semantics: streams (from
+  `[]` or a stream-emitting builtin) flatten element-by-element, while
+  lists pass through whole.
+- The path arm walks `PathExpr.steps` and returns the value *plus* a
+  location trail, so the assignment machinery knows which byte span to
+  splice.
+- `resolve_pathref(ref, ctx)` derefs a `PathRef` against the active root's
+  `BigipConfig`, using `expected_kind` when set to keep the lookup
+  proportional.
+- `eval_call` is builtin dispatch, and implements two jq-style shorthands:
 
-  - *Implicit dot*: a single-arg builtin called as a pipeline
-    stage without parens (`length`, `sort`) gets the current
-    input as its single arg.
-  - *Implicit receiver*: a multi-arg builtin called with
-    `min_args - 1` args has the current input prepended.
+  - *Implicit dot*: a single-argument builtin used as a bare pipeline
+    stage (`length`, `sort`) receives the current input as its argument.
+  - *Implicit receiver*: a multi-argument builtin called with
+    `min_args - 1` arguments has the current input prepended, so
     `.x | contains("foo")` desugars to `contains(.x, "foo")`.
 
-  Special-form builtins (those declared with `special_form=True`)
-  receive the AST nodes, not pre-evaluated values, so they can
-  iterate them themselves (`select`, `map`, `if`, `as`).
-  `with_ctx=True` adds the `EvalContext` as a kwarg.
+  A builtin declared `special_form` receives the AST nodes rather than
+  evaluated values, so it can iterate them itself (`select`, `map`, `if`,
+  `as`); `with_ctx` passes the `EvalContext` alongside.
 
-`_eval_call` is the hand-off between the AST walker and the
-builtin catalogue; if a new operator needs short-circuit
-semantics it almost always wants to be a special-form builtin
-rather than an AST-level construct.
+`eval_call` is the hand-off between the AST walker and the builtin
+catalogue. A new operator that needs short-circuit semantics almost always
+wants to be a special-form builtin rather than an AST-level construct.
 
-### `values.py` — DSL value types
+### `value.rs` — DSL value types
 
-Five types:
+`Value` is the runtime model — `Null`, `Bool`, `Int`, `Float`, `Str`,
+`List`, `Object` (an insertion-ordered `IndexMap`), `Stream`, `PathRef`,
+`ObjectRef`, `Container`, and the `Drop` sentinel `select` uses to mean
+"discard this value".
 
-- `FieldSlot` (frozen) — byte range for one field's value in
-  source text.  `(start, end, raw_text, source_uri)`.  Drives
-  field-level edits.
-- `ObjectRef` (mutable dataclass) — a wrapped BIG-IP object.
-  Fields:
-  - `kind: str` — TMSH kind label (`"ltm virtual"`).
-  - `full_path: str` — `/Common/name`.
-  - `fields: dict[str, Any]` — projected scalar fields.
-  - `field_slots: dict[str, FieldSlot]` — byte spans, parallel
-    to `fields`.
-  - `stanza_slot: FieldSlot | None` — span of the whole `kind
-    /partition/name { … }` block.  Used by the SCF renderer.
-  - `config_uri: str` — back-pointer to the source URI.
-- `PathRef` (frozen) — a typed full-path reference to another
-  object (`pool = /Common/svc_pool`).  Carries `root` (the
-  originating `Root`) and `expected_kind` (hint to bound
-  resolution lookup) and auto-derefs under further field
-  access.
-- `Stream` (mutable) — a lazy sequence.  Distinguished from a
-  Python `list` so `|` can iterate streams element-wise but
-  pass lists whole.
-- `Root` (mutable) — per-file evaluation root.  Holds the
-  `BigipConfig`, the original source text, a `SourceMap`, the
-  `json_value` (when the source was an external JSON file via
-  `--name=alias=path.json`), the URI, and `_object_cache:
-  dict[(kind, full_path), ObjectRef]` for identity stability.
+`List` and `Stream` are deliberately distinct variants: `|` iterates a
+stream element-wise but passes a list through whole (see
+[Streams vs lists](#streams-vs-lists)).
 
-The protocol `QueryFieldProvider` is what the typed value
-objects (`BigipPool`, `BigipVirtual`, …) implement so the
-evaluator can call `.query_fields() → Mapping[str, …]`
-generically rather than knowing about every dataclass.
+The BIG-IP-specific types:
+
+- `FieldSlot { source_uri, start, end, raw_text }` — the byte range of one
+  field's value in the source. This is what drives field-level edits.
+- `ObjectRef { kind, full_path, fields, field_slots, stanza_slot,
+  config_uri }` — a projected BIG-IP object. `kind` is the TMSH label
+  (`"ltm virtual"`), `full_path` is `/Common/name`, `fields` and
+  `field_slots` are parallel `IndexMap`s, `stanza_slot` spans the whole
+  `kind /partition/name { … }` block (the SCF renderer emits it verbatim),
+  and `config_uri` points back at the source.
+- `PathRef { full_path, expected_kind }` — a full-path reference to
+  another object (`pool = /Common/svc_pool`). It behaves as a string
+  wherever a scalar is expected, and the evaluator follows `.field` access
+  through to the target when one resolves. An empty `expected_kind` means
+  "any matching kind".
+- `Root` — the per-file evaluation root, holding `uri`, `source`, the
+  parsed `config: BigipConfig`, an optional `json_value` (when the source
+  came in as external JSON via `--name=alias=path.json`), the
+  `object_cache` keyed by `(kind, full_path)` for identity stability, and
+  a lazily built `object_graph` memoised for the graph builtins.
+- `Container` — a navigable namespace or kind node projected from a
+  `BigipConfig`; see [`projection.rs`](#projectionrs--bigipconfig--navigable-tree).
 
 ```
                        Root
@@ -309,9 +317,9 @@ generically rather than knowing about every dataclass.
                 ┌───────┼─────────────┐
                 │       │             │
                 ▼       ▼             ▼
-          BigipConfig  SourceMap    _object_cache
-          (parsed       (line/col   {(kind, full_path):
-           model)        index)      ObjectRef}
+          BigipConfig   source      object_cache
+          (parsed       (original   {(kind, full_path):
+           model)        text)       ObjectRef}
                 │
                 │ wrapped lazily by
                 ▼
@@ -325,7 +333,7 @@ generically rather than knowing about every dataclass.
                   │
                   ▼
                 PathRef ── auto-derefs to another ObjectRef on next step
-                  │            via evaluator._resolve_pathref
+                  │            via eval::resolve_pathref
                   └── carries expected_kind hint to bound the lookup
 
             Stream  (lazy sequence; flatten under `|`, collect with `[ … ]`)
@@ -337,7 +345,7 @@ an assignment lands on `.x = "new"`, the evaluator looks up
 and the apply step splices new bytes into the original source.
 No regex; no source-text scan.
 
-### `projection/` — BigipConfig → navigable tree
+### `projection.rs` — BigipConfig → navigable tree
 
 The projection layer is *lazy*.  Containers don't materialise
 their entries until first access; ObjectRefs are built only for
@@ -377,320 +385,189 @@ objects the query actually touches.
                                   _VS_FIELDS)                │
 ```
 
-`_KIND_FIELD_MAPS` is the per-kind field dispatch; `_MODULE_KINDS`
-is the module → kind dispatch.  Both are flat dicts in
-`projection/_data.py`.
+`module_kinds` is the module → kind dispatch, `kind_to_label` and
+`is_object_kind_alias` the kind-label vocabulary, and `project_fields` the
+per-kind field dispatch. All three are `match` arms in `projection.rs`
+rather than lookup tables, so adding a kind is a compile-checked edit.
 
-#### `projection/_classes.py`
+#### `Container`
 
-- `Container` (mutable) — `kind` (module name like `"ltm"` or
-  the full kind label `"ltm virtual"`), `root` back-pointer,
-  `_entries` (lazy dict), `_entry_source` (debug label).
-  - `entries() → dict[str, Any]` — lazy populate via
-    `_engine._build_entries`.
-  - `lookup(key) → Any` — dict access with partition-shorthand
-    (`pool["svc"]` → `/Common/svc` when
-    unambiguous).
-  - `regex_keys(pattern) → list[str]` — wildcard / regex
-    subscript dispatch (`[~"web_.*"]`); compiles through the
-    safe-regex layer (`_safe_regex_compile`).
-- `FieldSpec` (frozen) — describes one projected field:
-  - `attr: str` — dataclass attribute name.
-  - `ref_kind: str` — non-empty means values are PathRefs to
-    this kind (`"ltm pool"`, `"sys file ssl-cert"`).
-  - `list_ref: bool` — values are a tuple of PathRefs.
-  - `typed: bool` — wrap value via `str()` (for typed value
-    objects).
+A `Container` is `{ kind, root, entries }`, where `kind` is either a module
+name (`"ltm"`), the full kind label (`"ltm virtual"`), or the synthetic
+`"<root>"`, and `entries` is a `RefCell<Option<IndexMap<String, Value>>>` —
+`None` until first navigation.
 
-#### `projection/_engine.py`
-
-The dispatch core:
-
-- `root_container(root) → Container | object` — returns a
-  synthetic `<root>` Container for BIG-IP sources, or the raw
-  `json_value` for external JSON.
-- `_build_entries(container) → dict[str, Any]` — materialise
-  children.  Three flavours keyed by `container.kind`:
-  1. `<root>` → modules dict (`ltm`, `net`, `sys`, …).
-  2. Module name (`"ltm"`) → kinds dict (`virtual`, `pool`,
-     `rule`, …).
-  3. Kind label (`"ltm virtual"`) → objects dict
+- `root_container(root) -> Value` — the synthetic `<root>` Container for a
+  BIG-IP source, or the raw `json_value` for an external JSON source.
+- `build_entries(container) -> IndexMap<String, Value>` — materialise
+  children. Three flavours keyed by `container.kind`:
+  1. `<root>` → the module map (`ltm`, `net`, `sys`, …).
+  2. A module name (`"ltm"`) → the kind map (`virtual`, `pool`, `rule`, …).
+  3. A kind label (`"ltm virtual"`) → the object map
      (`/Common/web_vs`, …).
-- `_build_object_ref(kind, full_path, obj, root) → ObjectRef` —
-  wraps one typed dataclass.  Caches in `root._object_cache`
-  by `(kind, full_path)`; populates `field_slots` and
-  `stanza_slot` from the parser's source ranges.
-- `_project_field(kind, obj, spec, root, *, tmsh_name) → Any` —
-  projects one field.  Branches on `FieldSpec.ref_kind` (PathRef
-  construction), `list_ref` (tuple of PathRefs), `typed`
-  (`str()` wrap), with special handling for ltm pool members,
-  ltm policy rules, and iRule refs.
+- Key lookup applies partition shorthand (`pool["svc"]` resolves to
+  `/Common/svc` when unambiguous) and regex subscripts (`[~"web_.*"]`)
+  compile through the safe-regex layer.
 
-The `(kind, full_path)` compound cache key matters because
-BIG-IP lets different kinds share a path string —
-`/Common/shared` could simultaneously be a pool, a node, and an
-iRule, and a single-key cache would let one kind's ObjectRef
-leak into another's lookup.
+#### Object construction
 
-#### `projection/_data.py`
+- `build_object_ref(kind, full_path, obj, root) -> Value` — wraps one
+  parsed model object. Caches in `root.object_cache` by
+  `(kind, full_path)`, and populates `field_slots` (via
+  `collect_field_slots`) and `stanza_slot` (via `stanza_slot_for`) from the
+  parser's source ranges.
+- `project_fields(kind, obj, root) -> IndexMap<String, Value>` — projects
+  every field of one object. Reference-valued fields become `PathRef`s
+  through `path_ref` / `path_ref_list`; typed values (`Destination`,
+  `MonitorExpression`, …) render through `typed_str`; list-valued
+  properties go through `list_str_values`. Pool members, `ltm policy`
+  rules, and iRule refs have their own arms.
 
-Three master tables:
+The `(kind, full_path)` compound cache key matters because BIG-IP lets
+different kinds share a path string — `/Common/shared` could
+simultaneously be a pool, a node, and an iRule, and a single-key cache
+would let one kind's `ObjectRef` leak into another's lookup.
 
-- `_KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]]`
-  — kind label → `(dataclass type, {tmsh-name → FieldSpec})`.
-  Example: `"ltm virtual"` → `(BigipVirtual, _VS_FIELDS)` where
-  `_VS_FIELDS["destination"] = FieldSpec("destination",
-  typed=True)` and `_VS_FIELDS["pool"] = FieldSpec("pool",
-  ref_kind="ltm pool")`.
-- `_MODULE_KINDS: dict[str, dict[str, tuple[str, str]]]` —
-  module → `{label → (attr-name, tmsh-kind)}`.  Example:
-  `_MODULE_KINDS["ltm"]["virtual"] = ("virtuals", "ltm
-  virtual")` — the `BigipConfig` attribute is `virtuals`, the
-  dispatch label is `"ltm virtual"`.
-- `_OBJECT_KIND_ALIASES` — frozenset of every TMSH kind label.
-  Used for reverse-lookup / DSL-level kind checks (`kind ==
-  "ltm virtual"`).
+The projection covers the core LTM kinds the cookbook and common queries
+reach for: `ltm virtual`, `ltm virtual-address`, `ltm pool` (plus
+members), `ltm node`, `ltm monitor`, `ltm rule`, `ltm data-group`,
+`ltm persistence`, `ltm snatpool`, `ltm profile`, and `ltm policy` (plus
+rules, conditions, and actions). The long tail of kinds projects the
+minimal field set — `name`, `full-path`, `kind`, `description`.
 
-`_MINIMAL_FIELDS` is the shared minimal
-projection (`name`, `full-path`, `kind`, `description`) used by
-the ~hundreds of long-tail kinds without dedicated fields.  Each
-module gets its own alias (`_LTM_MINIMAL_FIELDS`,
-`_NET_MINIMAL_FIELDS`, …) for grep-ability; all aliases point at
-the same dict.
+### `builtins/` — Builtin catalogue and registration
 
-### `builtins.py` — Builtin catalogue + registration
+`builtins/mod.rs` owns the registry and the shared argument-coercion and
+value-walking helpers; the builtins themselves live in the category module
+they belong to.
 
-The registration mechanics live at the top of the file; the
-260 builtins follow.
-
-- `BuiltinSpec` (frozen dataclass) — name, summary, signatures
-  tuple, examples tuple, category, `impl` callable, `details`
-  (markdown), and four runtime knobs:
+- `BuiltinSpec` — `name`, `category`, and five runtime knobs:
   - `min_args` / `max_args` — strict arity check.
-  - `special_form: bool` — when true, the evaluator passes AST
-    nodes rather than pre-evaluated values.  Used for `select`,
-    `map`, `if`, `as`, `with_entries`, etc.
-  - `with_ctx: bool` — when true, the evaluator passes
-    `EvalContext` as an extra `ctx=` kwarg.  Used for builtins
-    that need access to the root, the edit plan, or merge mode.
-  - `stream_aware: bool` — when true, the builtin handles its
-    own stream-broadcast semantics; otherwise the dispatch
-    unwraps streams element-by-element.
-- `_REGISTRY: dict[str, BuiltinSpec]` — the master dispatch
-  table.
-- `_CATEGORY_ORDER` — tuple of nine category labels used for
-  `--help-builtins` ordering: `("stream", "string", "math",
-  "time", "path", "rename", "net", "graph", "value")`.
-- `_register(name, *, summary, signatures, examples, category,
-  min_args, max_args, details, special_form, with_ctx,
-  stream_aware)` — decorator.  Populates `_REGISTRY[name]` and
-  returns the function unchanged so it's still callable in
-  Python.
-- `lookup(name) → BuiltinSpec | None` — runtime dispatch hook
-  for the evaluator.
-- `list_builtins() → list[BuiltinSpec]` /
-  `format_builtins(name=None) → str` — `--help-builtins`
-  rendering.
+  - `special_form: bool` — when true, the evaluator passes AST nodes
+    rather than evaluated values. Used by `select`, `map`, `if`, `as`,
+    `with_entries`, and the `paths` / `getpath` family, all of which live
+    in `special.rs`.
+  - `with_ctx: bool` — when true, the builtin receives the `EvalContext`.
+    Used by anything needing the root, the edit plan, the merge state, or
+    a reader hook.
+  - `stream_aware: bool` — when true, the builtin handles its own stream
+    semantics; otherwise the dispatch unwraps streams element by element.
+  - `broadcasts: bool` — whether stream arguments broadcast element-wise.
+    This is the scalar-builtin default. A `with_ctx` builtin normally
+    skips broadcast; `refs` and `referenced_by` are the exception — they
+    broadcast *and* need `ctx` for the config.
+- `REGISTRY` — a `OnceLock<HashMap<&str, BuiltinSpec>>`, built once on
+  first lookup.
+- `lookup(name) -> Option<&'static BuiltinSpec>` — the evaluator's
+  dispatch hook.
+- `all_specs() -> Vec<&'static BuiltinSpec>` — every builtin, sorted by
+  `(category, name)`, for `--help-builtins`.
 
-`evaluator._eval_call` dispatches:
+`eval::eval_call` dispatches on the spec: a special form gets the raw AST
+nodes; a stream-aware builtin gets the evaluated arguments and handles
+streams itself; anything else has its stream arguments broadcast, invoking
+the implementation once per element.
 
-```
-spec = builtins.lookup(node.name)
-if spec.special_form:
-    return spec.impl(*node.args, ctx=ctx)   # AST nodes
-elif spec.stream_aware:
-    return spec.impl(*evaluated_args, ctx=ctx)
-else:
-    # stream broadcast: invoke spec.impl once per stream element
-```
+Plain builtins raise `QueryError::Builtin` for argument-type mistakes, so
+the CLI maps every one of them to `error:` uniformly.
 
-### `_probes.py` — Network builtins (gated)
+### `probes.rs` and `probes/` — Network builtins (gated)
 
-Two context variables drive the network surface:
+Two surfaces with different output guarantees:
 
-- `PROBES_ENABLED: ContextVar[bool]` — the `--enable-probes`
-  gate.  Per-task so concurrent queries don't share state.
-- `TLS_CA_BUNDLE: ContextVar[str | None]` — optional CA path
-  that overrides system trust for `url_request` /
-  `tls_handshake`.
+- **Byte-for-byte, golden-tested.** `x509_parse` turns a PEM certificate
+  into the x509 parse dict (subject, issuer, serial, validity, SANs,
+  fingerprint, key algorithm and size, signature algorithm, version, and
+  the public-key PEM), plus the deterministic projections `x509_eq` and
+  `x509_from_config`. The `--enable-probes` gating error is also
+  byte-for-byte. **These pure helpers are not gated.**
+- **Faithful but not golden.** The live probes — `dns`, `rev_dns`, `ping`,
+  `portping`, `traceroute`, `socket_get`, `tls_handshake`, and the `url_*`
+  HTTP family. They do real I/O in the reference output shape, but nothing
+  asserts them byte-for-byte against live results, because the test
+  environment has no reliable network.
 
-Six process-lifetime caches memoise probe
-results within one query run:
+#### Gating
 
-```
-_PING_CACHE, _PORTPING_CACHE, _TRACEROUTE_CACHE,
-_URL_CACHE, _SOCKET_CACHE, _TLS_CACHE
-```
+There is no ambient global. `EvalContext` carries the two knobs
+explicitly:
 
-Keys: `(host)` / `(host, port, proto)` / `(host, port, headers,
-ca_path)` etc.  Multiple references to the same endpoint in one
-query share the result.
+- `probes_enabled: bool` — the `--enable-probes` gate. Every live probe
+  opens with `require_probes(name, ctx.probes_enabled)?`, which raises the
+  one fixed gating message before touching the network.
+- `ca_bundle: Option<String>` — an optional CA path overriding the system
+  trust store for `url_*` and `tls_handshake`. `None` falls back to the
+  system roots.
 
-Key functions:
+Because both live on the context rather than in process-global state,
+concurrent query runs cannot interfere with each other, and a caller
+embedding the engine (the WASM console, the report generator) gets the
+gate closed by default.
 
-- `_require_probes(name: str)` — gate check; raises
-  `BuiltinError` with a fixed message every gated builtin uses.
-- `ping(ip, *, timeout_s)` — ICMP via `subprocess` (`ping`
-  binary).
-- `portping(ip, port, *, protocol, timeout_s)` — TCP
-  `socket.connect()` or UDP `sendto` / recv.
-- `traceroute(ip, *, max_hops, timeout_s)` — `traceroute`
-  subprocess.
-- `url_request(method, url, headers, body, *, cookie_jar)` —
-  `urllib` with `_CertCapturingHTTPSHandler` (see below) so the
-  peer cert lands in the response dict.  On strict-TLS failure
-  (`ssl.SSLCertVerificationError`), retries once with
-  `_permissive_ssl_context()`; the structured `reason` field
-  records which OpenSSL verify code triggered the retry.
-- `tls_handshake(host, port, sni, alpn)` — explicit TLS probe;
-  same strict→permissive retry, same `reason` shape.
+#### TLS
 
-Cert-projection support (added by the recent audit work):
+`probes/tls.rs` drives `rustls` directly. `client_config(ca_bundle)`
+builds the verifier; `build_result(conn, verify_error)` renders the
+handshake outcome, and `classify_verify_kind(msg)` maps a verifier failure
+into the structured `reason.kind` vocabulary the DSL exposes. A
+verification failure is reported through `reason` rather than aborting, so
+an audit query collects data from a device with a bad chain and still says
+so. Only `reason.fatal` means the data is genuinely unavailable.
 
-- `x509_parse(pem)` — PEM → dict via `cryptography` when
-  installed, with an `ssl`-only fallback path
-  (`_x509_parse_ssl_fallback`) for environments without
-  `cryptography`.
-- `x509_from_config(cert)` — projects any BIG-IP config-object
-  cert (`BigipSysFileSslCert`, `BigipCmCert`) into the same
-  dict shape `x509_parse` produces.  Pure duck-typing on the
-  dataclass field names so it works on both kinds without an
-  `isinstance` switch.
-- `x509_eq(a, b)` — cert-identity compare.  Fingerprint-first,
-  falls back to subject + issuer + serial when one side is a
-  BIG-IP projection (no SHA-256 fingerprint).
-- `_classify_cert_error(exc) → (kind, message, fatal)` — the
-  `reason` classifier; mapping table below.
-- `_permissive_ssl_context()` — returns a context with
-  `check_hostname=False` and `CERT_NONE`; used for the retry
-  path.
-- `_CertCapturingHTTPSHandler` — subclass of
-  `urllib.request.HTTPSHandler` whose `_Conn.connect()` saves
-  `self.sock.getpeercert(binary_form=True)` onto the handler so
-  the response dict's `peer_cert` lands in the same handshake
-  the body uses (no extra round-trip).
+#### HTTP
 
-Reason classifier (`_VERIFY_CODE_TO_KIND` table):
+`probes/http.rs` performs the `url_*` requests and captures the peer
+certificate off the same connection, so reading the chain never costs a
+second round-trip.
 
-| OpenSSL code | `reason.kind` | Meaning |
-|---|---|---|
-| 10 | `expired` | `X509_V_ERR_CERT_HAS_EXPIRED` |
-| 9 | `not_yet_valid` | `X509_V_ERR_CERT_NOT_YET_VALID` |
-| 18, 19 | `self_signed` | Depth-zero / chain self-signed |
-| 20, 21, 24 | `untrusted_ca` | Chain doesn't reach a trusted CA |
-| 62 | `hostname_mismatch` | SNI / SAN doesn't match |
-| (other) | `other_verification` | Catch-all |
-| (socket) | `connection_error` | DNS / refused / timeout — `fatal=True` |
+### `inputs.rs` — External input parsers
 
-`reason.fatal == True` is the only case where the response body
-or peer cert may be absent.
+`parse_input(source, uri, spec)` is the dispatcher; each format has its
+own parser:
 
-```
-        url_get(url) / tls_handshake(host, port)
-                       │
-                       ▼
-            ┌─────────────────────┐
-            │ strict TLS context  │  ssl.create_default_context()
-            │ + cert_capturing    │  + TLS_CA_BUNDLE if set
-            │ HTTPS handler       │
-            └──────────┬──────────┘
-                       │ connect
-                       ▼
-                ┌──────────────┐             ┌─────────────────┐
-            ┌───┤  success     ├──► ok ───►  │ peer_cert from  │
-            │   └──────────────┘             │ same handshake  │
-            │                                │ reason.kind="ok"│
-            │   ┌──────────────┐             └─────────────────┘
-            └───┤  SSL verify  │
-                │  failure     │
-                └──────┬───────┘
-                       │
-                       ▼
-            ┌─────────────────────┐
-            │ _classify_cert_     │  exc.verify_code →
-            │ error()             │  ("expired" | "self_signed" |
-            └──────────┬──────────┘   "untrusted_ca" | …)
-                       │
-                       ▼
-            ┌─────────────────────┐
-            │ _permissive_ssl_    │  check_hostname=False
-            │ context()           │  CERT_NONE
-            └──────────┬──────────┘
-                       │ retry
-                       ▼
-                ┌──────────────┐                ┌────────────────┐
-            ┌───┤  success     ├──► ok ──────►  │ peer_cert from │
-            │   └──────────────┘                │ retry handshake│
-            │                                   │ reason.kind=   │
-            │                                   │   <classified> │
-            │                                   │ reason.fatal=  │
-            │                                   │   False        │
-            │                                   └────────────────┘
-            │
-            │   ┌──────────────┐                ┌────────────────┐
-            └───┤  socket fail ├──► error ───►  │ peer_cert=null │
-                │ (DNS/refused │                │ reason.kind=   │
-                │  /timeout)   │                │   "connection_ │
-                └──────────────┘                │    error"      │
-                                                │ reason.fatal=  │
-                                                │   True         │
-                                                └────────────────┘
-```
+- `parse_json(text, uri)` — a single JSON document.
+- `parse_jsonl(text, source)` — NDJSON. Blank lines are skipped, and a
+  per-line error carries its line number.
+- `parse_csv(text, …)` — CSV. The header is auto-detected from row 1
+  unless overridden; extra columns land in an `extra` list, and missing
+  columns become the empty string.
+- `parse_f5log(text)` — F5 syslog, one object per event with `timestamp`,
+  `host`, `severity`, `daemon`, `pid`, `code`, `module`, `level`,
+  `message`, and `raw`, against the eight-value syslog severity
+  vocabulary.
+- `parse_zone(source, uri)` — a DNS zone file.
 
-`_CertCapturingHTTPSHandler` is installed on the urllib opener
-*once*; the peer cert is recorded onto the handler during each
-`_Conn.connect()`, so a follow-up `getpeercert(binary_form=True)`
-isn't needed (no extra round-trip).
+These back the `json_load` / `jsonl_load` / `csv_load` / `f5log_load`
+builtins in `builtins/inputs_load.rs`, and the
+`--input-{json,jsonl,csv,f5log}` CLI flags.
 
-### `_inputs.py` — External input parsers
+### `edit_plan.rs` — Mutation queue
 
-- `parse_jsonl(text, *, source)` — NDJSON.  Blank lines
-  skipped; per-line errors carry a line number.
-- `parse_csv(text, *, headers, source)` — CSV.  Header
-  auto-detected from row 1 unless `headers=` overrides; extra
-  columns land in an `_extra` list; missing columns become
-  empty string.
-- `parse_f5log(text, *, source)` — F5 syslog → list of
-  `F5LogEvent` dicts.  Severity vocabulary is `_F5_SEVERITIES`
-  (frozenset of the eight syslog severities).
-- `F5LogEvent` (frozen dataclass) — 10 fields: `timestamp`,
-  `host`, `severity`, `daemon`, `pid`, `code`, `module`,
-  `level`, `message`, `raw`.
+- `EditOp` — one byte-level rewrite: `source_uri`, `object_path`,
+  `object_kind`, `field_name`, `operator` (`=`, `|=`, `+=`, `-=`),
+  `old_value`, `new_value`, `field_slot`, `stanza_slot`, and a `strict`
+  flag.
+- `PrefixRewrite` — a whole-source regex substitution, used by
+  `rename_partition` and `rename_prefix`.
+- `EditPlan` — the queue: `ops` plus `prefix_rewrites`, with `add`,
+  `add_prefix`, and `has_edits`.
+- `AppliedSource` — the per-source result: `uri`, `original`,
+  `new_source`, the rename reports, and the field-edit count.
+- `apply(plan, sources) -> HashMap<String, AppliedSource>` — the
+  workhorse. Three phases per source:
+  1. Apply the `PrefixRewrite`s over the whole source.
+  2. Apply identity-field renames (`name`, `full-path`) through
+     `rewrite.rs`, which touches every reference site, not just the
+     stanza header.
+  3. Apply the field-level edits sorted by `(start_offset, end_offset)`
+     descending, so a later splice never shifts a span an earlier one
+     still needs.
 
-These feed the `json_load` / `jsonl_load` / `csv_load` /
-`f5log_load` builtins and the `--name=alias=path.{json,jsonl,csv}`
-CLI sugar.
+  After splicing it re-parses through `parse_bigip_conf` to validate.
+  Malformed output aborts with the offending edit named in the error.
 
-### `edit_plan.py` — Mutation queue
-
-- `EditOp` (frozen) — one byte-level rewrite.  Fields:
-  `source_uri`, `object_path`, `object_kind`, `field_name`,
-  `operator` (`=`, `|=`, `+=`, `-=`), `old_value`, `new_value`,
-  `field_slot`, `stanza_slot`, `strict` flag.
-- `PrefixRewrite` (frozen) — whole-source regex sub used by
-  `rename_partition` / `rename_prefix`.
-- `EditPlan` (mutable) — `ops: list[EditOp]` +
-  `prefix_rewrites: list[PrefixRewrite]`.  `add(op)`,
-  `add_prefix(rewrite)`, `has_edits()`.
-- `AppliedSource` (frozen) — result type per source.  `uri`,
-  `original`, `new_source`, `rename_reports`, `field_edits`
-  count.
-- `apply(plan, sources) → dict[str, AppliedSource]` — the
-  workhorse.  Three-phase per source:
-  1. Apply `PrefixRewrite`s (whole-source `re.sub`).
-  2. Apply identity-field renames (`name` / `full-path`) via
-     `rename_object` — touches every reference site, not just
-     the stanza header.
-  3. Apply field-level edits sorted by `(start_offset,
-     end_offset)` descending so later edits don't shift
-     earlier spans.
-
-  After splicing, re-parses through `parse_bigip_conf` to
-  validate.  Malformed output aborts with `BuiltinError`
-  carrying the offending edit.
-- `_IDENTITY_FIELDS = frozenset({"name", "full-path"})` —
-  drives the dispatch between identity-rename and field-edit
-  branches.
+The `name` / `full-path` pair is what dispatches between the
+identity-rename branch and the field-edit branch.
 
 Mixing a `PrefixRewrite` with non-identity field edits in the
 *same statement* is rejected — the rewrite shifts byte offsets
@@ -727,54 +604,60 @@ Sort key for step 3 is `(start_offset, end_offset)` *descending*
 so each splice writes into bytes downstream of every span the
 later splices still need to find.
 
-### `output.py` — Renderers
+### `output.rs` — Renderers
 
-`render(values, *, mode="auto") → str`
-dispatches:
+`render(values, mode) -> Result<String, QueryError>` dispatches, with
+`render_with_opts` adding renderer options:
 
-- `_render_auto(values)` — default.  If every
-  value is an `ObjectRef` with `stanza_slot`, render SCF; if
-  every value is a scalar or list of scalars, render `raw`
-  (one per line); otherwise render JSON.
-- `_render_scf(values)` — emit each object's
-  `stanza_slot.raw_text` verbatim.  Preserves comments and
-  whitespace exactly.
-- `_render_raw(values)` — one scalar per line.  Rejects
-  `ObjectRef` / `dict` to keep the output unambiguous.
-- `_render_paths(values)` — print `full_path` of `ObjectRef` /
-  `PathRef`.
-- `_render_json(values)` — JSON array; `ObjectRef` flattens to
-  its field dict.
-- `_render_tmsh(values)` — TMSH command lines (`tmsh modify
-  ltm virtual …`); only used for the mutation-as-tmsh output
-  mode.
+- `render_auto` — the default. If every value is an `ObjectRef` with a
+  `stanza_slot`, emit SCF; if every value is a scalar or a list of
+  scalars, emit `raw`; otherwise emit JSON.
+- `render_scf` — emit each object's `stanza_slot.raw_text` verbatim, which
+  preserves comments and whitespace exactly.
+- `render_raw` — one scalar per line. Rejects `ObjectRef` and object
+  values so the output stays unambiguous.
+- `render_paths` — the `full_path` of each `ObjectRef` / `PathRef`.
+- `render_json` — a JSON array through `jsonfmt.rs`; an `ObjectRef`
+  flattens to its field map.
+- `render_table` — an aligned table, optionally with box-drawing line art.
+- The TMSH mode emits `tmsh modify ltm virtual …` command lines, used for
+  the mutation-as-tmsh output.
 
-The `--output` CLI flag picks the mode; `auto` is the default
-because it produces the most "natural" form for the values.
+The `--output` CLI flag picks the mode; `auto` is the default because it
+produces the most natural form for whatever the query returned. A mode
+that is better modelled as a diagram or timeline lives in `renderers/`
+instead and is selected with `-R / --render` — see
+[`f5-query-renderer-contract.md`](f5-query-renderer-contract.md).
 
-### `runner.py` — Orchestration
+### `runner.rs` — Orchestration
 
-`run_query(query, sources, *, names, merge, partitions,
-json_sources, input_specs) → QueryResult`.
+`run_query(query, sources, opts) -> Result<QueryResult, QueryError>`.
+
+`QueryOptions` bundles everything the run needs: `names` (`$name -> uri`
+bindings, auto-derived from each URI's filename stem when empty),
+`partitions` (per-URI BIG-IP partition, defaulting to `Common`),
+`side_inputs` (each binding `$name` to a JSON-backed `Root` parsed per its
+`InputSpec` — it counts toward the multi-file source count but never
+iterates as the primary `.` input), `merge`, `enable_probes`,
+`ca_bundle`, and the two reader hooks.
 
 Per-source vs merged flow:
 
-- `_run_query_per_file(program, sources, names) → QueryResult` —
-  default.  Runs once per source; each gets its own
-  `EvalContext`.
-- `_run_query_merged(program, sources, names) → QueryResult` —
-  `--merge` mode.  All sources land in `named_roots`; the
-  evaluator sees them as a single stream.
+- `run_query_per_file` — the default. Runs once per source, each with its
+  own `EvalContext`.
+- `run_query_merged` — `--merge` mode. Every source lands in
+  `named_roots` and `merge_roots`, and the evaluator sees them as one
+  stream.
 
-Multi-statement loop in `run_query`:
+Multi-statement loop, per source:
 
 ```
-for stmt in program.statements:
-    values = evaluate_statement(stmt, ctx)
-    applied = edit_plan.apply(ctx.edits, sources)
-    sources = {uri: a.new_source for uri, a in applied.items()}
-    ctx.edits = EditPlan()        # reset between statements
-    # rebuild ctx.root from the rewritten sources
+for stmt in program.statements {
+    let values = evaluate_statement(stmt, &mut ctx)?;
+    let applied = edit_plan::apply(&ctx.edits, &sources)?;
+    // replace each source with applied[uri].new_source,
+    // reset ctx.edits, and rebuild ctx.root from the rewritten text
+}
 ```
 
 That's what makes `rename_partition("Common", "Tenant_A") ;
@@ -822,40 +705,33 @@ Each statement runs against the rewritten source of the previous
 one — that's what lets the runner serialise side-effects across
 `;` without exposing partial state.
 
-Four contextvars carry per-query state across the call stack
-without threading it through every helper:
+There is no ambient per-query state. Everything a builtin might reach for
+— the active roots for `refs` / `referenced_by`, the merge flag, the
+partition remap, the side-input specs, the probe gate — is a field on
+`EvalContext`, threaded explicitly from `QueryOptions`. That is what makes
+the engine safe to embed and to run concurrently.
 
-- `_ACTIVE_ROOTS: ContextVar[dict[str, Root]]` — per-URI roots
-  for `refs` / `referenced_by` builtins.
-- `_MERGE_ACTIVE: ContextVar[bool]` — merge-mode flag for graph
-  builtins.
-- `_ACTIVE_PARTITIONS: ContextVar[dict[str, str]]` — partition
-  remap for `rename_partition`.
-- `_INPUT_SPECS: ContextVar[dict[str, InputSpec]]` — side-input
-  format specs for `--name=alias=path.json`.
+`QueryResult` is the final shape: `values_per_file` (`Vec<(uri, values)>`
+in source order, so the verb renders files in input order),
+`edits_per_file` (`Vec<(uri, AppliedSource)>`, empty for a read-only
+query), and `has_mutation` — true when the query *queued* any edit op.
 
-`QueryResult` (dataclass) is the final shape: `values_per_file`
-(URI → values), `edits_per_file` (URI → `AppliedSource`),
-`has_mutation` bool.
+### Error positioning
 
-### `source_map.py` — Error positioning
+Every AST node carries a byte `offset`, and `QueryError`'s parse and
+evaluation variants carry it through to the CLI, which resolves it to a
+line and column to underline the offending position.
 
-Small (48 lines).  `SourceMap` precomputes line-start offsets
-once per source; `line_col(offset) → (line, col)` is a binary
-search.  Used by `ParseError` / `EvalError` to underline the
-offending position in error output.
-
-### `graph.py` — Reference traversal
+### `builtins/graph.rs` — Reference traversal
 
 Backs the `refs(obj)` / `referenced_by(obj)` builtins.
 
-- `forward_refs(obj) → list[str]` — runs `compute_grep`
-  (registry-driven) in forward direction; returns target
-  full-paths.
-- `reverse_refs(obj) → list[str]` — reverse direction.
-- `_grep_inputs(obj) → (sources, configs)` — scope: just
-  `obj.config_uri` by default; all active roots when
-  `_MERGE_ACTIVE` is true.
+- Forward traversal runs the registry-driven reference walk from the
+  object and returns the target full-paths.
+- Reverse traversal does the same in the other direction.
+- Scope is `obj.config_uri` alone by default; in merge mode it spans every
+  root in `ctx.merge_roots`, using the `ctx.merge_graph` memoised on first
+  use so repeated per-object queries do not rebuild the whole graph.
 
 The actual reference index lives in
 [`docs/design/bigip-registry-architecture.md`](bigip-registry-architecture.md)
@@ -865,29 +741,28 @@ The actual reference index lives in
 
 ### Streams vs lists
 
-`Stream` is the lazy form, a Python `list` is the materialised
-form.  `|` iterates streams element-wise but passes lists
-whole.  Aggregator builtins (`sort`, `unique`, `count` over a
+`Value::Stream` is the flattening form and `Value::List` the materialised
+one. `|` iterates a stream element-wise but passes a list through whole.  Aggregator builtins (`sort`, `unique`, `count` over a
 collection) require a list; force collection with `[ … ]`.
 
-The line gets crossed by `Subscript(stream=True)` (the bare
-`.foo[]` form), which produces a `Stream`, and by `[ expr ]`
-(ListLiteral), which collects a stream back into a list.
+The line is crossed by the bare `.foo[]` subscript, which produces a
+`Stream`, and by `[ expr ]` (`ListLiteral`), which collects a stream back
+into a list.
 
 ### PathRef auto-deref
 
 `.pool` returns a `PathRef`; `.pool.members` then auto-derefs
 the PathRef to the actual pool `ObjectRef` and indexes its
 `members` field.  Resolution is lazy via
-`evaluator._resolve_pathref` and uses `PathRef.expected_kind`
+`eval::resolve_pathref` and uses `PathRef.expected_kind`
 when set to keep lookup proportional.
 
 ### Object cache identity
 
-`Root._object_cache: dict[(kind, full_path), ObjectRef]`.  The
-compound key prevents one kind's ObjectRef from leaking into
-another kind's lookup (BIG-IP lets different kinds share a path
-string).
+`Root.object_cache` is keyed by `(kind, full_path)`. The compound key
+prevents one kind's `ObjectRef` leaking into another kind's lookup —
+BIG-IP lets different kinds share a path string, so `/Common/shared` can
+be a pool, a node, and an iRule at once.
 
 ### Source-range fidelity
 
@@ -900,90 +775,82 @@ value-spec layer; see
 
 ### Probe gating
 
-`PROBES_ENABLED` is a per-task `ContextVar`.  The CLI's
-`--enable-probes` flag flips it for one query run; concurrent
-queries don't share state.  Every network builtin calls
-`_require_probes(name)` before doing anything else.
+`EvalContext.probes_enabled` is the single gate. The CLI's
+`--enable-probes` flag sets it for one query run; nothing is ambient, so
+concurrent runs never share state. Every network builtin calls
+`require_probes(name, ctx.probes_enabled)` before doing anything else.
 
 ### Permissive vs strict TLS
 
-`url_request` and `tls_handshake` retry once with verification
-disabled when strict TLS fails.  The retry is the audit-
-friendly default — verification status flows out via the
-structured `reason` field rather than aborting collection.
-`reason.fatal == True` is the only case where data is
-unavailable.
-
-The peer cert is captured during the strict handshake when it
-succeeds, and during the permissive retry when it doesn't —
-both via `_CertCapturingHTTPSHandler` / `tls_handshake`'s
-explicit `getpeercert(binary_form=True)` call.
-
-### ContextVar scoping
-
-The runner uses contextvars for state that would otherwise
-need to be threaded through dozens of helpers.  All
-`_ACTIVE_*` vars are scoped per-query: the runner `set()`s
-them on entry, `reset()`s on exit.  Builtins read them
-directly via `var.get()`.
+A TLS verification failure is reported, not fatal. `tls_handshake` and the
+`url_*` family record the verifier's complaint in the structured `reason`
+field and carry on, because the audit-friendly default is to collect the
+data *and* say the chain is bad. `reason.fatal` is the only case where
+data is genuinely unavailable. The peer certificate is captured off the
+same connection either way.
 
 ## Edit-plan apply order
 
-`edit_plan.apply(plan, sources)` walks `plan.ops` and:
+`edit_plan::apply(plan, sources)` walks `plan.ops` and:
 
-1. Splits ops into per-source bins (one bin per loaded config
-   file).
-2. Applies `PrefixRewrite`s first (`re.sub` over the whole
-   source).
-3. Applies identity-field renames via `rename_object` (touches
-   every reference site, not just the stanza header).
-4. Sorts the remaining field-level edits by `(start_offset,
-   end_offset)` *descending* so later edits don't shift earlier
-   byte spans.
+1. Splits ops into per-source bins, one bin per loaded config file.
+2. Applies `PrefixRewrite`s first — a whole-source regex substitution.
+3. Applies identity-field renames through the token-bounded rewriter in
+   `rewrite.rs`, which touches every reference site, not just the stanza
+   header.
+4. Sorts the remaining field-level edits by `(start_offset, end_offset)`
+   *descending*, so a later splice never shifts a byte span an earlier one
+   still needs.
 5. Splices each op into the source bytes.
-6. Re-parses the spliced source through `parse_bigip_conf` —
-   any malformed output aborts with a `BuiltinError` carrying
-   the offending edit.
+6. Re-parses the spliced source through `parse_bigip_conf` — malformed
+   output aborts with the offending edit named in the error.
 
-The reparse step is what makes mutating queries safe: the
-engine never ships output a fresh `parse_bigip_conf` couldn't
-read back in.
+The reparse in step 6 is what makes mutating queries safe: the engine never
+ships output that a fresh `parse_bigip_conf` could not read back in.
 
-## Builtin extension points
+Mixing a `PrefixRewrite` with non-identity field edits in the *same*
+statement is rejected, because the rewrite shifts the byte offsets the
+later edits target. Split the work across statements with `;`.
 
-To add a new builtin:
+## Extension points
 
-1. Decorate it with `@_register(name, …)` in `builtins.py`.
-2. Add at least one example to the spec's `examples` tuple.
-3. Add a test in `tests/test_f5_query*.py`.
-4. Regenerate the catalogue: `python3 scripts/dev/gen_query_builtins_doc.py`.
-5. CI verifies the catalogue is up to date via
-   `test_generated_builtins_doc_is_up_to_date`.
+### A new builtin
 
-For network builtins, also:
+1. Add a `BuiltinSpec` to the registry in `builtins/mod.rs`, with the
+   implementation in the category module it belongs to (`string.rs`,
+   `net.rs`, `graph.rs`, …). The spec's runtime knobs are `min_args` /
+   `max_args` (strict arity), `special_form` (receive AST nodes rather
+   than evaluated values), `with_ctx` (receive the `EvalContext`),
+   `stream_aware` (handle stream semantics yourself), and `broadcasts`
+   (whether stream arguments broadcast element-wise).
+2. A special form goes in `special.rs` instead — that is where `select`,
+   `map`, `if`, and `as` live.
+3. Add at least one example so `--help-builtins` documents it.
+4. Add a regression test in the crate's own tests.
 
-- Add the gate check (`_require_probes(name)`) as the first
-  call in the implementation.
-- Add a process-lifetime cache if multiple references to the
-  same target in one query are likely.
-- If you're touching TLS, route through `url_request` /
-  `tls_handshake` so the `reason` classifier and the cert-
-  capturing handler stay consistent.
+For a network builtin, also make `require_probes(name,
+ctx.probes_enabled)?` the first call in the implementation, and route
+anything TLS-shaped through `tls_handshake` or the `url_*` family so the
+`reason` classifier and the certificate capture stay consistent.
 
-To add a new projection field on an existing kind:
+### A new projection field on an existing kind
 
-1. Add the field to the dataclass in `dialects/f5/bigip/model/`.
-2. Populate it in `dialects/f5/bigip/parser/_parsers.py`.
-3. Add a `FieldSpec` entry in the per-kind map in
-   `dialects/f5/query/projection/_data.py`.
+1. Add the field to the model type in `rust/tcl-bigip/src/model/`.
+2. Populate it in `rust/tcl-bigip/src/parser/`.
+3. Add the projection arm in `project_fields` in `projection.rs`.
 4. Add a regression test that projects the new field.
 
-To add a new value-spec (typed property handling): see
-[`bigip-registry-architecture.md`](bigip-registry-architecture.md).
+### A new typed value
 
-To add a new output mode: add a `_render_<mode>` function in
-`output.py`, register it in `render`'s dispatch, and update the
-CLI's `--output` choices in `tooling/f5/verbs/query.py`.
+See [`bigip-registry-architecture.md`](bigip-registry-architecture.md).
+
+### A new output mode
+
+Add a `render_<mode>` function in `output.rs`, register it in `render`'s
+dispatch, and extend the CLI's `--output` choices. A renderer that is
+better modelled as a pluggable diagram or timeline belongs in
+`renderers/` instead — see
+[`f5-query-renderer-contract.md`](f5-query-renderer-contract.md).
 
 ## Related design docs
 

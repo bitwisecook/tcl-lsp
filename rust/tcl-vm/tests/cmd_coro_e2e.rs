@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coroutine tests for the bytecode VM (`RUST_ISSUE_008`).
+//! End-to-end coroutine tests for the bytecode VM.
 //!
 //! Every expectation is the output of the same script under a locally-built
 //! **tclsh 9.0.4** (the truth oracle). Coroutines are implemented by capturing
@@ -196,7 +196,7 @@ fn accumulator_generator_yield_expression() {
 }
 
 // ===========================================================================
-// yield across `catch` (RUST_ISSUE_008 piece 2)
+// yield across `catch`
 // ===========================================================================
 
 #[test]
@@ -241,7 +241,7 @@ fn catch_captures_a_post_resume_error_across_yield() {
 }
 
 // ===========================================================================
-// yield across `lmap` (RUST_ISSUE_008 piece 2)
+// yield across `lmap`
 // ===========================================================================
 
 #[test]
@@ -293,7 +293,7 @@ fn yield_across_value_consumed_lmap_generator() {
 }
 
 // ===========================================================================
-// yield across `subst` (RUST_ISSUE_008 piece 2)
+// yield across `subst`
 // ===========================================================================
 
 #[test]

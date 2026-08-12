@@ -17,7 +17,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! DS family — dead-store / unused (W220/W211).
-//! Pairs to `tests/test_fp_ds.py` and the §DS entries in `docs/design/compiler/FP.md`.
 
 use super::{D, codes, fires};
 

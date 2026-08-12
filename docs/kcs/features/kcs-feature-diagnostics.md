@@ -25,21 +25,10 @@ The analyser produces diagnostics in categories: errors (E-codes), security (S-c
 
 The server also supports pull-model diagnostics — `textDocument/diagnostic` for one document and `workspace/diagnostic` for the whole workspace — for editors that prefer to request diagnostics on demand. Pull responses return the same set the push model publishes, and an unchanged document is answered with a cheap `Unchanged` report. Pull mode is off by default and is enabled with `tclLsp.features.pullDiagnostics`; turning it on causes most clients to stop honouring the push notifications, so use one model or the other, not both.
 
-## File-path anchors
-
-- `analyser/_analyser/_diagnostics.py`
-- `server/features/diagnostics.py`
-- `ai/shared/diagnostics.py`
-- `ai/shared/diagnostics.json`
-
 ## Failure modes
 
 - Diagnostics missing after a parse or analyser change.
 - Duplicate diagnostics from overlapping passes.
-
-## Test anchors
-
-- `tests/test_diagnostics.py`
 
 ## Screenshots
 

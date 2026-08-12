@@ -57,20 +57,11 @@ The switch is replaced with a dict that maps keys to values, and a single `dict 
 
 The refactoring detects two body patterns: `set var value` (all arms set the same variable) and `return value` (all arms return). Only `-exact` mode switches are supported. A `default` arm, if present, is handled with `dict exists` + fallback. Requires at least 2 arms.
 
-## File-path anchors
-
-- `tooling/refactoring/_switch_to_dict.py`
-- `server/features/code_actions.py`
-
 ## Failure modes
 
 - Switch uses `-glob` or `-regexp` mode (returns `None`).
 - Arms have mixed body shapes (some `set`, some `return`) (returns `None`).
 - Fewer than 2 arms (returns `None`).
-
-## Test anchors
-
-- `tests/test_refactoring.py::TestSwitchToDict`
 
 ## Samples
 

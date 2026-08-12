@@ -17,8 +17,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! OBJ family — object dispatch (W307/W308) + snit / `TclOO` modelling.
-//! Pairs to `tests/test_fp_obj.py`, `tests/test_fp_obj_var_as_cmd.py`, and
-//! the §OBJ entries in `docs/design/compiler/FP.md`.
 
 use super::{D, codes, fires};
 
@@ -766,7 +764,7 @@ fn fp_obj_18_interproc_dict_with_known_command_silent() {
 }
 
 // ---------------------------------------------------------------------------
-// Follow-up findings (not tagged FP-OBJ-NN but in test_fp_obj.py)
+// Follow-up findings (not tagged FP-OBJ-NN)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -851,7 +849,7 @@ fn fp_w307_itcl_created_instance_dispatch_silent() {
 }
 
 // ---------------------------------------------------------------------------
-// VAR-as-command dispatch tests (from test_fp_obj_var_as_cmd.py)
+// VAR-as-command dispatch tests
 // Pair 1: local literal assignment of a user-proc / builtin name
 // ---------------------------------------------------------------------------
 

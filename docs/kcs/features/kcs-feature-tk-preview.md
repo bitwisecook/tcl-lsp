@@ -34,16 +34,11 @@ The Tk preview extracts the widget hierarchy from source code and renders it in 
 - `editors/vscode/src/tkPreviewPanel.ts`
 - `editors/vscode/src/tkPreviewPanelHtml.ts`
 - `editors/vscode/src/tkLivePreview.ts`
-- `dialects/tk/dialect/extract.py`
 
 ## Failure modes
 
 - Preview blank for unsupported widget patterns.
 - Layout incorrect when grid/pack options are complex.
-
-## Test anchors
-
-- `tests/test_tk_extract.py`
 
 ## Example
 

@@ -38,7 +38,7 @@
 //! a CFG the compiler crate exposes but `f5-cli` does not currently depend
 //! on, to safely reorder `if`/`switch` arms without changing behaviour. That
 //! is a standalone compiler feature, out of scope for a CLI-wiring fix — see
-//! issue #1315 and `docs/design/rust/python-parity-scrub.md` (`P100 PGO`).
+//! issue #1315.
 
 use std::path::{Path, PathBuf};
 

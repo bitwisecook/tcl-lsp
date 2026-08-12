@@ -89,5 +89,5 @@ still sees the original command.
 
 - [Command registry design doc](../design/compiler/command-registry.md#known-limitations)
   — the descriptor, the positioned/unpositioned split, and the per-consumer table.
-- [kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md](kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
-  — the reproduction this grew out of.
+- [Name resolution](../design/name-resolution.md)
+  — the import/alias/rename link graph and its follow-versus-rewrite policy.

@@ -224,10 +224,9 @@ Shared in `tcl-cmd-core`:
 - `binary::{hex,base64,uu}_{encode,decode}` + `format`/`scan` — value-model-free
   `&[u8]` codecs and the pack/unpack grammars. Each adapter bridges its value to
   bytes (the runtime's raw `obj_bytes`, the VM's byte-array `U+00xx` convention),
-  so the codec between is identical. This is the **byte-oriented** family the plan
-  scoped to Track B; sharing it lifted the VM from `binary`'s integer-only subset
-  to the full code set (floats, 64-bit/big-endian ints, `encode`/`decode`) and
-  gave it `binary`'s `errorCode`s. `scan`'s variable assignment stays in the
+  so the codec between is identical. This is the **byte-oriented** family: the
+  shared core owns the full code set (floats, 64-bit and big-endian ints,
+  `encode`/`decode`) and the `errorCode`s. `scan`'s variable assignment stays in the
   adapter (the unpack core returns the values; the adapter sets the vars).
 
 - `lseq::{decode, generate}` — the `lseq` arithmetic-sequence generator (the

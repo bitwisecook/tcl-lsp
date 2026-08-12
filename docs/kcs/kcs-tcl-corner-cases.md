@@ -190,7 +190,7 @@ Quoted-arg parsing applies backslash substitution **left-to-right**, scanning ea
 | `set {back\slash} 1` | `back\slash` (10 bytes) | `62 61 63 6b 5c 73 6c 61 73 68` | braces preserve literally |
 | `set {back\\\slash} 1` | `back\\\slash` (12 bytes) | `62 61 63 6b 5c 5c 5c 73 6c 61 73 68` | braces preserve literally -- 3 in, 3 out |
 
-**Key takeaway:** in a *quoted* arg, three source backslashes collapse to **one** runtime byte; in a *braced* arg, every byte survives.  Verified empirically against tclsh 9.0.3 by setting the var, then dumping `set $name` and inspecting the resulting bytes -- see `tests/data/tcl_probes_definitive.tcl` §A.
+**Key takeaway:** in a *quoted* arg, three source backslashes collapse to **one** runtime byte; in a *braced* arg, every byte survives.
 
 ## Which of these the analyser reports
 
@@ -214,6 +214,8 @@ W215 alerts the user; see [W215](codes/kcs-diagnostic-w215-variable-name-unreach
 
 - [W215 KCS](codes/kcs-diagnostic-w215-variable-name-unreachable-via-substitution.md)
 - [W216 KCS](codes/kcs-diagnostic-w216-broken-brace-array-element-reference.md)
+- [How does Tcl parse a list?](kcs-qa-how-tcl-parses-lists.md)
+- [KCS index](README.md)
 - Tcl(n) man page §"Variable substitution"
-- `tclParse.c::Tcl_ParseVarName` (Tcl 9.0.3 source)
-- `tests/data/tcl_probes_full.tcl` (machine-runnable probe set)
+- `tclParse.c::Tcl_ParseVarName` in the Tcl 9 C source — the ground truth
+  the brace-form scan mirrors.

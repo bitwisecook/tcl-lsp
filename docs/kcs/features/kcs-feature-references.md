@@ -170,8 +170,7 @@ proc ::tk::SourceLibFile {file} {
 
 `$file` is the proc's own parameter — the `[…]` is evaluated in the proc's
 frame before `namespace eval` enters `::` — so it is listed with the
-parameter's declaration. See
-[a script argument built with `list` is not analysed as a script](../kcs-issue-list-built-script-argument-not-analysed.md).
+parameter's declaration.
 
 ### Namespace names
 
@@ -202,26 +201,6 @@ completeness: a `TclOO` method whose name starts with an upper-case letter is
 unexported by default, so an `export` list that disagrees with its
 declaration is a broken class, and Rename rewrites those words for exactly
 that reason.
-
-## File-path anchors
-
-- `rust/tcl-lsp-core/src/references.rs` (`find_obj_method_call_sites` —
-  instance dispatch plus a classmethod's own-class-command dispatch;
-  `member_reference_spans` — `export` / `unexport` / `filter` method-name
-  words, from the definer grammar)
-- `rust/tcl-lsp-core/src/caller_frame.rs` (caller-frame variables — the
-  call-site word and the reads it feeds, shared with Hover and Go to
-  Definition)
-- `rust/tcl-lsp-core/src/definition.rs` (shared namespace-aware resolvers)
-- `rust/tcl-lsp-core/src/namespace_symbol.rs` (the one namespace resolver Go
-  to Definition, Hover, and Find References all answer through)
-- `rust/tcl-compiler/src/analyser/oo.rs` (`record_member_command_references` —
-  `superclass` / `mixin` / `inherit` / `forward` as command references)
-- `rust/tcl-compiler/src/var_refs.rs` (`variable_name_role_words` — the one
-  answer to "which words of this command are variable names?", shared by the
-  analyser's reference recorder and the dead-store suppressor)
-- `rust/tcl-compiler/src/analyser/scope.rs` (`collect_name_role_reads` — the
-  single site that records a `VarRead`-role word as a reference)
 
 ## Failure modes
 
@@ -277,50 +256,6 @@ that reason.
   one namespace, which class a later `NAME method` reaches is a runtime
   fact. References still report both call sites; **rename refuses**, with a
   reason (see [Rename](kcs-feature-rename.md)).
-
-## Test anchors
-
-- `rust/tcl-compiler/tests/analyser.rs` (`var_read_role_references` — the
-  TP/FP/TN matrix for variable-name-argument reads;
-  `list_quoted_script_arguments` — reads and declarations inside a
-  `[list …]`-built script argument)
-- `rust/tcl-lsp-core/tests/references_rename.rs`
-  (`find_references_reports_var_read_role_name_words`,
-  `a_cursor_on_a_role_read_word_resolves_the_cell`,
-  `a_parameter_read_inside_a_list_built_body_navigates`)
-- `rust/tcl-lsp-core/tests/references_residual.rs`
-- `rust/tcl-lsp-core/tests/name_resolution.rs` (`my_method_dispatch`,
-  `obj_method_dispatch`, `next_dispatch`, `classmethod_dispatch` —
-  control-flow-nested dispatch TP/FP/TN matrix (issue #957) and the
-  classmethod/typemethod/itcl-proc TP/FP/TN/FN matrix, including issue #956's
-  exact repro and call-site-cursor resolution;
-  `non_identifier_method_names` — hyphenated / dotted / TIP 558
-  angle-bracketed method names; `itcl_class_proc_dispatch` — the
-  colon-qualified [incr Tcl] class-proc TP/FP/TN matrix;
-  `namespace_scoped_class_dispatch` — two same-named classes in different
-  namespaces are not cross-linked, and (PR C3) two same-named `CLASS create
-  NAME` object commands in different namespaces are not either)
-- `rust/tcl-lsp-core/src/references.rs` (`mod tests`, including
-  `references_for_property_includes_decl_and_my_dispatch_call_sites`,
-  `references_disambiguates_property_and_method_sharing_a_name_by_cursor`,
-  `dispatch_scan_depth_guard_stops_runaway_nesting`,
-  `tn_expect_clause_flags_not_decomposed`)
-- `rust/tcl-lsp-server/tests/e2e/issue923_class_refs.rs` (cross-file)
-- `rust/tcl-lsp-server/tests/e2e/issue1088_namespace_symbols.rs` (namespace
-  names as references, in one file and across files)
-- `rust/tcl-lsp-server/tests/e2e/issue923_crossdoc.rs` (cross-file namespace
-  variables, TP + TN)
-- `rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs` (rename / references /
-  code-lens agreement on the same `TclOO` member — issues #991, #993)
-- `rust/tcl-lsp-server/tests/e2e/name_resolution.rs`
-  (`my_method_dispatch::tp_my_dispatch_nested_in_control_flow_reference_and_lens`)
-- `rust/tcl-lsp-server/src/lib.rs` unit tests: `cross_file_consumer_finds_classmethod_bare_dispatch`,
-  `cross_file_consumer_finds_inheriting_subclass_classmethod_dispatch`,
-  `cross_file_method_references_reach_inheritor_document_for_classmethod`,
-  `classmethod_rename_reaches_subclass_only_document`,
-  `cross_file_consumer_does_not_bare_dispatch_an_itcl_class_proc`,
-  `code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name`,
-  `rename_disambiguates_method_and_classmethod_of_the_same_name`
 
 ## Screenshots
 

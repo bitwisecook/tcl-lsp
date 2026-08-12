@@ -86,19 +86,10 @@ disabled, save makes no formatting edits, and the editor's `editor.formatOnSave`
 
 The formatter rewrites source using the configurable style engine. It is idempotent: formatting already-formatted code produces no changes.
 
-## File-path anchors
-
-- `tooling/formatter/engine.py`
-- `server/features/formatting.py`
-
 ## Failure modes
 
 - Non-idempotent formatting (re-format changes output).
 - Brace-style or indentation regressions.
-
-## Test anchors
-
-- `tests/test_formatter.py`
 
 ## Screenshots
 

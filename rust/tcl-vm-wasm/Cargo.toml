@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# The bytecode VM as a self-contained WebAssembly runtime (RUST_ISSUE_008):
+# The bytecode VM as a self-contained WebAssembly runtime:
 # the VM + compiler statically linked into a `wasm32-unknown-unknown` cdylib that
 # runs Tcl (including coroutines) with NO host imports and NO WASI. Unlike the
 # tree-walker C-ABI wasm emitter (which produces a bare module importing `tcl_*`

@@ -117,16 +117,8 @@ command / subcommand — not a hardcoded list in the compiler.
 
 ## File-path anchors
 
-- `rust/tcl-compiler/src/shimmer/byte_array.rs` — `find_byte_array_warnings`,
   `byte_array_effect`, `payload_replace_data_index`
 - `rust/tcl-registry/src/byte_array_effect.rs` — `ByteArrayEffect`
 - `rust/tcl-registry/src/commands/tcl/string_.rs` — per-subcommand
   `byte_array_effect`
 - `rust/tcl-registry/src/commands/irules/*__payload*.rs` — `byte_array_payload`
-
-## Test anchors
-
-- `rust/tcl-compiler/src/shimmer/byte_array.rs` — `mod tests`
-- `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` — FP-SH-19
-- `rust/tcl-lsp-server/tests/e2e/irules.rs` — `payload_string_range_transparent_silent`
-- `docs/design/compiler/byte-array-corruption.md` — the effect taxonomy

@@ -113,5 +113,4 @@ tcl venv delete .venv
 - `rust/tcl-cli/src/commands/` (verb implementations)
 - `rust/f5-cli/src/commands/irule.rs` (`event-order` / `event-info`)
 - `rust/tcl-cli/build.rs` (embedded KCS help DB)
-- `rust/tcl-cli/tests/` (CLI golden tests)
 - `Makefile`

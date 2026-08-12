@@ -799,7 +799,8 @@ fn s102_fires_for_rename_indirection() {
 // my_variable_marks_namespace_alias`) rather than here — the LSP
 // whole-document pipeline does not run shimmer analysis over TclOO method
 // bodies, so `tcl diag` (which does) is the authoritative oracle for that
-// surface, matching how FP.md's FP-SH-15 entry verified it.
+// surface — which is why the FP-SH-15 reproducers live with the compiler, in
+// `analyser/diagnostics/fp/sh.rs::fp_sh_15_*`.
 
 #[test]
 fn s100_silent_for_array_element_use_site() {

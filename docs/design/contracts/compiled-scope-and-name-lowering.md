@@ -3,7 +3,7 @@
 > How the AOT/WASM compiler decides *where a name lives* and *when a construct
 > must run through the interpreter*. The semantic model it mirrors is
 > [runtime-variable-frame-model.md](runtime-variable-frame-model.md) and
-> [namespace-model.md](namespace-model.md); the eval hand-off is
+> [command-resolution.md](command-resolution.md); the eval hand-off is
 > [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md).
 
 ## The decision the compiler has to make
@@ -112,7 +112,7 @@ commands to real runtime queries; never constant-fold them.
 
 - [runtime-variable-frame-model.md](runtime-variable-frame-model.md) — the
   cell/frame indirection this lowering mirrors statically.
-- [namespace-model.md](namespace-model.md) — qualified-name resolution rules.
+- [command-resolution.md](command-resolution.md) — qualified-name resolution rules.
 - [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md)
   — the eval hand-off a barrier node routes through.
 - [variable-trace-dispatch-and-introspection.md](variable-trace-dispatch-and-introspection.md)

@@ -1,4 +1,4 @@
-# KCS: LSP-first compiler pipeline layering
+# LSP-first compiler pipeline layering
 
 ## Symptom
 
@@ -31,5 +31,5 @@ In this repository, editor features benefit most from facts that are:
 
 ## Cross-links
 
-- Architecture: `docs/design/compiler-architecture.md`.
-- Fuzz finding workflow (early-pipeline fix priority): `docs/kcs/kcs-howto-work-on-fuzz-findings.md`.
+- Architecture: [`../compiler-architecture.md`](../compiler-architecture.md).
+- Fuzz-finding workflow (early-pipeline fix priority): the `fuzz-findings` skill.

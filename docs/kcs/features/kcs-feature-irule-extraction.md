@@ -32,17 +32,11 @@ BIG-IP configuration files embed iRules as `ltm rule` blocks. These commands par
 ## File-path anchors
 
 - `editors/vscode/src/extension.ts`
-- `dialects/f5/bigip/`
 
 ## Failure modes
 
 - Extraction fails for non-standard config formatting.
 - Linked object resolution misses references.
-
-## Test anchors
-
-- `tests/test_bigip_link_extract.py`
-- `tests/test_bigip_rule_extract.py`
 
 ## Example
 

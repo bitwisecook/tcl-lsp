@@ -300,9 +300,7 @@ not change the rule, and must not grow bespoke resolution logic. Every
   resolves to, with no existence-checked fall-through.  The variable /
   call-frame model (`VAR_LINK` aliasing, `upvar` to a statically-unknown
   caller frame, the `#0` vs non-`#0` `uplevel` frame distinction) is its own
-  contract, [runtime-variable-frame-model.md](runtime-variable-frame-model.md);
-  `namespace-model.md` covers only where a *qualified* name's namespace
-  resolves, not the frame/alias layer.
+  contract, [runtime-variable-frame-model.md](runtime-variable-frame-model.md).
 
 ## Known modelling gaps (static side)
 

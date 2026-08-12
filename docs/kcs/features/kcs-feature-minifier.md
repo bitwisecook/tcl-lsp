@@ -197,10 +197,8 @@ The minifier entrypoints are `minify_tcl` (basic), `minify_tcl_compact` (compact
 
 ## File-path anchors
 
-- `rust/tcl-lsp-core/src/minify.rs` — all three tiers
 - `rust/tcl-registry/src/traits.rs` — the observability traits the fences consume
 - `rust/tcl-syntax/src/list.rs`, `rust/tcl-syntax/src/case_list.rs` — the list grammar used for case lists
-- `rust/tcl-lsp-server/src/lib.rs` (`tcl-lsp.minifyDocument` command)
 - `editors/vscode/src/extension.ts` (`minifyDocument` handler)
 
 ## Failure modes
@@ -211,9 +209,6 @@ The minifier entrypoints are `minify_tcl` (basic), `minify_tcl_compact` (compact
 
 ## Test anchors
 
-- `rust/tcl-lsp-core/src/minify.rs` (`mod tests`) — tier contracts, switch `#` patterns, reflection fences, lock-step renames.
-- `rust/tcl-lsp-core/tests/minify_residual.rs` — symbol map serialization, switch edges, aliasing edges.
-- `rust/tcl-lsp-server/tests/e2e/commands.rs` — LSP `minifyDocument` end-to-end.
 - `editors/vscode/src/test/commandExecution.test.ts` — editor-visible behaviour.
 
 ## See also

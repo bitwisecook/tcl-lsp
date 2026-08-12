@@ -48,8 +48,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-sticky-scroll-shows-nothing.md](kcs-issue-sticky-scroll-shows-nothing.md)
   — sticky scroll pins nothing for Tcl files while the extension is
   enabled, even though breadcrumbs and the outline look fine.
-- [kcs-issue-stale-compiler-cache.md](kcs-issue-stale-compiler-cache.md)
-  — stale incremental cache produces wrong diagnostics.
 - [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
   — builds in one git worktree fail or pass with artefacts from a
   sibling checkout because the worktrees share one cargo target
@@ -57,42 +55,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-memory-grows-while-editing.md](kcs-issue-memory-grows-while-editing.md)
   — the language server's memory use climbs with every keystroke and never
   comes back down.
-- [kcs-issue-range-drift.md](kcs-issue-range-drift.md) — diagnostic or
-  hover ranges point at the wrong span.
-- [kcs-issue-highlight-drops-closing-delimiter.md](kcs-issue-highlight-drops-closing-delimiter.md)
-  — a highlight over a braced word covers `{$condition` instead of
-  `{$condition}`, dropping the closing delimiter.
-- [kcs-issue-array-element-not-highlighted-as-variable.md](kcs-issue-array-element-not-highlighted-as-variable.md)
-  — a by-reference variable-name argument (`set arr(key) 1`,
-  `info exists arr(key)`) is not highlighted as a variable.
-- [kcs-issue-subcommand-script-body-not-highlighted.md](kcs-issue-subcommand-script-body-not-highlighted.md)
-  — a subcommand's script argument (`console eval { ... }`) stays one opaque
-  string instead of recursing into keyword/variable/comment highlighting.
-- [kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md](kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md)
-  — commands inside an `apply {argList body}` lambda stay one opaque string
-  when `apply` is reached indirectly through `[list apply {...} $x]`
-  (the pkgIndex.tcl `package ifneeded ... [list apply {dir {...}} $dir]`
-  idiom), even though a direct `apply {...}` call highlights fine.
-- [kcs-issue-list-built-script-argument-not-analysed.md](kcs-issue-list-built-script-argument-not-analysed.md)
-  — a script argument built with `list` (`uplevel #0 [list upvar #0 A B]`,
-  `namespace eval :: [list source ...]` — both from Tk's own `tk.tcl`) is
-  never walked as the command it provably is, so its declarations are
-  painted as plain words and its variable reads resolve nowhere.
-- [kcs-issue-classes-made-by-a-class-factory-are-invisible.md](kcs-issue-classes-made-by-a-class-factory-are-invisible.md)
-  — a class made by a user-defined `TclOO` metaclass, a member whose
-  signature arrives through `{*}` expansion, a class named by a `foreach`
-  loop variable, or a command head built from a namespace variable is
-  missing from the outline and resolves nowhere.
-- [kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md](kcs-issue-w129-safe-interp-hidden-command-via-bracket-indirection.md)
-  — W129 (a command hidden in a safe interpreter) does not warn when the
-  hidden command is reached only through a `[...]` bracket substitution —
-  most importantly the `package ifneeded ... [list apply {...} $dir]`
-  deferred-command idiom.
-- [kcs-issue-w129-false-positive-on-control-transfer-commands.md](kcs-issue-w129-false-positive-on-control-transfer-commands.md)
-  — W129 wrongly fires on `break`, `continue`, `yield`, `yieldto`, and
-  `tailcall` in a safe-interpreter body, and the *Inline proc* code action
-  is missing on `file`, `exec`, `open`, and seven other commands — two
-  symptoms of one trait-flag bit collision.
 - [kcs-issue-false-diagnostics-inside-a-multi-word-eval.md](kcs-issue-false-diagnostics-inside-a-multi-word-eval.md)
   — a multi-word `eval`, `uplevel`, or `namespace eval` draws a false E002
   "wrong number of arguments", and a variable the call sets is still
@@ -108,11 +70,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — an iRules word operator (`contains`, `starts_with`, …) is neither
   folded by `tcl opt` nor reported by the analyser, because the file's
   dialect never reached the optimiser or the expression parser.
-- [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
-  — the same finding is reported twice.
-- [kcs-issue-counter-numtests-array-init.md](kcs-issue-counter-numtests-array-init.md)
-  — tcltest's `numTests(Failed)` reads as an empty string in the
-  compiled counter-bundle run.
 - [kcs-issue-reconstruct-a-stress-test-failure.md](kcs-issue-reconstruct-a-stress-test-failure.md)
   — a stress-test suite run failed and you want to reconstruct it from
   the `STRESS_FAILURE:` reproduction bundle.
@@ -125,10 +82,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-vscode-test-feature-toggle-sampled-once.md](kcs-issue-vscode-test-feature-toggle-sampled-once.md)
   — a feature-toggle test samples the provider once right after disabling it
   and is flaky (or fails deterministically) instead of waiting on the result.
-- [kcs-issue-yield-cannot-cross-try-apply-consumed-lmap.md](kcs-issue-yield-cannot-cross-try-apply-consumed-lmap.md)
-  — the bytecode VM's `yield` used to error "cannot yield: C stack busy"
-  inside a `try` body/handler/`finally`, a bare `apply` call, or a
-  value-consumed `lmap`.
 
 ## Q&A
 
@@ -153,9 +106,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md)
   — the nine INI sections (seven shared plus the location-specific
   `[global]` and `[project]`), their keys, and which values are valid.
-- [kcs-qa-rust-shim-env-vars.md](kcs-qa-rust-shim-env-vars.md) — what the
-  `TCL_LSP_RUST_*` environment variables do and when to set them as the
-  Python-to-Rust rewrite lands in chunks.
 - [kcs-qa-how-tcl-parses-lists.md](kcs-qa-how-tcl-parses-lists.md) — how
   Tcl splits a list (and a `proc` / method parameter list) into elements
   on whitespace, and how braces, quotes, and a trailing backslash line
@@ -214,8 +164,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
   platform, and add a new platform.
 - [kcs-howto-add-compiler-pass.md](kcs-howto-add-compiler-pass.md) — add
   a new pass to the compiler pipeline.
-- [kcs-howto-ir-cfg-ssa-diagnostics.md](kcs-howto-ir-cfg-ssa-diagnostics.md)
-  — debug an IR, CFG, or SSA diagnostic end-to-end.
 - [kcs-howto-array-element-ssa-typing.md](kcs-howto-array-element-ssa-typing.md)
   — the per-element array SSA contract: may-def joins, synthetic-def
   skips, base-keyed policy checks.
@@ -229,9 +177,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — write sample files and cursor marker comments for screenshots.
 - [kcs-howto-manage-tcl-packages.md](kcs-howto-manage-tcl-packages.md)
   — add, install, and lock Tcl package dependencies with tclpkg.
-- [kcs-how-to-run-tcltest-bundles.md](kcs-how-to-run-tcltest-bundles.md)
-  — run the Tcl 9 tcltest test files through the WASM runtime and
-  interpret the triage roll-up.
+- [kcs-howto-run-tcltest-bundles.md](kcs-howto-run-tcltest-bundles.md)
+  — run the Tcl 9 tcltest files through the bytecode VM, compare against
+  reference `tclsh`, and read the parity scoreboard.
 - [kcs-howto-run-the-stress-test-suites.md](kcs-howto-run-the-stress-test-suites.md)
   — run the issue #829 robustness stress suites (direct-infrastructure
   and LSP-API) and reconstruct a failure from its reproduction bundle.
@@ -292,22 +240,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — rename a pool everywhere, including inside iRule bodies.
 - [kcs-howto-find-objects-by-query.md](kcs-howto-find-objects-by-query.md)
   — filter BIG-IP objects by arbitrary property predicates.
-- [kcs-howto-script-against-f5-query-from-python.md](kcs-howto-script-against-f5-query-from-python.md)
-  — drive the query engine from a Python script via the `f5q`
-  alias, get typed `ObjectRef` / `PathRef` results back, render
-  with a built-in plugin, or ship your own renderer in one
-  `@renderer` decorator.
 - [kcs-tcl-corner-cases.md](kcs-tcl-corner-cases.md)
-  — empirical reference of Tcl 9.0.3 variable-handling behaviour
-  with a machine-runnable probe set in `tests/data/tcl_probes_full.tcl`.
+  — which spellings of a variable reference real Tcl 9 accepts, and what
+  each one resolves to.
 
-## Tcl 9 correctness
-
-- [kcs-tcl9-test-corpus.md](kcs-tcl9-test-corpus.md) — inventory of the
-  upstream Tcl 9.0.4 test corpus grouped by subsystem, in-scope vs
-  deferred-by-design.
-- [kcs-tcl9-triage.md](kcs-tcl9-triage.md) — per-test-file triage table
-  fed by the harness JSON report.
 
 ## Functionality (commands, features, and tools)
 

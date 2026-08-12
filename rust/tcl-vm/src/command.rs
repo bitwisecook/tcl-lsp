@@ -303,7 +303,7 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .join(" ")
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
-    // yieldable (RUST_ISSUE_008): compile it and hand it to the trampoline via
+    // yieldable: compile it and hand it to the trampoline via
     // `pending_eval`, which pushes a transparent script frame whose result
     // replaces this placeholder. The script frame adds the `("eval" body line N)`
     // errorInfo frame itself on error (eval-2.5; see `Frame::body_label`).
@@ -1026,8 +1026,8 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
     }
-    // Defer to the *explicit* stack so a `yield` inside a `[…]` stays yieldable
-    // (RUST_ISSUE_008): park the template + switches in `pending_subst`, drained by
+    // Defer to the *explicit* stack so a `yield` inside a `[…]` stays yieldable:
+    // park the template + switches in `pending_subst`, drained by
     // the trampoline into a scanner-driven subst frame (mirrors `cmd_catch`'s
     // `pending_catch`). The frame's accumulated result replaces this builtin's
     // placeholder; on the native `invoke_command` fallback it runs via a nested
@@ -1623,7 +1623,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     };
     // Defer the body to the *explicit* stack so a `yield` inside it stays
-    // yieldable (RUST_ISSUE_008): compile it and hand it to the trampoline via
+    // yieldable: compile it and hand it to the trampoline via
     // `pending_catch`. A catch frame runs the body and its completion — of any
     // code — is absorbed by `finish_catch` (which binds the result/options vars
     // and yields the status code). Mirrors `cmd_eval`'s `pending_eval`, but
@@ -1904,7 +1904,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .join(" ");
     // `uplevel 0` (and `uplevel #<current level>`) runs in the *current* frame —
     // no frame swap — so defer it to the explicit stack (yieldable), like `eval`
-    // (RUST_ISSUE_008; coroutine-1.7/1.8/1.12). Every other level swaps to a
+    // (coroutine-1.7/1.8/1.12). Every other level swaps to a
     // different frame that must be restored afterwards, which a transparent
     // script frame cannot carry, so those keep the nested-drive `eval_at_level`.
     if target == cur {
