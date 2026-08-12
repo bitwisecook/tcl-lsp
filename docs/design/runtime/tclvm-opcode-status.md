@@ -236,13 +236,31 @@ deliberate divergences; everything else matches C per the parity suites.
    `pushResult`/`pushReturnCode`/`pushReturnOpts` read the absorbed
    completion (result / numeric code / full options dict, with
    `errorInfo`/`errorCode` published exactly as `finish_catch` does).
-2. **`returnImm`/`syntax` operand semantics are VM-local.** Our codegen pushes
-   `result` then `options` (options on top) and encodes an immediate code as
-   `level 0`, where C pushes options *under* the result and compiles a plain
-   `return` as `(code 0, level 1)`. Realigning is a compiler-identity change
-   (peephole `done` folding, tclsh byte comparison), tracked as follow-up.
-   `returnStk` **is** C-exact: result on top, options applied via the `return`
-   command's option machinery, `TCL_OK` outcomes continue execution.
+2. **`returnImm`/`syntax` operand *values* are VM-local — the stack order is
+   already C-exact.** C's `INST_RETURN_IMM` reads `OBJ_AT_TOS` as the options
+   dict and `OBJ_UNDER_TOS` as the result (`CompileReturnInternal` pushes the
+   options *last*), which is exactly what our codegen emits and our arm pops.
+   Note C's `returnStk` is the **opposite** order — result on top, options
+   under (`tclExecute.c` pops the result first) — and ours matches that too.
+   What genuinely diverges is the immediates: a plain top-level `return`
+   compiles to `(code 0, level 0)` where C emits `(0, 1)`, and the arm decodes
+   but ignores `level`, relying on the options dict for the proc-boundary
+   countdown. The VM compensates by treating code 0 as `TCL_RETURN`, whereas
+   C's `(0, 0)` — `TclProcessReturn` at level 0 with code OK — *falls through
+   to the next instruction*. Codegen and VM are thus self-consistent but both
+   diverge from C.
+
+   Realigning is three sites in one change: the codegen encoding, the VM's
+   `(code, level)` handling, and the two peephole passes that pattern-match
+   the literal `(0, 0)` operand pair (`fold_tail_return_to_done`,
+   `strip_unused_start_cmd`) — which would otherwise silently stop firing and
+   *change* the emitted bytes. Done together, byte parity with tclsh
+   **improves**: the instruction is 9 bytes either way, C also folds a proc's
+   plain tail `return` to `done` (in fact more aggressively — any plain
+   `return` in a proc with no enclosing catch), and a top-level `return`
+   becomes the `returnImm 0 1` tclsh emits. An earlier revision of this note
+   claimed the stack order differed and that realigning would break the
+   byte-for-byte comparison; both claims were wrong.
 3. **`dictRecombineImm`/`dictRecombineStk` ignore the key path** — the
    compiled `dict with` writeback handles a top-level dict variable only, not
    a nested `dict with d k {…}` path (pre-existing in the `Imm` form; the
