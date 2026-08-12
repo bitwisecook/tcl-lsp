@@ -139,7 +139,7 @@ fn provider_ranges_well_formed_for(idx: usize) {
     // machine — which is what turned this into a red build rather than a slow
     // one. Sized by the document so a future large entry is covered too.
     if source.lines().count() > 100 {
-        lsp.open_ready_timeout(&uri, source, Duration::from_secs(180));
+        lsp.open_ready_timeout(&uri, source, Duration::from_mins(3));
     } else {
         lsp.open_ready(&uri, source);
     }
