@@ -281,6 +281,11 @@ declares, a closed keyword — `arg_role_resolver from-manufacturers`,
 `state_transitions … resolver from-frame-effect`, and the whole of
 `clause_grammar`.
 
+The ninth of those fields — the option-arity hook — is a *flag* on an
+option row rather than a property statement, so it is written
+`-arity-hook {words ctx} { … }` (or `-arity-hook -native ID`).
+Everything in the rest of this section applies to it unchanged.
+
 ### Inputs
 
 `words` is a Tcl list of the call's argument words **after the command
@@ -306,13 +311,16 @@ value. A word whose kind is not `literal` appears in `words` as the empty
 string, so a hook that forgets to check `kinds` sees nothing rather than
 source spelling.
 
-Two families add keys of their own, because their Rust signatures take
-more than `args`:
+**One family adds keys of its own**, because it is the only one whose
+Rust signature takes more than `args`
+(`fn(args: &[&str], start: usize)`):
 
 | family | extra `ctx` keys |
 |---|---|
 | option-arity hook | `option` — the option word as written (`-errorstack`); `option-index` — its 0-based index in `words`; `option-value-start` — index of the first value word, i.e. `option-index + 1` |
-| `const_fold_versioned` | none beyond `tcl-version`, which is always present |
+
+Every other family reads only the keys above; `const_fold_versioned` in
+particular needs nothing beyond `tcl-version`, which is always present.
 
 ### When a hook runs
 
