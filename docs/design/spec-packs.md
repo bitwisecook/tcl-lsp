@@ -206,6 +206,43 @@ against intent.
    measured budget; then the `--emit rust` backend, at which point
    shipped packs can migrate to DSL sources with no runtime change.
 
+## Phase 2: the studio becomes the DSL's IDE
+
+Once the DSL definition is frozen (post-review), the Spec Studio grows
+from single-spec editor to pack workbench. Agent-built (Sonnet/Opus per
+task weight), spec'd here so the work has a target:
+
+- **DSL as a first-class surface.** A DSL renderer beside the `.rs` and
+  stub panes, and a DSL *reader*: open an existing `.tclspec.tcl` (hand
+  written, studio-saved, or emitted by the `spec-author` skill) and get
+  the whole pack as editable drafts. The studio's unit of work becomes
+  the **library**: a pack browser beside the registry browser, multi
+  command editing, pack-level defaults and shared tables surfaced.
+- **A Test tab.** Paste code that uses built-ins *plus* the pack under
+  edit. The embedded wasm already carries the real analyser and
+  registry; the pack loads as an overlay, then the tab shows exactly
+  what an editor would show — highlighted tokens, diagnostics, hover —
+  and a deep-inspection view: click any word to see the resolved spec,
+  the argument role and where it came from, type facts, taint colours,
+  and which spec field produced each token. "My stuff is working" is
+  observed, not asserted.
+- **Live save, always.** Every keystroke persists to browser storage
+  (IndexedDB): pack sources, drafts, settings, the Test tab's sample
+  code. Reload, crash, or restart resumes exactly; explicit export
+  remains the way bytes leave the browser.
+- **Skill-in-studio.** A tab to configure an OpenAI-compatible endpoint
+  and API key, driving the spec-author flow in the page: the model gets
+  the studio's own wasm functions (import/inference, command lookup,
+  analyse) as its tools, so the evidence loop is identical to the CLI
+  skill and everything except the model calls stays client-side.
+  **Design tension, stated up front:** today's page ships
+  `connect-src 'none'` — the never-phones-home guarantee. The AI tab
+  requires network. Resolution: the default build keeps `'none'`; AI is
+  a separately-built variant (or an explicit opt-in page) whose CSP
+  allows only user-configured origins, with the key held in local
+  storage and a plain warning that it is sent to the endpoint the user
+  named. The guarantee is preserved by *build*, not by promise.
+
 ## What a pack still cannot say
 
 Behaviour that is not a pure words→data function stays native:
