@@ -1359,6 +1359,349 @@ fn tcloo_next_at_the_end_of_the_chain_and_underflow() {
     assert_eq!(err_str(&c), "tclooNext: stack underflow");
 }
 
+// -- unsetArray (LVT slot form) --------------------------------------------
+
+/// `unsetArray` honours its flags operand exactly as `unsetArrayStk` does: C
+/// reads `flags = TclGetUInt1AtPtr(pc + 1) ? TCL_LEAVE_ERR_MSG : 0`
+/// (`tclExecute.c:3814`) and, when it is set and the element is absent,
+/// deliberately falls to `slowUnsetArray` (3837-3839, 3851-3862) so
+/// `TclLookupArrayElement(…, flags, "unset", …)` reports the miss and
+/// `errorInUnset` (3893) raises it. With the flag clear it is silent (the early
+/// `NEXT_INST_F(6, 1, 0)` at 3843-3848).
+#[test]
+fn unset_array_flag_clear_is_silent() {
+    let mut a = Asm::new();
+    let slot = a.slot("arr");
+    a.push("k").push("v").op(Op::STORE_ARRAY4, &[slot]);
+    a.op(Op::POP, &[]);
+    a.push("gone").op(Op::UNSET_ARRAY, &[0, slot]);
+    a.push("k").op(Op::UNSET_ARRAY, &[0, slot]);
+    a.push("k").op(Op::EXIST_ARRAY, &[slot]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(ok_str(&c), "0");
+}
+
+/// With the flag set, the three-way `tclVar.c` miss text (NOSUCHELEMENT /
+/// NEEDARRAY / NOSUCHVAR, `tclVar.c:119-122`) — identical to `unsetArrayStk`'s,
+/// which reaches it through `TclObjUnsetVar2` instead.
+#[test]
+fn unset_array_complain_flag_errors() {
+    let mut a = Asm::new();
+    let slot = a.slot("arr");
+    a.push("k").push("v").op(Op::STORE_ARRAY4, &[slot]);
+    a.op(Op::POP, &[]);
+    a.push("gone").op(Op::UNSET_ARRAY, &[1, slot]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(
+        err_str(&c),
+        "can't unset \"arr(gone)\": no such element in array"
+    );
+
+    let mut a = Asm::new();
+    let slot = a.slot("s");
+    a.push("v").op(Op::STORE_SCALAR4, &[slot]);
+    a.op(Op::POP, &[]);
+    a.push("k").op(Op::UNSET_ARRAY, &[1, slot]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "can't unset \"s(k)\": variable isn't array");
+
+    let mut a = Asm::new();
+    let slot = a.slot("nope");
+    a.push("k").op(Op::UNSET_ARRAY, &[1, slot]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "can't unset \"nope(k)\": no such variable");
+}
+
+// -- strfind / strrfind ----------------------------------------------------
+
+/// An **empty needle is a miss**. Both C helpers open with
+/// `if (ln == 0) { /* We don't find empty substrings.  Bizarre! */ … }` leaving
+/// the result at -1 (`tclStringObj.c:3853-3858` `TclStringFirst`, `:3948-3956`
+/// `TclStringLast`), where Rust's `str::find`/`rfind` would answer 0 and the
+/// haystack length. Stack order is C's `TclStringFirst(OBJ_UNDER_TOS,
+/// OBJ_AT_TOS, …)` — needle under, haystack on top (`tclExecute.c:5555-5567`).
+#[test]
+fn str_find_empty_needle_is_minus_one() {
+    for (op, want) in [(Op::STR_FIND, "-1"), (Op::STR_RFIND, "-1")] {
+        let mut a = Asm::new();
+        a.push("").push("abc").op(op, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "{op:?} with an empty needle");
+    }
+    // A non-empty needle keeps its character index (first vs last occurrence).
+    let mut a = Asm::new();
+    a.push("l").push("hello").op(Op::STR_FIND, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(ok_str(&c), "2");
+    let mut a = Asm::new();
+    a.push("l").push("hello").op(Op::STR_RFIND, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(ok_str(&c), "3");
+}
+
+/// The opcodes agree with the `string first`/`string last` commands, which
+/// already returned -1 for an empty needle.
+#[test]
+fn str_find_matches_string_first_last_commands() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    for (sub, op) in [("first", Op::STR_FIND), ("last", Op::STR_RFIND)] {
+        let cmd = vm
+            .eval_source(&format!("string {sub} \"\" abc"))
+            .expect("compiles")
+            .result
+            .to_str()
+            .to_string();
+        let mut a = Asm::new();
+        a.push("").push("abc").op(op, &[]);
+        let c = run(&mut vm, a);
+        assert_eq!(ok_str(&c), cmd, "string {sub} vs {op:?}");
+    }
+}
+
+// -- strupper / strlower / strtitle ---------------------------------------
+
+/// C `INST_STR_UPPER`/`LOWER`/`TITLE` (`tclExecute.c:5284-5334`) call
+/// `Tcl_UtfToUpper`/`ToLower`/`ToTitle`, which map **one code point to one code
+/// point** through `Tcl_UniCharToUpper` &co (`tclUtf.c:1777-1858`) — Tcl's
+/// tables hold only Unicode's *simple* mappings, so `ß` (U+00DF, no simple
+/// uppercase) is unchanged and the character count never changes. Rust's
+/// `to_uppercase()`/`to_lowercase()` implement *full* mapping and expand
+/// (`ß` → `SS`, `İ` → `i` + U+0307), which is what these arms used to do.
+#[test]
+fn str_case_ops_use_simple_unicode_mapping() {
+    for (op, subject, want) in [
+        // Expanding full mappings have no C counterpart: character preserved.
+        (Op::STR_UPPER, "\u{00DF}", "\u{00DF}"), // ß, not SS
+        (Op::STR_LOWER, "\u{0130}", "\u{0130}"), // İ, not i + U+0307
+        (Op::STR_TITLE, "\u{00DF}x", "\u{00DF}x"),
+        // Ordinary 1:1 mappings still apply.
+        (Op::STR_UPPER, "aé\u{0131}", "AÉI"),
+        (Op::STR_LOWER, "AÉ", "aé"),
+        (Op::STR_TITLE, "hELLO wORLD", "Hello world"),
+        // `Tcl_UniCharToTitle` differs from uppercase for the Latin digraphs.
+        (Op::STR_TITLE, "\u{01C4}z", "\u{01C5}z"), // DŽ → Dž
+    ] {
+        let mut a = Asm::new();
+        a.push(subject).op(op, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "{op:?} {subject:?}");
+    }
+}
+
+/// The opcodes and the `string toupper`/`tolower`/`totitle` commands share the
+/// simple-mapping helpers, so they cannot drift apart again.
+#[test]
+fn str_case_ops_match_string_case_commands() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    for (sub, op) in [
+        ("toupper", Op::STR_UPPER),
+        ("tolower", Op::STR_LOWER),
+        ("totitle", Op::STR_TITLE),
+    ] {
+        for subject in ["\u{00DF}", "\u{0130}", "hELLO wORLD", "\u{01C4}z"] {
+            let cmd = vm
+                .eval_source(&format!("string {sub} {{{subject}}}"))
+                .expect("compiles")
+                .result
+                .to_str()
+                .to_string();
+            let mut a = Asm::new();
+            a.push(subject).op(op, &[]);
+            let c = run(&mut vm, a);
+            assert_eq!(ok_str(&c), cmd, "string {sub} {subject:?} vs {op:?}");
+        }
+    }
+}
+
+// -- tryCvtToBoolean -------------------------------------------------------
+
+/// C `INST_TRY_CVT_TO_BOOLEAN` (`tclExecute.c:6404-6414`; table
+/// `tclCompile.c:616` — `{"tryCvtToBoolean", 1, +1, 0, {OPERAND_NONE}}`, "Try
+/// converting stktop to boolean if possible. **No errors.** Stack: … value =>
+/// … value isStrictBool") leaves the value in place and pushes a 0/1 flag, and
+/// never raises. Here the flag is consumed by `strEq` against a literal so both
+/// the flag *and* the surviving value are observed. The flag is the **strict**
+/// acceptor (`TclSetBooleanFromAny` → `ParseBoolean`, `tclObj.c:2100-2280`), so
+/// `2` and `1.5` are *not* booleans even though they are truthy in `if`.
+#[test]
+fn try_cvt_to_boolean_pushes_flag_and_keeps_value() {
+    for (subject, want_flag) in [
+        ("yes", "1"),
+        ("0", "1"),
+        ("1", "1"),
+        ("true", "1"),
+        ("of", "1"), // unique prefix of `off`
+        ("foo", "0"),
+        ("", "0"),
+        ("2", "0"),
+        ("1.5", "0"),
+        ("o", "0"), // ambiguous prefix (`on`/`off`)
+    ] {
+        // … value flag => the flag, with the value still underneath.
+        let mut a = Asm::new();
+        a.push(subject).op(Op::TRY_CVT_TO_BOOLEAN, &[]);
+        a.push(want_flag).op(Op::STR_EQ, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), "1", "tryCvtToBoolean {subject:?} flag");
+
+        // Discard the flag and the original value must still be there — the +1
+        // stack effect, not the 0 our old pop/re-push arm had.
+        let mut a = Asm::new();
+        a.push(subject).op(Op::TRY_CVT_TO_BOOLEAN, &[]);
+        a.op(Op::POP, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), subject, "tryCvtToBoolean {subject:?} value");
+    }
+}
+
+// -- listIndex / lindexMulti ----------------------------------------------
+
+/// C `INST_LIST_INDEX` (`tclExecute.c:4696-4768`) only *fast-paths* an integer
+/// index; anything else falls through to `TclLindexList` (4754), so the index
+/// word may be a list of indices (nested `lindex`) or empty (the whole list),
+/// and a spec that is neither is `bad index …` (4758-4761).
+#[test]
+fn list_index_implements_tcl_lindex_list() {
+    for (list, idx, want) in [
+        ("{a b} {c d}", "1 0", "c"),        // nested drill
+        ("{a b} {c d}", "", "{a b} {c d}"), // empty index list ⇒ whole list
+        ("a b c", "1", "b"),                // plain integer
+        ("a b c", "end-1", "b"),            // end-relative
+        ("a b c", "9", ""),                 // out of range ⇒ empty
+        ("a b c", "-1", ""),                // before the start ⇒ empty
+        ("{a b} {c d}", "1 9", ""),         // out of range at depth
+    ] {
+        let mut a = Asm::new();
+        a.push(list).push(idx).op(Op::LIST_INDEX, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "listIndex {list:?} {idx:?}");
+    }
+}
+
+/// A syntactically bad index is an error, not the empty string.
+#[test]
+fn list_index_bad_index_errors() {
+    for idx in ["foo", "1.5", "end-"] {
+        let mut a = Asm::new();
+        a.push("a b c").push(idx).op(Op::LIST_INDEX, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(
+            err_str(&c),
+            format!("bad index \"{idx}\": must be integer?[+-]integer? or end?[+-]integer?"),
+            "listIndex bad index {idx:?}"
+        );
+    }
+}
+
+/// `lindexMulti` is C's `TclLindexFlat` (`tclExecute.c:4833-4858`): each operand
+/// is *one* index (never re-split as an index list), an out-of-range index gives
+/// the empty string, and a malformed one returns `NULL` → `goto gotError`.
+#[test]
+fn lindex_multi_validates_every_index() {
+    let mut a = Asm::new();
+    a.push("{a b} {c d}").push("1").push("0");
+    a.op(Op::LINDEX_MULTI, &[3]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(ok_str(&c), "c");
+
+    let mut a = Asm::new();
+    a.push("{a b} {c d}").push("0").push("9");
+    a.op(Op::LINDEX_MULTI, &[3]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(ok_str(&c), "");
+
+    let mut a = Asm::new();
+    a.push("{a b} {c d}").push("0").push("foo");
+    a.op(Op::LINDEX_MULTI, &[3]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(
+        err_str(&c),
+        "bad index \"foo\": must be integer?[+-]integer? or end?[+-]integer?"
+    );
+}
+
+/// The compiled forms agree with the `lindex` command, which already
+/// implemented `TclLindexList`/`TclLindexFlat` faithfully.
+#[test]
+fn list_index_matches_lindex_command() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    let cmd = vm
+        .eval_source("lindex {{a b} {c d}} {1 0}")
+        .expect("compiles")
+        .result
+        .to_str()
+        .to_string();
+    let mut a = Asm::new();
+    a.push("{a b} {c d}").push("1 0").op(Op::LIST_INDEX, &[]);
+    let c = run(&mut vm, a);
+    assert_eq!(ok_str(&c), cmd);
+}
+
+// -- strindex / strrange ---------------------------------------------------
+
+/// C `INST_STR_INDEX` (`tclExecute.c:5336-5380`) and `INST_STR_RANGE`
+/// (`:5382-5406`) both run their indices through `TclGetIntForIndexM` and treat
+/// a *parse* failure as `goto gotError`; only the separate range tests
+/// (`index < 0 || index >= slength`, and `toIdx == TCL_INDEX_NONE`) produce the
+/// empty result. Clamping a bad spec to 0/-1 turned a typo into a
+/// plausible-looking substring.
+#[test]
+fn str_index_and_range_reject_bad_indices() {
+    let bad = |spec: &str| {
+        format!("bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?")
+    };
+    let mut a = Asm::new();
+    a.push("abc").push("foo").op(Op::STR_INDEX, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), bad("foo"));
+
+    // A list-valued index is not an index spec for the string ops.
+    let mut a = Asm::new();
+    a.push("abc").push("1 0").op(Op::STR_INDEX, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), bad("1 0"));
+
+    // `first` is validated before `last`, matching C's two sequential
+    // `TclGetIntForIndexM` calls.
+    let mut a = Asm::new();
+    a.push("abcde").push("foo").push("2").op(Op::STR_RANGE, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), bad("foo"));
+
+    let mut a = Asm::new();
+    a.push("abcde").push("1").push("bar").op(Op::STR_RANGE, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), bad("bar"));
+}
+
+/// Valid-but-out-of-range indices keep C's clamp/empty behaviour — no error.
+#[test]
+fn str_index_and_range_still_clamp_valid_indices() {
+    for (idx, want) in [("0", "a"), ("2", "c"), ("end", "c"), ("9", ""), ("-1", "")] {
+        let mut a = Asm::new();
+        a.push("abc").push(idx).op(Op::STR_INDEX, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "strindex abc {idx}");
+    }
+    for (from, to, want) in [
+        ("1", "3", "bcd"),
+        ("0", "end", "abcde"),
+        ("-3", "2", "abc"), // negative `first` clamps to 0
+        ("0", "end+1", "abcde"),
+        ("3", "1", ""),  // reversed range
+        ("0", "-1", ""), // `toIdx == TCL_INDEX_NONE`
+        ("9", "20", ""),
+    ] {
+        let mut a = Asm::new();
+        a.push("abcde").push(from).push(to).op(Op::STR_RANGE, &[]);
+        let (_, c) = run_fresh(a);
+        assert_eq!(ok_str(&c), want, "strrange abcde {from} {to}");
+    }
+}
+
 /// A `tcl-compiler`-backed compile service, so the tests that need real Tcl
 /// setup (traces, `namespace import`, command dispatch) can `eval_source`.
 mod compiler {

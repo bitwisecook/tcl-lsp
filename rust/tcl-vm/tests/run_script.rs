@@ -219,6 +219,43 @@ fn nan_operand_error_wording() {
     );
 }
 
+/// A non-numeric operand that is a well-formed multi-element **list** gets C's
+/// distinct wording, `cannot use a list as <ord>operand of "<op>"` with
+/// errorCode `ARITH DOMAIN list`. `IllegalExprOperandType`
+/// (`tclExecute.c:9089-9107`) applies that branch to *binary* operators — where
+/// `ord` is `"left "`/`"right "` — exactly as to unary ones, but only the unary
+/// builder had the check.
+#[test]
+fn list_operand_error_wording() {
+    for (e, want) in [
+        ("{1 2} + 1", "cannot use a list as left operand of \"+\""),
+        ("1 + {1 2}", "cannot use a list as right operand of \"+\""),
+        (
+            "{a 1 b 2} * 2",
+            "cannot use a list as left operand of \"*\"",
+        ),
+        ("-{a 1 b 2}", "cannot use a list as operand of \"-\""),
+    ] {
+        let (ok, result, _) = run(&format!("catch {{expr {{{e}}}}} m\nset m"));
+        assert!(ok, "script should complete: {result}");
+        assert_eq!(result, want, "expr {{{e}}}");
+    }
+    // A single-element non-number is still a non-numeric *string* — the list
+    // branch must not swallow it. Driven through `mathop` (as
+    // `nan_operand_error_wording` is) so the operand reaches `to_num_operand`
+    // rather than the expression parser.
+    let (ok, result, _) = run("catch {tcl::mathop::+ abc 1} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(
+        result,
+        "cannot use non-numeric string \"abc\" as left operand of \"+\""
+    );
+    // And `mathop` takes the list branch too (same helper, both entry points).
+    let (ok, result, _) = run("catch {tcl::mathop::+ {1 2} 1} m\nset m");
+    assert!(ok, "script should complete: {result}");
+    assert_eq!(result, "cannot use a list as left operand of \"+\"");
+}
+
 /// Integer `expr` arithmetic promotes to i128 on i64 overflow instead of
 /// wrapping (the VM's bounded stand-in for Tcl bignums), covering the common
 /// large-value range that `expr`/`mathop` exercise.
@@ -1416,6 +1453,97 @@ fn opcode_reverse_lindex_multi_str_replace() {
         ],
     );
     assert_eq!(r, "Z");
+}
+
+/// `string is boolean` in value position compiles to C's `INST_TRY_CVT_TO_BOOLEAN`
+/// sequence (`tryCvtToBoolean; jumpTrue L; push ""; streq; jump end; L: pop;
+/// push "1"`), which only balances because the opcode leaves the value in place
+/// and pushes the 0/1 flag on top (`tclExecute.c:6404-6414`, table
+/// `tclCompile.c:616`: stack effect **+1**, "No errors"). While the arm
+/// pop/re-pushed the *value* and errored on a non-boolean, the first two cases
+/// raised `expected boolean value but got "foo"` and the third silently lost the
+/// `set` (the codegen's `pop` ate `storeStk`'s operand instead of the value).
+#[test]
+fn string_is_boolean_inline_try_cvt_to_boolean() {
+    assert_eq!(run("set x [string is boolean foo]").1, "0");
+    assert_eq!(run("set x [string is boolean {}]").1, "1");
+    // The stack-corruption case: `$x` has to be readable afterwards.
+    assert_eq!(run("set x [string is boolean yes]; set x").1, "1");
+    assert_eq!(run("puts [list a [string is boolean yes] b]").2, "a 1 b\n");
+    // The flag is C's *strict* acceptor (`ParseBoolean`, `tclObj.c:2100-2280`),
+    // so a truthy non-boolean number is not a boolean — matching the
+    // uncompiled `string is boolean` command.
+    assert_eq!(run("set x [string is boolean 2]").1, "0");
+    assert_eq!(run("set x [string is boolean 1]").1, "1");
+    assert_eq!(
+        run("string is boolean 2").1,
+        run("set x [string is boolean 2]").1
+    );
+}
+
+/// `lindex` with a non-constant index compiles to `LIST_INDEX`, which is C's
+/// full `TclLindexList` (`tclExecute.c:4696-4768` falling through to line 4754):
+/// a list-valued index drills nested sublists, an empty index list is the whole
+/// list, and a garbage spec errors. The old `unwrap_or(-1)` funnel made all
+/// three the empty string.
+#[test]
+fn compiled_list_index_implements_tcl_lindex_list() {
+    assert_eq!(run("set i {1 0}; set r [lindex {{a b} {c d}} $i]").1, "c");
+    assert_eq!(
+        run("set i {}; set r [lindex {{a b} {c d}} $i]").1,
+        "{a b} {c d}"
+    );
+    assert_eq!(run("set i 9; set r [lindex {a b c} $i]").1, "");
+    let (ok, msg, _) = run("set i foo; set r [lindex {a b c} $i]");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad index \"foo\": must be integer?[+-]integer? or end?[+-]integer?"
+    );
+    // `LINDEX_MULTI` (≥ 2 indices) is C's `TclLindexFlat` and validates each.
+    assert_eq!(run("set i 0; set r [lindex {{a b} {c d}} 1 $i]").1, "c");
+    let (ok, msg, _) = run("set i foo; set r [lindex {{a b} {c d}} 0 $i]");
+    assert!(!ok);
+    assert!(msg.starts_with("bad index \"foo\""), "got: {msg}");
+    // A malformed *list value* still propagates its own conversion error, as
+    // C's `TclListObjGetElements` failure does — not `bad index`.
+    let (ok, msg, _) = run("set l \"a \\{b\"; set i 0; set r [lindex $l $i]");
+    assert!(!ok);
+    assert_eq!(msg, "unmatched open brace in list");
+    // The compiled path agrees with the uncompiled command.
+    assert_eq!(
+        run("set i {1 0}; set r [lindex {{a b} {c d}} $i]").1,
+        run("puts -nonewline [lindex {{a b} {c d}} {1 0}]").2
+    );
+}
+
+/// `string index`/`string range` with a non-constant index compile to
+/// `STR_INDEX`/`STR_RANGE`, whose indices go through `TclGetIntForIndexM` with a
+/// parse failure as `goto gotError` (`tclExecute.c:5348-5351`, `5388-5397`).
+/// Clamping a bad spec to 0/-1 returned a plausible substring instead.
+#[test]
+fn compiled_str_index_and_range_reject_bad_indices() {
+    let bad = |spec: &str| {
+        format!("bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?")
+    };
+    for (src, spec) in [
+        ("set i foo; set r [string index abc $i]", "foo"),
+        ("set i {1 0}; set r [string index abc $i]", "1 0"),
+        ("set i foo; set r [string range abcde $i 2]", "foo"),
+        ("set i foo; set r [string range abcde 1 $i]", "foo"),
+    ] {
+        let (ok, msg, _) = run(src);
+        assert!(!ok, "{src} should error");
+        assert_eq!(msg, bad(spec), "{src}");
+    }
+    // Valid indices — including out-of-range ones — keep C's clamp/empty result.
+    assert_eq!(run("set i 1; set r [string index abc $i]").1, "b");
+    assert_eq!(run("set i end; set r [string index abc $i]").1, "c");
+    assert_eq!(run("set i 9; set r [string index abc $i]").1, "");
+    assert_eq!(run("set i -1; set r [string index abc $i]").1, "");
+    assert_eq!(run("set i 1; set r [string range abcde $i 3]").1, "bcd");
+    assert_eq!(run("set i -3; set r [string range abcde $i 2]").1, "abc");
+    assert_eq!(run("set i 3; set r [string range abcde $i 1]").1, "");
 }
 
 /// `set x [cmd …]` inline command-substitution assign:

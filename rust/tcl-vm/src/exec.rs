@@ -664,14 +664,12 @@ fn imm_index(imm: i32, len: usize) -> isize {
     }
 }
 
-/// Resolve a runtime index value (`N`/`end`/`end-N`) against a length.
-fn imm_index_value(v: &Value, len: usize) -> isize {
-    crate::command::resolve_index(&v.to_str(), len).unwrap_or(-1)
-}
-
 /// Resolve a runtime index value, erroring on a non-integer spec (`bad index`)
-/// — the validating form used by the inline `linsert`/`lreplace` opcode, so the
-/// compiled path rejects `linsert a b` like the command does (linsert-2.2).
+/// — the validating form C's index-taking opcodes all use, since every one of
+/// them routes through `TclGetIntForIndexM` and treats its failure as an error
+/// (`INST_STR_INDEX`, `INST_STR_RANGE`, `INST_STR_REPLACE`, `INST_LREPLACE4`);
+/// the non-validating `unwrap_or` forms it replaced turned a garbage index into
+/// a plausible-looking value.
 fn checked_index_value(v: &Value, len: usize) -> Result<isize, Completion<Value>> {
     let s = v.to_str();
     crate::command::resolve_index(&s, len).ok_or_else(|| {
@@ -783,7 +781,18 @@ fn char_range(chars: &[char], lo: isize, hi: isize) -> Value {
 }
 
 /// Character index of `needle` in `hay` (`string first`/`last`), or -1.
+///
+/// An **empty needle is a miss**: both C helpers open with an explicit
+/// `if (ln == 0) { /* We don't find empty substrings.  Bizarre! */ goto …End; }`
+/// that leaves the result at `-1` (`tclStringObj.c:3853-3858` `TclStringFirst`,
+/// `:3948-3956` `TclStringLast`). Rust's `str::find`/`rfind` instead *do* match
+/// the empty needle, at 0 and at the haystack length respectively, so
+/// `INST_STR_FIND`/`INST_STR_FIND_LAST` returned `0`/`len` where C returns `-1`
+/// (and where our own `string first`/`last` builtins already returned `-1`).
 fn char_find(hay: &str, needle: &str, last: bool) -> i64 {
+    if needle.is_empty() {
+        return -1;
+    }
     let byte = if last {
         hay.rfind(needle)
     } else {
@@ -1555,6 +1564,36 @@ impl Vm {
         Ok(())
     }
 
+    /// Unset the array element `name(key)`, honouring C's `TCL_LEAVE_ERR_MSG`
+    /// (`complain`). Shared by `INST_UNSET_ARRAY` (array in an LVT slot,
+    /// `tclExecute.c:3813-3864`) and `INST_UNSET_ARRAY_STK` (array name on the
+    /// stack, `3866-3872`): the first reaches the message through
+    /// `slowUnsetArray` → `TclLookupArrayElement(…, flags, "unset", …)` →
+    /// `errorInUnset`, the second through `TclObjUnsetVar2(part1, part2, flags)`,
+    /// and both land on the same `tclVar.c` three-way text — `NOSUCHELEMENT`
+    /// (119-122: "no such element in array") / `NEEDARRAY` ("variable isn't
+    /// array") / `NOSUCHVAR` ("no such variable"). With the flag clear neither
+    /// form reports anything (C's early `NEXT_INST_F(6, 1, 0)` at 3843-3848).
+    fn unset_array_elem_checked(
+        &mut self,
+        name: &str,
+        key: &str,
+        complain: bool,
+    ) -> Result<(), Completion<Value>> {
+        if complain && self.get_array_elem(name, key).is_none() {
+            let what = if self.var_is_array(name) {
+                "no such element in array"
+            } else if self.exists_var(name) {
+                "variable isn't array"
+            } else {
+                "no such variable"
+            };
+            return Err(err(format!("can't unset \"{name}({key})\": {what}")));
+        }
+        self.array_unset_elem(name, key);
+        Ok(())
+    }
+
     /// One scan step of a subst activation: append the next literal / `$…` run and
     /// either finish (`Return` with the accumulated output), pause for a top-level
     /// `[…]` (compile it and push a yieldable child script frame), or fail. The
@@ -2034,15 +2073,23 @@ impl Vm {
                     Err(e) => return Tick::Return(err(e.message)),
                 }
             }
+            // `[lindex $list $i]` — C `INST_LIST_INDEX` (`tclExecute.c:4696-4768`).
+            // The integer fast path is only a fast path: when the index object
+            // does not parse as one, C falls through to
+            // `TclLindexList(interp, valuePtr, value2Ptr)` (line 4754), which
+            // treats the index word as an index *list* — so a list-valued index
+            // drills nested sublists (`lindex {{a b} {c d}} {1 0}` → `c`), an
+            // empty index list is the whole list, and a spec that is neither
+            // (`foo`) is `bad index "foo": …` (`objResultPtr == NULL` →
+            // `goto gotError`, 4758-4761). That is exactly the runtime `lindex`
+            // command's core, so both paths single-source it.
             Op::LIST_INDEX => {
                 let idx = pop(f);
                 let l = pop(f);
-                let items = match l.as_list() {
-                    Ok(i) => i,
-                    Err(e) => return Tick::Return(err(e.message)),
-                };
-                let i = imm_index_value(&idx, items.len());
-                f.stack.push(get_at(&items, i));
+                match tcl_cmd_core::list::lindex(self, &l, std::slice::from_ref(&idx)) {
+                    Ok(v) => f.stack.push(v),
+                    Err(e) => return Tick::Return(err(e.into_message())),
+                }
             }
             Op::LIST_INDEX_IMM => {
                 let l = pop(f);
@@ -2093,34 +2140,28 @@ impl Vm {
                 try_op!(self.unset_one(&name, complain));
             }
             Op::UNSET_ARRAY => {
-                // Operands [flags, slot]; the element key is on the stack. Array
-                // elements are removed element-aware and never complain (matching
-                // C Tcl / cmd_unset).
+                // Operands [flags, slot]; the element key is on TOS. C
+                // `INST_UNSET_ARRAY` reads the flags operand
+                // (`flags = TclGetUInt1AtPtr(pc + 1) ? TCL_LEAVE_ERR_MSG : 0`,
+                // `tclExecute.c:3814`) and, when it is set and the element is
+                // absent, deliberately falls to `slowUnsetArray` (3837-3839,
+                // 3851-3862) so the miss is reported. Ignoring the operand made
+                // `unset B(nope)` silently succeed while `UNSET_SCALAR`/
+                // `UNSET_STK` complained.
+                let complain = imm0(instr) != 0;
                 let name = lvt_name(imm_at(instr, 1));
                 let key = pop(f).to_str();
-                self.array_unset_elem(&name, &key);
+                try_op!(self.unset_array_elem_checked(&name, &key, complain));
             }
             Op::UNSET_ARRAY_STK => {
                 // Operand = flags (non-zero ⇒ C's `TCL_LEAVE_ERR_MSG`: complain
                 // when the element is absent); the key is on TOS over the array
-                // name. C routes this through `TclObjUnsetVar2(part1, part2,
-                // flags)`, whose miss message takes the usual three-way shape
-                // (`tclVar.c` NOSUCHVAR / NEEDARRAY / NOSUCHELEMENT), as
-                // `unset a(k)` reports in set-old-7.4/7.5.
+                // name, matching C's `part2Ptr = OBJ_AT_TOS` /
+                // `part1Ptr = OBJ_UNDER_TOS` (`tclExecute.c:3866-3872`).
                 let complain = imm0(instr) != 0;
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
-                if complain && self.get_array_elem(&name, &key).is_none() {
-                    let what = if self.var_is_array(&name) {
-                        "no such element in array"
-                    } else if self.exists_var(&name) {
-                        "variable isn't array"
-                    } else {
-                        "no such variable"
-                    };
-                    return Tick::Return(err(format!("can't unset \"{name}({key})\": {what}")));
-                }
-                self.array_unset_elem(&name, &key);
+                try_op!(self.unset_array_elem_checked(&name, &key, complain));
             }
 
             // -- append / lappend (LVT scalar + array forms) --
@@ -2840,23 +2881,47 @@ impl Vm {
                 let s = pop(f).to_str();
                 f.stack.push(Value::int(ilen(s.chars().count())));
             }
+            // C `INST_STR_INDEX` (`tclExecute.c:5336-5380`): the index goes
+            // through `TclGetIntForIndexM` and a *syntactically* bad spec is
+            // `goto gotError` (`bad index "foo": …`) — only the separate
+            // `index < 0 || index >= slength` test yields the empty string. The
+            // old `resolve_index(...).and_then(...)` chain collapsed both into
+            // the empty string, so a garbage index looked like a miss.
             Op::STR_INDEX => {
                 let idx = pop(f);
                 let s = pop(f).to_str();
                 let chars: Vec<char> = s.chars().collect();
-                let v = crate::command::resolve_index(&idx.to_str(), chars.len())
-                    .and_then(|i| usize::try_from(i).ok())
-                    .and_then(|i| chars.get(i))
-                    .map_or_else(Value::empty, |c| Value::string(c.to_string()));
-                f.stack.push(v);
+                let i = match checked_index_value(&idx, chars.len()) {
+                    Ok(i) => i,
+                    Err(c) => return Tick::Return(c),
+                };
+                f.stack.push(
+                    usize::try_from(i)
+                        .ok()
+                        .and_then(|i| chars.get(i))
+                        .map_or_else(Value::empty, |c| Value::string(c.to_string())),
+                );
             }
+            // C `INST_STR_RANGE` (`tclExecute.c:5382-5406`): *both* indices go
+            // through `TclGetIntForIndexM` and either failure is `goto gotError`
+            // (lines 5388-5397); the surviving out-of-range handling is
+            // `Tcl_GetRange`'s clamp plus the `toIdx == TCL_INDEX_NONE` → empty
+            // short-circuit, which `char_range` already models. Defaulting a bad
+            // `first` to 0 and a bad `last` to -1 turned a typo into a
+            // plausible-looking substring.
             Op::STR_RANGE => {
                 let to = pop(f);
                 let from = pop(f);
                 let s = pop(f).to_str();
                 let chars: Vec<char> = s.chars().collect();
-                let lo = crate::command::resolve_index(&from.to_str(), chars.len()).unwrap_or(0);
-                let hi = crate::command::resolve_index(&to.to_str(), chars.len()).unwrap_or(-1);
+                let lo = match checked_index_value(&from, chars.len()) {
+                    Ok(i) => i,
+                    Err(c) => return Tick::Return(c),
+                };
+                let hi = match checked_index_value(&to, chars.len()) {
+                    Ok(i) => i,
+                    Err(c) => return Tick::Return(c),
+                };
                 f.stack.push(char_range(&chars, lo, hi));
             }
             Op::STR_RANGE_IMM => {
@@ -2885,23 +2950,34 @@ impl Vm {
                         &pat, &s, nocase,
                     )));
             }
-            Op::STR_UPPER => {
+            // C `INST_STR_UPPER`/`INST_STR_LOWER`/`INST_STR_TITLE`
+            // (`tclExecute.c:5284-5334`) call `Tcl_UtfToUpper`/`ToLower`/`ToTitle`,
+            // which map **one code point to one code point** through Tcl's own
+            // tables (`Tcl_UniCharToUpper` &co, `tclUtf.c:1777-1858`) and so never
+            // change the character count. Rust's `str::to_uppercase()` implements
+            // *full* Unicode mapping and expands (`ß` → `SS`, `İ` → `i` + U+0307),
+            // which changed `string length` of the result; the shared
+            // `simple_*` helpers restrict it to the 1:1 mapping and are the same
+            // ones the `string toupper`/`tolower`/`totitle` commands use.
+            Op::STR_UPPER | Op::STR_LOWER => {
                 let s = pop(f).to_str();
-                f.stack.push(Value::string(s.to_uppercase()));
-            }
-            Op::STR_LOWER => {
-                let s = pop(f).to_str();
-                f.stack.push(Value::string(s.to_lowercase()));
+                let map = if instr.op == Op::STR_UPPER {
+                    tcl_cmd_core::string::simple_upper
+                } else {
+                    tcl_cmd_core::string::simple_lower
+                };
+                f.stack
+                    .push(Value::string(s.chars().map(map).collect::<String>()));
             }
             Op::STR_TITLE => {
                 let s = pop(f).to_str();
                 let mut out = String::with_capacity(s.len());
                 for (i, c) in s.chars().enumerate() {
-                    if i == 0 {
-                        out.extend(c.to_uppercase());
+                    out.push(if i == 0 {
+                        tcl_cmd_core::string::simple_title(c)
                     } else {
-                        out.extend(c.to_lowercase());
-                    }
+                        tcl_cmd_core::string::simple_title_rest(c)
+                    });
                 }
                 f.stack.push(Value::string(out));
             }
@@ -2954,12 +3030,30 @@ impl Vm {
                     Err(e) => return Tick::Return(err(e.message)),
                 }
             }
+            // C `INST_TRY_CVT_TO_BOOLEAN` (`tclExecute.c:6404-6414`; table
+            // `tclCompile.c:616` — `{"tryCvtToBoolean", 1, +1, 0, …}`, "Try
+            // converting stktop to boolean if possible. **No errors.** Stack:
+            // … value => … value isStrictBool"): the value is *left in place*
+            // and a 0/1 "is a valid boolean" flag is pushed on top, and the
+            // instruction never raises. Popping/re-pushing the value (and
+            // erroring on a non-boolean) desynchronised the operand stack from
+            // our own `string is boolean` codegen
+            // (`tcl-compiler/src/codegen/cmd_subst.rs`), which emits C's
+            // `tryCvtToBoolean; jumpTrue L; push ""; streq; jump end; L: pop;
+            // push "1"` sequence and so needs both the flag and the value.
+            // The flag is C's *strict* test — `TclSetBooleanFromAny` /
+            // `ParseBoolean` (`tclObj.c:2100-2280`), hence the table's
+            // `isStrictBool` — which accepts only `0`, `1` and the unique
+            // case-insensitive prefixes of `yes`/`no`/`true`/`false`/`on`/`off`,
+            // *not* `Value::as_bool`'s `Tcl_GetBooleanFromObj` leniency (any
+            // non-zero number). So `string is boolean 2` is 0 while `if {2}`
+            // still runs, and the opcode agrees with the `string is boolean`
+            // command (`tcl_cmd_core::string_is`, same acceptor).
             Op::TRY_CVT_TO_BOOLEAN => {
-                let v = pop(f);
-                match v.as_bool() {
-                    Ok(_) => f.stack.push(v),
-                    Err(e) => return Tick::Return(err(e.message)),
-                }
+                let is_bool = f.stack.last().is_some_and(|v| {
+                    tcl_syntax::boolean::parse_boolean_strict(&v.to_str()).is_some()
+                });
+                f.stack.push(Value::bool(is_bool));
             }
 
             // -- unary --
@@ -3369,26 +3463,26 @@ impl Vm {
                 }
                 f.stack[len - n..].reverse();
             }
-            // `[lindex $list i1 i2 …]` with ≥ 2 indices — C Tcl
-            // `INST_LIST_INDEX_MULTI`; operand = list + index count. The list is
-            // deepest, then the indices; descends one index per level. An
-            // out-of-range index yields the empty string (matching `LIST_INDEX`).
+            // `[lindex $list i1 i2 …]` with ≥ 2 indices — C
+            // `INST_LIST_INDEX_MULTI` (`tclExecute.c:4833-4858`); operand =
+            // list + index count. The list is deepest, then the indices. C
+            // hands the whole run to `TclLindexFlat`, where each index is *one*
+            // spec (never re-split as an index list), an out-of-range index
+            // yields the empty string, and a malformed one returns `NULL` →
+            // `goto gotError` (`bad index "foo": …`).
             Op::LINDEX_MULTI => {
                 let opnd = usize::try_from(imm0(instr)).unwrap_or(0);
                 if opnd == 0 || f.stack.len() < opnd {
                     return Tick::Return(err("lindexMulti: stack underflow"));
                 }
                 let items = f.stack.split_off(f.stack.len() - opnd);
-                let mut cur = items[0].clone();
-                for spec in &items[1..] {
-                    let elems = match cur.as_list() {
-                        Ok(e) => e,
-                        Err(e) => return Tick::Return(err(e.message)),
-                    };
-                    let i = imm_index_value(spec, elems.len());
-                    cur = get_at(&elems, i);
+                let Some((list, idxs)) = items.split_first() else {
+                    return Tick::Return(err("lindexMulti: stack underflow"));
+                };
+                match tcl_cmd_core::list::lindex_flat(self, list, idxs) {
+                    Ok(v) => f.stack.push(v),
+                    Err(e) => return Tick::Return(err(e.into_message())),
                 }
-                f.stack.push(cur);
             }
             // `string replace $s $first $last $new` — C Tcl `INST_STR_REPLACE`.
             // Stack holds the string, the first index, the last index, then the
@@ -4511,6 +4605,14 @@ mod tests {
         assert_eq!(char_find("héllo", "é", false), 1);
         assert_eq!(char_find("héllo", "llo", false), 2);
         assert_eq!(char_find("héllo", "l", true), 3);
+        // An empty needle is a *miss*, not a match at 0 / at the end: C's
+        // `TclStringFirst`/`TclStringLast` special-case `ln == 0` and leave the
+        // result at -1 ("We don't find empty substrings.  Bizarre!",
+        // `tclStringObj.c:3853-3858`, `:3948-3956`), where Rust's
+        // `str::find`/`rfind` would answer 0 and 5.
+        assert_eq!(char_find("hello", "", false), -1);
+        assert_eq!(char_find("hello", "", true), -1);
+        assert_eq!(char_find("", "", false), -1);
     }
 
     #[test]

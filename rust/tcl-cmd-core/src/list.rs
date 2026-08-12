@@ -57,19 +57,47 @@ pub fn lindex<O: ValueOps>(
     value: &O::Value,
     idxs: &[O::Value],
 ) -> Result<O::Value, CmdError> {
-    let specs: Vec<String> = if idxs.len() == 1 {
-        let s = ops.as_str(&idxs[0]);
-        // A single index argument is an index *list* (`lindex $l {0 1}`). When it
-        // is not a well-formed list (`lindex $l \{`), C falls back to treating it
-        // as one index spec — which then fails as `bad index "{"`, not as a list
-        // parse error (lindex-10.4).
-        tcl_syntax::list::split_list(&s).map_or_else(
-            |_| vec![s.to_string()],
-            |parts| parts.iter().map(|p| p.as_ref().to_string()).collect(),
-        )
-    } else {
-        idxs.iter().map(|i| ops.as_str(i).to_string()).collect()
+    let [only] = idxs else {
+        return lindex_flat(ops, value, idxs);
     };
+    let s = ops.as_str(only);
+    // A single index argument is an index *list* (`lindex $l {0 1}`). When it
+    // is not a well-formed list (`lindex $l \{`), C falls back to treating it
+    // as one index spec — which then fails as `bad index "{"`, not as a list
+    // parse error (lindex-10.4).
+    let specs: Vec<String> = tcl_syntax::list::split_list(&s).map_or_else(
+        |_| vec![s.to_string()],
+        |parts| parts.iter().map(|p| p.as_ref().to_string()).collect(),
+    );
+    lindex_specs(ops, value, &specs)
+}
+
+/// `TclLindexFlat` — `lindex` with every index already flattened, so each
+/// element of `idxs` is exactly *one* index spec and is never re-split as an
+/// index list. This is the core `INST_LIST_INDEX_MULTI` uses
+/// (`tclExecute.c:4833-4858`) and the `lindex list i1 i2 …` argument form; the
+/// `objc == 3` form goes through [`lindex`] (C's `TclLindexList`) instead.
+///
+/// # Errors
+/// `bad index …` for a malformed spec, or the list-parse error of a level that
+/// is not a well-formed list.
+pub fn lindex_flat<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    idxs: &[O::Value],
+) -> Result<O::Value, CmdError> {
+    let specs: Vec<String> = idxs.iter().map(|i| ops.as_str(i).to_string()).collect();
+    lindex_specs(ops, value, &specs)
+}
+
+/// Walk `specs` one level per index — the shared body of [`lindex`] and
+/// [`lindex_flat`] (C's `TclLindexFlat` loop). An empty `specs` returns `value`
+/// unchanged, which is how `lindex $l {}` yields the whole list.
+fn lindex_specs<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    specs: &[String],
+) -> Result<O::Value, CmdError> {
     let mut cur = value.clone();
     for (k, spec) in specs.iter().enumerate() {
         let elems = ops.list_elements(&cur)?;

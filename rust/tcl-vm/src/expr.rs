@@ -295,9 +295,18 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
     if let Some(b) = value_as_bigint(v) {
         return Ok(Num::Huge(b));
     }
+    // A non-number that *is* a multi-element list gets C's distinct wording,
+    // which `IllegalExprOperandType` applies to binary operators exactly as to
+    // unary ones — `ord` is `"left "`/`"right "` there.
+    let s = v.to_str();
+    if is_list_operand(&s) {
+        return Err(TclError::new(format!(
+            "cannot use a list as {side} operand of \"{}\"",
+            op.as_str()
+        )));
+    }
     // `nan` (and `±NaN`) is a valid floating-point *value* that simply cannot be
     // an arithmetic operand — C words that differently from a non-number string.
-    let s = v.to_str();
     let kind = if matches!(number::parse_whole(s.trim()), Some(Number::Nan { .. })) {
         "floating-point value"
     } else {
@@ -307,6 +316,15 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
         "cannot use non-numeric {kind} \"{s}\" as {side} operand of \"{}\"",
         op.as_str()
     )))
+}
+
+/// C `IllegalExprOperandType`'s list branch (`tclExecute.c:9089-9107`): a value
+/// that is not a number but *is* a well-formed list of more than one element (or
+/// a non-empty dict) is reported as `cannot use a list as …operand of "…"` with
+/// errorCode `ARITH DOMAIN list`, rather than as a non-numeric string. Shared by
+/// the unary and binary operand-error builders so the two agree.
+fn is_list_operand(s: &str) -> bool {
+    tcl_syntax::list::max_list_length(s) > 1 && tcl_syntax::list::split_list(s).is_ok()
 }
 
 fn divzero() -> TclError {
@@ -321,7 +339,7 @@ fn divzero() -> TclError {
 /// the VM does not yet set arith error codes — same as `divide by zero`.)
 fn unary_operand_err(v: &Value, op: &str) -> TclError {
     let s = v.to_str();
-    if tcl_syntax::list::max_list_length(&s) > 1 && tcl_syntax::list::split_list(&s).is_ok() {
+    if is_list_operand(&s) {
         return TclError::new(format!("cannot use a list as operand of \"{op}\""));
     }
     let desc = match number::parse_whole(s.trim()) {

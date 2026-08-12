@@ -216,32 +216,91 @@ pub fn case_convert<O: ValueOps>(
             out.push(c);
             continue;
         }
-        let uppercase = match mode {
-            CaseMode::Upper => true,
-            CaseMode::Lower => false,
-            CaseMode::Title => i == first, // titlecase the first char, lowercase the rest
-        };
-        if uppercase {
-            // `string totitle`'s first character uses the Unicode *titlecase*
-            // mapping (`Tcl_UniCharToTitle`), which differs from uppercase only
-            // for the Latin DŽ/LJ/NJ/DZ digraphs (string-17.7); everywhere else
-            // titlecase == uppercase.
-            match titlecase_digraph(c).filter(|_| matches!(mode, CaseMode::Title)) {
-                Some(tc) => out.push(tc),
-                None => out.extend(c.to_uppercase()),
-            }
-        } else {
-            out.extend(c.to_lowercase());
-        }
+        // Per-character *simple* mapping throughout ([`simple_upper`] &co), the
+        // way C's `Tcl_UtfTo{Upper,Lower,Title}` do it: `string toupper ß` is
+        // `ß`, not `SS`. `string totitle`'s first character uses the Unicode
+        // *titlecase* mapping (`Tcl_UniCharToTitle`), which differs from
+        // uppercase only for the Latin DŽ/LJ/NJ/DZ digraphs (string-17.7), and
+        // its remaining characters go through `Tcl_UtfToTitle`'s
+        // lowercase-with-Georgian-exception rule.
+        out.push(match mode {
+            CaseMode::Upper => simple_upper(c),
+            CaseMode::Lower => simple_lower(c),
+            CaseMode::Title if i == first => simple_title(c),
+            CaseMode::Title => simple_title_rest(c),
+        });
     }
     Ok(ops.new_string(out))
+}
+
+/// C's `Tcl_UtfTo{Upper,Lower,Title}` length guard: the mapped character
+/// replaces the original only when its UTF-8 encoding is no longer than the
+/// original's — "only copy the upper case char to dst if its size is <= the
+/// original char" (`tclUtf.c:1334-1346`, and the same test in the lower/title
+/// loops). It keeps e.g. `ɐ` (U+0250, 2 bytes) unchanged rather than mapping it
+/// to `Ɐ` (U+2C6F, 3 bytes).
+fn fit(orig: char, mapped: char) -> char {
+    if orig.len_utf8() < mapped.len_utf8() {
+        orig
+    } else {
+        mapped
+    }
+}
+
+/// The Unicode **simple** (1:1) case mapping of `c`, given its *full* mapping
+/// iterator.
+///
+/// C's case conversions are strictly per-code-point — `Tcl_UtfToUpper` calls
+/// `Tcl_UniCharToUpper` (`tclUtf.c:1777-1789`), a delta-encoded table with one
+/// code point in and one out — whereas Rust's [`char::to_uppercase`] /
+/// [`char::to_lowercase`] implement *full* mapping and can expand (`ß` → `SS`,
+/// `İ` → `i` + U+0307). An expanding mapping has no C counterpart, so the
+/// character is left alone; a 1:1 mapping is taken subject to [`fit`].
+fn simple(c: char, mut full: impl Iterator<Item = char>) -> char {
+    match (full.next(), full.next()) {
+        (Some(m), None) => fit(c, m),
+        _ => c,
+    }
+}
+
+/// `Tcl_UniCharToUpper` — the simple uppercase mapping of one character.
+#[must_use]
+pub fn simple_upper(c: char) -> char {
+    simple(c, c.to_uppercase())
+}
+
+/// `Tcl_UniCharToLower` — the simple lowercase mapping of one character.
+#[must_use]
+pub fn simple_lower(c: char) -> char {
+    simple(c, c.to_lowercase())
+}
+
+/// `Tcl_UniCharToTitle` — the simple titlecase mapping of one character, which
+/// equals the uppercase mapping except for the digraphs [`titlecase_digraph`]
+/// knows about.
+#[must_use]
+pub fn simple_title(c: char) -> char {
+    titlecase_digraph(c).map_or_else(|| simple_upper(c), |t| fit(c, t))
+}
+
+/// `Tcl_UtfToTitle`'s mapping for the characters *after* the first: lowercase,
+/// except the Georgian Mtavruli block (U+1C90..U+1CBF), which C deliberately
+/// leaves alone — "Special exception for Georgian Asomtavruli chars, no
+/// titlecase" (`tclUtf.c:1452-1456`).
+#[must_use]
+pub fn simple_title_rest(c: char) -> char {
+    if ('\u{1C90}'..='\u{1CBF}').contains(&c) {
+        c
+    } else {
+        simple_lower(c)
+    }
 }
 
 /// The Unicode titlecase mapping for the characters whose `Titlecase_Mapping`
 /// differs from their `Uppercase_Mapping` — the Latin DŽ/LJ/NJ/DZ digraphs (all
 /// three case forms of each map to the single title form). Every other character
 /// titlecases to its uppercase mapping, so those return `None` (the caller falls
-/// back to [`char::to_uppercase`]).
+/// back to [`simple_upper`]).
 fn titlecase_digraph(c: char) -> Option<char> {
     Some(match c {
         '\u{01C4}' | '\u{01C5}' | '\u{01C6}' => '\u{01C5}', // DŽ / Dž / dž → Dž
@@ -891,6 +950,34 @@ mod tests {
             case_convert(&mut ops, &["\u{01F3}".to_owned()], CaseMode::Upper, "u").unwrap(),
             "\u{01F1}"
         );
+    }
+
+    #[test]
+    fn case_mapping_is_simple_not_full() {
+        // C's `Tcl_UtfTo{Upper,Lower,Title}` map one code point to one code
+        // point through `Tcl_UniCharTo{Upper,Lower,Title}` (`tclUtf.c:1777-1858`),
+        // which hold only Unicode's *simple* mappings — so a Rust *full* mapping
+        // that expands has no C counterpart and the character is preserved.
+        assert_eq!(simple_upper('\u{00DF}'), '\u{00DF}'); // ß, not SS
+        assert_eq!(simple_lower('\u{0130}'), '\u{0130}'); // İ, not i + U+0307
+        assert_eq!(simple_upper('\u{FB01}'), '\u{FB01}'); // ﬁ, not FI
+        // Ordinary 1:1 mappings still apply, including the shrinking ones.
+        assert_eq!(simple_upper('a'), 'A');
+        assert_eq!(simple_lower('É'), 'é');
+        assert_eq!(simple_upper('\u{0131}'), 'I'); // ı (2 bytes) → I (1 byte)
+        // C's length guard keeps a mapping that would *grow* the UTF-8 encoding
+        // ("only copy the upper case char to dst if its size is <= the original
+        // char", `tclUtf.c:1338-1345`): ɐ (U+0250, 2 bytes) does not become
+        // Ɐ (U+2C6F, 3 bytes).
+        assert_eq!(simple_upper('\u{0250}'), '\u{0250}');
+        // Titlecase differs from uppercase only for the Latin digraphs.
+        assert_eq!(simple_title('\u{01F3}'), '\u{01F2}'); // dz → Dž
+        assert_eq!(simple_title('h'), 'H');
+        // `Tcl_UtfToTitle`'s rest-of-string rule lowercases, except the Georgian
+        // Mtavruli block it deliberately skips (`tclUtf.c:1452-1456`).
+        assert_eq!(simple_title_rest('A'), 'a');
+        assert_eq!(simple_title_rest('\u{1C90}'), '\u{1C90}');
+        assert_eq!(simple_title_rest('\u{1CC0}'), '\u{1CC0}'); // just past the block
     }
 
     #[test]
