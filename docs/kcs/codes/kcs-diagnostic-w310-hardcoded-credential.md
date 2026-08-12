@@ -39,7 +39,7 @@ entirely.
 ```tcl
 package require http
 
-http::geturl $url -headers [list Authorization "Bearer sk-live-9f3a2b"]
+http::geturl $url -headers {Authorization "Bearer sk-live-9f3a2b"}
 ```
 
 ```tcl

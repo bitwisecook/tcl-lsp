@@ -214,8 +214,8 @@ its own SSA variable (`naming::element_var_name`; the def/use scanners,
 expr AST, lowering `Call` defs, and `def_use` terminator reads all report
 element-qualified names), so it types, folds, and shimmer-checks as the
 independent scalar it is — per-element hover, per-element SCCP constants,
-and the *same*-element loop oscillation now a true S102 (the pre-P5
-conflation exclusion was a forced false negative there).
+and the *same*-element loop oscillation a true S102 (conflating elements
+onto the base would force a false negative there).
 
 A dynamic key (`arr($i)`) stays on the conflated base, and its write
 **fans** as `SsaStatement::may_defs` over the array's known elements:

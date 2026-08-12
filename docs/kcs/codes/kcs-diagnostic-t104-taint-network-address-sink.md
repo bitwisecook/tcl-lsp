@@ -42,24 +42,40 @@ untrusted source and reaches `socket`'s address slot.
 
 ## Fix
 
-Validate the address against an allow-list before connecting:
+Use the untrusted value to *select* an address rather than to *be* one,
+so the word that reaches the sink is a literal from your own source:
 
 ```tcl
-set host [gets stdin]
-if {$host ni {api.internal.example db.internal.example}} {
-  error "host not permitted"
+set choice [gets stdin]
+switch -- $choice {
+  primary { set host api.internal.example }
+  replica { set host db.internal.example }
+  default { error "host not permitted" }
 }
 set ch [socket $host 80]
 ```
+
+Guarding the value in place — `if {$host ni {…}} {error …}` — does *not*
+clear the finding. The analyser does not model expression-level
+validation, so `$host` is still the attacker-controlled value where it
+reaches `socket`. If you have validated the address in a way the
+analyser cannot see, suppress the code at that line instead of
+restructuring around it.
 
 ## When it does not fire
 
 - **Only the address slots count.** A tainted value in some other
   argument of the same command is ordinary data and does not trip the
-  sink.
-- **A validated address clears it.** Once the analyser can see that the
-  value has been through an IP-address, port, or hostname check, the
-  finding is withdrawn.
+  sink. `socket -myaddr 1.2.3.4 $h 80` still fires on `$h`; the
+  `-myaddr` value is not the sink slot.
+- **A literal address never fires.** `socket localhost 80` and
+  `http::geturl "http://example.com"` carry no taint to begin with.
+- **An address-typed source clears it.** In the F5 iRules dialect a
+  value from `IP::client_addr`, `TCP::client_port`/`TCP::remote_port`,
+  or `SSL::sni` is born carrying the `IP_ADDRESS`, `PORT`, or `FQDN`
+  colour, and that colour suppresses the sink. These colours come from
+  the registry's `taint_source`; no general-purpose Tcl command confers
+  them, which is why an ordinary validation guard cannot.
 
 ## How to suppress
 

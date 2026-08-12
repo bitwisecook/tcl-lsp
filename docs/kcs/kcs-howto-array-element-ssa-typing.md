@@ -18,7 +18,7 @@ and the dead-store/unused diagnostics, plus `rust/tcl-lsp-core` hover.
 
 ## Operational context
 
-- Since type-tracking P5, a **constant-keyed** element (`arr(k)`;
+- A **constant-keyed** element (`arr(k)`;
   `set {a($x)} v`'s literal `$x`; `${arr($i)}`'s literal `$i`) is its own
   SSA variable named `base(key)` (`tcl_syntax::naming::element_var_name`).
   A **dynamic** key (`arr($i)`) stays on the conflated base symbol.
@@ -45,8 +45,8 @@ and the dead-store/unused diagnostics, plus `rust/tcl-lsp-core` hover.
 6. W210 read-before-set stays silent for an element whose base is
    written, aliased, or a parameter anywhere in the function; only a
    wholly-unwritten, unaliased array's element read reports.
-7. The FP-SH-13 exclusion set (`array_element_symbols`) now contains only
-   **base** symbols. Do not re-add element symbols to it — independent
+7. The FP-SH-13 exclusion set (`array_element_symbols`) contains only
+   **base** symbols. Do not add element symbols to it — independent
    elements cannot conflate structurally, and the same-element oscillation
    is a genuine S102.
 
@@ -75,5 +75,7 @@ and the dead-store/unused diagnostics, plus `rust/tcl-lsp-core` hover.
 ## Discoverability
 
 - Linked from `docs/kcs/README.md`; design contract in
-  `docs/design/compiler/type-tracking.md` (P5) and
-  `docs/design/compiler/FP.md` §FP-SH-13.
+  `docs/design/compiler/type-tracking.md` §"Arrays as per-constant-key
+  scalars" and `docs/design/contracts/shimmer-reference-behaviour.md`.
+  The base-symbol exclusion cases (FP-SH-13) are pinned by the tests in
+  `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs`.
