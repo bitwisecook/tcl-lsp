@@ -66,6 +66,12 @@ pub enum ExprTokenType {
     TernaryC,
     /// Whitespace run.
     Whitespace,
+    /// `# …` comment, running to the end of the line or the end of the
+    /// expression — TIP 582, Tcl 9.0+ only. Skipped exactly like
+    /// [`Whitespace`](Self::Whitespace) by every consumer that cares about the
+    /// grammar; emitted rather than dropped so the token stream still covers
+    /// every byte of the source.
+    Comment,
     /// End of input.
     Eof,
 }
@@ -88,8 +94,24 @@ impl ExprTokenType {
             Self::TernaryQ => "TERNARY_Q",
             Self::TernaryC => "TERNARY_C",
             Self::Whitespace => "WHITESPACE",
+            Self::Comment => "COMMENT",
             Self::Eof => "EOF",
         }
+    }
+
+    /// Whether the expression grammar skips this token outright, so it never
+    /// reaches a parse or a syntax check.
+    ///
+    /// C's `ParseExpr` advances past a `COMMENT` lexeme and `continue`s its
+    /// main loop exactly as it does for a whitespace run
+    /// (`tclCompExpr.c:701-704`), and re-skips whitespace on the way round, so
+    /// a comment may appear anywhere whitespace may — including between a
+    /// function name and its `(` (`tclCompExpr.c:743-758`). Consumers filter on
+    /// this rather than on [`Whitespace`](Self::Whitespace) alone so the two
+    /// can never drift apart.
+    #[must_use]
+    pub const fn is_skipped(self) -> bool {
+        matches!(self, Self::Whitespace | Self::Comment)
     }
 }
 
@@ -246,16 +268,23 @@ struct Inner<'s> {
     /// catalog (so the `irules` / `tcl-irule` alias spellings behave like
     /// the canonical name), gating the iRules-only word operators.
     irules_operators: bool,
+    /// Whether `#` starts a comment in this dialect — TIP 582, resolved
+    /// through the profile's `LexerGrammar` (9.0+ only; see
+    /// `tcl_dialect::LexerGrammar::expr_comments`). When false, `#` stays an
+    /// unknown character, which is what C 8.4-8.6 does with it.
+    expr_comments: bool,
     unknown: bool,
 }
 
 impl<'s> Inner<'s> {
     fn new(s: &'s str, dialect: Option<&'s str>) -> Self {
+        let profile = tcl_dialect::DialectProfile::by_opt_name(dialect);
         Self {
             b: s.as_bytes(),
             s,
             i: 0,
-            irules_operators: tcl_dialect::DialectProfile::by_opt_name(dialect).is_irules(),
+            irules_operators: profile.is_irules(),
+            expr_comments: profile.grammar.expr_comments.comments(),
             unknown: false,
         }
     }
@@ -313,6 +342,8 @@ impl<'s> Inner<'s> {
                     }
                 }
                 out.push(self.tok(ExprTokenType::Whitespace, start));
+            } else if ch == b'#' && self.expr_comments {
+                out.push(self.comment());
             } else if ch.is_ascii_digit()
                 || (ch == b'.' && self.i + 1 < self.b.len() && self.b[self.i + 1].is_ascii_digit())
             {
@@ -353,6 +384,31 @@ impl<'s> Inner<'s> {
             }
         }
         out
+    }
+
+    /// Scan a TIP 582 `#` comment, which lasts to the end of the line or the
+    /// end of the expression, whichever comes first.
+    ///
+    /// Mirrors `ParseLexeme`'s `case '#':` (`tclCompExpr.c:1931-1942` in
+    /// 9.0.4), including its two asymmetric terminators: C's
+    /// `return size - (byte == '\n')` leaves a terminating newline *outside*
+    /// the comment — it belongs to the following whitespace run, which is what
+    /// keeps `expr "1 #\n+ 2"` equal to 3 rather than 1 — while an embedded NUL
+    /// is consumed as part of the comment.
+    ///
+    /// A `\` before the newline does not extend the comment: C's scan is plain
+    /// byte-wise and stops at the first raw `\n`, so
+    /// [`Self::is_backslash_nl`]'s continuation rule deliberately does not
+    /// apply here.
+    fn comment(&mut self) -> ExprToken {
+        let start = self.i;
+        self.i = self.b[start..]
+            .iter()
+            .position(|&c| c == b'\n' || c == 0)
+            .map_or(self.b.len(), |k| {
+                start + k + usize::from(self.b[start + k] == 0)
+            });
+        self.tok(ExprTokenType::Comment, start)
     }
 
     fn number(&mut self) -> ExprToken {
@@ -933,5 +989,223 @@ mod tests {
                 .any(|t| t.kind == ExprTokenType::Operator && t.text == "+"),
             "operator after non-ASCII not found: {plus:?}",
         );
+    }
+
+    // =================================================================
+    // TIP 582 `#` comments (`tclCompExpr.c:1931-1942`)
+    // =================================================================
+
+    /// The comment token's text, for each comment in `source`.
+    fn comments(source: &str) -> Vec<String> {
+        tokenise_expr(source, None)
+            .into_iter()
+            .filter(|t| t.kind == ExprTokenType::Comment)
+            .map(|t| t.text)
+            .collect()
+    }
+
+    /// `#` runs to the end of the line or the end of the expression, wherever
+    /// it appears — C skips a `COMMENT` lexeme exactly like a whitespace run
+    /// (`tclCompExpr.c:701`), so it may sit anywhere whitespace may.
+    #[test]
+    fn a_comment_may_appear_wherever_whitespace_may() {
+        // Trailing: the case that used to set `unknown` and degrade the whole
+        // expression to `ExprNode::Raw`.
+        assert_eq!(comments("1 + 2 # note"), vec!["# note"]);
+        assert_eq!(
+            types("1 + 2 # note"),
+            vec![
+                ExprTokenType::Number,
+                ExprTokenType::Operator,
+                ExprTokenType::Number,
+                ExprTokenType::Comment,
+            ]
+        );
+        // Mid-expression, and immediately before an operator with no
+        // intervening space.
+        assert_eq!(comments("1 #c\n+ 2"), vec!["#c"]);
+        assert_eq!(comments("1#c\n+2"), vec!["#c"]);
+        // A comment swallows the rest of the line, operators included, so
+        // expr-62.1's `expr {1 # + 2}` is just `1`.
+        assert_eq!(
+            types("1 # + 2"),
+            vec![ExprTokenType::Number, ExprTokenType::Comment]
+        );
+        // Inside a function's argument list, on either side of the comma.
+        assert_eq!(comments("max(1,# comment\n2)"), vec!["# comment"]);
+        assert_eq!(comments("max(1# comment\n,2)"), vec!["# comment"]);
+    }
+
+    /// C's `:750` lookahead: a comment between a bareword and its `(` still
+    /// leaves a function call ("Actually a function call, but with obscuring
+    /// comments"). Pins expr-62.10's token shape.
+    #[test]
+    fn a_comment_may_obscure_a_function_call_paren() {
+        assert_eq!(
+            types("max# comment\n(1,2)"),
+            vec![
+                ExprTokenType::Function,
+                ExprTokenType::Comment,
+                ExprTokenType::ParenOpen,
+                ExprTokenType::Number,
+                ExprTokenType::Comma,
+                ExprTokenType::Number,
+                ExprTokenType::ParenClose,
+            ]
+        );
+    }
+
+    /// The terminating newline is *not* part of the comment: C returns
+    /// `size - (byte == '\n')`, leaving the newline to the whitespace scan.
+    /// This is what keeps expr-62.2's `expr "1 #\n+ 2"` equal to 3 — if the
+    /// comment ate the newline nothing would change here, but if it ate the
+    /// rest of the *expression* the `+ 2` would vanish.
+    #[test]
+    fn a_comment_stops_before_its_newline() {
+        let toks = tokenise_expr("1 #\n+ 2", None);
+        let comment = toks
+            .iter()
+            .find(|t| t.kind == ExprTokenType::Comment)
+            .expect("comment token");
+        assert_eq!(comment.text, "#");
+        assert_eq!((comment.start, comment.end), (2, 2));
+        // The newline survives as its own whitespace token, and the `+ 2` is
+        // still there.
+        assert_eq!(
+            types("1 #\n+ 2"),
+            vec![
+                ExprTokenType::Number,
+                ExprTokenType::Comment,
+                ExprTokenType::Operator,
+                ExprTokenType::Number,
+            ]
+        );
+        assert!(
+            tokenise_expr("1 #\n+ 2", None)
+                .iter()
+                .any(|t| t.kind == ExprTokenType::Whitespace && t.text == "\n"),
+            "the newline must be a whitespace token of its own"
+        );
+        // A `\` before the newline does not extend the comment either: C's scan
+        // is byte-wise and stops at the first raw `\n`.
+        assert_eq!(comments("1 #c\\\n+ 2"), vec!["#c\\"]);
+        assert_eq!(
+            types("1 #c\\\n+ 2"),
+            vec![
+                ExprTokenType::Number,
+                ExprTokenType::Comment,
+                ExprTokenType::Operator,
+                ExprTokenType::Number,
+            ]
+        );
+    }
+
+    /// `doc/expr.n`'s one exception: `#` begins a comment "at any point in the
+    /// expression **except within double quotes or braces**". Those operands are
+    /// scanned as whole tokens before a `#` inside them is ever looked at, so a
+    /// hash there stays ordinary text.
+    #[test]
+    fn a_hash_inside_a_quoted_or_braced_operand_is_not_a_comment() {
+        for src in [r#""a#b" eq $x"#, r"{a#b} eq $x"] {
+            let toks = tokenise_expr(src, None);
+            assert!(
+                !toks.iter().any(|t| t.kind == ExprTokenType::Comment),
+                "{src:?} must not lex a comment: {toks:?}"
+            );
+            // The operand keeps its `#`, and the `eq $x` after it still lexes —
+            // proof the hash did not swallow the rest of the line.
+            assert_eq!(toks[0].kind, ExprTokenType::String);
+            assert!(toks[0].text.contains('#'), "{src:?}");
+            assert_eq!(
+                types(src),
+                vec![
+                    ExprTokenType::String,
+                    ExprTokenType::Operator,
+                    ExprTokenType::Variable,
+                ],
+                "{src:?}"
+            );
+        }
+    }
+
+    /// A `#` inside a comment is ordinary text — the comment does not nest or
+    /// re-open, it simply runs to end of line.
+    #[test]
+    fn a_comment_may_contain_a_hash() {
+        assert_eq!(comments("1 + 2 # a # b"), vec!["# a # b"]);
+        assert_eq!(
+            comments("1 ## still one comment"),
+            vec!["## still one comment"]
+        );
+    }
+
+    /// An unterminated comment — one with no closing newline — runs to the end
+    /// of the input and is not an error. C's scan simply stops at `numBytes`.
+    #[test]
+    fn an_unterminated_comment_runs_to_end_of_input() {
+        for src in ["1 + 2 # no newline", "1 + 2 #", "#"] {
+            let (toks, unknown) = tokenise_expr_checked(src, None);
+            assert!(!unknown, "{src:?} must not report an unknown character");
+            let comment = toks
+                .iter()
+                .find(|t| t.kind == ExprTokenType::Comment)
+                .unwrap_or_else(|| panic!("no comment token for {src:?}"));
+            // The token covers every remaining byte, so the stream still spans
+            // the whole source — which is what keeps the diagnoser from
+            // mistaking an uncovered offset for an invalid character.
+            assert_eq!(
+                comment.end as usize + 1,
+                src.len(),
+                "comment must reach end of input for {src:?}"
+            );
+        }
+    }
+
+    /// C stops the scan at an embedded NUL *and consumes it*: the
+    /// `size - (byte == '\n')` adjustment fires only for a newline, so unlike
+    /// a newline the NUL is inside the comment.
+    #[test]
+    fn an_embedded_nul_ends_the_comment_but_is_consumed() {
+        let toks = tokenise_expr("1 #a\0+ 2", None);
+        let comment = toks
+            .iter()
+            .find(|t| t.kind == ExprTokenType::Comment)
+            .expect("comment token");
+        assert_eq!(comment.text, "#a\0");
+        // Scanning resumes after the NUL, so the `+ 2` is still lexed.
+        assert_eq!(
+            types("1 #a\0+ 2"),
+            vec![
+                ExprTokenType::Number,
+                ExprTokenType::Comment,
+                ExprTokenType::Operator,
+                ExprTokenType::Number,
+            ]
+        );
+    }
+
+    /// The gate: TIP 582 is 9.0+. Under an 8.x dialect `#` is still an unknown
+    /// character, which is what C 8.4-8.6 does with it — neither the `COMMENT`
+    /// lexeme nor `ParseLexeme`'s `case '#':` exists in `tclCompExpr.c` at
+    /// `core-8-5-19` / `core-8-6-16`, nor in 8.4's `tclParseExpr.c`.
+    #[test]
+    fn comments_are_tcl9_only() {
+        for dialect in ["tcl9.0", "tcl9.1", "tcl"] {
+            let (toks, unknown) = tokenise_expr_checked("1 + 2 # note", Some(dialect));
+            assert!(!unknown, "{dialect} should accept a comment");
+            assert!(
+                toks.iter().any(|t| t.kind == ExprTokenType::Comment),
+                "{dialect} should lex a comment token"
+            );
+        }
+        // 8.x runtimes, and iRules (a genuine embedded 8.4).
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules"] {
+            let (toks, unknown) = tokenise_expr_checked("1 + 2 # note", Some(dialect));
+            assert!(unknown, "{dialect} should reject `#` as unknown");
+            assert!(
+                !toks.iter().any(|t| t.kind == ExprTokenType::Comment),
+                "{dialect} must not lex a comment token"
+            );
+        }
     }
 }

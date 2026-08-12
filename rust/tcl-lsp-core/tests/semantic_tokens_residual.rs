@@ -794,6 +794,29 @@ fn st_expr_nested_command_substitution_recurses() {
 }
 
 #[test]
+fn st_expr_comment_is_a_comment_token() {
+    // A TIP 582 `#` comment inside an `expr` body → the `ExprTokenType::Comment`
+    // arm emits a `comment` sub-token, like a script-level comment.
+    // tclsh-proof: tclsh9.0 `expr {1 + 2 # note}` -> 3 (expr-62.1's rule).
+    let kinds = type_set("set y [expr {1 + 2 # note}]\n", "tcl9.0");
+    assert!(
+        kinds.contains("comment"),
+        "the `# note` comment; got {kinds:?}"
+    );
+    // The operands either side are still classified — the comment does not
+    // swallow the expression.
+    assert!(kinds.contains("number"), "the `1`/`2`; got {kinds:?}");
+    assert!(kinds.contains("operator"), "the `+`; got {kinds:?}");
+    // Under a pre-9.0 dialect `#` is not a comment (TIP 582 is 9.0+), so no
+    // comment token appears inside the expression.
+    let kinds_86 = type_set("set y [expr {1 + 2 # note}]\n", "tcl8.6");
+    assert!(
+        !kinds_86.contains("comment"),
+        "8.6 has no expr comments; got {kinds_86:?}"
+    );
+}
+
+#[test]
 fn st_expr_string_literal_is_string_token() {
     // A quoted operand inside an `expr` (`"hi"`) → the `ExprTokenType::String`
     // arm emits a `string` sub-token.

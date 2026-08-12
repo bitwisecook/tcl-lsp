@@ -31,7 +31,7 @@
 //! versioned-library axis follows.
 
 use crate::dialect_set::DialectSet;
-use crate::grammar::{BracedVarStyle, LexerGrammar};
+use crate::grammar::{BracedVarStyle, ExprCommentStyle, LexerGrammar};
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 use crate::version::{TclVersion, Ternary};
 
@@ -72,39 +72,44 @@ const LIBS_TCL86_PLUS: &[LibraryPin] = &[
 ];
 
 /// The Tcl 8.4 lexing grammar: no `{*}` expansion (TIP 157 is 8.5), the
-/// 8.x first-close `${…}` rule.
+/// 8.x first-close `${…}` rule, no `expr` comments (TIP 582 is 9.0).
 const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     expand_syntax: false,
     irules_brace_separator: false,
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
+    expr_comments: ExprCommentStyle::None,
 };
 
 /// The 8.5/8.6-family lexing grammar (plain 8.5/8.6, iApps, tmsh, Expect,
-/// the EDA shells): `{*}` expansion, the 8.x first-close `${…}` rule.
+/// the EDA shells): `{*}` expansion, the 8.x first-close `${…}` rule, no
+/// `expr` comments (TIP 582 is 9.0).
 const GRAMMAR_TCL8X: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
+    expr_comments: ExprCommentStyle::None,
 };
 
 /// The modern 9.x grammar (also the permissive default): `{*}` expansion,
-/// Tcl 9's nesting `${…}` rule.
+/// Tcl 9's nesting `${…}` rule, TIP 582 `expr` comments.
 const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,
     braced_var: BracedVarStyle::Tcl9Nesting,
     script_skips_leading_bom: true,
+    expr_comments: ExprCommentStyle::Hash,
 };
 
-/// The iRules lexing grammar: a Tcl 8.4 base (no `{*}`) plus the
-/// iRules-only `}{` ghost word separator.
+/// The iRules lexing grammar: a Tcl 8.4 base (no `{*}`, no `expr` comments)
+/// plus the iRules-only `}{` ghost word separator.
 const GRAMMAR_IRULES: LexerGrammar = LexerGrammar {
     expand_syntax: false,
     irules_brace_separator: true,
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
+    expr_comments: ExprCommentStyle::None,
 };
 
 /// One resolved dialect. `'static`, interned in [`DialectProfile::all`],
@@ -1003,7 +1008,7 @@ impl DialectProfile {
 mod tests {
     use super::DialectProfile;
     use crate::dialect_set::{DialectSet, KNOWN_DIALECTS};
-    use crate::grammar::BracedVarStyle;
+    use crate::grammar::{BracedVarStyle, ExprCommentStyle};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
     use crate::version::{TclVersion, Ternary};
 
@@ -1543,6 +1548,17 @@ mod tests {
                 "{}",
                 p.name
             );
+            // TIP 582 `expr` comments: the `COMMENT` lexeme and
+            // `ParseLexeme`'s `case '#':` appear in `tclCompExpr.c` from the
+            // 8.7/9.0 cycle and are absent at core-8-4-20 / core-8-5-19 /
+            // core-8-6-16, so `>= V9_0` is the exact gate for the versions
+            // modelled here.
+            let expected_comments = if p.runtime_base.is_none_or(|v| v >= TclVersion::V9_0) {
+                ExprCommentStyle::Hash
+            } else {
+                ExprCommentStyle::None
+            };
+            assert_eq!(p.grammar.expr_comments, expected_comments, "{}", p.name);
         }
     }
 

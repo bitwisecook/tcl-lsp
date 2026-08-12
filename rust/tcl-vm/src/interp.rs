@@ -4708,6 +4708,21 @@ impl Vm {
     ///
     /// An expression that does not parse is a Tcl error, exactly as in C — see
     /// [`Self::expr_syntax_error`] for the message and error-code fidelity.
+    ///
+    /// Version enforcement is split: the parse is deliberately permissive (the
+    /// latest grammar, `dialect = None`) and `RuntimeExprSurface::validate` then
+    /// rejects anything the emulated release lacks. That works for constructs
+    /// which become AST nodes carrying a version floor — a 9.0-only `lt` under
+    /// 8.6 is caught there and reported as the bareword it is — but it cannot
+    /// see a *lexical* construct that leaves no node behind. TIP 582 `#`
+    /// comments are the one such case: `tcl_dialect::ExprCommentStyle` gates
+    /// them correctly for every dialect-aware consumer (the expr lexer, so the
+    /// LSP, analyser and compiler all honour it), but a VM emulating 8.x still
+    /// *evaluates* `expr {1 + 2 # note}` as 3 where C 8.6 raises
+    /// `invalid character "#"`. Closing that would mean threading the runtime
+    /// version into this parse, which would also move the `lt` rejection from
+    /// `validate` to the lexer and change its pinned message — so it is left as
+    /// follow-up rather than done here.
     pub fn eval_expr(&mut self, src: &str) -> Result<Value, TclError> {
         let node = parse_expr(src, None);
         if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {

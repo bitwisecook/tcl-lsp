@@ -141,10 +141,7 @@ impl ExprSyntaxError {
         if has_unknown && let Some(error) = Self::first_invalid_character(source, &raw) {
             return error;
         }
-        let tokens: Vec<ExprToken> = raw
-            .into_iter()
-            .filter(|t| t.kind != ExprTokenType::Whitespace)
-            .collect();
+        let tokens: Vec<ExprToken> = raw.into_iter().filter(|t| !t.kind.is_skipped()).collect();
         Scan::new(source, &tokens).run()
     }
 
@@ -356,7 +353,16 @@ impl<'a> Scan<'a> {
     /// Walk the tokens left to right, returning the first check that trips.
     fn run(mut self) -> ExprSyntaxError {
         if self.tokens.is_empty() {
-            return ExprSyntaxError::at(ExprSyntaxErrorKind::EmptyExpression, 0, 0);
+            // C reaches `END` with `lastParsed == START` only after its main
+            // loop has skipped every whitespace run and comment, so its `start`
+            // — the offset the quote is centred on (`tclCompExpr.c:1435-1444`)
+            // — is the end of the input, not its beginning. The distinction is
+            // invisible for a short expression, where head and tail together
+            // reproduce the source either way, but decides which end gets
+            // elided once the skipped run passes `LIMIT`: C keeps the *last* 22
+            // bytes behind a leading `...`. Reachable in practice only now that
+            // a comment can be the whole expression body.
+            return ExprSyntaxError::at(ExprSyntaxErrorKind::EmptyExpression, self.source.len(), 0);
         }
         while self.pos < self.tokens.len() {
             if let Some(error) = self.step() {
@@ -405,8 +411,9 @@ impl<'a> Scan<'a> {
             ExprTokenType::Comma => self.comma(at),
             ExprTokenType::TernaryQ => self.ternary_question(at),
             ExprTokenType::TernaryC => self.ternary_colon(at),
-            // The lexer emits neither inside a token stream.
-            ExprTokenType::Whitespace | ExprTokenType::Eof => None,
+            // Filtered out before the scan (whitespace and comments) or never
+            // emitted by the lexer at all (`Eof`).
+            ExprTokenType::Whitespace | ExprTokenType::Comment | ExprTokenType::Eof => None,
         }
     }
 
@@ -836,5 +843,105 @@ mod tests {
             message.starts_with("invalid character \""),
             "got: {message}"
         );
+    }
+
+    // =================================================================
+    // TIP 582 `#` comments
+    // =================================================================
+
+    /// A comment is never the reported fault: it is skipped like whitespace, so
+    /// the diagnosis names whatever *else* is wrong — and `#` must never come
+    /// back as `invalid character`.
+    #[test]
+    fn a_comment_is_never_the_reported_fault() {
+        // A dangling operator followed by a comment: the fault is the missing
+        // operand, at the end of the input, not the `#`.
+        let (message, code) = diagnose("1 +#c");
+        assert_eq!(
+            message,
+            "missing operand at _@_\nin expression \"1 +#c_@_\""
+        );
+        assert_eq!(code, "TCL PARSE EXPR MISSING");
+        // Two operands with a comment between them: still `missing operator`,
+        // marked at the second operand rather than at the comment.
+        let (message, code) = diagnose("1 # c\n2");
+        assert_eq!(
+            message,
+            "missing operator at _@_\nin expression \"1 # c\n_@_2\""
+        );
+        assert_eq!(code, "TCL PARSE EXPR MISSING");
+        // A bareword is still a bareword when a comment trails it.
+        let (message, code) = diagnose("foo # c");
+        assert!(
+            message.starts_with("invalid bareword \"foo\"\nin expression \"foo # c\";"),
+            "got: {message}"
+        );
+        assert_eq!(code, "TCL PARSE EXPR BAREWORD");
+        // No diagnosis anywhere should blame the `#` itself.
+        for src in ["1 +#c", "1 # c\n2", "foo # c", "# c", "1 + 2 # ok"] {
+            let (message, code) = diagnose(src);
+            assert!(
+                !message.contains("invalid character"),
+                "{src:?} blamed a character: {message}"
+            );
+            assert_ne!(code, "TCL PARSE EXPR BADCHAR", "{src:?}");
+        }
+    }
+
+    /// A comment-only body is C's empty expression: the comment is skipped, so
+    /// `ParseExpr` reaches `END` with `lastParsed == START`
+    /// (`tclCompExpr.c:1135`). There is no operand for it to be.
+    #[test]
+    fn a_comment_only_expression_is_the_empty_expression() {
+        for src in ["# c", "#", "  # c", "# a\n# b"] {
+            let (message, code) = diagnose(src);
+            assert_eq!(
+                message,
+                format!("empty expression\nin expression \"{src}\""),
+                "{src:?}"
+            );
+            assert_eq!(code, "TCL PARSE EXPR EMPTY", "{src:?}");
+        }
+    }
+
+    /// C centres the quote on `start`, which for an all-skipped body sits at the
+    /// *end* of the input — so once the comment passes the 25-byte window it is
+    /// the head that elides, keeping the last 22 bytes behind a leading `...`
+    /// (`tclCompExpr.c:1435-1444`). A comment is the first body long enough to
+    /// make this observable.
+    #[test]
+    fn a_long_comment_only_expression_elides_from_the_left() {
+        // 27 bytes: longer than `LIMIT`, so the head cannot be quoted whole.
+        let src = "# 0123456789abcdefghijklmno";
+        assert_eq!(src.len(), 27);
+        let (message, code) = diagnose(src);
+        assert_eq!(code, "TCL PARSE EXPR EMPTY");
+        // Head elides from the left: `...` then the final `LIMIT - 3` == 22
+        // bytes, i.e. from offset `27 + 3 - 25` == 5. C computes the same slice
+        // as `limit - 3` bytes at `start - limit + 3`.
+        assert_eq!(
+            message,
+            "empty expression\nin expression \"...3456789abcdefghijklmno\""
+        );
+        assert_eq!(src[5..].len(), LIMIT - 3);
+        // The tail is empty — nothing follows the failure position, which sits
+        // at the end of the input.
+        assert!(message.ends_with("o\""), "got: {message}");
+    }
+
+    /// The gate: before 9.0 `#` really is an invalid expression character, and
+    /// C 8.4-8.6 reports exactly that. The diagnoser must keep saying so for an
+    /// 8.x dialect.
+    #[test]
+    fn before_tcl9_a_hash_is_still_an_invalid_character() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules"] {
+            let error = ExprSyntaxError::diagnose("1 + 2 # note", Some(dialect));
+            assert_eq!(
+                error.message("1 + 2 # note"),
+                "invalid character \"#\"\nin expression \"1 + 2 # note\"",
+                "{dialect}"
+            );
+            assert_eq!(error.error_code(), "TCL PARSE EXPR BADCHAR", "{dialect}");
+        }
     }
 }

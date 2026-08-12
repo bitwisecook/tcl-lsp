@@ -278,6 +278,113 @@ fn expr_stk_rejects_an_unparsable_expression() {
     cmd_eq("set e {2+3}\nexpr $e", "5");
 }
 
+// =====================================================================
+// expr: TIP 582 `#` comments
+// =====================================================================
+
+/// A `#` comment inside an expression, which C has supported since TIP 582
+/// (`tclCompExpr.c:168` makes `COMMENT` a first-class lexeme; `:1931-1942`
+/// lexes it; `:701` skips it like whitespace).
+///
+/// This is the regression `e1b3e534a` surfaced. Our expr lexer classified `#`
+/// as an unknown character, so `parse_expr` returned `ExprNode::Raw`; while an
+/// unparsable expression silently evaluated to its own source text that was
+/// merely a wrong answer, but once `Raw` became C's syntax error it turned into
+/// a **spurious error on valid Tcl** — `expr {1 + 2 # note}` errored where C
+/// returns 3.
+#[test]
+fn expr_accepts_a_comment_as_c_does() {
+    // The headline case: a trailing comment. C returns 3.
+    expr_eq("1 + 2 # note", "3");
+    // A comment after a command substitution (the operand is not a literal).
+    expr_eq("[llength {a b}] # c", "2");
+    // expr-62.1: the comment eats the rest of the line, so this is just `1`.
+    expr_eq("1 # + 2", "1");
+    // expr-62.3's shape: comments interleaved with a multi-line expression.
+    expr_eq(
+        "\n\t# a comment\n\t1 + 2 + 3\n\t# another\n\t+ 4 + 5\n",
+        "15",
+    );
+    // expr-62.7/8/9/10: comments inside a function call, including between the
+    // function name and its `(` — C's `:750` "obscuring comments" lookahead.
+    expr_eq("max(1,# comment\n2)", "2");
+    expr_eq("max(1# comment\n,2)", "2");
+    expr_eq("max(# comment\n1,2)", "2");
+    expr_eq("max# comment\n(1,2)", "2");
+    // A comment containing `#` is one comment, not two.
+    expr_eq("1 + 2 # a # b", "3");
+    // Comments are skipped in the dynamic `expr $e` form too (the EXPR_STK
+    // opcode), not just the compiled one.
+    cmd_eq("set e {1 + 2 # note}\nexpr $e", "3");
+    // …and in a condition, where the same parse feeds a branch.
+    cmd_eq(
+        "if {1 + 1 == 2 # sanity\n} {set r yes} else {set r no}",
+        "yes",
+    );
+}
+
+/// The terminating newline is not part of the comment (C returns
+/// `size - (byte == '\n')`), so an expression continues on the next line.
+/// expr-62.2 pins exactly this: `expr "1 #\n+ 2"` is 3, not 1.
+#[test]
+fn a_comment_ends_at_its_newline_not_the_expression() {
+    expr_eq("1 #\n+ 2", "3");
+    expr_eq("1 # comment\n+ 2", "3");
+    // expr-62.5/62.6: a comment does not splice the tokens it separates —
+    // `$a#…\nne#…\nfalse` stays three lexemes, so this is a `ne` comparison.
+    cmd_eq(
+        "set a False\nexpr {$a#don't splice\nne#don't splice\nfalse}",
+        "1",
+    );
+    cmd_eq("expr {0x2#don't splice\nne#don't splice\n2}", "1");
+}
+
+/// A comment-only body has no operands, so it is C's *empty* expression —
+/// `ParseExpr` skips the comment and reaches `END` with `lastParsed == START`
+/// (`tclCompExpr.c:1135`). The comment is not an operand and not an error of
+/// its own.
+#[test]
+fn a_comment_only_expression_is_the_empty_expression() {
+    expr_err("# c", "empty expression\nin expression \"# c\"");
+    expr_err("#", "empty expression\nin expression \"#\"");
+    cmd_eq(
+        "set e {# c}\ncatch {expr $e} m opts\ndict get $opts -errorcode",
+        "TCL PARSE EXPR EMPTY",
+    );
+}
+
+/// The regression guard, stated as the bug: valid Tcl carrying an expression
+/// comment must not raise the syntax error `e1b3e534a` introduced.
+#[test]
+fn a_comment_does_not_raise_the_unparsable_expression_error() {
+    for script in [
+        "expr {1 + 2 # note}",
+        "expr {[llength {a b}] # c}",
+        "expr {max# c\n(1,2)}",
+        "set e {1 + 2 # note}\nexpr $e",
+        "if {1 # ok\n} {set r y}",
+        "set i 0\nwhile {$i < 2 # bound\n} {incr i}\nset i",
+    ] {
+        let (ok, result, _) = run(script);
+        assert!(
+            ok,
+            "valid Tcl with an expr comment must not error, but {script:?} gave: {result}"
+        );
+        for fragment in [
+            "syntax error",
+            "invalid character",
+            "empty expression",
+            "missing operand",
+            "invalid bareword",
+        ] {
+            assert!(
+                !result.contains(fragment),
+                "{script:?} reported {fragment:?}: {result}"
+            );
+        }
+    }
+}
+
 /// A `switch` subject and a `[…]` expression operand are *words*, not
 /// expressions — neither may be re-parsed as one.
 ///
