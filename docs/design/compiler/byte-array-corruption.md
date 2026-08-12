@@ -77,36 +77,46 @@ forward dataflow over the SSA graph, tracking a two-state provenance per value:
 Which operation does which is **registry data**, not a hardcoded command list
 in the compiler: every value-transforming command / subcommand carries a
 [`ByteArrayEffect`](../../../rust/tcl-registry/src/byte_array_effect.rs) —
-`Transparent`, `Coerces`, or `CaseFolds` — on its `CommandSpec` (whole commands
-like `format` / `join`) or `SubCommand` (`string`'s subcommands). The S110 pass
-reads that classification through `byte_array_effect(registry, cmd, args)` and
-never matches a command by name. A `Transparent` op propagates the operand's
-provenance unchanged (a binary operand stays binary), which is what makes
-`string range $payload` byte-exact instead of a false positive.
+`None`, `Transparent`, `Coerces`, `CaseFolds`, `Encodes`, or
+`Rebinarifies { value_arg }` — on its `CommandSpec` (whole commands like
+`format` / `join`) or `SubCommand` (`string`'s subcommands). The S110 pass
+reads that classification through `resolve_cmd_effect(registry, cmd, args)`,
+which resolves the subcommand and returns a `CmdEffect` carrying the effect,
+its display label, whether the form returns a byte array, and the first
+operand index — and never matches a command by name. A `Transparent` op
+propagates the operand's provenance unchanged (a binary operand stays binary),
+which is what makes `string range $payload` byte-exact instead of a false
+positive.
 
 It emits S110 in two places, matching the two damage mechanisms:
 
-- **Intrinsic** (`ByteArrayEffect::CaseFolds` and `encoding convertto`): warn at
-  the transform — the bytes are already corrupt.
+- **Intrinsic** (`ByteArrayEffect::CaseFolds` and `ByteArrayEffect::Encodes` —
+  the latter is `encoding convertto`): warn at the transform — the bytes are
+  already corrupt. A `CaseFolds` result is left DAMAGED; an `Encodes` result
+  is a fresh byte array, so it is recorded BINARY after the warning.
 - **Round-trip** (`ByteArrayEffect::Coerces`, interpolation, `append`, `expr`):
   mark the value DAMAGED and warn only when it
   reaches a `<proto>::payload replace` sink. A `binary scan $v …` between the
   coercion and the sink re-binarifies `v` *in place* and clears DAMAGED (the
-  documented fix). `binary format … $v` does **not** clear it — it returns a new
-  value and does not mutate `$v`; only the assigned form `set x [binary format
-  …]` re-binarifies (via the byte-array return type). The intrinsic checks also
-  apply to the **inline sink form** — `<proto>::payload replace …
-  [encoding convertto utf-8 $payload]` is DAMAGED, because `convertto`'s
-  byte-array return type must not mask that it is the corrupting op.
+  documented fix — declared as `Rebinarifies { value_arg: 0 }` on `binary
+  scan` and `{ value_arg: 1 }` on `binary encode`). `binary format … $v` does
+  **not** clear it — it returns a new value and does not mutate `$v`; only the
+  assigned form `set x [binary format …]` re-binarifies (via the byte-array
+  return type). The intrinsic checks also apply to the **inline sink form** —
+  `arg_byte_prov` refuses the byte-array shortcut for an `Encodes` form, so
+  `<proto>::payload replace … [encoding convertto utf-8 $payload]` is DAMAGED
+  rather than clean.
 
 The `<proto>::payload replace` sink's `<data>` operand is **not** at a fixed
 argument index — `replace OFFSET LENGTH DATA` (TCP/HTTP/…, data at index 3),
 `replace DATA …` (MQTT/DIAMETER, index 1), and GTP's `replace ('-message'
 MESSAGE)? OFFSET COUNT NEW_VALUE` (index 3, shifted to 5 by the optional flag)
 all differ. The data position is therefore declared per command in the registry
-(`BytePayloadSpec` on `CommandSpec.byte_array_payload`) and read back via
-`byte_array_payload_layouts()`, so the pass stays correct for new payload
-commands without editing `shimmer/`.
+(`BytePayloadSpec` on `CommandSpec::byte_array_payload`, with fields
+`replace_data_index` and `message_flag_shift`) and resolved per call site by
+`BytePayloadSpec::replace_data_arg(args)`; the pass obtains the per-command
+layouts from `CommandRegistry::byte_array_payload_layouts()`, so it stays
+correct for new payload commands without editing `shimmer/`.
 
 ## Why provenance, not the type lattice
 
@@ -145,39 +155,48 @@ return types) but keeps the DAMAGED / round-trip reasoning in its own dataflow.
 
 ### Why `*::payload` getters are not typed BYTEARRAY in the lattice
 
-The payload getters are typed OVERDEFINED by the lattice, not BYTEARRAY,
-because (a) a getter form that coexists with subcommands (`TCP::payload` vs
-`TCP::payload length`) has no representable return type in the current
-`TYPE_HINTS` model, and (b) typing every payload value BYTEARRAY globally risks
-new `S100`/`S101` performance-shimmer false positives with an uncertain blast
-radius. The S110 pass recognises payload sources from the registry flag
-instead, which keeps the change contained.
+A payload command's `CommandSpec` carries no `return_type` at all, so the type
+lattice leaves the value unknown rather than BYTEARRAY. Two reasons: (a) the
+getter form coexists with subcommands that return other types (`TCP::payload`
+returns data, `TCP::payload length` an integer), and a single spec-level
+`return_type` cannot express both; and (b) typing every payload value
+BYTEARRAY globally risks new `S100`/`S101` performance-shimmer false positives
+with an uncertain blast radius. The S110 pass recognises payload sources from
+`CommandSpec::byte_array_payload` instead (`is_payload_getter`, which also
+requires the call to be the getter form rather than `replace` / `length`),
+which keeps the reasoning contained.
 
 ## Dialect scoping
 
 `*::payload` source/sink recognition is iRules-specific. The command registry
 is process-global, so once any iRules document loads the f5-irules pack the
-payload commands stay registered for the rest of the session. The pass gates
-payload recognition on the **active** dialect (`REGISTRY.get(cmd, active_dialect())`),
-so a plain-Tcl document that merely names a `*::payload` command never trips
-S110. The dialect-agnostic binary sources (`binary format`, `encoding
-convertto`) stay enabled everywhere.
+payload commands stay registered for the rest of the session. The gate is at
+the call site rather than in the pass: `run_all_checks`
+(`rust/tcl-compiler/src/compiler_checks.rs`) builds the `payload_layouts` map
+from `registry.byte_array_payload_layouts()` only when
+`is_irules_dialect(dialect)` holds, and hands an **empty** map otherwise. With
+no layouts, `is_payload_getter` and the sink arm both answer `false`, so a
+plain-Tcl document that merely names a `*::payload` command never trips S110.
+The dialect-agnostic binary sources (`binary format`, `binary decode`,
+`encoding convertto`) stay enabled everywhere.
 
 ## Pointers
 
-Python reference implementation:
-
-- `rust/tcl-compiler/src/shimmer/` — `_find_byte_array_corruption`, `_payload_replace_data_index`, and helpers
-- `rust/tcl-registry/src/registry.rs` — `byte_array_payload_commands`, `byte_array_payload_layouts`
-- `rust/tcl-registry/src/spec.rs` — `BytePayloadSpec`, `CommandSpec.byte_array_payload`
-- `rust/tcl-registry/src/commands/irules/*__payload.rs` — `byte_array_payload: Some(BytePayloadSpec::DEFAULT)` (default index-3 layout) or an explicit `Some(BytePayloadSpec { … })`
-
-
-- `rust/tcl-compiler/src/shimmer/byte_array.rs` — `find_byte_array_warnings`, the `ByteProv` lattice, `join_prov`, `payload_replace_data_index`, and the three transfer functions
+- `rust/tcl-compiler/src/shimmer/byte_array.rs` — `find_byte_array_warnings`,
+  the `ByteProv` / `ByteProvInfo` lattice, `join_prov`, `resolve_cmd_effect`,
+  `is_payload_getter`, `arg_byte_prov`, and the `track_assign_value` /
+  `track_assign_expr` / `track_call` transfer functions
+- `rust/tcl-compiler/src/shimmer/mod.rs` — `find_byte_array_warnings` (per-function)
+  and `find_byte_array_warnings_for_cu` (whole compilation unit)
+- `rust/tcl-registry/src/byte_array_effect.rs` — `ByteArrayEffect` and
+  `BytePayloadSpec`'s `replace_data_arg` / `is_getter_call`
 - `rust/tcl-registry/src/spec.rs` — `BytePayloadSpec`, `CommandSpec::byte_array_payload`
 - `rust/tcl-registry/src/registry.rs` — `CommandRegistry::byte_array_payload_layouts`
-- `rust/tcl-registry/src/commands/irules/*__payload.rs` — `byte_array_payload: Some(BytePayloadSpec…)`
-- `rust/tcl-compiler/src/compiler_checks.rs` — `push_shimmer_checks` lowering (dialect-gated)
+- `rust/tcl-registry/src/commands/irules/*__payload.rs` — `byte_array_payload: Some(BytePayloadSpec::DEFAULT)`
+  (default index-3 layout) or an explicit `Some(BytePayloadSpec { … })`
+- `rust/tcl-compiler/src/compiler_checks.rs` — `run_all_checks`, where the
+  dialect gate builds the payload-layout map and the warnings are lifted to
+  `Diagnostic::from_shimmer`
 
 Shared:
 

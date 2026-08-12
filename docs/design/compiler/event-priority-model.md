@@ -40,7 +40,11 @@ file-order tie-break.
 
 `priority_offset` is 0 for the first handler at a given base priority and
 increments by 1 for each subsequent tie. It is computed after sorting each
-event's handlers by `(priority, file_index)`.
+event's handlers by `(priority, file_index)`. Entries are emitted grouped by
+event, in the canonical order `EventRegistry::order_events` gives, and
+`multiplicity` is that event's `EventRegistry::event_multiplicity` class
+(`init`, `per_request`, …). Only `when` commands whose last word is a braced
+block are collected.
 
 ### `RuleInitExport` / `RuleInitVarDef`
 
@@ -65,14 +69,19 @@ never spans files.
 
 There are two independent priority extraction paths:
 
-1. **Compiler path** — `lowering/` parses `when EVENT priority N { body }`
-   during IR lowering and stores `base_priority` on `IRProcedure`. Consumed by
+1. **Compiler path** — `lowering/mod.rs` parses `when EVENT priority N
+   { body }` during IR lowering and stores `base_priority` on the
+   `Procedure` it registers under `::when::EVENT` (or `::when::EVENT#n` for a
+   repeat handler). The priority word is read only when the command has at
+   least four words, `args[1]` is literally `priority`, and `args[2]` parses
+   as a `u32`; anything else keeps the 500 default. Consumed by
    `rust/tcl-diagram/src/data.rs` for diagram data.
 
 2. **Lightweight segmenter path** — `serialise_event_order`
    (`rust/tcl-explorer/src/serialise.rs`) segments the source directly and
    reads `when EVENT priority N` from the words, without building a
-   `CompilationUnit`.
+   `CompilationUnit`. It parses the priority as `i64`, so this path accepts
+   values the compiler path would reject.
 
 ## JSON serialisation
 

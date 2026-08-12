@@ -73,33 +73,50 @@ and the dominance literature above.
 **Where.** `rust/tcl-compiler/src/loops.rs` (`build_loop_forest`, `NaturalLoop`,
 `LoopForest`).
 
-**Adaptation.** The single natural-loop source for GVN/LICM and the interval
-domain's widening points, built from the SSA dominator info.  Because dominance
-queries are O(1) (Euler-tour interval labels on the dominator tree, see above),
-re-deriving the forest per consumer is cheap, so it is recomputed rather than
-cached on the `FunctionUnit`.  Shimmer keeps a *separate* any-cycle detector
-(`rust/tcl-compiler/src/shimmer/:_loop_body_blocks`): it must count a block reachable only
-through a `try`→handler exception edge as "in a loop", which the dominance-based
-natural-loop construction classifies differently (the two sets diverge on ~0.3%
-of corpus functions — all `try`/coroutine bodies), so the two detectors are
-intentionally not unified.
+**Adaptation.** Built from the SSA `idom` map over the SCCP-executable
+blocks only, so an unreachable back edge never invents a loop.  A
+`NaturalLoop` records block *names* (`header`, sorted `blocks`, sorted
+`latches`) rather than `BlockId`s, and `LoopForest` orders loops by
+header first-encounter, so the output is deterministic.  Nothing caches it
+on the `FunctionUnit`; it is rebuilt per call.
+
+`build_loop_forest` is **not** the only back-edge detector in the tree, and
+the others are not thin wrappers over it:
+
+| Detector | Where | Why it is separate |
+|---|---|---|
+| `build_loop_forest` | `loops.rs` | Full forest (header + body + latches); read by the read-before-set phi-undef helper in `analyser/diagnostics/helpers.rs` |
+| `loop_headers` | `intervals.rs` | Only needs the *header set*, to pick widening points |
+| `find_loop_invariants`' own back-edge scan + `natural_loop_blocks` | `gvn.rs` | Needs per-header block sets keyed by `BlockId` and uses `dominator_intervals` for O(1) dominance |
+| `loop_body_blocks` | `shimmer/graph.rs` | An any-cycle detector: it must count a block reachable only through a `try`→handler exception edge as "in a loop", which the dominance-based natural-loop construction classifies differently |
+
+Unifying them is not a free rename — each answers a different question over
+a different block keying, and the shimmer one deliberately disagrees.
 
 ## Sparse Conditional Constant Propagation (SCCP)
 
 **Reference.** M. N. Wegman, F. K. Zadeck, "Constant Propagation with Conditional
 Branches," *ACM TOPLAS* 13(2):181–210, 1991 (doi:10.1145/103135.103136).
 
-**Where.** `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs` (`_sccp`, `LatticeValue`, `_join`).
+**Where.** `rust/tcl-compiler/src/sccp.rs` (`sccp`, `join`, `SccpResult`),
+`rust/tcl-compiler/src/analyses.rs` (`LatticeValue`, `ConstValue`).
 
 **Adaptation.** The optimistic constant lattice and executable-edge worklist are
-as published, extended with a `CONSTSET` (small finite value-set) kind for Tcl's
-common multi-valued constants.  Two Tcl-critical soundness rules:
-(1) an **`IRBarrier`** widens every tracked value to `OVERDEFINED` (an unknown
-command may mutate anything); (2) **externally-mutable names** (global /
-namespace / `upvar`-aliased / traced) are forced `OVERDEFINED` and never folded,
+as published, extended with a `ConstSet` (small finite value-set) kind for Tcl's
+common multi-valued constants; `join` widens a set past its size cap to
+`Overdefined`.  Two Tcl-critical soundness rules:
+(1) a **`Statement::Barrier`** widens every tracked value to `Overdefined` (an
+unknown command may mutate anything); (2) **externally-mutable names** (global /
+namespace / `upvar`-aliased / traced — `sccp::is_externally_mutable` plus the
+whole-module `TraceInputs`) are forced `Overdefined` and never folded,
 because they are shared state writable from other scopes, traces, and source
 files — folding through them is unsound across any opaque call (e.g.
 `set ::g 5; mut; $::g` must not fold to 5).
+
+`sccp` itself cannot decide an `[info exists X]` predicate — it is an opaque
+`ExprNode::Command`, and SCCP holds neither parameter nor existence facts —
+so `existence_constant_branches` runs as a post-pass with the frame's own
+facts and contributes extra `ConstantBranch` entries.
 
 ## Semi-pruned SSA (φ-reduction)
 
@@ -107,12 +124,17 @@ files — folding through them is unsound across any opaque call (e.g.
 Improvements to the Construction and Destruction of Static Single Assignment
 Form," *Software: Practice and Experience* 28(8):859–881, 1998.
 
-**Where.** `rust/tcl-compiler/src/ssa.rs` (`_nonlocal_names_and_defsites`, `_phi_vars`).
+**Where.** `rust/tcl-compiler/src/ssa.rs` (`nonlocal_names_and_defsites`,
+`compute_phi_vars`).
 
 **Adaptation.** The non-local (upward-exposed-use) set is computed over the Tcl
 CFG including branch-condition and `return`-value reads, in the same pass that
-collects def-sites.  **Shipped** — phis are placed only for non-local names
-(≈20% fewer phis on the corpus, so smaller SCCP/type/liveness/taint fixpoints).
+collects def-sites.  `compute_phi_vars` then runs the iterated dominance
+frontier over the def-sites of non-local names only, skipping any name no
+block reads before redefining it — a phi for a purely-local name has no
+reader, so dropping it removes only dead phis and leaves every
+use/value/liveness/diagnostic result unchanged, with a smaller
+SCCP/type/liveness/taint fixpoint.
 Placing fewer phis is only safe once every read is tracked: a read the use
 tracker misses makes an omitted phi look like a dead store.  The structural read
 recovery in `rust/tcl-compiler/src/place_bridge.rs` closes that gap — reads
@@ -131,13 +153,22 @@ framework that guarantees termination over infinite-height domains).
 
 **Adaptation.** A small integer-interval domain runs **after** SCCP (it reads,
 but does not perturb, the constant lattice — a strictly parallel analysis so no
-existing diagnostic changes), seeded from SCCP constants, propagated forward
-with **widening at `LoopForest` loop headers** so loop-induction values
-terminate at `[0, +inf)` instead of an iteration cap.  Constant-bound branch
-guards narrow via dominator-implied constraints (`if {$i < 10}` ⇒ `i ∈ [lo, 9]`
-in the dominated region).  A *symbolic* bound (`$i < [llength $l]`) is left
-unrefined — a non-relational interval domain cannot relate the index to the list
-length, a deliberately-documented precision limit.
+existing diagnostic changes), seeded from SCCP constants, propagated forward in
+reverse post-order with **widening at loop headers** so loop-induction values
+terminate at `[0, +inf)` instead of an iteration cap.  The header set comes from
+`intervals::loop_headers`, its own back-edge scan (`u → v` where `v` dominates
+`u`) rather than the `LoopForest`, because only the header *set* is needed.
+Constant-bound branch guards narrow via dominator-implied constraints
+(`build_guard_index` + `refine_interval`: `if {$i < 10}` ⇒ `i ∈ [lo, 9]` in the
+dominated region).  A *symbolic* bound (`$i < [llength $l]`) is left
+unrefined — `guard_constraint` requires a literal integer on one side, and a
+non-relational interval domain cannot relate the index to the list length: a
+deliberately-documented precision limit.
+
+The fixpoint is capped at 50 passes.  If it has not converged the result may
+still be ascending — intervals *narrower* than reality — so every value is
+degraded to `TOP` rather than letting a consumer derive a finding from an
+under-approximation.
 
 ## Global Value Numbering (GVN)
 
@@ -147,10 +178,16 @@ numbering).
 
 **Where.** `rust/tcl-compiler/src/gvn.rs`.
 
-**Adaptation.** Value numbering plus loop-invariant code-motion hints, consuming
-the shared `LoopForest`.  Only side-effect-free (`rust/tcl-compiler/src/side_effects.rs`
-pure) expressions are numbered/hoisted; barriers and impure calls reset value
-equivalences, so dynamic dispatch never produces an unsound equivalence.
+**Adaptation.** Value numbering plus loop-invariant code-motion hints.
+`find_loop_invariants` derives its own header → block-set map from a back-edge
+scan over the executable blocks, resolving dominance through
+`SsaFunction::dominator_intervals` (O(1) per query), because it needs
+`BlockId`-keyed sets rather than the name-keyed `LoopForest`.  Only
+side-effect-free expressions are numbered/hoisted — purity is decided by
+`side_effects::classify_side_effects` through `gvn::is_pure_command` /
+`is_pure_with_procs`, with `find_pure_procs` extending it to user procedures —
+and barriers and impure calls reset value equivalences, so dynamic dispatch
+never produces an unsound equivalence.
 
 ## Linear-scan / graph-colouring slot allocation
 
@@ -176,12 +213,20 @@ default bytecode path stays one-slot-per-name for tclsh byte-parity.
 Optimization," *POPL* 1973 (the monotone-framework fixpoint that underlies the
 worklist solvers).
 
-**Where.** `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs` (liveness, type lattice, rendered-property
-propagation), `rust/tcl-compiler/src/taint.rs`.
+**Where.** `rust/tcl-compiler/src/slot_allocation.rs` (`live_out_by_name`) and
+`rust/tcl-compiler/src/dead_stores.rs` (liveness),
+`rust/tcl-compiler/src/type_infer.rs` (`propagate_types`),
+`rust/tcl-compiler/src/rendered_properties.rs` (`propagate_rendered_props`),
+`rust/tcl-compiler/src/taint.rs`.  `analyses.rs` holds only the shared lattice
+types.
 
 **Adaptation.** Standard monotone worklists over the SSA value graph, sharing one
-reverse-postorder and the SCCP executable-block/edge sets so unreachable code is
-not analysed.  Tcl barriers act as ⊤-introducing transfer functions.
+reverse-postorder (`cfg::Function::reverse_postorder`, iterative so a
+multi-thousand-block CFG cannot overflow the worker stack) and the SCCP
+executable-block/edge sets so unreachable code is not analysed.  Liveness runs
+backward over the same order reversed, keyed by variable **name** rather than
+`(name, version)`: slots are per-name, so dropping versions makes phi renaming
+across an edge a no-op.  Tcl barriers act as ⊤-introducing transfer functions.
 
 ## Per-proc incremental memoization
 
@@ -191,10 +236,18 @@ recomputation idea: recompute a unit only when its inputs change.
 **Where.** `rust/tcl-compiler/src/compilation_unit.rs`; the salsa-backed
 query layer in `rust/tcl-lsp-db/src/lib.rs`.
 
-**Adaptation.** The unit of reuse is the per-proc `FunctionUnit`, keyed on the
-proc's body, its inline stubs, its CFG context, its start position, and the
-known-classes fingerprint.  Cross-proc invalidation rides the context
-fingerprint.  Every key component is an over-approximation, which is the safe
+**Adaptation.** The unit of reuse is the per-proc `FunctionUnit`, memoised by
+`tcl-lsp-db`'s `function_lattice` query on an interned `FnLatticeKey`: the
+procedure's **post-inline IR body normalised to offset 0**, its qualified name
+and parameter list, the interned module-wide `CfgContext` (the `upvar_procs` /
+`proc_params` / `global_write_procs` maps from `prepare_cfg_context`), the
+dialect, any interprocedural SCCP parameter seeds, the sorted known-class list,
+and the module's variable-trace facts.  The body's **position is deliberately
+not in the key** — a shifted-but-unchanged body interns to the same key and the
+builder rebases the cached result to the body's real span through
+`FunctionUnit::base_offset`.  Cross-proc invalidation rides the `CfgContext`
+and the whole-module fact fields.  Every key component is an
+over-approximation, which is the safe
 bias: a key that changes more often than strictly necessary forces extra
 recomputation, but can never serve a stale result.  The hard contract on any
 change here is that incremental analysis must equal a full rebuild

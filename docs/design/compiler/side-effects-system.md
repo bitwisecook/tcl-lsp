@@ -3,15 +3,29 @@
 How the compiler describes what a command reads, writes, and touches, and how
 to add side-effect metadata for a new or existing command.
 
-The side-effects system is the single source of truth for all effect classification in the compiler. It is consumed by:
+The side-effects system is the source of truth for effect classification in
+the compiler. `classify_side_effects` (`rust/tcl-compiler/src/side_effects.rs`)
+is the classifier; its direct callers are:
 
-- **GVN** (`gvn.rs`) — kill safety for common subexpression elimination.
-- **Interprocedural analysis** (`interprocedural.rs`) — procedure summaries across call boundaries.
-- **iRules flow checker** (`irules_checks.rs`) — response-commit and connection-drop tracking.
-- **Execution intent** (`execution_intent.rs`) — purity classification for command substitution intent.
-- **Core analyses** (`sccp.rs`, `analyses.rs`) — purity checks for constant propagation.
+- **GVN** (`gvn.rs`) — kill safety for common subexpression elimination, via
+  `is_pure_command` and the `EffectRegion` bridge.
+- **Interprocedural analysis** (`interprocedural.rs`) — procedure summaries
+  across call boundaries.
+- **Execution intent** (`execution_intent.rs`) — purity classification for
+  command-substitution intent.
+- **Dead-store elimination** (`optimiser/elimination.rs`).
+- **The analyser's command dispatch** (`analyser/commands.rs`).
 
-All classification flows through a single function: `classify_side_effects` in `side_effects.rs`.
+Two consumers read the same data by other routes and are worth knowing about:
+
+- **iRules flow checker** (`irules_checks.rs`) reads the *registry's* raw
+  `SideEffect` declarations directly, looking for
+  `SideEffectTarget::ResponseCommit` with `writes: true`; it does not call
+  the classifier.
+- **SCCP** (`sccp.rs`) and the optimiser's load forwarding
+  (`optimiser/propagation.rs`) consult purity through
+  `gvn::is_pure_command_with_traces`, which wraps the classifier with the
+  execution-trace gate described below.
 
 ## Architecture
 
@@ -19,12 +33,17 @@ All classification flows through a single function: `classify_side_effects` in `
 
 Four enums describe the dimensions of a side effect:
 
-| Enum | Describes | Example values |
-|------|-----------|----------------|
-| `SideEffectTarget` | *What* resource is touched | `HttpHeader`, `SessionTable`, `Variable`, `PoolSelection` |
-| `StorageScope` | *Where* the data lives / stability | `ProcLocal`, `Global`, `Event`, `Connection`, `SessionTable` |
-| `ConnectionSide` | *Which* F5 proxy side | `Client`, `Server`, `Both`, `Global`, `None` |
-| `StorageType` | *Shape* of the data | `Scalar`, `List`, `Dict`, `Array` |
+| Enum | Describes | Where | Example values |
+|------|-----------|-------|----------------|
+| `SideEffectTarget` | *What* resource is touched | `tcl-registry` | `HttpHeader`, `SessionTable`, `Variable`, `PoolSelection` |
+| `ConnectionSide` | *Which* F5 proxy side | `tcl-registry` | `Client`, `Server`, `Both`, `Global`, `None` |
+| `StorageScope` | *Where* the data lives / stability | `tcl-compiler` | `ProcLocal`, `Namespace`, `Global`, `Upvar`, `Event`, `Connection`, `Static`, `SessionTable`, `Persistence`, `DataGroup`, `FileSystem`, `NetworkSocket`, `LogOutput`, `Unknown` |
+| `StorageType` | *Shape* of the data | `tcl-compiler` | `Scalar`, `List`, `Dict`, `Array`, `Unknown` |
+
+`SideEffectTarget` and `ConnectionSide` are declared in
+`rust/tcl-registry/src/side_effects.rs` so spec literals can name them;
+`StorageScope` and `StorageType` are compiler-side only, inferred by the
+classifier rather than declared on a spec.
 
 ### Structs
 
@@ -88,11 +107,17 @@ Convenience methods: `reads_any()`, `writes_any()`, `affects_target(t)`,
 
 | Scope | Stability | Examples |
 |-------|-----------|----------|
-| `CONNECTION` | Immutable for the life of the TCP/UDP flow | `IP::client_addr`, `TCP::client_port` |
-| `EVENT` | Stable within a single `when` block; may change between events | `HTTP::uri`, `IP::server_addr`, `SSL::cert` |
-| `STATIC` | System-wide, survives across connections | `static::` variables |
-| `SESSION_TABLE` | Keyed, with explicit lifetime/timeout | `table` entries |
-| `PERSISTENCE` | F5 persistence records | `session`/`persist` entries |
+| `Connection` | Immutable for the life of the TCP/UDP flow | `IP::client_addr`, `TCP::client_port` |
+| `Event` | Stable within a single `when` block; may change between events | `HTTP::uri`, `IP::server_addr`, `SSL::cert` |
+| `Static` | System-wide, survives across connections | `static::` variables |
+| `SessionTable` | Keyed, with explicit lifetime/timeout | `table` entries |
+| `Persistence` | F5 persistence records | `session`/`persist` entries |
+
+For a `Variable` effect the scope is derived from the name by
+`scope_from_varname`: a `static::` prefix gives `Static`; a `::NAME` with no
+further qualification gives `Global` with namespace `"::"`; a
+`::NS::…::VAR` gives `Namespace` with the leading segments as the namespace;
+everything else gives `ProcLocal`.
 
 Key distinctions and what causes values to change:
 
@@ -107,12 +132,18 @@ For compiler analysis (which operates within a single event handler), both `CONN
 
 GVN and interprocedural analysis use coarse bitflag regions for fast kill checks. The `to_effect_regions()` method on `CommandSideEffects` maps structured effects to `EffectRegion`:
 
+The mapping lives in `target_to_region(target, scope)`:
+
 | EffectRegion | Mapped from |
 |-------------|-------------|
-| `HTTP_STATE` | `HTTP_HEADER`, `HTTP_BODY`, `HTTP_STATUS`, `HTTP_URI`, `HTTP_COOKIE`, `HTTP_METHOD`, `HTTP2_STATE` |
-| `RESPONSE_LIFECYCLE` | `RESPONSE_COMMIT` |
-| `GLOBAL_STATE` | `VARIABLE` with `GLOBAL` or `NAMESPACE` scope |
-| `UNKNOWN_STATE` | Everything else, plus dynamic barriers |
+| `HTTP_STATE` | `HttpHeader`, `HttpBody`, `HttpStatus`, `HttpUri`, `HttpCookie`, `HttpMethod`, `Http2State` |
+| `RESPONSE_LIFECYCLE \| HTTP_STATE` | `ResponseCommit` — committing the response is also an HTTP-state write |
+| `GLOBAL_STATE` | `Variable` with `Global` or `Namespace` scope |
+| `NONE` | `Variable` in any other scope, and `FileIo` / `NetworkIo` / `LogIo` — external I/O does not mutate compiler-tracked in-memory state |
+| `UNKNOWN_STATE` | Everything else, plus `dynamic_barrier` (added to the *writes* set by `to_effect_regions`) |
+
+A `NONE` region is why a proc that only calls `puts` is impure
+(`writes_any()` is true) yet has no tracked effect region.
 
 ## How hints are declared
 
@@ -172,60 +203,113 @@ const SUBCOMMANDS: &[SubCommand] = &[
 ];
 ```
 
-Key interaction: when a subcommand is marked `pure: true` and declares
-effects, the classifier includes them as **read-only** (writes forced to
-`false`). This allows read-only subcommands like `table lookup` or
-`session count` to carry target metadata without being classified as writers.
+Key interaction: on a command carrying `Traits::PURE`, a non-mutator
+subcommand's declared effects are returned **read-only** (`reads` forced
+`true`, `writes` forced `false`). This lets read-only subcommands like
+`HTTP::header value` carry target metadata without being classified as
+writers.
+
+The ensemble arm behaves differently: when the *command* is not `PURE` but a
+resolved subcommand is `pure: true` and not a mutator, the classifier returns
+pure with **no effects at all** — that subcommand's declared targets do not
+reach the result.
 
 ### Hint resolution order
 
 `dialect_side_effect_hints(registry, command, subcommand, dialect)`
-(`rust/tcl-compiler/src/side_effects.rs`) resolves effects in this order,
-skipping any spec that is not in the active dialect:
+(`rust/tcl-compiler/src/side_effects.rs`) walks `registry.specs(command)` in
+reverse (last registration wins), skipping any spec the active dialect
+profile does not make available, and returns the first match:
 
 1. The matched `SubCommand`'s own non-empty `side_effects`
 2. The `CommandSpec`'s `side_effects` (fallback)
 
+Each registry effect is widened by `lift_registry_effect`, which maps the
+target and connection side into their compiler-side spellings, stamps the
+dialect string, and leaves `storage_type` / `scope` / `namespace` / `key` /
+`subtable` at their defaults for the classifier to fill in. The dialect name
+`irules` is normalised to `f5-irules` before the availability check.
+
 ## Classification flow
 
-`classify_side_effects(command, args)` follows this priority chain:
+```rust
+pub fn classify_side_effects(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    dialect: Option<&str>,
+    callee_summary: Option<&CalleeSummary>,
+) -> CommandSideEffects
+```
 
-1. **Callee summary** — interprocedural summaries bypass registry lookup entirely.
-2. **Dynamic barrier** — commands like `eval`, `uplevel`, `subst` produce `SideEffectTarget::Unknown` read+write with `dynamic_barrier: true`.
-3. **Purity** — pure commands return `pure: true`. Protocol namespace pure commands include a read effect. Pure subcommands with declared effects include read-only effects.
-4. **Variable assignment** — commands with `assigns_variable_at` produce a `SideEffectTarget::Variable` effect with scope/key/storage_type inferred from the variable name and command.
-5. **Protocol namespace** — `HTTP::header`, `SSL::cert`, etc. are classified using the declared target plus subcommand `mutator` flags.
-6. **Procedure definition** — `proc`, `rename` produce a `SideEffectTarget::ProcDefinition` write.
-7. **Hint fallback** — if a hint exists, use it directly.
-8. **Conservative fallback** — `SideEffectTarget::Unknown` read+write.
+It follows this priority chain, returning at the first arm that matches:
 
-After the registry-based classification produces a base result, the
-**execution-trace composition rule** runs as a post-processing step
-(see issue #251):
+1. **Callee summary** — when `callee_summary` is `Some`,
+   `classify_from_callee_summary` translates the interprocedural
+   `EffectRegion` pair straight into effects and skips the registry entirely.
+2. **Unknown command** — `registry.get(command)` misses → conservative
+   `Unknown` read+write.
+3. **Dynamic barrier** — `Traits::EVALUATES_CODE | Traits::CREATES_BARRIER`
+   (`eval`, `uplevel`, …) → `SideEffectTarget::Unknown` read+write with
+   `dynamic_barrier: true`.
+4. **Pure evaluation** — `Traits::PURE_EVALUATION` (braced `expr`) → pure and
+   deterministic, unconditionally, with no subcommand or hint handling.
+5. **Command-level purity** — `Traits::PURE`, with two refinements. A
+   *mutator* subcommand (`HTTP::header insert …`) downgrades the command and
+   falls through to the hints arm; a still-pure command returns its dialect
+   hints forced read-only (`reads = true`, `writes = false`), so
+   `HTTP::header` the getter keeps its target metadata.
+6. **Subcommand-level purity** — an ensemble that is not itself `PURE`
+   inherits purity from a resolved `SubCommand` with `pure: true` and
+   `mutator: false` (`string length`, `dict get`, `array names`). Returns
+   pure with *no* effects.
+7. **Variable assignment** — `assigns_variable_at` → `classify_variable_assignment`,
+   producing a `SideEffectTarget::Variable` effect with scope, namespace, key,
+   and storage type inferred from the variable name and the command's traits.
+8. **Procedure definition** — `Traits::DEFINES_PROCEDURE` → a
+   `SideEffectTarget::ProcDefinition` write at `StorageScope::Namespace`.
+9. **Variable destruction** — `Traits::DESTROYS_VARIABLE` (`unset`) → one
+   `Variable` write per `ArgRole::VarWrite` argument, so `unset -nocomplain a b`
+   keys both `a` and `b`; an option-only call still emits one untargeted
+   `Variable` effect so the command stays impure.
+10. **Hint fallback** — `dialect_side_effect_hints` returns the spec's
+    structured `side_effects` (subcommand first).
+11. **Conservative fallback** — `SideEffectTarget::Unknown` read+write.
+
+There is no separate "protocol namespace" arm: an `HTTP::header` /
+`SSL::cert` call is classified by arm 5 (pure getter, hints forced read-only)
+or arm 10 (mutator subcommand, hints as declared).
+
+### Execution traces are a separate gate, not part of classification
+
+`classify_side_effects` takes no trace parameters and composes no trace
+effects. The composition is a *purity gate* wrapped around it (issue #251):
 
 - `trace add execution cmdName ops body` registers a Tcl-language hook
-  that fires before/after every call to `cmdName`. The trace body's
-  effects compose into the traced command's effective per-call
-  side-effects: a registry-pure `set` is no longer pure once `set` is
-  traced, because the trace body runs around every invocation.
+  that fires before/after every call to `cmdName`. A registry-pure `set` is
+  no longer pure once `set` is traced, because the trace body runs around
+  every invocation.
 - Captured at lowering time: `Module::traced_commands`
   (`BTreeSet<String>`) is the *net active* set — a target is included when
   adds outnumber removes, modelling the global command-table state at
   end-of-script. `Module::has_dynamic_trace` (`bool`) reports whether any
   `add` had a non-literal target; when true, every command must be
-  pessimised because we cannot prove a particular call isn't traced.
-- Optimisation passes that consult purity (GVN, optimiser propagation)
-  pass `traced_commands` and `has_dynamic_trace` into
-  `classify_side_effects`. The composition is conservative today: a
-  matching command gets an extra `SideEffectTarget::Unknown` read+write
-  effect appended, and `pure` / `deterministic` are forced to `false`.
-  A future refinement can replace the catch-all with the trace body's
-  recursively-classified effects.
+  pessimised because we cannot prove a particular call is not traced.
+- Optimisation passes that consult purity (GVN, partial redundancy,
+  loop-invariant motion, optimiser propagation) thread the module's trace
+  facts into `gvn::is_pure_command_with_traces`, which answers `false` for
+  any command in `traced_commands`, and for *every* command when
+  `has_dynamic_trace` is set, before delegating to `is_pure_command`. The
+  gate is a flat "not pure"; it does not append an `Unknown` effect or
+  rewrite the `CommandSideEffects` a classification returns.
 - `trace remove execution` undoes the propagation by cancelling the
   matching `add` in the net count. `trace add command` and
   `trace add variable` are **not** captured here — they have different
   semantics (rename/delete and variable-access traces respectively)
   and do not compose into the traced command's per-call effects.
+  `trace add variable` is instead unioned into SCCP's `escaping` set, and a
+  dynamic variable-trace target makes `is_externally_mutable` answer `true`
+  for every name.
 
 ## Examples of different side effect profiles
 
@@ -318,13 +402,13 @@ SideEffect {
 1. **Identify the target** — what external resource does the command touch? Pick from `SideEffectTarget`.
 2. **Determine reads/writes** — does it read, write, or both? For commands with subcommands, does it vary?
 3. **Choose the connection side** — which F5 proxy side does it act on? Pick
-   from `ConnectionSide`. (`StorageScope` and `StorageType` are inferred by
-   the classifier, not declared on the spec.)
-4. **Set connection side** — for F5 commands, which proxy side? `CLIENT`, `SERVER`, `BOTH`, or `GLOBAL`.
-5. **Add to CommandSpec** — set `side_effects: &[SideEffect { … }]` on the spec.
-6. **Add SubCommand entries if needed** — if subcommands have different read/write profiles, set `side_effects` on each `SubCommand`.
-7. **Mark pure subcommands** — set `pure: true` on read-only subcommands. The classifier will automatically narrow their effects to read-only.
-8. **Mark mutator subcommands** — set `mutator: true` on write subcommands. The protocol namespace classifier uses this to upgrade writes.
+   from `ConnectionSide`: `Client`, `Server`, `Both`, `Global`, or `None`.
+   `StorageScope` and `StorageType` are inferred by the classifier, not
+   declared on the spec.
+4. **Add to CommandSpec** — set `side_effects: &[SideEffect { … }]` on the spec.
+5. **Add SubCommand entries if needed** — if subcommands have different read/write profiles, set `side_effects` on each `SubCommand`.
+6. **Mark pure subcommands** — set `pure: true` on read-only subcommands. On a `PURE` command the classifier forces its hints read-only; on an ensemble a pure subcommand makes the call pure with no effects.
+7. **Mark mutator subcommands** — set `mutator: true` on write subcommands. This is what stops a `PURE` command's mutating subcommand from being classified pure, sending it to the hints arm instead.
 
 ### Checklist
 
@@ -335,18 +419,26 @@ SideEffect {
 
 ## File-path anchors
 
-- `side_effects.rs` — the effect enums, `classify_side_effects`, trace composition, and the `EffectRegion` bridge
+- `rust/tcl-compiler/src/side_effects.rs` — `StorageType` / `StorageScope`,
+  the compiler-side `SideEffect` and `CommandSideEffects`,
+  `classify_side_effects`, `dialect_side_effect_hints`,
+  `lift_registry_effect`, `scope_from_varname`, and the `target_to_region`
+  `EffectRegion` bridge
+- `rust/tcl-registry/src/side_effects.rs` — `SideEffectTarget`,
+  `ConnectionSide`, and the registry-side `SideEffect`
 - `rust/tcl-registry/src/spec.rs` — `CommandSpec::side_effects`, `SubCommand::side_effects`
-- `rust/tcl-registry/src/side_effects.rs` — the registry-side `SideEffect`
-- `rust/tcl-compiler/src/side_effects.rs` — `dialect_side_effect_hints` lookup, `lift_registry_effect`
-- `ir.rs` — `CommandTrace`, the module's traced-command set, and the dynamic-trace flag
-- `lowering/` — `trace add`/`trace remove execution` capture
-- `gvn.rs` — GVN consumer (threads the module's traced commands)
-- `interprocedural.rs` — interprocedural consumer
-- `irules_checks.rs` — response-commit and drop-command derivation
-- `execution_intent.rs` — purity consumer
-- `sccp.rs` — purity consumer
-- `rust/tcl-compiler/src/optimiser/propagation.rs` — load-forwarding consumer (threads `traced_commands` via `ctx.ir_module`)
+- `rust/tcl-compiler/src/ir.rs` — `Module::traced_commands` and `Module::has_dynamic_trace`
+- `rust/tcl-compiler/src/lowering/mod.rs` — `trace add`/`trace remove execution` capture
+- `rust/tcl-compiler/src/gvn.rs` — `is_pure_command`, and the trace gate
+  `is_pure_command_with_traces`
+- `rust/tcl-compiler/src/interprocedural.rs` — interprocedural consumer
+- `rust/tcl-compiler/src/irules_checks.rs` — response-commit derivation, reading
+  the registry `SideEffect` declarations directly
+- `rust/tcl-compiler/src/execution_intent.rs` — purity consumer
+- `rust/tcl-compiler/src/sccp.rs` — purity consumer via the GVN trace gate
+- `rust/tcl-compiler/src/optimiser/propagation.rs` — load-forwarding consumer
+  (threads `traced_commands` via `ctx.ir_module`)
+- `rust/tcl-compiler/src/optimiser/elimination.rs` — dead-store consumer
 
 ## Failure modes
 
@@ -358,7 +450,9 @@ SideEffect {
 
 ## Tests
 
-- `side_effects.rs` unit tests — `trace add`/`trace remove execution` capture and side-effect composition (issue #251)
+- `rust/tcl-compiler/src/side_effects.rs` unit tests — the classification arms
+- `rust/tcl-compiler/src/gvn.rs` unit tests — the `traced_commands` / `has_dynamic_trace` purity gate (issue #251)
+- `rust/tcl-compiler/src/lowering/mod.rs` unit tests — `trace add` / `trace remove execution` capture
 
 ## See also
 

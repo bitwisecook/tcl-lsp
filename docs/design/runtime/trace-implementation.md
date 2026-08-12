@@ -75,12 +75,33 @@ trace's arguments appended as list elements.
 | command | `oldName newName rename`, or `oldName {} delete` |
 | execution | the command's own words, plus the op word |
 
-Whole-array traces fire before element traces; within a list, newest-first.
-A per-record active flag makes a callback that re-enters the same variable
-terminate. A read or write callback that errors reshapes the operation's
-result (`can't read "NAME": …` / `can't set "NAME": …`) and stops further
-firing; an unset callback's error is discarded and the remaining unset traces
-still fire. The mutation itself is never gated on the callback's outcome.
+In `runtime/rust` the variable-trace table is scanned once per access in
+**registration order**, with a whole-variable trace (no element) and an
+element-specific trace on the same variable matched by the same pass —
+`cmd_trace::matches` filters on identity, element, and op together rather than
+grouping. `trace info variable` lists in the opposite order (newest first), as
+C does. Execution traces are the ordered pair: `enter`/`enterstep` fire
+newest-first, `leave`/`leavestep` oldest-first.
+
+Re-entrancy is suppressed per scope: a variable trace pushes its scope onto
+`active_var_scopes` for the duration of the callback, so a callback touching
+the same variable does not re-fire itself, and command-trace firing is gated on
+`exec_firing`. The interpreter result is preserved across every callback (held
+with an explicit `+1` and restored afterwards), so a trace cannot clobber the
+result of the operation it observed.
+
+A read or write callback that errors reshapes the operation's result
+(`can't read "NAME": …` / `can't set "NAME": …`) and stops further firing —
+C's abort-the-chain-on-first-error. An `unset` or `array` callback's error is
+discarded and the remaining traces still fire. Command-trace
+(`rename`/`delete`) callback errors are ignored outright, matching C's "we
+ignore errors in these traced commands". The mutation itself is never gated on
+the callback's outcome.
+
+Ordering the contract fixes but the implementations reach differently is
+authoritative in
+[`../contracts/variable-trace-dispatch-and-introspection.md`](../contracts/variable-trace-dispatch-and-introspection.md),
+not here.
 
 ## Key files
 

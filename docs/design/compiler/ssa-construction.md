@@ -14,8 +14,14 @@ Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `Phi`, `SsaBlock`, `SsaFunc
 
 ### SSA principles
 
-- Every variable definition gets a unique `(name, version)` — the
-  `SSAValueKey`.
+- Every variable definition gets a unique `(variable, version)` — the
+  `ValueKey`, which is `(Symbol, Version)`.  `Symbol(u32)` is a variable
+  name interned per `SsaFunction` in first-seen order, so the hot
+  per-statement maps key on a copyable id instead of hashing and cloning a
+  `String`; `SsaFunction::var_name` resolves a symbol back to its display
+  name and `var_symbol` goes the other way.  (`def_use::SsaValueKey` is a
+  *different*, name-keyed `(String, Version)` pair used by the def-use
+  chains — see below.)
 - A variable read resolves to the version currently in scope at that
   program point.
 - At merge points (where multiple paths converge), phi nodes select the
@@ -23,16 +29,23 @@ Source: `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `Phi`, `SsaBlock`, `SsaFunc
 
 ### Version numbering
 
-- Version 0 = read-before-set (the variable was used without being defined).
-  This triggers diagnostic W103.
-- Version 1, 2, 3, ... = successive definitions in program order.
+- Version 0 = read-before-set: `RenameWalk::top` returns `0` when the
+  variable has no live version, and a use at version 0 is what the
+  read-before-set emitter reports as **W210**.
+- Version 1, 2, 3, ... = successive definitions in program order, allocated
+  by `RenameWalk::push_new` from a per-variable counter.
 - Inside loops, the phi node at the header produces a new version that
   merges the initial value with the loop-carried update.
 
 ### Phi node placement
 
 Phi nodes are placed at dominance frontier blocks — where a variable's
-dominance "ends":
+dominance "ends" — but only for **non-local** names, the semi-pruned rule
+(see [algorithms.md](../../../docs/design/compiler/algorithms.md)).  A name
+no block reads before redefining it gets no phi at all, because such a phi
+would have no reader.
+
+For `set x 1; if {$c} { set x 10 }; puts $x`:
 
 ```
   entry_1:  x₁ = "1"
@@ -43,14 +56,20 @@ dominance "ends":
 
   if_end_2:
     phi: x₃ = phi(x₂ from if_then_3, x₁ from if_next_4)
+    puts $x   ← reads x₃
 ```
 
-`if_end_2` is in the dominance frontier of `if_then_3` for variable `x`.
+`if_end_2` is in the dominance frontier of both `if_then_3` and
+`if_next_4`, and the trailing `puts $x` is the upward-exposed use that makes
+`x` non-local.  Drop that read and `compute_phi_vars` places no phi.
 
 ### Dominator tree
 
 Block A dominates block B if every path from entry to B passes through A.
-The immediate dominator (`idom`) is the closest dominator.
+The immediate dominator (`idom`) is the closest dominator.  `build_ssa`
+computes it with `compute_idom_fast` (Cooper-Harvey-Kennedy over
+reverse-postorder indices), then derives `dominance_frontier` and
+`dominator_tree` from it.
 
 `SsaFunction::idom` is a `HashMap<BlockId, Option<BlockId>>`; by block name:
 
@@ -64,16 +83,24 @@ exit_5     -> if_end_2
 
 ### Loop phis
 
-Loops create phi nodes at the loop header:
+Loops create phi nodes at the loop header.  For
+`set i 0; while {$i < 5} { incr i }`:
 
 ```
-  while_header_3:
-    phi: i₂ = phi(i₁ from entry_1, i₃ from while_body_4)
-    branch uses: {i: 2}
+  while_header_2:
+    phi: i₂ = phi(i₁ from entry_1, i₃ from while_body_3)
+    terminator: Branch { condition: $i < 5, .. }   ← reads i₂
 
-  while_body_4:
+  while_body_3:
     Statement::Incr { name: "i", .. } → i₃ = i₂ + 1
 ```
+
+A terminator's reads are not stored on the `SsaBlock` — it has no
+terminator field.  `build_ssa` only *interns* them
+(`intern_terminator_reads`) so `var_symbol` can resolve a name read solely
+in a branch condition or `return` value; the versioned use itself is
+recovered by `build_def_use_chains`, which is why that function takes the
+CFG as well as the SSA function.
 
 The phi merges the initial value (`i₁ = 0`) with the loop-carried update
 (`i₃`).  SCCP cannot fold loop-carried values to constants — they become
@@ -94,10 +121,24 @@ Three definitions merge — the phi has three incoming edges.
 
 | Type | Fields |
 |------|--------|
-| `SsaStatement` | `statement: Statement` (the original IR), `uses: HashMap<Symbol, Version>`, `defs: HashMap<Symbol, Version>`, `may_defs`, `quoted_uses` |
+| `SsaStatement` | `statement: Statement` (the original IR), `uses: HashMap<Symbol, Version>`, `defs: HashMap<Symbol, Version>`, `may_defs: HashSet<Symbol>`, `quoted_uses: HashSet<Symbol>` |
 | `Phi` | `name: Symbol`, `version: Version` (produced), `incoming: HashMap<BlockId, Version>` |
-| `SsaBlock` | `name`, `phis: Vec<Phi>`, `statements: Vec<SsaStatement>`, `entry_versions`, `exit_versions` |
-| `SsaFunction` | `entry: BlockId`, `blocks: HashMap<BlockId, SsaBlock>`, `idom`, `dominance_frontier`, `dominator_tree` |
+| `SsaBlock` | `name: String`, `phis: Vec<Phi>`, `statements: Vec<SsaStatement>`, `entry_versions: HashMap<Symbol, Version>`, `exit_versions` |
+| `SsaFunction` | `name: String`, `entry: BlockId`, `blocks: HashMap<BlockId, SsaBlock>`, `idom`, `dominance_frontier`, `dominator_tree`, plus the private block-name and variable-name interners |
+
+`may_defs` is the subset of `defs` that are *synthetic* array-element
+writes rather than writes the statement performs itself — the base refresh
+alongside an element write (`set arr(k) v` also defs `arr`), and the element
+fan of a dynamic-key write.  Type inference **joins** across a may-def;
+write-sensitive passes (shimmer oscillation, dead-store) must not count one
+as a real write.  `quoted_uses` is the subset of `uses` carried only by a
+brace-quoted word the statement does not substitute — see
+[def-use-chains.md](../../../docs/design/compiler/def-use-chains.md).
+
+`SsaFunction::trivial` builds an empty shell when the complexity guard
+(`is_complexity_guarded`) declines the expensive build for an oversized
+body; `FunctionUnit::complexity_guarded` then tells every per-proc pass to
+skip that function.
 
 ## Decision rule
 
@@ -112,22 +153,27 @@ Three definitions merge — the phi has three incoming edges.
 
 ### Def-use chain derivation
 
-After SSA construction, def-use chains can be built with
-`build_def_use_chains(ssa)` from `rust/tcl-compiler/src/def_use.rs`.
-The chains map each `SSAValueKey` to its definition site and all
-use sites, enabling precise dead-store detection and copy propagation.
+After SSA construction, def-use chains are built with
+`build_def_use_chains(&ssa, Some(&cfg))` from
+`rust/tcl-compiler/src/def_use.rs` and stored as `FunctionUnit::def_use`.
+The chains map each `def_use::SsaValueKey` — a name-keyed `(String,
+Version)`, since the chains are consumed by name-oriented diagnostics — to
+its definition site and all use sites, enabling precise dead-store detection
+and copy propagation.
 
 Phi nodes participate in def-use chains in two roles:
-- **As definitions**: The phi's `(name, version)` is a `DefKind.PHI` def.
+- **As definitions**: The phi's `(name, version)` is a `DefKind::Phi` def.
 - **As uses**: Each incoming edge `(pred_block, incoming_ver)` is a
-  `UseKind.PHI_INCOMING` use of the incoming version.
+  `UseKind::PhiIncoming` use of the incoming version.
 
 ### Memory-SSA for aliases
 
-Variables aliased via `upvar`, `global`, or `variable` are tracked by
-memory-SSA (`rust/tcl-compiler/src/memory_ssa.rs`).  Memory-SSA versions each
-store/load to aliased locations and builds alias sets, enabling
-alias-aware optimisation and taint tracking.
+Variables aliased into another frame or namespace — through `upvar`,
+`global`, `variable`, or `namespace upvar` — are tracked by memory-SSA
+(`rust/tcl-compiler/src/memory_ssa.rs`), which versions each store/load to
+an aliased location and builds alias sets.  It is **optional**:
+`FunctionUnit::memory_ssa` is `None` unless a caller asks for it with
+`with_memory_ssa`.
 
 ### The dynamic-name barrier
 
@@ -211,7 +257,9 @@ because the salsa interning layer imports it by that path):
 | `uplevel_param_writes` | `uplevel 1 [list set $param …]` | at the call site, like `param_targets` |
 | `uplevel_forwarded_calls` | `uplevel 1 [list callee …]` | one hop, in `detect_upvar_procs` |
 | `has_unresolvable_caller_target` | `upvar 1 $computed x` | not resolvable — widen |
-| `caller_frame_opaque_writes` / `_reads` | `uplevel 1 $body`, `upvar 2 …`, `upvar $lvl …` | not resolvable — widen |
+| `caller_frame_opaque_writes` / `caller_frame_opaque_reads` | `uplevel 1 $body`, `upvar 2 …`, `upvar $lvl …` | not resolvable — widen |
+| `unnameable_local_aliases` | `upvar 1 x $dst` — the alias has no local name to file it under | structural only: it is what `reaches_caller_frame` counts |
+| `frame_reach` / `plain_calls` | how far past this frame the effects land, and the ordinary callees to compose one hop through | bookkeeping for `detect_upvar_procs` |
 
 **Complexity.**  One walk per procedure to build the summary; one hash
 lookup plus work proportional to the *bound arguments* at each call site.
@@ -281,26 +329,27 @@ evalrunner {set helper}     ;# → 42
 So `eval $body` blinds the frame it is written in, while `uplevel 1 $body`
 blinds that procedure's *callers* and leaves its own locals provable.
 
-**What cross-document (PR C1b) needs.**  `detect_upvar_procs` takes one
-`Module`, i.e. one file's parse, so a helper defined in another file is
-invisible however the call spells it (issue #923 audit idx 59's real
-ticklecharts layout: `setdef` in `utils.tcl`, 1876 call sites in
-`options.tcl`).  The summary is already a pure function of a procedure's
-body plus its parameter list and is `Hash`/`Eq`, so the workspace layer can
-intern one per procedure and merge the maps before `prepare_cfg_context`
-runs — no change to the model, only to who supplies the map.  The navigation
-providers need the same map plus the call site's scope, which the analyser's
-`SignatureCommandInvocation` does not yet carry.
+**The cross-document limit.**  `detect_upvar_procs` takes one `Module`, i.e.
+one file's parse, so a helper defined in another file is invisible however
+the call spells it (issue #923 audit idx 59's real ticklecharts layout:
+`setdef` in `utils.tcl`, 1876 call sites in `options.tcl`).  The summary is
+a pure function of a procedure's body plus its parameter list and is
+`Hash`/`Eq`, so the workspace layer *could* intern one per procedure and
+merge the maps before `prepare_cfg_context` runs — no change to the model,
+only to who supplies the map.  Nothing does that today: every caller of
+`prepare_cfg_context` still passes a single-file `Module`.  The navigation
+providers would need the same map plus the call site's scope, which the
+analyser's `SignatureCommandInvocation` does not carry.
 
-`eval $body` / `uplevel 1 $body` are no longer out of scope — see the
-caller-frame injection model above.  They still lower to
-`Statement::Barrier`, so the per-consumer barrier rules apply as well.
+`eval $body` and `uplevel 1 $body` are in scope for the caller-frame
+injection model above.  They still lower to `Statement::Barrier`, so the
+per-consumer barrier rules apply as well.
 
-**What PR C1b took, and what is left.**  The *navigation* half landed in
-[`tcl-lsp-core/src/caller_frame.rs`](../../../rust/tcl-lsp-core/src/caller_frame.rs),
-but it consumes two per-parameter facts on `ProcDef` rather than this
-summary, so a navigation provider reaches them without lowering the document
-to IR on every hover:
+**The navigation view of the same facts.**  Navigation lives in
+[`tcl-lsp-core/src/caller_frame.rs`](../../../rust/tcl-lsp-core/src/caller_frame.rs)
+and consumes three facts on `ProcDef` rather than this summary, so a
+navigation provider reaches them without lowering the document to IR on
+every hover:
 
 * `ProcArgTrait::VarWrite` / `VarRead` — the parameter's value is used as a
   variable name through an `upvar`, and whether the callee writes through the
@@ -315,18 +364,23 @@ to IR on every hover:
   arity-parity split with the trait scan through the registry's
   `FrameEffectSpec`, so the two views of a proc cannot drift apart.  It is a
   deliberate near-duplicate of `param_targets`, differing only in reading the
-  proc's *source* rather than its lowered IR; if the interning below lands,
-  merging them is the obvious follow-up.
+  proc's *source* rather than its lowered IR; if the cross-file interning
+  above lands, merging them is the obvious follow-up.
+* `ProcDef::caller_frame_literals` — the analyser side of `literal_targets`
+  (`upvar 1 name name`, audit idx 22/98), which spells its name nowhere at the
+  call site so there is no argument word to key on.  A `name → written-through`
+  map computed by `analyser::param_traits::caller_frame_literal_targets`;
+  `caller_frame_bindings` answers for those names with the *call-head word* as
+  the binding span.  A fully-qualified target (`upvar ::tk::FocusGrab($i)
+  data`, idx 98) is not a caller-frame variable at all — it names one fixed
+  global cell, which `handle_upvar_command` defines and links directly.
 
-Two gaps remain, both needing a fact the analyser does not record yet:
-
-* `literal_targets` (`upvar 1 name name`, audit idx 22/98) has no call-site
-  word to key on, so navigation abstains.  It needs a per-proc *literal
-  caller-frame target* list on `ProcDef`, computed by the same body walk
-  `infer_param_traits` already makes.
-* Cross-document (idx 59) still needs the interning described above.  Nothing
-  in the model changed; the workspace layer still has to merge the maps
-  before `prepare_cfg_context` runs.
+One gap remains: cross-document resolution (idx 59) needs the workspace-level
+interning described above, which nothing supplies.  A callee reached by
+`next` / `nextto` is also left unanswered — the MRO successor is not named at
+the call site, so those reads keep the abstaining answer rather than a wrong
+one, and the compiler-side dispatch widening keeps the diagnostics honest for
+them.
 
 ### A brace-quoted `$`-bearing name is its own variable (issue #1078)
 
@@ -361,41 +415,39 @@ braced target. Which words are braced is one question with one answer:
 `LoweringCommand::arg_is_braced_literal`) — the `Str` representative token
 kind, since the IR stores de-braced content that cannot show the difference.
 
-Every consumer of the naming layer was moved onto it together, which is what
-made the fix land: defs (`defs_of_with_registry`, `collect_defs_from_script`,
-the `set`/`incr`/`unset`/`append`/`global`/`variable`/`upvar` lowering hooks,
+Every consumer of the naming layer reads the same flag, which is what makes
+the rule hold end to end: defs (`defs_of_with_registry`,
+`collect_defs_from_script`, the
+`set`/`incr`/`unset`/`append`/`global`/`variable`/`upvar` lowering hooks,
 `lower_default`'s registry role harvest), reads (`var_token_name`,
 `scan_var_read_role_names`, `collect_ref_forms` +
 `scan_var_ref_forms_braced`, `scan_command_words`'s name-role skip), the
 analyser scope layer (`define_var` from the name word's token kind,
 `record_var_read_braced`), rename, and semantic highlighting.
 
-Measurements, against the two the reverted one-parameter attempt produced:
+The diagnostic behaviour that follows:
 
-| shape | before | after |
-| --- | --- | --- |
-| `set {$n} 1` | false `W210` on `n` | silent for `n`; `W211` names `$n` |
-| `set {$n} 1; puts $n` | *missed* TP (tclsh errors) | `W210` on `n` fires |
-| `set {$n} 1; set {$n} 2; return [set {$n}]` | two false `W220`s | silent — and byte-identical to the plain-named control |
-| `unset {$n}` after `set {$n} 1` | false `W213` on `n` | silent |
+| shape | diagnostics |
+| --- | --- |
+| `set {$n} 1` | silent for `n`; `W211` names `$n` |
+| `set {$n} 1; puts $n` | `W210` on `n` — tclsh errors here, so the read is a true positive |
+| `set {$n} 1; set {$n} 2; return [set {$n}]` | silent, byte-identical to the plain-named control |
+| `unset {$n}` after `set {$n} 1` | silent — no `W213` on `n` |
 
-Two adjacent recoveries were needed to reach the last two rows, and they fix
-the *plain* spelling as well: the `[set NAME]` textual read scan now also
-recognises the brace-quoted name word, and the substitution-hidden-read scan
-now looks at a `return`'s value word (a terminator, which it never walked), so
-`proc f {} {set n 1; set n 2; return [set n]}` no longer reports two dead
-stores on code tclsh runs to `2`.
+The last two rows depend on two read scans that also cover the *plain*
+spelling: the `[set NAME]` textual read scan recognises a brace-quoted name
+word, and the substitution-hidden-read scan walks a `return`'s value word (a
+terminator), so `proc f {} {set n 1; set n 2; return [set n]}` reports no
+dead store on code tclsh runs to `2`.
 
 All five variable providers resolve their `$ref` cursor through one gate,
 `definition::substituting_var_at_position`. The character scan under it
 reports `n` for a cursor on the `n` of `set {$n} 1` — that word is
 brace-quoted, so the `$n` is not a reference at all but part of a different
-variable's literal *name*. Each provider used to short-circuit on that scan,
-so a cursor one column right of the `{` stopped resolving the cell whose
-declaration it sits inside. The gate answers `None` there (it also folds in
-the two `inert_text` proofs, issue #923 idx 24, that every caller previously
-re-derived), which lets each provider fall through to its declaration-span
-search — the behaviour the `{` column already had. Document-highlight has no
+variable's literal *name*. The gate answers `None` there (it also folds in
+the two `inert_text` proofs, issue #923 idx 24, so no caller re-derives
+them), which lets each provider fall through to its declaration-span
+search — the same behaviour the `{` column gets. Document-highlight has no
 declaration-span search, so it abstains for a braced cursor exactly as it
 already does for a plain bareword declaration cursor.
 
@@ -404,7 +456,7 @@ Rename **refuses** rather than guesses for these cells
 precedent): the recorded spans cover a word's content, not its delimiters, and
 the delimiters a *new* name needs are a property of that new name — rewriting
 `{$n}`'s span with `q` would produce `set q} 1`. Renaming the plain `n` is
-unaffected and no longer touches the `{$n}` word.
+unaffected and never touches the `{$n}` word.
 
 ## Related docs
 

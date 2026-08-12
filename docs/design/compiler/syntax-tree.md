@@ -24,14 +24,14 @@ The model is the Roslyn / rust-analyzer split:
   **lazily**, reproducing exactly the `Token` offsets/lines/columns the lexer
   emits.
 
-This is deliberately the model the earlier *green token tree* (issue #477,
-[`green-token-tree.md`](green-token-tree.md)) decided **not** to build: that
-structure is a context-aware tokenisation memo whose tokens carry **absolute**
-positions, because ~80 consumers read `Token.start.offset` as absolute. The CST
-does not change those consumers — it is built *alongside*, verified
-byte-identical, and adopted incrementally. (The `lexer.rs` memo node is named
-`TokenRegion`; the CST's structural node under `syntax/` is `GreenNode`, so the
-two no longer collide.)
+This is deliberately the model the *green token tree* proposal (issue #477,
+[`green-token-tree.md`](green-token-tree.md)) decided **not** to take: that
+design is a context-aware tokenisation memo whose tokens would carry
+**absolute** positions, because ~80 consumers read `Token.start.offset` as
+absolute. That proposal is unbuilt — nothing named `TokenRegion` exists in the
+workspace — so the CST under `parsing/syntax/` is the only tree in the tree.
+It does not change the absolute-offset consumers: `SyntaxToken::to_token`
+reproduces the lexer `Token` they already read.
 
 ## Node model
 
@@ -46,11 +46,11 @@ pub struct GreenNode {
 }
 
 pub struct GreenToken {
-    pub token_type: TokenType, // ESC | STR | CMD | VAR | EXPAND
+    pub token_type: TokenType, // Esc | Str | Cmd | Var | Expand | …
     pub text: String,          // lexer inner text  ("abc" for {abc})
     pub raw: String,           // full source slice  ("{abc}")  → width
     pub end_rel: u32,          // Token.end.offset − Token.start.offset
-    pub content_offset: u8,
+    pub content_offset: u8,    // delimiter bytes stripped to get `text`
     pub in_quote: bool,
     pub leading: Vec<GreenTrivia>,
     pub trailing: Vec<GreenTrivia>,
@@ -61,6 +61,9 @@ pub struct GreenTrivia {
     pub text: String,
 }
 ```
+
+Both structs also carry a private `full_width: u32`, cached at construction
+and excluded from equality since it is derived from the other fields.
 
 **Trivia is attached** (leading/trailing on the adjacent token), Roslyn-style,
 so a `COMMAND` / `WORD` is pure syntax while every inter-word byte is still
@@ -98,12 +101,17 @@ walk, so nothing is materialised that a consumer does not visit.
 
 ## Deriving `SegmentedCommand` (the first consumer)
 
-`segment.segments_from_tree` walks the red tree and produces the segmenter's
-public `SegmentedCommand` shape, byte-identical to the former hand-rolled loop:
+`segment::segments_from_tree` walks the red tree and produces the segmenter's
+public `SegmentedCommand` shape; `segments_from_document` is the entry
+`segment_commands_local` uses, taking the green `Document` and a `SourceMap`
+directly. This *is* the segmenter — `segment_commands_local`
+(`rust/tcl-compiler/src/segmenter.rs`) calls `build_document` then
+`segments_from_document`, with no token loop of its own:
 
 - **`argv`** — one merged token per word (type/text/start from the first
   fragment, end from the last: the compound-word merge of `{a}b`).
-- **`texts`** — `_word_piece` per fragment, reused from `command_segmenter`.
+- **`texts`** — `word_piece` per fragment, reused from
+  `rust/tcl-compiler/src/segmenter.rs`.
 - **`all_tokens`** — every fragment *and* `{*}` marker, in document order.
 - **`range`** — see below.
 - **`preceding_comment`** / **`expand_word`** — see below.
@@ -133,74 +141,87 @@ reset rule) and stores it on the command. This doubles as the natural
 
 ## Descent into bodies (`parsing/syntax/descend.rs`)
 
-At its own level a `{…}` body or `[…]` command substitution is a single `STR` /
-`CMD` token whose `raw` owns the full span — delimiters included. *Descending*
-re-lexes its inner text (`token.text`) as a child tree anchored **one byte past
-the opener** (`start.offset + 1`, `character + 1`), so the child owns the
-delimiter-excluding interior with absolute positions matching where it sits in
-the document — the "node owns its span, children exclude delimiters" shape,
-realised for nested bodies. Descent is lazy and shares the lex memo (the child's
-`build_document` tokenises through the same `green_tree.tokenise`).
+At its own level a `{…}` body or `[…]` command substitution is a single `Str` /
+`Cmd` token whose `raw` owns the full span — delimiters included. *Descending*
+re-lexes its inner text (`sm.token_text(token)`) as a child tree anchored
+**`content_offset` bytes past the opener** — normally one, but zero for a
+synthetic error-recovery token whose span already starts at the content. The
+child therefore owns the delimiter-excluding interior with absolute positions
+matching where it sits in the document — the "node owns its span, children
+exclude delimiters" shape, realised for nested bodies. Descent is lazy (built
+only when a caller asks).
 
-- `descend_token(token, source)` descends an absolutely-positioned `STR`/`CMD`
-  token; an unterminated region (closer absent — decided by `_terminated`, from
-  the inner *length* so empty `{}`/`[]` classify correctly) yields a **recovered**
-  child that still carries its inner tokens, the lossless representation of
-  malformed input.
-- `descend_command(cmd_name, args, arg_tokens, source)` descends each
-  registry-resolved `ArgRole.BODY` argument (via `iter_body_arguments`); `EXPR`
-  arguments stay with `expr_lexer` and data words are left opaque.
+- `descend_token(sm, token, config)` descends an absolutely-positioned
+  `Str`/`Cmd` token; an unterminated region (closer absent — decided by
+  `terminated`, from the inner *length* so empty `{}`/`[]` classify correctly)
+  yields a **recovered** child (`Descended::is_terminated() == false`) that
+  still carries its inner tokens, the lossless representation of malformed
+  input. Any other token kind is anchored at its own position and is always
+  recovered.
+- `descend_command(registry, sm, cmd_name, args, arg_tokens, config)` descends
+  each registry-resolved `ArgRole::Body` argument (via
+  `CommandRegistry::arg_indices_for_role`), returning a `CommandBody` per
+  descended body. `ArgRole::Expr` arguments stay with `expr_lexer`,
+  `ArgRole::LambdaLiteral` arguments are deliberately excluded (a lambda body
+  runs in its own namespace and needs an isolated scope, not just a sub-span),
+  and data words are left opaque.
 
-Because this descent's `build_document` and a direct `green_tree.tokenise` of the
-same region share the one tokenisation memo (same inner text, same anchor), the
-descended token stream is **identical by construction** — the
-parity is asserted directly (same child fragments, same terminated/recovered
-classification) over the corpus, 8 000 randomised nested cases, and multi-level
-descent (a substitution inside a descended body).
+There is no shared tokenisation memo: `build_document` runs a fresh
+`Lexer::with_source_map` each time. The descended stream is nonetheless
+**identical by construction** to a direct re-lex of the same region, because
+both tokenise the same inner text at the same anchor under the same
+`LexerConfig`; the parity is asserted directly (same child fragments, same
+terminated/recovered classification) over the corpus, 8 000 randomised nested
+cases, and multi-level descent (a substitution inside a descended body).
 
 ## Verification
 
-The bar is byte-identity with the prior segmenter, established before wiring and
-locked by the suite afterwards:
+The bar is byte-identity with a frozen copy of the pre-CST token loop, kept as
+a permanent regression net:
 
 - **Losslessness** — `full_text == source` over the real-world corpus (157 Tcl
   8.6/9.0 library files + fixtures), 120k randomised sources, and the edge-case
   table in `rust/tcl-compiler/src/parsing/syntax/mod.rs`'s unit tests.
 - **Position-equivalence** — red fragment tokens equal the lexer's non-trivia
   token stream (offsets, lines, UTF-16 columns, `in_quote`) over the same
-  corpus + fuzz, including multi-line and unicode bodies. The randomised
-  randomised generator now also covers carriage returns
-  (lone `\<CR>` continuations), astral / combining unicode, and a quoted word
-  whose entire content is a backslash-newline — the seams a `\n`-only, ASCII
-  generator never reached. The last is a real fragment, not trivia: the lexer
-  emits a separator backslash-newline as `SEP`, but a quoted-word content
-  backslash-newline as an `ESC` token the tree must keep (a fold there dropped
-  the only fragment of the word).
-- **Segment byte-identity** — `segments_from_*` matched the former
-  `_segment_raw` field-for-field (`range`, `argv`, `texts`, `single_token_word`,
-  `all_tokens`, `preceding_comment`, `expand_word`) over the corpus, 120k
-  randomised differential cases, and nested-body (non-zero base) anchoring,
-  before the loop was replaced.
+  corpus and fuzz, including multi-line and unicode bodies. The randomised
+  generator covers carriage returns (lone `\<CR>` continuations), astral and
+  combining unicode, and a quoted word whose entire content is a
+  backslash-newline — the seams a `\n`-only, ASCII generator never reaches.
+  The last is a real fragment, not trivia: the lexer emits a separator
+  backslash-newline as `Sep`, but a quoted-word content backslash-newline as
+  an `Esc` token the tree must keep.
+- **Segment byte-identity** — `rust/tcl-compiler/tests/differential_segment.rs`
+  compares the production `segment_commands_with_offset_and_config` against
+  `frozen_oracle::segment_local`, a byte-for-byte snapshot of the token loop
+  taken before the segmenter derived from the CST. Comparing against the live
+  `segment_commands_local` would be tautological, since that is now the CST
+  derivation. Fields compared: `range`, `argv`, `texts`, `single_token_word`,
+  `all_tokens`, `preceding_comment`, and `expand_word`, over the edge-case
+  table, the `tmp/tcl{8.4,8.5,8.6,9.0}` corpus when present, and nested-body
+  (non-zero base) anchoring.
 - **Full `make test-rust`** green with the segmenter on the tree — the
-  end-to-end proof that diagnostics, analysis, and AOT codegen are unchanged.
+  end-to-end proof that diagnostics, analysis, and AOT codegen agree.
 
 ## Performance
 
-Build + derive is ~1.55× the former bespoke loop on a library-file corpus
+Build + derive is ~1.55× the bespoke loop it replaced on a library-file corpus
 (build ~1.13×, derive ~0.42×). The dominant residual is the line index being
 built twice — once in the lexer, once in the red layer; sharing the lexer's
-index is the obvious follow-up. The overhead is amortised — and then erased — as
-other consumers drop their own re-lexing onto the one tree. The lexing itself
-(the real cost) is shared through the `green_tree` memo.
+index is the obvious follow-up. The overhead amortises as other consumers drop
+their own re-lexing onto the one tree.
 
-## Known gap — the minifier's compact-mode scanners
+## Known gap — the minifier
 
-Every consumer segments or lexes through the tree and its shared `tokenise`
-memo, with one exception: the minifier's three compact-mode descent scanners
-(`_scan_array_tokens`, `_scan_argument_tokens`, `_collect_string_literals`) are
-offset-precise source-edit machinery that still runs a private lexer loop.
-Folding them onto the tree's descent needs a compact-names byte-identical bar
-over the corpus before it can land.
+The segmenter derives from the tree, and everything downstream of
+`segment_commands` therefore rides it. The minifier
+(`rust/tcl-lsp-core/src/minify.rs`) does not: `minify_body` runs its own
+`Lexer::new(source).tokenise_all()` and hands the raw token slice to
+`parse_commands`, and `collect_string_literals` runs a second private loop
+with an explicit descent stack over `Str` / `Cmd` inner text. Both are
+offset-precise source-edit machinery. Folding them onto the tree's descent
+needs a byte-identical bar over the corpus for every minifier tier before it
+can land.
 
 Cursor-local prefix lexers (hover, symbol resolution) and the separate expr and
 `f5/query` tokenisers are deliberately not on this tree — they are different
@@ -219,7 +240,6 @@ tokenisers or cursor-local by nature, not duplicate segmenters.
 
 ## Related docs
 
-- [green-token-tree.md](green-token-tree.md) — the context-aware tokenisation
-  memo (a different structure — its node is `TokenRegion`) and incremental
-  reparse.
+- [green-token-tree.md](green-token-tree.md) — the unbuilt proposal for a
+  context-aware tokenisation memo and incremental reparse.
 - [lexing-segmentation.md](lexing-segmentation.md) — lexer/segmenter contract.

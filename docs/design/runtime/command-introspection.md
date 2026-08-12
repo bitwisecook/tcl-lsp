@@ -4,17 +4,16 @@ The WASM runtime's command-table introspection and mutation surface, built on
 the namespace tree ([`namespace-tree.md`](namespace-tree.md)) and the
 rename/alias layer ([`rename-alias.md`](rename-alias.md)):
 
-- ``interp hide`` / ``interp expose`` / ``interp hidden`` — an
-  interpreter-wide hidden-commands table sitting beside the
+- ``interp hide`` / ``interp expose`` / ``interp hidden`` — a
+  per-interpreter hidden-commands table sitting beside the
   namespace tree.
 - ``namespace which -command`` / ``namespace which -variable``
   probes, plus ``namespace current``.
-- ``info commands ?pattern?`` / ``info procs ?pattern?`` walkers
-  that consume the same ``cmd_table`` tree used by dispatch.
+- ``info commands ?pattern?`` / ``info procs ?pattern?`` listings that
+  consume the same command tables dispatch resolves against.
 - ``info body`` / ``info args`` / ``info default proc arg var``
   for interpreted procs.
-- ``OFF_EXPORT_NAME_BUCKET`` sidecar on the ``Command`` struct
-  so compiled-proc renames stop needing a special case.
+- ``info level`` / ``info script``.
 
 Reference Tcl 9 sources: ``tmp/tcl9.0.3/generic/tclInterp.c``
 (``HiddenObjCmd``, ``ExposeObjCmd``, ``Tcl_HideCommand``),
@@ -26,329 +25,276 @@ Reference Tcl 9 sources: ``tmp/tcl9.0.3/generic/tclInterp.c``
 
 In:
 
-- Single-interp ``interp hide`` / ``expose`` / ``hidden`` /
-  ``invokehidden``.
+- ``interp hide`` / ``expose`` / ``hidden`` / ``invokehidden``, each
+  addressing the interpreter named by a (possibly nested) path.
 - ``namespace which`` (find-only) + ``namespace current``.
-- ``info commands`` / ``info procs`` walkers over the ns tree.
+- ``info commands`` / ``info procs`` listings over the ns tree.
 - ``info body`` / ``info args`` / ``info default`` for
-  interpreted procs.
-- ``info level`` (no-arg frame-depth form) and ``info script``
-  (empty string — no filesystem source path in the WASM
-  sandbox).
-- Compiled-proc rename completeness via
-  ``OFF_EXPORT_NAME_BUCKET``.
+  interpreted procs, following ``namespace import`` redirects to the
+  underlying proc.
+- ``info level`` in both forms — the no-arg depth and the ``info level
+  N`` call-words form.
+- ``info script ?filename?`` — reads, and optionally sets, the
+  interpreter's current script name.
 
 Covered by sibling documents:
 
 - Command and execution traces —
   [`trace-implementation.md`](trace-implementation.md).
-- ``info level N`` and ``info frame`` — the source-location and call-stack
-  introspection axis, [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md).
-- Child interpreters, and the cross-interp forms of ``interp invokehidden`` /
-  ``hide`` / ``expose`` / ``alias`` —
-  [`child-interp.md`](child-interp.md).
+- ``info frame`` and the call-stack axis —
+  [`proc-call-and-stack-traces.md`](proc-call-and-stack-traces.md).
+- Child interpreters, path resolution, and the safe-interpreter
+  permission model — [`child-interp.md`](child-interp.md).
 
 ## 2. Hidden commands table
 
 ### 2.1 Storage
 
-`interp.rs`
-owns the hidden-commands table — one per `Interp`.  Same shape
-as a namespace's ``cmd_table`` (12-byte header + 4-byte value =
-16-byte bucket).  Qualified hidden names are rejected (they'd
-violate the "hidden is a flat namespace" rule).
+`interp.rs` owns the hidden-commands table as an `InterpState` field:
+`hidden: RefCell<BTreeMap<Vec<u8>, Command>>`, one per interpreter. It
+is a flat map of simple names to command handles, deliberately not a
+namespace tree — hidden commands have no namespace parent, and
+qualified hidden names are rejected up front.
 
-Pre-child-interp this lived as a module-global in
-`namespace.rs`; the move to
-per-interp storage is described in
-[`child-interp.md`](child-interp.md) §5.
+`BTreeMap` (rather than a hash table) makes ``interp hidden`` listings
+sorted and deterministic, the same choice the namespace command tables
+make.
 
-Public API:
+There is nothing to invalidate downstream: no namespace path targets
+the hidden table, and command resolution never probes it.
 
-| Function | Purpose |
+The per-interpreter placement, and the path-addressing that follows
+from it, are described in [`child-interp.md`](child-interp.md) §5.
+
+The internal API is four methods on `Interp`:
+
+| Method | Purpose |
 |---|---|
-| ``hidden_put(interp, name_ptr, name_len, value)`` | Insert / update. |
-| ``hidden_find(interp, name_ptr, name_len) -> u32`` | Lookup; 0 on miss. |
-| ``hidden_clear(interp, name_ptr, name_len) -> bool`` | Tombstone. |
-| ``hidden_table_buf(interp) / hidden_table_cap(interp)`` | Iterator surface. |
-
-No ``cmd_ref_epoch`` cascade — no namespace paths target the
-hidden table, so there's nothing to invalidate downstream.
+| ``hide_command(name) -> bool`` | Move a command from the table into `hidden`; false if it did not resolve. |
+| ``expose_command(name) -> bool`` | The inverse; false if it was not hidden. |
+| ``invoke_hidden(name, argv) -> Code`` | Dispatch a hidden command. |
+| ``hidden_names() -> Vec<Vec<u8>>`` | The sorted listing. |
 
 ### 2.2 `interp hide` semantics
 
-`cmd_alias.rs`
-drives the move.  ``HideResult`` captures the four outcomes:
+`cmd_alias.rs`'s `interp_hidectl` drives both directions. Before the
+move it enforces the structural rules and the permission check:
 
-| Result | Tclsh message |
+| Condition | Message |
 |---|---|
-| ``ok`` | — |
-| ``not_found`` | `unknown command "X"` |
-| ``qualified_name_rejected`` | `can't use namespace qualifiers as hidden command token (rename)` |
-| ``hidden_name_taken`` | `hidden command named "X" already exists` |
+| the executing interp is safe | `permission denied: safe interpreter cannot hide commands` |
+| the hidden token contains `::` | `cannot use namespace qualifiers in hidden command token (rename)` |
+| the source command is not in the global namespace | `can only hide global namespace commands (use rename then hide)` |
 
-The move:
+The move itself is `hide_command`: resolve the name at the global
+namespace, delete the binding, and insert the `Command` handle into
+`hidden` under the token. Nothing else has to be maintained — there is
+no importer cascade to deactivate (an `Imported` redirect re-resolves
+its source by name on every dispatch and simply starts failing), no
+stored name slot to rewrite, and no lookup cache to flush.
 
-1. Reject qualified source or qualified hidden name up front.
-2. ``ns_cmd_find`` the source; ``hidden_find`` the destination.
-3. Deactivate every importer pointing at the source Command
-   (same cascade as rename-to-empty).
-4. ``hidden_put`` the Command, then ``ns_cmd_clear`` the source
-   bucket.
-5. Rewrite the Command's stored name slot to the hidden name
-   (plain, unqualified — hidden commands have no namespace
-   parent).
-6. ``lru_invalidate_all`` on the proc-lookup cache.
+**Hiding a command that does not exist is a silent no-op.** C Tcl
+raises `unknown command "X"`; this runtime returns an empty result. The
+same is true of a child path that does not resolve.
 
 ### 2.3 `interp expose` semantics
 
-`cmd_alias.rs`
-is the inverse.  The destination is always the current namespace
-(C Tcl raises
-`cannot expose to a namespace (use expose to toplevel, then rename)`
-for qualified destinations; we match the error string).
+The inverse, with the mirrored checks:
 
-1. Reject qualified destination.
-2. ``hidden_find`` the source; refuse if absent.
-3. Refuse if the destination slot is live
-   (``target_exists`` result).
-4. ``ns_cmd_put`` the Command in the destination ns; then
-   ``hidden_clear`` the hidden slot.
-5. Rewrite the Command's stored name slot to
-   ``ns_build_fqn(dest_ns, simple_name)`` so dispatchers and
-   ``info commands`` see the exposed identity.
-6. ``lru_invalidate_all``.
+| Condition | Message |
+|---|---|
+| the executing interp is safe | `permission denied: safe interpreter cannot expose commands` |
+| the hidden name contains `::` | `cannot use namespace qualifiers in hidden command token (rename)` |
+| the destination is not in the global namespace | `cannot expose to a namespace (use expose to toplevel, then rename)` |
+
+`expose_command` removes the entry from `hidden` and re-`register`s it
+in the command table under the exposed name. Exposing a command that is
+not hidden is a silent no-op, and — unlike C — an occupied destination
+is not refused; the `register` overwrites it.
 
 ### 2.4 `interp hidden`
 
-``eval_interp_hidden`` in
-`interp.rs` walks the
-hidden table with a two-pass fill, producing a space-separated Tcl
-list of simple names.  Bucket-traversal order is the same shape
-``interp aliases`` uses — not stable across grow events but
-matches tclsh's `hiddenCmdTable` iteration.
+`interp hidden ?path?` (and `$child hidden`) returns
+`hidden_names()` of the addressed interpreter as a Tcl list of simple
+names, sorted by the `BTreeMap` key order.
 
 ### 2.5 `interp invokehidden`
 
-``eval_interp_invokehidden`` dispatches a hidden command by name
-with caller-supplied arguments.  Mirrors
-``InvokeHiddenObjCmd`` in ``tclInterp.c`` trimmed to the
-single-interp subset:
+`interp invokehidden path ?-opt …? cmd ?arg …?` looks `cmd` up in the
+addressed interpreter's hidden table, builds the argv
+``[cmd, caller_args…]``, and `invoke`s the handle there — the same
+`Interp::invoke` every other command goes through, so a hidden proc,
+builtin, alias, or ensemble all dispatch uniformly. A missing target
+raises ``invalid hidden command name "X"``; a safe executing
+interpreter is refused with ``not allowed to invoke hidden commands
+from safe interpreter``.
 
-| Form | Dispatch namespace |
-|---|---|
-| ``interp invokehidden {} cmd ?arg…?`` | Global (root). |
-| ``interp invokehidden {} -global cmd ?arg…?`` | Global (root). |
-| ``interp invokehidden {} -namespace ns cmd ?arg…?`` | Resolved ``ns``. |
+**The option flags are skipped, not honoured.** The parser walks past
+`-global`, `-namespace ns`, and any other leading `-…` word purely to
+find the command word, so the hidden command always runs in the target
+interpreter's current context. C's `-namespace ns` evaluation context
+and its
+``cannot use -global option and -namespace option together`` rejection
+are not implemented.
 
-Combining ``-global`` + ``-namespace`` is rejected with
-``cannot use -global option and -namespace option together``
-(verbatim Tcl wording).  Missing targets raise ``invalid hidden
-command name "X"``.
+## 3. `info commands` / `info procs`
 
-The implementation looks ``cmd`` up in the interpreter-wide
-hidden table (no cmd_table move), builds a fresh argv
-``[hidden_name, caller_args…]``, swaps ``current_ns`` to the
-target, and recurses through ``eval_proc_call_bucket``.  The
-Command's stored name slot is already the hidden name (set by
-``hide_command``), so compiled-proc host-bridge dispatch and
-interpreted-body calls both work uniformly — no special-casing
-of the hidden vs. exposed path.
+The listing logic is a shared **Family-B core**,
+`tcl_cmd_core::info::command_list`, written against the `Namespaces`
+and `ValueOps` traits and used by both Rust engines.
+`runtime/rust/src/cmd_info.rs` is a thin adapter: check arity, call the
+core, set the result.
 
-## 3. ``info commands`` / ``info procs`` walker
+### 3.1 The two shapes
 
-`cmd_info.rs` carries
-the walker.  Two-pass sizing + filling keeps allocation O(1)
-beyond the output buffer — critical because ``tcltest`` calls
-``info commands`` on every ``testConstraint`` lookup.
+**Unqualified pattern** (`info commands`, `info commands foo*`):
 
-### 3.1 Shared `CmdWalkCtx`
+1. the current namespace's commands, then
+2. the global namespace's commands as well, when the current namespace
+   is not global and the listing is `info commands` (`info procs` stays
+   in the current namespace).
 
-One context struct drives both passes.  Fields:
+Names are returned simple and glob-filtered against the pattern.
 
-- ``kind``: ``commands`` (every live command) or ``procs``
-  (interpreted-only filter).
-- ``pat_ptr`` / ``pat_len`` + ``has_pattern``: the glob pattern
-  applied to simple names.  For qualified patterns the prefix
-  is consumed by the ns resolver and only the trailing component
-  survives as the pattern.
-- ``total`` / ``count``: sizing pass accumulators.
-- ``buf`` / ``off``: filling pass write cursor (``buf == 0``
-  means "we're still sizing").
+**Namespace-qualified pattern** (`info commands ::foo::*`): the
+qualifier is split off, the named namespace is resolved, and its
+commands are listed **re-qualified absolute** with the trailing
+component as the pattern. A namespace that does not resolve yields an
+empty list rather than an error.
 
-### 3.2 Filter predicate
+The `namespace path` search list is **not** consulted by either shape.
 
-``entry_matches`` excludes:
+### 3.2 What is filtered out
 
-- Dead import redirects (``CMD_IMPORTED`` with
-  ``ImportedCmdData.real_cmd == 0`` — post-``namespace forget``).
-- Aliases + imports + compiled procs when ``kind == .procs``.
-- Procs whose ``body_obj == 0`` when ``kind == .procs`` (matches
-  tclsh's "only interpreted procs").
-- Entries whose simple name doesn't glob-match when a pattern
-  was supplied.
+- `info procs` lists only `Command::Proc` entries
+  (`Namespaces::proc_names`), so aliases, imports, ensembles, child
+  interpreters, OO objects, and builtins never appear.
+- `info commands` lists every binding in the table, with one filter:
+  a `Command::Builtin` whose name the active dialect does not expose is
+  omitted (`builtin_command_visible_for_surface`, driven by
+  `tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version`).
+  That is what keeps a 8.4-dialect interpreter from advertising a
+  command that release never had.
+- Glob matching is the shared `tcl_syntax::glob::string_match`.
 
-Tombstones (buckets with zero ``OFF_HANDLE``) are skipped
-automatically because ``cmd == 0`` short-circuits
-``entry_matches``.
+There are no tombstones or dead redirects to skip: a `BTreeMap` removal
+is a real removal, and a dangling `Imported` redirect is a live table
+entry that fails at dispatch, so it is listed (as C lists it too).
 
-### 3.3 Walk shapes
-
-Unqualified patterns (``info commands`` / ``info commands foo*``):
-
-1. ``scan_ns_cmd_table`` of the current ns.
-2. Each ``namespace path`` entry (skipping the path entry that
-   points back at the context).
-3. ``scan_ns_cmd_table`` of the root ns if ``current != root``.
-
-Qualified patterns (``info commands ::foo::*``):
-
-- ``ns_resolve_qualified`` splits the prefix; the resolved
-  ``target_ns`` is scanned once with the trailing component as
-  the simple pattern.  Misses (resolver yields ``target_ns ==
-  0``) short-circuit to an empty list.
-
-Emitted names are the Command's **stored FQN**, not the
-``cmd_table`` key.  That's the live identity ``rename`` and
-``expose`` maintain, so introspection stays consistent with
-``namespace which -command`` and compiled-proc host-bridge
-lookups.
-
-### 3.4 Hidden commands are not listed
+### 3.3 Hidden commands are not listed
 
 Hidden-table entries never appear in ``info commands`` — tclsh
 treats hidden commands as invisible to the resolver.  The
-walker consults only ``Namespace.cmd_table`` and never probes
+listing consults only the namespace command tables and never probes
 the hidden side-table.
 
-## 4. Compiled-proc rename: `OFF_EXPORT_NAME_BUCKET`
+## 4. Compiled procs and rename
 
-### 4.1 The old problem
+There is no export-name sidecar, and rename needs no compiled-proc
+special case, because nothing dispatches a proc by a compile-time
+export name.
 
-Compiled procs dispatch through the host-bridge
-(``tcl_dispatch.dispatch``) by name — the embedder turns a
-TclObj string into a wasmtime callable.  That name has to match
-the WASM export name, which is set at compile time and can't
-change.  Renaming a compiled proc used to preserve the
-Command's stored name slot to keep dispatch anchored, at the
-cost of ``proc_get_name_ptr`` / introspection parity with the
-renamed ``cmd_table`` key.
+An AOT-emitted module registers its procedures through
+`tcl_codegen_proc_register`, which parses the parameter list and calls
+`define_proc` — producing an ordinary `Command::Proc` in the ordinary
+command table, indistinguishable from one `proc` created. Generic
+invocation from generated code goes through `tcl_invoke_argv`, which
+resolves `argv[0]` through `Interp::dispatch` at call time. A rename
+therefore takes effect for compiled and interpreted procs alike, with
+no anchoring to maintain and no divergence between what dispatch sees
+and what `info commands` reports.
 
-### 4.2 The sidecar
-
-``Command[36..39]`` (previously reserved) now holds
-``OFF_EXPORT_NAME_BUCKET``: a u32 pointer to an 8-byte record
-``{ptr: u32, len: u32}`` carrying the registration-time export
-name.  ``proc_register_compiled`` populates it on fresh
-registrations; re-registrations reuse the existing sidecar so
-the name never drifts.  Interpreted procs, aliases, and imports
-leave the slot zero.
-
-### 4.3 Dispatch path
-
-``tcl_dispatch.dispatch`` reads
-``proc_get_export_name(bucket)`` first.  If the sidecar is
-populated (``ptr != 0``) it uses those bytes as the host-bridge
-lookup key; otherwise it falls back to
-``proc_get_name_ptr`` / ``proc_get_name_len`` (the Command's
-live name slot).  This keeps the interpreted-proc path
-single-branch — one extra ``read_i32`` on the compiled-proc
-hot path is the only cost.
-
-### 4.4 Rename path
-
-``rename_command`` in
-`cmd_misc.rs` no
-longer special-cases ``func_idx != 0``.  Every Command's live
-name slot is rewritten to its new FQN, uniformly.  The sidecar
-keeps host-bridge lookups stable for compiled procs; for
-interpreted procs the sidecar is zero and nothing touches it.
-
-Observable consequence: ``info commands`` and
-``namespace which -command`` report the renamed name for both
-compiled and interpreted procs, with no asterisk.
+Where a compiled module *does* call a procedure directly by function
+index, the soundness condition is a compile-time proof rather than a
+runtime indirection: `ModuleCommandMutations::trusts_proc_binding` must
+show that no command-table transition in the module can have rebound
+that name. Procedure function indices are deterministic module-layout
+and diagnostic metadata, not a second callable map (§8.1).
 
 ## 5. ``namespace which`` / ``namespace current``
 
-``eval_namespace_which`` dispatches:
+`ns_which` in `cmd_namespace.rs` dispatches:
 
 - ``namespace which name`` — defaults to ``-command``.
-- ``namespace which -command name`` — walks
-  ``ns_find_command`` and returns the Command's stored FQN.
-  Imports are **not** unwrapped — tclsh's ``namespace which``
-  returns the redirect's FQN, not the source's.
-- ``namespace which -variable name`` — walks
-  ``ns_resolve_qualified`` / ``ns_var_find`` with the same
-  primary + alt path probe used for variables elsewhere.  The
-  ``namespace path`` is **not** consulted (Tcl's path is
-  commands-only).
+- ``namespace which -command name`` — the shared
+  `tcl_cmd_core::namespace::which_command` core. Imports are **not**
+  unwrapped: tclsh's ``namespace which`` returns the redirect's FQN,
+  not the source's.
+- ``namespace which -variable name`` — `Namespaces::which_variable`
+  against the current namespace. This one is runtime-local rather than
+  a Family-B core. The ``namespace path`` is **not** consulted (Tcl's
+  path is commands-only).
+
+Both flags accept unambiguous prefix abbreviations (`-var`, `-com`),
+as Tcl's option table does.
 
 Every miss returns the empty string — ``namespace which`` is a
 probe, not an error-raising lookup.
 
-``namespace current`` returns
-``tcl_ns.ns_full_name(ns_current())`` — ``::`` for the root ns,
-``::path::to::here`` otherwise.
+``namespace current`` returns the current namespace's qualified name:
+``::`` for the global namespace, ``::path::to::here`` otherwise.
 
-## 5.1 ``info level`` / ``info script``
+The `namespace` ensemble as a whole resolves its subcommand by exact
+name or unambiguous prefix, so `namespace exist` reaches `exists`; an
+ambiguous or unknown prefix reports ``unknown or ambiguous subcommand
+"X": must be children, code, current, delete, ensemble, eval, exists,
+export, forget, import, inscope, origin, parent, path, qualifiers,
+tail, unknown, upvar, or which``.
 
-``info level`` (no arg) returns the current call-frame depth as
-an integer TclObj — thin wrapper around
-``tcl_frames.frame_get_depth()``.  Inside a proc body the
-depth is ≥1; at the top level it's 0.
+### 5.1 ``info level`` / ``info script``
 
-``info level N`` would return the argv that entered frame
-``N`` in Tcl 9 (``CallFrame.objv``), but our runtime doesn't
-retain per-frame argv today.  Callers supplying a numeric
-level get the tclsh ``bad level "N"`` error instead of a
-fabricated result.  The no-arg form covers the common case
-(depth reporting for error messages and tcltest's nesting
-checks).
+``info level`` and ``info level N`` are both implemented, over the
+shared `tcl_cmd_core::info::level` core. The no-arg form returns the
+current logical call level — 0 at the top level, ≥1 inside a proc body.
+The numeric form returns the command words that entered that frame:
+`N > 0` is absolute, `N <= 0` is relative to the current call, so
+`info level 0` is the current invocation. The words are kept per frame
+as `Frame::words` (owned byte copies of the invoking argv), which is
+what C's `CallFrame.objv` holds.
 
-``info script`` returns the empty string — our single-unit
-compiled runtime has no filesystem source path to report.
-Consumers that use ``info script`` to resolve relative paths
-already treat empty as "no location available"
-(``testutilities.tcl`` in tcllib is the canonical example).
+``info script`` reads the interpreter's current script name — the
+`source` stack's top, empty when nothing is being sourced.
+``info script filename`` sets it and returns the new value, matching
+C's setter form.
 
 ## 6. ``info default``
 
-``info default proc arg varName`` walks the proc's params
-TclObj (a Tcl list where each element is either a bare name or
-a ``{name default}`` pair), matches ``arg`` against the name of
-each pair, and — on a match with a default present — writes the
-default into ``varName`` and returns 1.  On a match with no
-default, writes the empty string into ``varName`` and returns 0
-(matching Tcl 9's ``InfoDefaultCmd``).
+``info default proc arg varName`` is the shared
+`tcl_cmd_core::info::default` core plus a runtime-local store. The core
+walks the proc's parameter list, matches ``arg`` by name, and returns a
+``(value, has_default)`` pair — the default and 1 on a match with a
+default, an empty value and 0 on a match without one (matching Tcl 9's
+``InfoDefaultCmd``).
 
-Error shape for non-interpreted-proc targets:
+The **store** deliberately stays in the runtime rather than the core,
+because writing `varName` is trace-aware: a write trace that errors, or
+an array-typed target, makes the whole command fail with the variable
+error verbatim (`can't set "a": variable is array`).
 
-* Missing / alias / hidden / compiled proc (``func_idx != 0``)
-  — raises ``"<name>" isn't a procedure`` via the shared
-  ``resolve_interpreted_proc`` gate.  Compiled procs don't
-  retain their params TclObj (``proc_register_compiled`` clears
-  it), so the ``resolve_interpreted_proc`` filter rejects them
-  there — they never reach the params-walk branch.
-* Arg isn't a parameter of the proc — raises ``procedure "X"
+Error shapes from the core:
+
+* A name that is not an interpreted procedure — ``"<name>" isn't a
+  procedure``. `namespace import` redirects are followed first (bounded
+  at 64 hops), so `info default` works on an imported proc, as
+  `info args` / `info body` do.
+* An argument that is not a parameter of the proc — ``procedure "X"
   doesn't have an argument "Y"``.
-
-The implementation operates on the stored params TclObj
-directly (``obj.list_element_at``), so it works for any
-interpreted proc registered via ``proc_register``.
 
 ## 7. Test coverage
 
-Three layers:
+Two layers:
 
-1. **Unit tests co-located with the implementation** exercise hide / expose /
-   hidden, `namespace which`, and the `info commands` / `info procs` /
-   `info default` walkers directly against a live interpreter, including that
-   renaming a compiled proc preserves its export name.
+1. **Unit tests co-located with the implementation** — `cmd_info.rs`,
+   `cmd_namespace.rs`, and `cmd_alias.rs` each carry a `mod tests`
+   exercising the listings, `namespace which`, `info level` /
+   `info default`, and hide / expose / hidden / invokehidden directly
+   against a live interpreter, each wrapped in a leak-free assertion
+   (`counters::finalize() == 0`).
 
 2. **Upstream `.test` coverage** — ``interp.test`` (hide/expose and alias
    sections) and ``info.test`` (the `info commands` / `info procs` /
-   `info default` sections) — runs through the tcltest harness; see
-   [`tcl-test-tiers.md`](tcl-test-tiers.md) and
+   `info default` sections) — runs through the tcltest harness against
+   the bytecode VM; see [`tcl-test-tiers.md`](tcl-test-tiers.md) and
    [`rust-vm-tier-parity.md`](rust-vm-tier-parity.md).
 
 ## 8. Known limitations
@@ -382,19 +328,27 @@ bundle's invocation site even though tcltest's first-stage sourcing completes.
 The cause is the interaction between tcltest's initialisation and the
 namespace-path resolver, not the introspection surface described here.
 
-## 9. Ship summary
+### 8.3 Divergences in the hidden-command surface
 
-- Hidden-command logic in ``cmd_alias.rs``.
-- Four new ``namespace.rs`` helpers: ``hidden_put`` /
-  ``hidden_find`` / ``hidden_clear`` / ``hidden_table_buf`` +
-  ``hidden_table_cap``.
-- Rewritten ``cmd_info.rs`` with a real walker + pattern
-  parser, plus ``info procs`` / ``info default``.
-- New ``OFF_EXPORT_NAME_BUCKET`` slot on ``Command`` + sidecar
-  read in ``tcl_dispatch.dispatch``.
-- Removed the compiled-proc rename exception from
-  ``cmd_misc.rs``.
-- New built-in branches in ``interp.rs``:
-  ``interp hide`` / ``interp expose`` / ``interp hidden`` /
-  ``namespace which`` / ``namespace current``, plus the ``info``
-  dispatch wiring for no-arg / three-arg forms.
+Three behaviours differ from C Tcl and are stated here rather than in
+the sections above so they are findable as a set:
+
+- Hiding a non-existent command, exposing a non-hidden one, or
+  addressing a child path that does not resolve is a silent no-op
+  instead of an error.
+- `interp expose` does not refuse an occupied destination; it
+  overwrites the binding.
+- `interp invokehidden`'s `-global` / `-namespace ns` flags are parsed
+  and discarded rather than establishing an evaluation context.
+
+## 9. Implementation map
+
+| Piece | Where |
+|---|---|
+| The `hidden` table and `hide_command` / `expose_command` / `invoke_hidden` / `hidden_names` | `runtime/rust/src/interp.rs` |
+| `interp hide` / `expose` / `hidden` / `invokehidden` argument handling and permission checks | `runtime/rust/src/cmd_alias.rs` |
+| The `info` ensemble's adapters | `runtime/rust/src/cmd_info.rs` |
+| The listing / `info level` / `info body` / `args` / `default` cores | `rust/tcl-cmd-core/src/info.rs` |
+| `namespace which` / `current` and the ensemble's prefix resolution | `runtime/rust/src/cmd_namespace.rs` |
+| `which_variable`, `proc_names`, `command_names` | `runtime/rust/src/namespace.rs` |
+| Dialect visibility filter for builtins | `runtime/rust/src/interp.rs` (`builtin_command_visible_for_surface`) |
