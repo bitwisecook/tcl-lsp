@@ -55,6 +55,49 @@ the compiler's own inference — never guesswork from names.
    open questions only the author can answer (side effects, taint,
    version history).
 
+## Recognising the common shapes
+
+The corpus-wide patterns (see
+`docs/design/spec-dsl-examples/external/`), with the evidence that
+identifies each and the spec fields it extracts to. Always cite the
+evidence line; never infer a shape from the command's name.
+
+- **Options.** Tcl: a loop over `$args` matching `-*` (`switch --`,
+  `argparse`, `cmdline`). C: `Tcl_GetIndexFromObj` over a `-`-string
+  table with `switch` arms. → one `option` row per flag; an arm that
+  consumes the next word makes it a value option; the arm's accepted
+  literals become its values.
+- **Option values.** Closed literal sets in the consuming branch
+  (`switch`/`lsearch` tables, validation `if`s) → closed values;
+  numeric range checks → an integer domain.
+- **Option termination.** Explicit `--` handling (`$arg eq "--"` /
+  `strcmp("--")`) → declare the `--` option (this is what turns on the
+  terminator and taint checks). A scan that always treats the last N
+  words as positional → reserved trailing words, not more options.
+- **N-paired tails.** `foreach {k v} $args`, parity checks
+  (`llength % 2`), `incr i 2` loops; C: `objc` parity + `i += 2`. →
+  stepped arity (with an exact-count extra where one form differs) and
+  a repeat row with the stride and any excluded trailing words.
+- **Mutually exclusive options.** Joint checks that error
+  (`$a && $b → error`, argparse `-forbid`) → an option-conflict row.
+  argparse `-require` (one option demanding another) has no spec field
+  today — record it in the report as a known limit, never fake it with
+  a conflict.
+- **Mode words selecting different tails.** A first-word `switch` to
+  unrelated shapes → subcommands (each with its own arity and roles);
+  when the modes are option-selected instead, note it for a maintainer
+  — per-form routing is a registry-side feature.
+- **Callbacks.** A stored command prefix later run with extra words
+  (`uplevel #0 [list {*}$cb …]`; C: `Tcl_EvalObjEx` on a built list) →
+  a command-prefix position with the appended count you observed —
+  count the words actually appended, and use at-least when branches
+  differ.
+- **Variable writers.** `upvar 1 $name v; set v …` → a variable-write
+  role at that argument; a caller-chosen level word means frame
+  behaviour — describe it in the notes rather than guessing fields.
+- **Optional trailing arguments.** `llength` ladders with defaults →
+  the arity range, plus a form synopsis per meaningful shape.
+
 ## C extensions (commands created through the C ABI)
 
 Proc inference sees nothing when commands come from a compiled
