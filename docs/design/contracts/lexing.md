@@ -1,15 +1,11 @@
 # Lexing contracts — token and range fidelity
 
-## Symptom
-
-Diagnostics highlight the wrong location, or parser behaviour changes after an
-edit to escape handling, substitutions, or nested constructs.
-
-## Operational context
-
-`rust/tcl-lexer` is the positional source of truth for segmentation, recovery,
-semantic analysis, and every diagnostic range in the stack. Nothing above it
-re-derives a word's geometry.
+What the lexer guarantees about token geometry, and why everything above it
+inherits those guarantees rather than recomputing them. `rust/tcl-lexer` is
+the positional source of truth for segmentation, recovery, semantic analysis,
+and every diagnostic range in the stack; nothing above it re-derives a word's
+geometry, so escape handling, substitutions, and nested constructs decide
+where a highlight lands.
 
 A `Token` carries only a `Span`; its text, line, and column are resolved on
 demand through a `SourceMap`. That is why the range accessors take a

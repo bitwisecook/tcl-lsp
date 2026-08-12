@@ -25,9 +25,9 @@ O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are i
 
 4. **O123 fires when** — exactly one non-tail self-call appears embedded in a return value (e.g. inside an `expr` or nested command substitution). This is a hint-only diagnostic; no source rewrite is produced. The hint indicates the recursion could be made tail-recursive by introducing an accumulator parameter. Doubly-recursive patterns (two or more self-calls in the same expression) are excluded.
 
-5. **Priority** — `_OPT_PRIORITY` assigns O122=6, O121=5, O123=5. The non-overlapping selection prefers O122 over O121 when both cover the same range.
+5. **Priority** — `opt_priority` (`rust/tcl-compiler/src/optimiser/mod.rs`) returns 6 for O122 and 5 for O121 and O123. `select_non_overlapping` prefers O122 over O121 when both cover the same range.
 
-6. **`hint_only` contract** — O123 sets `hint_only=True` on its `Optimisation`, which causes `apply_optimisations` to skip it during source rewriting while still emitting it as a diagnostic.
+6. **`hint_only` contract** — O123 sets `hint_only: true` on its `Optimisation`, which causes `apply_optimisations` to skip it during source rewriting while still emitting it as a diagnostic.
 
 ## Examples
 
@@ -117,7 +117,7 @@ proc factorial {n} {
 
 O123 emits: *"Non-tail recursion in factorial could be eliminated by introducing an accumulator parameter and using tailcall."*
 
-No source rewrite is produced (`hint_only=True`).
+No source rewrite is produced (`hint_only: true`).
 
 ### Fibonacci — doubly recursive (no optimisation fires)
 
@@ -138,14 +138,14 @@ Neither O121 nor O122 fires because neither call is in tail position. O123 does 
 ## File-path anchors
 
 - `rust/tcl-compiler/src/optimiser/tail_call.rs` — pass implementation
-- `rust/tcl-compiler/src/optimiser/profiles.rs` — `_OPT_PRIORITY` entries, `hint_only` field
+- `rust/tcl-compiler/src/optimiser/mod.rs` — `opt_priority`, the `Optimisation` struct's `hint_only` field
 - `rust/tcl-compiler/src/optimiser/manager.rs` — pass invocation, `hint_only` skip in `apply_optimisations`
-- `rust/tcl-compiler/src/optimiser/helpers/` — hint-only separation in `_select_non_overlapping_optimisations`
+- `rust/tcl-compiler/src/optimiser/helpers/select.rs` — hint-only separation in `select_non_overlapping`
 
 ## Failure modes
 
 - Range drift if `body_source` does not exactly match the text between proc body braces.
-- False negative if a new control-flow IR node (beyond `IRIf`/`IRSwitch`) is added without updating tail-position walking.
+- False negative if a new control-flow statement (beyond `Statement::If` / `Statement::Switch`) is added without updating tail-position walking.
 - `lassign` rewrite produces incorrect results if parameter default values change effective arity at runtime.
 
 ## Test anchors

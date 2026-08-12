@@ -3,56 +3,69 @@
 How commands are partitioned across Tcl versions and tool contexts, and how
 iRules event requirements narrow availability further. Read this when adding a
 dialect-specific command, or when a command is reported as unknown
-(IRULE1001 / W102) in one context but not another.
+(IRULE1001 / W002) in one context but not another.
 
 Dialects partition command availability.  Every `CommandSpec` has an optional
 `dialects` field; subcommands can override with their own set.  In iRules,
 commands are further restricted by event context — `EventRequires` declares
 transport, profile, and connection-side requirements.
 
-Source: `rust/tcl-registry/src/dialects.rs`,
-`rust/tcl-registry/src/spec.rs`,
-`rust/tcl-registry/src/spec.rs`
+Source: `rust/tcl-dialect/src/dialect_set.rs` (`DialectSet`),
+`rust/tcl-dialect/src/profile.rs` (`DialectProfile`, `LexerGrammar`),
+`rust/tcl-registry/src/spec.rs` (`CommandSpec::dialects`),
+`rust/tcl-registry/src/events.rs` (`EventRequires`)
 
 ## Content
 
 ### Known dialects
 
-```python
-KNOWN_DIALECTS = frozenset({
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",  # Tcl version dialects
-    "f5-irules",                                 # F5 iRules
-    "f5-iapps",                                  # F5 iApps
-    "f5-tmsh",                                   # F5 tmsh scripts
-    "f5-bigip",                                  # F5 BIG-IP config
-    "synopsys-eda-tcl",                          # Synopsys EDA
-    "cadence-eda-tcl",                           # Cadence EDA
-    "xilinx-eda-tcl",                            # Xilinx/AMD EDA
-    "intel-quartus-eda-tcl",                     # Intel Quartus
-    "mentor-eda-tcl",                            # Mentor/Siemens EDA
-    "expect",                                    # Expect
-})
+Dialects are bits of the `DialectSet` bitflags type
+(`rust/tcl-dialect/src/dialect_set.rs`); `DialectSet::canonical_name` is
+the name table, and `DialectSet::parse` its inverse:
+
+```rust
+bitflags! {
+    pub struct DialectSet: u64 {
+        const TCL84  = 1 << 0;   // "tcl8.4"
+        const TCL85  = 1 << 1;   // "tcl8.5"
+        const TCL86  = 1 << 2;   // "tcl8.6"
+        const TCL90  = 1 << 3;   // "tcl9.0"
+        const TCL91  = 1 << 14;  // "tcl9.1"
+        const IRULES = 1 << 4;   // "f5-irules"
+        const IAPPS  = 1 << 5;   // "f5-iapps"
+        const TK     = 1 << 6;   // "tk"
+        const EXPECT = 1 << 7;   // "expect"
+        const BPF    = 1 << 13;  // "bpf"
+        const TMSH   = 1 << 15;  // "f5-tmsh"
+        const BIGIP  = 1 << 16;  // "f5-bigip"
+        // …plus the composite constants ALL_TCL, TCL85_PLUS, …
+    }
+}
 ```
+
+The EDA shells (Synopsys, Cadence, Xilinx/AMD, Intel Quartus,
+Mentor/Siemens) have no dialect bit: they are modelled as a base Tcl
+version plus `required_package`-gated command libraries, loaded by profile
+name through `CommandRegistry::load_eda_packs`.
 
 ### Dialect base versions
 
 Each non-standard dialect is based on a specific Tcl runtime version.
-`DIALECT_BASE_VERSION` in `dialects.rs` maps each dialect to its base.
+`DialectSet::expr_grammar_base_version(name)`
+(`rust/tcl-dialect/src/dialect_set.rs`) maps each dialect name to that base
+and encodes exactly the table below, including `f5-irules`'s
+runtime-vs-signature split.
 
-**Rust port note**: `dialects.rs` and `dialects_since()` below are the
-retired Python implementation's names, kept here because the *table* of
-base versions is still the source of truth. The Rust workspace has no
-`dialects_since()` — per-command dialect gating uses the `DialectSet`
-bitflags (`TCL85_PLUS` / `TCL86_PLUS` / `TCL90_PLUS`, `rust/tcl-registry/src/dialects.rs`)
-directly on `CommandSpec.dialects`, and deliberately does **not** fold the
-vendor dialects into those flags (most standard-library commands they
-don't ship are missing because of their own restricted surface, not
-version). For version-gated *expr grammar* features specifically — TIP 201
-(`in`/`ni`) and TIP 461 (`lt`/`le`/`gt`/`ge`), the W003 diagnostic — where
-every dialect here really does inherit a real embedded Tcl core's
-operators wholesale, use `DialectSet::expr_grammar_base_version(name)`
-instead, which encodes exactly this table (including `f5-irules`'s
-runtime-vs-signature split below).
+The two axes are deliberately separate. Per-command *availability* gating
+uses the `DialectSet` bitflags (`ALL_TCL`, `TCL85_PLUS`, `TCL90_PLUS`, …)
+directly on `CommandSpec.dialects`, and does **not** fold the vendor
+dialects into those flags — most standard-library commands they don't ship
+are missing because of their own restricted surface, not version. Version-
+gated *behaviour* uses `expr_grammar_base_version`, because every dialect
+in the table is either plain Tcl or a vendor shell embedding a real Tcl
+core and inherits that core's semantics wholesale. The *expr grammar*
+features — TIP 201 (`in`/`ni`) and TIP 461 (`lt`/`le`/`gt`/`ge`), the W003
+diagnostic — are the canonical consumers.
 
 | Dialect | Base version | Runtime |
 |---------|-------------|---------|
@@ -77,48 +90,53 @@ like `incr` on uninitialised variables follows 8.4 semantics.  The F5
 command surface (`HTTP::*`, `pool`, …) is a *versioned library* keyed by
 BIG-IP version, orthogonal to the pinned Tcl base.
 
-### dialects_since() -- version-gated traits
+### Version-floor constants
 
-`dialects_since(min_version)` returns all dialects whose base Tcl version
-is >= `min_version`.  Use this for version-dependent `CommandSpec` fields
-instead of manually listing dialect names:
+`DialectSet` carries composite constants for the common version floors, so
+a version-dependent `CommandSpec` field never lists dialect names:
 
-```python
-from compiler.registry.dialects import dialects_since
-
-# Returns {"tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "f5-iapps", "f5-tmsh",
-#          "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl",
-#          "synopsys-eda-tcl", "cadence-eda-tcl", "expect"}
-dialects_since("tcl8.5")
+```rust
+const ALL_TCL    = TCL84 | TCL85 | TCL86 | TCL90 | TCL91;
+const TCL85_PLUS =         TCL85 | TCL86 | TCL90 | TCL91;
 ```
 
-Dialects not in `DIALECT_BASE_VERSION` (e.g. `f5-bigip`) are never
-included -- safe default for non-Tcl contexts.
+Use them directly:
 
-**Contract**: when adding a new dialect, add its entry to
-`DIALECT_BASE_VERSION` in `dialects.rs` so `dialects_since()` resolves
-correctly.
+```rust
+// incr: safe on an uninitialised variable in Tcl 8.5+, an error in 8.4
+safe_on_uninit: Some(DialectSet::TCL85_PLUS),
+```
+
+`expr_grammar_base_version` returns `None` for a name it has no documented
+base version for (`f5-bigip`, a config parser rather than Tcl at all;
+`tk`; `bpf`). Callers treat `None` as "cannot reason about this dialect's
+grammar version", not "assume plain Tcl".
+
+**Contract**: when adding a new dialect, add its bit to `DialectSet`, its
+name to `canonical_name` / `parse`, and its base version to
+`expr_grammar_base_version`.
 
 ### Dialect filtering
 
-- `CommandSpec.dialects = None` → available in **all** dialects.
-- `CommandSpec.dialects = frozenset({"f5-irules"})` → iRules-only
-  (e.g. `HTTP::host`, `pool`, `table`).
-- `SubCommand.supports_dialect()` checks the subcommand's own `dialects`
-  set first, falling back to the parent command's.
+- `dialects: None` → available in **all** dialects.
+- `dialects: Some(DialectSet::IRULES)` → iRules-only (e.g. `HTTP::host`,
+  `pool`, `table`).
+- A `SubCommand`'s own `dialects` is consulted first; `None` there means
+  "inherit the parent command's set".
 
-### DialectStatus
+### Availability outcomes
 
-```python
-class DialectStatus(Enum):
-    EXISTS       # available in this dialect
-    DEPRECATED   # available but has a replacement
-    DISALLOWED   # exists in some dialect, but not this one
-    NOT_EXISTS   # not known anywhere
-```
+The analyser reports a head word that does not resolve in the active
+dialect through three distinct codes:
 
-`DISALLOWED` produces diagnostic W102 with a hint about which dialect the
-command belongs to.
+| Code | Meaning |
+|------|---------|
+| `W002` | The command exists, but is disabled in the active dialect profile. The message carries an "available in: …" suffix built by `dialect_availability_suffix` from the spec's own dialect gate |
+| `W123` | Unresolved command — not found in the registry, user procs, or an `unknown` handler |
+| `W001` | The command resolved, but its first word is not a recognised subcommand. Suppressed when the spec sets `allow_unknown_subcommands` |
+
+The emitters live in
+`rust/tcl-compiler/src/analyser/diagnostics/validity.rs`.
 
 ### Event requirements (iRules)
 
@@ -128,16 +146,25 @@ command belongs to.
 |-------|---------|---------|
 | `client_side` | Needs client-side connection | `true` for request-side commands |
 | `server_side` | Needs server-side connection | `true` for response-side commands |
-| `transport` | TCP or UDP | `"tcp"` for HTTP commands |
-| `profiles` | Required profile set | `{"HTTP", "FASTHTTP"}` |
+| `transport` | TCP or UDP | `Some("tcp")` for HTTP commands |
+| `profiles` | Required profile list | `&["FASTHTTP", "HTTP"]` |
 | `also_in` | Extra valid events | Events not matching other criteria |
 | `init_only` | Only valid in RULE_INIT | Initialisation-only commands |
 | `flow` | Needs active traffic flow | Flow-dependent commands |
 | `capability` | Profile capability | `"sni"` for SNI-dependent |
 
 **Example** — `HTTP::host`:
-```python
-event_requires=EventRequires(transport="tcp", profiles=frozenset({"HTTP", "FASTHTTP"}))
+```rust
+event_requires: Some(EventRequires {
+    client_side: false,
+    server_side: false,
+    transport: Some("tcp"),
+    profiles: &["FASTHTTP", "HTTP"],
+    also_in: &[],
+    init_only: false,
+    flow: false,
+    capability: None,
+}),
 ```
 
 ### Event validation
@@ -178,8 +205,8 @@ and only an explicitly stricter dialect policy can request IRULE1004.
 
 | Stage | Effect |
 |-------|--------|
-| **Semantic analysis** | W102 for unknown/disallowed commands |
-| **Variable analysis** | `safe_on_uninit` resolved per dialect via `DIALECT_BASE_VERSION` |
+| **Semantic analysis** | W002 for disallowed commands, W123 for unresolved ones |
+| **Variable analysis** | `safe_on_uninit` resolved per dialect against the spec's `DialectSet` |
 | **Completions** | Only show commands valid in the active dialect |
 | **Taint** | Taint sources/sinks are dialect-specific (iRules HTTP commands) |
 | **Side effects** | iRules-specific storage scopes (EVENT, CONNECTION) |
@@ -187,18 +214,19 @@ and only an explicitly stricter dialect policy can request IRULE1004.
 
 ## Decision rule
 
-- When adding a new iRules command, always set `dialects=frozenset({"f5-irules"})`
-  and configure `event_requires` with the appropriate transport and profiles.
-- If a command works in both iRules and standard Tcl, set
-  `dialects=frozenset({"f5-irules", "tcl8.6", ...})`.
+- When adding a new iRules command, always set
+  `dialects: Some(DialectSet::IRULES)` and configure `event_requires` with
+  the appropriate transport and profiles.
+- If a command works in both iRules and standard Tcl, union the bits:
+  `dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES))`.
 - For version-specific commands (e.g. `tcl9.0`-only), set
-  `dialects=frozenset({"tcl9.0"})`.
-- For version-dependent **behaviour** (not availability), use
-  `dialects_since()` on the relevant `CommandSpec` field rather than
-  listing dialect names.  Example: `safe_on_uninit=dialects_since("tcl8.5")`
-  for `incr`.
-- When adding a new dialect, add it to both `KNOWN_DIALECTS` and
-  `DIALECT_BASE_VERSION` in `dialects.rs`.
+  `dialects: Some(DialectSet::TCL90)`.
+- For version-dependent **behaviour** (not availability), use a
+  version-floor constant on the relevant `CommandSpec` field rather than
+  listing dialect names.  Example:
+  `safe_on_uninit: Some(DialectSet::TCL85_PLUS)` for `incr`.
+- When adding a new dialect, add its bit to `DialectSet` and its base
+  version to `DialectSet::expr_grammar_base_version`.
 - If IRULE1001 fires incorrectly, check that the event's `EventProps`
   includes the required profiles and transport.
 

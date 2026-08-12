@@ -1,19 +1,13 @@
-# KCS: Project layout contracts
+# Project layout contracts
 
-## Symptom
-
-A change is hard to place because the boundaries between the language
-pipeline, the analyser, the LSP protocol surface, and the developer
-tools are unclear.
-
-## Operational context
+Where a change belongs. This names the boundaries between the language
+pipeline, the analyser, the LSP protocol surface, and the developer tools, so
+a change lands in the layer that owns it.
 
 The product is a **Rust workspace** (see
 [`Cargo.toml`](../../../Cargo.toml) `[workspace] members`).  Every crate
 lives under `rust/`.  Python has been fully retired on this branch — the
-old seven-concern Python layout (`shared/ compiler/ analyser/ server/
-dialects/ tooling/ ai/`) is gone; its roles are now filled by Rust
-crates.  The crate dependency direction runs from the leaf value types
+crate dependency direction runs from the leaf value types
 up to the binaries, and is enforced by cargo's own dependency graph.
 
 | Crate | Role |

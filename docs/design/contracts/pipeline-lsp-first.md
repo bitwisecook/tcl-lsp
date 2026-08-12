@@ -1,8 +1,9 @@
 # LSP-first compiler pipeline layering
 
-## Symptom
-
-A feature needs CFG/SSA/bytecode-like semantics, but those facts are only available late in codegen or are re-derived by each pass.
+Where semantic facts belong in the pipeline. Editor features need
+CFG/SSA/bytecode-like semantics, so those facts are modelled early and shared,
+rather than surfacing only late in codegen or being re-derived by every pass
+that wants them.
 
 ## Context
 

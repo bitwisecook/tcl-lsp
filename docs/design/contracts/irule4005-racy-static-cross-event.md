@@ -1,17 +1,12 @@
 # IRULE4005 — racy `static::` cross-event flow
 
-## Symptom
-
-A `static::` variable written outside `RULE_INIT` in one event and read
-in another event produces no warning, masking a potential race condition
-across concurrent connections.
-
-## Operational context
-
+What IRULE4005 flags, and why the race it names is worth a warning of its own.
 `static::` variables persist across all connections on the same virtual
-server.  Writing to them in per-request events (e.g. `HTTP_REQUEST`,
-`HTTP_RESPONSE`) is inherently racy because multiple connections execute
-concurrently on separate TMM threads.
+server, so writing to them in per-request events (e.g. `HTTP_REQUEST`,
+`HTTP_RESPONSE`) is inherently racy — multiple connections execute
+concurrently on separate TMM threads. Without this contract, a `static::`
+variable written outside `RULE_INIT` in one event and read in another passes
+unremarked.
 
 IRULE4001 already warns at the write site ("write to `static::` outside
 RULE_INIT").  IRULE4005 adds a cross-event dimension: when the variable

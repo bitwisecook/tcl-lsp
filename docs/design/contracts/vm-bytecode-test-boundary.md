@@ -1,11 +1,8 @@
 # VM / bytecode test boundary and identity expectations
 
-## Symptom
-
-Bytecode identity tests fail across Tcl versions, or disassembly comparisons
-look nondeterministic after a compiler or codegen change.
-
-## Operational context
+Which suite answers which question at the VM boundary, and how to read a
+bytecode identity failure across Tcl versions or a disassembly comparison that
+looks nondeterministic after a codegen change.
 
 Two different questions live at this boundary, and conflating them is the main
 failure mode:

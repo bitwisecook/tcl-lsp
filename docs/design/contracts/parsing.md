@@ -1,15 +1,10 @@
 # Parsing pipeline contracts — segmentation + recovery
 
-## Symptom
-
-Parser-facing diagnostics become inconsistent after a syntax error, or command
-boundaries shift unexpectedly after a partial edit.
-
-## Operational context
-
-The parsing layer tokenises source ([lexing.md](lexing.md)), segments it into
-commands, and repairs common syntax errors so downstream analysis keeps running
-on malformed input — which, in an editor, is most of the time.
+How source becomes commands. The parsing layer tokenises source
+([lexing.md](lexing.md)), segments it into commands, and repairs common syntax
+errors so downstream analysis keeps running on malformed input — which, in an
+editor, is most of the time. The rules below are what hold command boundaries
+and parser-facing diagnostics steady across a partial edit or a syntax error.
 
 ## Decision rules / contracts
 

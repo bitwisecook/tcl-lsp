@@ -1,15 +1,9 @@
 # tclpkg — architecture overview
 
-## Symptom
-
-Tcl projects lack a native way to declare, pin, fetch, verify, and reproduce
-third-party package dependencies. `pkgIndex.tcl` covers discovery inside a
+Tcl has no native way to declare, pin, fetch, verify, and reproduce
+third-party package dependencies: `pkgIndex.tcl` covers discovery inside a
 single `auto_path`, but there is no manifest, lockfile, or
-content-addressable cache.
-
-## Operational context
-
-`tclpkg` is a deterministic, MVS-based dependency manager integrated into the
+content-addressable cache. `tclpkg` is a deterministic, MVS-based dependency manager integrated into the
 `tcl` CLI (`rust/tcl-cli`) as the `tcl pkg …` and `tcl venv …` verb groups.
 The engine is `rust/tcl-pkg`; the sandbox every external command runs under
 is `rust/tcl-sandbox`. It draws design inspiration from Go modules (MVS

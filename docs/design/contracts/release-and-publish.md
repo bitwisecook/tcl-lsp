@@ -1,13 +1,8 @@
-# KCS: Release and publish — the four-layer model
+# Release and publish — the four-layer model
 
-## Symptom
-
-A new contributor opens the Makefile, sees `publish-vsix` next to a CI
-workflow that builds VSIX files, and wonders where publishing actually
-happens.  Or someone adds a marketplace `secrets.VSCE_PAT` as a plain
-*repository* secret — available to every workflow run — not realising
-the maintainer requires every publish secret to be an **Environment**
-secret reachable only by a protected, manually-approved publish job.
+Where publishing actually happens, and why the marketplace credentials are
+Environment secrets reachable only by a protected, manually-approved job
+rather than plain repository secrets available to every workflow run.
 
 ## Invariant
 

@@ -1,14 +1,9 @@
 # Variable case-mismatch suggestions
 
-## Symptom
-
-A user sets a variable with one casing (e.g. `set myList {a b c}`) and later
-references it with different casing (e.g. `lappend mylist e`). Tcl variable
-names are case-sensitive, so these are distinct variables. The diagnostics
-(W210, W211, W220) fire correctly but the messages do not explain *why* the
-variable appears unused or undefined.
-
-## Operational context
+Why a variable diagnostic sometimes ends with `; did you mean 'X'?`. Tcl
+variable names are case-sensitive, so `set myList {a b c}` and a later
+`lappend mylist e` are two distinct variables; the suffix names the near-miss
+spelling that explains why one of them looks unused or undefined.
 
 When W210 ("read before set"), W211 ("set but never used"), or W220 ("dead
 store") is emitted for a variable whose name differs only in case from another

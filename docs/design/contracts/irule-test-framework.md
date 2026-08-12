@@ -1,12 +1,9 @@
 # iRule Event Orchestrator test framework
 
-## Symptom
-
-Need to test iRule logic (pool selection, header manipulation, data
-group lookups, persistence, logging, connection control) without a
-BIG-IP device.
-
-## Operational context
+How iRule logic — pool selection, header manipulation, data group lookups,
+persistence, logging, and connection control — is exercised without a BIG-IP
+device. Read it before changing the simulation, its mocks, or the Rust harness
+that drives them.
 
 The simulation itself is Tcl: an orchestrator, a TMM shim, protocol state
 layers, and command mocks, shipped under `rust/tcl-irule-test/tcl/`. A test

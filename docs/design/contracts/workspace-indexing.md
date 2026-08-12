@@ -1,12 +1,10 @@
-# KCS: Workspace/indexing contracts
+# Workspace and indexing contracts
 
-## Symptom
-
-Cross-file navigation is stale or incomplete, symbol search misses expected items, or background scans/resolution lag behind edits.
-
-## Operational context
-
-Workspace services track per-document state, global proc indexes, scanning, and package resolution. LSP navigation and workspace symbols depend on this layer being fresh and deterministic.
+What the workspace layer holds and what it guarantees: per-document state,
+the global proc and class indexes, background scanning, and package
+resolution. Cross-file navigation and workspace symbols are only as fresh and
+as deterministic as this layer, so read it before changing what the index
+stores or when it is rebuilt.
 
 ## What the index holds
 

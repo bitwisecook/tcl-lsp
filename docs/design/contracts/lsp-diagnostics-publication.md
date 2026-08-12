@@ -1,12 +1,8 @@
-# KCS: LSP diagnostics publication model
+# LSP diagnostics publication model
 
-## Symptom
-
-Editor diagnostics flicker, regress between edits, or differ from expected suppression/severity behaviour.
-
-## Operational context
-
-The LSP layer coordinates analysis output publication, including tiered scheduling and conversion to client-visible diagnostics.
+How analysis output reaches the editor: tiered scheduling, the conversion to
+client-visible diagnostics, and the ordering and suppression rules that keep
+them from flickering or regressing between edits.
 
 ## Decision rules / contracts
 

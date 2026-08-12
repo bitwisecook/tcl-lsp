@@ -1,11 +1,5 @@
 # <contract topic>
 
-## Symptom
-
-<What contributor pain/regression appears when this contract is unclear?>
-
-## Operational context
-
 <Where this contract sits in the pipeline and who consumes it.>
 
 ## Decision rules / contracts

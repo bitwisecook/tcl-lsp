@@ -1,11 +1,5 @@
 # <ownership matrix topic>
 
-## Symptom
-
-<Where ownership confusion creates regressions or duplication.>
-
-## Operational context
-
 <Which pipeline stage/fact families are covered.>
 
 ## Decision rules / contracts

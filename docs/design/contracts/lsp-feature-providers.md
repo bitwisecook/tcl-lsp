@@ -1,11 +1,9 @@
 # LSP feature providers (non-diagnostics)
 
-## Symptom
-
-A language feature — hover, completion, rename, references, symbols, semantic
-tokens — regresses even though parsing and diagnostics still look correct.
-
-## Operational context
+What the non-diagnostic language features — hover, completion, rename,
+references, symbols, and semantic tokens — may assume, and where their
+behaviour lives. Read it when one of them regresses even though parsing and
+diagnostics still look correct.
 
 Feature providers live in `rust/tcl-lsp-core`, one module per feature, and are
 **pure**: they take a document analysis (plus, where needed, the workspace

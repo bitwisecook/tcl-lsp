@@ -1,16 +1,11 @@
 # Command registry and event model contracts
 
-## Symptom
-
-A known command or event is flagged unknown (or vice versa), event-ordering
-checks drift, or a feature that depends on command metadata regresses.
-
-## Operational context
-
-`rust/tcl-registry` is the central contract layer for command signatures,
+What `rust/tcl-registry` declares and who depends on it: command signatures,
 dialect availability, argument roles, event validation and flow metadata, and
-type/taint hints — consumed by the analyser, the optimiser, the runtimes, the
-LSP providers, and the CLI/MCP surfaces alike.
+type/taint hints. The analyser, the optimiser, the runtimes, the LSP
+providers, and the CLI/MCP surfaces all read the same specs, so a command this
+layer calls unknown is unknown everywhere, and an event-ordering fact it gets
+wrong drifts through every consumer at once.
 
 Specs are organised as per-dialect packs under
 `rust/tcl-registry/src/commands/`: `tcl`, `stdlib`, `tcllib`, `tk`, `itcl`,

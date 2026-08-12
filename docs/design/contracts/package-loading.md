@@ -1,12 +1,10 @@
 # Package loading contracts
 
-## Symptom
-
-Completions, hover, or diagnostics are missing for package-gated commands
-(stdlib, tcllib, Tk), or cross-file navigation silently drops procs from
-resolved packages. iRules procs from other files are not found.
-
-## Operational context
+How a `package require` becomes a set of visible commands and reachable procs.
+This layer decides whether package-gated commands (stdlib, tcllib, Tk) reach
+completions, hover, and diagnostics, and whether cross-file navigation finds
+procs from a resolved package or from another iRules file, so read it before
+changing what a `package require` pulls in.
 
 The package loading system sits between the analyser (which detects
 `package require` statements) and the LSP features (which filter commands

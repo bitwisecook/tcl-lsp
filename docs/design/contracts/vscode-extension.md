@@ -1,12 +1,9 @@
 # VS Code extension contracts (client-side integration)
 
-## Symptom
-
-VS Code features (diagnostics, commands, semantic tokens) regress even when the server's own tests pass.
-
-## Operational context
-
-The VS Code extension is the primary client integration surface for LSP capabilities and user-visible workflows.
+What the VS Code extension owns as the primary client integration surface for
+LSP capabilities and user-visible workflows. Read it when diagnostics,
+commands, or semantic tokens regress in the editor even though the server's
+own tests pass.
 
 ## Decision rules / contracts
 

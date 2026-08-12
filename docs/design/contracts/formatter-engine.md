@@ -1,11 +1,8 @@
 # Formatter engine contracts
 
-## Symptom
-
-Formatting output changes unexpectedly between runs, or a style rewrite
-conflicts with parser or feature expectations.
-
-## Operational context
+How Tcl source is reformatted, and the rules that keep the output stable
+between runs and consistent with what the parser and the language features
+expect of it.
 
 Formatting is an engine + config pipeline in `tcl-lsp-core`, surfaced through
 the LSP formatting handlers, the `tcl fmt` CLI verb, and the MCP tools.

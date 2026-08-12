@@ -1,11 +1,9 @@
 # Differential fuzzing contracts
 
-## Symptom
-
-A fuzz campaign reports divergences that turn out to be generator artefacts,
-masks a real miscompile, or cannot be replayed.
-
-## Operational context
+How the differential fuzzer hunts for miscompiles, and the discipline that
+keeps a campaign honest: a run that reports generator artefacts as
+divergences, masks a real miscompile, or produces a finding nobody can replay
+is worse than no run at all.
 
 `rust/tcl-fuzz` generates Tcl scripts, runs each one through a **pair of
 backends**, and records any divergence in stdout, error status, or (opt-in)

@@ -1,11 +1,5 @@
 # <reference topic>
 
-## Symptom
-
-<What confusion this reference resolves quickly.>
-
-## Operational context
-
 <Where in the pipeline this reference applies.>
 
 ## Decision rules / contracts

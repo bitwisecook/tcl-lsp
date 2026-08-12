@@ -119,7 +119,7 @@ pub fn spec() -> CommandSpec {
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
 | `subcommands` | `&'static [SubCommand]` | `&[]` | Ensemble subcommand table, keyed by each entry's own `name`.  See SubCommand section |
-| `allow_unknown_subcommands` | `bool` | `false` | Suppress W102 for unrecognised subcommands (e.g. user-defined `oo::class` methods) |
+| `allow_unknown_subcommands` | `bool` | `false` | Suppress W001 (unknown subcommand) for unrecognised subcommands (e.g. user-defined `oo::class` methods) |
 | `default_form_first_word` | `Option<DefaultFormFirstWord>` | `None` | Value shape a non-subcommand first word may take to select the command's *default* form (`after 200 ...` — an integer first word is a delay, not an unknown subcommand). Matched via the canonical `tcl-syntax` number parser, so every Tcl integer spelling works |
 
 #### Compiler traits

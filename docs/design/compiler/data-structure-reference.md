@@ -5,9 +5,10 @@ representation becomes the next. Read this when adding an analysis or when
 tracking a value across a stage boundary.
 
 Every Tcl source string passes through 7 stages, each producing typed
-dataclasses.  All types live under `compiler/`, `analyser/`, or `shared/` and are frozen dataclasses
-unless noted.  Understanding the shapes at each boundary is essential for
-adding new analyses or debugging data-flow issues.
+Rust structs and enums.  Lexer types live in `rust/tcl-lexer/`, bytecode
+types in `rust/tcl-bytecode/`, and everything from segmentation onwards in
+`rust/tcl-compiler/src/`.  Understanding the shapes at each boundary is
+essential for adding new analyses or debugging data-flow issues.
 
 Source: `rust/tcl-lexer/src/tokens.rs`,
 `rust/tcl-compiler/src/segmenter.rs`,
@@ -15,7 +16,7 @@ Source: `rust/tcl-lexer/src/tokens.rs`,
 `rust/tcl-compiler/src/cfg.rs`,
 `rust/tcl-compiler/src/ssa.rs`,
 `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs`,
-`rust/tcl-compiler/src/codegen/mod.rs`,
+`rust/tcl-compiler/src/codegen/mod.rs`, `rust/tcl-bytecode/src/lib.rs`,
 `rust/tcl-compiler/src/compilation_unit.rs`
 
 ## Content
@@ -25,8 +26,8 @@ Source: `rust/tcl-lexer/src/tokens.rs`,
 | Type | Purpose |
 |------|---------|
 | `TokenType` | Enum: `ESC`, `STR`, `CMD`, `VAR`, `SEP`, `EOL`, `EOF`, `COMMENT`, `EXPAND` |
-| `SourcePosition` | `(line, character, offset)` — 0-based, UTF-16 per LSP |
-| `Token` | `(type, text, start, end, in_quote)` — one lexical unit |
+| `SourcePosition` | `line`, `character`, `offset` — 0-based, UTF-16 per LSP |
+| `Token` | `kind`, `text`, `start`, `end`, `in_quote` — one lexical unit |
 
 - `ESC` = plain word fragment, `STR` = braced string `{…}`, `CMD` = command
   substitution `[…]`, `VAR` = variable `$name`.
@@ -35,36 +36,45 @@ Source: `rust/tcl-lexer/src/tokens.rs`,
 
 | Type | Purpose |
 |------|---------|
-| `SegmentedCommand` | One command: `range`, `argv`, `texts[]`, `single_token_word[]`, `all_tokens[]` |
+| `SegmentedCommand` | One command: `span`, `argv`, `texts`, `single_token_word`, `all_tokens` |
 
-- `texts[0]` = command name, `texts[1:]` = arguments.
-- `single_token_word[i]` = `True` when word `i` is one atomic token (no
+- `texts[0]` = command name, `texts[1..]` = arguments.
+- `single_token_word[i]` = `true` when word `i` is one atomic token (no
   interpolation) — important for constant tracking.
 
 ### Stage 3 — IR types (`ir.rs`)
 
-| Type | When used |
-|------|-----------|
-| `IRAssignConst` | `set x 42` — constant assignment |
-| `IRAssignExpr` | `set x [expr {…}]` — expression assignment |
-| `IRAssignValue` | `set x $y` — variable/interpolated assignment |
-| `IRExprEval` | `expr {…}` evaluated for side-effects (result discarded) |
-| `IRIncr` | `incr i` / `incr i 5` |
-| `IRCall` | Generic command (`puts`, `regexp`, etc.) with `defs`/`reads` |
-| `IRReturn` | `return` statement |
-| `IRBarrier` | `eval`/`uplevel`/`upvar` — defeats static analysis |
-| `IRIf` | `if/elseif/else` with `IRIfClause` list |
-| `IRFor` | `for {init} {cond} {step} {body}` |
-| `IRWhile` | `while {cond} {body}` |
-| `IRForeach` | `foreach var list body` |
-| `IRCatch` | `catch` with optional variable targets |
-| `IRTry` | `try/on/trap/finally` with `IRTryHandler` |
-| `IRSwitch` | `switch` with `IRSwitchArm` patterns |
-| `IRScript` | Container: `tuple[IRStatement, ...]` |
-| `IRMethodDef` | A TclOO method body lifted from `oo::class create` / `oo::define`: `class_name`, `method_name`, `params`, `body IRScript`, `kind`, `instance_vars` — analysis-only (codegen never reads it) |
-| `IRModule` | Top-level + `procedures dict` + `methods dict` (`IRMethodDef`) + `redefined_procedures` |
+The IR statement forms are variants of one `Statement` enum, not separate
+types:
 
-Every IR node carries a `Range` for precise diagnostic mapping.
+| Variant | When used |
+|---------|-----------|
+| `Statement::AssignConst` | `set x 42` — constant assignment |
+| `Statement::AssignExpr` | `set x [expr {…}]` — expression assignment |
+| `Statement::AssignValue` | `set x $y` — variable/interpolated assignment |
+| `Statement::ExprEval` | `expr {…}` evaluated for side-effects (result discarded) |
+| `Statement::Incr` | `incr i` / `incr i 5` |
+| `Statement::Call` | Generic command (`puts`, `regexp`, etc.) with `defs`/`reads` |
+| `Statement::Return` | `return` statement |
+| `Statement::Barrier` | `eval`/`uplevel`/`upvar` — defeats static analysis |
+| `Statement::If` | `if/elseif/else` with a `Vec<IfClause>` |
+| `Statement::For` | `for {init} {cond} {step} {body}` |
+| `Statement::While` | `while {cond} {body}` |
+| `Statement::Foreach` | `foreach var list body` |
+| `Statement::Catch` | `catch` with optional variable targets |
+| `Statement::Try` | `try/on/trap/finally` with `TryHandler` |
+| `Statement::Switch` | `switch` with `SwitchArm` patterns |
+
+The containers around them:
+
+| Type | Purpose |
+|------|---------|
+| `Script` | Container: `statements: Vec<Statement>` |
+| `Procedure` | A lowered `proc` body |
+| `MethodDef` | A TclOO method body lifted from `oo::class create` / `oo::define`: `class_name`, `method_name`, `params`, `body: Script`, `kind`, `instance_vars` — analysis-only (codegen never reads it) |
+| `Module` | `source`, `top_level: Script`, `procedures: HashMap<String, Procedure>`, `methods: HashMap<String, MethodDef>`, `redefined_procedures`, plus the namespace / trace / TclOO evidence maps |
+
+Every IR statement carries a `Span` for precise diagnostic mapping.
 
 ### Expression AST (`rust/tcl-syntax/src/expr/ast.rs`)
 
@@ -82,48 +92,48 @@ Every IR node carries a `Range` for precise diagnostic mapping.
 
 | Type | Purpose |
 |------|---------|
-| `CFGGoto` | Unconditional jump to `target` block |
-| `CFGBranch` | Conditional: `condition` → `true_target` / `false_target` |
-| `CFGReturn` | Procedure exit with optional value |
-| `CFGBlock` | `name`, `statements tuple`, `terminator` |
-| `CFGFunction` | `entry` block name, `blocks dict`, `loop_nodes` |
-| `CFGModule` | `top_level` + `procedures dict` |
+| `Terminator::Goto` | Unconditional jump to the target block |
+| `Terminator::Branch` | Conditional: condition → true / false target |
+| `Terminator::Return` | Procedure exit with optional value |
+| `Block` | `name`, `statements: Vec<Statement>`, `terminator: Option<Terminator>` |
+| `Function` | `name`, `entry: BlockId`, `blocks: HashMap<BlockId, Block>`, `loop_nodes`, `exception_edges` |
+| `CfgModule` | `top_level: Function` + `procedures: HashMap<String, Function>` |
 
 ### Stage 5 — SSA types (`ssa.rs`)
 
 | Type | Purpose |
 |------|---------|
-| `SSAValueKey` | `(variable_name, version)` tuple — unique SSA identity |
-| `SSAPhi` | Phi node: `name`, `version`, `incoming dict[block→version]` |
-| `SSAStatement` | Original `IRStatement` + `uses dict` + `defs dict` |
-| `SSABlock` | `phis tuple`, `statements tuple`, `entry_versions`, `exit_versions` |
-| `SSAFunction` | `blocks dict`, `idom dict`, `dominance_frontier dict`, `dominator_tree dict` |
+| `ValueKey` | `(Symbol, Version)` — unique SSA identity |
+| `Phi` | Phi node: `name: Symbol`, `version: Version`, `incoming: HashMap<BlockId, Version>` |
+| `SsaStatement` | The original `Statement` plus `uses`, `defs`, `may_defs`, `quoted_uses` |
+| `SsaBlock` | `name`, `phis: Vec<Phi>`, `statements: Vec<SsaStatement>`, `entry_versions`, `exit_versions` |
+| `SsaFunction` | `entry: BlockId`, `blocks`, `idom`, `dominance_frontier`, `dominator_tree` |
 
 ### Stage 6 — Analysis types (`analyses.rs`, `types.rs`)
 
 | Type | Purpose |
 |------|---------|
-| `LatticeValue` | SCCP result: `UNKNOWN` / `CONST(value)` / `OVERDEFINED` |
-| `TypeLattice` | Type inference: `UNKNOWN` / `KNOWN(type)` / `SHIMMERED(from,to)` / `OVERDEFINED` |
-| `FunctionAnalysis` | `live_in/live_out`, `dead_stores`, `unreachable_blocks`, `constant_branches`, `values`, `types`, `read_before_set`, `unused_variables` |
+| `LatticeValue` | SCCP result: `Unknown` / `Const(ConstValue)` / `ConstSet(Vec<ConstValue>)` / `Overdefined` |
+| `TypeLattice` | Type inference (`rust/tcl-compiler/src/types.rs`); its `TypeKind` reads `Unknown` / `Known` / `Shimmered` / `Overdefined` over a bounded set of `TypeShape`s |
+| `FunctionAnalysis` | `live_in`/`live_out`, `dead_stores`, `unreachable_blocks`, `constant_branches`, `values`, `types`, `read_before_set`, `unused_variables`, `unused_params` |
 
-### Stage 7 — Codegen types (`codegen/`)
+### Stage 7 — Codegen types (`codegen/`, `rust/tcl-bytecode/src/lib.rs`)
 
 | Type | Purpose |
 |------|---------|
-| `Op` | Enum of ~100 Tcl 9.0.2 bytecode opcodes |
-| `Instruction` | `(op, operands, comment, offset)` |
+| `Op` | Enum of Tcl bytecode opcodes |
+| `Instruction` | `op`, `operands: Vec<Operand>`, `comment`, `offset`, plus source-mapping and emitter hint fields |
 | `LiteralTable` | Intern pool: string → object-array index |
 | `LocalVarTable` | LVT: variable name → slot index |
-| `FunctionAsm` | `name`, `literals`, `lvt`, `instructions`, `labels` |
-| `ModuleAsm` | `top_level` + `procedures dict` |
+| `FunctionAsm` | `name`, `literals`, `lvt`, `instructions`, `labels`, `loop_targets`, `error_regions` |
+| `ModuleAsm` | `top_level: FunctionAsm` + `procedures: HashMap<String, FunctionAsm>` |
 
 ### Orchestration (`compilation_unit.rs`)
 
 | Type | Purpose |
 |------|---------|
-| `FunctionUnit` | `cfg` + `ssa` + `analysis` + `execution_intent` per function (also built per TclOO method) |
-| `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level FunctionUnit`, `procedures dict`, `interproc`, `methods dict` (per-method `FunctionUnit`s), `connection_scope` |
+| `FunctionUnit` | `cfg` + `ssa` + `def_use` + `sccp` + `types` + `taints` + `rendered_props` + `memory_ssa` + `semantic_facts` per function (also built per TclOO method) |
+| `CompilationUnit` | `source`, `ir_module`, `cfg_module`, `top_level: FunctionUnit`, `procedures`, `methods` (per-method `FunctionUnit`s), `body_units`, `interproc`, `connection_scope`, `caller_scope` |
 
 `compile_source` (`rust/tcl-compiler/src/compilation_unit.rs`) orchestrates all stages and
 returns a `CompilationUnit`.
@@ -132,14 +142,13 @@ returns a `CompilationUnit`.
 
 - When adding a new field to a pipeline type, check whether downstream
   consumers need updating (each stage feeds the next).
-- Types are frozen dataclasses for immutability — use `dataclasses.replace()`
-  to create modified copies.
-- `IRModule.procedures` and `CompilationUnit.procedures` use fully qualified
+- `Module::procedures` and `CompilationUnit::procedures` use fully qualified
   names as keys (e.g. `"::mylib::helper"`).
-- `IRModule.methods` / `CompilationUnit.methods` are keyed by
+- `Module::methods` / `CompilationUnit::methods` are keyed by
   `"{class_qname}::{method_name}"` (constructors/destructors use the synthetic
   names `<constructor>` / `<destructor>`). They are populated by a cache-
-  independent post-pass (`_Lowerer.extract_oo_methods_pass`) and consumed by
+  independent post-pass (`Lowering::extract_oo_methods_pass` in
+  `rust/tcl-compiler/src/lowering/mod.rs`) and consumed by
   interprocedural method-purity and the O126 `my <method>` gate — **not** by
   codegen.
 

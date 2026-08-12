@@ -1,7 +1,6 @@
-# KCS: Shared-utility contracts (Rust workspace)
+# Shared-utility contracts (Rust workspace)
 
-## Symptom
-
+The low-level logic every crate must share rather than reimplement, and why.
 Behaviour drifts between the Rust crates because equivalent low-level
 logic (namespace-name splitting, number parsing, unique-prefix option
 matching, canonical error texts, backslash decoding, list codec) is
