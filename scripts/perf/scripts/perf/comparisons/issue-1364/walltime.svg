@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="886.00" height="520.00" viewBox="0 0 886.00 520.00" role="img" aria-labelledby="chart-title">
+  <title id="chart-title">Per-check wall time by version</title>
+  <style>
+    :root { color: #1F2328; }
+    .chrome { stroke: currentColor; fill: none; stroke-width: 1; }
+    .grid { stroke: currentColor; stroke-width: 1; opacity: 0.15; }
+    text { fill: currentColor; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 11px; }
+    .title { font-size: 15px; font-weight: 600; }
+    .axis-title { font-size: 12px; }
+    .note { font-size: 10px; opacity: 0.75; }
+    .series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .hatch { stroke: #1F2328; stroke-width: 1.2; opacity: 0.75; }
+    .s0 { stroke: #E69F00; }
+    .f0 { fill: #E69F00; }
+    .s1 { stroke: #56B4E9; }
+    .f1 { fill: #56B4E9; }
+    @media (prefers-color-scheme: dark) {
+      :root { color: #E6EDF3; }
+      .hatch { stroke: #E6EDF3; }
+    }
+  </style>
+  <text class="title" x="78.00" y="30.00">Per-check wall time by version</text>
+  <rect class="f0" x="83.20" y="130.77" width="18.72" height="245.23"/>
+  <rect class="f1" x="104.00" y="128.01" width="18.72" height="247.99"/>
+  <rect class="f0" x="135.20" y="221.69" width="18.72" height="154.31"/>
+  <rect class="f1" x="156.00" y="224.84" width="18.72" height="151.16"/>
+  <rect class="f0" x="187.20" y="152.77" width="18.72" height="223.23"/>
+  <rect class="f1" x="208.00" y="155.46" width="18.72" height="220.54"/>
+  <rect class="f0" x="239.20" y="132.53" width="18.72" height="243.47"/>
+  <rect class="f1" x="260.00" y="133.15" width="18.72" height="242.85"/>
+  <rect class="f0" x="291.20" y="320.00" width="18.72" height="56.00"/>
+  <rect class="f1" x="312.00" y="319.26" width="18.72" height="56.74"/>
+  <rect class="f0" x="343.20" y="317.86" width="18.72" height="58.14"/>
+  <rect class="f1" x="364.00" y="315.87" width="18.72" height="60.13"/>
+  <rect class="f0" x="395.20" y="169.61" width="18.72" height="206.39"/>
+  <rect class="f1" x="416.00" y="167.02" width="18.72" height="208.98"/>
+  <rect class="f0" x="447.20" y="246.67" width="18.72" height="129.33"/>
+  <rect class="f1" x="468.00" y="247.26" width="18.72" height="128.74"/>
+  <rect class="f0" x="499.20" y="196.37" width="18.72" height="179.63"/>
+  <rect class="f1" x="520.00" y="192.88" width="18.72" height="183.12"/>
+  <rect class="f0" x="551.20" y="205.78" width="18.72" height="170.22"/>
+  <rect class="f1" x="572.00" y="205.78" width="18.72" height="170.22"/>
+  <rect class="f0" x="603.20" y="213.18" width="18.72" height="162.82"/>
+  <rect class="f1" x="624.00" y="207.26" width="18.72" height="168.74"/>
+  <rect class="f0" x="655.20" y="106.45" width="18.72" height="269.55"/>
+  <rect class="f1" x="676.00" y="100.50" width="18.72" height="275.50"/>
+  <rect class="f0" x="707.20" y="215.25" width="18.72" height="160.75"/>
+  <rect class="f1" x="728.00" y="215.40" width="18.72" height="160.60"/>
+  <rect class="f0" x="759.20" y="193.81" width="18.72" height="182.19"/>
+  <rect class="f1" x="780.00" y="191.67" width="18.72" height="184.33"/>
+  <rect class="f0" x="811.20" y="217.37" width="18.72" height="158.63"/>
+  <rect class="f1" x="832.00" y="217.36" width="18.72" height="158.64"/>
+  <line class="grid" x1="78.00" y1="376.00" x2="858.00" y2="376.00"/>
+  <line class="chrome" x1="74.00" y1="376.00" x2="78.00" y2="376.00"/>
+  <text x="70.00" y="379.50" text-anchor="end">0.0010</text>
+  <line class="grid" x1="78.00" y1="312.00" x2="858.00" y2="312.00"/>
+  <line class="chrome" x1="74.00" y1="312.00" x2="78.00" y2="312.00"/>
+  <text x="70.00" y="315.50" text-anchor="end">0.01</text>
+  <line class="grid" x1="78.00" y1="248.00" x2="858.00" y2="248.00"/>
+  <line class="chrome" x1="74.00" y1="248.00" x2="78.00" y2="248.00"/>
+  <text x="70.00" y="251.50" text-anchor="end">0.10</text>
+  <line class="grid" x1="78.00" y1="184.00" x2="858.00" y2="184.00"/>
+  <line class="chrome" x1="74.00" y1="184.00" x2="78.00" y2="184.00"/>
+  <text x="70.00" y="187.50" text-anchor="end">1</text>
+  <line class="grid" x1="78.00" y1="120.00" x2="858.00" y2="120.00"/>
+  <line class="chrome" x1="74.00" y1="120.00" x2="78.00" y2="120.00"/>
+  <text x="70.00" y="123.50" text-anchor="end">10</text>
+  <line class="grid" x1="78.00" y1="56.00" x2="858.00" y2="56.00"/>
+  <line class="chrome" x1="74.00" y1="56.00" x2="78.00" y2="56.00"/>
+  <text x="70.00" y="59.50" text-anchor="end">100</text>
+  <line class="chrome" x1="104.00" y1="376.00" x2="104.00" y2="380.00"/>
+  <text x="104.00" y="390.00" text-anchor="end" transform="rotate(-40 104.00 390.00)">scan.workspace</text>
+  <line class="chrome" x1="156.00" y1="376.00" x2="156.00" y2="380.00"/>
+  <text x="156.00" y="390.00" text-anchor="end" transform="rotate(-40 156.00 390.00)">open.docs</text>
+  <line class="chrome" x1="208.00" y1="376.00" x2="208.00" y2="380.00"/>
+  <text x="208.00" y="390.00" text-anchor="end" transform="rotate(-40 208.00 390.00)">edit.storm</text>
+  <line class="chrome" x1="260.00" y1="376.00" x2="260.00" y2="380.00"/>
+  <text x="260.00" y="390.00" text-anchor="end" transform="rotate(-40 260.00 390.00)">edit.tokens</text>
+  <line class="chrome" x1="312.00" y1="376.00" x2="312.00" y2="380.00"/>
+  <text x="312.00" y="390.00" text-anchor="end" transform="rotate(-40 312.00 390.00)">nav.hover</text>
+  <line class="chrome" x1="364.00" y1="376.00" x2="364.00" y2="380.00"/>
+  <text x="364.00" y="390.00" text-anchor="end" transform="rotate(-40 364.00 390.00)">nav.definition</text>
+  <line class="chrome" x1="416.00" y1="376.00" x2="416.00" y2="380.00"/>
+  <text x="416.00" y="390.00" text-anchor="end" transform="rotate(-40 416.00 390.00)">nav.references</text>
+  <line class="chrome" x1="468.00" y1="376.00" x2="468.00" y2="380.00"/>
+  <text x="468.00" y="390.00" text-anchor="end" transform="rotate(-40 468.00 390.00)">nav.completion</text>
+  <line class="chrome" x1="520.00" y1="376.00" x2="520.00" y2="380.00"/>
+  <text x="520.00" y="390.00" text-anchor="end" transform="rotate(-40 520.00 390.00)">nav.symbols</text>
+  <line class="chrome" x1="572.00" y1="376.00" x2="572.00" y2="380.00"/>
+  <text x="572.00" y="390.00" text-anchor="end" transform="rotate(-40 572.00 390.00)">lens.resolve</text>
+  <line class="chrome" x1="624.00" y1="376.00" x2="624.00" y2="380.00"/>
+  <text x="624.00" y="390.00" text-anchor="end" transform="rotate(-40 624.00 390.00)">action.codeaction</text>
+  <line class="chrome" x1="676.00" y1="376.00" x2="676.00" y2="380.00"/>
+  <text x="676.00" y="390.00" text-anchor="end" transform="rotate(-40 676.00 390.00)">refactor.rename</text>
+  <line class="chrome" x1="728.00" y1="376.00" x2="728.00" y2="380.00"/>
+  <text x="728.00" y="390.00" text-anchor="end" transform="rotate(-40 728.00 390.00)">refactor.filerename</text>
+  <line class="chrome" x1="780.00" y1="376.00" x2="780.00" y2="380.00"/>
+  <text x="780.00" y="390.00" text-anchor="end" transform="rotate(-40 780.00 390.00)">nav.after_rename</text>
+  <line class="chrome" x1="832.00" y1="376.00" x2="832.00" y2="380.00"/>
+  <text x="832.00" y="390.00" text-anchor="end" transform="rotate(-40 832.00 390.00)">close.docs</text>
+  <line class="chrome" x1="78.00" y1="56.00" x2="78.00" y2="376.00"/>
+  <line class="chrome" x1="78.00" y1="376.00" x2="858.00" y2="376.00"/>
+  <text class="axis-title" x="468.00" y="462.00" text-anchor="middle">check</text>
+  <text class="axis-title" x="22.00" y="216.00" text-anchor="middle" transform="rotate(-90 22.00 216.00)">wall time (s, log10)</text>
+  <rect class="f0" x="78.00" y="468.00" width="12" height="12" rx="2"/>
+  <text x="96.00" y="478.00">base</text>
+  <rect class="f1" x="273.00" y="468.00" width="12" height="12" rx="2"/>
+  <text x="291.00" y="478.00">pr1364</text>
+  <text class="note" x="78.00" y="506.00">hatched, dashed bars are checks that failed or timed out (value is the timeout budget)</text>
+</svg>
