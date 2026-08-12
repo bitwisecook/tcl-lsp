@@ -146,6 +146,14 @@ pub struct Gap {
 /// a failure.
 pub const GAPS: &[Gap] = &[
     // --- the value is not in the draft ------------------------------------
+    //
+    // `object_class` left this bucket. It looked like the others — an
+    // `Option<&'static …>` reference — but the descriptor behind it is plain
+    // data all the way down, and its method table *is* `&[SubCommand]`, so
+    // seeding now carries the whole thing and the renderer writes it as
+    // `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
+    // What still lives here is genuinely opaque: a function pointer, or a
+    // reference to a shared registry constant a pack can only name.
     Gap {
         key: "frame_effect",
         spelling: "frame_effect -level-word W -layout L",

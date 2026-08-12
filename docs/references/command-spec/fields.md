@@ -775,7 +775,7 @@ TclOO fine print: for introspection commands where one specific word's result is
 
 Attaches class metadata to a factory command: the methods its instances answer to, superclasses for inherited resolution, and whether unknown methods are acceptable. With it, `$obj method args` gets method completion, arity checks, and option highlighting — the full treatment a built-in ensemble gets.
 
-Shared, named descriptor; list the instance methods and their signatures in the issue notes if your package's classes should be modelled.
+Plain data all the way down — the instance methods are ordinary subcommands — so a pack can author the whole thing: `object_class NAME ?-superclass {…}? ?-allow-unknown? { method NAME { … } }`, where each `method` body is the `subcommand` body grammar unchanged. The class NAME is not always the command name: a factory may manufacture a differently-named class.
 
 ### `defines_symbol` — Defines symbol
 

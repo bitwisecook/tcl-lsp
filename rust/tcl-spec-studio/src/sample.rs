@@ -824,21 +824,50 @@ fn nest(words: &[Word]) -> Vec<Nest> {
 /// the inspector explains *why this argument is a script*), while the
 /// statements inside it are their own clickable words.
 fn render_chunks(sample: &str, words: &[Word]) -> Value {
+    /// Emit `text` as `token`, never letting one chunk span a line.
+    ///
+    /// A browser lays a `<button>` out as one box even when told to be inline,
+    /// so a chunk carrying a newline — a `{ … }` body's opening brace and the
+    /// indentation after it — would render as a two-line box the surrounding
+    /// text then aligns on a single baseline, scrambling the view. Splitting on
+    /// the newline here keeps every clickable box to one line and leaves the
+    /// line breaks as ordinary text, which is a property of the data rather
+    /// than a stylesheet's promise.
+    fn push(text: &str, token: Option<usize>, chunks: &mut Vec<Value>) {
+        if text.is_empty() {
+            return;
+        }
+        let token = match token {
+            Some(index) => json!(index),
+            None => Value::Null,
+        };
+        let mut first = true;
+        for line in text.split('\n') {
+            if !first {
+                chunks.push(json!({ "text": "\n", "token": Value::Null }));
+            }
+            first = false;
+            if !line.is_empty() {
+                chunks.push(json!({ "text": line, "token": token }));
+            }
+        }
+    }
+
     fn walk(sample: &str, node: &Nest, chunks: &mut Vec<Value>) {
         if node.children.is_empty() {
-            chunks.push(json!({ "text": &sample[node.start..node.end], "token": node.token }));
+            push(&sample[node.start..node.end], Some(node.token), chunks);
             return;
         }
         let mut cursor = node.start;
         for child in &node.children {
             if child.start > cursor {
-                chunks.push(json!({ "text": &sample[cursor..child.start], "token": node.token }));
+                push(&sample[cursor..child.start], Some(node.token), chunks);
             }
             walk(sample, child, chunks);
             cursor = child.end;
         }
         if cursor < node.end {
-            chunks.push(json!({ "text": &sample[cursor..node.end], "token": node.token }));
+            push(&sample[cursor..node.end], Some(node.token), chunks);
         }
     }
 
@@ -846,13 +875,13 @@ fn render_chunks(sample: &str, words: &[Word]) -> Value {
     let mut cursor = 0usize;
     for root in nest(words) {
         if root.start > cursor {
-            chunks.push(json!({ "text": &sample[cursor..root.start], "token": Value::Null }));
+            push(&sample[cursor..root.start], None, &mut chunks);
         }
         walk(sample, &root, &mut chunks);
         cursor = root.end;
     }
     if cursor < sample.len() {
-        chunks.push(json!({ "text": &sample[cursor..], "token": Value::Null }));
+        push(&sample[cursor..], None, &mut chunks);
     }
     Value::Array(chunks)
 }

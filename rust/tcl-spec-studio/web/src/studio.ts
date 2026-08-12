@@ -1227,7 +1227,7 @@ function renderTestReport(): void {
     report.installed
       ? `analysed against the ${report.dialect} registry with pack ${report.pack} installed`
       : `analysed against the plain ${report.dialect} registry — the pack declares no commands yet`,
-    s.errors ? "err" : "ok",
+    "ok",
   );
 
   // Keep whatever was being inspected selected across a re-run.

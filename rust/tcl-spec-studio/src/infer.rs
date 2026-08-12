@@ -407,7 +407,13 @@ pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
         for proc_def in result.all_procs.values() {
             let start = proc_def.body_span.start() as usize;
             let end = proc_def.body_span.end() as usize;
+            // The recorded span runs from the body word's opening brace to the
+            // last byte before its close, so strip whichever delimiters are
+            // actually there — the heuristics read a *script*, and a body
+            // still wrapped in braces segments as one word and says nothing.
             let body = file.text.get(start..end).unwrap_or_default();
+            let body = body.strip_prefix('{').unwrap_or(body);
+            let body = body.strip_suffix('}').unwrap_or(body);
             let inferred = draft_for_proc(proc_def, None, None, &file.name, body, dialect);
             by_name.insert(proc_def.qualified_name.clone(), inferred);
         }
@@ -570,6 +576,38 @@ mod tests {
         let before = seen.len();
         seen.dedup();
         assert_eq!(before, seen.len(), "duplicated evidence: {:?}", f.notes);
+    }
+
+    /// The body heuristics are part of an import, not a separate pass a caller
+    /// has to remember: one `import_package` and the option table is there,
+    /// with its evidence beside the signature's.
+    #[test]
+    fn the_body_shape_heuristics_run_as_part_of_an_import() {
+        let import = import_package(
+            &file(
+                "proc render {args} {\n\
+                 \x20   foreach opt $args {\n\
+                 \x20       switch -- $opt {\n\
+                 \x20           -- { break }\n\
+                 \x20           -quiet { set quiet 1 }\n\
+                 \x20           -width { set w [lindex $args [incr i]] }\n\
+                 \x20       }\n\
+                 \x20   }\n\
+                 }\n",
+            ),
+            "tcl9.0",
+        );
+        let render = find(&import, "render");
+        let options = render.draft["options"].as_array().expect("option rows");
+        let names: Vec<&str> = options.iter().filter_map(|o| o["name"].as_str()).collect();
+        assert_eq!(names, vec!["-quiet", "-width"], "{options:?}");
+        assert_eq!(options[0]["value"], Value::Null, "a flag takes no value");
+        assert_eq!(options[1]["value"]["role"], json!("Value"));
+        assert!(
+            render.notes.iter().any(|n| n.contains("`--`")),
+            "the `--` handling must be reported: {:?}",
+            render.notes
+        );
     }
 
     #[test]

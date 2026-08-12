@@ -316,6 +316,11 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
 .tok {
   font: inherit; border: 0; padding: 0; background: transparent; color: inherit;
   border-radius: 3px; border-bottom: 1px dotted color-mix(in srgb, var(--muted) 60%, transparent);
+  /* A button collapses runs of whitespace like any other element; the sample's
+     own spacing is the point here, so keep it. (Line breaks never reach a
+     button: `render_chunks` splits chunks at newlines precisely because a
+     button cannot flow across lines.) */
+  white-space: pre-wrap; text-align: left; display: inline;
 }
 .tok:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .tok[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 26%, transparent); }

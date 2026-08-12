@@ -379,15 +379,22 @@ rather than wedging the suite.
 
 Two things it found on its first run, both now true rather than claimed:
 
-- **`object_class` is ratified vocabulary the runtime loader does not
-  implement.** It is in the frozen syntax and in the compiled-in `SpecTcl`
-  self-spec (`commands/spectcl/blocks.rs`), and it appears nowhere in
-  `tcl-spectcl/src/loader.rs` — so all four external drafts lose their
-  handle-returning factories' method tables at load, with a notice each.
-  Nothing under `specs/` uses the statement, which is how the gap survived
-  the EDA migration. Its thirteen notices are recorded in the harness's
-  baseline, alongside the twenty-seven for the `state_transitions` /
-  `world_effects` rows the loader already says are "not yet loadable".
+- **`object_class` was ratified vocabulary the runtime loader did not
+  implement — now closed.** It is in the frozen syntax and in the
+  compiled-in `SpecTcl` self-spec (`commands/spectcl/blocks.rs`), and it
+  appeared nowhere in `tcl-spectcl/src/loader.rs` — so all four external
+  drafts lost their handle-returning factories' method tables at load, with
+  a notice each. Nothing under `specs/` uses the statement, which is how the
+  gap survived the EDA migration. The loader now reads
+  `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }` into a
+  real `ObjectClassSpec` — `method` rows are the `subcommand` body grammar
+  unchanged, because `instance_methods` *is* `&[SubCommand]` — and the spec
+  studio's `SpecTcl` renderer writes it back out, so the descriptor left the
+  renderer's gap register too. All thirteen notices are gone from the
+  baseline; what replaced them is six `arg`-row flag drops and one
+  unbindable method hook body that those blocks were hiding, plus the
+  twenty-seven for the `state_transitions` / `world_effects` rows the loader
+  still says are "not yet loadable".
 - **A pack could abort the analyser through declarative data alone.**
   `command_table_effect CreatesAliases` describes `interp alias`'s word
   grammar and the shipped registry stamps it on that subcommand; the tcllib

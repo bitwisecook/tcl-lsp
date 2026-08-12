@@ -29,7 +29,7 @@
 //! A handful of spec fields hold a function pointer (`arg_role_resolver`,
 //! `const_fold`, `taint_sink_gate`, …) or a reference to a **named** `&'static`
 //! descriptor the registry shares between commands (`definition_body`,
-//! `case_list`, `object_class`, `body_scope`, `frame_effect`, `bpf_op`,
+//! `case_list`, `body_scope`, `frame_effect`, `bpf_op`,
 //! `event_requires`, `command_forms`, and the semantic/effect descriptors).
 //! Rust can tell that such a field is set, but not recover the *expression* —
 //! the constant's path — that set it.
@@ -43,6 +43,9 @@
 //! back out as full struct literals (every field spelled, never a defaulting
 //! constructor), so drafting and re-rendering a command that sets one loses
 //! nothing. [`crate::coverage`] is what keeps those literals complete.
+//! `object_class` is the same case one level deeper — a class name, a flag,
+//! superclass names, and a method table that *is* `&[SubCommand]` — so it is
+//! seeded as a JSON object whose methods are ordinary subcommand drafts.
 
 use serde_json::{Map, Value, json};
 use tcl_dialect::DialectSet;
