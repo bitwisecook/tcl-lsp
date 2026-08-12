@@ -104,7 +104,7 @@ fn main() {
         Vec::new(),
         None,
         None,
-    );
+     0,);
 
     println!(
         "== {rel} ({} lines, {} bytes) — {edits} keystrokes, mode={mode} ==",

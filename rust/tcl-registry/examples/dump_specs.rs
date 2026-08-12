@@ -25,7 +25,9 @@
 //! Usage: `cargo run -q --example dump_specs -- <group>`
 //! where <group> is one of:
 //!   tcl stdlib tcllib irules iapps tk expect
-//!   sdc-base synopsys cadence xilinx quartus mentor
+//!
+//! The EDA vendor libraries have no group here: they ship as bundled
+//! `.tclspec` loadables under `specs/` (`docs/design/spec-packs.md`).
 
 use std::fmt::Write as _;
 
@@ -44,12 +46,10 @@ fn group_specs(group: &str) -> Vec<CommandSpec> {
         "iapps" => commands::iapps::iapps_command_specs(),
         "tk" => commands::tk::tk_command_specs(),
         "expect" => commands::expect::expect_command_specs(),
-        "sdc-base" => commands::sdc_base::sdc_base_command_specs(),
-        "synopsys" => commands::eda_synopsys::eda_synopsys_command_specs(),
-        "cadence" => commands::eda_cadence::eda_cadence_command_specs(),
-        "xilinx" => commands::eda_xilinx::eda_xilinx_command_specs(),
-        "quartus" => commands::eda_quartus::eda_quartus_command_specs(),
-        "mentor" => commands::eda_mentor::eda_mentor_command_specs(),
+        // No EDA groups: `sdc_base` and the five vendor libraries ship as
+        // bundled `.tclspec` loadables under `specs/` and have no compiled-in
+        // collector to dump (`docs/design/spec-packs.md`). The pack files are
+        // the dump.
         other => {
             eprintln!("unknown group: {other}");
             std::process::exit(2);
@@ -66,8 +66,6 @@ const DIALECT_TAGS: &[(DialectSet, &str)] = &[
     (DialectSet::IAPPS, "f5-iapps"),
     (DialectSet::TK, "tk"),
     (DialectSet::EXPECT, "expect"),
-    // The EDA shells are packaged base-version dialects (no vendor bit); their
-    // commands tag under the base Tcl version (eda-library-packages.md).
 ];
 
 fn dialect_tags(d: DialectSet) -> Vec<&'static str> {

@@ -69,6 +69,7 @@ use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_dialect::{DialectSet, TclVersion};
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
+use tcl_core_types::DiagCode;
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
@@ -76,6 +77,7 @@ use tcl_registry::body_kind::BodyKind;
 use tcl_registry::byte_array_effect::ByteArrayEffect;
 use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::command_table::CommandTableEffect;
+use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::definer::{
     BuiltinMethodReceiver, BuiltinObjectMethod, DefinerFamily, DefinitionBodyGrammar,
     ManufacturerMethod, MemberBodyCommand, MemberKind, MemberRefKind, MemberRetraction, MemberSpec,
@@ -96,13 +98,18 @@ use tcl_registry::hover::{
 use tcl_registry::intrinsic::IntrinsicId;
 use tcl_registry::literal_validation::LiteralArgumentValidation;
 use tcl_registry::pack_hooks::HookInputs;
-use tcl_registry::patterns::PatternType;
+use tcl_registry::patterns::{FormatType, PatternType};
 use tcl_registry::presentation::ArgPresentation;
+use tcl_registry::representation::RepresentationEffect;
 use tcl_registry::semantic_operation::SemanticOperationId;
 use tcl_registry::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
-use tcl_registry::spec::{CaseListSpec, CommandSpec, SubCommand, SubSubCommand};
+use tcl_registry::spec::{
+    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, SubCommand, SubSubCommand,
+};
+use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
+use tcl_registry::taint::SetterConstraint;
 use tcl_registry::traits::Traits;
-use tcl_registry::types::{TclType, VarWriteTyping};
+use tcl_registry::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_registry::world_effect::WorldEffectDescriptor;
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
@@ -885,6 +892,17 @@ const BYTE_ARRAY_EFFECTS: &[ByteArrayEffect] = &[
 
 const STORAGE_TYPES: &[StorageType] = &[StorageType::Dict, StorageType::List, StorageType::Array];
 
+const FORMAT_TYPES: &[FormatType] = &[
+    FormatType::Sprintf,
+    FormatType::Clock,
+    FormatType::Binary,
+    FormatType::Regsub,
+];
+
+/// One variant today, and a table anyway: the DSL word is the variant name,
+/// so a second shape arrives as a table entry rather than a new parser.
+const DEFAULT_FORM_FIRST_WORDS: &[DefaultFormFirstWord] = &[DefaultFormFirstWord::Integer];
+
 const PRESENTATIONS: &[ArgPresentation] =
     &[ArgPresentation::BlockScript, ArgPresentation::InlineScript];
 
@@ -1156,6 +1174,316 @@ fn parse_var_write_typing(text: &str, line: u32, log: &mut Log) -> Option<VarWri
             None
         }
     }
+}
+
+/// `{ListOfArgs N}` / `{DictOfPairs N}` / `{ElementOf N}` / `{SubListOf N}`.
+///
+/// The `{VARIANT payload …}` rule `README.md` gives for `var_write_typing`,
+/// applied to the three element-structure facts that follow it in the coverage
+/// matrix: a variant word, then its fields in declaration order.
+fn parse_return_elements(text: &str, line: u32, log: &mut Log) -> Option<ReturnElements> {
+    let parts = list_words(text);
+    let index = |rest: &[String]| rest[0].parse::<u8>().ok();
+    match parts.split_first() {
+        Some((head, rest)) if head == "ListOfArgs" && rest.len() == 1 => {
+            index(rest).map(|from| ReturnElements::ListOfArgs { from })
+        }
+        Some((head, rest)) if head == "DictOfPairs" && rest.len() == 1 => {
+            index(rest).map(|from| ReturnElements::DictOfPairs { from })
+        }
+        Some((head, rest)) if head == "ElementOf" && rest.len() == 1 => {
+            index(rest).map(|container_arg| ReturnElements::ElementOf { container_arg })
+        }
+        Some((head, rest)) if head == "SubListOf" && rest.len() == 1 => {
+            index(rest).map(|container_arg| ReturnElements::SubListOf { container_arg })
+        }
+        _ => None,
+    }
+    .or_else(|| {
+        log.say(line, format!("unreadable return_elements `{text}` dropped"));
+        None
+    })
+}
+
+/// `{AppendsListElements N}` / `SetsDictValue` /
+/// `{ExtendsDictValuesByName N}` / `ListifiesDictValue`.
+fn parse_var_elements_effect(text: &str, line: u32, log: &mut Log) -> Option<VarElementsEffect> {
+    let parts = list_words(text);
+    match parts.split_first() {
+        Some((head, rest)) if head == "AppendsListElements" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|values_from| VarElementsEffect::AppendsListElements { values_from }),
+        Some((head, rest)) if head == "SetsDictValue" && rest.is_empty() => {
+            Some(VarElementsEffect::SetsDictValue)
+        }
+        Some((head, rest)) if head == "ExtendsDictValuesByName" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|values_from| VarElementsEffect::ExtendsDictValuesByName { values_from }),
+        Some((head, rest)) if head == "ListifiesDictValue" && rest.is_empty() => {
+            Some(VarElementsEffect::ListifiesDictValue)
+        }
+        _ => None,
+    }
+    .or_else(|| {
+        log.say(
+            line,
+            format!("unreadable var_elements_effect `{text}` dropped"),
+        );
+        None
+    })
+}
+
+/// `None` / `{CopyOnWriteContainerMutation VAR MIN}`.
+fn parse_representation_effect(
+    text: &str,
+    line: u32,
+    log: &mut Log,
+) -> Option<RepresentationEffect> {
+    let parts = list_words(text);
+    match parts.split_first() {
+        Some((head, rest)) if head == "None" && rest.is_empty() => Some(RepresentationEffect::None),
+        Some((head, rest)) if head == "CopyOnWriteContainerMutation" && rest.len() == 2 => {
+            match (rest[0].parse(), rest[1].parse()) {
+                (Ok(variable_arg), Ok(minimum_arguments)) => {
+                    Some(RepresentationEffect::CopyOnWriteContainerMutation {
+                        variable_arg,
+                        minimum_arguments,
+                    })
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+    .or_else(|| {
+        log.say(
+            line,
+            format!("unreadable representation_effect `{text}` dropped"),
+        );
+        None
+    })
+}
+
+/// The five fieldless byte-array effects by name, plus the one that carries a
+/// payload: `{Rebinarifies N}`.
+///
+/// Split out from the plain [`enum_by_name`] table because `Rebinarifies` is
+/// not one word — it names the value operand whose byte-array representation
+/// the operation installs in place, which is the whole content of the S110
+/// documented fix.
+fn parse_byte_array_effect(text: &str, line: u32, log: &mut Log) -> Option<ByteArrayEffect> {
+    let parts = list_words(text);
+    if let Some((head, rest)) = parts.split_first()
+        && head == "Rebinarifies"
+        && rest.len() == 1
+    {
+        let Ok(value_arg) = rest[0].parse() else {
+            log.say(
+                line,
+                format!("unreadable byte_array_effect `{text}` dropped"),
+            );
+            return None;
+        };
+        return Some(ByteArrayEffect::Rebinarifies { value_arg });
+    }
+    enum_by_name(
+        BYTE_ARRAY_EFFECTS,
+        text,
+        "byte array effect",
+        line,
+        log,
+    )
+}
+
+/// `deprecation_fix -replace WORD -description {…} -safety S`.
+///
+/// Only the declarative variants: `Custom { resolver }` names a registry
+/// callback, which `README.md` marks reference-only, and the two positional
+/// variants take the index they replace as `-replace-arg N`.
+fn parse_deprecation_fix(stmt: &Stmt, log: &mut Log) -> Option<DeprecationFixHook> {
+    let mut replacement: Option<&'static str> = None;
+    let mut replace_arg: Option<u8> = None;
+    let mut whole_invocation = false;
+    let mut description: &'static str = "";
+    let mut safety = DeprecationFixSafety::RequiresReview;
+
+    let words = &stmt.words;
+    let mut i = 1;
+    while i < words.len() {
+        let flag = words[i].text.clone();
+        match flag.as_str() {
+            "-replace" => {
+                replacement = Some(leak_str(&next_text(words, &mut i)));
+            }
+            "-replace-arg" => {
+                replace_arg = next_text(words, &mut i).parse().ok();
+            }
+            "-replace-invocation" => whole_invocation = true,
+            "-description" => description = leak_str(&next_text(words, &mut i)),
+            "-safety" => {
+                const SAFETY: &[DeprecationFixSafety] = &[
+                    DeprecationFixSafety::SemanticsEquivalent,
+                    DeprecationFixSafety::RequiresReview,
+                ];
+                if let Some(chosen) = enum_by_name(
+                    SAFETY,
+                    &next_text(words, &mut i),
+                    "deprecation fix safety",
+                    stmt.line,
+                    log,
+                ) {
+                    safety = chosen;
+                }
+            }
+            other => log.unknown_flag("deprecation_fix", stmt.line, other),
+        }
+        i += 1;
+    }
+    let Some(replacement) = replacement else {
+        log.say(stmt.line, "`deprecation_fix` needs `-replace WORD`");
+        return None;
+    };
+    Some(match (replace_arg, whole_invocation) {
+        (Some(index), _) => DeprecationFixHook::ReplaceArgument {
+            index,
+            replacement,
+            description,
+            safety,
+        },
+        (None, true) => DeprecationFixHook::ReplaceInvocation {
+            replacement,
+            description,
+            safety,
+        },
+        (None, false) => DeprecationFixHook::ReplaceMatchedWord {
+            replacement,
+            description,
+            safety,
+        },
+    })
+}
+
+/// `setter_constraint N -prefix P -code CODE -message {…}`.
+fn parse_setter_constraint(stmt: &Stmt, log: &mut Log) -> Option<SetterConstraint> {
+    let Ok(arg_index) = stmt.word_text(1).parse::<u8>() else {
+        log.say(
+            stmt.line,
+            format!(
+                "`setter_constraint` needs an argument index, got `{}`",
+                stmt.word_text(1)
+            ),
+        );
+        return None;
+    };
+    let mut required_prefix: &'static str = "";
+    let mut code: Option<DiagCode> = None;
+    let mut message: &'static str = "";
+
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        let flag = words[i].text.clone();
+        match flag.as_str() {
+            "-prefix" => required_prefix = leak_str(&next_text(words, &mut i)),
+            "-code" => {
+                let text = next_text(words, &mut i);
+                match text.parse() {
+                    Ok(parsed) => code = Some(parsed),
+                    Err(_) => log.say(stmt.line, format!("unknown diagnostic code `{text}`")),
+                }
+            }
+            "-message" => message = leak_str(&next_text(words, &mut i)),
+            other => log.unknown_flag("setter_constraint", stmt.line, other),
+        }
+        i += 1;
+    }
+    let Some(code) = code else {
+        log.say(stmt.line, "`setter_constraint` needs `-code CODE`");
+        return None;
+    };
+    Some(SetterConstraint {
+        arg_index,
+        required_prefix,
+        code,
+        message,
+    })
+}
+
+/// `byte_array_payload -replace-data-index N ?-message-flag-shift?`.
+fn parse_byte_array_payload(stmt: &Stmt, log: &mut Log) -> Option<BytePayloadSpec> {
+    let mut replace_data_index: Option<u8> = None;
+    let mut message_flag_shift = false;
+
+    let words = &stmt.words;
+    let mut i = 1;
+    while i < words.len() {
+        let flag = words[i].text.clone();
+        match flag.as_str() {
+            "-replace-data-index" => replace_data_index = next_text(words, &mut i).parse().ok(),
+            "-message-flag-shift" => message_flag_shift = true,
+            other => log.unknown_flag("byte_array_payload", stmt.line, other),
+        }
+        i += 1;
+    }
+    let Some(replace_data_index) = replace_data_index else {
+        log.say(
+            stmt.line,
+            "`byte_array_payload` needs `-replace-data-index N`",
+        );
+        return None;
+    };
+    Some(BytePayloadSpec {
+        replace_data_index,
+        message_flag_shift,
+    })
+}
+
+/// `defines_symbol -name-arg N ?-detail-arg N? ?-requires-arg N? -kind KIND`.
+fn parse_defines_symbol(stmt: &Stmt, log: &mut Log) -> Option<SymbolDef> {
+    const KINDS: &[DefinedSymbolKind] = &[
+        DefinedSymbolKind::Test,
+        DefinedSymbolKind::Constraint,
+        DefinedSymbolKind::Matcher,
+        DefinedSymbolKind::Event,
+    ];
+    let mut name_arg: Option<u8> = None;
+    let mut detail_arg: Option<u8> = None;
+    let mut requires_arg: Option<u8> = None;
+    let mut kind: Option<DefinedSymbolKind> = None;
+
+    let words = &stmt.words;
+    let mut i = 1;
+    while i < words.len() {
+        let flag = words[i].text.clone();
+        match flag.as_str() {
+            "-name-arg" => name_arg = next_text(words, &mut i).parse().ok(),
+            "-detail-arg" => detail_arg = next_text(words, &mut i).parse().ok(),
+            "-requires-arg" => requires_arg = next_text(words, &mut i).parse().ok(),
+            "-kind" => {
+                kind = enum_by_name(
+                    KINDS,
+                    &next_text(words, &mut i),
+                    "defined symbol kind",
+                    stmt.line,
+                    log,
+                );
+            }
+            other => log.unknown_flag("defines_symbol", stmt.line, other),
+        }
+        i += 1;
+    }
+    let (Some(name_arg), Some(kind)) = (name_arg, kind) else {
+        log.say(stmt.line, "`defines_symbol` needs `-name-arg N` and `-kind KIND`");
+        return None;
+    };
+    Some(SymbolDef {
+        name_arg,
+        detail_arg,
+        requires_arg,
+        kind,
+    })
 }
 
 /// `Invoke` / `{Intrinsic ID}` / `{StructuredLowering ID}`.
@@ -2348,19 +2676,47 @@ fn apply_command_stmt(
                 enum_by_name(STORAGE_TYPES, &value, "storage type", stmt.line, log);
         }
         "byte_array_effect" => {
-            if let Some(effect) = enum_by_name(
-                BYTE_ARRAY_EFFECTS,
-                &value,
-                "byte-array effect",
-                stmt.line,
-                log,
-            ) {
+            if let Some(effect) = parse_byte_array_effect(&value, stmt.line, log) {
                 spec.byte_array_effect = effect;
             }
+        }
+        "byte_array_payload" => {
+            spec.byte_array_payload = parse_byte_array_payload(stmt, log);
         }
         "pattern_type" => {
             const PATTERNS: &[PatternType] = &[PatternType::Glob, PatternType::Regex];
             spec.pattern_type = enum_by_name(PATTERNS, &value, "pattern type", stmt.line, log);
+        }
+        "format_string_type" => {
+            spec.format_string_type =
+                enum_by_name(FORMAT_TYPES, &value, "format string type", stmt.line, log);
+        }
+        "return_elements" => {
+            spec.return_elements = parse_return_elements(&value, stmt.line, log);
+        }
+        "var_elements_effect" => {
+            spec.var_elements_effect = parse_var_elements_effect(&value, stmt.line, log);
+        }
+        "representation_effect" => {
+            spec.representation_effect = parse_representation_effect(&value, stmt.line, log);
+        }
+        "default_form_first_word" => {
+            spec.default_form_first_word = enum_by_name(
+                DEFAULT_FORM_FIRST_WORDS,
+                &value,
+                "default-form first word",
+                stmt.line,
+                log,
+            );
+        }
+        "defines_symbol" => spec.defines_symbol = parse_defines_symbol(stmt, log),
+        "deprecation_fix" => {
+            spec.lifecycle.deprecation_fix = parse_deprecation_fix(stmt, log);
+        }
+        "setter_constraint" => {
+            if let Some(constraint) = parse_setter_constraint(stmt, log) {
+                acc.setter_constraints.push(constraint);
+            }
         }
 
         // --- documentation ------------------------------------------------
@@ -2985,15 +3341,25 @@ fn apply_subcommand_stmt(
             }
         }
         "byte_array_effect" => {
-            if let Some(effect) = enum_by_name(
-                BYTE_ARRAY_EFFECTS,
-                &value,
-                "byte-array effect",
-                stmt.line,
-                log,
-            ) {
+            if let Some(effect) = parse_byte_array_effect(&value, stmt.line, log) {
                 sub.byte_array_effect = effect;
             }
+        }
+        "format_string_type" => {
+            sub.format_string_type =
+                enum_by_name(FORMAT_TYPES, &value, "format string type", stmt.line, log);
+        }
+        "return_elements" => {
+            sub.return_elements = parse_return_elements(&value, stmt.line, log);
+        }
+        "var_elements_effect" => {
+            sub.var_elements_effect = parse_var_elements_effect(&value, stmt.line, log);
+        }
+        "representation_effect" => {
+            sub.representation_effect = parse_representation_effect(&value, stmt.line, log);
+        }
+        "deprecation_fix" => {
+            sub.lifecycle.deprecation_fix = parse_deprecation_fix(stmt, log);
         }
         "inferred_storage_type" => {
             sub.inferred_storage_type =

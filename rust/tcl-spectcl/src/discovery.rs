@@ -176,9 +176,10 @@ pub fn user_dir() -> PathBuf {
 ///
 /// # The debug fallback
 ///
-/// A release lays `specs/` down beside the executable (the `install-specs`
-/// Makefile rule, and the same staging that puts the server binary in the
-/// VSIX / JetBrains plugin). A `cargo build` lays down nothing, so a
+/// A release lays `specs/` down beside the executable — the same Makefile
+/// staging that puts a `tcl-lsp-server` binary in the `VSIX` and the
+/// `JetBrains` plugin copies `$(SPEC_PACK_SRC)` next to it, and both packaging gates fail
+/// if it is missing. A `cargo build` lays down nothing, so a
 /// `target/debug/tcl` — or a test binary in `target/debug/deps/` — would find
 /// no loadables and quietly lose the EDA vendor libraries, which since their
 /// migration exist *only* as packs. Compiling the checkout's `specs/` path in

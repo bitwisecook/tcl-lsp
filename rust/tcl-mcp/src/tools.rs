@@ -29,7 +29,7 @@ use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
 
 const IRULES_DIALECT: &str = "f5-irules";
 
@@ -101,8 +101,13 @@ fn arg_u32(args: &Value, key: &str) -> u32 {
         .unwrap_or(0)
 }
 
+/// The registry every dialect-taking tool answers from — the shared
+/// per-dialect cache, **plus the shipped `.tclspec` loadables**, because the
+/// EDA vendor libraries live in those now (`docs/design/spec-packs.md`) and an
+/// MCP client asking about `synth_design` would otherwise be told it does not
+/// exist.
 fn registry(dialect: &str) -> &'static CommandRegistry {
-    registry_for_dialect(dialect)
+    tcl_spectcl::bundled::registry_for_dialect(dialect)
 }
 
 /// The byte offset of `(line, character)` (UTF-16 column) in `source`.

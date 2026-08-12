@@ -1231,13 +1231,19 @@ The remaining packs load on demand:
    collector — `BPF`, `IRULES`, `IAPPS`, `TMSH` (the `tmsh::` subset of the
    iApps pack), `TK`, and `EXPECT`. It is idempotent: `loaded_dialects`
    records what is already in, and an unrecognised bit loads nothing.
-2. **`load_eda_packs(profile_name)`** handles the EDA shells, which are
-   modelled as a base Tcl version plus `required_package`-gated libraries
-   rather than a dialect bit — so they load by profile identity, pulling the
-   shared `sdc_base` library plus the vendor's own pack.
-3. **`registry_for_dialect(name)`** (`cache.rs`) is what consumers actually
-   call: it resolves the name to a `DialectProfile` and returns a cached,
-   fully-loaded `&'static CommandRegistry` for it.
+2. **`tcl_spectcl::bundled::registry_for_dialect(name)`** handles the EDA
+   shells, which are modelled as a base Tcl version plus
+   `required_package`-gated libraries rather than a dialect bit — and whose
+   libraries are **bundled `.tclspec` loadables**, not compiled-in Rust
+   (`docs/design/spec-packs.md`). It installs the shared `sdc_base` library
+   plus the vendor's own pack, filtered to the packages the profile ships
+   ambient. Any consumer that may be handed an EDA dialect name goes through
+   this door rather than the one below; the CLI, the MCP server, and the LSP
+   server all do.
+3. **`registry_for_dialect(name)`** (`cache.rs`) is the compiled-in half: it
+   resolves the name to a `DialectProfile` and returns a cached, fully-loaded
+   `&'static CommandRegistry` for it. Every dialect but the five EDA shells is
+   complete from here.
 
 Because each profile's registry is built once and cached, there is no
 invalidation protocol to observe — a consumer holds an immutable registry

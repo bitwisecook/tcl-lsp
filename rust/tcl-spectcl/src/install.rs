@@ -41,6 +41,7 @@
 //! private pack cannot quietly change what the standard library means.
 
 use tcl_dialect::DialectProfile;
+use tcl_registry::profile_queries::ProfileQueries;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::hooks;
@@ -62,7 +63,7 @@ pub fn registry_with_packs(
         return tcl_registry::registry_for_profile(profile);
     }
     tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
-        install_into(registry, packs);
+        install_into(registry, packs, profile);
     })
 }
 
@@ -90,11 +91,34 @@ pub fn registry_for_dialect_with_packs(
 /// thread has a host ([`hooks::ensure_thread_host`]) and abstains exactly as
 /// before until one does. A pack that declares no body is untouched, and pays
 /// nothing.
-fn install_into(registry: &mut CommandRegistry, packs: &PackSet) {
+///
+/// # The vendor gate
+///
+/// A command whose `required_package` names a **closed-world vendor** package
+/// this profile does not ship ambient is skipped, exactly as
+/// [`ProfileQueries::is_available`] would have hidden it afterwards. Skipping
+/// it at insert time is not the same as hiding it at query time, and the
+/// difference is why this is here: the bundled tier carries *all six* EDA
+/// libraries for *every* dialect (discovery cannot know which shell a document
+/// is), four of them declare a `report_timing`, and a registry that took the
+/// first one would answer a Vivado document with Cadence's spec — which then
+/// fails its own package gate and resolves to nothing at all. Filtering on the
+/// way in leaves each profile the library set
+/// `CommandRegistry::load_eda_packs` used to give it.
+///
+/// Hosted packages (`Tk`, tcllib, a private pack's own `package require`) are
+/// never affected: they are ambient in no profile, so the gate passes them.
+fn install_into(
+    registry: &mut CommandRegistry,
+    packs: &PackSet,
+    profile: &'static DialectProfile,
+) {
     let plan = hooks::plan_for(packs);
     for pack in &packs.packs {
         for command in &pack.commands {
-            if installs_over(command, registry) {
+            if profile.package_available(command.spec.required_package)
+                && installs_over(command, registry)
+            {
                 registry.insert(hooks::specialise(command, &plan).clone());
             }
         }
@@ -118,6 +142,15 @@ mod tests {
         dir
     }
 
+    /// Loading a pack writes a compiled-cache entry, and `cache`'s own tests
+    /// count the entries under a redirected directory — so every test in this
+    /// crate that loads a pack holds the same lock they do.
+    fn cache_guard() -> std::sync::MutexGuard<'static, ()> {
+        crate::cache::REDIRECT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     fn pack_set(dir: &Path, name: &str, source: &str) -> PackSet {
         let path = dir.join(name);
         std::fs::write(&path, source).expect("write pack");
@@ -130,6 +163,7 @@ mod tests {
 
     #[test]
     fn a_pack_command_becomes_a_registry_command() {
+        let _cache = cache_guard();
         let dir = tmpdir("install");
         let packs = pack_set(
             &dir,
@@ -158,6 +192,7 @@ mod tests {
 
     #[test]
     fn the_same_pack_set_resolves_to_the_same_registry() {
+        let _cache = cache_guard();
         let dir = tmpdir("identity");
         let source = "speclib mylib 1 {\n  command mylib::same { arity 1 }\n}\n";
         let a = pack_set(&dir, "a.tclspec", source);
@@ -172,6 +207,7 @@ mod tests {
 
     #[test]
     fn an_empty_pack_set_is_the_plain_profile_registry() {
+        let _cache = cache_guard();
         let empty = PackSet::default();
         assert!(std::ptr::eq(
             registry_for_dialect_with_packs("tcl8.6", &empty),
@@ -181,6 +217,7 @@ mod tests {
 
     #[test]
     fn shipped_wins_a_collision_unless_the_pack_says_override() {
+        let _cache = cache_guard();
         let dir = tmpdir("collision");
         let polite = pack_set(
             &dir,
@@ -218,6 +255,7 @@ mod tests {
 
     #[test]
     fn installing_packs_does_not_disturb_the_plain_registry() {
+        let _cache = cache_guard();
         let dir = tmpdir("isolation");
         let packs = pack_set(
             &dir,
@@ -239,6 +277,7 @@ mod tests {
 
     #[test]
     fn packs_layer_per_profile_not_globally() {
+        let _cache = cache_guard();
         let dir = tmpdir("profiles");
         let packs = pack_set(
             &dir,

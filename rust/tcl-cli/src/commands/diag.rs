@@ -251,7 +251,9 @@ fn collect_rows(
     ));
 
     let file_path = document.path.as_deref().map(|p| p.display().to_string());
-    let mut analyser = Analyser::new().with_file_path(file_path);
+    let mut analyser = Analyser::new()
+        .with_file_path(file_path)
+        .with_pack_overlay(tcl_cli_support::spec_pack_key());
     analyser.set_cu_override(std::sync::Arc::clone(&analysis_cu));
     let result = analyser.analyse(source, dialect);
     for d in &result.diagnostics {

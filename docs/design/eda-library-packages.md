@@ -3,6 +3,19 @@
 Status: proposed (design). Supersedes the 5 EDA *vendor-bit* dialects with a
 base-Tcl-version dialect + `required_package`-gated command libraries.
 
+> **Where the packs live now.** The model below is unchanged — an EDA shell is
+> a base Tcl version plus `sdc_base` and its vendor's library, gated by
+> `required_package` — but the libraries are no longer Rust. `sdc_base` and the
+> five vendor packs (346 commands) are **bundled `.tclspec` loadables** under
+> `specs/`, shipped beside the server executable and read by the `SpecTcl`
+> loader (`docs/design/spec-packs.md`: "the EDA vendor libraries ship as
+> bundled `.tclspec` loadables … so the loader path is exercised in production
+> from day one"). `CommandRegistry::load_eda_packs` and
+> `commands/{sdc_base,eda_*}/` are gone; `tcl_spectcl::bundled` is what puts a
+> vendor library into a profile registry, and it applies the same ambient-
+> package filter this document specifies, so a profile still sees `sdc` plus
+> its own vendor and no rival's.
+
 ## Motivation
 
 Today a vendor EDA identity (e.g. "this is a Xilinx script") is encoded three
@@ -11,8 +24,8 @@ redundant ways:
 1. a **vendor bit** in `DialectSet` (`XILINX`/`SYNOPSYS`/`CADENCE`/`QUARTUS`/
    `MENTOR`) — the availability gate, on every command spec and in the profile
    `availability_mask` (`TCL85|XILINX`);
-2. the **loaded packs** — `load_dialect(XILINX)` loads `sdc_base` + `eda_xilinx`
-   (registry.rs), driven by `profile.base_layers`;
+2. the **loaded packs** — `load_dialect(XILINX)` loaded `sdc_base` +
+   `eda_xilinx` (registry.rs), driven by `profile.base_layers`;
 3. the **ambient library pins** — each EDA profile already declares `sdc` +
    its vendor tool (`vivado`, `synopsys-dc`, …) as `ambient: true`.
 

@@ -427,6 +427,15 @@ speclib hooked 1 {
 }
 ";
 
+    /// Loading a pack writes a compiled-cache entry, and `cache`'s own tests
+    /// count the entries under a redirected directory — so every test in this
+    /// crate that loads a pack holds the same lock they do.
+    fn cache_guard() -> std::sync::MutexGuard<'static, ()> {
+        crate::cache::REDIRECT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     fn pack_set(name: &str, source: &str) -> PackSet {
         let dir = std::env::temp_dir().join(format!(
             "tcl-spectcl-hooks-{name}-{}-{:?}",
@@ -448,6 +457,7 @@ speclib hooked 1 {
     /// a compile-time bound, and an editor reloads a pack on every save.
     #[test]
     fn the_same_pack_content_keeps_the_same_slots() {
+        let _cache = cache_guard();
         let a = pack_set("same", SOURCE);
         let b = pack_set("same", SOURCE);
         assert_eq!(a.key, b.key, "same path, same bytes, same key");
@@ -458,6 +468,7 @@ speclib hooked 1 {
 
     #[test]
     fn a_declared_body_replaces_the_abstaining_placeholder() {
+        let _cache = cache_guard();
         let packs = pack_set("specialise", SOURCE);
         let plan = plan_for(&packs);
         let command = packs.packs[0]
@@ -477,6 +488,7 @@ speclib hooked 1 {
 
     #[test]
     fn a_pack_with_no_bodies_is_not_respecified() {
+        let _cache = cache_guard();
         let packs = pack_set(
             "bodiless",
             "speclib plain 1 {\n  command plain::thing { arity 1 }\n}\n",

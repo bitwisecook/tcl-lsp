@@ -92,6 +92,13 @@ pub const DIR_ENV: &str = "TCL_LSP_SPEC_CACHE_DIR";
 /// process rather than inherited by every child it spawns.
 static OVERRIDE: std::sync::Mutex<Option<(PathBuf, bool)>> = std::sync::Mutex::new(None);
 
+/// Serialises every test that touches the process-global cache directory —
+/// the ones in this module that *swap* it, and the ones elsewhere in the crate
+/// that merely load a pack through it. Both have to be held apart: a load
+/// writes a cache entry, and a redirected test counts the entries it wrote.
+#[cfg(test)]
+pub(crate) static REDIRECT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Point the cache at `dir` (and optionally switch it off) for the rest of the
 /// process, or pass [`None`] to restore the configured behaviour.
 ///
@@ -561,8 +568,7 @@ speclib mylib 1 {
         }
     }
 
-    /// Serialises the tests that swap the process-global cache directory.
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    use super::REDIRECT_LOCK as LOCK;
 
     /// The comparable shape of a load: what the pack says, and everything the
     /// loader said about it. `CommandSpec` is not `PartialEq`, so equality is

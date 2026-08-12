@@ -377,6 +377,22 @@ pub struct Analyser {
     /// answer — availability masks, behaviour policies, the lexer grammar —
     /// from this; the original string round-trips as [`Self::dialect`].
     pub profile: &'static tcl_dialect::DialectProfile,
+    /// The identity of the `SpecTcl` pack set layered onto this dialect's
+    /// registry — the `PackSet::key` its owner installed under, or `0` for
+    /// "no packs".
+    ///
+    /// A number rather than a registry handle, deliberately: the analyser must
+    /// not depend on the pack loader (which depends on *it*), and a `u64`
+    /// travels through a salsa input and a config struct with no new edge at
+    /// all. [`Self::profile_registry`] turns it into the registry, falling
+    /// back to the un-overlaid one when nothing has been installed under that
+    /// key.
+    ///
+    /// It is load-bearing since the EDA vendor libraries became bundled
+    /// `.tclspec` loadables (`docs/design/spec-packs.md`): without it a
+    /// Vivado document's every command reads as unknown, because no compiled-in
+    /// spec answers for `synth_design` any more.
+    pub pack_overlay: u64,
     /// Diagnostic codes that should not be emitted.
     pub disabled_diagnostics: HashSet<String>,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
@@ -1289,6 +1305,7 @@ impl Analyser {
             current_scope_path: Vec::new(),
             source: String::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
+            pack_overlay: 0,
             disabled_diagnostics: disabled,
             extra_commands: Arc::new(HashSet::new()),
             last_comment: String::new(),
@@ -1381,6 +1398,33 @@ impl Analyser {
             per_item_fallback: None,
             irules_file_profiles: None,
         }
+    }
+
+    /// Layer the `SpecTcl` pack set with this identity onto the registry this
+    /// analysis reads (`PackSet::key`), returning `self` for builder-style
+    /// configuration.
+    ///
+    /// `0` — the default — means "no packs" and is the plain per-profile
+    /// registry. Any other value is looked up, never built: see
+    /// [`Self::profile_registry`].
+    #[must_use]
+    pub fn with_pack_overlay(mut self, key: u64) -> Self {
+        self.pack_overlay = key;
+        self
+    }
+
+    /// The registry this analysis reads: the cached per-profile one, carrying
+    /// [`Self::pack_overlay`]'s packs when that entry exists.
+    ///
+    /// **Look-up only.** Building the entry needs the pack *contents*, which
+    /// only the loader has, so a miss falls back to the un-overlaid registry
+    /// rather than caching a pack-less one under the pack's key forever. A miss
+    /// means the packs are not installed yet — the state the process was in a
+    /// moment ago — so the fallback is the honest answer, not a wrong one.
+    #[must_use]
+    pub fn profile_registry(&self) -> &'static tcl_registry::registry::CommandRegistry {
+        tcl_registry::cache::registry_for_profile_if_built(self.profile, self.pack_overlay)
+            .unwrap_or_else(|| tcl_registry::cache::registry_for_profile(self.profile))
     }
 
     /// Set the W108 non-ASCII detection mode (`tclLsp.style.nonAscii`),
@@ -1620,7 +1664,7 @@ impl Analyser {
         // Build the dialect-aware registry once and stash on
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
-        self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
+        self.registry = Some(self.profile_registry());
         self.head_identities = crate::head_identity::command_head_identities_with_config(
             source,
             self.lexer_config(),
@@ -1985,7 +2029,7 @@ impl Analyser {
         // Without this, body recursion silently no-ops.  Same
         // for the ``line_offsets`` index used by
         // ``apply_preceding_noqa``.
-        self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
+        self.registry = Some(self.profile_registry());
         self.head_identities = crate::head_identity::command_head_identities_with_config(
             source,
             self.lexer_config(),
@@ -2071,7 +2115,7 @@ impl Analyser {
         // these the registry-driven body loop in
         // ``process_command`` silently skips body recursion on
         // the incremental path.
-        self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
+        self.registry = Some(self.profile_registry());
         self.head_identities = crate::head_identity::command_head_identities_with_config(
             source,
             self.lexer_config(),
@@ -2157,9 +2201,13 @@ impl Analyser {
         // path would walk, or leaves any partial command.  (This also subsumes
         // the plain-segmentation-metadata check: the recovery segmenter is the
         // authority on the command stream + its attached comments.)
-        let registry = tcl_registry::cache::registry_for_profile(
+        let registry = tcl_registry::cache::registry_for_profile_if_built(
             tcl_dialect::DialectProfile::by_name(dialect),
-        );
+            self.pack_overlay,
+        )
+        .unwrap_or_else(|| {
+            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect))
+        });
         let known: std::collections::HashSet<&str> = registry.command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
             new_text,
@@ -2284,7 +2332,7 @@ impl Analyser {
     /// names sink to the permissive fallback profile's registry.
     pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
         if self.builtin_dialect != Some(self.profile.name) || self.builtin_names.is_none() {
-            let registry = tcl_registry::cache::registry_for_profile(self.profile);
+            let registry = self.profile_registry();
             let names: std::collections::HashSet<String> =
                 registry.command_names().map(str::to_string).collect();
             self.builtin_names = Some(names);
@@ -2352,7 +2400,7 @@ impl Analyser {
         // — a qualified read can precede its declaring `namespace eval`
         // textually and still resolve at run time.
         self.attach_qualified_var_references();
-        let diag_registry = tcl_registry::cache::registry_for_profile(self.profile);
+        let diag_registry = self.profile_registry();
         self.emit_unresolved_command_diagnostics(diag_registry);
         self.flush_disabled_command_diagnostics();
         self.flush_w143_diagnostics();

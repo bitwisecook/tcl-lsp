@@ -99,7 +99,7 @@ const BROADER_CTX_KEYS: &[&str] = &["tcl-version", "dialect", "in-event-body"];
 pub fn spectcl_check(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let dialect = crate::tools::declared_dialect(args);
-    let registry = tcl_registry::registry_for_dialect(&dialect);
+    let registry = tcl_spectcl::bundled::registry_for_dialect(&dialect);
 
     let pack = load_pack(source);
 

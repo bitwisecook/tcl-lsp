@@ -402,6 +402,15 @@ mod tests {
         path
     }
 
+    /// Loading a pack writes a compiled-cache entry, and `cache`'s own tests
+    /// count the entries under a redirected directory — so every test in this
+    /// crate that loads a pack holds the same lock they do.
+    fn cache_guard() -> std::sync::MutexGuard<'static, ()> {
+        crate::cache::REDIRECT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     fn workspace_file(path: PathBuf) -> PackFile {
         PackFile {
             tier: Tier::Workspace,
@@ -412,6 +421,7 @@ mod tests {
 
     #[test]
     fn files_naming_one_speclib_merge_into_one_pack() {
+        let _cache = cache_guard();
         let dir = tmpdir("merge");
         let a = write(
             &dir,
@@ -438,6 +448,7 @@ mod tests {
 
     #[test]
     fn a_command_defined_twice_in_one_pack_is_a_notice_and_the_first_wins() {
+        let _cache = cache_guard();
         let dir = tmpdir("dupe");
         let a = write(
             &dir,
@@ -466,6 +477,7 @@ mod tests {
 
     #[test]
     fn distinct_speclib_names_stay_distinct_packs() {
+        let _cache = cache_guard();
         let dir = tmpdir("distinct");
         let a = write(
             &dir,
@@ -485,6 +497,7 @@ mod tests {
 
     #[test]
     fn a_nearer_tier_shadows_the_whole_pack_and_says_so() {
+        let _cache = cache_guard();
         let dir = tmpdir("tiers");
         let ws = write(
             &dir,
@@ -519,6 +532,7 @@ mod tests {
 
     #[test]
     fn loader_notices_carry_their_file_and_line() {
+        let _cache = cache_guard();
         let dir = tmpdir("notices");
         let a = write(
             &dir,
@@ -539,6 +553,7 @@ mod tests {
 
     #[test]
     fn an_unreadable_file_is_a_notice_not_a_panic() {
+        let _cache = cache_guard();
         let dir = tmpdir("unreadable");
         let missing = dir.join("gone.tclspec");
         let set = load(&[workspace_file(missing.clone())]);
@@ -551,6 +566,7 @@ mod tests {
 
     #[test]
     fn the_set_key_tracks_content_and_never_collides_with_empty() {
+        let _cache = cache_guard();
         let dir = tmpdir("key");
         let a = write(
             &dir,

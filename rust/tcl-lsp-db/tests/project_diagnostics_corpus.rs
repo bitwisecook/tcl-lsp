@@ -127,7 +127,7 @@ fn build_project(
         Vec::new(),
         None,
         None,
-    );
+     0,);
     let mut files = vec![
         SourceFile::new(&db, lib.to_owned(), dialect.to_owned(), None),
         SourceFile::new(&db, caller.to_owned(), dialect.to_owned(), None),

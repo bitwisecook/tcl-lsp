@@ -1566,9 +1566,10 @@ async fn compute_base_analysis(
         let widened = widen_recovery_extra_commands(recovery, extra_commands, text, dialect).await;
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
+        let a_packs = config.spec_pack_key(&*db.lock().await);
         return match tokio::task::spawn_blocking(move || {
             with_pack_hooks(|| {
-                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened)
+                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened, a_packs)
                     .analyse(&a_text, &a_dialect)
                     .clone()
             })
@@ -1624,11 +1625,14 @@ async fn compute_base_analysis(
         // the **closed-file** tier since #1144, not just a rare fallback, so a
         // closed file's badge must not lose them.
         let a_path = uri.to_file_path().map(|p| p.display().to_string());
-        let a_bigip = config.bigip_version(&*db.lock().await).clone();
+        let (a_bigip, a_packs) = {
+            let db = db.lock().await;
+            (config.bigip_version(&*db).clone(), config.spec_pack_key(&*db))
+        };
         let analysis = tokio::task::spawn_blocking(move || {
             with_pack_hooks(|| {
                 Arc::new(
-                    Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra)
+                    Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra, a_packs)
                         .with_file_path(a_path)
                         .with_bigip_version(a_bigip)
                         .analyse(&a_text, &a_dialect)
@@ -4922,7 +4926,7 @@ impl Backend {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         Self {
             client,
             documents: Arc::new(Mutex::new(HashMap::new())),
@@ -5345,10 +5349,16 @@ impl Backend {
         let mode = *self.non_ascii_mode.lock().await;
         let extra = self.extra_commands.lock().await.clone();
         let generic = self.generic_variable_patterns.lock().await.clone();
+        // The loaded pack set's content identity: the analyser reads the
+        // registry this key was installed under, so an EDA document sees the
+        // bundled vendor library and a workspace pack reaches the diagnostics
+        // it was written to change.
+        let pack_key = self.spec_packs().await.key;
         let config = *self.db_config.lock().await;
         let mut db = self.db.lock().await;
         config.set_disabled_diagnostics(&mut *db).to(disabled);
         config.set_non_ascii_mode(&mut *db).to(mode);
+        config.set_spec_pack_key(&mut *db).to(pack_key);
         config.set_extra_commands(&mut *db).to(extra);
         config.set_generic_variable_patterns(&mut *db).to(generic);
         let bigip = self.bigip_version.lock().await.clone();
@@ -5562,16 +5572,17 @@ impl Backend {
         // fresh with the same per-folder config the cached path would have used,
         // so the on-demand result still honours folder-scoped suppression.
         let config = self.resolved_db_config(uri).await;
-        let (disabled, na_mode, extra) = {
+        let (disabled, na_mode, extra, pack_key) = {
             let db = self.db.lock().await;
             (
                 config.disabled_diagnostics(&*db).iter().cloned().collect(),
                 config.non_ascii_mode(&*db),
                 config.extra_commands(&*db).iter().cloned().collect(),
+                config.spec_pack_key(&*db),
             )
         };
         tokio::task::spawn_blocking(move || {
-            let mut analyser = Self::configured_analyser(disabled, na_mode, extra);
+            let mut analyser = Self::configured_analyser(disabled, na_mode, extra, pack_key);
             Arc::new(analyser.analyse(&text, &dialect))
         })
         .await
@@ -10674,6 +10685,7 @@ impl Backend {
         };
         let (disabled, na_mode) = self.analyser_config().await;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
+        let pack_key = self.spec_packs().await.key;
         let dialect = doc.dialect.clone();
         // The one place that legitimately owns a copy: fix-all *rewrites* the
         // source in a loop, so it needs a mutable buffer of its own rather than
@@ -10688,7 +10700,7 @@ impl Backend {
             let mut applied: Vec<serde_json::Value> = Vec::new();
             for _ in 0..FIX_ALL_MAX_PASSES {
                 let mut analyser =
-                    Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
+                    Self::configured_analyser(disabled.clone(), na_mode, extra.clone(), pack_key);
                 let analysis = analyser.analyse(&tcl_lexer::normalise_lone_cr(&source), &dialect);
                 let chosen = Self::bulk_applicable_fixes(&analysis);
                 if chosen.is_empty() {
@@ -11545,6 +11557,9 @@ impl Backend {
             // process-global value when set; otherwise the folder inherits it.
             let global_extra = self.extra_commands.lock().await.clone();
             let global_generic = self.generic_variable_patterns.lock().await.clone();
+            // Packs are a workspace fact, never a per-folder one, so every
+            // folder handle carries the same key the global config does.
+            let pack_key = self.spec_packs().await.key;
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
             let mut tombstones = self.folder_db_config_tombstones.lock().await;
@@ -11589,10 +11604,12 @@ impl Backend {
                     handle.set_non_ascii_mode(&mut *db).to(mode);
                     handle.set_extra_commands(&mut *db).to(extra);
                     handle.set_generic_variable_patterns(&mut *db).to(generic);
+                    handle.set_spec_pack_key(&mut *db).to(pack_key);
                     next.push((folder.clone(), handle));
                 } else {
-                    let handle =
-                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic, None);
+                    let handle = tcl_lsp_db::AnalyserConfig::new(
+                        &*db, disabled, mode, extra, generic, None, pack_key,
+                    );
                     next.push((folder.clone(), handle));
                 }
             }
@@ -12064,10 +12081,12 @@ impl Backend {
         disabled: HashSet<String>,
         mode: NonAsciiMode,
         extra_commands: HashSet<String>,
+        pack_key: u64,
     ) -> Analyser {
         Analyser::with_disabled_diagnostics(disabled)
             .with_non_ascii_mode(mode)
             .with_extra_commands(extra_commands)
+            .with_pack_overlay(pack_key)
     }
 
     /// [`Self::configured_analyser`] taking the recovery path's **shared**
@@ -12078,10 +12097,12 @@ impl Backend {
         disabled: HashSet<String>,
         mode: NonAsciiMode,
         extra_commands: Arc<HashSet<String>>,
+        pack_key: u64,
     ) -> Analyser {
         Analyser::with_disabled_diagnostics(disabled)
             .with_non_ascii_mode(mode)
             .with_shared_extra_commands(extra_commands)
+            .with_pack_overlay(pack_key)
     }
 
     /// Return the command registry with `dialect` loaded on top of the
@@ -12801,20 +12822,49 @@ impl Backend {
             let mut guard = self.spec_packs.lock().await;
             let changed = guard.key != loaded.key;
             if changed {
+                // Publish the hook plan *before* the new pack set becomes
+                // visible, and under the same lock: slots are allocated once,
+                // here, for the whole process, and each worker thread builds
+                // its own sandboxed host from the plan the first time it runs
+                // analysis (`with_pack_hooks`).  A `HookHost` owns VM
+                // instances, which are not `Send`, so this cannot install
+                // anything itself — it records what to install.  Publishing
+                // after the swap would leave a window in which a query sees
+                // the pack's commands with their hooks still abstaining.
+                tcl_spectcl::hooks::publish(&loaded);
                 *guard = Arc::new(loaded);
             }
             changed
         };
 
         let packs = self.spec_packs().await;
-        if changed {
-            // Publish the hook plan for the new pack set: slots are allocated
-            // once, here, for the whole process, and each worker thread builds
-            // its own sandboxed host from the plan the first time it runs
-            // analysis (`with_pack_hooks`).  A `HookHost` owns VM instances,
-            // which are not `Send`, so this cannot install anything itself —
-            // it records what to install.
-            tcl_spectcl::hooks::publish(&packs);
+        if changed && !packs.is_empty() {
+            // Build the `(profile, key)` registry for every dialect now.
+            //
+            // The analyser resolves its own registry and can only *look up*
+            // that entry (`Analyser::with_pack_overlay` /
+            // `registry_for_profile_if_built`) — building it needs the pack
+            // contents, which only this crate's loader has. Doing it here means
+            // the entry is always there by the time a document is analysed, so
+            // the very first diagnostics pass after a load already knows a
+            // bundled EDA library's commands rather than reporting every one of
+            // them unknown until some other provider happened to build it.
+            //
+            // The set of profiles is closed and each registry is built once for
+            // the process, so this is a bounded one-off — and every one of them
+            // would have been built lazily by the first document of that
+            // dialect anyway. It runs on a worker: it is parse-free but not
+            // free.
+            let for_worker = Arc::clone(&packs);
+            let _ = tokio::task::spawn_blocking(move || {
+                for profile in tcl_dialect::DialectProfile::all() {
+                    let _ = tcl_spectcl::install::registry_with_packs(profile, &for_worker);
+                }
+            })
+            .await;
+            // The analyser reads the key off the salsa config, so publish it
+            // before anything re-analyses.
+            self.sync_db_config().await;
         }
         self.publish_spec_pack_notices(&packs).await;
         if changed {
@@ -25417,7 +25467,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         Backend {
             client: service.inner().client.clone(),
             documents: Arc::new(Mutex::new(HashMap::new())),

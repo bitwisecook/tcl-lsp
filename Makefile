@@ -122,6 +122,14 @@ SERVER_TARGET_MAP := \
 	aarch64-pc-windows-msvc:win32-arm64
 SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$(p))))
 
+# The bundled SpecTcl loadables (`docs/design/spec-packs.md`): the EDA vendor
+# libraries are `.tclspec` packs, not compiled-in Rust, so a shipped server is
+# incomplete without them. `tcl_spectcl::discovery::bundled_dir` looks for a
+# `specs/` directory *beside the executable*, so every place that stages a
+# `tcl-lsp-server` binary stages this directory next to it.
+SPEC_PACK_SRC   := $(ROOT)specs
+SPEC_PACK_FILES := $(wildcard $(SPEC_PACK_SRC)/*.tclspec)
+
 # vsce's supported --target platform strings (see "Platform-specific
 # extensions" at code.visualstudio.com/api/working-with-extensions/publishing-extension).
 # Six of the seven SERVER_TARGET_MAP bundle dirs are also valid vsce
@@ -269,7 +277,9 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscode
 			mkdir -p "$(STAGE_DIR)/server/$$dir"; \
 			cp "$$src" "$(STAGE_DIR)/server/$$dir/$$exe"; \
 			chmod +x "$(STAGE_DIR)/server/$$dir/$$exe"; \
-			echo "    server/$$dir/$$exe"; \
+			mkdir -p "$(STAGE_DIR)/server/$$dir/specs"; \
+			cp $(SPEC_PACK_SRC)/*.tclspec "$(STAGE_DIR)/server/$$dir/specs/"; \
+			echo "    server/$$dir/$$exe (+ specs/)"; \
 		done; \
 		if [ -n "$$missing" ]; then \
 			echo "ERROR: missing built server binaries for:$$missing"; \
@@ -320,12 +330,16 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			else \
 				missing="$$missing server/$$dir/$$exe"; \
 			fi; \
+			for pack in $(notdir $(SPEC_PACK_FILES)); do \
+				echo "$$entries" | grep -qx "extension/server/$$dir/specs/$$pack" \
+					|| missing="$$missing server/$$dir/specs/$$pack"; \
+			done; \
 		done; \
 		if [ -n "$$missing" ]; then \
-			echo "VSIX missing expected native server binaries:$$missing"; \
+			echo "VSIX missing expected native server binaries / spec packs:$$missing"; \
 			exit 1; \
 		fi; \
-		echo "==> VSIX bundles $$have/$$want native server binaries"
+		echo "==> VSIX bundles $$have/$$want native server binaries, each with the shipped spec packs"
 
 # ---------------------------------------------------------------------------
 # Platform-targeted VSIX packaging — six small, single-binary VSIXes
@@ -1343,7 +1357,9 @@ $(JB_PLUGIN): jb-plugin-force
 			mkdir -p "$(JB_DIR)/server/$$dir"; \
 			cp "$$src" "$(JB_DIR)/server/$$dir/$$exe"; \
 			chmod +x "$(JB_DIR)/server/$$dir/$$exe"; \
-			echo "    server/$$dir/$$exe"; \
+			mkdir -p "$(JB_DIR)/server/$$dir/specs"; \
+			cp $(SPEC_PACK_SRC)/*.tclspec "$(JB_DIR)/server/$$dir/specs/"; \
+			echo "    server/$$dir/$$exe (+ specs/)"; \
 		done; \
 		if [ -n "$$missing" ]; then \
 			echo "ERROR: missing built server binaries for:$$missing"; \
@@ -1379,12 +1395,16 @@ verify-jetbrains-server: $(JB_PLUGIN) ## Fail if the JetBrains plugin is missing
 			else \
 				missing="$$missing server/$$dir/$$exe"; \
 			fi; \
+			for pack in $(notdir $(SPEC_PACK_FILES)); do \
+				echo "$$entries" | grep -q "/server/$$dir/specs/$$pack$$" \
+					|| missing="$$missing server/$$dir/specs/$$pack"; \
+			done; \
 		done; \
 		if [ -n "$$missing" ]; then \
-			echo "JetBrains plugin missing expected native server binaries:$$missing"; \
+			echo "JetBrains plugin missing expected native server binaries / spec packs:$$missing"; \
 			exit 1; \
 		fi; \
-		echo "==> JetBrains plugin bundles $$have/$$want native server binaries"
+		echo "==> JetBrains plugin bundles $$have/$$want native server binaries, each with the shipped spec packs"
 
 verify-editor-jetbrains: ## Run the IntelliJ Plugin Verifier over the JetBrains plugin (binary-compat gate)
 	@echo "==> Verifying JetBrains plugin against the configured IDE targets"

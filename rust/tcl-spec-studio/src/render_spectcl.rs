@@ -222,59 +222,13 @@ pub const GAPS: &[Gap] = &[
         kind: GapKind::DraftOpaque,
     },
     // --- the draft has it; the loader does not read it yet -----------------
-    Gap {
-        key: "return_elements",
-        spelling: "return_elements {VARIANT payload …}",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        key: "var_elements_effect",
-        spelling: "var_elements_effect {VARIANT payload …}",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        key: "representation_effect",
-        spelling: "representation_effect {VARIANT payload …}",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        key: "default_form_first_word",
-        spelling: "default_form_first_word Integer",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        key: "setter_constraints",
-        spelling: "setter_constraint N -prefix P -code CODE -message {…}",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        key: "format_string_type",
-        spelling: "format_string_type Sprintf|Clock|Binary|Regsub",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        key: "deprecation_fix",
-        spelling: "deprecation_fix -replace WORD -description {…} -safety S",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        key: "byte_array_payload",
-        spelling: "byte_array_payload -replace-data-index N ?-message-flag-shift?",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        // Only the payload-carrying `Rebinarifies(N)` variant: the loader's
-        // byte-array-effect table lists the five fieldless ones, and a payload
-        // variant is not one word anyway.
-        key: "byte_array_effect",
-        spelling: "byte_array_effect None|Transparent|Coerces|CaseFolds|Encodes|{Rebinarifies N}",
-        kind: GapKind::LoaderGap,
-    },
-    Gap {
-        key: "defines_symbol",
-        spelling: "defines_symbol -name-arg N ?-detail-arg N? ?-requires-arg N? -kind KIND",
-        kind: GapKind::LoaderGap,
-    },
+    //
+    // Ten keys left this bucket when the loader grew their readers: the three
+    // `{VARIANT payload …}` element-structure facts, `default_form_first_word`,
+    // `setter_constraints`, `format_string_type`, `deprecation_fix`,
+    // `byte_array_payload`, `defines_symbol`, and `byte_array_effect`'s
+    // payload-carrying `Rebinarifies` variant. They round-trip now, so what
+    // remains here is the one gap that is still real.
     Gap {
         key: OPTION_DEPRECATION_FIX_HOOK_KEY,
         spelling: "option … -deprecation-fix …",
@@ -896,6 +850,179 @@ fn var_write_typing_word(expr: &str) -> Option<String> {
     })
 }
 
+/// `{ListOfArgs N}` … from a rendered `Option<ReturnElements>`.
+///
+/// The `{VARIANT payload …}` rule the coverage matrix gives for the three
+/// element-structure facts: the variant word, then its fields in declaration
+/// order.
+fn return_elements_word(expr: &str) -> Option<String> {
+    let inner = unwrap_some(expr)?;
+    let variant = variant_of(inner.split(['(', '{']).next()?);
+    let fields = struct_fields(inner)?;
+    Some(match variant {
+        "ListOfArgs" | "DictOfPairs" => format!("{{{variant} {}}}", fields.get("from")?),
+        "ElementOf" | "SubListOf" => format!("{{{variant} {}}}", fields.get("container_arg")?),
+        _ => return None,
+    })
+}
+
+/// `{AppendsListElements N}` / `SetsDictValue` / … from a rendered
+/// `Option<VarElementsEffect>`.
+fn var_elements_effect_word(expr: &str) -> Option<String> {
+    let inner = unwrap_some(expr)?;
+    let variant = variant_of(inner.split(['(', '{']).next()?);
+    Some(match variant {
+        "SetsDictValue" | "ListifiesDictValue" => variant.to_owned(),
+        "AppendsListElements" | "ExtendsDictValuesByName" => {
+            format!("{{{variant} {}}}", struct_fields(inner)?.get("values_from")?)
+        }
+        _ => return None,
+    })
+}
+
+/// `None` / `{CopyOnWriteContainerMutation VAR MIN}` from a rendered
+/// `Option<RepresentationEffect>`.
+fn representation_effect_word(expr: &str) -> Option<String> {
+    let inner = unwrap_some(expr)?;
+    let variant = variant_of(inner.split(['(', '{']).next()?);
+    Some(match variant {
+        "None" => "None".to_owned(),
+        "CopyOnWriteContainerMutation" => {
+            let fields = struct_fields(inner)?;
+            format!(
+                "{{{variant} {} {}}}",
+                fields.get("variable_arg")?,
+                fields.get("minimum_arguments")?
+            )
+        }
+        _ => return None,
+    })
+}
+
+/// The `byte_array_effect` word, including the one variant that carries a
+/// payload.
+///
+/// The draft holds the `Debug` spelling, so the five fieldless effects arrive
+/// as a bare name and `Rebinarifies` as a struct literal.
+fn byte_array_effect_word(value: &str) -> Option<String> {
+    if !value.contains('{') {
+        return Some(value.to_owned());
+    }
+    let variant = variant_of(value.split('{').next()?);
+    if variant != "Rebinarifies" {
+        return None;
+    }
+    Some(format!(
+        "{{Rebinarifies {}}}",
+        struct_fields(value)?.get("value_arg")?
+    ))
+}
+
+/// `byte_array_payload -replace-data-index N ?-message-flag-shift?`.
+fn byte_array_payload_row(expr: &str) -> Option<Vec<String>> {
+    let fields = struct_fields(unwrap_some(expr)?)?;
+    let mut row = vec![
+        "byte_array_payload".to_owned(),
+        "-replace-data-index".to_owned(),
+        (*fields.get("replace_data_index")?).to_owned(),
+    ];
+    if *fields.get("message_flag_shift")? == "true" {
+        row.push("-message-flag-shift".to_owned());
+    }
+    Some(row)
+}
+
+/// `defines_symbol -name-arg N ?-detail-arg N? ?-requires-arg N? -kind KIND`.
+fn defines_symbol_row(expr: &str) -> Option<Vec<String>> {
+    let fields = struct_fields(unwrap_some(expr)?)?;
+    let mut row = vec![
+        "defines_symbol".to_owned(),
+        "-name-arg".to_owned(),
+        (*fields.get("name_arg")?).to_owned(),
+    ];
+    for (flag, key) in [("-detail-arg", "detail_arg"), ("-requires-arg", "requires_arg")] {
+        if let Some(index) = unwrap_some(fields.get(key)?) {
+            row.push(flag.to_owned());
+            row.push(index.to_owned());
+        }
+    }
+    row.push("-kind".to_owned());
+    row.push(variant_of(fields.get("kind")?).to_owned());
+    Some(row)
+}
+
+/// `deprecation_fix -replace WORD ?-replace-arg N? ?-replace-invocation?
+/// -description {…} -safety S`.
+///
+/// The coverage matrix's `-replace WORD -description {…} -safety S` covers the
+/// matched-word variant; the two positional variants add one word each so the
+/// same statement says which of the three it is. `Custom { resolver }` names a
+/// registry callback, which the matrix marks reference-only, and has no
+/// spelling at all — it never reaches here, because the draft records it as
+/// unrecoverable.
+fn deprecation_fix_row(expr: &str) -> Option<Vec<String>> {
+    let inner = unwrap_some(expr)?;
+    let variant = variant_of(inner.split(['(', '{']).next()?);
+    let fields = struct_fields(inner)?;
+    let mut row = vec!["deprecation_fix".to_owned()];
+    let mut lost = false;
+    row.push("-replace".to_owned());
+    push_word(
+        &mut row,
+        &mut lost,
+        word(&rust_str(fields.get("replacement")?)?),
+    );
+    match variant {
+        "ReplaceMatchedWord" => {}
+        "ReplaceArgument" => {
+            row.push("-replace-arg".to_owned());
+            row.push((*fields.get("index")?).to_owned());
+        }
+        "ReplaceInvocation" => row.push("-replace-invocation".to_owned()),
+        _ => return None,
+    }
+    row.push("-description".to_owned());
+    push_word(
+        &mut row,
+        &mut lost,
+        braced(&rust_str(fields.get("description")?)?),
+    );
+    row.push("-safety".to_owned());
+    row.push(variant_of(fields.get("safety")?).to_owned());
+    (!lost).then_some(row)
+}
+
+/// `setter_constraint N -prefix P -code CODE -message {…}` rows.
+fn setter_constraint_rows(value: &Value) -> Option<Vec<Vec<String>>> {
+    let mut rows = Vec::new();
+    for constraint in as_array(value) {
+        let mut row = vec![
+            "setter_constraint".to_owned(),
+            constraint.get("arg_index")?.as_u64()?.to_string(),
+            "-prefix".to_owned(),
+        ];
+        let mut lost = false;
+        push_word(
+            &mut row,
+            &mut lost,
+            word(str_of(constraint.get("required_prefix")?)),
+        );
+        row.push("-code".to_owned());
+        row.push(str_of(constraint.get("code")?).to_owned());
+        row.push("-message".to_owned());
+        push_word(
+            &mut row,
+            &mut lost,
+            braced(str_of(constraint.get("message")?)),
+        );
+        if lost {
+            return None;
+        }
+        rows.push(row);
+    }
+    Some(rows)
+}
+
 /// `repeat ROLE …` rows from a rendered `&[RepeatedArgLayout]`.
 fn repeat_rows(expr: &str) -> Option<Vec<Vec<String>>> {
     let mut rows = Vec::new();
@@ -1207,6 +1334,38 @@ fn count(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
         && let Some(n) = draft[key].as_u64()
     {
         out.line(&format!("{key} {n}"));
+    }
+}
+
+/// Emit an expression-valued property whose DSL spelling is one word.
+fn expr_word(
+    out: &mut Out,
+    ctx: &Ctx<'_>,
+    draft: &Draft,
+    key: &str,
+    spell: impl Fn(&str) -> Option<String>,
+) {
+    if ctx.set(draft, key) || unrecovered(draft, key) {
+        match draft[key].as_str().and_then(spell) {
+            Some(spelling) => out.line(&format!("{key} {spelling}")),
+            None => todo(out, key),
+        }
+    }
+}
+
+/// Emit an expression-valued property whose DSL spelling is a flag row.
+fn expr_row(
+    out: &mut Out,
+    ctx: &Ctx<'_>,
+    draft: &Draft,
+    key: &str,
+    spell: impl Fn(&str) -> Option<Vec<String>>,
+) {
+    if ctx.set(draft, key) || unrecovered(draft, key) {
+        match draft[key].as_str().and_then(spell) {
+            Some(row) => out.row(&row, "-description"),
+            None => todo(out, key),
+        }
     }
 }
 
@@ -1602,7 +1761,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     flag(out, ctx, draft, "unsafe_command");
     text_list(out, ctx, draft, "excluded_events");
     set_word(out, ctx, draft, "safe_on_uninit");
-    gap_todo(out, ctx, draft, "deprecation_fix");
+    expr_row(out, ctx, draft, "deprecation_fix", deprecation_fix_row);
 
     // --- types and shape ---------------------------------------------------
     out.gap();
@@ -1615,15 +1774,15 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             None => todo(out, "var_write_typing"),
         }
     }
-    gap_todo(out, ctx, draft, "return_elements");
-    gap_todo(out, ctx, draft, "var_elements_effect");
-    gap_todo(out, ctx, draft, "representation_effect");
+    expr_word(out, ctx, draft, "return_elements", return_elements_word);
+    expr_word(out, ctx, draft, "var_elements_effect", var_elements_effect_word);
+    expr_word(out, ctx, draft, "representation_effect", representation_effect_word);
     enum_word(out, ctx, draft, "inferred_storage_type");
     enum_word(out, ctx, draft, "body_kind");
-    enum_word(out, ctx, draft, "byte_array_effect");
+    expr_word(out, ctx, draft, "byte_array_effect", byte_array_effect_word);
     enum_word(out, ctx, draft, "pattern_type");
-    gap_todo(out, ctx, draft, "format_string_type");
-    gap_todo(out, ctx, draft, "byte_array_payload");
+    enum_word(out, ctx, draft, "format_string_type");
+    expr_row(out, ctx, draft, "byte_array_payload", byte_array_payload_row);
 
     arg_rows(out, ctx, draft);
     if ctx.set(draft, "repeated_args")
@@ -1667,12 +1826,12 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             &draft["defines_command_at"].to_string(),
         );
     }
-    gap_todo(out, ctx, draft, "defines_symbol");
+    expr_row(out, ctx, draft, "defines_symbol", defines_symbol_row);
 
     // --- subcommand dispatch -----------------------------------------------
     flag(out, ctx, draft, "allow_unknown_subcommands");
     enum_word(out, ctx, draft, "prefix_matching");
-    gap_todo(out, ctx, draft, "default_form_first_word");
+    enum_word(out, ctx, draft, "default_form_first_word");
     text_list(out, ctx, draft, "self_receiver_words");
 
     // --- hooks -------------------------------------------------------------
@@ -1718,7 +1877,16 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     native_hook(out, ctx, draft, "taint_sink_gate");
     text_list(out, ctx, draft, "credential_options");
     text_list(out, ctx, draft, "sensitive_headers");
-    gap_todo(out, ctx, draft, "setter_constraints");
+    if ctx.set(draft, "setter_constraints") {
+        match setter_constraint_rows(&draft["setter_constraints"]) {
+            Some(rows) => {
+                for row in rows {
+                    out.row(&row, "-message");
+                }
+            }
+            None => todo(out, "setter_constraints"),
+        }
+    }
 
     // --- iRules ------------------------------------------------------------
     gap_todo(out, ctx, draft, "event_requires");
@@ -1920,7 +2088,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
     text(out_body, ctx, sub, "deprecated_version");
     text(out_body, ctx, sub, "retired_version");
     set_word(out_body, ctx, sub, "safe_on_uninit");
-    gap_todo(out_body, ctx, sub, "deprecation_fix");
+    expr_row(out_body, ctx, sub, "deprecation_fix", deprecation_fix_row);
 
     enum_word(out_body, ctx, sub, "return_type");
     if ctx.set(sub, "var_write_typing")
@@ -1931,14 +2099,14 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
             None => todo(out_body, "var_write_typing"),
         }
     }
-    gap_todo(out_body, ctx, sub, "return_elements");
-    gap_todo(out_body, ctx, sub, "var_elements_effect");
-    gap_todo(out_body, ctx, sub, "representation_effect");
+    expr_word(out_body, ctx, sub, "return_elements", return_elements_word);
+    expr_word(out_body, ctx, sub, "var_elements_effect", var_elements_effect_word);
+    expr_word(out_body, ctx, sub, "representation_effect", representation_effect_word);
     enum_word(out_body, ctx, sub, "inferred_storage_type");
     enum_word(out_body, ctx, sub, "body_kind");
-    enum_word(out_body, ctx, sub, "byte_array_effect");
+    expr_word(out_body, ctx, sub, "byte_array_effect", byte_array_effect_word);
     enum_word(out_body, ctx, sub, "pattern_type");
-    gap_todo(out_body, ctx, sub, "format_string_type");
+    enum_word(out_body, ctx, sub, "format_string_type");
 
     flag(out_body, ctx, sub, "pure");
     flag(out_body, ctx, sub, "mutator");

@@ -42,12 +42,22 @@ registration point.
 | A tcllib module | `tcllib` |
 | Tk, [incr Tcl], Expect, argparse, ticklecharts | the pack of that name |
 | F5 iRules, or iApps and tmsh | `irules`, `iapps` |
-| An EDA vendor shell | `sdc_base` plus the vendor's pack |
+| An EDA vendor shell | **not this guide** — see below |
 
 The core, stdlib, tcllib, Tk, [incr Tcl], argparse, and ticklecharts
 packs are loaded into every registry. The iRules, iApps, Expect, and
 BPF-Tcl packs load when their [dialect](../GLOSSARY.md#dialect) is
-active, and the EDA packs load by shell profile name.
+active.
+
+**The EDA vendor libraries are not Rust modules.** `sdc_base` and the
+five vendor packs are bundled `SpecTcl` loadables — `specs/*.tclspec`,
+shipped beside the server executable and read by the pack loader
+(`docs/design/spec-packs.md`). Adding or editing an EDA command means
+editing the `.tclspec` file: the syntax is
+`docs/design/spec-dsl-examples/README.md`, `tcl spec check` validates a
+pack, and `rust/tcl-spectcl/tests/eda_loadables.rs` is the gate. None of
+the steps below — no module, no `mod` line, no collector entry, no
+rebuild — applies to them.
 
 ### 2. Write one module per command
 

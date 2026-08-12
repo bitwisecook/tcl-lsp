@@ -34,6 +34,14 @@ use tcl_dialect::DialectProfile;
 
 use crate::registry::CommandRegistry;
 
+/// Every `(profile, overlay)` registry built so far.
+///
+/// Module-level rather than function-local because two entry points read it:
+/// [`registry_for_profile_with_overlay`], which builds a missing entry, and
+/// [`registry_for_profile_if_built`], which deliberately does not.
+static REGISTRIES: OnceLock<Mutex<FxHashMap<(&'static str, u64), &'static CommandRegistry>>> =
+    OnceLock::new();
+
 /// The process-wide **plain default** registry — exactly what
 /// [`CommandRegistry::build_default`] produces, built once.
 ///
@@ -62,6 +70,40 @@ pub fn default_registry() -> &'static CommandRegistry {
 #[must_use]
 pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
     registry_for_profile_with_overlay(profile, 0, |_| {})
+}
+
+/// The `(profile, overlay)` registry **only if it has already been built**.
+///
+/// The overlay's *contents* come from a closure only its owner can write —
+/// `tcl-spectcl`, which parses the packs — so a consumer that knows only the
+/// overlay's identity (a `u64` handed to it as configuration, e.g. through a
+/// salsa input) cannot ask for it with [`registry_for_profile_with_overlay`]:
+/// on a miss it would build and permanently cache a *pack-less* registry under
+/// the pack's key.
+///
+/// This is the read-only half of that door. A consumer passes the key it was
+/// given and falls back to [`registry_for_profile`] on `None`, which is
+/// exactly right: the miss means the packs have not been installed for this
+/// profile yet, and a registry without them is what the process had a moment
+/// ago anyway.
+///
+/// It exists because the **analyser** needs it. Since the EDA vendor libraries
+/// became bundled loadables (`docs/design/spec-packs.md`), "which commands
+/// exist" is no longer answerable from compiled-in data alone, and the
+/// analyser — which resolves its own registry from its `DialectProfile` — has
+/// to be able to reach the pack-carrying entry without depending on the
+/// loader crate that sits above it.
+#[must_use]
+pub fn registry_for_profile_if_built(
+    profile: &'static DialectProfile,
+    overlay: u64,
+) -> Option<&'static CommandRegistry> {
+    if overlay == 0 {
+        return Some(registry_for_profile(profile));
+    }
+    let map = REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
+    let guard = map.lock().expect("registry cache mutex");
+    guard.get(&(profile.name, overlay)).copied()
 }
 
 /// Return the cached registry for `profile` **plus a caller-supplied overlay**,
@@ -103,9 +145,6 @@ pub fn registry_for_profile_with_overlay(
     overlay: u64,
     extend: impl FnOnce(&mut CommandRegistry),
 ) -> &'static CommandRegistry {
-    static REGISTRIES: OnceLock<Mutex<FxHashMap<(&'static str, u64), &'static CommandRegistry>>> =
-        OnceLock::new();
-
     let map = REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let mut guard = map.lock().expect("registry cache mutex");
     let key = (profile.name, overlay);

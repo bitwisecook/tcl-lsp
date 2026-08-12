@@ -58,7 +58,7 @@ fn default_config(db: &TclDatabase) -> AnalyserConfig {
         Vec::new(),
         None,
         None,
-    )
+     0,)
 }
 
 fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {

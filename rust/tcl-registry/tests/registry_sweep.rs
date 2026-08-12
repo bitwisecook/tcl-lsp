@@ -63,16 +63,46 @@ use tcl_registry::hover::FormKind;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::TaintColour;
-use tcl_registry::{
-    ArgRole, CommandRegistry, KNOWN_DIALECTS, Traits, available_dialects, registry_for_dialect,
-};
+use tcl_registry::{ArgRole, CommandRegistry, KNOWN_DIALECTS, Traits, available_dialects};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Every dialect name that resolves to a real `DialectSet` bit — i.e. the names
-/// `registry_for_dialect` loads a non-trivial command pack for. (The config-only
+/// The registry for `dialect` **with the shipped `.tclspec` loadables
+/// installed** — the sweep's stand-in for [`tcl_registry::registry_for_dialect`].
+///
+/// The EDA vendor libraries are bundled loadables now (`sdc_base` and the five
+/// vendor packs have no Rust modules; `docs/design/spec-packs.md`), so the
+/// plain per-profile registry no longer carries a `get_cells` or a
+/// `synth_design` at all. Routing the sweep through the pack loader is what
+/// keeps those ~350 specs under every accessor assertion below — and it means
+/// the sweep now tests the loader's output as well as the registry's, which is
+/// the point of shipping them as loadables.
+///
+/// The pack directory is named outright (the repository's `specs/`, which is
+/// what a release lays down beside the executable) rather than discovered, so
+/// the sweep does not depend on where the test binary sits or on the ambient
+/// `TCL_LSP_SPEC_PACK_DIR`.
+fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
+    use std::sync::OnceLock;
+    static PACKS: OnceLock<tcl_spectcl::PackSet> = OnceLock::new();
+    let packs = PACKS.get_or_init(|| {
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs");
+        let set = tcl_spectcl::bundled::load_from(&dir);
+        assert!(
+            !set.is_empty(),
+            "the shipped EDA loadables must be present at {}",
+            dir.display()
+        );
+        set
+    });
+    tcl_spectcl::bundled::registry_for_dialect_from(dialect, packs)
+}
+
+/// Every dialect name that loads a non-trivial command pack — a compiled-in
+/// one by its `DialectSet` bit, or the EDA vendor libraries through the
+/// bundled loadables [`registry_for_dialect`] installs. (The config-only
 /// `f5-bigip` / `f5-tmsh` names in `KNOWN_DIALECTS` collapse to plain Tcl, so
 /// they are covered via the catalogue sweep rather than as load targets.)
 const LOADABLE_DIALECTS: &[&str] = &[

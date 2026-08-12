@@ -106,6 +106,34 @@ fn loaded_packs(lsp: &mut Lsp) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+/// The names of every pack the server reports as loaded.
+///
+/// A workspace pack is not the only thing in the list: the server also
+/// discovers the **bundled** tier (the loadables tcl-lsp ships), so a test
+/// about *this* workspace's pack must name it rather than count.
+fn pack_names(lsp: &mut Lsp) -> Vec<String> {
+    loaded_packs(lsp)
+        .iter()
+        .filter_map(|pack| pack.get("name").and_then(Value::as_str))
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+/// Block until the server reports a loaded pack called `name` — the settle
+/// barrier for a workspace pack, since the bundled tier makes "any pack at
+/// all" true from the first reload.
+fn await_pack_named(lsp: &mut Lsp, name: &str) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !pack_names(lsp).iter().any(|loaded| loaded == name) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the `{name}` pack was never reported as loaded; got {:?}",
+            pack_names(lsp)
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+
 /// Block until the server reports at least one loaded pack.
 fn await_packs_loaded(lsp: &mut Lsp) -> Vec<Value> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
@@ -427,6 +455,193 @@ fn a_pack_cannot_silently_redefine_a_shipped_command() {
     assert!(
         arity_complaints.is_empty(),
         "the shipped arity is what the call is checked against: {arity_complaints:#?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A pack whose `const_fold` is a **Tcl body**, folding a real call site in the
+/// running server.
+///
+/// This is the whole hook feature in one file: the loader carries the body,
+/// `tcl_spectcl::hooks` binds it to a registry slot, the worker thread that
+/// runs the optimiser builds a sandboxed VM host for it, and the optimiser —
+/// which knows nothing about packs — reads `spec.const_fold` exactly as it
+/// reads a shipped one.
+const FOLDER_PACK: &str = r"
+speclib folder 1 {
+    command folder::strlen {
+        arity 1
+        arg 0 -role Value
+        const_fold -inputs {words} {words ctx} {
+            set subject [lindex $words 0]
+            if {![string is ascii $subject]} { return }
+            fold [string length $subject]
+        }
+    }
+}
+";
+
+/// A call site the optimiser will fold if — and only if — the pack's body runs.
+const FOLDER_SOURCE: &str = "proc ::show {} {\n    puts [folder::strlen abcde]\n}\n::show\n";
+
+/// The `source` field of an `optimiseDocument` reply.
+fn optimised(result: &Value) -> String {
+    result
+        .get("source")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// Every optimisation offer of `code` in an `optimiseDocument` reply, as
+/// `(replacement, message)`.
+fn offers(result: &Value, code: &str) -> Vec<(String, String)> {
+    result
+        .get("optimisations")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter(|item| item.get("code").and_then(Value::as_str) == Some(code))
+                .map(|item| {
+                    (
+                        item.get("replacement")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned(),
+                        item.get("message")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned(),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_pack_const_fold_body_folds_a_call_site_in_the_optimiser() {
+    let root = workspace("const-fold");
+    write(&root.join(".tcl-lsp/folder.tclspec"), FOLDER_PACK);
+    let doc = root.join("app.tcl");
+    write(&doc, FOLDER_SOURCE);
+
+    let mut lsp = Lsp::with_config_at_root(
+        json!({ "features": { "linkedEditingRange": true } }),
+        &root,
+    );
+    let uri = file_uri(&doc);
+    lsp.open_ready(&uri, FOLDER_SOURCE);
+    await_pack_named(&mut lsp, "folder");
+
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    assert!(!result.is_null(), "the optimiser answered");
+    let folded = offers(&result, "O129");
+    assert!(
+        folded.iter().any(|(replacement, _)| replacement == "5"),
+        "the pack's Tcl body computed `string length abcde`; offers were {folded:#?}\n\
+         optimised source:\n{}",
+        optimised(&result)
+    );
+    assert!(
+        optimised(&result).contains("puts 5"),
+        "and the rewrite applies it; got:\n{}",
+        optimised(&result)
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The control: the identical document with **no** pack in the workspace does
+/// not fold, so the test above is measuring the hook body and not some
+/// pre-existing constant folder.
+#[test]
+fn without_the_pack_the_same_call_site_does_not_fold() {
+    let root = workspace("const-fold-none");
+    let doc = root.join("app.tcl");
+    write(&doc, FOLDER_SOURCE);
+
+    let mut lsp = Lsp::with_config_at_root(
+        json!({ "features": { "linkedEditingRange": true } }),
+        &root,
+    );
+    let uri = file_uri(&doc);
+    lsp.open_ready(&uri, FOLDER_SOURCE);
+    assert!(
+        !pack_names(&mut lsp).iter().any(|name| name == "folder"),
+        "there is no workspace pack here"
+    );
+
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    assert!(
+        offers(&result, "O129")
+            .iter()
+            .all(|(replacement, _)| replacement != "5"),
+        "nothing folds an unknown command: {result:#?}"
+    );
+    assert!(
+        !optimised(&result).contains("puts 5"),
+        "and the source is untouched; got:\n{}",
+        optimised(&result)
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The **bundled** tier, end to end: the EDA vendor libraries are `.tclspec`
+/// loadables now, not compiled-in Rust (`docs/design/spec-packs.md`), so this
+/// is the proof that a shipped pack reaches the analyser in the real server
+/// process — a Vivado command has to be discovered on disk, parsed, merged,
+/// installed, and its overlay key published to the analyser before
+/// `synth_design` can read as anything but an unknown command.
+///
+/// The negative half matters as much: every vendor's pack is discovered for
+/// every dialect, so a rival's command must still be unknown here.
+#[test]
+fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
+    let root = workspace("bundled-eda");
+    let source = "# tcl-dialect: xilinx-eda-tcl\nsynth_design -top top\nget_cells *\nvsim -c top\n";
+    let doc = root.join("build.tcl");
+    write(&doc, source);
+
+    let mut lsp = Lsp::with_config_at_root(
+        json!({ "features": { "linkedEditingRange": true } }),
+        &root,
+    );
+    await_pack_named(&mut lsp, "eda_xilinx");
+    assert!(
+        pack_names(&mut lsp).iter().any(|name| name == "sdc_base"),
+        "the shared SDC library ships alongside it; got {:?}",
+        pack_names(&mut lsp)
+    );
+
+    let uri = file_uri(&doc);
+    let diagnostics = lsp.open_ready(&uri, source);
+    let unknown: Vec<String> = diagnostics
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.get("code").and_then(Value::as_str),
+                Some("W123") | Some("W002")
+            )
+        })
+        .filter_map(|d| d.get("message").and_then(Value::as_str))
+        .map(ToOwned::to_owned)
+        .collect();
+
+    assert!(
+        !unknown.iter().any(|m| m.contains("synth_design")),
+        "the bundled Vivado pack must make `synth_design` known: {unknown:?}"
+    );
+    assert!(
+        !unknown.iter().any(|m| m.contains("get_cells")),
+        "and the bundled SDC pack `get_cells`: {unknown:?}"
+    );
+    assert!(
+        unknown.iter().any(|m| m.contains("vsim")),
+        "but a Questa command must not resolve under Vivado: {diagnostics:#?}"
     );
 
     let _ = std::fs::remove_dir_all(&root);

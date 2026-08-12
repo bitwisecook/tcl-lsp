@@ -4140,6 +4140,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-spectcl",
  "temp-env",
  "thiserror 2.0.20",
 ]
@@ -4433,6 +4434,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-regex",
+ "tcl-spectcl",
  "tcl-syntax",
 ]
 
@@ -4482,6 +4484,7 @@ version = "0.1.0"
 dependencies = [
  "rustc-hash",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",

@@ -38,11 +38,9 @@
 //! is one directory scan plus ~3,700 lines of Tcl parsed at first use.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
-use rustc_hash::FxHashMap;
 use tcl_dialect::DialectProfile;
-use tcl_registry::profile_queries::ProfileQueries;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::discovery::{DiscoveryOptions, discover};
@@ -83,60 +81,21 @@ pub fn dir() -> Option<PathBuf> {
     crate::discovery::bundled_dir()
 }
 
-/// The shipped loadables **this profile ships**, cached per profile.
-///
-/// Discovery is profile-blind — every `.tclspec` in the bundled directory is
-/// found for every dialect — but the vendor libraries are not: an EDA shell
-/// ships `sdc` plus its own tool packages ambient and no rival's
-/// (`docs/design/eda-library-packages.md`). Without this filter the six packs
-/// would all install into every profile, and since four of them declare a
-/// `report_timing`, the Vivado profile's `report_timing` would be whichever
-/// vendor's pack sorted first — a command that then fails
-/// [`ProfileQueries::is_available`] and resolves to nothing at all.
-///
-/// Filtering is per **pack**, because a pack is one vendor's library: a pack
-/// is kept when the profile ships any of its packages ambient. That is
-/// precisely the set `CommandRegistry::load_eda_packs` used to insert for the
-/// profile, so the registry a profile ends up with is the one it always had.
-fn packs_for(profile: &'static DialectProfile) -> &'static PackSet {
-    static BY_PROFILE: OnceLock<Mutex<FxHashMap<&'static str, &'static PackSet>>> = OnceLock::new();
-    let map = BY_PROFILE.get_or_init(|| Mutex::new(FxHashMap::default()));
-    let mut guard = map.lock().expect("bundled pack cache mutex");
-    if let Some(set) = guard.get(profile.name) {
-        return set;
-    }
-    let all = packs();
-    let kept: Vec<crate::pack::MergedPack> = all
-        .packs
-        .iter()
-        .filter(|pack| {
-            pack.commands
-                .iter()
-                .any(|command| profile.package_available(command.spec.required_package))
-        })
-        .cloned()
-        .collect();
-    // `key` is left as the whole set's: the registry cache is keyed on
-    // `(profile, key)` already, so two profiles holding different subsets
-    // under the same key still get different entries.
-    let set: &'static PackSet = Box::leak(Box::new(PackSet {
-        packs: kept,
-        notices: Vec::new(),
-        key: all.key,
-    }));
-    guard.insert(profile.name, set);
-    set
-}
-
 /// The cached registry for `profile` with the shipped loadables installed.
 ///
 /// Drop-in for [`tcl_registry::registry_for_profile`] in any consumer that
 /// wants the vendor libraries the shipped packs carry. With no bundled
 /// directory present the pack set is empty and this *is*
 /// `registry_for_profile`, down to the same `&'static`.
+///
+/// The bundled tier carries *all six* EDA libraries regardless of dialect —
+/// discovery cannot know which shell a document belongs to — and
+/// [`install`](crate::install) is what narrows them to the packages this
+/// profile ships ambient, so a Vivado registry never takes a Cadence
+/// `report_timing`.
 #[must_use]
 pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
-    crate::install::registry_with_packs(profile, packs_for(profile))
+    crate::install::registry_with_packs(profile, packs())
 }
 
 /// [`registry_for_profile`] by dialect name — the drop-in for
@@ -146,18 +105,39 @@ pub fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
     registry_for_profile(DialectProfile::by_name(dialect))
 }
 
+/// [`registry_for_dialect`] against a pack set the caller supplies rather than
+/// the one [`bundled_dir`](crate::discovery::bundled_dir) finds.
+///
+/// For a harness that knows where the loadables are — a test running out of a
+/// source checkout — so it never depends on the process's ambient environment
+/// or on where its own binary happens to live.
+#[must_use]
+pub fn registry_for_dialect_from(dialect: &str, all: &PackSet) -> &'static CommandRegistry {
+    crate::install::registry_with_packs(DialectProfile::by_name(dialect), all)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// The repository's `specs/` directory, which is what a release lays down
     /// beside the executable.
+    /// Loading a pack writes a compiled-cache entry, and `cache`'s own tests
+    /// count the entries under a redirected directory — so every test in this
+    /// crate that loads a pack holds the same lock they do.
+    fn cache_guard() -> std::sync::MutexGuard<'static, ()> {
+        crate::cache::REDIRECT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     fn repo_specs() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs")
     }
 
     #[test]
     fn the_shipped_loadables_carry_the_eda_vendor_libraries() {
+        let _cache = cache_guard();
         let set = load_from(&repo_specs());
         let mut names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
         names.sort_unstable();
@@ -188,6 +168,7 @@ mod tests {
 
     #[test]
     fn a_missing_bundled_directory_is_an_empty_set_not_an_error() {
+        let _cache = cache_guard();
         let set = load_from(Path::new("/no/such/bundled/dir"));
         assert!(set.is_empty());
         assert_eq!(set.key, 0);

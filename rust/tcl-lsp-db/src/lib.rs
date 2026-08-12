@@ -397,6 +397,15 @@ pub struct AnalyserConfig {
     /// library-version axis; `None` = the D5 oldest-supported default.
     #[returns(ref)]
     pub bigip_version: Option<String>,
+    /// The workspace's loaded `SpecTcl` pack set, by content identity
+    /// (`PackSet::key`; `0` = no packs) — `Analyser::with_pack_overlay`.
+    ///
+    /// An input, not an ambient read, so a pack edit invalidates exactly the
+    /// analyses that depend on it. It is not optional configuration: the EDA
+    /// vendor libraries ship as bundled loadables
+    /// (`docs/design/spec-packs.md`), so this number is what decides whether
+    /// `synth_design` is a known command.
+    pub spec_pack_key: u64,
 }
 
 /// Whole-file analysis, behind an `Arc` so reads bump a refcount rather than
@@ -428,6 +437,7 @@ pub fn file_analysis(
     let extra: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
     let mut analyser = Analyser::with_disabled_diagnostics(disabled)
         .with_non_ascii_mode(config.non_ascii_mode(db))
+        .with_pack_overlay(config.spec_pack_key(db))
         .with_extra_commands(extra)
         .with_bigip_version(config.bigip_version(db).clone())
         .with_file_path(file.path(db).clone())
@@ -2965,6 +2975,7 @@ pub fn file_analysis_incremental(
     let workspace_class_factories = file.workspace_class_factories(db).clone();
     let mut analyser = Analyser::with_disabled_diagnostics(disabled_vec.iter().cloned().collect())
         .with_non_ascii_mode(non_ascii)
+        .with_pack_overlay(config.spec_pack_key(db))
         .with_extra_commands(extra_commands)
         .with_bigip_version(config.bigip_version(db).clone())
         .with_file_path(file.path(db).clone())
@@ -3410,7 +3421,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        )
+         0,)
     }
 
     const SRC: &str = "proc greet {name} {\n    puts \"hi $name\"\n}\n# c\nset x 1\n";
@@ -3670,7 +3681,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
 
         // Diagnostics-first order: the worker analyses, then a token request
@@ -4455,7 +4466,7 @@ mod tests {
             Vec::new(),
             None,
             Some("21.1.0".to_owned()),
-        );
+         0,);
         let file = SourceFile::new(
             &db,
             "SSL::c3d cert_lifespan 24\n".to_owned(),
@@ -4497,7 +4508,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let file = SourceFile::new(
             &db,
             "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n".to_owned(),
@@ -4556,7 +4567,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let file = SourceFile::new(
             &db,
             "oo::class create K {\n  method a {} { set x 11111 }\n  method b {} { set y 22222 }\n}\n"
@@ -4617,7 +4628,7 @@ mod tests {
                     Vec::new(),
                     None,
                     None,
-                ),
+                 0,),
             );
             let registry = db.registry(dialect);
             let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
@@ -4874,7 +4885,7 @@ mod tests {
                     Vec::new(),
                     None,
                     None,
-                ),
+                 0,),
             );
             let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
             assert_eq!(
@@ -5028,7 +5039,7 @@ mod tests {
                 Vec::new(),
                 None,
                 None,
-            ),
+             0,),
         );
         assert_eq!(
             cascades(&log),
@@ -5052,7 +5063,7 @@ mod tests {
                 Vec::new(),
                 None,
                 None,
-            ),
+             0,),
         );
         assert_eq!(
             cascades(&log),
@@ -5237,7 +5248,7 @@ mod tests {
                 Vec::new(),
                 None,
                 None,
-            ),
+             0,),
         );
         assert_eq!(
             summaries(&log),
@@ -5261,7 +5272,7 @@ mod tests {
                 Vec::new(),
                 None,
                 None,
-            ),
+             0,),
         );
         assert_eq!(
             summaries(&log),
@@ -5460,7 +5471,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         // `a` defines `foo` (1 param) and an unrelated `bar`.
         let a = SourceFile::new(
             &db,
@@ -5543,7 +5554,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let a = SourceFile::new(
             &db,
             "helper foo bar\n".to_owned(),
@@ -5611,7 +5622,7 @@ mod tests {
                 Vec::new(),
                 None,
                 None,
-            );
+             0,);
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
             let project = Project::new(&db, vec![a, b]);
@@ -5626,7 +5637,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
         let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
         let project = Project::new(&db, vec![a, b]);
@@ -5683,7 +5694,7 @@ mod tests {
                 Vec::new(),
                 None,
                 None,
-            );
+             0,);
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
             let project = Project::new(&db, vec![a, b]);
@@ -5698,7 +5709,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned(), None);
         let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
         let project = Project::new(&db, vec![a, b]);
@@ -5744,7 +5755,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         // B defines `proc helper {x y}` — arity exactly 2.
         let b = SourceFile::new(
             &db,
@@ -5800,7 +5811,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         // B: a class `Widget` AND a proc whose tail is also `Widget` (arity 1).
         let b = SourceFile::new(
             &db,
@@ -5859,7 +5870,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         // B defines onNode with 2 params; `graph walk -command` appends 3.
         let b = SourceFile::new(
             &db,
@@ -5938,7 +5949,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let d_on = project_diagnostics(&db, a, cfg_on, proj);
         assert!(has(&d_on, "E003"), "baseline: E003 present when enabled");
         assert!(!has(&d_on, "W123"), "baseline: W123 suppressed (resolved)");
@@ -5952,7 +5963,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let d_off = project_diagnostics(&db, a, cfg_off, proj);
         assert!(
             !has(&d_off, "E003"),
@@ -5990,7 +6001,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
 
         // Wrong arity (3 args to a 2-param proc) → E003 still fires; no W123.
         let bad = SourceFile::new(&db, "helper a b c\n".to_owned(), "tcl8.6".to_owned(), None);
@@ -6041,7 +6052,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         assert!(has_w123(base), "baseline W123 expected");
         // With the command declared extra → suppressed.
         let cfg = AnalyserConfig::new(
@@ -6051,7 +6062,7 @@ mod tests {
             vec!["mylibsend".to_owned()],
             None,
             None,
-        );
+         0,);
         assert!(!has_w123(cfg), "extraCommands should suppress W123");
     }
 
@@ -6068,7 +6079,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         // B defines a TclOO class `Widget`.
         let b = SourceFile::new(
             &db,
@@ -6107,7 +6118,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let b = SourceFile::new(
             &db,
             "proc two {a b} {}\nproc opt {a {b 1}} {}\nproc variadic {a args} {}\nproc none {} {}\n"
@@ -6183,7 +6194,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let b = SourceFile::new(
             &db,
             "proc makeargs {} { return {a b} }\n\
@@ -6244,7 +6255,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let b = SourceFile::new(
             &db,
             "proc opt {a {b 5} c} {}\n".to_owned(),
@@ -6291,7 +6302,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let b = SourceFile::new(
             &db,
             "proc two {a b} {}\n".to_owned(),
@@ -6333,7 +6344,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let b = SourceFile::new(
             &db,
             "proc helper {x y} { return $x }\n".to_owned(),
@@ -6372,7 +6383,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let f = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let proj = Project::new(&db, vec![f]);
         project_diagnostics(&db, f, cfg, proj)
@@ -6743,7 +6754,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
         let _ = file_analysis_incremental(&db, file, cfg);
         log.lock().unwrap().clear();
@@ -6787,7 +6798,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let file = SourceFile::new(
             &db,
             "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n".to_owned(),
@@ -6848,7 +6859,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         // Four independent procedures; we edit `b`'s body and leave a, c, d alone.
         let file = SourceFile::new(
             &db,
@@ -6933,7 +6944,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         // `other` first so editing it shifts the two below; `target` takes a
         // param `caller` always passes the literal `42` for -> param_constants.
         let file = SourceFile::new(
@@ -7009,7 +7020,7 @@ mod tests {
             Vec::new(),
             None,
             None,
-        );
+         0,);
         let src = "proc a {x} { return $x }\nproc b {} { a 1 }\n";
         let count_cu = |log: &Arc<Mutex<Vec<String>>>| {
             std::mem::take(&mut *log.lock().unwrap())
