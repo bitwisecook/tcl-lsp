@@ -61,10 +61,12 @@ limits:
   live-dispatch dependencies. These facts improve diagnostics immediately,
   but they are not interchangeable optimisation proofs. In particular, common
   GVN treats a pure, referentially transparent call as only a static candidate.
-  It still declines O105 unless the call site has a proof covering mutable
-  command lookup, trace, and interpreter-policy dependencies. World SSA
-  currently versions those domains but cannot prove their contents or the
-  absence of a trace, so production Tcl-call CSE remains disabled; and
+  It still declines O105 unless the call site also has a proof covering mutable
+  command lookup, trace, and interpreter-policy dependencies. World SSA versions
+  those domains without modelling their contents, so that proof is produced by
+  the separate contents/absence lattice in
+  [dispatch-stability-proof.md](dispatch-stability-proof.md); every site it
+  cannot prove still fails closed; and
 - backend contracts, representation types, and proof tokens are legality
   scaffolding. They do not by themselves enable specialisation.
 
@@ -361,10 +363,12 @@ absence proof. The runtime remains authoritative for callback order,
 re-entrancy, result replacement, active-trace suppression, and errors.
 
 Consequently, a world-state version is not by itself evidence that a trace is
-absent. Common GVN keys may eventually include versioned-world result
-dependencies, but reusing a call also requires a content or closed-world proof
-for every registry-declared live-dispatch dependency. Until that proof producer
-exists, declining O105 is the sound result.
+absent. Common GVN keys carry versioned-world result dependencies, but reusing
+a call also requires a contents or closed-world proof for every
+registry-declared live-dispatch dependency. That proof producer is the
+contents/absence lattice described in
+[dispatch-stability-proof.md](dispatch-stability-proof.md); a site with no
+complete proof still declines O105.
 
 ## Shared analyses and target refinements
 

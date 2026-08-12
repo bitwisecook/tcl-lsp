@@ -1577,6 +1577,9 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             tcl_registry::dialects::DialectSet::parse(key.dialect(db))
                 .unwrap_or_else(tcl_registry::dialects::DialectSet::empty),
             Some(key.body(db)),
+            // A procedure body runs only after arbitrary interposed history,
+            // so its dispatch proofs start from an unknown world.
+            tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         ),
     )
 }

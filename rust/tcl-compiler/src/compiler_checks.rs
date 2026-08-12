@@ -625,6 +625,33 @@ mod tests {
     /// were rebased together: #872 widened the base loop from
     /// `analysable_functions` to `analysable_body_function_units`, which
     /// made the shimmer-only top-up loop redundant.
+    /// A proof-gated O105 is advisory only: hint severity with no
+    /// auto-apply payload.  The dispatch-stability site proof licenses the
+    /// diagnostic under its declared entry contract; an editor code action
+    /// would advertise a stronger observational-safety guarantee than that
+    /// proof establishes, so none may be attached until an action-tier proof
+    /// exists.
+    #[test]
+    fn proof_gated_o105_is_a_hint_with_no_auto_fix() {
+        let cu = CompilationUnit::build_for_dialect(
+            "llength {a b}\nllength {a b}",
+            &registry(),
+            false,
+            "tcl9.0",
+        );
+        let diags = run_all_checks(&cu, &registry(), Some("tcl9.0"));
+        let o105: Vec<_> = diags
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == "O105")
+            .collect();
+        assert!(!o105.is_empty(), "the proven replay must be reported");
+        for diagnostic in o105 {
+            assert_eq!(diagnostic.severity, Severity::Suggestion);
+            assert!(diagnostic.replacement.is_none());
+            assert!(diagnostic.fixes.is_empty());
+        }
+    }
+
     #[test]
     fn shimmer_not_double_counted_in_tcloo_method_body() {
         let src = "oo::class create C {\n    method m {} {\n        set x hello\n        incr x\n    }\n}\n";

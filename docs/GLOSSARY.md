@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [Interpreter domain](#interpreter-domain) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
+[AST](#ast) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [Interpreter domain](#interpreter-domain) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -909,6 +909,8 @@ KCS tag: `gvn`.
 Common Subexpression Elimination — detects when the same pure computation
 is evaluated more than once and suggests extracting it to a variable.
 Part of the GVN pass, reported as `O105`.  See `tcl_compiler::gvn`.
+Reusing a *command* result additionally requires a
+[dispatch-stability proof](#dispatch-stability-proof).
 
 ```mermaid
 flowchart TD
@@ -921,6 +923,56 @@ flowchart TD
 
 See also: [Optimisation passes](design/compiler/optimisation-passes.md).
 KCS tag: `cse`.
+
+### Dispatch-stability proof
+
+The typed, per-call-site evidence that Tcl's mutable dispatch machinery cannot
+change *which* command an invocation runs, and cannot observe it running.
+Produced by `tcl_compiler::dispatch_proof` as a `SiteDispatchProof`, which
+records the registry dispatch-dependency domains proven stable at that site,
+the [world-state contents lattice](#world-state-contents-lattice) versions the
+value key must pin, and whether every operand word is admissible.  Without a
+complete proof [GVN](#gvn) declines to report a repeated command as
+[CSE](#cse), because a referentially transparent result is not the same thing
+as an observationally removable call — an execution trace, `rename`, alias,
+ensemble, `unknown` handler, or interpreter-policy change makes the second call
+visible.
+
+See also: [Dispatch-stability proofs](design/compiler/dispatch-stability-proof.md).
+KCS tag: `gvn`.
+
+### World-state contents lattice
+
+The bounded abstract state that a dispatch-stability proof is read from: a
+forward dataflow [lattice](#lattice) over the executable semantic graph that
+tracks, per dispatch domain, whether the domain provably still holds its
+declared entry contents and has no live observer.  Command bindings and
+`TclOO` dispatch use changed-subject ledgers, traces use saturating
+registration-count intervals per target, namespace lookup, namespace
+`unknown`, and interpreter policy use stability flags, and variable aliases use
+a link ledger.  Every ledger is bounded and widens to top on overflow; unknown
+and dynamic transitions widen conservatively.  Entry contents come from an
+explicit `DispatchEntryAssumption` contract, never from a "nothing was seen in
+this file" heuristic.  Implemented in `tcl_compiler::dispatch_proof`, alongside
+the world-state SSA versioning in `tcl_compiler::world_state_ssa`.
+
+```mermaid
+flowchart BT
+    ENTRY["entry contract<br/>(contents asserted)"]
+    PART["partly changed<br/>(named subjects, counted traces)"]
+    TOP["widened<br/>(top — nothing proven)"]
+    ENTRY --> PART --> TOP
+
+    style ENTRY fill:#e8f5e9
+    style PART fill:#e1f5fe
+    style TOP fill:#ffcdd2
+```
+
+> Contents flow upward.  A join keeps the weaker side, so a trace live on
+> either predecessor blocks reuse after the merge.
+
+See also: [Dispatch-stability proofs](design/compiler/dispatch-stability-proof.md).
+KCS tag: `dataflow`.
 
 ### DCE
 
