@@ -385,9 +385,10 @@ are its rules, and what are the failure modes". One contract per file.
 - [command-spec-studio.md](contracts/command-spec-studio.md) — the spec
   studio's schema / draft / renderer layering, the invariants that keep it
   in step with `CommandSpec`, and the rules its rendered `.rs` must satisfy.
-- [spec-packs.md](spec-packs.md) — **proposal**: a loadable, data-only
-  command database for private libraries, with the format-stability
-  policy that avoids per-release rebuilds (issue #1363).
+- [spec-packs.md](spec-packs.md) — **proposal**: a Tcl-DSL command
+  database for private libraries, statically parsed by our own
+  toolchain, with the vocabulary-tolerance policy that avoids
+  per-release rebuilds (issue #1363).
 - [proc-arg-traits.md](contracts/proc-arg-traits.md) — proc argument
   trait inference.
 - [variable-case-mismatch-suggestions.md](contracts/variable-case-mismatch-suggestions.md)

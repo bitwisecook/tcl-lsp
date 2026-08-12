@@ -1,4 +1,4 @@
-# Spec packs — a loadable command database for private libraries
+# Spec packs — a Tcl DSL for private command databases
 
 > **Status:** proposal, for discussion on
 > [issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363).
@@ -8,94 +8,112 @@
 
 Users with private Tcl libraries cannot contribute their command specs to
 the shipped registry, and stubs deliberately carry only a fraction of what
-a `CommandSpec` can say. They need a way to build a full command database
+a `CommandSpec` can say. They need a way to author a full command database
 for their own code and load it into the server — without a Rust toolchain,
 and without rebuilding it for every tcl-lsp release.
 
-## Ship data, not code
+## Performance: the format does not decide it
 
-The stable-ABI question answers itself once the artefact is data rather
-than a dynamic library:
+A pack — whatever its syntax — is parsed **once at load**, resolved
+against the running registry's vocabularies, and inserted into the same
+per-profile cached `CommandRegistry` the built-in packs live in (interned
+and leaked once, keyed by content hash). After that, every query — hover,
+role lookup, arity, taint — takes exactly the path a compiled-in spec
+takes: same map, same struct, same field reads. Runtime cost is
+**identical to compiled-in**; the only cost the format controls is a few
+milliseconds of load at startup or on pack change, plus one resident copy
+of the data.
 
-- A **cdylib** would pin us to a `repr(C)` mirror of the whole
-  `CommandSpec` family — a huge surface that changes in most releases, so
-  it recreates the recompile-every-release problem it was meant to solve.
-  It also loads foreign code into the server (a sandboxing and trust
-  problem), and cannot work at all in the WASM-hosted contexts (the spec
-  studio, the explorer).
-- A **data pack** has no ABI, only a file format — and format stability is
-  a solved problem: version header, ignore-unknown, default-missing.
+The one design rule that matters for performance: packs layer into the
+cached registry at workspace scope, **not** the per-document overlay path
+stubs use — a pack is parsed per edit of the pack, never per edit of the
+code that uses it.
 
-Most of the machinery already exists. The spec studio's draft model is a
-complete data-only serialisation of a `CommandSpec`, keyed by Rust field
-name, kept complete by the `coverage.rs` build gates; the compiler hooks
-are already **typed IDs**, not function pointers, so they serialise as
-names; and the fields that genuinely are function pointers
-(`arg_role_resolver`, `const_fold`, gates) are exactly the ones the studio
-already marks unrenderable — a pack simply cannot carry them, which is
-also the security property: **a pack can never make the server execute
-anything.**
+## The format: a Tcl DSL, parsed by our own toolchain
 
-## The format
+We have a full Tcl compiler; the authoring format should be Tcl. A
+`.tclspec.tcl` file is a declarative script in a small spec DSL:
 
-One file, `<name>.tclspec` — JSON for now (packs are small; a binary
-encoding is a later optimisation, not a format change):
-
-```json
-{
-  "tclspec": 1,
-  "generator": "spec-studio 2.x",
-  "package": "mylib",
-  "commands": [ { "name": "mylib::frobnicate", "arity": {…}, … } ]
+```tcl
+speclib mylib 2.1 {
+    command with_var {
+        synopsis {with_var varName script ?mode?}
+        arity 2 3
+        arg 0 -role varwrite
+        arg 1 -role body
+        traits {EVALUATES_CODE CREATES_SCOPE_ALIAS}
+        hover -summary {Run a script with a caller variable bound.} \
+              -returns {The script's result.}
+    }
+    command mylib::sort {
+        arity 1 -1
+        option -command -takes commandprefix -appends 2
+        option --
+        subcommand indices {arity 1 1  returns List  pure}
+    }
 }
 ```
 
-Each entry is a studio draft: the same keys, the same catalogues
-(traits, roles, dialects, hook IDs) spelled by name.
+Word spellings come from the registry's existing catalogues — traits,
+roles, hook names — exactly as the Spec Studio and the reference manual
+spell them, so the **?**-button help and the searchable Reference tab
+document the DSL for free.
+
+Why this beats JSON for the author:
+
+- **The toolchain can eat its own dogfood.** `speclib`/`command` become
+  registry specs themselves, with a `definition_body` grammar — the same
+  machinery that gives snit and TclOO bodies highlighting, folding,
+  completion, and go-to-definition with no new walker code. Authoring a
+  spec pack then feels like writing tcltest or snit: full editor support,
+  diagnostics for a misspelled trait or role at the point you type it.
+- It is the stub language grown up — same file culture (`*.tclspec.tcl`
+  beside the code), a superset of what stubs express, with a migration
+  path from existing sidecars.
+- Tcl quoting and line-continuation are what our users already know.
+
+**Evaluation is static, never a live interp.** The pack is parsed with
+the same analyser that parses stubs — declarations are read from the
+CST, not executed, so a pack cannot run anything. If loops/templating
+prove necessary ("declare these 40 subcommands"), the escape hatch is
+evaluation inside `tcl-vm` with only the spec-building commands exposed
+(the sandbox posture `tcl pkg` already takes for untrusted build
+scripts), still producing pure data. Start static; add the VM path only
+on demand.
 
 ## Compatibility policy
 
-- **Loading is tolerant by construction.** Unknown keys are ignored
-  (a newer pack on an older server), missing keys default (an older pack
-  on a newer server), and an unrecognised trait, role, or hook *name* is
-  dropped with a logged notice while the rest of the spec loads. A pack
-  therefore keeps working across ordinary releases with no rebuild.
-- **`tclspec` major version** changes only on a semantic break — a field
-  whose meaning changed, not one that was added. The server refuses a
-  major it does not know, with a message naming the studio as the
-  migration path (load the pack, re-render, download).
-- The existing schema-coverage gates double as the format's change log: a
-  new `CommandSpec` field cannot ship without a schema key, and the
-  schema key **is** the pack key.
+The "ABI" is the DSL vocabulary, and it follows the tolerance rules that
+let packs survive releases without rebuilds:
 
-## Loading
+- Unknown property words, trait names, role names, or hook names are
+  dropped with a logged notice; the rest of the spec loads. New server +
+  old pack always works; old server + new pack degrades gracefully.
+- A `speclib` version pragma gates hard breaks only — a word whose
+  *meaning* changed, not one that was added. The server refuses a major
+  it does not know and names the fix.
+- The studio schema-coverage gates already force every new `CommandSpec`
+  field to a named key; that key is the DSL property name, so the format
+  cannot silently fall behind the registry.
 
-- Discovery: a `tclLsp.specPacks` setting, plus auto-discovery of
-  `*.tclspec` beside a `tclpkg.tcl` manifest and under a project's
-  `.tcl-lsp/` directory.
-- The pack layers into the registry the way the per-document stub overlay
-  does, but at workspace scope, loaded once per profile and keyed by
-  content hash. Drafts deserialise into owned specs (leaked once per
-  unique content, so the `&'static` registry contract is unchanged).
-- A pack never overrides a shipped spec silently: a name collision is
-  reported, and the shipped spec wins unless the pack says `"override"`.
+## Loading and tooling
 
-## Authoring
+- Discovery: `tclLsp.specPacks`, plus `*.tclspec.tcl` beside a
+  `tclpkg.tcl` manifest or under `.tcl-lsp/`. Name collisions with
+  shipped specs are reported, shipped wins unless the pack says
+  `-override`.
+- `tcl spec check lib.tclspec.tcl` validates a pack from the CLI; the
+  Spec Studio gains a DSL renderer beside the `.rs` and stub renderers
+  (drafts round-trip through it), and the `spec-author` skill emits the
+  DSL for the private-library path.
+- An optional compiled cache (`tcl spec build`) is a load-time
+  optimisation only — never required, never version-locked beyond the
+  DSL itself.
 
-Both existing authoring paths gain a pack target:
+## What a pack cannot say
 
-- the **spec studio** adds "Download pack" beside the `.rs` renderer, so
-  the whole browse–edit–import workflow already documented for
-  contributions produces a private pack instead;
-- the **`spec-author` skill** and a `tcl spec pack` CLI verb build one
-  from a library's sources non-interactively.
-
-## What a pack cannot say, and the escape hatch
-
-Function-pointer behaviour stays out, by design. In practice the gap is
-narrower than it looks: `repeated_args` covers strided layouts, options
-carry roles at value positions, and clause lists / definer grammars are
-shared *named* constants — so the pack can reference them by name the
-same way it names hook IDs. Commands that still need a bespoke resolver
-are contribution candidates, which is the boundary we want: private data
-stays private, behaviour that needs code goes through review.
+Function-pointer behaviour (bespoke resolvers, folders, gates) stays
+out: hooks are referenced by name from the closed tables, and commands
+that need new code are contribution candidates. That is the boundary we
+want — private data stays private, behaviour that needs code goes
+through review.
