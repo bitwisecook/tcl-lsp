@@ -12,17 +12,16 @@ question ("what does this receiver dispatch to?"), different identity model.
 
 `ttk::treeview .t` creates a *new* Tcl command named `.t` whose subcommands
 (`instate`, `tag`, …) are exactly the registry's `ttk::treeview` `CommandSpec`
-subcommands — but nothing connects the two. `.t instate {selected} { … }`
-and `$w tag configure hidden -foreground grey` get no subcommand-aware
-highlighting, hover, completion, or arity/unknown-subcommand diagnostics
-today, for any widget whose `CommandSpec.subcommands` is non-empty
-(`treeview`, `notebook`, `listbox`, `text`, `canvas`, `entry`, …).
+subcommands. Without something connecting the two, `.t instate {selected}
+{ … }` and `$w tag configure hidden -foreground grey` get no subcommand-aware
+highlighting, hover, completion, or arity / unknown-subcommand diagnostics,
+for any widget whose `CommandSpec::subcommands` is non-empty (`treeview`,
+`notebook`, `listbox`, `text`, `canvas`, `entry`, …).
 
 `tcloo-object-typing.md`'s own corpus evidence (`experiments/tcloo_diag`)
-found this is not a corner case: of 8241 unresolved `$var` receivers, 71%
+shows this is not a corner case: of 8241 unresolved `$var` receivers, 71%
 are "unbound", **dominated by snit `$self`/components and Tk widget paths
-(`$win.c`) — not TclOO**. Snit's `$self` has since landed. Tk widget paths
-are the largest remaining untracked category.
+(`$win.c`) — not TclOO**.
 
 ## Why this needs its own model, not TclOO's
 

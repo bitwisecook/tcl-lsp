@@ -216,13 +216,18 @@ their own re-lexing onto the one tree.
 ## Known gap — the minifier
 
 The segmenter derives from the tree, and everything downstream of
-`segment_commands` therefore rides it. The minifier
-(`rust/tcl-lsp-core/src/minify.rs`) does not: `minify_body` runs its own
-`Lexer::new(source).tokenise_all()` and hands the raw token slice to
-`parse_commands`, and `collect_string_literals` runs a second private loop
-with an explicit descent stack over `Str` / `Cmd` inner text. Both are
-offset-precise source-edit machinery. Folding them onto the tree's descent
-needs a byte-identical bar over the corpus for every minifier tier before it
+`segment_commands` therefore rides it. Two source-rewriting consumers do not:
+
+- The **minifier** (`rust/tcl-lsp-core/src/minify.rs`) — `minify_body` runs
+  its own `Lexer::new(source).tokenise_all()` and hands the raw token slice to
+  `parse_commands`, and `collect_string_literals` runs a second private loop
+  with an explicit descent stack over `Str` / `Cmd` inner text.
+- The **formatter** (`rust/tcl-lsp-core/src/formatting/engine.rs`) — lexes the
+  document and each nested body with `Lexer::with_source_map(…)
+  .tokenise_all()`.
+
+Both are offset-precise source-edit machinery. Folding them onto the tree's
+descent needs a byte-identical bar over the corpus for every tier before it
 can land.
 
 Cursor-local prefix lexers (hover, symbol resolution) and the separate expr and

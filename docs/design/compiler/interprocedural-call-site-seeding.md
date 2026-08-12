@@ -17,7 +17,7 @@ that single failure, reached through a different kind of caller.
 
 | Concern | Owner |
 |---|---|
-| Enumerating callers and their literal arguments | `tcl-compiler/src/unit_scope.rs` |
+| Enumerating callers and their literal arguments | `unit_scope.rs::collect_call_site_constants` |
 | Turning that evidence into an SCCP seed | `unit_scope.rs::params_constants_from_call_sites` |
 | Interning the seed into the memo key | `compilation_unit.rs::encode_param_constants` |
 | Which argument is a script / callback / variable name | `tcl-registry` (`ArgRole`, `Traits`) |
@@ -78,8 +78,8 @@ Parameter value sets read the evidence, and the evidence records
 dispatches resolved from those value sets. `collect_call_site_constants`
 resolves the circularity with an optimistic fixpoint: start from "no
 callers seen", re-derive the whole evidence set from the previous round's,
-and stop when it stops growing (`MAX_CALL_SITE_SCAN_ROUNDS` is a defensive
-backstop, not the termination argument). Each round is monotone in its
+and stop when it stops growing (`MAX_FIXPOINT_ROUNDS`, currently 6, is a
+defensive backstop, not the termination argument). Each round is monotone in its
 input — values only union, unknown flags only set — so the chain increases
 to a fixpoint at which the value sets and the evidence agree. A round runs
 only when a value set was actually consulted, so a module with no
@@ -135,13 +135,23 @@ every value set becomes unenumerable).
 The compiler explorer's **interprocedural** view reports each procedure's
 `param constants` — the seed it was analysed under:
 
-```
+```text
 $ tcl explore --show interproc --text example.tcl
 === interproc ===
 └── ::helper arity=1..1
+    · arity: …
+    · pure: …
+    · foldable: …
+    · return shape: …
     · calls: —
     · param constants: mode = prod
+    · flags: —
 ```
+
+Each procedure is one leaf node labelled `<qname> arity=<arity>`, with its
+facts as `· key: value` detail rows in the order `view_tree.rs` pushes them.
+`param constants` is the only row that can be absent — it is pushed only when
+the seed is non-empty.
 
 The line disappears when an indirection withdraws the seed, which makes the
 difference between "every caller agrees" and "a call site could not be
@@ -150,14 +160,15 @@ on a parameter folded and it should not have.
 
 ## Tests
 
-- `call_site_scan.rs::tests` — the evidence map, the per-scope variable
-  facts, and the shape helpers.
-- `compilation_unit.rs::tests::call_site_param_constants` — the TP/FP/TN/FN
-  suite over namespaces, recursion, methods, imports, rename, dispatch,
-  callbacks, and `package provide`.
-- `tcl-lsp-server/tests/e2e/diagnostics.rs` — the same behaviour over LSP.
+- `rust/tcl-compiler/src/unit_scope.rs::tests` — the evidence map, the
+  per-scope variable facts, and the shape helpers.
+- `rust/tcl-compiler/src/compilation_unit.rs::tests::call_site_param_constants`
+  — the TP/FP/TN/FN suite over namespaces, recursion, methods, imports,
+  rename, dispatch, callbacks, and `package provide`.  It also holds
+  `uplevel_zero_body_resolves_against_global_not_enclosing_namespace`.
+- `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` — the same behaviour over LSP.
 - `editors/vscode/src/test/issue969.test.ts`, `issue976.test.ts`.
-- `tcl-explorer/src/serialise.rs::interproc_view_shows_the_param_constant_seed_and_its_withdrawal`.
+- `rust/tcl-explorer/src/serialise.rs::interproc_view_shows_the_param_constant_seed_and_its_withdrawal`.
 
 ## Related
 

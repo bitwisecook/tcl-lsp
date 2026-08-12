@@ -39,9 +39,10 @@ Rust's borrow/scope model — and any compiled language's stack frames — would
 **not permit** one function to mutate another's locals by name, or to execute a
 string against a chosen scope. So the runtime cannot lean on Rust stack frames
 for Tcl scope: it owns a **reified** frame/variable model (the `FrameStack` of
-the two-chain `CallFrame` of §3) where *any* frame's variables are
-addressable by index, and cross-frame links are first-class. That reification is
-exactly what makes the dynamic behaviour expressible at all.
+§3) where *any* frame's variables are addressable **by name** through that
+frame's `VarTable`, and cross-frame links are first-class — a `Var::Link`
+naming a `(home, name, element)` path rather than pointing at a cell. That
+reification is exactly what makes the dynamic behaviour expressible at all.
 
 **Order of work, non-negotiable: get all of this dynamic behaviour correct
 first, then optimise from that point.** Concretely:
@@ -270,32 +271,59 @@ One dispatch establishes the callee's frame context for **every** callee kind,
 so any caller (interpreter or AOT) calls any callee uniformly:
 
 ```
-fn invoke(interp, argv) -> Code:
-    cmd = lookup(argv[0])                 # command table (ns → global)
-    push CmdFrame for this command         # source/line bookkeeping (always)
-    match cmd:
-        Builtin(f)      => f(interp, argv)                 # no CallFrame
-        Proc(p)         => call_proc(interp, p, argv)      # push CallFrame+bind
-        AotCompiled(fi) => call_aot(interp, fi, argv)      # push CallFrame+bind, call wasm fn
-        External(idx)   => call_indirect(idx, argv)        # extension (§4.6 ABI)
-    pop CmdFrame
-    on Code::Error: log_command_info(interp, this CmdFrame)   # append errorInfo
+fn dispatch(interp, argv) -> Code:
+    cmd = resolve(current_ns, argv[0])     # the one resolver; `unknown` on miss
+    update the current CmdFrame's `cmd` / `line` for this command
+    invoke(cmd, argv):
+        Builtin(f)        => f(interp, argv)              # no call frame
+        Proc(p)           => call_proc(interp, p, argv)   # push frame + bind
+        Alias / Imported / Ensemble / ChildInterp / OoObject / ParentAlias
+                          => the redirect's own trampoline, then invoke again
+    on Code::Error, at the *unwinding* site:
+        log_command_info(interp, cmd slice, line)         # append errorInfo
 ```
 
-The `Command` enum carries `Proc`, `AotCompiled`, and `External` variants. The
-`call_proc`/`call_aot` paths push the **same** `CallFrame` + bind args
-identically; they differ only in whether the body runs through `eval_str`
-(interp) or a WASM function call (AOT). **Both push the `CmdFrame`/`CallFrame`
-and set the proc-error context**, so the stack trace is identical either way.
+Two departures from a naive reading of C are deliberate and are what §8
+verifies byte-for-byte:
 
-`call_proc` (mirrors `TclObjInterpProc`):
-1. arity-check `argv` vs the proc's params (→ `wrong # args`, the param-list form).
-2. push `CallFrame { argv, caller, caller_var, level: caller.level+1, proc, ns }`.
-3. bind params to locals (defaults; `args` collects the rest).
-4. set `error_line` base; eval the body (`Code::Return` from the body becomes
-   `Code::Ok` of the call — a proc-level `return`).
-5. on `Code::Error`, append `MakeProcError`'s `(procedure "name" line N)` frame.
-6. pop `CallFrame`.
+- **The `CmdFrame` stack is not pushed per command.** One frame exists per
+  script-eval level Tcl tracks (the root script, a proc call, an `eval` /
+  `uplevel` body, a `source`d file); each command *updates* the current frame's
+  `cmd` and `line` rather than pushing its own. The success path therefore pays
+  no per-command push/pop.
+- **`errorInfo` is appended at the unwinding site**, where the source text and
+  the command's byte range are both still in scope — matching C, which calls
+  `TclLogCommandInfo` as the error returns through each level, not on the way
+  in.
+
+The `Command` enum's variants are `Builtin`, `Proc`, `Alias`, `Imported`,
+`Ensemble`, `ChildInterp`, `OoObject`, and `ParentAlias`. Only `Proc` pushes a
+call frame; every redirect variant resolves to another handle and re-enters
+`invoke`, so a redirect never establishes a frame of its own and the frame a
+command runs in is always the one its ultimate target pushed.
+
+`run_proc` (mirrors `TclObjInterpProc`) is the single body-calling path, shared
+by `proc`, `apply`, and every TclOO method:
+
+1. arity-check `argv` against the params — `wrong # args` in the param-list
+   form, with the invoking prefix supplied by the caller (an OO method reports
+   `obj method`, not the internal name).
+2. check the per-interp recursion bound, so runaway recursion is a catchable
+   `too many nested evaluations (infinite loop?)` rather than a stack overflow.
+3. push the frame (`push` for a normal call, `push_same_level` when the caller
+   is redirecting the level) and record the invocation `words` for
+   `info level N`.
+4. switch `current_ns` to the proc's defining namespace, pre-link any declared
+   instance variables (the TclOO case), then bind positionals left to right —
+   supplied argument, else default — with a trailing `args` soaking up the rest.
+   Binding is purely positional: a non-trailing default does not yield its slot,
+   so `proc p {a {b 2} c}` called with two arguments is `wrong # args`, matching
+   tclsh 9.0.
+5. evaluate the body; `Code::Return` from the body becomes `Code::Ok` of the
+   call.
+6. on `Code::Error`, append `MakeProcError`'s `(procedure "name" line N)` frame,
+   computing the body-relative line against `proc_line_base` (§3.2).
+7. pop the frame, restore `current_ns` and the recursion depth.
 
 ---
 
@@ -305,30 +333,44 @@ The north star: most procs compile AOT; the interpreter is the fallback. Both
 must call each other **through the one protocol above**, with identical frame
 info — this is what the conservative principle buys.
 
-- **Interpreter → AOT proc:** the command table entry is `AotCompiled(fn_index)`;
-  `invoke` pushes the `CallFrame`/`CmdFrame`, then `call_indirect`s the WASM
-  function. The compiled function receives the bound frame.
 - **AOT proc → any command:** compiled code does **not** inline an arbitrary
-  command (it can't know load-time/extension commands); it emits a call to the
-  runtime's `invoke` (the same entry point), so an interpreted/extension callee
-  gets its frame established normally. (Provably-safe inlining is the staircase's
-  job; the *fallback* call is always `invoke`.)
+  command (it can't know load-time/extension commands); it calls back into the
+  runtime, so an interpreted callee gets its frame established normally. The
+  ABI for that callback is `tcl_invoke_argv` in `codegen_abi.rs`: the emitter
+  builds the argv with `tcl_obj_new_string_owned`, calls in, and the runtime
+  routes the prebuilt vector through the *same* `Interp::dispatch` interpreted
+  Tcl uses — namespaces, `unknown`, aliases, ensembles, and TclOO all on the one
+  path, with no source parsing and no repeated substitution. Provably-safe
+  inlining is the staircase's job; the fallback call is always this one.
+- **Interpreter → AOT proc:** there is **no** `AotCompiled` command variant.
+  An emitted module registers its procedures with `tcl_codegen_proc_register`,
+  which produces an ordinary `Command::Proc`, so the interpreter calling into
+  compiled code is the ordinary proc-call path. A direct call by WASM function
+  index is a compile-time specialisation gated on
+  `trusts_proc_binding`, not a second callable map (see
+  [`command-introspection.md`](command-introspection.md) §4).
 - **The shared frame stacks live in the runtime**, not in compiled code, so a
-  mixed AOT/interp call chain produces one coherent `CallFrame`/`CmdFrame` stack
+  mixed AOT/interp call chain produces one coherent frame and `CmdFrame` stack
   — and therefore one coherent stack trace and `info frame`/`info level`.
+  `tcl_codegen_frame_push` / `frame_pop` and `tcl_codegen_local_bind` are how
+  generated code participates: a compiled proc's locals are native WASM locals
+  bound to real name-addressable Tcl cells, so `upvar` and `info locals` still
+  see them.
 - **What the AOT emitter must emit (conservative default):** for each compiled
-  proc, the prologue pushes the `CallFrame` + a `Proc`/`AotProc` `CmdFrame` with
-  the proc name and the body's source line table; each compiled command site
-  updates the current line; the epilogue pops. This is bookkeeping the compiler
-  emits **by default** so traces match — see §7 for when it may be dropped.
+  proc, the prologue pushes the frame and a `Proc` `CmdFrame` with the proc name
+  and the body's source line table; each compiled command site updates the
+  current line; the epilogue pops. This is bookkeeping the compiler emits **by
+  default** so traces match — see §7 for when it may be dropped.
 
 ---
 
 ## 6. How the rest fits
 
 - **`eval $script`** — push an `Eval` `CmdFrame`; evaluate via the interp
-  (`eval_str`). `uplevel N $script` — evaluate with `var_frame` set to the
-  frame N up the **var-scope** chain (`caller_var`), not the call chain. These
+  (`eval_str`). `uplevel N $script` — `eval_uplevel` sets the frame stack's
+  `active_level` (and `current_ns`) to the target frame's for the duration of
+  the body and restores both afterwards, so the body sees another frame's
+  variable scope without moving the call chain. These
   are the metaprogramming-fallback paths (the AOT staircase S7 compiles the
   static cases; the dynamic cases land here).
 - **`source file`** — read the file, push a `Source` `CmdFrame` carrying the
@@ -337,17 +379,18 @@ info — this is what the conservative principle buys.
 - **`package require`/`provide`** — a command (no special frame protocol) that
   triggers `source`/load of the providing script; it inherits the `source`
   frame machinery for traces. (Loading a **C** extension is the Track-2 loader.)
-- **`info level ?N?`** — reads the `CallFrame` chain (`argv`, `level`).
+- **`info level ?N?`** — reads the frame stack (`words`, `level`).
   **`info frame ?N?`** — reads the `CmdFrame` chain (type/file/line/cmd).
   **`catch`/`error`/`return`** — operate on the `ExceptionState` + options dict.
 
 ---
 
-## 7. The end-of-project elision pass
+## 7. The elision pass
 
-Per the conservative principle, an optimisation stage (new AOT-staircase
-sub-stage, after S6/S7) may **drop frame/source bookkeeping it can prove
-unobservable**. A compiled proc may elide:
+This pass does not exist yet; the bookkeeping is emitted unconditionally today.
+When it lands, it is the one place information may be dropped: per the
+conservative principle, an optimisation stage may **drop frame/source
+bookkeeping it can prove unobservable**. A compiled proc may elide:
 
 - the `CmdFrame` push / per-command line updates **iff** no reachable code can
   observe them: no `error`/`catch` that inspects options, no `info frame`/`info
@@ -357,9 +400,9 @@ unobservable**. A compiled proc may elide:
 - the `CallFrame` `argv` retention **iff** `info level` is unreachable.
 - proc-error context **iff** the proc is proven non-throwing.
 
-Each elision is gated by a proof; absent the proof, the bookkeeping stays. This
-is the *only* place information is dropped, and it lands last, measured against
-the Tcl 9 suite's exact-`errorInfo` tests so nothing regresses.
+Each elision is gated by a proof; absent the proof, the bookkeeping stays. It
+is measured against the Tcl 9 suite's exact-`errorInfo` tests, so any drop that
+changes a trace is not a valid elision.
 
 ---
 
@@ -434,13 +477,32 @@ equivalent inlining decision:
   inherit rule matches the sourced-file cases but not every inlined
   `eval {literal}`.
 
-### Deliberate exclusion: `info errorstack`
+### `info errorstack`
 
-TIP 348's `INNER {…}` element is the **bytecode** execution context (tclvm
-opcodes — `returnImm`, `loadStk`, …), present even at top level because modern
-Tcl compiles everything. A runtime that emits WASM rather than tclvm bytecode
-cannot reproduce it; this is the same class as the suite's bytecode and
-disassembly exclusions. It degrades to a clean `unknown subcommand` error.
+TIP 348 is implemented, in both the `info errorstack` and options-dict
+`-errorstack` forms. The stack is a flat list of element *values* built
+bottom-up as an error unwinds, from the same unwinding sites that build
+`errorInfo`:
+
+- `INNER <command>` seeds a new error episode. C's `INNER` element is the
+  **bytecode** execution context (tclvm opcodes — `returnImm`, `loadStk`, …);
+  a runtime that emits WASM rather than tclvm bytecode has no such context, so
+  the innermost *command* stands in for it. This is the one element whose
+  content differs from tclsh, and it is the same class as the suite's bytecode
+  and disassembly exclusions.
+- `UP <delta>` is appended when the active frame is `uplevel`-redirected
+  (C's `framePtr != varFramePtr`), with `delta` the distance between the top
+  and active levels.
+- `CALL <info level 0>` is appended per proc / lambda / method frame the error
+  unwinds out of, the invocation words joined into a single list element.
+
+`reset_error_stack` (C's `iPtr->resetErrorStack`, set by `Tcl_ResetResult`)
+marks the start of a new episode: the *next* logged command rebuilds the stack,
+and the previous contents survive until then, so `info errorstack` after a
+`catch` still reports the error that was caught.
+
+`info errorstack ?interp?` accepts the interpreter argument but only reports the
+current interpreter.
 
 ### The AOT path
 

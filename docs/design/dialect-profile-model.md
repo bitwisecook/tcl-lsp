@@ -303,7 +303,7 @@ profile, which is why `special_vars::resolve_dialect` uses it (§1.3).
 The string→profile resolution happens **at ingest** (LSP `dialect_for_open` /
 CLI `effective_dialect` / `detect_dialect`) and the `&'static DialectProfile`
 is threaded from there, in place of repeated `DialectSet::parse` calls. The
-dialect *name* stays the wire form for the config / `DocumentStore` round-trip
+dialect *name* stays the wire form for the config / `DocumentState` round-trip
 (`tclLsp.selectDialect`, `folderDialects`, the registry-dump JSON schema,
 `DialectSet::canonical_name`), so `profile.name` is the accessor those paths
 read.
@@ -693,107 +693,120 @@ what consumers ask now that the EDA profiles carry no vendor bit.
 
 ## 8. Unified unknown-dialect fallback
 
-`PLAIN_TCL` is the single sink for every unparseable/typo string.
-`by_name(unknown) -> &PLAIN_TCL` with:
+`PLAIN_TCL` is the single sink for every unparseable or mistyped dialect
+string. `by_name(unknown) -> &PLAIN_TCL`, which is deliberately permissive on
+both axes:
 
-- `availability_mask = ALL_TCL` (preserves W123/W002 "typo flags nothing").
-- `version_ceiling = None`, `leading_zero_is_octal = Inert`, mathfunc
-  permissive, `expr_grammar_base = None`, grammar = modern-9.x
-  (`LexerConfig::default()`).
+- `availability_mask = ALL_TCL` and `base_layers = &[]` — nothing is unknown,
+  and no pack is loaded.
+- `version_ceiling = None`, `signature_base = None`, `runtime_base = None`,
+  `leading_zero_is_octal = Inert`, `expr_grammar_base = None`,
+  `grammar = GRAMMAR_TCL9X` (modern 9.x lexing), `help_terms = &[]` (no
+  filtering).
 
-Migration note (goldens): **W123/W002 don't move** (they already used
-`ALL_TCL`). **`command_snapshot` moves** — it used `unwrap_or(TCL86)`
-(`command_snapshot.rs:426,433`), so an unknown-dialect dump changes from a TCL86
-view to an ALL_TCL view; regenerate that golden and confirm it is the intended
-unification (or, if a snapshot for an *unknown* dialect is nonsensical, make
-`command_snapshot` reject unknown names up front — owner's call, but the
-fallback must be **one** value, documented here).
+A typo therefore flags nothing, which is the highest-visibility behaviour in
+W123 / W002. `command_snapshot` resolves through `by_name` like everything
+else, so an unknown-dialect `registry-dump` renders the `ALL_TCL` view rather
+than an ad-hoc one.
+
+`PLAIN_TCL` is not in `DialectProfile::all()` — it is a resolution sink, not
+a selectable dialect — so a caller that must enumerate real dialects gets the
+16 catalog entries, and a caller that must include the fallback reaches it
+through `DialectProfile::plain_tcl()`. `is_fallback()` is the predicate for
+"did this resolve to the sink", which is how `hosts_tk()` treats an unlabelled
+`wish` shell as Tk-capable.
 
 ---
 
-## 9. Reconciling `dialects: Option<DialectSet>` + the iRules subtractive trap
+## 9. `dialects: Option<DialectSet>` and the iRules subtractive trap
 
-**Decision: KEEP the per-command `dialects: Option<DialectSet>` field as the
-intrinsic native-version/native-layer tag.** The profile computes the query
-mask; the data is not migrated wholesale. `None` = universal 8.4 core;
-`supports_dialect(intersects)` against a profile-supplied mask composes cleanly.
+The per-command `dialects: Option<DialectSet>` field stays as the intrinsic
+native-version / native-layer tag. The profile supplies the query mask; the
+data is not migrated wholesale, and `supports_dialect(intersects)` against a
+profile-supplied mask composes cleanly.
 
-**One targeted data migration — the `NON_IRULES_OPERATORS` split:**
+**iRules availability is subtractive in appearance only.** F5's TMM
+interpreter removes about fifty commands from iRules — the K36322151 sandbox
+bans (`exec`, `file`, `socket`, `open`, `glob`, `source`, `cd`, `pwd`,
+`fconfigure`, `fcopy`, `gets`, `vwait`, …) plus the project-modelled
+iRules-excluded internals. There is **no ban list** anywhere in the model.
+Instead:
 
-Today the 42 K36322151 iRules-disabled commands **and** the math-operator
-command heads are both encoded by tagging them `NON_IRULES_OPERATORS` (=
-`ALL_TCL | IAPPS|EXPECT|SYNOPSYS|CADENCE|XILINX|QUARTUS|MENTOR`, which **contains
-`TCL84`**; `dialects.rs:107-111`). This conflates two facts and is the root of
-the subtractive trap:
+1. **Each banned command carries an explicit `dialects` group without the
+   `IRULES` bit** — typically `ALL_TCL`. The spec still exists, so the LSP can
+   distinguish "exists, but not in iRules" from "unknown"; it simply does not
+   intersect the bare `IRULES` mask. Universal `dialects: None` was eliminated
+   registry-wide precisely so this works: with no universal tag left, absence
+   of the `IRULES` bit is a positive statement, not an accident.
+2. **The math-operator heads** (`+`, `eq`, `tcl::mathop::*`) are excluded by
+   dialect *shape* rather than by tag: a spec carries
+   `Traits::OPERATOR_COMMAND` iff it is a `tcl::mathop` spelling, and
+   `is_available` drops it when `operators_as_commands` is false. That is a
+   separate fact from the sandbox bans and is modelled separately.
 
-1. **The 42 disabled commands** (`exec`, `file`, `socket`, `open`, `glob`,
-   `source`, `cd`, `pwd`, `fconfigure`, `fcopy`, `gets`, `read`, `close`,
-   `exit`, `vwait`, …): ordinary universal 8.4 core. Retag `dialects` → `None`
-   and move the iRules exclusion into `f5-irules.disabled_commands`. Then
-   `p.is_available` for iRules is `signature_base(8.4) MINUS disabled_commands`
-   — never `TCL84|IRULES`.
-2. **The math-operator heads** (`+`, `eq`, `tcl::mathop::*`): excluded from
-   iRules *and* tk because operators there live only inside `expr`. Model as
-   `operators_as_commands: bool` (false for `f5-irules`, `tk`); drop
-   `NON_IRULES_OPERATORS` from their tag. `commands_for_event` and the tk
-   surface read the toggle.
+Both directions are contract-tested in
+`rust/tcl-registry/tests/dialect_profile.rs`: every banned name must resolve
+to registered spec data *and* must lack the `IRULES` bit, and
+`OPERATOR_COMMAND` must mark exactly the `tcl::mathop` spellings.
 
-### 9.1 Why the general widen-fix is WRONG for iRules
+### 9.1 Why the general widen-fix is wrong for iRules
 
-`TCL84|IRULES` re-includes `exec`/`file`/`socket` because those disables carry
-`NON_IRULES_OPERATORS` (which contains `TCL84`), so `intersects(TCL84)` matches
-them. The widen-to-`(base|vendor)` fix that repairs iApps/expect/EDA is exactly
-wrong for iRules. Therefore `f5-irules.availability_mask` is the **bare `IRULES`
-bit** plus an explicit `disabled_commands` list; `p.is_available` applies the
-disable filter after the mask query. **The shipped bare-IRULES highlight fix is
-correct and final and is preserved by this model** (it is literally
-`f5-irules.availability_mask = IRULES`).
+Composing `(version | vendor)` is the right mask for `f5-iapps`, `expect`, and
+the EDA shells, and exactly wrong for iRules: `TCL84|IRULES` would re-admit
+every sandbox-banned command, because a banned command's gate contains a Tcl
+version bit and `intersects` would match on it. `f5-irules.availability_mask`
+is therefore the **bare `IRULES` bit** — the same value its `grammar_union`
+carries — and a command is in iRules iff its own gate says so.
 
-### 9.2 The re-inclusion hazard and its gate
+### 9.2 Why "no ban list" is the safer shape
 
-After step 1 retags the 42 commands to `None`, **only** `disabled_commands`
-removes them; the bare `IRULES` mask now **matches** them (`None ⇒
-supports_dialect true`). **Any** availability path that queries the mask without
-applying the disable filter re-admits `exec`/`file`/`socket` under iRules.
+A subtractive list has a standing hazard: any availability path that queries
+the mask without also applying the list re-admits `exec` / `file` / `socket`
+under iRules, and there are many such paths (`get_for_dialect` callers,
+`resolve_dialect("f5-irules")` callers, the CLI snapshot's `command_names`)
+across the consuming crates.
 
-Verified un-migrated hazard: the CLI snapshot `command_names()` filters solely
-by `get_for_dialect` (`command_snapshot.rs:411-414`) and is **not** in the LSP
-migration set; several `get_for_dialect(IRULES)` callers exist.
-
-**Pre-retag gate:** *"No consumer resolves iRules
-availability via a bare mask query."* Before the retag lands, enumerate and
-migrate **every** `get_for_dialect` / `supports_dialect(IRULES)` caller to apply
-`disabled_commands`:
-
-- W123 (`unresolved.rs:164`), W002 (`validity.rs:561,941`),
-- completion, semantic-tokens, hover, `resolve_command`,
-- **the CLI snapshot** `command_names` + `resolve_spec`
-  (`command_snapshot.rs:411,427,437`),
-- every other `get_for_dialect(…, IRULES)` / `resolve_dialect("f5-irules")`
-  call across the 22 crates (enumerate them,
-  filtered to the IRULES/`get_for_dialect`/`resolve_dialect` columns).
-
-Until this gate is green the retag **must not** land — an un-migrated consumer
-would silently allow the banned commands.
+Encoding the exclusion in the spec's own `dialects` group removes the hazard
+by construction: a mask query *is* the whole test, so a consumer that forgets
+the profile-side filter still gets the right answer. The one remaining
+profile-level exclusion is the operator-command one, and
+`CommandRegistry::spec_visible` applies it inside the registry so that mask
+queries and `ProfileQueries::is_available` cannot disagree.
 
 ---
 
 ## 10. Precise vs coarse masks (static grammars)
 
-Tree-sitter / tmLanguage queries are static-per-filetype; over-approximation is
-intentional (`gen_zed_queries` iApps uses `ALL_TCL|IAPPS`, pulling in 8.6/9.0
-the real 8.5.13 base lacks, because precise per-version correctness is the LSP
-semantic-token layer's job). The profile exposes **two** projections:
+Tree-sitter / tmLanguage queries are static per filetype, so
+over-approximation is intentional: `f5-iapps` highlights against
+`ALL_TCL|IAPPS`, pulling in 8.6/9.0 words the real 8.5.13 base lacks, because
+precise per-version correctness is the LSP semantic-token layer's job — it
+sees the file, the static query does not. The profile therefore exposes
+**two** projections:
 
-- `availability_mask` — precise (CLI, LSP, diagnostics, completion). iApps =
+- `availability_mask` — precise (CLI, LSP, diagnostics, completion). iApps is
   `TCL85|IAPPS` exactly.
-- `grammar_union` — coarse over-approx (static grammars only). iApps =
+- `grammar_union` — coarse over-approximation, static grammars only. iApps is
   `ALL_TCL|IAPPS`, preserving first-paint highlighting of 9.0 commands.
 
-`gen_zed_queries::targets()` stops composing four literal unions and instead
-**names profiles** (`Target{ profile: "tcl" | "f5-irules" | "f5-iapps" |
-"expect" }`), taking `profile.grammar_union` for the static buckets and
-`profile.registry()` for the layered command list.
+`f5-irules` and `f5-bigip` are the exceptions where the coarse projection is
+*not* wider: both `grammar_union`s are the bare vendor bit. Widening iRules
+would paint 8.5+ core words that genuinely do not exist there, which is worse
+than under-painting.
+
+`gen_zed_queries::targets()` names profiles rather than composing literal
+unions — `plain_tcl()`, `f5-irules`, `f5-iapps`, `expect` — and takes each
+target's `grammar_union` for the static buckets and
+`registry_for_profile(profile)` for the command list, so the mask query
+applies the same visibility rules (§9) the LSP does.
+
+The static projection covers only the **ambient** command surface: a command
+with a `required_package` (Tk, tcllib, the stdlib packages, itcl,
+ticklecharts) needs a `package require` the static query cannot see, so it is
+deliberately left to the semantic-token layer. The F5 and EDA surfaces are
+ambient in their runtimes, so they stay. Namespaced ambient commands are kept
+too — the F5 surface (`HTTP::uri`, `LB::server`) is entirely namespaced, and
+the tree-sitter Tcl grammar parses `ns::cmd` as a single `simple_word`.
 
 ---
 
@@ -802,18 +815,27 @@ semantic-token layer's job). The profile exposes **two** projections:
 ### 11.1 None paths are explicit, not defaulted
 
 `leading_zero_is_octal = runtime_base < V9_0` and `expr_grammar_base =
-runtime_base` are **ill-defined** for `f5-bigip` (`runtime_base = None`) and for
-`tk`/`bpf`. The `Ternary::Inert` variant (§2.3) makes the non-Tcl case inert:
-octal/expr validators short-circuit to "no opinion" rather than silently reading
-octal or decimal. §7.1 states the None branch explicitly.
+runtime_base` are **ill-defined** where there is no `runtime_base` at all —
+`f5-bigip`, a configuration surface, and `PLAIN_TCL`, which has no opinion by
+design. The `Ternary::Inert` variant (§2.3) makes that case inert: the octal
+and expr validators short-circuit to "no opinion" rather than silently reading
+octal or decimal. §7.1 states the `None` branch explicitly.
 
-### 11.2 tcloo bool must be invariant-tested against the mask
+`CommandRegistry::octal_fold_policy` carries the same three-valued answer
+outward: `Some(true)` for an 8.x profile, `Some(false)` for a 9.x one, and
+`None` to abstain. A registry assembled by hand, with no profile stamped on
+it, falls back to deriving from `loaded_dialects` instead.
 
-The profile sets `tcloo` per-dialect, but hover/completion/oo-handler **also**
-resolve `oo::*` specs through the mask (gated ~`TCL86_PLUS`). For the table
-values they agree (iApps `TCL85` excludes `oo::`; expect `TCL86` includes it),
-but nothing enforces it — a future profile with `tcloo` inconsistent with its
-mask yields contradictory oo behaviour vs hover. **Add an invariant test:** for
-every profile, `p.tcloo == p.availability_mask.intersects(TCL86_PLUS)` (or the
-documented exception list), so the hand-filled field can never drift from the
-mask-resolved `oo::*` availability.
+### 11.2 The tcloo bool is invariant-tested against the mask
+
+The profile sets `tcloo` per dialect, but hover, completion, and the `oo`
+handler **also** resolve `oo::*` specs through the mask (gated `TCL86_PLUS`).
+Nothing about the struct forces those two to agree, and a profile whose
+`tcloo` contradicted its mask would give contradictory `oo` behaviour and
+hover text.
+
+`tcloo_is_invariant_with_the_availability_mask` in `profile.rs` enforces it
+over every catalog profile plus the fallback:
+`p.tcloo == p.availability_mask.intersects(TCL86_PLUS)`. `f5-bigip` is the one
+documented exception — it has no Tcl surface at all, so `!p.tcloo` is asserted
+directly rather than derived from a mask that carries no version bit.

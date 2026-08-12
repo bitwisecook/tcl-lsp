@@ -105,16 +105,35 @@ Tcl 9.0:
 - `tclTomMath.h` — the `mp_*` bignum API.
 
 These are the *only* shim. They are written once, by the runtime author, not
-per extension.
+per extension. None of the three exists yet: `runtime/rust/include/` currently
+holds one header, `tcl_regex_capi.h`, which is the §10 regex shim's own
+C surface and not part of this ABI.
 
 ### 4.2 `Tcl_Obj` layout
 
 `Tcl_Obj` is `#[repr(C)]` with the exact field order `tcl.h` declares
 (`refCount`, `bytes`, `length`, `typePtr`, `internalRep`), because extensions
-read `objPtr->refCount` / `objPtr->bytes` directly through macros. On `wasm32`
-the layout is `{ i32, i32, i32, i32, <8-byte union> }` (24 bytes, 8-aligned).
-`internalRep` is a union sized/aligned to match (8 bytes); core-API extensions
-never touch its variants.
+read `objPtr->refCount` / `objPtr->bytes` directly through macros. This half
+*is* shipped: `runtime/rust/src/obj.rs` declares
+
+```rust
+#[repr(C)]
+pub struct TclObj {
+    pub ref_count: TclSize,          // Tcl_Size — ptrdiff_t
+    pub bytes: *mut c_char,
+    pub length: TclSize,
+    pub type_ptr: *const TclObjType,
+    pub internal_rep: u64,
+}
+```
+
+On `wasm32` that is `{ i32, ptr, i32, ptr, 8 bytes }`, 8-aligned. `internalRep`
+is C's 8-byte `Tcl_ObjInternalRep` union; the Rust side keeps it as a raw `u64`
+and reinterprets it for the `wide` / `double` variants, since core-API
+extensions never touch the others. `TclObjType` is the same shape as C's
+registered type descriptor, with the four `free`/`dup`/`updateString`/
+`setFromAny` procs typed to match `tcl.h`, so an extension's own `Tcl_ObjType`
+slots in unchanged.
 
 `bytes` is the object's UTF-8 **string representation**. A byte-array object
 instead stores its exact raw payload in an `internalRep` allocation with the
@@ -387,9 +406,16 @@ script compiled by `tcl_compiler::codegen::wasm` calling an
 demonstration so far used a hand-written driver as the stand-in for compiled
 user code.
 
-Proving it needs `Foo_Init` to register `foo` in the runtime's command table,
-and a compiled script that reaches `foo` through the eval-fallback /
-command-table lookup path — the same path an unknown command takes today. It
-depends on the runtime exposing a "register external command (name → shared
-table index)" entry that compiled-code dispatch consults, and may well show
-that the command-table lookup needs a small addition to support one.
+Half of what it needs is now in place. Compiled code reaching an arbitrary
+runtime command through the live command table is shipped: `tcl_invoke_argv`
+(`codegen_abi.rs`) takes a prebuilt argv from generated code and routes it
+through the same `Interp::dispatch` interpreted Tcl uses, so namespaces,
+`unknown`, aliases, ensembles, and TclOO all resolve identically. A compiled
+script therefore already reaches any command the table holds, without the
+lookup needing an addition.
+
+What is missing is the registration side: there is no `Tcl_CreateObjCommand`
+export and no `Command` variant holding a shared-table function index, so
+nothing can put an extension's `Tcl_ObjCmdProc` into that table for
+`tcl_invoke_argv` to find. Proving the seam means adding both, then having
+`Foo_Init` register `foo` and a compiled script call it.

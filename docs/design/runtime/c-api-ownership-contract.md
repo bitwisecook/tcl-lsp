@@ -117,8 +117,9 @@ owned by the subsystem, borrowed by the caller) · `void`.
 | `nominal-ok` | Always succeeds in our direct-ABI model (`Tcl_InitStubs`, `Tcl_OOInitStubs` — there is no stub table to negotiate; returns the version string). |
 
 A `Tcl_Obj` constructor that hits OOM returns a sentinel and raises the
-runtime's OOM flag (mirrors `tcl_oom_get` in `refcount-contract.md`); it does
-not have a per-call error channel, hence `no-error` for constructors.
+runtime's OOM flag — recorded on the leak counters (`counters::oom_set`, read
+by `counters::oom`), which has no C export of its own today. A constructor has
+no per-call error channel, hence `no-error` for constructors.
 
 ---
 
@@ -323,12 +324,15 @@ The same check should cross-reference `runtime/rust/src/capi.rs`'s
 ownership annotation. [`refcount-contract.md`](refcount-contract.md) has the
 identical gap and wants the same tool.
 
-The behavioural half is testable independently: a round-trip extension
-(`Tcl_NewObj` → `Tcl_IncrRefCount` → `Tcl_SetObjResult` → `Tcl_DecrRefCount`)
-must show zero residual under the leak counters
-(`runtime/rust/src/counters.rs`), which is what demonstrates that the
+The behavioural half is tested independently, for the implemented subset:
+`runtime/rust/src/lib.rs`'s `mod tests` drives the canonical round trip
+(`Tcl_NewObj` → `Tcl_IncrRefCount` → `Tcl_SetObjResult` → `Tcl_DecrRefCount` →
+interp teardown) and asserts zero residual under the leak counters
+(`runtime/rust/src/counters.rs`), alongside a `fresh_zero`-is-really-rc-0 case
+and a string-object buffer-ownership case. That is what demonstrates the
 `fresh_zero` / `borrowed→stored` / `consumed` categories are implemented as
-documented.
+documented — for the dozen functions `capi.rs` exports. Every other row is
+transcription only.
 
 ## Cross-references
 
