@@ -2177,6 +2177,13 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 &snap.unit.ssa,
                 &snap.unit.sccp.values,
                 &snap.unit.sccp.executable_blocks,
+                snap.unit
+                    .semantic_facts
+                    .dialect()
+                    .canonical_name()
+                    .and_then(tcl_dialect::DialectProfile::find)
+                    .and_then(|profile| profile.runtime_base)
+                    .map(tcl_dialect::TclVersion::string_character_model),
             )
             .iter()
             .map(|f| {

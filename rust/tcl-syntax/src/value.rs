@@ -60,10 +60,7 @@ use tcl_dialect::{StringCharacterModel, TclVersion};
 /// two Tcl 8 `Tcl_UniChar` units depending on whether it is supplementary.
 #[must_use]
 pub fn string_char_len(value: &str, version: TclVersion) -> usize {
-    match version.string_character_model() {
-        StringCharacterModel::Utf16CodeUnits => value.encode_utf16().count(),
-        StringCharacterModel::UnicodeScalars => value.chars().count(),
-    }
+    version.string_character_model().count(value)
 }
 
 /// A value-coercion / list-parse failure — the closed set Tcl reports with

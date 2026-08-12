@@ -51,6 +51,8 @@
 
 use std::collections::HashMap;
 
+use tcl_dialect::{StringCharacterModel, TclVersion};
+
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
 /// Result of evaluating a constant Tcl expression.
@@ -223,6 +225,11 @@ pub struct FoldPolicy {
     /// operators.  `false` (the default) declines that fold, which is always
     /// safe — see [`FoldOps::is_irules`].
     pub is_irules: bool,
+    /// What the active dialect counts as a string character: `Some(model)`
+    /// folds character counts under that model, `None` declines a fold whose
+    /// answer the Tcl 8 and Tcl 9 models disagree on — the same
+    /// dialect-ambiguity rule as [`Self::octal`].
+    pub characters: Option<StringCharacterModel>,
 }
 
 impl FoldPolicy {
@@ -233,6 +240,7 @@ impl FoldPolicy {
         Self {
             octal,
             is_irules: false,
+            characters: None,
         }
     }
 
@@ -243,6 +251,9 @@ impl FoldPolicy {
         Self {
             octal,
             is_irules: dialect.is_some_and(|d| tcl_dialect::DialectProfile::by_name(d).is_irules()),
+            characters: dialect
+                .and_then(|d| tcl_dialect::DialectProfile::by_name(d).runtime_base)
+                .map(TclVersion::string_character_model),
         }
     }
 
@@ -256,6 +267,10 @@ impl FoldPolicy {
             is_irules: registry
                 .profile()
                 .is_some_and(tcl_dialect::DialectProfile::is_irules),
+            characters: registry
+                .profile()
+                .and_then(|profile| profile.runtime_base)
+                .map(TclVersion::string_character_model),
         }
     }
 }

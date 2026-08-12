@@ -49,6 +49,20 @@ pub enum StringCharacterModel {
     UnicodeScalars,
 }
 
+impl StringCharacterModel {
+    /// The number of Tcl characters `value` holds under this model.
+    ///
+    /// The one place the counting rule lives, so a compile-time fold and a
+    /// runtime `string length` cannot drift apart.
+    #[must_use]
+    pub fn count(self, value: &str) -> usize {
+        match self {
+            Self::Utf16CodeUnits => value.encode_utf16().count(),
+            Self::UnicodeScalars => value.chars().count(),
+        }
+    }
+}
+
 /// A specific Tcl release whose **compile-time** semantics a constant fold may
 /// depend on — e.g. `string is integer` is unbounded on 9.0 but caps at
 /// `2³²-1` on 8.x, and `string is wideinteger` / `entier` / `dict` and
