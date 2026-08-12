@@ -225,6 +225,18 @@ overlay registry, same outputs — and live-save persists exactly that
 one document, which is also the deliverable. The JSON draft model
 remains only as an internal intermediate; it is no longer a store.
 
+Concretely, the models live apart from every UI. Two of them: the
+**built-ins** (the immutable registry the wasm ships — reference
+material, never edited) and the **user definitions** (the DSL-backed
+pack store above). One resolution facade merges them — pack overlays
+registry, collision rules applied — so every surface queries the same
+merged world the user's editor would see. UI surfaces hold no state of
+their own: interaction anywhere (a form field, a DSL keystroke, an AI
+patch, a sidebar action) dispatches an edit to the user-defs model,
+and every projection re-renders from the models. That is what makes
+"live everywhere" a property of the architecture rather than a matrix
+of pairwise syncs to maintain.
+
 - **DSL as a first-class surface.** A DSL renderer beside the `.rs` and
   stub panes, and a DSL *reader*: open an existing `.tclspec.tcl` (hand
   written, studio-saved, or emitted by the `spec-author` skill) and get
