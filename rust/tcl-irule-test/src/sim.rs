@@ -20,8 +20,11 @@
 //! bytecode VM, load iRule source(s), fire a request, and read back the
 //! pool/node decision, captured logs, and decision log.
 //!
-//! This is the config-agnostic core shared by the `f5 explain-flow --simulate`
-//! path and the `tcl_lsp_py.simulate_irule` facade. It is **runtime-ready**: it
+//! This is the config-agnostic core behind the `f5 explain-flow --simulate`
+//! path: it exposes [`SimRequest`] (the captured request to drive),
+//! [`SimOutcome`] (the pool/node decision, captured logs, decision log, and
+//! any failure reason), and [`simulate_irule`] to run one against the other —
+//! all three re-exported from the crate root. It is **runtime-ready**: it
 //! drives [`tcl-vm`](tcl_vm) in-process (no `tclsh`), so it lights up as the VM
 //! grows the command surface the orchestrator needs (`HTTP::*`, `pool`/`node`,
 //! `LB::*`, `when` dispatch, `class match`, …). Until then every VM /

@@ -311,7 +311,7 @@ fn fp_ds_06_traced_array_same_element_overwrite_silent() {
 }
 
 // ---------------------------------------------------------------------------
-// FP-DS-07 — namespace-eval body scope survives IRBlock rebuild
+// FP-DS-07 — namespace-eval body scope survives Statement::Block rebuild
 // ---------------------------------------------------------------------------
 
 const FP_DS_07_REPRO: &str = "\
@@ -327,7 +327,8 @@ proc g {x} {
 #[test]
 fn fp_ds_07_ns_eval_param_unused_through_rebuild_fires() {
     // TP: $x in ns-eval body runs in ::ns (not g's frame); param `x` is genuinely unused.
-    // FP-DS-07: W214 must fire after IRBlock rebuild preserves caller_scope=False.
+    // FP-DS-07: W214 must fire after the Statement::Block rebuild preserves
+    // the body's non-caller scope.
     assert!(
         fires(FP_DS_07_REPRO, D, "W214"),
         "FP-DS-07 TP: param used only inside ns-eval body must fire W214; emitted: {:?}",
@@ -355,7 +356,7 @@ const FP_DS_08_REPRO: &str = "proc f {} { set d {}; dict with d {}; return $miss
 #[test]
 fn fp_ds_08_empty_dict_with_return_missing_fires() {
     // TP: empty literal dict; dict with unpacks no keys; return $missing fires W210.
-    // FP-DS-08: CFGReturn arm must apply key-aware logic (D4-F3 closure).
+    // FP-DS-08: Terminator::Return arm must apply key-aware logic (D4-F3 closure).
     assert!(
         fires(FP_DS_08_REPRO, D, "W210"),
         "FP-DS-08 TP: empty dict with does not unpack 'missing'; return $missing must fire W210; emitted: {:?}",

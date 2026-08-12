@@ -636,10 +636,10 @@ impl CommandRegistry {
     /// As with [`Self::get`], a leading `::` falls back to the bare name.
     ///
     /// A registry built for a dialect profile additionally applies that
-    /// profile's SUBTRACTIVE rules ([`Self::spec_visible`]) whenever the
-    /// queried mask concerns the profile's own availability — so a bare
-    /// `IRULES` mask query on the f5-irules registry can never re-admit a
-    /// banned command, no matter which consumer asks
+    /// profile's operator-head exclusion ([`Self::spec_visible`]) whenever
+    /// the queried mask concerns the profile's own availability — so a
+    /// bare `IRULES` mask query on the f5-irules registry sees exactly the
+    /// specs that carry the `IRULES` bit, no matter which consumer asks
     /// (dialect-profile-model.md §9.2).
     #[must_use]
     pub fn get_for_dialect(&self, name: &str, dialect: DialectSet) -> Option<&CommandSpec> {
@@ -984,13 +984,17 @@ impl CommandRegistry {
     /// The full availability test for a mask query on this registry: the
     /// spec's own dialect gate, plus — when this registry was built for a
     /// profile and the query concerns that profile's availability — the
-    /// profile's subtractive disable list (§9) and, for a profile whose
-    /// operators are not command heads, the operator-command exclusion.
+    /// operator-command exclusion (§9), for a profile whose math operators
+    /// are not command heads.
+    ///
+    /// There is no disable list: availability is fully explicit in each
+    /// spec's `dialects` group, so a sandbox-banned command such as `exec`
+    /// simply never carries the `IRULES` bit.
     ///
     /// Public because generators projecting a command surface for an
     /// explicit mask (the Zed highlight queries project the profile's
     /// `grammar_union`, not its `availability_mask`) need the same
-    /// subtractive semantics `get_for_dialect` applies internally.
+    /// exclusion semantics `get_for_dialect` applies internally.
     #[must_use]
     pub fn spec_visible(&self, spec: &CommandSpec, dialect: DialectSet) -> bool {
         if !spec.supports_dialect(dialect) {
@@ -1835,13 +1839,12 @@ impl CommandRegistry {
 
     /// Whether `name` should appear as a notable action node in a flow
     /// diagram ([`Traits::DIAGRAM_ACTION`]). Accepts both the bare
-    /// (`HTTP::respond`) and the
-    /// canonical (`::HTTP::respond`) spelling — the leading `::` stamped on
-    /// `IRCall.canonical_command` by lowering is stripped to recover the
-    /// bare registration form — and reflects the dialects loaded into this
-    /// registry (the diagram-action set is part of the per-registry trait
-    /// index, so a `--dialect f5-irules` registry recognises iRules
-    /// actions).
+    /// (`HTTP::respond`) and the canonical (`::HTTP::respond`) spelling —
+    /// the leading `::` stamped on `Statement::Call.canonical_command` by
+    /// lowering is stripped to recover the bare registration form — and
+    /// reflects the dialects loaded into this registry (the diagram-action
+    /// set is part of the per-registry trait index, so a
+    /// `--dialect f5-irules` registry recognises iRules actions).
     #[must_use]
     pub fn is_diagram_action(&self, name: &str) -> bool {
         let has = |n: &str| {

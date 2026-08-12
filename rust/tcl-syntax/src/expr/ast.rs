@@ -18,8 +18,9 @@
 
 //! Structured AST for Tcl `[expr]` expressions.
 //!
-//! Replaces the opaque `String` representation used in `IRAssignExpr.expr`,
-//! `IRIfClause.condition`, `IRFor.condition`, and `CFGBranch.condition`.
+//! Replaces the opaque `String` representation used in the compiler's
+//! `Statement::AssignExpr.expr`, `IfClause.condition`,
+//! `Statement::For.condition`, and `Terminator::Branch.condition`.
 //! Parsed once at lowering time, then walked by downstream analyses
 //! (SSA, SCCP, type inference, shimmer).
 //!

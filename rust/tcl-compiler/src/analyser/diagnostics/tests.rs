@@ -4706,8 +4706,8 @@ fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
 
 /// W220-IR-paths.  ``set x [foo]`` is a side-effecting
 /// store: dropping the assignment would also drop the call
-/// to ``foo``.  ``IRAssignValue`` values containing ``[``
-/// are filtered out.
+/// to ``foo``.  ``Statement::AssignValue`` values
+/// containing ``[`` are filtered out.
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
     let mut a = Analyser::new();
@@ -4725,10 +4725,10 @@ fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
 }
 
 /// W220-IR-paths.  ``set x [expr {[foo]}]`` lowers as
-/// ``IRAssignExpr`` with a command call inside — same
-/// side-effecting reasoning as command-substitution
-/// values.  ``IRAssignExpr`` whose tree contains an
-/// ``IRExprCommand`` is filtered out.
+/// ``Statement::AssignExpr`` with a command call inside —
+/// same side-effecting reasoning as command-substitution
+/// values.  ``Statement::AssignExpr`` whose tree contains
+/// an ``ExprNode::Command`` is filtered out.
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
     let mut a = Analyser::new();
@@ -4747,9 +4747,10 @@ fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
 
 /// W220-IR-paths.  ``incr x`` is a side-effecting write
 /// (it reads the current value first).  The dead-store
-/// check only matches ``IRAssignConst`` /
-/// ``IRAssignValue`` / ``IRAssignExpr`` — ``IRIncr`` and
-/// ``IRCall.defs`` are skipped by exclusion.
+/// check only matches ``Statement::AssignConst`` /
+/// ``Statement::AssignValue`` / ``Statement::AssignExpr`` —
+/// ``Statement::Incr`` and ``Statement::Call.defs`` are
+/// skipped by exclusion.
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
     let mut a = Analyser::new();
@@ -4774,10 +4775,10 @@ fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
 }
 
 /// W220-IR-paths.  ``lassign $list a b`` defines ``a`` and
-/// ``b`` via ``IRCall.defs`` — a side-effecting write that
-/// can't be dropped without also dropping the call.
-/// The dead-store check only matches the three
-/// pure-assign IR shapes; ``IRCall`` is skipped by
+/// ``b`` via ``Statement::Call.defs`` — a side-effecting
+/// write that can't be dropped without also dropping the
+/// call.  The dead-store check only matches the three
+/// pure-assign IR shapes; ``Statement::Call`` is skipped by
 /// exclusion.
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
@@ -4969,7 +4970,7 @@ fn emit_cfg_ssa_diagnostics_w211_unused_variable() {
 #[test]
 fn w211_not_emitted_for_command_output_vars() {
     // `scan` / `binary scan` / `regexp -> capture` write their targets
-    // via the command, not a pure `set`; IRCall defs are excluded
+    // via the command, not a pure `set`; Statement::Call defs are excluded
     // from W211, so unused command outputs do not fire it.
     for src in [
         "proc f {} { scan $in \"%d\" n }",

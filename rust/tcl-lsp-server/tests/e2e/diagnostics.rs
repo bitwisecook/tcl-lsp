@@ -4356,8 +4356,8 @@ fn expect_embedded_86_core_is_clean_end_to_end() {
 
 #[test]
 fn irules_banned_commands_still_flag_end_to_end() {
-    // The subtractive iRules profile is unchanged by the composed-mask fix:
-    // banned 8.4 core still draws W002 in a `when` handler.
+    // The iRules profile is unchanged by the composed-mask fix: 8.4 core
+    // that carries no `IRULES` bit still draws W002 in a `when` handler.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("irule");
     let diags = lsp.open_ready_lang(

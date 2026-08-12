@@ -98,7 +98,7 @@ impl EscapeState {
         self.flags.has_fallback()
     }
 
-    /// True if a non-frameless `IRCall` with a statically
+    /// True if a non-frameless `Statement::Call` with a statically
     /// resolvable command word was seen.
     #[must_use]
     pub fn has_call_fallback(&self) -> bool {
@@ -200,7 +200,7 @@ impl EscapeState {
         self.flags.insert(EscapeFlags::HAS_FALLBACK);
     }
 
-    /// Record a non-frameless `IRCall` with a static command word.
+    /// Record a non-frameless `Statement::Call` with a static command word.
     /// Whether this really reaches the eval fallback is decided by
     /// the interprocedural pass; if the callee resolves to a
     /// compiled proc the downgrade there drops the flag.
