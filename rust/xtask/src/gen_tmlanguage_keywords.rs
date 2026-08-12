@@ -530,7 +530,19 @@ mod tests {
         assert!(content.contains("\"name\": \"keyword.operator.option.tcl\""));
         assert!(content.contains("-(?:nocase|expanded|line|linestop|lineanchor"));
         // The compact single-line `fileTypes` array — the reason a full-file
-        // JSON reserialisation isn't used — must survive untouched.
-        assert!(content.contains("\"fileTypes\": [\"tcl\", \"tk\", \"itcl\", \"tm\"],"));
+        // JSON reserialisation isn't used — must survive untouched. Matched
+        // by shape against the committed grammar rather than by a pinned
+        // list: `tclspec` joined it when SpecTcl packs became editable, and
+        // what this pins is the single-line form surviving the splice, not
+        // which extensions happen to be in it.
+        let file_types = original
+            .lines()
+            .find(|line| line.trim_start().starts_with("\"fileTypes\""))
+            .expect("the grammar declares fileTypes");
+        assert!(
+            file_types.trim_end().ends_with("],"),
+            "fileTypes must stay on one line, or the splice guard is moot: {file_types}"
+        );
+        assert!(content.contains(file_types));
     }
 }

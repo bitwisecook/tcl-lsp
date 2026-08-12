@@ -209,8 +209,24 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "string",
             dialect: "tcl9.1",
-            unequal: NONE,
-            unequal_subcommand: NO_SUBS,
+            unequal: &[(
+                "__unrenderable",
+                "the shipped `string` carries `completion`, `world_effects`, \
+                 `state_transitions`, `dispatch_dependencies` and \
+                 `result_stability` descriptors that arrived with the \
+                 completion-code and stable-call-CSE work. SpecTcl has no \
+                 surface for any of them yet — the loader already reports \
+                 `world_effects` / `state_transitions` rows as \"not yet \
+                 loadable; dropped\" — so they stay on the unrenderable list \
+                 and the port does not transcribe them. Every field the port \
+                 does carry matches",
+            )],
+            unequal_subcommand: &[(
+                "length",
+                "__unrenderable",
+                "the same five descriptors, declared per-subcommand on \
+                 `string length`; unrenderable for the same reason",
+            )],
             subcommand_subset: &["length", "is", "map", "range"],
         }],
     },

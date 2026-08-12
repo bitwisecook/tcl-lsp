@@ -3106,8 +3106,18 @@ mod tests {
     #[test]
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
-        // 16 dialects: the prior 15 + `tcl9.1` (the Tcl 9.1 sync).
-        assert_eq!(meta["dialects"].as_array().unwrap().len(), 16);
+        // Every dialect the registry offers is exposed, and in its order.
+        // Derived from `available_dialects` rather than pinned to a count:
+        // the invariant worth holding is "the explorer drops none of them",
+        // and a magic number only ever announces a new dialect (`spectcl`,
+        // most recently) by turning CI red on the branch that adds it.
+        let dialects: Vec<&str> = meta["dialects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|d| d.as_str().unwrap())
+            .collect();
+        assert_eq!(dialects, available_dialects());
         // The original 27 views, plus World SSA and six durable compiler
         // artefact views.
         assert_eq!(meta["views"].as_array().unwrap().len(), 34);
