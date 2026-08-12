@@ -73,7 +73,7 @@ code becomes `W139`.
 
 ## How to suppress
 
-Add `# noqa: W144` at the end of the offending line.
+Add `# noqa: W144` on the line **above** the offending command.
 
 ## Related
 

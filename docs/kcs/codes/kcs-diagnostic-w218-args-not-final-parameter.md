@@ -46,7 +46,7 @@ Move `args` to the final position (or rename it if an ordinary parameter was int
 
 ## How to suppress
 
-Add `# noqa: W218` at the end of the line declaring the procedure.
+Add `# noqa: W218` on the line **above** the procedure declaration.
 
 ## Related
 

@@ -86,7 +86,7 @@ won't guess a body for you.
 
 ## How to suppress
 
-Add `# noqa: E004` at the end of the offending line.
+Add `# noqa: E004` on the line **above** the offending command.
 
 ## Related
 

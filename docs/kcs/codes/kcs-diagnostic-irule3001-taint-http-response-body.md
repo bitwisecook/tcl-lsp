@@ -44,7 +44,7 @@ HTML-escape the value before embedding it in the response.
 
 ## How to suppress
 
-Add `# noqa: IRULE3001` at the end of the offending line.
+Add `# noqa: IRULE3001` on the line **above** the offending command.
 
 ## Related
 

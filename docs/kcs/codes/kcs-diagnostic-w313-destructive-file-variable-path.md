@@ -42,7 +42,7 @@ Normalise and validate the path, and use `--` to prevent option injection.
 
 ## How to suppress
 
-Add `# noqa: W313` at the end of the offending line.
+Add `# noqa: W313` on the line **above** the offending command.
 
 ## Related
 

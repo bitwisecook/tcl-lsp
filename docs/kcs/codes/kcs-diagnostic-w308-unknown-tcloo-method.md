@@ -225,7 +225,7 @@ oo::class create Point {
 
 ## How to suppress
 
-Add `# noqa: W308` at the end of the offending line.
+Add `# noqa: W308` on the line **above** the offending command.
 
 ## Related
 

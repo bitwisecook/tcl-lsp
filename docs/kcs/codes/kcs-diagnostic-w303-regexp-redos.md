@@ -41,7 +41,7 @@ Remove nested quantifiers so the pattern matches in linear time.
 
 ## How to suppress
 
-Add `# noqa: W303` at the end of the offending line.
+Add `# noqa: W303` on the line **above** the offending command.
 
 ## Related
 

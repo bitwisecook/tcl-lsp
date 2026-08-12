@@ -45,7 +45,7 @@ if {[string match "*admin*" [HTTP::path -normalized]]} {
 
 ## How to suppress
 
-Add `# noqa: IRULE3102` at the end of the offending line.
+Add `# noqa: IRULE3102` on the line **above** the offending command.
 
 ## Related
 

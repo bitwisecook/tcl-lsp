@@ -71,7 +71,7 @@ called bare — the warning only flags that qualified access, ensembles, and
 
 ## How to suppress
 
-Add `# noqa: W314` at the end of the offending line.
+Add `# noqa: W314` on the line **above** the offending command.
 
 ## Related
 

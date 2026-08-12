@@ -41,7 +41,7 @@ Add `--` to end option processing, then name the variable — a `-`-named variab
 
 ## How to suppress
 
-Add `# noqa: W217` at the end of the offending line.
+Add `# noqa: W217` on the line **above** the offending command.
 
 ## Related
 

@@ -1,6 +1,6 @@
 # Name resolution — the model
 
-**Status:** current. This is the design reference for how the stack answers
+This is the design reference for how the stack answers
 "which *thing* does this name denote?" for the four name kinds — **command**,
 **variable**, **class/method**, and **expr function** — across the analyser,
 the LSP providers, the bytecode VM, and the WASM runtime.

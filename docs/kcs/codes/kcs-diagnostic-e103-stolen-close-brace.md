@@ -50,7 +50,7 @@ statement(s) inside the wrong scope.
 
 ## How to suppress
 
-Add `# noqa: E103` at the end of the offending line.
+Add `# noqa: E103` on the line **above** the offending command.
 
 ## Related
 

@@ -42,7 +42,7 @@ Use `list` to construct the command safely, preventing substitution of metachara
 
 ## How to suppress
 
-Add `# noqa: W101` at the end of the offending line.
+Add `# noqa: W101` on the line **above** the offending command.
 
 ## Related
 

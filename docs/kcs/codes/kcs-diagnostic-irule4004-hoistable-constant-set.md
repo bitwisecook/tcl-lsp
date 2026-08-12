@@ -45,7 +45,7 @@ when RULE_INIT {
 
 ## How to suppress
 
-Add `# noqa: IRULE4004` at the end of the offending line.
+Add `# noqa: IRULE4004` on the line **above** the offending command.
 
 ## Related
 

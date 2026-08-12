@@ -41,7 +41,7 @@ HTTP::uri "/newpath"
 
 ## How to suppress
 
-Add `# noqa: IRULE3101` at the end of the offending line.
+Add `# noqa: IRULE3101` on the line **above** the offending command.
 
 ## Related
 

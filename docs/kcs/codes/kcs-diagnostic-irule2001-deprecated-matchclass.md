@@ -41,7 +41,7 @@ class match -- $data equals $class
 
 ## How to suppress
 
-Add `# noqa: IRULE2001` at the end of the offending line.
+Add `# noqa: IRULE2001` on the line **above** the offending command.
 
 ## Related
 

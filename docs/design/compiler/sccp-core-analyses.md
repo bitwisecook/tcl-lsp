@@ -231,8 +231,12 @@ folded. This keeps the rewrite sound for DCE/codegen.
 ### Unreachable blocks
 
 Blocks that are never reached (due to constant branches, code after
-`return`/`break`, etc.) are collected in `FunctionAnalysis.unreachable_blocks`.
-Taint analysis and optimisation passes skip unreachable blocks.
+`return`/`break`, etc.) are the complement of `SccpResult.executable_blocks`
+— `FunctionUnit.sccp`, the return value of `sccp()`.  The optimiser derives
+the set with `unreachable_blocks(&fu.cfg, &fu.sccp)`
+(`rust/tcl-compiler/src/optimiser/elimination.rs`).  Taint analysis and
+optimisation passes skip unreachable blocks.  (`FunctionAnalysis` has an
+`unreachable_blocks` field, but nothing populates it — see the note above.)
 
 ### Type lattice
 
@@ -256,7 +260,13 @@ the shimmer detector (S100–S102).
 ### Liveness analysis
 
 `live_in[block]` / `live_out[block]` — sets of `SSAValueKey` that are
-"live" (may still be read) at each block boundary.
+"live" (may still be read) at each block boundary.  There is no stored
+per-function liveness map: each consumer computes what it needs from the
+`FunctionUnit`, via `live_out_by_name()`
+(`rust/tcl-compiler/src/slot_allocation.rs`) for slot interference and
+`liveness_dead_stores()` (`rust/tcl-compiler/src/dead_stores.rs`) for dead
+stores.  The `FunctionAnalysis.live_in` / `live_out` fields are declared and
+unpopulated — see the note above.
 
 A value is dead if it is defined but never appears in any `live_out` set.
 Dead values trigger:
@@ -266,12 +276,20 @@ Dead values trigger:
 ### Dead store detection
 
 If `x₁ = "42"` and `x₁` never appears in any `uses` dict, it is a dead
-store.  SCCP marks it in `FunctionAnalysis.dead_stores`.
+store.  `liveness_dead_stores(fu, registry)`
+(`rust/tcl-compiler/src/dead_stores.rs`) returns the `Vec<DeadStore>`
+directly from the `FunctionUnit`; the diagnostics layer consumes it in
+`emit_dead_store_diagnostics`
+(`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`).
 
 ### Read-before-set
 
-If a variable is read at version 0 (never defined before use), it appears
-in `FunctionAnalysis.read_before_set` → diagnostic W103.
+If a variable is read at version 0 (never defined before use),
+`emit_read_before_set_diagnostics`
+(`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`) reports it
+straight off the `FunctionUnit`'s SSA and def-use facts → diagnostic
+**W210**.  (`FunctionAnalysis.read_before_set` is a declared field with no
+producer — see the note above.)
 
 Existence checks are excluded: `info exists X` / `array exists X` test a
 variable rather than reading its value, so the check reference itself is never
@@ -297,8 +315,11 @@ The exact-name shape test goes through `shared.naming.is_unqualified_var_name`
 
 ### Unused variables
 
-Variables that are defined but never read (across all versions) appear in
-`FunctionAnalysis.unused_variables` → diagnostic W104.
+Variables that are defined but never read (across all versions) are reported
+by `emit_unused_variable_diagnostics`
+(`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`), again from the
+`FunctionUnit` → diagnostic **W211**.  (`FunctionAnalysis.unused_variables`
+is a declared field with no producer — see the note above.)
 
 ### Worked example — `set x 5; if {$x < 0} {…} elseif {$x > 0} {…} else {…}`
 

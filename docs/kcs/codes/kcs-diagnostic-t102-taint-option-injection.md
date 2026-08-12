@@ -43,7 +43,7 @@ Add `--` before the argument to end option parsing.
 
 ## How to suppress
 
-Add `# noqa: T102` at the end of the offending line.
+Add `# noqa: T102` on the line **above** the offending command.
 
 ## Related
 

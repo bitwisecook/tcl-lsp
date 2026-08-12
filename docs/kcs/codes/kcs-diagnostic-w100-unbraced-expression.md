@@ -45,7 +45,7 @@ Wrap the expression in braces to prevent double substitution and enable byte-com
 
 ## How to suppress
 
-Add `# noqa: W100` at the end of the offending line.
+Add `# noqa: W100` on the line **above** the offending command.
 
 ## Related
 

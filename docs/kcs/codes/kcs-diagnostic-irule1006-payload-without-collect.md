@@ -54,7 +54,7 @@ argument prevents it from selecting the MQTT form.
 
 ## How to suppress
 
-Add `# noqa: IRULE1006` at the end of the offending line.
+Add `# noqa: IRULE1006` on the line **above** the offending command.
 
 ## Related
 

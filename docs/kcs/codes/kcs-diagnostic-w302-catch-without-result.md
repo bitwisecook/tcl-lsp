@@ -77,7 +77,7 @@ Tcl reads as a `catch` of the script `result`.
 
 ## How to suppress
 
-Add `# noqa: W302` at the end of the offending line.
+Add `# noqa: W302` on the line **above** the offending command.
 
 ## Related
 

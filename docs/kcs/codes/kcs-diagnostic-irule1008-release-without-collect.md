@@ -42,7 +42,7 @@ when CLIENT_DATA { TCP::release }
 
 ## How to suppress
 
-Add `# noqa: IRULE1008` at the end of the offending line.
+Add `# noqa: IRULE1008` on the line **above** the offending command.
 
 ## Related
 

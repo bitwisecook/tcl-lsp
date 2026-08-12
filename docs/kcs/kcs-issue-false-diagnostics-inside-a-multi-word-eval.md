@@ -79,7 +79,7 @@ claim about the call.
 ## How to suppress
 
 If you still see one of these on a shape not covered above, add
-`# noqa: E002` or `# noqa: W210` at the end of the offending line, and please
+`# noqa: E002` or `# noqa: W210` on the line **above** the offending command, and please
 open an issue with the snippet.
 
 ## Related

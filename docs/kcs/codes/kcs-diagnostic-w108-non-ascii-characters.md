@@ -47,7 +47,7 @@ Replace non-ASCII characters with their ASCII equivalents or remove them.
 
 ## How to suppress
 
-Add `# noqa: W108` at the end of the offending line.
+Add `# noqa: W108` on the line **above** the offending command.
 
 ## Related
 

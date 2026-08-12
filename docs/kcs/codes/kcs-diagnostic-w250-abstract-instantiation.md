@@ -70,7 +70,7 @@ set s [Circle new 2]
 
 ## How to suppress
 
-Add `# noqa: W250` at the end of the offending line, or disable the code
+Add `# noqa: W250` on the line **above** the offending command, or disable the code
 via `tclLsp.diagnostics.disabled`.
 
 ## Related

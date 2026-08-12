@@ -158,7 +158,7 @@ class will not exist at run time; it does not erase the editor's model of it.
 
 ## How to suppress
 
-Add `# noqa: W315` at the end of the offending line, or
+Add `# noqa: W315` on the line **above** the offending command, or
 `# tcl-lsp: disable=W315` at the top of the file.
 
 ## Related

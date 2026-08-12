@@ -57,7 +57,7 @@ Set `tclLsp.diagnostics.W242: true` in your editor's configuration.
 
 ## How to suppress
 
-Add `# noqa: W242` at the end of the offending line.
+Add `# noqa: W242` on the line **above** the offending command.
 
 ## Related
 

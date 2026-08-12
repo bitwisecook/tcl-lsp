@@ -41,7 +41,7 @@ Add the missing `]` to terminate the command substitution, and brace the express
 
 ## How to suppress
 
-Add `# noqa: E201` at the end of the offending line.
+Add `# noqa: E201` on the line **above** the offending command.
 
 ## Related
 

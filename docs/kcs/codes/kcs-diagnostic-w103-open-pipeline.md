@@ -43,7 +43,7 @@ Validate that the path does not begin with `|` before passing it to `open`.
 
 ## How to suppress
 
-Add `# noqa: W103` at the end of the offending line.
+Add `# noqa: W103` on the line **above** the offending command.
 
 ## Related
 

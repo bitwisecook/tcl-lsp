@@ -57,7 +57,7 @@ When the operator is nested inside a larger expression, appears more than once, 
 
 ## How to suppress
 
-Add `# noqa: W003` at the end of the offending line. Suppression is line-based: it silences every W003 occurrence reported on that line.
+Add `# noqa: W003` on the line **above** the offending command. Suppression is line-based: it silences every W003 occurrence reported on that line.
 
 ## Related
 

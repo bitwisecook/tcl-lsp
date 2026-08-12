@@ -45,7 +45,7 @@ flowchart TD
     SSA -->|SsaFunction| CORE["<b>Core Analyses</b><br/>sccp / type_infer / taint"]
     LOW -->|ir::Module| IPA["<b>Interprocedural Analysis</b><br/>build_interprocedural_analysis()"]
 
-    CORE -->|FunctionAnalysis| CU["<b>CompilationUnit</b>"]
+    CORE -->|FunctionUnit| CU["<b>CompilationUnit</b>"]
     IPA -->|InterproceduralAnalysis| CU
     CFG --> CU
 
@@ -455,7 +455,7 @@ Key types:
 
 ### 8. Core Analyses
 
-**Modules:** `rust/tcl-compiler/src/sccp.rs`, `type_infer.rs`, `taint.rs`, `dead_stores.rs` — result types in `analyses.rs` (`FunctionAnalysis`)
+**Modules:** `rust/tcl-compiler/src/sccp.rs`, `type_infer.rs`, `taint.rs`, `dead_stores.rs` — lattice and fact types in `analyses.rs`, carried per function by `FunctionUnit` (`compilation_unit.rs`)
 
 Runs the main dataflow passes over the SSA graph:
 

@@ -43,7 +43,7 @@ Remove the trailing backslash from the comment line.
 
 ## How to suppress
 
-Add `# noqa: W115` at the end of the offending line.
+Add `# noqa: W115` on the line **above** the offending command.
 
 ## Related
 

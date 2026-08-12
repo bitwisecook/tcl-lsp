@@ -44,7 +44,7 @@ Wrap the entire pattern–body list in braces.
 
 ## How to suppress
 
-Add `# noqa: W106` at the end of the offending line.
+Add `# noqa: W106` on the line **above** the offending command.
 
 ## Related
 

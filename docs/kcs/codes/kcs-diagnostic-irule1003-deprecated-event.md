@@ -41,7 +41,7 @@ when ACCESS_SESSION_CLOSED { log "bye" }
 
 ## How to suppress
 
-Add `# noqa: IRULE1003` at the end of the offending line.
+Add `# noqa: IRULE1003` on the line **above** the offending command.
 
 ## Related
 

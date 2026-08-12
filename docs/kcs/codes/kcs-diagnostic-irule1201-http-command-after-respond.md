@@ -47,7 +47,7 @@ of commands that still need a live HTTP context, from the command registry.
 
 ## How to suppress
 
-Add `# noqa: IRULE1201` at the end of the offending line.
+Add `# noqa: IRULE1201` on the line **above** the offending command.
 
 ## Related
 

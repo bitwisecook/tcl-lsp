@@ -44,7 +44,7 @@ The quick fix replaces the nested `[expr {...}]` with its body in parentheses â€
 
 ## How to suppress
 
-Add `# noqa: W114` at the end of the offending line.
+Add `# noqa: W114` on the line **above** the offending command.
 
 ## Related
 

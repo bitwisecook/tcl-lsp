@@ -92,7 +92,7 @@ that shape.
 
 ## How to suppress
 
-Add `# noqa: W210` or `# noqa: W212` at the end of the offending line, and
+Add `# noqa: W210` or `# noqa: W212` on the line **above** the offending command, and
 please open an issue with the snippet.
 
 ## Related

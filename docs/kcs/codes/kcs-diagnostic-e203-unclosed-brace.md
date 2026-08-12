@@ -43,7 +43,7 @@ Add the missing `}` to terminate the brace group so the parser can continue proc
 
 ## How to suppress
 
-Add `# noqa: E203` at the end of the offending line.
+Add `# noqa: E203` on the line **above** the offending command.
 
 ## Related
 

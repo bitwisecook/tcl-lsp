@@ -41,7 +41,7 @@ Use a valid contiguous subnet mask.
 
 ## How to suppress
 
-Add `# noqa: W121` at the end of the offending line.
+Add `# noqa: W121` on the line **above** the offending command.
 
 ## Related
 

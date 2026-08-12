@@ -45,7 +45,7 @@ Choose a function name that does not collide with a built-in math function.
 
 ## How to suppress
 
-Add `# noqa: W117` at the end of the offending line.
+Add `# noqa: W117` on the line **above** the offending command.
 
 ## Related
 

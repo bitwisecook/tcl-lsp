@@ -41,7 +41,7 @@ Disable command and variable substitution so that only backslash substitution is
 
 ## How to suppress
 
-Add `# noqa: W102` at the end of the offending line.
+Add `# noqa: W102` on the line **above** the offending command.
 
 ## Related
 

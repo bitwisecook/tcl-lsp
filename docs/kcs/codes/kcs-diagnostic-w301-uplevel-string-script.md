@@ -41,7 +41,7 @@ Use `list` to construct the script safely, preventing metacharacter injection.
 
 ## How to suppress
 
-Add `# noqa: W301` at the end of the offending line.
+Add `# noqa: W301` on the line **above** the offending command.
 
 ## Related
 

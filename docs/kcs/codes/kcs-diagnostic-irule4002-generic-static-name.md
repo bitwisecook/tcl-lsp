@@ -41,7 +41,7 @@ set static::myirule_debug 0
 
 ## How to suppress
 
-Add `# noqa: IRULE4002` at the end of the offending line.
+Add `# noqa: IRULE4002` on the line **above** the offending command.
 
 ## Related
 

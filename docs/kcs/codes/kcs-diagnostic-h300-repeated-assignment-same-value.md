@@ -43,7 +43,7 @@ Either assign a different variable name or a different value on the second state
 
 ## How to suppress
 
-Add `# noqa: H300` at the end of the offending line.
+Add `# noqa: H300` on the line **above** the offending command.
 
 ## Related
 

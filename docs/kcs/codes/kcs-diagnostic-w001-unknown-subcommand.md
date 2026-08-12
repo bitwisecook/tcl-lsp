@@ -54,7 +54,7 @@ Correct the subcommand name to one the command actually supports.
 
 ## How to suppress
 
-Add `# noqa: W001` at the end of the offending line.
+Add `# noqa: W001` on the line **above** the offending command.
 
 ## Related
 

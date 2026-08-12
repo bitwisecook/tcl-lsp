@@ -83,7 +83,7 @@ for the same rule on the dead-store side.
 
 ## How to suppress
 
-Add `# noqa: W211` at the end of the offending line, or set
+Add `# noqa: W211` on the line **above** the offending command, or set
 `tclLsp.diagnostics.W211` to `false` to turn the check off entirely.
 
 ## How to change its severity

@@ -56,7 +56,7 @@ if {[llength $xs] > 5} {
 
 ## How to suppress
 
-Add `# noqa: W231` at the end of the offending line.
+Add `# noqa: W231` on the line **above** the offending command.
 
 ## Related
 

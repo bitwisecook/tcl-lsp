@@ -44,7 +44,7 @@ log local0. "Host: $clean"
 
 ## How to suppress
 
-Add `# noqa: IRULE3003` at the end of the offending line.
+Add `# noqa: IRULE3003` on the line **above** the offending command.
 
 ## Related
 

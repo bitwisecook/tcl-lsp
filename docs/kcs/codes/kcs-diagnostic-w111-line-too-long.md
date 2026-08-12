@@ -43,7 +43,7 @@ Break the line using backslash-newline continuation.
 
 ## How to suppress
 
-Add `# noqa: W111` at the end of the offending line.
+Add `# noqa: W111` on the line **above** the offending command.
 
 ## Related
 

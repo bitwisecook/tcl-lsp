@@ -53,7 +53,7 @@ event names, aliases, or commands assembled with `eval`.
 
 ## How to suppress
 
-Add `# noqa: IRULE1005` at the end of the offending line.
+Add `# noqa: IRULE1005` on the line **above** the offending command.
 
 ## Related
 

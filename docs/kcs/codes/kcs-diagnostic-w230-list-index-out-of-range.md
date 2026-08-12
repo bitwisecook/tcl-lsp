@@ -55,7 +55,7 @@ set last  [lindex $xs end]
 
 ## How to suppress
 
-Add `# noqa: W230` at the end of the offending line.
+Add `# noqa: W230` on the line **above** the offending command.
 
 ## Related
 

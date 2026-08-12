@@ -53,7 +53,7 @@ puts $weirdname    ;# 1
 
 ## How to suppress
 
-Add `# noqa: W215` at the end of the offending line.
+Add `# noqa: W215` on the line **above** the offending command.
 
 ## Related
 

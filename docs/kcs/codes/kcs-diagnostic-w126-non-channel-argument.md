@@ -43,7 +43,7 @@ Open the file first and pass the resulting channel handle.
 
 ## How to suppress
 
-Add `# noqa: W126` at the end of the offending line.
+Add `# noqa: W126` on the line **above** the offending command.
 
 ## Related
 

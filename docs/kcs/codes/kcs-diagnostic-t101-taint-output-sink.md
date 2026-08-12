@@ -44,7 +44,7 @@ Sanitise the value before logging, or use a structured log format.
 
 ## How to suppress
 
-Add `# noqa: T101` at the end of the offending line.
+Add `# noqa: T101` on the line **above** the offending command.
 
 ## Related
 

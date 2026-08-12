@@ -133,7 +133,7 @@ both are classified behaviour-hardening, and you accept them one at a time.
 
 ## How to suppress
 
-Add `# noqa: W120` at the end of the offending line.
+Add `# noqa: W120` on the line **above** the offending command.
 
 ## Related
 

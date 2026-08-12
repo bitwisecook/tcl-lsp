@@ -41,7 +41,7 @@ Provide a well-formed IPv4 or IPv6 address.
 
 ## How to suppress
 
-Add `# noqa: W124` at the end of the offending line.
+Add `# noqa: W124` on the line **above** the offending command.
 
 ## Related
 

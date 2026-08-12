@@ -124,7 +124,7 @@ Supply the required arguments so the command can execute successfully.
 
 ## How to suppress
 
-Add `# noqa: E002` at the end of the offending line.
+Add `# noqa: E002` on the line **above** the offending command.
 
 ## Related
 

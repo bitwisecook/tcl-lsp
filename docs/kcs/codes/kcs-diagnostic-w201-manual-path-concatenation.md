@@ -44,7 +44,7 @@ The quick fix replaces exactly the concatenated value, and is offered only when 
 
 ## How to suppress
 
-Add `# noqa: W201` at the end of the offending line.
+Add `# noqa: W201` on the line **above** the offending command.
 
 ## Related
 

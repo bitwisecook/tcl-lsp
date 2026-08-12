@@ -106,10 +106,18 @@ fully normalised value is harmless since there is nothing left to decode.
 ```
 SCCP  →  Type propagation  →  Rendered properties  →  Taint propagation
                                       ↓
-                              stored on FunctionAnalysis.rendered_props
+                              stored on FunctionUnit.rendered_props
                                       ↓
                               consumed by _find_path_concat_warnings (W201)
 ```
+
+`propagate_rendered_props` computes the map; it is carried as
+`FunctionUnit.rendered_props`
+(`Arc<HashMap<ValueKey, RenderedValueProps>>`, on the `FunctionUnit` that
+`CompilationUnit::build_for()` builds — `rust/tcl-compiler/src/compilation_unit.rs`),
+with an absent entry read as `RenderedValueProps::bottom()`.  The
+`FunctionAnalysis` aggregate in `rust/tcl-compiler/src/analyses.rs` has no
+`rendered_props` field and is not on the live path; issue #1406 tracks it.
 
 ### Transfer functions
 

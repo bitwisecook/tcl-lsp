@@ -58,7 +58,7 @@ An unknown method on such a handle reports `W308`, matching what hover and go-to
 
 ## How to suppress
 
-Add `# noqa: W307` at the end of the offending line.
+Add `# noqa: W307` on the line **above** the offending command.
 
 ## Related
 

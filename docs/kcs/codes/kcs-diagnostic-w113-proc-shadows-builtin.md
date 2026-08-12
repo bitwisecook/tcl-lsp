@@ -66,7 +66,7 @@ genuine, always-present command surface (not something the file ever
 
 ## How to suppress
 
-Add `# noqa: W113` at the end of the offending line.
+Add `# noqa: W113` on the line **above** the offending command.
 
 ## Related
 

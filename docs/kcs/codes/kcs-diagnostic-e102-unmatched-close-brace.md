@@ -50,7 +50,7 @@ correct it by hand.
 
 ## How to suppress
 
-Add `# noqa: E102` at the end of the offending line.
+Add `# noqa: E102` on the line **above** the offending command.
 
 ## Related
 

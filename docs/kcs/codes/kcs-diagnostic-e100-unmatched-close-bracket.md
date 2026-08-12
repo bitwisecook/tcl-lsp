@@ -41,7 +41,7 @@ Add the missing `[` to form a complete command substitution, or remove the stray
 
 ## How to suppress
 
-Add `# noqa: E100` at the end of the offending line.
+Add `# noqa: E100` on the line **above** the offending command.
 
 ## Related
 

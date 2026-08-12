@@ -49,7 +49,7 @@ if {$divisor != 0} {
 
 ## How to suppress
 
-Add `# noqa: W233` at the end of the offending line.
+Add `# noqa: W233` on the line **above** the offending command.
 
 ## Related
 

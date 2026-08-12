@@ -47,7 +47,7 @@ when HTTP_REQUEST { log local0. "count: $static::count" }
 
 ## How to suppress
 
-Add `# noqa: IRULE4005` at the end of the offending line.
+Add `# noqa: IRULE4005` on the line **above** the offending command.
 
 ## Related
 

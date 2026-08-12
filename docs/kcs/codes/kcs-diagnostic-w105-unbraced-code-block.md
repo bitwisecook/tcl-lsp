@@ -47,7 +47,7 @@ Brace the code block so it is compiled in the correct namespace scope.
 
 ## How to suppress
 
-Add `# noqa: W105` at the end of the offending line.
+Add `# noqa: W105` on the line **above** the offending command.
 
 ## Related
 

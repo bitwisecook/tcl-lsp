@@ -101,7 +101,7 @@ Remove the surplus arguments so the call matches the command's signature.
 
 ## How to suppress
 
-Add `# noqa: E003` at the end of the offending line.
+Add `# noqa: E003` on the line **above** the offending command.
 
 ## Related
 

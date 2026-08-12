@@ -46,7 +46,7 @@ when HTTP_REQUEST {
 
 ## How to suppress
 
-Add `# noqa: IRULE5002` at the end of the offending line.
+Add `# noqa: IRULE5002` on the line **above** the offending command.
 
 ## Related
 

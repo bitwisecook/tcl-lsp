@@ -79,7 +79,7 @@ concatenating it with literal pattern text.
 
 ## How to suppress
 
-Add `# noqa: W306` at the end of the offending line.
+Add `# noqa: W306` on the line **above** the offending command.
 
 ## Related
 

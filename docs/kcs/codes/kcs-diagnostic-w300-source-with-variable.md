@@ -41,7 +41,7 @@ Constrain the path to a known safe directory before sourcing.
 
 ## How to suppress
 
-Add `# noqa: W300` at the end of the offending line.
+Add `# noqa: W300` on the line **above** the offending command.
 
 ## Related
 

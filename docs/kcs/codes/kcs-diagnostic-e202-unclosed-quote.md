@@ -41,7 +41,7 @@ Add the missing closing `"` so the string is properly terminated.
 
 ## How to suppress
 
-Add `# noqa: E202` at the end of the offending line.
+Add `# noqa: E202` on the line **above** the offending command.
 
 ## Related
 

@@ -68,7 +68,7 @@ enclosing `namespace eval`, and an absolutely-written inner name (`proc ::abs
 
 ## How to suppress
 
-Add `# noqa: W214` at the end of the offending line.
+Add `# noqa: W214` on the line **above** the offending command.
 
 ## Related
 

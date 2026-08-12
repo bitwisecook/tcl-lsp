@@ -39,7 +39,7 @@ unset -nocomplain maybe_defined
 
 ## How to suppress
 
-Add `# noqa: W213` at the end of the offending line.
+Add `# noqa: W213` on the line **above** the offending command.
 
 ## Related
 

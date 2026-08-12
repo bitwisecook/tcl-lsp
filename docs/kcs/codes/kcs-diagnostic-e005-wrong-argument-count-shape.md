@@ -96,7 +96,7 @@ Complete the pair (or pairs) so the argument count fits the command's shape.
 
 ## How to suppress
 
-Add `# noqa: E005` at the end of the offending line.
+Add `# noqa: E005` on the line **above** the offending command.
 
 ## Related
 

@@ -52,7 +52,7 @@ be shorter than expected.
 
 ## How to suppress
 
-Add `# noqa: W232` at the end of the offending line.
+Add `# noqa: W232` on the line **above** the offending command.
 
 ## Related
 

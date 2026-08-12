@@ -46,7 +46,7 @@ if {1} {
 
 ## How to suppress
 
-Add `# noqa: IRULE5006` at the end of the offending line.
+Add `# noqa: IRULE5006` on the line **above** the offending command.
 
 ## Related
 

@@ -41,7 +41,7 @@ set static::ns "value"
 
 ## How to suppress
 
-Add `# noqa: IRULE2003` at the end of the offending line.
+Add `# noqa: IRULE2003` on the line **above** the offending command.
 
 ## Related
 
