@@ -83,6 +83,7 @@ pub mod invocation_words;
 pub mod lifecycle;
 pub mod literal_validation;
 pub mod mathfunc;
+pub mod pack_hooks;
 pub mod patterns;
 pub mod presentation;
 pub mod private_tcl_namespaces;

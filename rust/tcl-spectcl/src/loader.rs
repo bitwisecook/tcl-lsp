@@ -23,11 +23,11 @@
 //! [`build_document`](tcl_compiler::parsing::syntax::build::build_document) /
 //! [`segments_from_document`](tcl_compiler::parsing::syntax::segment::segments_from_document)
 //! pair every static scan in the toolchain uses — and turns the declarations
-//! into live [`CommandSpec`]s, which the studio then seeds a
-//! [`Draft`](crate::draft::Draft) from through the ordinary
-//! [`crate::draft::from_command_spec`]. Loading a pack and browsing a shipped
-//! command therefore produce drafts by the *same* code, which is what makes
-//! the per-port equivalence gate in `tests/spectcl_ports.rs` meaningful.
+//! into live [`CommandSpec`]s, which the Spec Studio then seeds a draft from
+//! through the ordinary `draft::from_command_spec`. Loading a pack and
+//! browsing a shipped command therefore produce drafts by the *same* code,
+//! which is what makes the per-port equivalence gate in
+//! `tcl-spec-studio/tests/spectcl_ports.rs` meaningful.
 //!
 //! The frozen syntax is `docs/design/spec-dsl-examples/README.md`; the
 //! architecture around it is `docs/design/spec-packs.md`.
@@ -106,7 +106,6 @@ use tcl_registry::world_effect::WorldEffectDescriptor;
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
 use crate::catalogue;
-use crate::draft::{self, Draft};
 
 // ---------------------------------------------------------------------------
 // Notices
@@ -179,19 +178,19 @@ impl Log {
 /// `description` compare byte for byte against the `&'static str` it came
 /// from.
 #[derive(Debug, Clone)]
-struct Word {
-    text: String,
+pub(crate) struct Word {
+    pub(crate) text: String,
     /// Whether the word was written `{…}` — the one thing that distinguishes
     /// an inline descriptor block from a descriptor named by a bare word.
-    braced: bool,
-    line: u32,
+    pub(crate) braced: bool,
+    pub(crate) line: u32,
 }
 
 /// One `word word…` declaration.
 #[derive(Debug, Clone)]
-struct Stmt {
-    words: Vec<Word>,
-    line: u32,
+pub(crate) struct Stmt {
+    pub(crate) words: Vec<Word>,
+    pub(crate) line: u32,
 }
 
 impl Stmt {
@@ -214,7 +213,24 @@ impl Stmt {
 /// Comments, `;` separators, and line continuations are handled by the lexer,
 /// so the loader inherits exactly the Tcl an author already knows — including
 /// the trap that `#` only starts a comment where a command word would start.
+///
+/// Segmentation is a **pure function of `(source, base_line)`**, which is what
+/// lets [`crate::cache`] memoise it: every level of a pack — the file, the
+/// `speclib` body, each `command` body, each descriptor block — reaches the
+/// CST through this one door, so memoising here captures the whole tree
+/// without the loader's readers knowing a cache exists. The memo is a no-op
+/// unless a caller installed one.
 fn statements(source: &str, base_line: u32) -> Vec<Stmt> {
+    if let Some(hit) = crate::cache::memo_get(source, base_line) {
+        return hit;
+    }
+    let parsed = segment(source, base_line);
+    crate::cache::memo_put(source, base_line, &parsed);
+    parsed
+}
+
+/// The uncached segmentation — [`statements`] minus the memo.
+fn segment(source: &str, base_line: u32) -> Vec<Stmt> {
     let source_map = SourceMap::new(source);
     let (document, _warnings) = build_document(source, LexerConfig::default());
     let mut line_starts: Vec<usize> = vec![0];
@@ -253,6 +269,12 @@ fn statements(source: &str, base_line: u32) -> Vec<Stmt> {
 /// The statements inside a braced block word.
 fn block(word: &Word) -> Vec<Stmt> {
     statements(&word.text, word.line)
+}
+
+/// Segment a whole pack source — the loader's entry into [`statements`], and
+/// the one [`crate::cache`] keys its on-disk entry from.
+pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
+    statements(source, 1)
 }
 
 // ---------------------------------------------------------------------------
@@ -494,15 +516,6 @@ pub struct PackCommand {
     pub clause_grammar: Option<ClauseGrammar>,
 }
 
-impl PackCommand {
-    /// The studio draft for this command — the *same* seeding the browser
-    /// uses for a shipped spec, so the two are directly comparable.
-    #[must_use]
-    pub fn draft(&self) -> Draft {
-        draft::from_command_spec(self.spec)
-    }
-}
-
 /// A loaded `.tclspec` pack.
 #[derive(Debug, Clone)]
 pub struct Pack {
@@ -542,7 +555,7 @@ pub fn load_pack(source: &str) -> Pack {
         notices: Vec::new(),
     };
 
-    let top = statements(source, 1);
+    let top = pack_statements(source);
     let Some(speclib) = top.iter().find(|s| s.word_text(0) == "speclib") else {
         log.say(1, "no `speclib` declaration; nothing loaded");
         pack.notices = log.notices;

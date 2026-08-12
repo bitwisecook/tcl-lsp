@@ -36,6 +36,25 @@ use crate::value::Value;
 /// A native builtin: receives argv *without* the command name (Tcl's `objv[1..]`).
 pub type BuiltinFn = fn(&mut Vm, &[Value]) -> Completion<Value>;
 
+/// A command implemented by an **embedder**, not by the VM.
+///
+/// [`BuiltinFn`] is a bare function pointer, so it can only implement a
+/// command whose whole state is the interpreter's. An embedder registering a
+/// command — a SpecTcl emitter verb collecting what a hook body emitted, a
+/// shimmed C extension holding its `ClientData` — needs to carry state of its
+/// own, which is what this trait is for: the VM stores it behind an `Rc` and
+/// hands it the same `(&mut Vm, argv)` a builtin gets.
+///
+/// `&self` rather than `&mut self` because the VM is re-entrant (a registered
+/// command can evaluate a script that calls it again), so an implementation
+/// that mutates keeps its state in a `Cell`/`RefCell` and decides for itself
+/// what re-entry means.
+pub trait NativeCommand {
+    /// Run the command. `args` excludes the command name, exactly as
+    /// [`BuiltinFn`] receives it.
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value>;
+}
+
 /// A procedure parameter: a name with an optional default.
 #[derive(Clone)]
 pub struct Param {
@@ -79,6 +98,10 @@ pub struct ProcDef {
 pub enum Command {
     /// A native Rust handler.
     Builtin(BuiltinFn),
+    /// An embedder-registered handler carrying its own state
+    /// ([`NativeCommand`]) — the extension-registration path, used by the
+    /// SpecTcl hook host's emitter verbs.
+    Native(Rc<dyn NativeCommand>),
     /// A user procedure (dispatched by the engine, which pushes an activation).
     Proc(Rc<ProcDef>),
     /// An `interp alias` — invoking the command evaluates these target words

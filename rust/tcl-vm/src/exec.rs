@@ -3214,24 +3214,14 @@ impl Vm {
         }
     }
 
-    /// The untraced dispatch body — see [`Self::dispatch_words`].
-    fn dispatch_words_inner(
+    /// Settle a synchronously-run native command (a [`BuiltinFn`] or an
+    /// embedder's [`NativeCommand`](crate::command::NativeCommand)): drain any
+    /// body it deferred to the explicit stack, else deliver its completion.
+    fn settle_native_dispatch(
         &mut self,
         f: &mut Frame,
-        words: &[Value],
+        res: Completion<Value>,
     ) -> Result<Option<Tick>, Completion<Value>> {
-        let name = words[0].to_str();
-        match self.lookup_command(&name) {
-            Some(Command::Proc(p)) => {
-                let p = self.ensure_proc_ready(p);
-                Ok(Some(Tick::Call {
-                    proc: p,
-                    argv: words[1..].to_vec(),
-                }))
-            }
-            Some(Command::Builtin(bf)) => {
-                self.set_invoked_name(&name);
-                let res = bf(self, &words[1..]);
                 // A `yield`/`yieldto` sets `coro.pending` (after its own boundary
                 // check); convert it into a suspend `Tick` that freezes the whole
                 // activation stack. The builtin's placeholder result is dropped —
@@ -3272,6 +3262,32 @@ impl Vm {
                     return Ok(Some(Tick::PushTry(req)));
                 }
                 Self::deliver_sync(f, res)
+    }
+
+    /// The untraced dispatch body — see [`Self::dispatch_words`].
+    fn dispatch_words_inner(
+        &mut self,
+        f: &mut Frame,
+        words: &[Value],
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        let name = words[0].to_str();
+        match self.lookup_command(&name) {
+            Some(Command::Proc(p)) => {
+                let p = self.ensure_proc_ready(p);
+                Ok(Some(Tick::Call {
+                    proc: p,
+                    argv: words[1..].to_vec(),
+                }))
+            }
+            Some(Command::Builtin(bf)) => {
+                self.set_invoked_name(&name);
+                let res = bf(self, &words[1..]);
+                self.settle_native_dispatch(f, res)
+            }
+            Some(Command::Native(cmd)) => {
+                self.set_invoked_name(&name);
+                let res = cmd.invoke(self, &words[1..]);
+                self.settle_native_dispatch(f, res)
             }
             Some(Command::Alias(target)) => {
                 // Evaluate `target prefix… args…` as one command (see
@@ -3416,12 +3432,13 @@ impl Vm {
         }
     }
 
-    /// The untraced invoke body — see [`Self::invoke_command`].
-    fn invoke_command_inner(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
-        match self.lookup_command(name) {
-            Some(Command::Builtin(bf)) => {
-                self.set_invoked_name(name);
-                let res = bf(self, argv);
+    /// Settle a synchronously-run native command on the native re-entry path
+    /// ([`Self::invoke_command`]): a deferred body runs via a nested drive,
+    /// else the completion is the command's own. The
+    /// [`dispatch_words`](Self::dispatch_words) twin is
+    /// [`settle_native_dispatch`](Self::settle_native_dispatch); the two differ
+    /// only in having a trampoline to push onto.
+    fn settle_native_invoke(&mut self, res: Completion<Value>) -> Completion<Value> {
                 // An `eval`/`uplevel`/`apply`-style builtin deferred its body to
                 // `pending_eval`. This call site is on the native Rust stack (no
                 // trampoline to push onto), so run the body via a nested drive —
@@ -3464,6 +3481,20 @@ impl Vm {
                     return self.run_activation(Frame::new_try(req));
                 }
                 res
+    }
+
+    /// The untraced invoke body — see [`Self::invoke_command`].
+    fn invoke_command_inner(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        match self.lookup_command(name) {
+            Some(Command::Builtin(bf)) => {
+                self.set_invoked_name(name);
+                let res = bf(self, argv);
+                self.settle_native_invoke(res)
+            }
+            Some(Command::Native(cmd)) => {
+                self.set_invoked_name(name);
+                let res = cmd.invoke(self, argv);
+                self.settle_native_invoke(res)
             }
             Some(Command::Proc(p)) => {
                 let p = self.ensure_proc_ready(p);

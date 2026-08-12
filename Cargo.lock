@@ -4364,6 +4364,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-spec-studio",
  "tcl-syntax",
  "tcl-version",
  "tokio",
@@ -4384,6 +4385,7 @@ dependencies = [
  "tcl-registry",
  "tcl-sandbox",
  "tcl-syntax",
+ "tcl-userdirs",
  "toml",
  "ureq",
  "zip",
@@ -4456,6 +4458,10 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
 ]
+
+[[package]]
+name = "tcl-userdirs"
+version = "0.1.0"
 
 [[package]]
 name = "tcl-version"

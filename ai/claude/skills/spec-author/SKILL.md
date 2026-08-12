@@ -1,7 +1,7 @@
 ---
 name: spec-author
 description: "Build command specs for a private Tcl library: scan its sources with the compiler, infer each command's signature and behaviour, and produce stub sidecars or registry-ready spec drafts. Use when a user's own package commands are unknown to tcl-lsp, when annotating a private library, or when preparing a command-spec contribution."
-allowed-tools: mcp__tcl-lsp__read_proc_docs, mcp__tcl-lsp__analyze, mcp__tcl-lsp__command_info, Read, Write, Glob, Grep
+allowed-tools: mcp__tcl-lsp__read_proc_docs, mcp__tcl-lsp__analyze, mcp__tcl-lsp__command_info, mcp__tcl-lsp__spectcl_check, Read, Write, Glob, Grep
 ---
 
 # Spec Author
@@ -55,10 +55,20 @@ the compiler's own inference — never guesswork from names.
      sidecar as the working fallback and say so.
    - **contribution** — the same `.tclspec` pack plus an issue body per
      the how-to; the Spec Studio renders the final `.rs` from it.
-   Validate the pack: if the `tcl-mcp` server exposes a SpecTcl check
-   tool (`spectcl_check`-style, structured parse report), call it and
-   fix every finding; otherwise self-check each command against the
-   syntax memo's coverage matrix and say validation was manual.
+   Validate the pack with `mcp__tcl-lsp__spectcl_check` — pass the pack
+   source and the target `dialect`. It loads the pack through the real
+   loader and reports, per command, the draft fields the declaration
+   actually set; every loader **notice** (`line`, `context`, `reason`) —
+   each one a word that was dropped, so a typo'd trait or an unknown
+   property shows up here and nowhere else; every declared **hook** with
+   its family and whether it is shape-cacheable; and every
+   **collision** with a shipped command name for that dialect. Fix every
+   notice, and every `shipped-spec-wins` collision (rename, or add
+   `-override` if replacing the shipped spec is genuinely intended — see
+   step 5). An uncacheable hook is legal, not a finding: report the cost
+   rather than removing the hook. Only if the tool is unavailable,
+   self-check each command against the syntax memo's coverage matrix and
+   say validation was manual.
 7. Validate: re-run `mcp__tcl-lsp__analyze` on a library file that *uses*
    the commands and confirm the unknown-command diagnostics are gone
    (private) or list what will clear once the specs ship (contribution).

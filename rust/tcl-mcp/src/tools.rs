@@ -64,6 +64,24 @@ fn resolve_dialect(args: &Value, source: &str) -> String {
     }
 }
 
+/// The dialect for a tool whose `source` is **not** Tcl code to detect from —
+/// a `.tclspec` pack, say: an explicit non-empty `dialect` argument, else the
+/// session dialect.
+///
+/// Deliberately skips [`tcl_registry::detect_dialect`]. A spec pack's text
+/// *describes* commands rather than calling them, so detecting a dialect from
+/// its content would answer a different question than "which registry should
+/// this pack be checked against".
+pub(crate) fn declared_dialect(args: &Value) -> String {
+    match args.get("dialect").and_then(Value::as_str) {
+        Some(d) if !d.is_empty() => d.to_owned(),
+        _ => session_dialect()
+            .lock()
+            .expect("session dialect lock")
+            .clone(),
+    }
+}
+
 fn set_dialect(args: &Value) -> Value {
     let requested = arg_str(args, "dialect").to_owned();
     let mut guard = session_dialect().lock().expect("session dialect lock");
@@ -1729,6 +1747,24 @@ const TOOLS: &[ToolDef] = &[
         params: &[SRC],
         required: &["source"],
         handler: crate::irule_gen::generate_irule_test,
+    },
+    ToolDef {
+        name: "spectcl_check",
+        description: "Validate a SpecTcl (.tclspec) spec pack: commands parsed with the draft fields each sets, loader notices (dropped/unknown words), declared hooks with their family and shape-cacheability, and collisions with the shipped registry for the target dialect.",
+        params: &[
+            (
+                "source",
+                "string",
+                "SpecTcl pack source text (the contents of a .tclspec file)",
+            ),
+            (
+                "dialect",
+                "string",
+                "Dialect whose shipped registry to check names against; defaults to the session dialect",
+            ),
+        ],
+        required: &["source"],
+        handler: crate::spectcl::spectcl_check,
     },
 ];
 

@@ -24,9 +24,11 @@
 //! skill calls to validate a pack it has just written.
 //!
 //! **There is exactly one parser.** Every fact below comes from
-//! [`tcl_spec_studio::spectcl::load_pack`] — the same loader the studio and the
-//! equivalence gate use — and from the [`Draft`] it seeds through the ordinary
-//! [`draft::from_command_spec`]. This module reads that result and renders it;
+//! [`tcl_spectcl::load_pack`] — the same loader the LSP, the studio, and the
+//! equivalence gate use — and from the [`Draft`] the studio seeds from its
+//! result through the ordinary [`draft::from_command_spec`], so a field this
+//! report calls "set" is set in exactly the sense the Spec Studio's form
+//! means. This module reads that result and renders it;
 //! it never looks at the pack text itself, with the single, documented
 //! exception of the hook-body `ctx` scan under
 //! [`shape_cacheability`](fn@shape_cacheability), which inspects body text the
@@ -52,7 +54,7 @@
 //!
 //! ## A note on cost
 //!
-//! [`load_pack`](tcl_spec_studio::spectcl::load_pack) installs a pack for the
+//! [`load_pack`] installs a pack for the
 //! process's life by leaking its strings and specs — a `CommandSpec` is a
 //! `&'static`-shaped record. Checking a pack therefore leaks it, by design of
 //! the loader rather than of this tool. That is fine for an MCP server driven
@@ -65,7 +67,7 @@ use serde_json::{Map, Value, json};
 use tcl_registry::CommandRegistry;
 use tcl_registry::spec::CommandSpec;
 use tcl_spec_studio::draft::{self, Draft, UNRENDERABLE_KEY};
-use tcl_spec_studio::spectcl::{self, HookDecl, HookFamily, HookOwner, HookSource, PackCommand};
+use tcl_spectcl::{HookDecl, HookFamily, HookOwner, HookSource, PackCommand, load_pack};
 
 /// `ctx` keys that are *part of* the `(command, word-shape)` memo key
 /// `docs/design/spec-packs.md` assumes for its 24.5 ns/call figure.
@@ -98,7 +100,7 @@ pub fn spectcl_check(args: &Value) -> Value {
     let dialect = crate::tools::declared_dialect(args);
     let registry = tcl_registry::registry_for_dialect(&dialect);
 
-    let pack = spectcl::load_pack(source);
+    let pack = load_pack(source);
 
     let defaults = draft::default_command_draft();
     let sub_defaults = draft::default_subcommand_draft();
@@ -154,7 +156,7 @@ pub fn spectcl_check(args: &Value) -> Value {
 /// One command: its name, the draft fields the declaration set, its
 /// subcommands, and its hooks.
 fn command_json(cmd: &PackCommand, defaults: &Draft, sub_defaults: &Draft) -> Value {
-    let d = cmd.draft();
+    let d = draft::from_command_spec(cmd.spec);
     let subcommands: Vec<Value> = d
         .get("subcommands")
         .and_then(Value::as_array)
@@ -191,8 +193,8 @@ fn command_json(cmd: &PackCommand, defaults: &Draft, sub_defaults: &Draft) -> Va
 fn fields_set(d: &Map<String, Value>, defaults: &Draft) -> Vec<String> {
     d.iter()
         .filter(|(key, _)| key.as_str() != "name" && key.as_str() != UNRENDERABLE_KEY)
-        .filter(|(key, value)| defaults.get(*key) != Some(*value))
-        .map(|(key, _)| key.clone())
+        .filter(|(key, value)| defaults.get(key.as_str()) != Some(*value))
+        .map(|(key, _)| key.to_owned())
         .collect()
 }
 
@@ -371,19 +373,28 @@ fn is_name_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b':'
 }
 
-/// The literal key of a `dict get $ctx KEY` whose `$ctx` starts at `at`, when
-/// the reference is exactly that shape.
+/// The literal key of a `dict get $ctx KEY` whose `$ctx` starts at `at` and
+/// ends at `after`, when the reference is exactly that shape.
 fn dict_get_key(body: &str, at: usize, after: usize) -> Option<String> {
-    // Preceded by `dict get` (any whitespace run between and before).
-    let before = body[..at].trim_end();
-    let before = before.strip_suffix("get")?;
-    if before.len() == body[..at].trim_end().len() - "get".len()
-        && !before.ends_with(char::is_whitespace)
-    {
+    // Preceded by `dict get`, with a whitespace run before `$ctx` and another
+    // between the two words.
+    let head = body[..at].trim_end_matches(char::is_whitespace);
+    if head.len() == at {
+        return None; // `get$ctx` is not a `dict get`
+    }
+    let head = head.strip_suffix("get")?;
+    if !head.ends_with(char::is_whitespace) {
         return None;
     }
-    let before = before.trim_end();
-    if !before.ends_with("dict") {
+    let head = head
+        .trim_end_matches(char::is_whitespace)
+        .strip_suffix("dict")?;
+    // `dict` must itself start a word, so `subdict get` is not a match.
+    if head
+        .chars()
+        .next_back()
+        .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == ':')
+    {
         return None;
     }
     // Followed by whitespace and a bare word — the key.
