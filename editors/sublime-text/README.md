@@ -101,9 +101,10 @@ is used directly from the repository — no build step needed.
 
 These features work out of the box with no additional dependencies:
 
-- **Syntax highlighting** — Tcl (`.tcl`, `.tk`, `.itcl`, `.tm`), iRules
-  (`.irul`, `.irule`), iApps (`.iapp`, `.iappimpl`, `.impl`), and EDA
-  Tools, with version-specific grammars for Tcl 8.4, 8.5, and 9.0
+- **Syntax highlighting** — Tcl (`.tcl`, `.tk`, `.itcl`, `.tm`,
+  `.tclspec`), iRules (`.irul`, `.irule`), iApps (`.iapp`, `.iappimpl`,
+  `.impl`), and EDA Tools, with version-specific grammars for Tcl 8.4,
+  8.5, and 9.0
 - **16 snippets** — code templates for common Tcl and iRules patterns
   (proc, namespace, class, foreach, switch, catch, try, iRules event
   handlers, collect/release, data-group lookup, and more)

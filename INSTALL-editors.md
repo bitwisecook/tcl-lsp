@@ -151,7 +151,7 @@ return {
 
 ```lua
 vim.filetype.add({ extension = {
-  tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl',
+  tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', tclspec = 'tcl',
   irul = 'tcl', irule = 'tcl', iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl',
 }})
 vim.lsp.enable('tcl_lsp')
@@ -195,7 +195,7 @@ command = "/home/you/bin/tcl-lsp-server"
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl"]
+file-types = ["tcl", "tk", "itcl", "tm", "tclspec", "irul", "irule", "iapp", "iappimpl", "impl"]
 language-servers = ["tcl-lsp"]
 ```
 

@@ -256,7 +256,7 @@ pub struct DialectProfile {
 /// Mask and behaviour values follow the per-dialect table in
 /// `docs/design/dialect-profile-model.md` §7. Interim values that the
 /// milestone plan tightens later are commented at the entry.
-static CATALOG: [DialectProfile; 16] = [
+static CATALOG: [DialectProfile; 17] = [
     // bpf embeds a genuine Tcl 9.0 (design doc D7): 9.0 runtime semantics —
     // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule —
     // and, since Milestone 6, the precise `TCL90|BPF` availability mask:
@@ -591,6 +591,33 @@ static CATALOG: [DialectProfile; 16] = [
             },
         ],
         help_terms: &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
+    },
+    // SpecTcl — the `.tclspec` spec-pack authoring DSL (`spec-packs.md`).
+    // A pack is an ordinary Tcl script read from the CST and never executed;
+    // the only Tcl that is ever *evaluated* is a hook body, on our own VM, so
+    // the runtime half of this profile is plain Tcl 9.0. What makes it a
+    // dialect at all is the availability half: the statement words
+    // (`speclib` / `command` / `option` / `arg` / …) are a command surface
+    // that must exist inside a pack and nowhere else.
+    DialectProfile {
+        name: "spectcl",
+        aliases: &["tcl-spec", "tclspec"],
+        vendor_bit: Some(DialectSet::SPECTCL),
+        availability_mask: DialectSet::TCL90.union(DialectSet::SPECTCL),
+        base_layers: &[DialectSet::SPECTCL],
+        grammar_union: DialectSet::ALL_TCL.union(DialectSet::SPECTCL),
+        version_ceiling: Some(TclVersion::V9_0),
+        signature_base: Some(TclVersion::V9_0),
+        runtime_base: Some(TclVersion::V9_0),
+        leading_zero_is_octal: Ternary::No,
+        expr_grammar_base: Some(TclVersion::V9_0),
+        grammar: GRAMMAR_TCL9X,
+        operators_as_commands: true,
+        tcloo: true,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V9_0,
+        libraries: &[],
+        help_terms: &["spectcl", "speclib", "tclspec"],
     },
     DialectProfile {
         name: "synopsys-eda-tcl",

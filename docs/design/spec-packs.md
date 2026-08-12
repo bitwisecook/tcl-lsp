@@ -252,13 +252,28 @@ issue flow (raw user-code words are included only in what the user
 reviews and sends, never auto-transmitted — nothing leaves the machine
 without a click).
 
-Hot-path budget: role resolvers run per call site during semantic
-tokens. Built-in packs keep native pointers (bucket 2 of the
-architecture above), so only pack-declared commands pay the VM cost —
-and those calls are memoisable by (command, word-shape). Whether that is
-enough is a measurement question, currently being benchmarked (bytecode
-compile cost per hook, ns/invocation VM vs native, memo hit-rate
-sensitivity); the numbers land here when they exist.
+**Hot-path budget — measured** (release build, cross-checked against
+the shipping `tclvm` CLI): a VM resolver body costs **28 µs** per
+invocation against a whole-call-site native budget of **410 ns** — the
+VM's floor is ~487 ns per Tcl command, so no marshalling trick closes
+a 68× gap. A const-folder is 16.6 µs; pack load by the CST route is
+**4.28 ms** for a 2,000-line pack (the "few milliseconds" claim holds
+— and pack load must use the CST route, never the flat analyser path,
+which is 75× slower). The design consequences are binding:
+
+- **Resolver results are cached by the registry, keyed by
+  command + word-shape** (24.5 ns/call at steady state — clears
+  budget). To make that key sound, the hook contract requires a
+  resolver to depend only on its declared inputs and to return the
+  **complete** index→role map in one invocation. A plain word-vector
+  memo is not enough (2.94 µs at a 90% hit rate — fresh variable names
+  are all misses).
+- **Folders and predicate gates run on the VM freely** — bounded,
+  off the interactive path, contractually pure.
+- Two VM work items fall out and are tracked upstream: **command-limit
+  fuel is stored but not enforced** (load-bearing for the containment
+  guarantee above), and the proc-body compile cache misses on
+  qualified-name keying, forcing recompiles.
 
 ## Compatibility policy
 
