@@ -3237,6 +3237,16 @@
             "description": "Additional command names to treat as known commands (generic varargs signature).",
             "order": 3
           },
+          "tclLsp.specPacks": {
+            "scope": "resource",
+            "type": "array",
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "markdownDescription": "Extra SpecTcl spec packs (`.tclspec` files, or directories of them) to load for this workspace. Relative paths resolve against each workspace folder. Packs under a `.tcl-lsp/` directory, or beside a `tclpkg.tcl` manifest, are found without configuring anything; this setting is for packs that live somewhere else. See docs/design/spec-packs.md.",
+            "order": 8
+          },
           "tclLsp.bigipVersion": {
             "scope": "resource",
             "type": "string",

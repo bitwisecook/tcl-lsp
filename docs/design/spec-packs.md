@@ -4,10 +4,23 @@ The DSL is named **SpecTcl**. (Two prior arts knowingly share the name —
 Sun's 1990s Tk GUI builder and the NSCL physics analysis tool; both are
 dormant-to-distant enough in this space that the pun wins.)
 
-> **Status:** proposal under active design, for
+> **Status:** under construction, for
 > [issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363).
-> Nothing here is implemented. Design-by-porting sketches live in
-> [`spec-dsl-examples/`](spec-dsl-examples/) as they land.
+> Design-by-porting sketches live in
+> [`spec-dsl-examples/`](spec-dsl-examples/); the frozen syntax is that
+> directory's `README.md`.
+>
+> **Landed (phase 4, the runtime path):** the `.tclspec` loader, the three
+> discovery tiers with nearest-wins precedence, multi-file pack merge, the
+> compiled-pack cache in the OS cache directory, workspace-scope insertion into
+> the per-profile cached `CommandRegistry` under the shipped-wins-unless-
+> `-override` collision policy, and LSP integration — packs load at workspace
+> init, reload on pack-file change, and their load notices are published as
+> diagnostics on the pack file. All of it lives in the `tcl-spectcl` crate.
+>
+> **Not yet:** hook bodies do not run — every pack-declared hook installs as an
+> abstaining function pointer, so the cache has no bytecode to hold and stores
+> only the parsed statement tree. See "Hot-path budget" and phase 5 below.
 
 ## The problem
 

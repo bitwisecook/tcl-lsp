@@ -130,6 +130,8 @@ mod semantic_tokens_reference_client;
 mod server_version;
 #[path = "e2e/signature_help.rs"]
 mod signature_help;
+#[path = "e2e/spec_packs.rs"]
+mod spec_packs;
 #[path = "e2e/structure.rs"]
 mod structure;
 #[path = "e2e/tcl91.rs"]

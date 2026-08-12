@@ -388,15 +388,33 @@ fn as_array(value: &Value) -> &[Value] {
 // ---------------------------------------------------------------------------
 
 /// An indented line buffer with a one-slot blank-line separator.
+///
+/// **Only the first physical line of a statement is indented.** A braced word
+/// carrying prose may run over many lines, and the loader takes every byte
+/// between its braces verbatim — so indenting a continuation line would change
+/// the value, and the equivalence gate compares those strings byte for byte.
+/// That is also why a block body is rendered *at its final indent* rather than
+/// rendered flat and shifted afterwards.
 #[derive(Debug, Default)]
 struct Out {
     text: String,
     indent: usize,
     /// A blank line is owed before the next line, unless nothing follows.
     pending_blank: bool,
+    /// Every statement written, unindented — what the one-line subcommand
+    /// form is decided from.
+    statements: Vec<String>,
 }
 
 impl Out {
+    /// A buffer whose statements start at `indent` levels of four spaces.
+    fn at(indent: usize) -> Self {
+        Self {
+            indent,
+            ..Self::default()
+        }
+    }
+
     fn line(&mut self, text: &str) {
         if self.pending_blank && !self.text.is_empty() {
             self.text.push('\n');
@@ -407,6 +425,7 @@ impl Out {
                 self.text.push_str("    ");
             }
             self.text.push_str(text);
+            self.statements.push(text.to_owned());
         }
         self.text.push('\n');
     }
@@ -418,12 +437,15 @@ impl Out {
         }
     }
 
-    fn raw(&mut self, text: &str) {
+    /// Append an already-indented block, keeping its own statement list.
+    fn block(&mut self, other: &Self) {
         if self.pending_blank && !self.text.is_empty() {
             self.text.push('\n');
         }
         self.pending_blank = false;
-        self.text.push_str(text);
+        self.text.push_str(&other.text);
+        self.statements
+            .extend(other.statements.iter().map(Clone::clone));
     }
 
     fn indented<T>(&mut self, body: impl FnOnce(&mut Self) -> T) -> T {
@@ -461,20 +483,23 @@ impl Out {
     /// else on the first.
     fn row(&mut self, words: &[String], break_before: &str) {
         let flat = words.join(" ");
-        if self.indent * 4 + flat.len() <= WRAP_COLUMN || break_before.is_empty() {
-            self.line(&flat);
-            return;
-        }
-        let Some(at) = words.iter().position(|w| w == break_before) else {
+        let split = if self.indent * 4 + flat.len() <= WRAP_COLUMN || break_before.is_empty() {
+            None
+        } else {
+            words
+                .iter()
+                .position(|w| w == break_before)
+                .filter(|at| *at > 0)
+        };
+        let Some(at) = split else {
             self.line(&flat);
             return;
         };
-        if at == 0 {
-            self.line(&flat);
-            return;
-        }
         self.line(&format!("{} \\", words[..at].join(" ")));
         self.indented(|out| out.line(&words[at..].join(" ")));
+        // One logical statement, however many physical lines it took.
+        self.statements.truncate(self.statements.len() - 2);
+        self.statements.push(flat);
     }
 }
 
@@ -1609,10 +1634,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
     };
     let ctx = &mut ctx;
 
-    let mut body = Out {
-        indent: 0,
-        ..Out::default()
-    };
+    let mut body = Out::at(out.indent + 1);
     let out_body = &mut body;
 
     arity_row(out_body, ctx, sub);
@@ -1748,31 +1770,25 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
     }
     hover_block(out_body, ctx, sub);
 
-    let statements: Vec<&str> = body.text.lines().filter(|line| !line.is_empty()).collect();
+    // A subcommand saying only its arity, detail, and synopsis goes on one
+    // line — `;` separates statements exactly as a newline does.
     let one_liner = format!(
         "subcommand {} {{ {} }}",
         word(name),
-        statements.join(" ; ")
+        body.statements.join(" ; ")
     );
-    let simple = statements.len() <= 3
-        && !statements.iter().any(|line| line.ends_with('{'))
-        && !one_liner.contains('\n');
+    let simple = body.statements.len() <= 3
+        && !body
+            .statements
+            .iter()
+            .any(|line| line.ends_with('{') || line.contains('\n') || line.starts_with('#'));
     if simple && out.indent * 4 + one_liner.len() <= WRAP_COLUMN {
         out.line(&one_liner);
         return;
     }
 
     out.line(&format!("subcommand {} {{", word(name)));
-    out.indented(|out| {
-        let indent = "    ".repeat(out.indent);
-        for line in body.text.lines() {
-            if line.is_empty() {
-                out.raw("\n");
-            } else {
-                out.raw(&format!("{indent}{line}\n"));
-            }
-        }
-    });
+    out.block(&body);
     out.line("}");
 }
 
@@ -1799,12 +1815,14 @@ pub fn render(draft: &Draft) -> String {
 #[must_use]
 pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
     let mut tables = ValueTables::default();
-    let mut bodies: Vec<(String, String)> = Vec::new();
+    let mut bodies: Vec<(String, Out)> = Vec::new();
 
     for draft in drafts {
         let name = str_of(draft.get("name").unwrap_or(&Value::Null)).to_owned();
         let defaults = draft::default_command_draft();
-        let mut body = Out::default();
+        // Rendered at its final indent: a braced word's continuation lines are
+        // part of the value and must never be shifted afterwards.
+        let mut body = Out::at(2);
         {
             let mut ctx = Ctx {
                 defaults: &defaults,
@@ -1813,7 +1831,7 @@ pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
             };
             command_body(&mut body, &mut ctx, draft);
         }
-        bodies.push((name, body.text));
+        bodies.push((name, body));
     }
 
     let mut out = Out::default();

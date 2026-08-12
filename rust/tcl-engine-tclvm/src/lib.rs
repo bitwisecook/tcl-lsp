@@ -130,15 +130,13 @@ fn to_vm_value(value: &Value) -> tcl_vm::Value {
 
 /// Convert a VM value to the interface's representation.
 ///
-/// Deliberately string-shaped unless the VM value is already a list: the VM's
-/// value is dual-rep, and asking it "are you *really* an integer" would install
-/// an intrep the body never asked for. The host parses what its protocol
-/// expects.
+/// Deliberately string-shaped. The VM's value is dual-rep, and asking it "are
+/// you *really* a list" is not a question — it is a *conversion*, which
+/// installs a list intrep on every string that happens to parse as one and
+/// changes what the body's own later use of that value costs. The host parses
+/// what its protocol expects; the boundary reports what the body produced.
 fn from_vm_value(value: &tcl_vm::Value) -> Value {
-    value.as_list().map_or_else(
-        || Value::string(&*value.to_str()),
-        |items| Value::list(items.iter().map(from_vm_value)),
-    )
+    Value::string(&*value.to_str())
 }
 
 /// The `tcl-vm` engine.
@@ -240,7 +238,7 @@ impl Engine for TclVmEngine {
         let procedure = format!("::spectcl::unit::{}", self.units);
         self.vm
             .define_procedure(&procedure, unit.parameters, unit.body)
-            .map_err(|error| EngineError::Compile(error.to_string()))?;
+            .map_err(|error| EngineError::Compile(error.message))?;
         Ok(VmHandle {
             procedure,
             parameters: unit.parameters.len(),

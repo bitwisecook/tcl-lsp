@@ -310,6 +310,21 @@ impl HookInputs {
     }
 }
 
+/// The DSL's spelling of a word kind — the `kinds` entry a hook body reads.
+///
+/// One place, because the vocabulary is the registry's: a body compares
+/// against `literal` and the loader documents `literal`, so the two cannot
+/// drift apart into `Literal` versus `literal`.
+#[must_use]
+pub fn kind_word(kind: InvocationWordKind) -> &'static str {
+    match kind {
+        InvocationWordKind::Literal => "literal",
+        InvocationWordKind::Dynamic => "dynamic",
+        InvocationWordKind::Expanded => "expanded",
+        InvocationWordKind::Opaque => "opaque",
+    }
+}
+
 /// A pack hook's process-wide identity: which family, and which of that
 /// family's slots.
 ///

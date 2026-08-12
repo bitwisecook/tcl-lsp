@@ -4210,6 +4210,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-engine-api"
+version = "0.1.0"
+
+[[package]]
+name = "tcl-engine-tclvm"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-registry",
+ "tcl-vm",
+]
+
+[[package]]
 name = "tcl-explorer"
 version = "0.1.0"
 dependencies = [
@@ -4433,6 +4449,17 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "wait-timeout",
+]
+
+[[package]]
+name = "tcl-spec-hooks"
+version = "0.1.0"
+dependencies = [
+ "tcl-compiler",
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-engine-tclvm",
+ "tcl-registry",
 ]
 
 [[package]]
