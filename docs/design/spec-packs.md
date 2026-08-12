@@ -230,9 +230,14 @@ task weight), spec'd here so the work has a target:
   command search (registry and pack alike, keyboard-first); browser-style
   forward/back moves through the commands visited, with unsaved edits
   carried by the live-save layer rather than blocked by prompts. The
-  workflow is explicitly *many commands to one deliverable*: build out
-  the pack command by command, then emit the finished set as one DSL
-  file, one rendered `.rs` batch, or one pre-filled GitHub issue.
+  pack's own commands live in an **always-visible sidebar** — one click
+  from any command being defined to any other, with per-command state at
+  a glance (fields set, warnings, done/draft) — so defining a library is
+  constant motion between its commands, never a trip back through a
+  search box. The workflow is explicitly *many commands to one
+  deliverable*: build out the pack command by command, then emit the
+  finished set as one DSL file, one rendered `.rs` batch, or one
+  pre-filled GitHub issue.
 - **Live save, always.** Every keystroke persists to browser storage
   (IndexedDB): pack sources, drafts, settings, the Test tab's sample
   code. Reload, crash, or restart resumes exactly; explicit export
