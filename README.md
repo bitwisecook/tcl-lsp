@@ -586,6 +586,36 @@ proc main {}          { process "42" }
 # Outgoing calls from 'process': validate, store
 ```
 
+#### `source` links, including computed paths
+
+Every `source` argument the server can place becomes a clickable link, and
+the same resolved path drives navigation, cross-file diagnostics and load
+order — so a file reached through a computed path behaves exactly like one
+named literally.
+
+```tcl
+source lib/util.tcl                                    ;# literal
+source [file join [file dirname [info script]] x.tcl]  ;# [info script] idiom
+
+set dir [file dirname [info script]]
+set src [file join $dir src]
+source [file join $src parser.tcl]                     ;# chained constants
+
+namespace eval ::snit:: {
+    variable library [file dirname [info script]]
+}
+source [file join $::snit::library main1.tcl]          ;# namespace variable
+```
+
+A variable another file assigns resolves too, when every file that sources
+this one agrees on its value before sourcing (the OSVVM
+`${::osvvm::OsvvmScriptDirectory}/…` shape). A path the server cannot prove
+— built from `$argv`, from a write guarded by `if {![info exists …]}`, or
+from routes that disagree — produces no link rather than a guessed one.
+
+The link is offered on the file name itself, never across the surrounding
+substitution, so `[file join …]` keeps its normal syntax colouring.
+
 ### 6. Quick fixes and refactorings
 
 Quick-fix actions are offered for diagnostics that have automated repairs.

@@ -656,6 +656,7 @@ fn links_in(src: &str, script_path: &str) -> Vec<DocumentLink> {
         src,
         "tcl8.6",
         &tcl_lsp_core::document_links::LinkContext {
+            imported_constants: None,
             workspace_root: Some(root),
             home: None,
             script_path: Some(script_path),
