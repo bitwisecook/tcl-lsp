@@ -4444,6 +4444,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-spectcl",
  "tcl-syntax",
 ]
 

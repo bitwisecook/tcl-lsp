@@ -43,8 +43,15 @@
 //! - [`infer`] — Tcl package sources → draft specs, via the real analyser.
 //! - [`spectcl`] — `.tclspec` spec packs → live `CommandSpec`s, read from the
 //!   CST and never executed.
+//!
+//! Two of those are re-exports rather than modules of this crate. [`spectcl`]
+//! and [`catalogue`] were written here, where the DSL was designed, and now
+//! live in `tcl-spectcl` — the LSP server loads packs at workspace init and
+//! cannot reasonably depend on a draft model, a `.rs` renderer, and a schema
+//! coverage gate to do it. The studio's surface is unchanged: same paths, same
+//! types, and the equivalence gate in `tests/spectcl_ports.rs` still tests the
+//! very loader the server runs.
 
-pub mod catalogue;
 pub mod coverage;
 pub mod draft;
 pub mod help;
@@ -53,7 +60,9 @@ pub mod reference;
 pub mod render_rs;
 pub mod render_stub;
 pub mod schema;
-pub mod spectcl;
+
+pub use tcl_spectcl::catalogue;
+pub use tcl_spectcl::loader as spectcl;
 
 use serde_json::{Value, json};
 use tcl_registry::cache::registry_for_dialect;

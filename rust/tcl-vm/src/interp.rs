@@ -670,9 +670,16 @@ pub struct InterpState {
     debug_frame: bool,
     /// `interp bgerror` — the background-error handler command prefix.
     bgerror_handler: Value,
-    /// `interp limit` configuration. The `time` limit is enforced; `commands`
-    /// is stored for query/set only.
+    /// `interp limit` configuration. Both limit types are enforced: `time`
+    /// by [`Vm::limit_check_tick`], `commands` by [`Vm::charge_command`].
     limits: LimitSet,
+    /// Commands dispatched by this interp since the last
+    /// [`Vm::reset_command_count`] — the counter the `commands` limit is
+    /// charged against, and the fuel gauge an embedder reads
+    /// ([`Vm::commands_run`]). Free-running: an interp with no limit set still
+    /// counts, because the count costs one increment and answers "how much did
+    /// that body cost" without arming anything.
+    commands_run: u64,
     /// Free-running counter that throttles wall-clock polling for the `time`
     /// limit (see [`Vm::limit_check_tick`]). Vm-scoped, not per-activation, so
     /// it accumulates across the short-lived activations a command-driven loop
@@ -749,7 +756,7 @@ pub(crate) struct ParkedFlow {
 }
 
 /// `interp limit` configuration for one interpreter — the `commands` and `time`
-/// limit types. Stored and queried, but not enforced.
+/// limit types. Stored, queried, and enforced.
 #[derive(Clone)]
 pub(crate) struct LimitSet {
     cmd_command: Value,
@@ -937,6 +944,7 @@ impl InterpState {
             debug_frame: false,
             bgerror_handler: Value::string("::tcl::Bgerror"),
             limits: LimitSet::default(),
+            commands_run: 0,
             limit_tick: 0,
             // A fixed non-zero default so an un-`srand`'d `rand()` is still
             // deterministic; Tcl auto-seeds from the clock, but reproducibility
@@ -1488,6 +1496,21 @@ impl Vm {
         self.commands.insert(name.to_owned(), cmd);
     }
 
+    /// Every registered command name, in table order.
+    pub(crate) fn registered_command_names(&self) -> Vec<String> {
+        self.commands.keys().cloned().collect()
+    }
+
+    /// Remove `name` from the command table by exact key — no namespace-path
+    /// resolution, which is what a whitelist sweep over
+    /// [`Self::registered_command_names`] needs.
+    pub(crate) fn remove_registered_command(&mut self, name: &str) {
+        if self.commands.remove(name).is_some() {
+            self.bump_cmd_epoch();
+            self.imported_commands.remove(name);
+        }
+    }
+
     /// Resolve and remove the command `name`, returning it (for `rename`).
     /// Resolution is the full shared rule — current namespace, `namespace
     /// path`, then global — matching C's `TclRenameCommand`, which finds the
@@ -1811,6 +1834,45 @@ impl Vm {
             return Some(err("time limit exceeded"));
         }
         None
+    }
+
+    /// Charge one command against this interp's `commands` limit, returning
+    /// the `command count limit exceeded` completion when the budget is spent
+    /// (issue #1373 finding 1: the limit was stored but never enforced).
+    ///
+    /// Called from both command funnels — the trampoline's
+    /// [`dispatch_words`](crate::exec) and the native
+    /// [`invoke_command`](Vm::invoke_command) re-entry — so a body that loops
+    /// in bytecode and one that loops through native re-entry are charged
+    /// alike. Unlike C Tcl this checks every command rather than every
+    /// `-granularity`th: the check is an increment and a compare, and an
+    /// exactly-enforced budget is what the SpecTcl containment guarantee needs
+    /// from a hook body.
+    pub(crate) fn charge_command(&mut self) -> Option<Completion<Value>> {
+        self.commands_run = self.commands_run.saturating_add(1);
+        let limit = self.limits.cmd_value?;
+        let limit = u64::try_from(limit).unwrap_or(0);
+        (self.commands_run > limit).then(|| err("command count limit exceeded"))
+    }
+
+    /// The `commands` limit value, if one is armed.
+    pub(crate) fn command_limit_value(&self) -> Option<i64> {
+        self.limits.cmd_value
+    }
+
+    /// Arm (or disarm) the `commands` limit.
+    pub(crate) fn set_command_limit_value(&mut self, limit: Option<i64>) {
+        self.limits.cmd_value = limit;
+    }
+
+    /// Commands dispatched since the counter was last reset.
+    pub(crate) fn command_count(&self) -> u64 {
+        self.commands_run
+    }
+
+    /// Zero the command counter — an embedder's per-invocation fuel refill.
+    pub(crate) fn reset_command_count_inner(&mut self) {
+        self.commands_run = 0;
     }
 
     /// `interp limit limitType ?-option value …?` on this interp (query / set;

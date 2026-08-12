@@ -61,6 +61,7 @@ members = [
     "rust/tcl-bytecode",
     "rust/tcl-runtime-api",
     "rust/tcl-registry",
+    "rust/tcl-spectcl",
     "rust/tcl-regex",
     "rust/tcl-compiler",
     "rust/tcl-diagram",

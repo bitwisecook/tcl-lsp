@@ -855,8 +855,20 @@ impl Vm {
     }
 
     /// Run one bytecode function to completion via the NRE trampoline.
+    ///
+    /// Deep-copies `asm` into the `Rc` the activation needs. An embedder
+    /// invoking the same body repeatedly should hold a
+    /// [`FunctionHandle`](crate::embed::FunctionHandle) and call
+    /// [`Vm::invoke_function`] instead, which pays that copy once (issue
+    /// #1373 finding 3).
     pub fn run_function(&mut self, asm: &FunctionAsm) -> Completion<Value> {
-        self.run_activation(Frame::new(Rc::new(asm.clone()), false))
+        self.run_function_rc(Rc::new(asm.clone()))
+    }
+
+    /// Run an already-`Rc`-wrapped function to completion — the clone-free
+    /// path behind [`Vm::invoke_function`].
+    pub(crate) fn run_function_rc(&mut self, asm: Rc<FunctionAsm>) -> Completion<Value> {
+        self.run_activation(Frame::new(asm, false))
     }
 
     /// Run one activation stack to completion (the ordinary, non-coroutine path).
@@ -3044,6 +3056,12 @@ impl Vm {
         f: &mut Frame,
         words: &[Value],
     ) -> Result<Option<Tick>, Completion<Value>> {
+        // Every dispatched command is charged against the `commands` limit
+        // before anything runs, so an armed budget bounds the work exactly
+        // (issue #1373 finding 1).
+        if let Some(exceeded) = self.charge_command() {
+            return Err(exceeded);
+        }
         // M16.3 fast path: no execution traces registered and no step scope
         // active — dispatch untraced (the common case pays one empty check).
         // Also untraced while a trace callback is itself running (C's
@@ -3369,7 +3387,10 @@ impl Vm {
     /// usable outside the bytecode loop: a builtin runs inline, a proc body runs
     /// to completion in a nested `is_proc` activation (so its call-frame and
     /// `return` are handled), and an alias re-evaluates its target prefix.
-    pub(crate) fn invoke_command(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+    pub fn invoke_command(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        if let Some(exceeded) = self.charge_command() {
+            return exceeded;
+        }
         // M16.3: mirror `dispatch_words`' trace wrapper on this native path —
         // enter/enterstep before, leave/leavestep after (synchronously: the
         // completion is known when the inner call returns). Also untraced
