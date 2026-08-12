@@ -357,12 +357,14 @@ impl Analyser {
     /// known to hold an Object of one of `class_names`.
     ///
     /// A method counts as found when the hierarchy resolves it, a local class
-    /// declares it (or it's a built-in `new`/`create`/`destroy`/`configure`/
-    /// `cget` or an `unknown` handler), an inherited `unknown` handler exists,
-    /// the class has an external (unindexed) superclass or mixin, the receiver
-    /// var was `oo::objdefine`d, or any candidate class is a snit metaclass
-    /// (whose delegation the analyser can't model).  W308 fires only when not
-    /// found and at least one candidate class is locally known.
+    /// declares it (or it's a class-system built-in such as
+    /// `new`/`create`/`destroy`, or an `unknown` handler), it is a
+    /// property accessor on a configurable class, an inherited `unknown`
+    /// handler exists, the class has an external (unindexed) superclass or
+    /// mixin, the receiver var was `oo::objdefine`d, or any candidate class is
+    /// a snit metaclass (whose delegation the analyser can't model).  W308
+    /// fires only when not found and at least one candidate class is locally
+    /// known.
     ///
     /// A dispatch with no method word at all (`$obj` alone) is a different,
     /// unconditional failure — see [`Self::e001_for_bare_object_dispatch`] —
@@ -450,6 +452,16 @@ impl Analyser {
                     .is_some_and(|cd| self.method_set_unknowable(cd))
             });
         }
+        // A method the class system generates from the class's declared
+        // properties (`oo::configurable`'s `configure`); no member table or
+        // MRO provider entry carries one (issue #1362).
+        if !found
+            && class_names
+                .iter()
+                .any(|cls| hierarchy.is_property_accessor(self.registry, cls, method_name))
+        {
+            found = true;
+        }
         // ``oo::objdefine`` adds per-instance methods we can't see at the
         // class level.
         if !found && objdefined_vars.contains(&site.var_name) {
@@ -506,7 +518,7 @@ impl Analyser {
         let mut candidates: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for cls in class_names {
             if let Some(h) = hierarchy {
-                candidates.extend(h.known_methods(cls));
+                candidates.extend(h.known_methods(self.registry, cls));
             }
             if let Some(cd) = self.result.all_classes.get(*cls) {
                 candidates.extend(cd.methods.keys().cloned());
@@ -1760,6 +1772,15 @@ impl Analyser {
     ///   never draws this warning.
     /// * **An `unknown` handler** anywhere in the MRO — every unresolved
     ///   name is then legal by construction.
+    /// * **A template method, on `my` dispatch only** — the method resolves
+    ///   nowhere on the enclosing class's MRO but a known subclass defines
+    ///   it ([`ClassHierarchy::subclass_provides_method`](super::class_hierarchy::ClassHierarchy::subclass_provides_method),
+    ///   issue #1367).  `my` late-binds on the actual receiver — always a
+    ///   subclass instance when the base is abstract — and reaches
+    ///   unexported members, so the call is the deliberate pattern, not a
+    ///   typo.  `[self] M` keeps the warning: it dispatches through the
+    ///   object's command, where an unexported subclass method really is
+    ///   unreachable.
     ///
     /// A `forward`ed method needs no carve-out: `forward NAME …` records a
     /// real member under `NAME`, so `my NAME` resolves through the ordinary
@@ -1787,6 +1808,24 @@ impl Analyser {
         let class_def = self.enclosing_class_at_offset(cmd_span.start())?;
         let cls_qn = class_def.qualified_name.as_str();
         if self.validate_method_on_class(cls_qn, method, Some(class_def), hierarchy, reach) {
+            return None;
+        }
+        // Template-method pattern (issue #1367): a base-class body calling
+        // `my M` where `M` is written only by subclasses runs fine — `my`
+        // late-binds on the actual receiver, always a subclass instance,
+        // and bypasses export filtering.  A known defining subclass is the
+        // evidence; with none anywhere in the index the warning stands.
+        // `SelfDispatch` only: `[self] M` goes through the object's own
+        // command, where an unexported subclass method really is
+        // unreachable (tclsh 9.0.4: `[self] varname v` fails where
+        // `my varname v` succeeds — same reach split as the doc above).
+        if reach == tcl_registry::definer::MethodReach::SelfDispatch
+            && (hierarchy.is_some_and(|h| h.subclass_provides_method(cls_qn, method))
+                || self.workspace_subclass_methods.as_ref().is_some_and(|m| {
+                    m.get(cls_qn)
+                        .is_some_and(|provided| provided.contains(method))
+                }))
+        {
             return None;
         }
         Some(self.w308_diagnostic(
@@ -2141,6 +2180,12 @@ impl Analyser {
         if self.builtin_object_method_reachable(cd, method, reach) {
             return true;
         }
+        // A method the class system generates from declared properties —
+        // written by no `method` body, so neither the member tables nor the
+        // MRO above can see it (issue #1362).
+        if hierarchy.is_some_and(|h| h.is_property_accessor(self.registry, class_name, method)) {
+            return true;
+        }
         if let Some(fallback) = self
             .class_definer_grammar(class_name)
             .and_then(|grammar| grammar.unknown_dispatch_method)
@@ -2184,12 +2229,17 @@ impl Analyser {
     ///   the analyser cannot always tell apart from one of its instances.
     ///   Accepting both is the abstention; narrowing it needs receiver-kind
     ///   facts this pass does not have.
-    /// * **`oo::configurable`'s `configure` / `cget` are not listed at all**
-    ///   in the `TclOO` grammar, because they are contributed by a specific
-    ///   metaclass rather than by `oo::object`. A class that really has them
-    ///   declares them through its `property` members or inherits them, and
-    ///   is covered by the ordinary member tables / MRO lookup above; one
-    ///   that inherits from an *unindexed* configurable base is covered by
+    /// * **`oo::configurable`'s `configure` is not in the shared `TclOO`
+    ///   grammar**, because it is contributed by a specific metaclass rather
+    ///   than by `oo::object` — every `TclOO` metaclass shares the one
+    ///   grammar, so listing it here would hand it to plain `oo::class`
+    ///   instances too, which really do fail with `unknown method
+    ///   "configure"`. It rides on `oo::configurable`'s own
+    ///   `TCLOO_CONFIGURABLE_GRAMMAR` instead, and is settled one level up in
+    ///   [`Self::validate_method_on_class`] via
+    ///   [`ClassHierarchy::is_property_accessor`](super::class_hierarchy::ClassHierarchy::is_property_accessor),
+    ///   which asks the *metaclass command's* registry traits; a class that
+    ///   inherits from an *unindexed* configurable base is covered by
     ///   [`Self::method_set_unknowable`].
     fn builtin_object_method_reachable(
         &self,

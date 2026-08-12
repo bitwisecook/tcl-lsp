@@ -327,6 +327,23 @@ pub struct SourceFile {
     /// almost no document declares a metaclass.
     #[returns(ref)]
     pub workspace_class_factories: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+    /// Instance methods dispatchable on some workspace **descendant** of each
+    /// class, keyed by ancestor qualified name — the cross-file half of the
+    /// template-method W308 abstention (issue #1367): a base class calling
+    /// `my Render` is refuted by a subclass in a sibling document, which the
+    /// per-file analysis cannot see.
+    ///
+    /// `None` means "no workspace view", and the warning fires on the
+    /// per-file evidence alone — the behaviour every standalone consumer
+    /// keeps.
+    ///
+    /// Set by the server from the workspace index (compare-then-set), the
+    /// same discipline as its two siblings above: a view that does not move
+    /// invalidates nothing.  Unlike the factories this feeds only the
+    /// *analysis* queries, never [`item_tree`] — which methods a subclass
+    /// provides changes no declaration structure.
+    #[returns(ref)]
+    pub workspace_subclass_methods: Option<Arc<tcl_compiler::analyser::SubclassProvidedMethods>>,
     /// Monotonic revision of workspace sidecar stubs. The server advances this
     /// input for every `<dialect>.tcl.stubs` create/change/delete, so Salsa
     /// invalidates analyses that read an external declaration bundle.
@@ -344,7 +361,7 @@ impl SourceFile {
         dialect: String,
         path: Option<String>,
     ) -> Self {
-        Self::with_call_site_evidence(db, text, dialect, path, None, None, 0)
+        Self::with_call_site_evidence(db, text, dialect, path, None, None, None, 0)
     }
 }
 
@@ -414,7 +431,8 @@ pub fn file_analysis(
         .with_extra_commands(extra)
         .with_bigip_version(config.bigip_version(db).clone())
         .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(file.workspace_class_factories(db).clone());
+        .with_workspace_class_factories(file.workspace_class_factories(db).clone())
+        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
     Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
 }
 
@@ -2950,7 +2968,8 @@ pub fn file_analysis_incremental(
         .with_extra_commands(extra_commands)
         .with_bigip_version(config.bigip_version(db).clone())
         .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(workspace_class_factories.clone());
+        .with_workspace_class_factories(workspace_class_factories.clone())
+        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's

@@ -133,11 +133,18 @@ class Sampler(threading.Thread):
         self.pid = pid
         self.interval = interval
         self.samples: list[dict] = []
-        self._stop = threading.Event()
+        # NOT `_stop`: `threading.Thread` defines a private `_stop()`
+        # method that `join(timeout=...)` calls internally once the
+        # thread has finished, so an attribute of that name shadows it.
+        # Every run died with `TypeError: 'Event' object is not
+        # callable` in `Sampler.stop()` — raised from the `finally`
+        # block *before* the result file is written, so the benchmark
+        # completed all 15 checks and then produced nothing.
+        self._halt = threading.Event()
         self._t0 = time.perf_counter()
 
     def run(self) -> None:
-        while not self._stop.is_set():
+        while not self._halt.is_set():
             s = _proc_sample(self.pid)
             if s is None:
                 break
@@ -149,10 +156,10 @@ class Sampler(threading.Thread):
                     "cpu_s": round(cpu, 2),
                 }
             )
-            self._stop.wait(self.interval)
+            self._halt.wait(self.interval)
 
     def stop(self) -> None:
-        self._stop.set()
+        self._halt.set()
         self.join(timeout=2.0)
 
     def latest(self) -> dict | None:

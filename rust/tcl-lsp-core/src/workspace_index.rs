@@ -2962,6 +2962,96 @@ impl WorkspaceIndex {
         tcl_syntax::mro::tcloo_linearise(class_q, &supers_map, &mixins_map).unwrap_or_default()
     }
 
+    /// The project-wide **subclass-provided method** view behind the
+    /// template-method W308 abstention (issue #1367): for every class, the
+    /// instance-side member names dispatchable on some **other** class whose
+    /// linearisation contains it, so a base's `my Render` can be refuted by
+    /// the concrete subclass that writes `Render` in a sibling document.
+    ///
+    /// One pass, deliberately: the class-name universe and the owner-resolved
+    /// super/mixin edge maps are built **once** and every class is linearised
+    /// against them.  Calling [`Self::class_linearisation`] per class instead
+    /// rebuilds those maps each time — O(classes²) resolution work — and doing
+    /// that on the diagnostics worker after every publish is what took the
+    /// Performance suite from its ~5-minute baseline to the 60-minute timeout
+    /// on the first draft of this view.  Per-class member names are memoised
+    /// across linearisations for the same reason.
+    ///
+    /// `private` members are excluded — `TclOO` hides them even from an
+    /// ancestor's own `my` dispatch — as are class-object-side members
+    /// (`classmethod` / `self method`): `my` inside an instance method
+    /// dispatches instance-side.  A class whose hierarchy cannot be
+    /// linearised (cyclic, or over the shared complexity budget) contributes
+    /// nothing: the abstention needs evidence, and none is available for it.
+    #[must_use]
+    pub fn subclass_provided_methods(
+        &self,
+    ) -> std::collections::BTreeMap<String, std::collections::BTreeSet<String>> {
+        let (known, tail_index) = self.class_name_universe();
+        let mut supers_map: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        let mut mixins_map: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for c in self.classes() {
+            let owner = c.qualified_name.as_str();
+            let resolve = |name: &str| {
+                resolve_class_name(name, owner, |cand| known.contains(cand), &tail_index)
+            };
+            let supers = supers_map.entry(owner.to_owned()).or_default();
+            for s in c.superclasses.iter().filter_map(|s| resolve(s)) {
+                if !supers.contains(&s) {
+                    supers.push(s);
+                }
+            }
+            let mixins = mixins_map.entry(owner.to_owned()).or_default();
+            for m in c.mixins.iter().filter_map(|m| resolve(m)) {
+                if !mixins.contains(&m) {
+                    mixins.push(m);
+                }
+            }
+        }
+        let qnames: std::collections::BTreeSet<String> = self
+            .live_classes()
+            .map(|c| c.qualified_name.clone())
+            .collect();
+        let mut member_names: std::collections::HashMap<
+            String,
+            std::collections::BTreeSet<String>,
+        > = std::collections::HashMap::new();
+        let mut map: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
+            std::collections::BTreeMap::new();
+        for d in &qnames {
+            let lin =
+                tcl_syntax::mro::tcloo_linearise(d, &supers_map, &mixins_map).unwrap_or_default();
+            if lin.iter().all(|c| c == d) {
+                continue;
+            }
+            let mut dispatchable: std::collections::BTreeSet<String> =
+                std::collections::BTreeSet::new();
+            for x in &lin {
+                if !member_names.contains_key(x) {
+                    let names = self
+                        .effective_members(x)
+                        .into_iter()
+                        .filter(|m| m.method.kind != "classmethod" && !m.method.private)
+                        .map(|m| m.name.to_owned())
+                        .collect();
+                    member_names.insert(x.clone(), names);
+                }
+                dispatchable.extend(member_names[x].iter().cloned());
+            }
+            if dispatchable.is_empty() {
+                continue;
+            }
+            for ancestor in lin.iter().filter(|c| c.as_str() != d.as_str()) {
+                map.entry(ancestor.clone())
+                    .or_default()
+                    .extend(dispatchable.iter().cloned());
+            }
+        }
+        map
+    }
+
     /// The C-Tcl-faithful **method dispatch chain** for an instance of
     /// `receiver_class` calling `method` under `access` (issue #945
     /// faults 4 and 6): the linearisation's classes that define an
@@ -5242,6 +5332,70 @@ mod tests {
     fn analyse_as(source: &str, dialect: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, dialect).clone()
+    }
+
+    #[test]
+    fn subclass_provided_methods_matches_the_per_class_linearisation() {
+        // Issue #1367's bulk fold must agree with the per-class
+        // `class_linearisation` walk it replaced for performance (the
+        // per-class form rebuilds the edge maps every call — O(classes²) —
+        // which is what timed out the Performance suite).  The fixture
+        // covers the shapes the fold has to get right: a mixin-provided
+        // template method, an unresolved base, and a private member that
+        // must not travel.
+        let base = analyse(
+            "oo::class create ::Fmt { method run {} { my Render } }\n\
+             oo::class create ::Mix { method Render {} { return m } }\n",
+        );
+        let sub = analyse(
+            "oo::class create ::Html { superclass ::Fmt\n    method Render {} { return h } }\n\
+             oo::class create ::Md { superclass ::Fmt\n    mixin ::Mix }\n\
+             oo::class create ::Secretive { superclass ::Fmt\n\
+             \x20   private method Hidden {} { return no } }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &base),
+            ("file:///sub.tcl", &sub),
+        ]);
+        let map = index.subclass_provided_methods();
+        let fmt = map.get("::Fmt").expect("::Fmt has descendants");
+        assert!(fmt.contains("Render"), "subclass-written: {fmt:?}");
+        assert!(
+            fmt.contains("run"),
+            "the base's own method rides along harmlessly: {fmt:?}"
+        );
+        assert!(
+            !fmt.contains("Hidden"),
+            "private members never travel: {fmt:?}"
+        );
+        // The mixin is an ancestor on ::Md's linearisation, so it gains
+        // ::Md's dispatchable surface exactly as a superclass would.
+        let mix = map.get("::Mix").expect("::Mix hosts a mixin consumer");
+        assert!(mix.contains("run"), "{mix:?}");
+        // Agreement with the per-class walk: every key's entry is what the
+        // slow form computes for the same class set.
+        for (ancestor, methods) in &map {
+            let mut slow: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            for d in index.live_classes().map(|c| c.qualified_name.clone()) {
+                let lin = index.class_linearisation(&d);
+                if lin.iter().all(|c| c == &d)
+                    || !lin.iter().any(|c| c == ancestor)
+                    || &d == ancestor
+                {
+                    continue;
+                }
+                for x in &lin {
+                    slow.extend(
+                        index
+                            .effective_members(x)
+                            .into_iter()
+                            .filter(|m| m.method.kind != "classmethod" && !m.method.private)
+                            .map(|m| m.name.to_owned()),
+                    );
+                }
+            }
+            assert_eq!(methods, &slow, "bulk and per-class disagree on {ancestor}");
+        }
     }
 
     #[test]

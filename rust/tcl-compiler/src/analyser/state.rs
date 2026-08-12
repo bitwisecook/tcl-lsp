@@ -935,6 +935,16 @@ pub struct Analyser {
     /// default, and every single-file analysis — keeps the abstention exactly
     /// as it was.
     pub workspace_class_factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
+    /// Instance methods dispatchable on some workspace **descendant** of
+    /// each class, keyed by ancestor qualified name — the cross-file half of
+    /// the template-method abstention (issue #1367).  A base class calling
+    /// `my Render` where `Render` is written only by a subclass in another
+    /// document is the same deliberate pattern as the single-file shape the
+    /// local hierarchy proves; without this view the workspace still drew
+    /// the W308 the sibling file refutes.  `None` — the default, and every
+    /// single-file analysis — changes nothing: the warning keeps firing
+    /// exactly as the per-file evidence dictates.
+    pub workspace_subclass_methods: Option<std::sync::Arc<super::types::SubclassProvidedMethods>>,
     /// When `true` (the per-item shell walk), `handle_proc_command` / OO method
     /// walks record their body for separate analysis (`deferred_bodies`) instead
     /// of recursing into it immediately.  Set only for the shell pass; the
@@ -1350,6 +1360,7 @@ impl Analyser {
             workspace_classes: std::collections::HashSet::new(),
             workspace_bare_word_classes: std::collections::HashSet::new(),
             workspace_class_factories: None,
+            workspace_subclass_methods: None,
             defer_proc_bodies: false,
             structural_rebind: false,
             deferred_bodies: Vec::new(),
@@ -1450,6 +1461,23 @@ impl Analyser {
         factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
     ) -> Self {
         self.workspace_class_factories = factories;
+        self
+    }
+
+    /// Supply the workspace's **subclass-provided method** view — the
+    /// instance methods dispatchable on some descendant of each class, with
+    /// the descendants written in other documents — so the template-method
+    /// abstention (issue #1367) holds across the workspace boundary.
+    ///
+    /// See [`Self::workspace_subclass_methods`]. The normal single-file
+    /// analysis leaves this `None`, which keeps W308 firing on the per-file
+    /// evidence alone.
+    #[must_use]
+    pub fn with_workspace_subclass_methods(
+        mut self,
+        methods: Option<std::sync::Arc<super::types::SubclassProvidedMethods>>,
+    ) -> Self {
+        self.workspace_subclass_methods = methods;
         self
     }
 
