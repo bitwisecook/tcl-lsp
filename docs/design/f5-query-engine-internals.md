@@ -13,7 +13,7 @@ is grep-able against the codebase.
 
 ```
 rust/tcl-bigip-query/src/
-├── lib.rs                # Public re-exports: run_query, render, the value model
+├── lib.rs                # Public re-exports: run_query, parse_query, evaluate, the value model
 ├── lexer.rs              # Tokeniser — single pass, one-char lookahead
 ├── parser.rs             # Recursive-descent parser → ast::Expr nodes
 ├── ast.rs                # The Expr enum: every expression form
@@ -50,7 +50,7 @@ A query goes through five distinct stages, each owned by one
 module:
 
 1. **Lex** — `lexer::tokenise(source)` → `Vec<Token>`.
-2. **Parse** — `parser::parse(source)` → `ast::Program`.
+2. **Parse** — `parser::parse_query(source)` → `ast::Program`.
 3. **Project** — `projection` lazily wraps a
    `BigipConfig` in navigable `Container` / `ObjectRef` nodes
    the evaluator can index into.
@@ -79,7 +79,7 @@ statement sees the edits applied by the previous one.
                      │                               ▼
                      │                       ┌────────────────┐
                      │                       │   parser.rs    │
-                     │                       │   parse()      │
+                     │                       │ parse_query()  │
                      │                       └───────┬────────┘
                      │                               │ ast::Program
                      │                               │
@@ -175,12 +175,13 @@ the `TokenKind`, its `as_str` spelling, the two-char lookahead in
 Hand-written, no parser generator.  Grammar in
 [`docs/references/f5_query/dsl.md`](../references/f5_query/dsl.md).
 
-- The parser is stateful: it holds the token stream and a position
-  index. Most of its methods are private precedence layers.
-- `parse(source: &str) -> Result<Program, QueryError>` — public entry; calls
-  `tokenise` then `_Parser(tokens).parse_program()`.
-- `parse_program() → Program` — handles multi-statement `;`
-  separation.
+- The parser is stateful: the module-private `Parser` struct holds the
+  token stream and a position index. Most of its methods are private
+  precedence layers.
+- `parse_query(source: &str) -> Result<Program, QueryError>` — the public
+  entry; calls `tokenise`, then drives a `Parser` over the tokens.
+- `Parser::parse_program() -> Result<Program, QueryError>` — handles
+  multi-statement `;` separation.
 - Precedence cascade (top→bottom): pipe → comma-stream →
   assignment → ternary `if` → `or` → `and` → `not` →
   comparison → addition → multiplication → unary → primary.
@@ -201,32 +202,45 @@ comparison-operator table (or write the layer yourself), mint a
 ### `ast.rs` — AST node types
 
 Every form is a variant of one `Expr` enum, and every variant carries an
-`offset: usize` — the byte offset into the source, used to underline the
-error. The variants:
+`offset: usize` — the code-point offset into the source (matching the
+lexer's convention), used to underline the error. The variants:
 
 | Node | Carries | Form |
 |---|---|---|
 | `Literal` | `value: LitValue` | `42`, `"foo"`, `true`, `null` |
 | `Identity` | — | bare `.` |
 | `Variable` | `name: String` | `$x` |
-| `Field` | `name: String`, `optional: bool` | `.foo` / `.foo?` |
-| `Subscript` | `index, stream, regex, optional` | `[i]` / `[]` / `[~"re"]` |
 | `PathExpr` | `head: Option<Box<Expr>>`, `steps: Vec<PathStep>` | `.a.b[0]` / `$x.a.b` |
 | `ObjectLiteral` | `entries: Vec<(String, Expr)>` | `{k: v, k2}` |
 | `ListLiteral` | `inner: Option<Box<Expr>>` | `[ ... ]` |
 | `Call` | `name: String`, `args: Vec<Expr>` | `select(.x > 1)` |
 | `BinOp` | `op: String`, `lhs`, `rhs` | `a + b` |
 | `UnaryOp` | `op: String`, `operand` | `-x`, `not x` |
-| `Pipe` | `lhs, rhs` | `a | b` |
-| `Assignment` | `op: String`, `target: PathExpr`, `value` | `.x = 1` / `.x |= f` |
-| `LetBinding` | `source`, `name`, `body` | `1 as $x | …` |
-| `IfThenElse` | `condition, then_body, elif_branches, else_body` | `if/then/elif/else/end` |
+| `Pipe` | `lhs, rhs` | `a \| b` |
+| `Assignment` | `op: String`, `target`, `rhs`, `source: Option<Box<Expr>>` | `.x = 1` / `.x \|= f` |
+| `LetBinding` | `source`, `name`, `body` | `1 as $x \| …` |
+| `IfThenElse` | `cond`, `then_body`, `elifs`, `else_body` | `if/then/elif/else/end` |
 | `CommaStream` | `parts: Vec<Expr>` | `a, b, c` |
-| `Program` | `statements: Vec<Expr>` | `a ; b ; c` |
 
-Assignment targets must always be `PathExpr` (or `Field` /
-`Subscript` chains rooted in one); the evaluator rejects writes
-to literals or calls at runtime.
+Path *steps* are not `Expr` variants — they are a separate `PathStep`
+enum, only ever reached through `PathExpr::steps`:
+
+| Step | Carries | Form |
+|---|---|---|
+| `PathStep::Field` | `name: String`, `optional: bool` | `.foo` / `."foo-bar"` |
+| `PathStep::Subscript` | `stream: bool`, `index: Option<Box<Expr>>`, `regex: Option<String>`, `optional: bool` | `[i]` / `[]` / `[~"re"]` |
+
+`PathStep::Field`'s `optional` flag is **reserved and unused** — a `?`
+on a field step parses but the evaluator does not act on it.
+`PathStep::Subscript`'s `optional` *is* honoured and makes the step
+error-suppressing.
+
+`Program` is a struct, not an `Expr` variant: `Program { statements:
+Vec<Expr> }`, one entry per `;`-separated statement.
+
+An `Assignment`'s `target` is always a `PathExpr`; its `source` is set to
+a `Variable` when the LHS was written `$name.path`. The evaluator rejects
+writes to literals or calls at runtime.
 
 ### `eval.rs` — AST walker
 
@@ -257,11 +271,14 @@ there.
 
 Core entry points:
 
-- `evaluate(program, ctx) -> Result<Vec<Value>, QueryError>` — loops
-  `program.statements`; the last statement's values are the return, and
-  intermediate statements still emit edits.
 - `evaluate_statement(stmt, ctx) -> Result<Vec<Value>, QueryError>` — runs
-  one statement and flattens streams.
+  one statement against `ctx.root` and flattens streams.
+- `evaluate(program, ctx) -> Result<Vec<Value>, QueryError>` — loops
+  `program.statements` and **concatenates** every statement's values, not
+  just the last one's. A multi-statement query therefore returns the
+  union of what each statement produced, and each statement additionally
+  emits its edits into `ctx.edits`. `runner.rs`'s own per-source loop
+  accumulates the same way.
 
 Dispatch core:
 
@@ -303,7 +320,9 @@ wants to be a special-form builtin rather than an AST-level construct.
 stream element-wise but passes a list through whole (see
 [Streams vs lists](#streams-vs-lists)).
 
-The BIG-IP-specific types:
+The BIG-IP-specific types (`FieldSlot`, `ObjectRef`, and `PathRef` live in
+`value.rs`; `Root` is defined in `eval.rs` and `Container` in
+`projection.rs`, since each is owned by the module that builds it):
 
 - `FieldSlot { source_uri, start, end, raw_text }` — the byte range of one
   field's value in the source. This is what drives field-level edits.
@@ -384,26 +403,29 @@ objects the query actually touches.
                   │ .virtual                                 │
                   ▼                                          │
         ┌─────────────────────┐                              │
-        │ ltm virtual         │  _MODULE_KINDS["ltm"]        │
-        │ Container           │    ["virtual"] = ("virtuals",│
-        │ kind = "ltm virtual"│     "ltm virtual")           │
+        │ ltm virtual         │  module_kinds("ltm")         │
+        │ Container           │   → LTM_KINDS, which pairs   │
+        │ kind = "ltm virtual"│     ("virtual","ltm virtual")│
         └─────────┬───────────┘                              │
                   │ ["/Common/web_vs"]                       │
                   ▼                                          │
-        ┌─────────────────────┐  _build_object_ref()         │
-        │  ObjectRef          │ ─── caches in ──────► Root._object_cache
+        ┌─────────────────────┐  build_object_ref()          │
+        │  ObjectRef          │ ─── caches in ──────► Root.object_cache
         │   kind, full_path   │                       [(kind, full_path)]
         │   fields            │                              │
-        │   field_slots ◄─────┼── _project_field via         │
-        │   stanza_slot       │   _KIND_FIELD_MAPS["ltm      │
-        └─────────────────────┘   virtual"] = (BigipVirtual, │
-                                  _VS_FIELDS)                │
+        │   field_slots ◄─────┼── project_fields(kind, obj)  │
+        │   stanza_slot       │   → project_virtual(o, root) │
+        └─────────────────────┘                              │
 ```
 
-`module_kinds` is the module → kind dispatch, `kind_to_label` and
-`is_object_kind_alias` the kind-label vocabulary, and `project_fields` the
-per-kind field dispatch. All three are `match` arms in `projection.rs`
-rather than lookup tables, so adding a kind is a compile-checked edit.
+`module_kinds` is the module → kind dispatch: a `match` on the module name
+returning one of the `LTM_KINDS` / `GTM_KINDS` / `SECURITY_KINDS` static
+`(label, tmsh_kind)` tables, empty for an uncovered module.
+`is_object_kind_alias` and `kind_to_label` scan `KIND_TABLES` (the slice of
+all three) for the kind-label vocabulary. `project_fields` is the per-kind
+field dispatch — a `match` on `(kind, ModelObject)` reaching a
+`project_<kind>` function per kind, so adding a kind is a compile-checked
+edit and a kind/model mismatch cannot compile.
 
 #### `Container`
 
@@ -443,11 +465,15 @@ different kinds share a path string — `/Common/shared` could
 simultaneously be a pool, a node, and an iRule, and a single-key cache
 would let one kind's `ObjectRef` leak into another's lookup.
 
-The projection covers the core LTM kinds the cookbook and common queries
-reach for: `ltm virtual`, `ltm virtual-address`, `ltm pool` (plus
-members), `ltm node`, `ltm monitor`, `ltm rule`, `ltm data-group`,
-`ltm persistence`, `ltm snatpool`, `ltm profile`, and `ltm policy` (plus
-rules, conditions, and actions). The long tail of kinds projects the
+The projection covers three modules. LTM: `ltm virtual`,
+`ltm virtual-address`, `ltm pool` (plus members), `ltm node`,
+`ltm monitor`, `ltm rule`, `ltm data-group`, `ltm persistence`,
+`ltm snatpool`, `ltm profile`, and `ltm policy` (plus rules, conditions,
+and actions). GTM: `gtm datacenter`, `gtm server`, `gtm pool`,
+`gtm wideip`, and `gtm listener`. Security: `security firewall policy`,
+`security firewall rule-list`, `security firewall address-list`,
+`security firewall port-list`, `security nat policy`, and
+`security nat source-translation`. The long tail of kinds projects the
 minimal field set — `name`, `full-path`, `kind`, `description`.
 
 ### `builtins/` — Builtin catalogue and registration
@@ -559,17 +585,22 @@ builtins in `builtins/inputs_load.rs`, and the
 ### `edit_plan.rs` — Mutation queue
 
 - `EditOp` — one byte-level rewrite: `source_uri`, `object_path`,
-  `object_kind`, `field_name`, `operator` (`=`, `|=`, `+=`, `-=`),
-  `old_value`, `new_value`, `field_slot`, `stanza_slot`, and a `strict`
-  flag.
+  `object_kind`, `field_name`, `operator` (`"="`, `"|="`, `"+="`,
+  `"-="`), `new_value`, `field_slot`, `stanza_slot`, and `strict`.
+  There is no `old_value`: the span to replace is carried by
+  `field_slot` / `stanza_slot`, so the applier never has to match the
+  prior text.  `strict` defaults to `true`, where a zero-occurrence
+  rename raises `QueryError::Edit`; the tolerant `rename()` builtin
+  sets it `false` so the applier skips a no-match silently and the CLI
+  surfaces it through the post-apply diff and exit code 1.
 - `PrefixRewrite` — a whole-source regex substitution, used by
   `rename_partition` and `rename_prefix`.
-- `EditPlan` — the queue: `ops` plus `prefix_rewrites`, with `add`,
-  `add_prefix`, and `has_edits`.
+- `EditPlan` — the queue: `ops` plus `prefix_rewrites`, with `new`,
+  `add`, `add_prefix`, and `has_edits`.
 - `AppliedSource` — the per-source result: `uri`, `original`,
-  `new_source`, the rename reports, and the field-edit count.
-- `apply(plan, sources) -> HashMap<String, AppliedSource>` — the
-  workhorse. Three phases per source:
+  `new_source`, `rename_reports`, and `field_edits`.
+- `apply(plan, sources) -> Result<HashMap<String, AppliedSource>, QueryError>`
+  — the workhorse. Three phases per source:
   1. Apply the `PrefixRewrite`s over the whole source.
   2. Apply identity-field renames (`name`, `full-path`) through
      `rewrite.rs`, which touches every reference site, not just the
@@ -654,15 +685,15 @@ bindings, auto-derived from each URI's filename stem when empty),
 `side_inputs` (each binding `$name` to a JSON-backed `Root` parsed per its
 `InputSpec` — it counts toward the multi-file source count but never
 iterates as the primary `.` input), `merge`, `enable_probes`,
-`ca_bundle`, and the two reader hooks.
+`ca_bundle`, and the two reader hooks (`ucs_cert_reader`, `files_reader`).
 
 Per-source vs merged flow:
 
-- `run_query_per_file` — the default. Runs once per source, each with its
-  own `EvalContext`.
-- `run_query_merged` — `--merge` mode. Every source lands in
-  `named_roots` and `merge_roots`, and the evaluator sees them as one
-  stream.
+- **Per-source** — the default, and `run_query`'s own body: it loops the
+  sources, building a fresh `EvalContext` for each.
+- `run_query_merged` — `--merge` mode, which `run_query` delegates to when
+  `opts.merge` is set. Every source lands in `named_roots` and
+  `merge_roots`, and the evaluator sees them as one stream.
 
 Multi-statement loop, per source:
 
@@ -718,7 +749,9 @@ statement parses the renamed source.
 
 Each statement runs against the rewritten source of the previous
 one — that's what lets the runner serialise side-effects across
-`;` without exposing partial state.
+`;` without exposing partial state.  Every statement's values are
+accumulated, so the result is the concatenation across the chain, not
+`stmt₃`'s output alone.
 
 There is no ambient per-query state. Everything a builtin might reach for
 — the active roots for `refs` / `referenced_by`, the merge flag, the
@@ -733,9 +766,13 @@ query), and `has_mutation` — true when the query *queued* any edit op.
 
 ### Error positioning
 
-Every AST node carries a byte `offset`, and `QueryError`'s parse and
+Every AST node carries an `offset`, and `QueryError`'s parse and
 evaluation variants carry it through to the CLI, which resolves it to a
-line and column to underline the offending position.
+line and column to underline the offending position.  These offsets are
+**code-point** indices into the query text, matching the lexer's
+`Vec<char>` scan (`lexer.rs`) — not byte offsets.  The `FieldSlot`
+offsets in the *source config* are a separate coordinate space and are
+byte offsets.
 
 ### `builtins/graph.rs` — Reference traversal
 

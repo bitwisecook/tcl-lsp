@@ -139,7 +139,7 @@ computation — identical on every backend.
 > · Dicts: `dict`
 > · Strings: `string`, `stringObj`, `format`, `scan`, `split`, `join`, `concat`
 > · Regexp: `regexp`, `regexpComp`, `reg`
-> · Binary / misc: `binary`, `util`, `stack`, `assocd`
+> · Binary / misc: `binary`, `util`, `stack`, `assocd`, `dstring`
 > · `cmdIL` (list-ops group), `cmdMZ` (scan/string/split/regexp group),
 > `cmdAH` (format group)
 
@@ -276,8 +276,10 @@ core-vs-feature lens.
   tcltest constraints across the whole suite). Chasing a Tier 5 failure while a
   Tier 3 fundamental is broken is usually wasted work.
 - **A CRASH on a low tier is the highest-leverage fix** — it zeroes a whole
-  file (e.g. `cmdAH`'s 16 820 C-passing tests are gated behind `interp create`,
-  a Tier 8 feature the bytecode VM still lacks).
+  file, so one fix converts a `0` into whatever the file would otherwise
+  score. The scoreboard marks these `CRASH`; the multi-tier `cmd*` files are
+  the ones to watch, because a single abort there costs coverage across
+  fundamentals, data types, control flow, and platform at once.
 - **Use the scoreboard for "where", the ladder for "why".** Within a tier,
   prefer the stem whose failures share a single root cause.
 - **Tier 9–11 parity is per-backend.** On native, match C exactly; on

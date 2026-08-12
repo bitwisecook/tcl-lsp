@@ -324,8 +324,8 @@ through the `catch` fallback.
   `safe.test` files by the tcltest sweep (`rust/xtask/src/tcltest_sweep.rs`),
   whose per-stem numbers are the
   [tier scoreboard](rust-vm-tier-parity.md). Child interpreters are the
-  [Tier 7](tcl-test-tiers.md) feature group ("Interpreters": `interp`,
-  `safe`, `safe-stock`, `safe-stock86`).
+  [Tier 8](tcl-test-tiers.md) group ("Interpreters": `interp`, `safe`,
+  `safe-stock`, `safe-stock86`).
 
 ## 12. Implementation map
 
