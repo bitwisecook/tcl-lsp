@@ -1,7 +1,7 @@
 # KCS: W307 — Can a non-literal command name execute anything?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

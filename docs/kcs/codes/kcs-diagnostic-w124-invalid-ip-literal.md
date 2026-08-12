@@ -1,7 +1,7 @@
 # KCS: W124 — Why does the analyser flag a malformed IP address?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

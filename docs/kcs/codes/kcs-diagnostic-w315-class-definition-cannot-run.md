@@ -1,7 +1,7 @@
 # KCS: W315 — Why does the analyser say "this class definition cannot run"?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

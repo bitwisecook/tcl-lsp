@@ -1,7 +1,7 @@
 # KCS: W302 — Does catch without a result variable hide errors?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

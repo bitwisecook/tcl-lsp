@@ -1,7 +1,7 @@
 # KCS: W126 — Why does the analyser flag a non-channel value in a channel argument?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

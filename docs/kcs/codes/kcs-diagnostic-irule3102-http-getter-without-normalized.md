@@ -1,7 +1,7 @@
 # KCS: IRULE3102 — Why does the analyser warn about an HTTP getter without -normalized?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

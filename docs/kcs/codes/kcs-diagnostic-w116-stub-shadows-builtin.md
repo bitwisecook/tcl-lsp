@@ -1,7 +1,7 @@
 # KCS: W116 — Why does the analyser warn about a stub shadowing a built-in?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

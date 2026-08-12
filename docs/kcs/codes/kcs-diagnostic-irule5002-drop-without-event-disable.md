@@ -1,7 +1,7 @@
 # KCS: IRULE5002 — Why does the analyser warn about drop without event disable?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

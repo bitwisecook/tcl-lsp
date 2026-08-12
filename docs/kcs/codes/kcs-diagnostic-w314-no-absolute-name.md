@@ -1,7 +1,7 @@
 # KCS: W314 — Why can a definition have no fully-qualified name?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

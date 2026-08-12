@@ -1,7 +1,7 @@
 # KCS: W004 — Command option is not available in the active dialect
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

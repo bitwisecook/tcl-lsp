@@ -1,7 +1,7 @@
 # KCS: W143 — Direct call into a private `::tcl::` implementation namespace
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

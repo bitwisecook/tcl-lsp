@@ -1,7 +1,7 @@
 # KCS: W118 — Why does the analyser flag mixed line endings?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

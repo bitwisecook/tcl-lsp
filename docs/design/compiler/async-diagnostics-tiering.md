@@ -11,7 +11,7 @@ Diagnostics are published in two tiers:
 
 This split is coordinated by `DiagnosticScheduler`, while `get_diagnostics()` provides unified aggregation contracts.
 
-## Decision rules / contracts
+## Tiering and cancellation rules
 
 1. **Fast-first publishing**
    - Tier 1 should avoid high-latency passes and return quickly after edits.
@@ -35,12 +35,12 @@ This split is coordinated by `DiagnosticScheduler`, while `get_diagnostics()` pr
 - Inconsistent suppression between quick and deep diagnostics.
 - Excessive cancellation churn causing repeated heavy recomputation.
 
-## Test anchors
+## Tests
 
 - `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

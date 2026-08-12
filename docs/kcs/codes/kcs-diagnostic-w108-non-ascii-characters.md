@@ -1,7 +1,7 @@
 # KCS: W108 — Why does the analyser flag non-ASCII characters?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

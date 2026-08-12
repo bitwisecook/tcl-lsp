@@ -1,7 +1,7 @@
 # KCS: W218 — Why is `args` flagged when it is not the last parameter?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: E002 — Why does the analyser say a command has too few arguments?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

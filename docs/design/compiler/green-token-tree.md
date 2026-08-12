@@ -74,7 +74,27 @@ incremental reparse that fixes (2).
 
 ## A. The green tree node model
 
-A `TokenRegion` owns the tokenisation of one region, tagged with its `Mode`:
+> **Proposal, not a description of the current tree.** `TokenRegion` and
+> `NodeKind` do not exist in the Rust tree — neither name appears in any Rust
+> file, so sections A, B, and E below sketch a design rather than report one.
+> Issue #1406 tracks the gap.
+>
+> What exists is the red-green concrete syntax tree under
+> `rust/tcl-compiler/src/parsing/syntax/`: the position-independent `GreenNode`
+> and its `SyntaxKind` (`green.rs`), the anchoring red overlay (`red.rs`), and
+> `descend_token()` (`descend.rs`), which returns a `Descended` carrying the
+> child region's `SyntaxTree` plus an `is_terminated()` flag. `SyntaxKind` has
+> `Document`, `Command`, and `Word` — there is no error variant; a recovered
+> `{…}` / `[…]` is signalled by `Descended::is_terminated()` returning `false`.
+>
+> One claim below is contradicted outright by the code: `green.rs` states the
+> green layer "does not pointer-share subtrees, so there is no cross-edit
+> reuse", so the memoised-descent and cross-consumer-sharing story in sections
+> A and B is not what the current green layer provides. See
+> [syntax-tree.md](syntax-tree.md) for the tree that does exist.
+
+The proposed node model — a `TokenRegion` owning the tokenisation of one
+region, tagged with its `Mode`:
 
 ```rust
 struct TokenRegion {
@@ -259,13 +279,14 @@ is applied per descent via a thin wrapper over the shared (interned) tokens:
 `descend` / `descend_token` return an `ERROR`-kind node that reuses the
 interned token stream. The shared node's own `kind` is never relied upon.
 
-This is live in `compiler_checks`, which descends command substitutions
-(`_recurse_nested_commands`) and bodies (`_recurse_body_arguments`) through
-`descend_token` against the full source — so the tree's descent (and its
-ERROR tagging) is exercised in production, sharing tokenisation with the
-lowerer rather than re-lexing. Consumers read the token stream, not the kind,
-so the change is byte-identical; the ERROR kind is the representational hook
-for future tooling (e.g. structural diagnostics).
+The descent half of this *is* live, in the CST's own form:
+`descend_token()` (`rust/tcl-compiler/src/parsing/syntax/descend.rs`) descends
+an opaque `Str` / `Cmd` token against the full source and returns a
+`Descended` whose `is_terminated()` is `false` for an unterminated region — the
+recovered inner tree is still built and returned rather than the descent
+aborting. That flag, not a `NodeKind::ERROR`, is the representational hook;
+consumers read the token stream rather than a kind, so the distinction is
+byte-identical either way.
 
 ## Validation
 
@@ -274,10 +295,12 @@ The bar is strict:
 - **Byte-identical diagnostics** on the trigger corpus (`wcswidth.tcl`,
   `http.tcl`, `filetypes.tcl`) and the 800+-file real-world differential, plus
   the full `make test-rust` suite green.
-- **Mode-correctness + ERROR-node tests:** the lexer's own unit tests assert
-  region modes, descent anchoring, intern sharing, and that unterminated
-  `{...}` / `[...]` descents are tagged `NodeKind.ERROR` (terminated ones
-  `BRACED` / `BRACKETED`).
+- **Mode-correctness + recovered-descent tests:** unit tests assert region
+  modes, descent anchoring, and intern sharing. For the descent half that
+  exists, `descend.rs`'s own tests
+  (`descend_braced_body_is_terminated_and_lossless`,
+  `descend_empty_brace_is_terminated`, `descend_unterminated_brace_is_recovered`)
+  cover the terminated / recovered split via `Descended::is_terminated()`.
 - **Property test — incremental equals full.** *Shipped*
   (`rust/tcl-compiler/src/parsing/syntax/build.rs`). For random source + random edit, the
   incrementally-rebuilt chunk list must equal a from-scratch
@@ -305,7 +328,9 @@ The bar is strict:
 
 ## Pointers
 
-- Green tree: `rust/tcl-lexer/src/lexer.rs`
+- Red-green CST (the tree that exists): `rust/tcl-compiler/src/parsing/syntax/`
+  — `green.rs` (`GreenNode`, `SyntaxKind`), `red.rs`, `descend.rs`
+  (`descend_token`, `Descended`)
 - Incremental reparse: `rust/tcl-compiler/src/parsing/syntax/build.rs`
 - Offset-shift helpers: `rust/tcl-lexer/src/ranges.rs`
 - Lexer / modes: `rust/tcl-lexer/src/lexer.rs`,
@@ -323,8 +348,8 @@ The bar is strict:
 ## Related docs
 
 - [syntax-tree.md](syntax-tree.md) — the canonical **red-green concrete syntax
-  tree** (CST), whose structural node is named `GreenNode` (distinct from this
-  green token tree's `TokenRegion`). A *different* structure: the CST is
+  tree** (CST), whose structural node is named `GreenNode` (distinct from the
+  `TokenRegion` this document proposes). A *different* structure: the CST is
   position-independent (its `GreenNode`s carry only widths; a red overlay
   resolves absolute positions lazily), whereas this green token tree is a
   context-aware tokenisation *memo* whose tokens carry absolute positions

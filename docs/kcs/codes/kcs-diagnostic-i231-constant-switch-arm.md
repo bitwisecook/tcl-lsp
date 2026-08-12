@@ -1,7 +1,7 @@
 # KCS: I231 — Why does the analyser say a `switch` arm never runs?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

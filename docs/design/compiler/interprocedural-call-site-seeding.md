@@ -148,7 +148,7 @@ difference between "every caller agrees" and "a call site could not be
 enumerated" directly observable — the first thing to check when a condition
 on a parameter folded and it should not have.
 
-## Test anchors
+## Tests
 
 - `call_site_scan.rs::tests` — the evidence map, the per-scope variable
   facts, and the shape helpers.

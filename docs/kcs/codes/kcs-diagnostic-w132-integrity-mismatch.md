@@ -1,7 +1,7 @@
 # KCS: W132 — why does a package have an integrity mismatch?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

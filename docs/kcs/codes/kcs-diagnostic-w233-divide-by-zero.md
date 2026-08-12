@@ -1,7 +1,7 @@
 # KCS: W233 — Division or modulo by a provably-zero divisor
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: IRULE3003 — Why does the analyser warn about tainted data in a log command?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

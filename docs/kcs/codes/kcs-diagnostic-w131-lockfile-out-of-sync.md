@@ -1,7 +1,7 @@
 # KCS: W131 — why is the lockfile out of sync?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

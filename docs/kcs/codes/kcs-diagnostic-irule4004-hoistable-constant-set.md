@@ -1,7 +1,7 @@
 # KCS: IRULE4004 — Why does the analyser warn about a constant set in a per-request event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

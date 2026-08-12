@@ -1,7 +1,7 @@
 # KCS: IRULE1007 — Why does the analyser flag a collect call without a matching release?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

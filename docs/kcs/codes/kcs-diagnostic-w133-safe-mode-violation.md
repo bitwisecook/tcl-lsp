@@ -1,7 +1,7 @@
 # KCS: W133 — why would a manifest fail with "not permitted in safe mode"?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

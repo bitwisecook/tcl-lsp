@@ -1,7 +1,7 @@
 # KCS: W211 — Why does the analyser warn about a variable that is set but never read?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

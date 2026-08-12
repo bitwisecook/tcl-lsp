@@ -1,7 +1,7 @@
 # KCS: E101 — Why does the analyser flag a missing opening brace after `switch`?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

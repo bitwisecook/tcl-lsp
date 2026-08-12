@@ -1,7 +1,7 @@
 # KCS: O125 — Sink assignments into the deepest decision block
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

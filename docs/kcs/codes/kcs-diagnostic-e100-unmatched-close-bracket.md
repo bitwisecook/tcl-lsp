@@ -1,7 +1,7 @@
 # KCS: E100 — Why does the analyser flag an unmatched closing bracket?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

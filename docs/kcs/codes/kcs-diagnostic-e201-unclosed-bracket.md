@@ -1,7 +1,7 @@
 # KCS: E201 — Why does the analyser flag an unterminated command substitution?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

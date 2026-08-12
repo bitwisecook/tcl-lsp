@@ -1,7 +1,7 @@
 # KCS: IRULE4003 — Why does the analyser warn about variable scoping across events?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

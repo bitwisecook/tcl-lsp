@@ -1,7 +1,7 @@
 # KCS: W113 — Why does the analyser warn when a proc shadows a built-in?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

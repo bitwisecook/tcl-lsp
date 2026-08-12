@@ -1,7 +1,7 @@
 # KCS: E203 — Why does the analyser flag an unterminated brace group?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

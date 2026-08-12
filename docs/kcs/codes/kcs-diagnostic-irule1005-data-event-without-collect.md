@@ -1,7 +1,7 @@
 # KCS: IRULE1005 — Why does the analyser flag a data event without a collect call?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: W214 — Why does the analyser warn about an unused proc parameter?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -6,7 +6,7 @@ ownership where two passes can flag the same issue.
 
 After CU assembly, specialised passes consume shared facts and emit typed findings. `get_diagnostics()` then applies suppression and LSP conversion. This stage changes frequently as new warning families and optimisation heuristics are added.
 
-## Decision rules / contracts
+## What a pass may assume, and must guarantee
 
 1. **CU-first inputs**
    - Pass entrypoints should accept `CompilationUnit` (or CU-derived function facts) and avoid private lowering/SSA rebuilds.
@@ -41,13 +41,13 @@ After CU assembly, specialised passes consume shared facts and emit typed findin
 
 - [kcs-pass-fact-ownership-matrix.md](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
 
-## Test anchors
+## Tests
 
 The unit tests colocated with each producer module above, plus the LSP
 end-to-end diagnostic suites in `rust/tcl-lsp-server/tests/e2e/`.
 
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

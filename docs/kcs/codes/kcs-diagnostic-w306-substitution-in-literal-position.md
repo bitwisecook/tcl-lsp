@@ -1,7 +1,7 @@
 # KCS: W306 — Can a substitution in a literal-expected position cause issues?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

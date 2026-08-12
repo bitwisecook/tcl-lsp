@@ -1,7 +1,7 @@
 # KCS: IRULE4001 — Why does the analyser warn about writing a static variable outside RULE_INIT?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

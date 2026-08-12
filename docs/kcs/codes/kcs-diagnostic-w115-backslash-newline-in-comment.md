@@ -1,7 +1,7 @@
 # KCS: W115 — Why does a backslash-newline in a comment matter?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: IRULE2101 — Why does the analyser hint about a heavy regexp in a high-frequency event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: W304 — Can a missing option terminator cause option injection?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

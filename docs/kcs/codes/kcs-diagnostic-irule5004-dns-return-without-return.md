@@ -1,7 +1,7 @@
 # KCS: IRULE5004 — Why does the analyser warn about DNS::return without return?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

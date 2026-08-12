@@ -1,7 +1,7 @@
 # KCS: T100 — Why does the analyser warn about tainted data in a code-execution sink?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

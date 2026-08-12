@@ -1,7 +1,7 @@
 # KCS: W313 — Can a destructive file operation with a variable path be exploited?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

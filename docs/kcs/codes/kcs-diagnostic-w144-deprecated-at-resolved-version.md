@@ -1,7 +1,7 @@
 # KCS: W144 — Deprecated at the resolved version
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

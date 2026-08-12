@@ -1,7 +1,7 @@
 # KCS: IRULE1201 — Why does the analyser flag HTTP commands after respond or redirect?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

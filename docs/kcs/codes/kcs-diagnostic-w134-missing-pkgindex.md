@@ -1,7 +1,7 @@
 # KCS: W134 — why would pkgIndex.tcl be reported missing?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

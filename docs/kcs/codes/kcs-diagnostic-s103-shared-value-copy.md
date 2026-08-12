@@ -1,7 +1,7 @@
 # KCS: S103 — Why does the analyser warn about mutating a shared value?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

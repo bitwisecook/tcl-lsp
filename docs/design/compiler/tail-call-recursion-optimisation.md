@@ -15,7 +15,7 @@ Three related passes detect and transform self-recursive patterns:
 
 O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are in tail position), O122 fires with higher priority and O121 is suppressed by the non-overlapping selection mechanism. When only some self-calls are in tail position, O121 fires for the tail calls and O123 may fire for non-tail calls.
 
-## Decision rules / contracts
+## When each code fires
 
 1. **Tail position** — a self-call is in tail position if it is the last statement in the proc body, or the last statement in every branch of an `if`/`elseif`/`else` or `switch` at the end of the body. Calls inside `expr`, `catch`, `try`, loops, or nested command substitutions are never in tail position.
 
@@ -148,11 +148,11 @@ Neither O121 nor O122 fires because neither call is in tail position. O123 does 
 - False negative if a new control-flow statement (beyond `Statement::If` / `Statement::Switch`) is added without updating tail-position walking.
 - `lassign` rewrite produces incorrect results if parameter default values change effective arity at runtime.
 
-## Test anchors
+## Tests
 
 - `rust/tcl-compiler/src/optimiser/tail_call.rs` unit tests
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [pass/fact ownership matrix](../../../docs/design/compiler/pass-fact-ownership-matrix.md)

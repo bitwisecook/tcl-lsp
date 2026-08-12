@@ -1,7 +1,7 @@
 # KCS: IRULE5001 — Why does the analyser warn about an ungated log in a high-frequency event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

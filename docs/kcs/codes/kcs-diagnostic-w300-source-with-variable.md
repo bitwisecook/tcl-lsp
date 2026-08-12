@@ -1,7 +1,7 @@
 # KCS: W300 — Does source with a variable path allow code execution?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

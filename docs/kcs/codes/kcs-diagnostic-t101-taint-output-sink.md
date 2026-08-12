@@ -1,7 +1,7 @@
 # KCS: T101 — Why does the analyser warn about tainted data in an output sink?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

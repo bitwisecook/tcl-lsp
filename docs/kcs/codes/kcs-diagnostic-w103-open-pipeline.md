@@ -1,7 +1,7 @@
 # KCS: W103 — Does open with a pipeline prefix execute shell commands?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

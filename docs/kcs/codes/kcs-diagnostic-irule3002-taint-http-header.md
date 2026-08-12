@@ -1,7 +1,7 @@
 # KCS: IRULE3002 — Why does the analyser warn about tainted data in an HTTP header?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

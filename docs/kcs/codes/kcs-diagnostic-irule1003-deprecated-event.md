@@ -1,7 +1,7 @@
 # KCS: IRULE1003 — Why does the analyser flag a deprecated event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: E200 — Why does the analyser report a general parse error?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

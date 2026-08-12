@@ -1,7 +1,7 @@
 # KCS: E001 — Why does the analyser flag a bare command with no subcommand?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

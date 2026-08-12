@@ -1,7 +1,7 @@
 # KCS: O102 — Forward a variable's single reaching literal load
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

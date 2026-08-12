@@ -14,7 +14,7 @@ finding.
 
 The diagnostics layer is the contract boundary for code-family mapping and suppression semantics seen by LSP clients.
 
-## Decision rules / contracts
+## Aggregation and policy rules
 
 1. **Aggregation ownership lives in diagnostics layer**
    - Passes emit typed findings; conversion and final policy mapping happen centrally.
@@ -39,7 +39,7 @@ The diagnostics layer is the contract boundary for code-family mapping and suppr
 - Source-only fallback path producing different outcomes from CU-backed path.
 - Broken suppression when code families are added without diagnostics-layer updates.
 
-## Test anchors
+## Tests
 
 - `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
@@ -50,7 +50,7 @@ The diagnostics layer is the contract boundary for code-family mapping and suppr
 - [kcs-compilation-unit-contracts.md](../../../docs/design/compiler/compilation-unit-contracts.md)
 
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

@@ -39,6 +39,9 @@ This index lists every per-code KCS page.
 - [E201 — unclosed bracket](kcs-diagnostic-e201-unclosed-bracket.md)
 - [E202 — unclosed quote](kcs-diagnostic-e202-unclosed-quote.md)
 - [E203 — unclosed brace](kcs-diagnostic-e203-unclosed-brace.md)
+- [E204 — extra characters after close brace](kcs-diagnostic-e204-extra-characters-after-close-brace.md)
+- [E205 — extra characters after close quote](kcs-diagnostic-e205-extra-characters-after-close-quote.md)
+- [E206 — missing close brace for a variable name](kcs-diagnostic-e206-missing-close-brace-for-variable-name.md)
 - [E207 — nesting depth exceeds limit](kcs-diagnostic-e207-nesting-depth-exceeds-limit.md)
 
 ## Warnings and style (W-codes)
@@ -78,7 +81,12 @@ This index lists every per-code KCS page.
 - [W134 — missing pkgIndex.tcl](kcs-diagnostic-w134-missing-pkgindex.md)
 - [W135 — command needs newer package version](kcs-diagnostic-w135-command-needs-newer-package.md)
 - [W136 — option needs newer package version](kcs-diagnostic-w136-option-needs-newer-package.md)
+- [W137 — argument value needs newer Tcl version](kcs-diagnostic-w137-argument-value-needs-newer-tcl.md)
+- [W138 — format/scan conversion needs newer Tcl version](kcs-diagnostic-w138-format-conversion-needs-newer-tcl.md)
+- [W139 — retired at the resolved version](kcs-diagnostic-w139-retired-at-resolved-version.md)
 - [W140 — interpreter never created in this file](kcs-diagnostic-w140-interpreter-never-created.md)
+- [W141 — option value fails a shape check](kcs-diagnostic-w141-option-value-fails-shape-check.md)
+- [W142 — command invalid in its context](kcs-diagnostic-w142-command-invalid-in-context.md)
 - [W143 — private Tcl implementation namespace](kcs-diagnostic-w143-private-tcl-namespace.md)
 - [W144 — deprecated at the resolved version](kcs-diagnostic-w144-deprecated-at-resolved-version.md)
 - [W145 — ambiguous keyword abbreviation](kcs-diagnostic-w145-ambiguous-abbreviation.md)
@@ -111,6 +119,9 @@ This index lists every per-code KCS page.
 - [W307 — non-literal command](kcs-diagnostic-w307-non-literal-command.md)
 - [W308 — unknown TclOO method](kcs-diagnostic-w308-unknown-tcloo-method.md)
 - [W309 — eval with subst](kcs-diagnostic-w309-eval-with-subst.md)
+- [W310 — hardcoded credential](kcs-diagnostic-w310-hardcoded-credential.md)
+- [W311 — binary encoding with a conflicting translation](kcs-diagnostic-w311-binary-encoding-translation-mismatch.md)
+- [W312 — interp eval injection](kcs-diagnostic-w312-interp-eval-injection.md)
 - [W313 — destructive file variable path](kcs-diagnostic-w313-destructive-file-variable-path.md)
 - [W314 — no absolute name](kcs-diagnostic-w314-no-absolute-name.md)
 - [W315 — class definition cannot run](kcs-diagnostic-w315-class-definition-cannot-run.md)
@@ -143,20 +154,31 @@ This index lists every per-code KCS page.
 - [S101 — shimmer inside loop](kcs-diagnostic-s101-shimmer-inside-loop.md)
 - [S102 — shimmer oscillation](kcs-diagnostic-s102-shimmer-oscillation.md)
 - [S103 — shared-value copy-on-write](kcs-diagnostic-s103-shared-value-copy.md)
+- [S110 — byte-array corruption](kcs-diagnostic-s110-byte-array-corruption.md)
 
 ## Taint (T-codes)
 
 - [T100 — taint code execution sink](kcs-diagnostic-t100-taint-code-execution-sink.md)
 - [T101 — taint output sink](kcs-diagnostic-t101-taint-output-sink.md)
 - [T102 — taint option injection](kcs-diagnostic-t102-taint-option-injection.md)
+- [T104 — taint network address sink](kcs-diagnostic-t104-taint-network-address-sink.md)
+- [T105 — taint cross-interpreter eval](kcs-diagnostic-t105-taint-cross-interpreter-eval.md)
+
+## Tk toolkit (TK1xxx)
+
+- [TK1001 — geometry manager conflict](kcs-diagnostic-tk1001-geometry-manager-conflict.md)
+- [TK1002 — non-existent parent widget](kcs-diagnostic-tk1002-nonexistent-parent-widget.md)
+- [TK1003 — unknown widget option](kcs-diagnostic-tk1003-unknown-widget-option.md)
 
 ## iRule security (IRULE3xxx)
 
 - [IRULE3001 — taint HTTP response body](kcs-diagnostic-irule3001-taint-http-response-body.md)
 - [IRULE3002 — taint HTTP header](kcs-diagnostic-irule3002-taint-http-header.md)
 - [IRULE3003 — taint log injection](kcs-diagnostic-irule3003-taint-log-injection.md)
+- [IRULE3004 — taint redirect URL / open redirect](kcs-diagnostic-irule3004-taint-redirect-url.md)
 - [IRULE3101 — URI/path without leading slash](kcs-diagnostic-irule3101-uri-path-without-leading-slash.md)
 - [IRULE3102 — HTTP getter without -normalized](kcs-diagnostic-irule3102-http-getter-without-normalized.md)
+- [IRULE3103 — manual URI decomposition](kcs-diagnostic-irule3103-manual-uri-decomposition.md)
 
 ## iRule events and commands (IRULE1xxx, IRULE2xxx)
 
@@ -187,10 +209,15 @@ This index lists every per-code KCS page.
 
 - [IRULE5001 — ungated log in hot event](kcs-diagnostic-irule5001-ungated-log-in-hot-event.md)
 - [IRULE5002 — drop without event disable](kcs-diagnostic-irule5002-drop-without-event-disable.md)
+- [IRULE5003 — loop bound can miss zero](kcs-diagnostic-irule5003-loop-bound-inequality.md)
 - [IRULE5004 — DNS::return without return](kcs-diagnostic-irule5004-dns-return-without-return.md)
 - [IRULE5005 — direct proc without call](kcs-diagnostic-irule5005-direct-proc-without-call.md)
 - [IRULE5006 — top-level in nested body](kcs-diagnostic-irule5006-top-level-in-nested-body.md)
 - [IRULE5007 — event command outside when](kcs-diagnostic-irule5007-event-command-outside-when.md)
+
+## iRule CMP and TMM affinity (IRULE6xxx)
+
+- [IRULE6001 — global variable pins the virtual server to one TMM](kcs-diagnostic-irule6001-global-variable-cmp-pinning.md)
 
 ## Optimisations (O-codes)
 

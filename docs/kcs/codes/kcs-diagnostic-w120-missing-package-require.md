@@ -1,7 +1,7 @@
 # KCS: W120 — Why does the analyser want a package require?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

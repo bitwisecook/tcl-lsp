@@ -1,7 +1,7 @@
 # KCS: W303 — Can this regexp cause catastrophic backtracking?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

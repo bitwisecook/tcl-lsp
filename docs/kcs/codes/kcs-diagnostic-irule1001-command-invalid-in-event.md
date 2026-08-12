@@ -1,7 +1,7 @@
 # KCS: IRULE1001 — Why does the analyser flag a command as invalid in this event?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

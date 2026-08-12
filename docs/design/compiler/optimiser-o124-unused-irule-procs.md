@@ -174,7 +174,7 @@ also controls O124.
 - `editors/vscode/package.json` — VS Code toggle
 - `editors/jetbrains/.../TclLspSettings.kt` — JetBrains toggle
 
-## Test anchors
+## Tests
 
 - `rust/tcl-compiler/src/optimiser/unused_procs.rs` unit tests
 
@@ -187,7 +187,7 @@ also controls O124.
   graph: O124 conservatively suppresses all suggestions even if the
   dynamic dispatch does not actually target any of the unused procs.
 
-## Discoverability
+## See also
 
 - [Compiler KCS index](README.md)
 - [Optimiser feature KCS](../../kcs/features/kcs-feature-optimiser.md)

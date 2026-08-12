@@ -1,7 +1,7 @@
 # KCS: O117 — Simplify string length check to empty-string comparison
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

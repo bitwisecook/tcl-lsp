@@ -1,7 +1,7 @@
 # KCS: W106 — Why is an unbraced switch body dangerous?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

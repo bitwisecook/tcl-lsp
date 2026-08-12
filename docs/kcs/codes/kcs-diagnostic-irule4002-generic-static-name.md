@@ -1,7 +1,7 @@
 # KCS: IRULE4002 — Why does the analyser warn about a generic static variable name?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

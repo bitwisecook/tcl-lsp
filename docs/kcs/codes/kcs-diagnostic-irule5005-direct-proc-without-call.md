@@ -1,7 +1,7 @@
 # KCS: IRULE5005 — Why does the analyser warn about a direct proc invocation without call?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: IRULE5006 — Why does the analyser warn about a top-level command in a nested body?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

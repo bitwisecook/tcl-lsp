@@ -1,7 +1,7 @@
 # KCS: W201 — Why not build file paths with / or \ manually?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

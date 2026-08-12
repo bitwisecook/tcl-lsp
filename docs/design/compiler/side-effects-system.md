@@ -356,11 +356,11 @@ SideEffect {
 - **Pure subcommand without effects** — classifier returns `pure: true` with no effects. Target metadata is lost. Fix: add `side_effects` to the subcommand so the classifier can include read-only effects.
 - **Hint on dynamic barrier command** — hints are ignored; dynamic barriers always produce `UNKNOWN` read+write. This is correct — do not add hints to `eval`/`uplevel`.
 
-## Test anchors
+## Tests
 
 - `side_effects.rs` unit tests — `trace add`/`trace remove execution` capture and side-effect composition (issue #251)
 
-## Discoverability
+## See also
 
 - [Compiler KCS index](README.md)
 - [KCS index](../README.md)

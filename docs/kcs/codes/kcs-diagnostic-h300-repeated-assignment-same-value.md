@@ -1,7 +1,7 @@
 # KCS: H300 — Possible paste error — repeated assignment to same variable with same value
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

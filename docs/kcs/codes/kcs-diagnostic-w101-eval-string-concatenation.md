@@ -1,7 +1,7 @@
 # KCS: W101 — Does eval with string concatenation allow code injection?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

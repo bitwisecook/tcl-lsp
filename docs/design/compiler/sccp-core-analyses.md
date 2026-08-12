@@ -4,12 +4,24 @@ How sparse conditional constant propagation, liveness, and the type lattice
 work together over the SSA graph, and why a value that looks constant can
 still settle at `OVERDEFINED`.
 
-`analyse_function()` in `analyses.rs` runs SCCP (Sparse Conditional
-Constant Propagation) over the SSA graph, producing a `FunctionAnalysis`
-with constant values, type information, liveness, dead stores, unreachable
-blocks, constant branches, read-before-set, and unused variables.
+`sccp()` in `sccp.rs` runs SCCP (Sparse Conditional Constant Propagation) over
+the SSA graph, producing an `SccpResult` with the per-value lattice, the
+executable blocks and edges, and the constant branches.  Type information,
+liveness, dead stores, read-before-set, and unused variables are produced by
+separate passes and reach consumers through the per-function `FunctionUnit`.
 
-Source: `rust/tcl-compiler/src/analyses.rs` / `rust/tcl-compiler/src/sccp.rs` (`analyse_function` at line 3964, `FunctionAnalysis` at line 426),
+> **`FunctionAnalysis` is not on the live path.**  The aggregate named
+> throughout this document is declared in `rust/tcl-compiler/src/analyses.rs`,
+> but nothing builds, returns, or reads one — its only construction is
+> `::default()` inside that module's own tests, and there is no
+> `analyse_function()`.  Read `FunctionAnalysis.X` below as "the X fact",
+> whose live home is `FunctionUnit` (`sccp`, `types`, `taints`, `def_use`,
+> `memory_ssa`, `rendered_props`) or a pass-local return value such as
+> `liveness_dead_stores()`'s `Vec<DeadStore>`.  Issue #1406 tracks the gap.
+
+Source: `rust/tcl-compiler/src/sccp.rs` (`sccp`, `SccpResult`),
+`rust/tcl-compiler/src/analyses.rs` (the lattice types),
+`rust/tcl-compiler/src/compilation_unit.rs` (`FunctionUnit`),
 `rust/tcl-compiler/src/types.rs`
 
 ### SCCP — constant propagation

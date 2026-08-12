@@ -1,7 +1,7 @@
 # KCS: E102 — Why does the analyser flag an unmatched closing brace?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

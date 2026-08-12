@@ -1,7 +1,7 @@
 # KCS: IRULE3001 — Why does the analyser warn about tainted data in an HTTP response body?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: IRULE3101 — Why does the analyser warn about a URI path without a leading slash?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

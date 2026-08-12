@@ -44,8 +44,22 @@ event's handlers by `(priority, file_index)`.
 
 ### `RuleInitExport` / `RuleInitVarDef`
 
-Both carry a `base_priority` for cross-file RULE_INIT variable tracking.
-No offset — RULE_INIT ordering does not require tie-breaking.
+> **Not part of the live path.** Neither type exists in the Rust tree, and
+> there is no `extract_rule_init_vars` function; nothing carries a
+> `base_priority` for cross-file RULE_INIT variable tracking. Issue #1406
+> tracks the gap.
+
+The design they describe: both would carry a `base_priority` for cross-file
+RULE_INIT variable tracking, with no offset — RULE_INIT ordering does not
+require tie-breaking.
+
+What exists today is per-document only. `Procedure::base_priority`
+(above) carries the declared priority for each `when` handler, and
+`static::` variables written by `when RULE_INIT` are tracked by
+`ConnectionScope` (`rust/tcl-compiler/src/connection_scope.rs`), built by
+`build_connection_scope()` from the `::when::*` procedures of a single
+`CompilationUnit` — its `racy_static_defs` is the RULE_INIT-aware half, and it
+never spans files.
 
 ## Extraction paths
 

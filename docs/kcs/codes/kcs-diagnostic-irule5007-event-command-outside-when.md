@@ -1,7 +1,7 @@
 # KCS: IRULE5007 — Why does the analyser warn about an event command outside a when block?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

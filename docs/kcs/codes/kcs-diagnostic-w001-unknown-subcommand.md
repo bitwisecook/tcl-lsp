@@ -1,7 +1,7 @@
 # KCS: W001 — Why does the analyser flag an unknown subcommand?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

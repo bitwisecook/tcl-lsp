@@ -1,7 +1,7 @@
 # KCS: E004 — Why does the analyser say my `if` is malformed?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

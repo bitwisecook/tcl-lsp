@@ -1,7 +1,7 @@
 # KCS: W140 — Target interpreter is never created in this file
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

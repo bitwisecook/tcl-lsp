@@ -1,7 +1,7 @@
 # KCS: W135 — Why does the analyser say this command needs a newer package version?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

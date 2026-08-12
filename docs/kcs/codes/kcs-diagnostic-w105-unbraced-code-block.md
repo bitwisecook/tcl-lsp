@@ -1,7 +1,7 @@
 # KCS: W105 — Why must code blocks be braced?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

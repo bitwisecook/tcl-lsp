@@ -1,7 +1,7 @@
 # KCS: O123 — Detect non-tail recursion eligible for accumulator introduction (hint)
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

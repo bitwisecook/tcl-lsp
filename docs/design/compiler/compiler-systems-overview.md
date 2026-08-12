@@ -18,7 +18,7 @@ implementation is the Rust workspace under `rust/`.
 | Bytecode emission | `codegen/`, `tcl-bytecode` |
 | WASM plan selection and emission | `codegen/wasm/`, `tcl-runtime-api`, `runtime/rust/` |
 
-## Decision rules
+## Where to make a change
 
 Change the earliest producer that can establish a reusable fact. Keep command
 semantics in the registry, expose typed evidence on compiler-owned results, and

@@ -1,7 +1,7 @@
 # KCS: W123 — Is this command unresolved?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

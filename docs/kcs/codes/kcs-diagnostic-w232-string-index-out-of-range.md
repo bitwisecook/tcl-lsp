@@ -1,7 +1,7 @@
 # KCS: W232 — Why does the analyser warn about a string index that is out of range?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

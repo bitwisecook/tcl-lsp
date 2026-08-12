@@ -1,7 +1,7 @@
 # KCS: W145 — Ambiguous keyword abbreviation
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

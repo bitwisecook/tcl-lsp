@@ -1,7 +1,7 @@
 # KCS: W301 — Does uplevel with a string-built script allow injection?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

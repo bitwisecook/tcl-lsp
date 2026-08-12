@@ -1,7 +1,7 @@
 # KCS: W216 — Why does the analyser flag `${arr}(...)` or `${arr($foo)}`?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

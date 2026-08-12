@@ -1,7 +1,7 @@
 # KCS: W309 — Does eval with subst create a double-substitution vulnerability?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

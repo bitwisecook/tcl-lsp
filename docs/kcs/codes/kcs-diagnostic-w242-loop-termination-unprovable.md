@@ -1,7 +1,7 @@
 # KCS: W242 — Why does the analyser hint that my loop may not terminate?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

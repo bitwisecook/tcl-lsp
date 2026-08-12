@@ -1,7 +1,7 @@
 # KCS: IRULE1006 — Why does the analyser flag payload access without a collect call?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

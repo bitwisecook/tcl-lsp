@@ -1,7 +1,7 @@
 # KCS: W003 — Expression operator not available in the active dialect
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

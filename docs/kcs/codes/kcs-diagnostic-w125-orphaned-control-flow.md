@@ -1,7 +1,7 @@
 # KCS: W125 — Why does the analyser flag an orphaned control-flow keyword?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

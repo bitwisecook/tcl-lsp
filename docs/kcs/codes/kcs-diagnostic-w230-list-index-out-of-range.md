@@ -1,7 +1,7 @@
 # KCS: W230 — Why does the analyser warn about a list index that is out of range?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

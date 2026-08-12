@@ -1,7 +1,7 @@
 # KCS: O121 — Rewrite self-recursive tail calls to tailcall
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

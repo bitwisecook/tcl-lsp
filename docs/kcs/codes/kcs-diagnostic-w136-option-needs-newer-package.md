@@ -1,7 +1,7 @@
 # KCS: W136 — Why does the analyser say this option needs a newer package version?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

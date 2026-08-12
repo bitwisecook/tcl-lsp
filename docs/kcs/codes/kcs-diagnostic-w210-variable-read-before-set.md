@@ -1,7 +1,7 @@
 # KCS: W210 — Why does the analyser warn about a variable used before being set?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

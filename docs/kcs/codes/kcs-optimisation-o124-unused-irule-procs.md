@@ -1,7 +1,7 @@
 # KCS: O124 — Comment out unused procs in iRules
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

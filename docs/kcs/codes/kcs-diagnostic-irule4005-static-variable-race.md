@@ -1,7 +1,7 @@
 # KCS: IRULE4005 — Why does the analyser warn about a race on a static variable?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

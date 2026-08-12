@@ -1,7 +1,7 @@
 # KCS: IRULE2002 — Why does the analyser flag a deprecated iRules command?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

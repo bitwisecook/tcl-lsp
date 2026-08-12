@@ -1,7 +1,7 @@
 # KCS: W241 — Why does the analyser warn that my loop is provably infinite?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

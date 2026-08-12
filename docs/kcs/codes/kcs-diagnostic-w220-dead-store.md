@@ -1,7 +1,7 @@
 # KCS: W220 — Why does the analyser warn about a dead store?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

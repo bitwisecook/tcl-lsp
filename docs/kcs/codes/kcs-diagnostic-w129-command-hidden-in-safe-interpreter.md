@@ -1,7 +1,7 @@
 # KCS: W129 — Command is hidden in a safe interpreter
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

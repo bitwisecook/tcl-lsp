@@ -1,7 +1,7 @@
 # KCS: W305 — Why is there an error about a bidirectional formatting control?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: W217 — Why does the analyser say my `unset` unsets nothing?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: W240 — Why does the analyser warn that my loop never executes?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

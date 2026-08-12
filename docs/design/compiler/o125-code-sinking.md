@@ -234,7 +234,7 @@ if {$a} {
   to place the assignment at the deepest level where the variable is
   first used.
 
-## Decision rules / contracts
+## When O125 fires
 
 1. **Sinkable statements**: only ``IRAssignConst`` and ``IRAssignValue``
    without command substitutions (``[…]`` in the value).  These are
@@ -277,7 +277,7 @@ All parts share a ``group`` ID so they are applied or dropped together.
   insertion survives).  Mitigated by conflict-avoidance check and
   post-selection filtering in ``find_optimisations()``.
 
-## Test anchors
+## Tests
 
 - `rust/tcl-compiler/src/optimiser/code_sinking.rs` unit tests
 
@@ -288,7 +288,7 @@ All parts share a ``group`` ID so they are applied or dropped together.
 - [kcs-pass-fact-ownership-matrix.md](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
 - [kcs-execution-intent-model.md](../../../docs/design/compiler/execution-intent-model.md)
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

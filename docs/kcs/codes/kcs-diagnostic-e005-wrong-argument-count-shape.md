@@ -1,7 +1,7 @@
 # KCS: E005 — Why does the analyser say a command has the wrong argument shape?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

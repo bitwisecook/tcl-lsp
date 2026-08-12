@@ -1,7 +1,7 @@
 # KCS: W215 — Why does the analyser warn that a variable name is not reachable via $-substitution?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

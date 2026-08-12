@@ -1,7 +1,7 @@
 # KCS: O129 — Fold pure builtin command substitutions with constant arguments
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

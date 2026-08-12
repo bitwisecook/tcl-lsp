@@ -1,7 +1,7 @@
 # KCS: W109 — Why does the analyser say my file "does not look like UTF-8 text"?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

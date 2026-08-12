@@ -1,7 +1,7 @@
 # KCS: W128 — Command called after it was renamed or deleted earlier in this file
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

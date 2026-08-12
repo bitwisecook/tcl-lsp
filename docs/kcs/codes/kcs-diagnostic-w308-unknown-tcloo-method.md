@@ -1,7 +1,7 @@
 # KCS: W308 — Why does the analyser flag an unknown method on my object?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

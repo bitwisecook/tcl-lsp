@@ -1,7 +1,7 @@
 # KCS: E103 — Why does the analyser say a nested body stole a closing brace?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

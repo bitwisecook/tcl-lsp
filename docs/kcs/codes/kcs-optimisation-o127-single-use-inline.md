@@ -1,7 +1,7 @@
 # KCS: O127 — Inline single-use variable assignment
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

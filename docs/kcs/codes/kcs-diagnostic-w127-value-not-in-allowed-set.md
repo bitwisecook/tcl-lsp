@@ -1,7 +1,7 @@
 # KCS: W127 — Why does the analyser flag a value that is not in the command's allowed set?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: E202 — Why does the analyser flag an unterminated string literal?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

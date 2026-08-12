@@ -1,7 +1,7 @@
 # KCS: W100 — Why must expressions be braced?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

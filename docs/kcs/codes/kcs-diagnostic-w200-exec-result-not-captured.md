@@ -1,7 +1,7 @@
 # KCS: W200 — Why does the analyser warn about an uncaptured exec result?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

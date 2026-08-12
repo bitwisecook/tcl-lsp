@@ -1,7 +1,7 @@
 # KCS: W104 — Why not build lists with string concatenation?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

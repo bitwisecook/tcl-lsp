@@ -1,7 +1,7 @@
 # KCS: W002 — Why is a command disabled in the active dialect?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

@@ -1,7 +1,7 @@
 # KCS: W111 — Why does the analyser flag long lines?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

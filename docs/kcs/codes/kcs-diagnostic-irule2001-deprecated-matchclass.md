@@ -1,7 +1,7 @@
 # KCS: IRULE2001 — Why does the analyser flag `matchclass` as deprecated?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

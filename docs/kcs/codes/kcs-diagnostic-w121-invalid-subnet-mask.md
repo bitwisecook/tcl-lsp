@@ -1,7 +1,7 @@
 # KCS: W121 — Why does the analyser flag a non-contiguous subnet mask?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

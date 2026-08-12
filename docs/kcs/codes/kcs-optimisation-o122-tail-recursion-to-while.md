@@ -1,7 +1,7 @@
 # KCS: O122 — Convert tail-recursive proc to iterative while loop
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

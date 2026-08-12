@@ -1,7 +1,7 @@
 # KCS: I230 — Why does the analyser say my `[info exists]` branch never runs?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

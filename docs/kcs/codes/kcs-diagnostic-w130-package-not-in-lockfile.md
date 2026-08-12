@@ -1,7 +1,7 @@
 # KCS: W130 — why is a package not in the lockfile?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

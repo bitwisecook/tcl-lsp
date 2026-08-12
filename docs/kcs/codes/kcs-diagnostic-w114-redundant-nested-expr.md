@@ -1,7 +1,7 @@
 # KCS: W114 — Why is a nested [expr] inside an expression redundant?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

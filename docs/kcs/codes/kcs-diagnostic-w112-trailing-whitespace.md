@@ -1,7 +1,7 @@
 # KCS: W112 — Why does the analyser flag trailing whitespace?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

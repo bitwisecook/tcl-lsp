@@ -1,7 +1,7 @@
 # KCS: O106 — Hoist loop-invariant computations
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

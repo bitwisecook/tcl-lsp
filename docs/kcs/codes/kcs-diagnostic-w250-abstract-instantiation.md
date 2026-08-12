@@ -1,7 +1,7 @@
 # KCS: W250 — Why does the analyser warn about instantiating this class?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

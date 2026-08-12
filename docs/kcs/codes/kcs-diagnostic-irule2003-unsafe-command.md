@@ -1,7 +1,7 @@
 # KCS: IRULE2003 — Why does the analyser flag an unsafe iRules command?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

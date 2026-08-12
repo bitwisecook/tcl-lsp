@@ -9,7 +9,7 @@ procedure scopes as a document is edited.
 
 This path runs frequently during editing, so incremental proc reuse (`proc_cache`) is part of the contract, not an optional optimisation detail.
 
-## Decision rules / contracts
+## What a pass may assume
 
 1. **Single-source-of-truth artefact**
    - New pass inputs should come from `CompilationUnit` / `FunctionUnit` facts before introducing any pass-local parse/lower pipeline.
@@ -36,13 +36,13 @@ This path runs frequently during editing, so incremental proc reuse (`proc_cache
 - Interprocedural summaries stale relative to per-proc updates, leading to incorrect O103/T-series outcomes.
 - Missing top-level/proc parity causing diagnostics that only work in one scope.
 
-## Test anchors
+## Tests
 
 - `rust/tcl-compiler/src/compilation_unit.rs` unit tests.
 - `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
 
 
-## Discoverability
+## See also
 
 - [compiler KCS index](README.md)
 - [compiler architecture overview](../../../docs/design/compiler-architecture.md)

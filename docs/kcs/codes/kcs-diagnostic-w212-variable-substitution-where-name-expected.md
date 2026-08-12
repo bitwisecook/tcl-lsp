@@ -1,7 +1,7 @@
 # KCS: W212 — Why does the analyser warn about a variable substitution where a name is expected?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

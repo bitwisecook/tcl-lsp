@@ -1,7 +1,7 @@
 # KCS: W110 — Why should I use eq/ne instead of ==/!= for strings?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

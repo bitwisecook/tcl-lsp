@@ -1,7 +1,7 @@
 # KCS: IRULE1202 — Why does the analyser flag multiple respond or redirect calls?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

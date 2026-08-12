@@ -1,7 +1,7 @@
 # KCS: IRULE1002 — Why does the analyser flag an unknown event name?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

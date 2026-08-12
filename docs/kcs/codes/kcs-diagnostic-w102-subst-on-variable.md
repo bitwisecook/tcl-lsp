@@ -1,7 +1,7 @@
 # KCS: W102 — Does subst on a variable allow command execution?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

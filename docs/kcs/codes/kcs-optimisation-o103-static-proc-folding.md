@@ -1,7 +1,7 @@
 # KCS: O103 — Fold static procedure calls
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

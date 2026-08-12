@@ -1,7 +1,7 @@
 # KCS: W213 — Why does the analyser warn that a variable may not exist?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

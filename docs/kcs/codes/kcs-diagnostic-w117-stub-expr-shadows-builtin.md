@@ -1,7 +1,7 @@
 # KCS: W117 — Why does a stub expr function shadow a built-in?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

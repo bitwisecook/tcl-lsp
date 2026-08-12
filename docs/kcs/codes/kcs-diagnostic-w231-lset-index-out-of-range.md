@@ -1,7 +1,7 @@
 # KCS: W231 — Why does the analyser warn about an `lset` index that is out of range?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 

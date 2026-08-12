@@ -1,7 +1,7 @@
 # KCS: O100 — Propagate constant variables into expressions
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 
