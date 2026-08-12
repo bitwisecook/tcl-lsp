@@ -10,6 +10,19 @@ A Tcl object can be used as different semantic types over time (string, list, in
 - Repeated mismatch in loops is more expensive and should be elevated (S101).
 - Oscillation patterns across loop iterations are the strongest signal (S102).
 
+Two further codes sit in the same module but answer different questions:
+
+- **S103** — mutation of a **potentially shared** value. Not a
+  representation change at all: C Tcl duplicates a shared value before
+  writing it, so `lappend` / `lset` / `dict set` on a value with refcount ≥ 2
+  is an O(n) whole-value copy every call. Detected by `shimmer::sharing`
+  ([bounded to a deliberately tight pattern](#s103-scope)), severity Hint.
+- **S110** — a **correctness** shimmer, distinct from the S100/S101/S102
+  performance family: a byte array forced through a character-string
+  operation and written back to a byte sink silently re-encodes every byte
+  `>= 0x80`. Detected by `shimmer::byte_array`; see
+  [byte-array-corruption.md](../compiler/byte-array-corruption.md).
+
 ## Mapping to C Tcl 9.0.3 functions
 
 Each detector diagnostic maps to specific C functions that trigger `FreeInternalRep`:

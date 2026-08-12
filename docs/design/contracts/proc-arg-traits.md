@@ -65,26 +65,38 @@ Recursion is bounded by `MAX_DEPTH` (8). The depth counter is threaded through
 specifically so that an `apply` inside a body cannot restart the counter at
 zero while the native call stack keeps growing.
 
-The results of the two passes are unioned; the merged map is stored on
-`ProcDef::param_traits` (analyser level) and `ProcSummary::param_traits`
-(interprocedural level).
+**The deep pass is off by default.** `Analyser::deep_param_traits` is `false`
+on a fresh analyser, and the proc handler runs the shallow pass alone unless
+it is set; when it *is* set, the two results are unioned via `merge_traits`.
+The shallow pass is fast enough for synchronous analysis and catches the
+common patterns; the deep pass is intended for asynchronous use behind the
+call-graph / symbol-graph / dataflow-graph / semantic-graph builders. Either
+way the resulting map is stored on `ProcDef::param_traits`.
 
 ## The interprocedural sibling
 
 `tcl_compiler::interprocedural` declares its **own** `ProcArgTrait` enum for a
 different question — how a parameter's *value* flows (`Passthrough`,
-`UsedInCondition`, `ForwardedToCallee`, `VarRead`, `VarWrite`, and an unused
-marker). The two are deliberately separate: the analyser's traits describe how
-an argument is *interpreted* (script, expression, variable name), the
-interprocedural ones describe *dataflow* through the body. Do not collapse
-them.
+`UsedInCondition`, `ForwardedToCallee`, `VarRead`, `VarWrite`, `Unused`). The
+two are deliberately separate: the analyser's traits describe how an argument
+is *interpreted* (script, expression, variable name), the interprocedural ones
+describe *dataflow* through the body. Do not collapse them.
+
+`ProcSummary::param_traits` holds the **interprocedural** enum, not this
+module's. It is built by `interprocedural::finalise_param_traits` from
+observations the summary builder makes while walking the lowered
+`ir::Procedure` body — `infer_param_traits` is never called from
+`interprocedural.rs`. `finalise_param_traits` adds `Passthrough` when the
+proc's `return_passthrough_param` names the parameter, and `Unused` when no
+observation fired at all, so a parameter's trait set is never empty.
 
 ## Consumers
 
 | Consumer | Use |
 |---|---|
-| `Analyser` proc handling | shallow pass, stored on `ProcDef::param_traits` |
-| `interprocedural.rs` | shallow pass over `IRProcedure` bodies, stored on `ProcSummary::param_traits` |
+| `Analyser` proc handling | shallow pass (plus the deep pass when `deep_param_traits` is set), stored on `ProcDef::param_traits` |
+| `tcl-lsp-core`'s `caller_frame.rs` | shallow pass, to resolve caller-frame `upvar` targets |
+| `interprocedural.rs` | its **own** dataflow trait enum over lowered `ir::Procedure` bodies, stored on `ProcSummary::param_traits` — not this module's traits |
 | LSP hover / semantic tokens | annotate parameters; `Command`-trait arguments highlight as commands |
 | Optimiser | whether a proc can be inlined or constant-folded |
 | Taint engine | `Eval` and `Body` mark taint-sensitive parameters |
