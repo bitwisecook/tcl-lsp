@@ -2631,34 +2631,45 @@ A single straight-line block (no control flow):
 
 ### Taint propagation
 
-The taint engine (`rust/tcl-compiler/src/optimiser/propagation.rs`)
+The taint engine (`propagate_taints` in `rust/tcl-compiler/src/taint.rs`)
 walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 
 1. **`(host, 1)`** — the `[HTTP::header value Host]` command substitution
    is evaluated:
-   - `_taint_source_colour("HTTP::header", ("value", "Host"))` looks up the
-     `TaintHint` from the registry → returns `TaintColour::TAINTED`.
+   - `source_colour(registry, "HTTP::header", ["value", "Host"], …)` —
+     the compiler-side wrapper over
+     `tcl_registry::taint::taint_source_colour`
+     (`rust/tcl-registry/src/taint.rs`) — looks up the registry's
+     per-command source colour → returns `TaintColour::TAINTED`.
    - Result: `TaintLattice { colours: TaintColour::TAINTED }` —
      `is_tainted()` is true because `TAINTED` is a member of `colours`.
 
 2. **`(lower, 1)`** — `[string tolower $host]`:
    - The argument `$host` has taint `(host, 1)` → `TAINTED`.
-   - `_is_sanitiser("string", ("tolower", ...))` → `false` (case
-     conversion does not sanitise).
-   - `_derive_transform_colours("string", ("tolower", ...))` → no extra
-     colours.
+   - `is_sanitiser(registry, "string", ["tolower", …])`
+     (`rust/tcl-compiler/src/taint.rs`) → `false` (case conversion does not
+     sanitise).
+   - `transform_colour(registry, "string", ["tolower", …])` (same module,
+     reading the subcommand's `taint_transform` hint) → no extra colours.
    - The command is pure, so taint flows through: result inherits from
      arguments.
    - Result: `TaintLattice { colours: TaintColour::TAINTED }`
 
 3. **`HTTP::respond`** — the sink check:
-   - `_classify_sink(Statement::Call { command: "HTTP::respond", .. })`
-     queries the registry:
-     `REGISTRY.classify_taint_sinks("HTTP::respond", None, dialect)`.
-   - Returns `[("IRULE3001", "HTTP::respond")]` — the content body is an
-     XSS-sensitive output sink.
-   - `_stmt_var_arg_indexes(stmt, "lower")` → `(2,)` — `$lower` appears at
-     arg index 2 (the content argument).
+   - `classify_sink(registry, "HTTP::respond", args, dialect)`
+     (`rust/tcl-compiler/src/taint.rs`) queries the registry:
+     `tcl_registry::taint::classify_taint_sinks(registry, "HTTP::respond",
+     subcommand, DialectSet::empty())`
+     (`rust/tcl-registry/src/taint.rs`).
+   - Returns `(DiagCode::Irule3001, "HTTP::respond")` — the content body is
+     an XSS-sensitive output sink.
+   - `emit_sink_warnings` then walks the statement's SSA `uses` map rather
+     than computing argument indexes: `$lower` is a tainted use reaching the
+     call, and `sink_var_position_safe` (via
+     `registry.arg_indices_for_role(…, ArgRole::Channel)` and the spec's
+     `taint_code_sink_args` / `taint_network_sink_args` lists) confirms it
+     does not sit in a harmless slot.  The reported span comes from
+     `arg_index_span(stmt, arg_index)`.
    - The taint of `(lower, 1)` is `TAINTED` with no mitigating colours
      (e.g. `HTML_ESCAPED` would suppress the warning).
 
@@ -2842,23 +2853,25 @@ immediately overwritten.
 
 ### Optimisation pass — O125
 
-`optimise_code_sinking()` in
-`rust/tcl-compiler/src/optimiser/code_sinking.rs`:
+The pass entry point `run()` in
+`rust/tcl-compiler/src/optimiser/code_sinking.rs`, which walks the IR module
+via `walk_script()`:
 
-1. **Sinkability check** (`_is_sinkable()`):
+1. **Sinkability check** (`sinkable_assignment()`):
    `Statement::AssignConst { name: "msg", value: "Request denied" }` is
    sinkable — it is a simple constant assignment with no command
    substitutions.
 
-2. **Variable reference scan** (`_stmt_uses_var()`): walks the
-   `Statement::If` body recursively.  `$msg` appears only in the `else`
-   body (`HTTP::respond ... $msg`), not in the `if` body (which defines a
-   new `msg`).
+2. **Variable reference scan** (`statement_uses_var()` /
+   `script_uses_var()`): walks the `Statement::If` body recursively.  `$msg`
+   appears only in the `else` body (`HTTP::respond ... $msg`), not in the
+   `if` body (which defines a new `msg`).
 
-3. **Deepest target** (`_find_deepest_sink_targets()`): the only use of the
-   original `msg` is in the `else` branch → sink target is the else body.
+3. **Deepest target** (`find_deepest_targets()`, narrowing through
+   `try_deeper_sink()`): the only use of the original `msg` is in the `else`
+   branch → sink target is the else body.
 
-4. **Emission** (`_emit_sinking_opts()`): emits a grouped pair of O125
+4. **Emission** (`emit_sink()`): emits a grouped pair of O125
    optimisations:
 
 ```
@@ -2923,10 +2936,11 @@ single event), so the second call is redundant.
 
 ### GVN pass — O105
 
-`find_redundant_computations()` in
-`rust/tcl-compiler/src/gvn.rs`:
+`find_redundancies()` in
+`rust/tcl-compiler/src/gvn.rs`, which returns `Vec<RedundantComputation>`:
 
-1. **Purity check** (`_is_pure_command()`): looks up `HTTP::uri` in the
+1. **Purity check** (`is_pure_command()`, or `is_pure_command_with_traces()`
+   where variable traces are in play): looks up `HTTP::uri` in the
    command registry → `CommandSpec.pure = true`, `cse_candidate = true`.
 
 2. **Value numbering**: assigns a canonical `ExprKey` to each computation.
@@ -3029,8 +3043,9 @@ proc example {} {
 **O108 — Aggressive DCE (ADCE):**
 Tracks statement-level liveness backwards from live roots (return values,
 side-effecting calls).  A statement is dead if its defined values are never
-used AND it has no side effects (checked via `_is_adce_removable_statement()`
-which inspects `FunctionExecutionIntent` for command substitution purity).
+used AND it has no side effects (checked via `assignment_safe_to_delete()`
+in `rust/tcl-compiler/src/optimiser/elimination.rs`, which walks the
+assignment's RHS for an observably side-effecting command substitution).
 
 ---
 
@@ -3216,7 +3231,7 @@ ExprToken { kind: ExprTokenType::Operator, text: "*",  .. }
 ExprToken { kind: ExprTokenType::Number,   text: "2",  .. }
 ```
 
-**Pratt parsing** (`_PrattParser` in
+**Pratt parsing** (`PrattParser`, driven by `parse_expr()` in
 `rust/tcl-syntax/src/expr/parser.rs`):
 
 The parser uses binding powers to handle precedence:
@@ -3353,8 +3368,13 @@ The `defs` list tells the SSA builder that `regexp` defines `match` and
 
 ### Example: barrier commands
 
-Commands in `_DYNAMIC_BARRIER_COMMANDS` (e.g. `eval`, `uplevel`, `upvar`)
-always produce `Statement::Barrier`:
+There is no barrier-command name list.  `lower_default()`
+(`rust/tcl-compiler/src/lowering/mod.rs`) asks the registry
+`arg_indices_for_role(command, args, ArgRole::Body)`, and a command with any
+`ArgRole::Body` argument it has no dedicated lowering hook for produces a
+`Statement::Barrier` with reason `"unsupported body command"`.  So `eval`
+becomes a barrier because its registry spec marks argument 0 as a body, not
+because it is named anywhere in the lowerer:
 
 ```tcl
 eval $script
@@ -3363,8 +3383,9 @@ eval $script
 ```
 Statement::Barrier {
     span: Span { .. },
-    reason: "dynamic command",
+    reason: "unsupported body command",
     command: "eval",
+    canonical_command: None,
     args: ["${script}"],
 }
 ```
@@ -3438,8 +3459,9 @@ CommandSubstitutionIntent {
 
 ### How ADCE uses execution intent
 
-`_is_adce_removable_statement()` checks the intent before removing a
-"dead" assignment:
+`assignment_safe_to_delete()`
+(`rust/tcl-compiler/src/optimiser/elimination.rs`) checks the intent before
+removing a "dead" assignment:
 
 - `[llength $items]` → `Pure` + `NoEscape` → **safe to remove** if `count`
   is never read.
@@ -3724,7 +3746,8 @@ proc abs {n} {
 
 ### Step 1 — LVT allocation
 
-The `_Emitter` constructor creates a `LocalVarTable` from the
+`CodegenCtx::new(is_proc, params, registry)`
+(`rust/tcl-compiler/src/codegen/mod.rs`) creates a `LocalVarTable` from the
 parameter list:
 
 ```
@@ -3735,9 +3758,10 @@ LocalVarTable::new(&["n"])
 Inside a `proc`, all variable accesses use LVT-indexed instructions
 (`loadScalar1 %v0`) instead of name-based stack operations (`loadStk`).
 
-### Step 2 — Block linearisation (`_linearise()`)
+### Step 2 — Block linearisation (`linearise()`)
 
-The emitter performs a DFS traversal from the entry block, producing a
+`linearise()` (`rust/tcl-compiler/src/codegen/emitter/ordering.rs`, called
+from `generate()`) performs a DFS traversal from the entry block, producing a
 reverse post-order (RPO) that determines instruction layout:
 
 ```
@@ -3750,8 +3774,9 @@ The `if_then_3` (true branch) appears immediately after the condition
 so `jumpFalse` skips *forward* to `if_else_4` — matching tclsh's
 fall-through layout.
 
-For loops, `_reorder_bottom_tested()` detects back-edges and moves the
-loop body *before* the header, producing a condition-at-bottom layout:
+For loops, `reorder_bottom_tested()` (same module, applied by `linearise()`)
+detects back-edges and moves the loop body *before* the header, producing a
+condition-at-bottom layout:
 
 ```
 Before (top-tested):  header → body → jump header
@@ -3760,25 +3785,28 @@ After  (bottom-tested): jump header → body → header (jumpTrue body)
 
 ### Step 3 — Instruction emission with labels
 
-As the emitter walks blocks, it places labels and emits instructions:
+As the emitter walks blocks it calls `CodegenCtx::place_label()` (which
+records that a label points at the *next* instruction) and
+`CodegenCtx::emit()` (which appends one instruction and returns its index) —
+both in `rust/tcl-compiler/src/codegen/mod.rs`:
 
 ```
-_place_label("entry_1")        → label at instruction 0
-  emit(LOAD_SCALAR1, %v0)     # load n
-  emit(PUSH1, lit("0"))       # push "0"
-  emit(LT)                    # n < 0
-  emit(JUMP_FALSE4, "L_else") # → if_else_4
+ctx.place_label("entry_1")        → label at instruction 0
+  ctx.emit(LOAD_SCALAR1, %v0)     # load n
+  ctx.emit(PUSH1, lit("0"))       # push "0"
+  ctx.emit(LT)                    # n < 0
+  ctx.emit(JUMP_FALSE4, "L_else") # → if_else_4
 
-_place_label("if_then_3")
-  emit(LOAD_SCALAR1, %v0)     # load n
-  emit(UMINUS)                # negate
-  emit(JUMP4, "L_end")        # → if_end_2
+ctx.place_label("if_then_3")
+  ctx.emit(LOAD_SCALAR1, %v0)     # load n
+  ctx.emit(UMINUS)                # negate
+  ctx.emit(JUMP4, "L_end")        # → if_end_2
 
-_place_label("L_else")        → if_else_4
-  emit(LOAD_SCALAR1, %v0)     # just return n
+ctx.place_label("L_else")        → if_else_4
+  ctx.emit(LOAD_SCALAR1, %v0)     # just return n
 
-_place_label("L_end")         → if_end_2
-  emit(DONE)
+ctx.place_label("L_end")         → if_end_2
+  ctx.emit(DONE)
 ```
 
 ### Step 4 — Jump size optimisation (`optimise_jumps()`)
@@ -3972,7 +4000,8 @@ The classification function follows this resolution order:
    - Read `side_effect_hints` from the subcommand.
 
 4. **Form resolution** — for `HTTP::uri` (no args):
-   - `CommandSpec.resolve_form(args)` matches the getter form
+   - `pick_form(forms, argument_count, dialect)`
+     (`rust/tcl-registry/src/registry.rs`) matches the getter form
      (`arity=Arity(0, 0)`).
    - Getter form has `pure=true` and `reads=true` hints.
 
