@@ -1370,6 +1370,15 @@ pub unsafe extern "C" fn tcl_invoke_argv(
     let _borrowed = unsafe { BorrowedArgv::retain(words) };
     // SAFETY: the current interpreter is live for this ABI call.
     let completion = unsafe { crate::state_traits::dispatch_prebuilt_argv(&mut *interp, words) };
+    // Dispatching directly skips the eval loop, which is what publishes an
+    // uncaught error's trace to `::errorInfo`/`::errorCode`. Without this a
+    // compiled script would leave those globals unset where the source-eval
+    // path creates them, so identical Tcl would expose different error state
+    // depending on which tier compiled it.
+    if completion.code == tcl_runtime_api::Code::Error {
+        // SAFETY: the current interpreter is live for this ABI call.
+        unsafe { (*interp).publish_error_if_uncaught() };
+    }
     // SAFETY: `out` is live and properly aligned per this function's contract.
     unsafe { write_completion(out, completion_abi(completion)) };
     TCL_INVOKE_ABI_OK
@@ -1920,6 +1929,31 @@ mod tests {
             assert_eq!(option(&completion, b"-level"), b"0");
             assert_eq!(option(&completion, b"-errorcode"), b"NONE");
             assert!(option(&completion, b"-errorinfo").starts_with(b"invalid command name"));
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// An uncaught error taken through the argv path leaves the same
+    /// interpreter error state as the source-eval path: `::errorInfo` and
+    /// `::errorCode` exist as globals.
+    #[test]
+    fn invoke_argv_publishes_uncaught_error_globals() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [owned_word(b"error"), owned_word(b"boom")];
+
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 1);
+
+            // The source-eval path publishes these at the outermost eval; the
+            // argv path must not diverge.
+            assert_eq!(tcl_eval_code(box_str(b"set ::errorInfo")), 0);
+            assert!((*interp).result_bytes().starts_with(b"boom"));
 
             tcl_completion_release(&mut completion);
             release_words(&words);
