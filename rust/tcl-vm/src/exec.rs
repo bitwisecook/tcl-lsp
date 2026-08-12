@@ -1624,7 +1624,10 @@ impl Vm {
             Op::NOP | Op::START_CMD | Op::BEGIN_CATCH4 | Op::END_CATCH => {}
 
             // -- variables (stack form, by name) --
-            Op::LOAD_STK => {
+            // The `*ScalarStk` opcodes share their C `TEBCresume` case with the
+            // general `*Stk` form (the compiler emits them when the name is known
+            // to carry no `(index)` part), so they are the same arm here.
+            Op::LOAD_STK | Op::LOAD_SCALAR_STK => {
                 let name = pop(f).to_str();
                 try_op!(self.fire_var_traces(&name, "read"));
                 match self.get_var(&name) {
@@ -1636,17 +1639,17 @@ impl Vm {
                     }
                 }
             }
-            Op::STORE_STK => {
+            Op::STORE_STK | Op::STORE_SCALAR_STK => {
                 let value = pop(f);
                 let name = pop(f).to_str();
                 try_cmd!(self.set_var(&name, value.clone()));
                 f.stack.push(value);
             }
-            Op::INCR_STK_IMM => {
+            Op::INCR_STK_IMM | Op::INCR_SCALAR_STK_IMM => {
                 let name = pop(f).to_str();
                 try_op!(self.incr_var(f, &name, i64::from(imm0(instr))));
             }
-            Op::INCR_STK => {
+            Op::INCR_STK | Op::INCR_SCALAR_STK => {
                 let amount = pop(f);
                 let name = pop(f).to_str();
                 match amount.as_int() {
@@ -1692,6 +1695,32 @@ impl Vm {
                 let name = pop(f).to_str();
                 try_op!(self.incr_var(f, &format!("{name}({key})"), i64::from(imm0(instr))));
             }
+            Op::INCR_ARRAY_STK => {
+                // Stack: [name, key, amount].
+                let amount = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                match amount.as_int() {
+                    Ok(a) => try_op!(self.incr_var(f, &format!("{name}({key})"), a)),
+                    Err(e) => return Tick::Return(crate::command::completion_from_tcl_error(e)),
+                }
+            }
+            Op::INCR_ARRAY1 => {
+                // Operand is the array's slot; stack: [key, amount].
+                let name = lvt_name(imm0(instr));
+                let amount = pop(f);
+                let key = pop(f).to_str();
+                match amount.as_int() {
+                    Ok(a) => try_op!(self.incr_var(f, &format!("{name}({key})"), a)),
+                    Err(e) => return Tick::Return(crate::command::completion_from_tcl_error(e)),
+                }
+            }
+            Op::INCR_ARRAY1_IMM => {
+                // Operands [slot, increment]; the element key is on the stack.
+                let name = lvt_name(imm0(instr));
+                let key = pop(f).to_str();
+                try_op!(self.incr_var(f, &format!("{name}({key})"), i64::from(imm_at(instr, 1))));
+            }
             Op::EXIST_SCALAR => {
                 // The slot name may be an `arr(key)` element reference baked
                 // into the LVT (the codegen names the slot `a(x)`), so resolve
@@ -1706,6 +1735,23 @@ impl Vm {
                 let name = pop(f).to_str();
                 let _ = self.fire_var_traces(&name, "read");
                 f.stack.push(Value::bool(self.exists_var(&name)));
+            }
+            // The array-element existence tests fire the element's read traces
+            // first (C `INST_EXIST_ARRAY`: a trace may create it) and never
+            // error, exactly like their scalar siblings above.
+            Op::EXIST_ARRAY => {
+                let name = lvt_name(imm0(instr));
+                let key = pop(f).to_str();
+                let full = format!("{name}({key})");
+                let _ = self.fire_var_traces(&full, "read");
+                f.stack.push(Value::bool(self.exists_var(&full)));
+            }
+            Op::EXIST_ARRAY_STK => {
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                let full = format!("{name}({key})");
+                let _ = self.fire_var_traces(&full, "read");
+                f.stack.push(Value::bool(self.exists_var(&full)));
             }
 
             // -- arrays --
@@ -1731,7 +1777,7 @@ impl Vm {
                 }
                 f.stack.push(value);
             }
-            Op::LOAD_ARRAY1 => {
+            Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
                 let name = lvt_name(imm0(instr));
                 let key = pop(f).to_str();
                 try_op!(self.fire_var_traces(&format!("{name}({key})"), "read"));
@@ -1744,7 +1790,7 @@ impl Vm {
                     }
                 }
             }
-            Op::STORE_ARRAY1 => {
+            Op::STORE_ARRAY1 | Op::STORE_ARRAY4 => {
                 let name = lvt_name(imm0(instr));
                 let value = pop(f);
                 let key = pop(f).to_str();
@@ -1756,6 +1802,28 @@ impl Vm {
             Op::ARRAY_EXISTS_IMM => {
                 let name = lvt_name(imm0(instr));
                 f.stack.push(Value::bool(self.array_is(&name)));
+            }
+            Op::ARRAY_EXISTS_STK => {
+                // The stack form resolves an arbitrary (possibly qualified) name,
+                // so it honours the namespace-variable fallback `array_is` skips.
+                let name = pop(f).to_str();
+                f.stack.push(Value::bool(self.var_is_array(&name)));
+            }
+            // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
+            // variable an empty array when undefined, no-op when it already is
+            // one, and error on a scalar or an array element.
+            Op::ARRAY_MAKE_IMM => {
+                let name = lvt_name(imm0(instr));
+                try_op!(self.ensure_array(&name));
+            }
+            Op::ARRAY_MAKE_STK => {
+                let name = pop(f).to_str();
+                if name.ends_with(')') && name.contains('(') {
+                    return Tick::Return(err(format!(
+                        "can't array set \"{name}\": variable isn't array"
+                    )));
+                }
+                try_op!(self.ensure_array(&name));
             }
 
             // -- lists (inline opcodes) --
@@ -1838,6 +1906,28 @@ impl Vm {
                 // C Tcl / cmd_unset).
                 let name = lvt_name(imm_at(instr, 1));
                 let key = pop(f).to_str();
+                self.array_unset_elem(&name, &key);
+            }
+            Op::UNSET_ARRAY_STK => {
+                // Operand = flags (non-zero ⇒ C's `TCL_LEAVE_ERR_MSG`: complain
+                // when the element is absent); the key is on TOS over the array
+                // name. C routes this through `TclObjUnsetVar2(part1, part2,
+                // flags)`, whose miss message takes the usual three-way shape
+                // (`tclVar.c` NOSUCHVAR / NEEDARRAY / NOSUCHELEMENT), as
+                // `unset a(k)` reports in set-old-7.4/7.5.
+                let complain = imm0(instr) != 0;
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                if complain && self.get_array_elem(&name, &key).is_none() {
+                    let what = if self.var_is_array(&name) {
+                        "no such element in array"
+                    } else if self.exists_var(&name) {
+                        "variable isn't array"
+                    } else {
+                        "no such variable"
+                    };
+                    return Tick::Return(err(format!("can't unset \"{name}({key})\": {what}")));
+                }
                 self.array_unset_elem(&name, &key);
             }
 
@@ -1923,6 +2013,156 @@ impl Vm {
                 f.stack.push(nv);
             }
 
+            // -- append / lappend (stack form, by name) --
+            // `set_var`/`get_var` resolve an `a(k)` name to the element, exactly
+            // as C's `TclObjLookupVarEx(part1, NULL)` parses the name.
+            Op::APPEND_STK => {
+                let v = pop(f);
+                let name = pop(f).to_str();
+                let mut s = self
+                    .get_var(&name)
+                    .map(|x| x.to_str().to_string())
+                    .unwrap_or_default();
+                s.push_str(&v.to_str());
+                let nv = Value::string(s);
+                try_cmd!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_STK => {
+                let v = pop(f);
+                let name = pop(f).to_str();
+                let mut items = match self.get_var(&name) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.push(v);
+                let nv = Value::list(items);
+                try_cmd!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+            Op::APPEND_ARRAY_STK => {
+                let v = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                let mut s = self
+                    .get_array_elem(&name, &key)
+                    .map(|x| x.to_str().to_string())
+                    .unwrap_or_default();
+                s.push_str(&v.to_str());
+                let nv = Value::string(s);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_ARRAY_STK => {
+                let v = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                let mut items = match self.get_array_elem(&name, &key) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.push(v);
+                let nv = Value::list(items);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+            // The `lappendList*` family appends *each* element of the popped list
+            // (`lappend v {*}$list`); an unparsable list errors before any write.
+            Op::LAPPEND_LIST_STK => {
+                let add = pop(f);
+                let name = pop(f).to_str();
+                let add_items = match add.as_list() {
+                    Ok(l) => l,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let mut items = match self.get_var(&name) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.extend(add_items.iter().cloned());
+                let nv = Value::list(items);
+                try_cmd!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_LIST_ARRAY => {
+                let name = lvt_name(imm0(instr));
+                let add = pop(f);
+                let key = pop(f).to_str();
+                let add_items = match add.as_list() {
+                    Ok(l) => l,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let mut items = match self.get_array_elem(&name, &key) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.extend(add_items.iter().cloned());
+                let nv = Value::list(items);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_LIST_ARRAY_STK => {
+                let add = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                let add_items = match add.as_list() {
+                    Ok(l) => l,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let mut items = match self.get_array_elem(&name, &key) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.extend(add_items.iter().cloned());
+                let nv = Value::list(items);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+
+            // -- const (TIP 677) --
+            // `constImm`/`constStk` reuse the `const` command's core so the
+            // silent re-`const` no-op and the three error messages
+            // (`can't make constant "n": …`) stay in one place.
+            Op::CONST_IMM => {
+                let name = lvt_name(imm0(instr));
+                let value = pop(f);
+                let c = crate::command::cmd_const(self, &[Value::string(name), value]);
+                if !c.code.is_ok() {
+                    return Tick::Return(c);
+                }
+            }
+            Op::CONST_STK => {
+                let value = pop(f);
+                let name = pop(f);
+                let c = crate::command::cmd_const(self, &[name, value]);
+                if !c.code.is_ok() {
+                    return Tick::Return(c);
+                }
+            }
+
             // -- global / upvar links. The namespace ("::") or level reference
             // is left on the stack for the next link op to reuse; a trailing
             // `pop` discards it (matching C Tcl's nsupvar/upvar codegen). --
@@ -1966,6 +2206,16 @@ impl Vm {
                 } else {
                     self.add_link(&local, target_level, &other);
                 }
+            }
+            // `variable` (C `INST_VARIABLE`): link the local slot to the
+            // namespace variable named by the popped name. The link machinery is
+            // the `variable` command's (`cmd_variable`) — namespace variables
+            // live in the global frame under their canonical qualified name.
+            Op::VARIABLE => {
+                let local = lvt_name(imm0(instr));
+                let var = pop(f).to_str();
+                let target = self.qualify_name(&var);
+                self.add_link(&local, 0, &target);
             }
 
             // -- concat (stack form): Tcl-concat the top N values. --
@@ -2289,13 +2539,19 @@ impl Vm {
                 }
                 f.stack.push(dict);
             }
-            Op::DICT_RECOMBINE_IMM => {
+            Op::DICT_RECOMBINE_IMM | Op::DICT_RECOMBINE_STK => {
                 // Epilogue of compiled `dict with`: write each snapshot key's
                 // local back into the dict var (removing keys whose local was
-                // unset).
-                let dict_name = lvt_name(imm0(instr));
+                // unset). The `Stk` form takes the variable name from the stack,
+                // deepest of `varName path state` (C `INST_DICT_RECOMBINE_STK`
+                // pops the state first, then reads `OBJ_UNDER_TOS`/`OBJ_AT_TOS`).
                 let state = pop(f);
                 let _path = pop(f);
+                let dict_name = if instr.op == Op::DICT_RECOMBINE_STK {
+                    pop(f).to_str().to_string()
+                } else {
+                    lvt_name(imm0(instr))
+                };
                 let keys: Vec<String> = match dict_pairs(&state) {
                     Ok(p) => p.into_iter().map(|(k, _)| k).collect(),
                     Err(c) => return Tick::Return(c),
@@ -2443,6 +2699,17 @@ impl Vm {
                 let s = pop(f).to_str();
                 f.stack
                     .push(Value::string(s.chars().rev().collect::<String>()));
+            }
+            // `strmap` is the one-pair, always-case-sensitive `string map` C
+            // compiles a two-element literal charMap to (`INST_STR_MAP`). The
+            // stack is `from to string` — the subject on top — and the mapping
+            // itself is the `string map` command's (`cmd_string::map_apply`).
+            Op::STR_MAP => {
+                let s = pop(f).to_str();
+                let to = pop(f).to_str().to_string();
+                let from = pop(f).to_str().to_string();
+                let out = crate::cmd_string::map_apply(&[(from, to)], &s, false);
+                f.stack.push(Value::string(out));
             }
             Op::STR_REPEAT => {
                 let count = pop(f);
@@ -2599,6 +2866,16 @@ impl Vm {
                 match list_v.as_list() {
                     Ok(items) => f.stack.extend(items.iter().cloned()),
                     Err(e) => return Tick::Return(err(e.message)),
+                }
+            }
+            // `expandDrop` abandons the innermost expansion: pop its marker and
+            // truncate the stack back to the depth `EXPAND_START` recorded (C
+            // `INST_EXPAND_DROP` pops `CURR_DEPTH - marker` operands).
+            Op::EXPAND_DROP => {
+                if let Some(marker) = f.expand_markers.pop()
+                    && marker <= f.stack.len()
+                {
+                    f.stack.truncate(marker);
                 }
             }
             Op::INVOKE_EXPANDED => {
@@ -2792,6 +3069,35 @@ impl Vm {
                     }
                 }
                 f.stack.push(cur);
+            }
+            // `dict getdef $d k1 ?k2 …? default` — operand [Imm(N)]; stack holds
+            // the dict, the N keys, then the default (C `INST_DICT_GET_DEF`). A
+            // key missing at any depth yields the default; a *malformed* dict
+            // still errors (C walks the path with `DICT_PATH_EXISTS`, which
+            // distinguishes "absent" from "not a dictionary").
+            Op::DICT_GET_DEF => {
+                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                if f.stack.len() < nkeys + 2 {
+                    return Tick::Return(err("dictGetDef: stack underflow"));
+                }
+                let default = pop(f);
+                let keys = f.stack.split_off(f.stack.len() - nkeys);
+                let mut cur = pop(f);
+                let mut found = true;
+                for k in &keys {
+                    let ps = match dict_pairs(&cur) {
+                        Ok(p) => p,
+                        Err(c) => return Tick::Return(c),
+                    };
+                    let ks = k.to_str();
+                    if let Some((_, v)) = ps.iter().find(|(pk, _)| pk == &*ks) {
+                        cur = v.clone();
+                    } else {
+                        found = false;
+                        break;
+                    }
+                }
+                f.stack.push(if found { cur } else { default });
             }
             // `dict exists $d k1 ?k2 …?` — operand [Imm(N)]; stack holds the dict
             // then the N keys. Leaves a boolean on the stack.
@@ -3022,6 +3328,61 @@ impl Vm {
                     }
                     Err(e) => return Tick::Return(err(e.message)),
                 }
+            }
+
+            // -- introspection (C Tcl's "general introspector" instructions) --
+            // Each routes through the same core its command form uses, so the
+            // compiled and dispatched paths cannot drift.
+            Op::CURRENT_NAMESPACE => {
+                f.stack.push(tcl_cmd_core::namespace::current(self));
+            }
+            Op::INFO_LEVEL_NUM => match tcl_cmd_core::info::level(self, None) {
+                Ok(v) => f.stack.push(v),
+                Err(e) => return Tick::Return(err(e.message())),
+            },
+            Op::INFO_LEVEL_ARGS => {
+                let n = pop(f);
+                match tcl_cmd_core::info::level(self, Some(&n)) {
+                    Ok(v) => f.stack.push(v),
+                    Err(e) => return Tick::Return(err(e.message())),
+                }
+            }
+            // `resolveCmd` never errors — an unresolved name pushes the empty
+            // string (C `INST_RESOLVE_COMMAND`); `originCmd` follows the import
+            // chain and errors when the name resolves to nothing.
+            Op::RESOLVE_CMD => {
+                let name = pop(f).to_str();
+                let fqn = self
+                    .resolve_command_fqn(self.current_ns(), &name)
+                    .map_or_else(Value::empty, |key| Value::string(format!("::{key}")));
+                f.stack.push(fqn);
+            }
+            Op::ORIGIN_CMD => {
+                let name = pop(f).to_str();
+                match self.resolve_command_fqn(self.current_ns(), &name) {
+                    Some(key) => {
+                        let origin = self.command_origin_key(&key);
+                        f.stack.push(Value::string(format!("::{origin}")));
+                    }
+                    None => {
+                        return Tick::Return(err(format!("invalid command name \"{name}\"")));
+                    }
+                }
+            }
+            // `clockRead <which>` reads the same host clock `clock clicks` /
+            // `clock seconds` do (`cmd_clock`), so the opcode and the command
+            // agree. C: 0 = clicks (wide clicks — microseconds here, as
+            // `clock clicks` returns), 1 = µs, 2 = ms, 3 = s.
+            Op::CLOCK_READ => {
+                let clock = self.host_rc();
+                let clock = clock.clock();
+                let wide = match imm0(instr) {
+                    2 => i64::try_from(clock.now_millis()).unwrap_or(i64::MAX),
+                    3 => clock.now_secs(),
+                    // 0 (clicks) and 1 (microseconds) read the same counter.
+                    _ => i64::try_from(clock.now_micros()).unwrap_or(i64::MAX),
+                };
+                f.stack.push(Value::int(wide));
             }
 
             other => {

@@ -231,6 +231,14 @@ pub enum Op {
     /// `<dictSlot>`, removing keys whose local was unset. C Tcl's compiled
     /// `dict with` epilogue.
     DICT_RECOMBINE_IMM,
+    /// `dictRecombineStk` — [`DICT_RECOMBINE_IMM`](Op::DICT_RECOMBINE_IMM) with
+    /// the dict variable's *name* taken from the stack (deepest of
+    /// `varName path state`) rather than an LVT slot.
+    DICT_RECOMBINE_STK,
+    /// `dictGetDef <numKeys>` — like [`DICT_GET`](Op::DICT_GET) but with a
+    /// default value on top of the keys: a key missing at any depth yields the
+    /// default instead of an error (`dict getdef`/`dict getwithdefault`).
+    DICT_GET_DEF,
     JUMP_TABLE,
     NOP,
     UMINUS,
@@ -262,21 +270,81 @@ pub enum Op {
     LOAD_STK,
     STORE_ARRAY_STK,
     LOAD_ARRAY_STK,
+    /// `loadScalarStk` — load the scalar named by the popped name. C Tcl shares
+    /// its `TEBCresume` case with `INST_LOAD_STK`; the compiler emits it for a
+    /// name known not to carry an `(index)` part.
+    LOAD_SCALAR_STK,
+    /// `storeScalarStk` — store into the scalar named by the popped name (the
+    /// `INST_STORE_STK` case in C Tcl, for an index-free name).
+    STORE_SCALAR_STK,
     INCR_STK,
     INCR_STK_IMM,
     INCR_ARRAY_STK_IMM,
+    /// `incrScalarStk` — increment the scalar named on the stack by the popped
+    /// amount.
+    INCR_SCALAR_STK,
+    /// `incrScalarStkImm` — increment the scalar named on the stack by the
+    /// 1-byte immediate.
+    INCR_SCALAR_STK_IMM,
+    /// `incrArray1` — increment the element (key on the stack) of the array in
+    /// local `<slot>` by the popped amount.
+    INCR_ARRAY1,
+    /// `incrArray1Imm` — increment the element (key on the stack) of the array
+    /// in local `<slot>` by the 1-byte immediate.
+    INCR_ARRAY1_IMM,
+    /// `incrArrayStk` — increment the array element named by the popped
+    /// array-name/key pair by the popped amount.
+    INCR_ARRAY_STK,
     APPEND_STK,
     LAPPEND_STK,
+    /// `appendArrayStk` — string-append to the array element named by the
+    /// popped array-name/key pair.
+    APPEND_ARRAY_STK,
+    /// `lappendArrayStk` — list-append to the array element named by the popped
+    /// array-name/key pair.
+    LAPPEND_ARRAY_STK,
     LAPPEND_LIST,
     LAPPEND_LIST_STK,
     LAPPEND_LIST_ARRAY_STK,
     STORE_ARRAY1,
     LOAD_ARRAY1,
+    /// `storeArray4` — the 4-byte-slot form of `storeArray1` (arrays past slot
+    /// 255).
+    STORE_ARRAY4,
+    /// `loadArray4` — the 4-byte-slot form of `loadArray1`.
+    LOAD_ARRAY4,
     LAPPEND_LIST_ARRAY,
     ARRAY_EXISTS_IMM,
+    /// `arrayExistsStk` — whether the variable named on the stack is an array.
+    ARRAY_EXISTS_STK,
+    /// `arrayMakeImm` — force local `<slot>` to be an array (`array set a {}`'s
+    /// materialising half); a no-op when it already is one.
+    ARRAY_MAKE_IMM,
+    /// `arrayMakeStk` — force the variable named on the stack to be an array.
+    ARRAY_MAKE_STK,
     UNSET_STK,
     UNSET_SCALAR,
     UNSET_ARRAY,
+    /// `unsetArrayStk` — unset the array element named by the popped
+    /// array-name/key pair; operand bit 0 is C's `TCL_LEAVE_ERR_MSG` (complain
+    /// when absent).
+    UNSET_ARRAY_STK,
+    /// `existArray` — whether the element (key on the stack) of the array in
+    /// local `<slot>` exists. Never errors.
+    EXIST_ARRAY,
+    /// `existArrayStk` — whether the array element named by the popped
+    /// array-name/key pair exists. Never errors.
+    EXIST_ARRAY_STK,
+    /// `constImm` — define local `<slot>` as a constant holding the popped
+    /// value (TIP 677). Re-defining an existing constant silently drops the
+    /// value.
+    CONST_IMM,
+    /// `constStk` — define the variable named on the stack as a constant
+    /// holding the popped value.
+    CONST_STK,
+    /// `variable` — link local `<slot>` to the namespace variable named by the
+    /// popped (possibly qualified) name — the compiled `variable` command.
+    VARIABLE,
     TAILCALL,
     CONCAT_STK,
     TRY_CVT_TO_NUMERIC,
@@ -317,6 +385,29 @@ pub enum Op {
     EXPAND_START,
     EXPAND_STKTOP,
     INVOKE_EXPANDED,
+    /// `expandDrop` — abandon the innermost in-progress `{*}` expansion,
+    /// truncating the operand stack back to the depth its `EXPAND_START`
+    /// recorded (C `INST_EXPAND_DROP`).
+    EXPAND_DROP,
+    /// `currentNamespace` — push the current namespace's fully-qualified name
+    /// (`::` at global scope).
+    CURRENT_NAMESPACE,
+    /// `infoLevelNumber` — push the current call-frame depth (`info level`).
+    INFO_LEVEL_NUM,
+    /// `infoLevelArgs` — push the invoking words of the level popped from the
+    /// stack (`info level $n`).
+    INFO_LEVEL_ARGS,
+    /// `resolveCmd` — push the fully-qualified name the popped command name
+    /// resolves to, or the empty string when it resolves to nothing. Never
+    /// errors.
+    RESOLVE_CMD,
+    /// `originCmd` — push the fully-qualified name of the origin (through the
+    /// import chain) of the popped command name; errors when it names no
+    /// command.
+    ORIGIN_CMD,
+    /// `clockRead <which>` — push a wall-clock reading: `0` clicks,
+    /// `1` microseconds, `2` milliseconds, `3` seconds.
+    CLOCK_READ,
 }
 
 impl Op {
@@ -388,6 +479,13 @@ impl Op {
             Self::EXPAND_START => "expandStart",
             Self::EXPAND_STKTOP => "expandStkTop",
             Self::INVOKE_EXPANDED => "invokeExpanded",
+            Self::EXPAND_DROP => "expandDrop",
+            Self::CURRENT_NAMESPACE => "currentNamespace",
+            Self::INFO_LEVEL_NUM => "infoLevelNumber",
+            Self::INFO_LEVEL_ARGS => "infoLevelArgs",
+            Self::RESOLVE_CMD => "resolveCmd",
+            Self::ORIGIN_CMD => "originCmd",
+            Self::CLOCK_READ => "clockRead",
             _ => return None,
         })
     }
@@ -502,9 +600,16 @@ impl Op {
             Self::LAPPEND_ARRAY4 => "lappendArray4",
             Self::STORE_ARRAY1 => "storeArray1",
             Self::LOAD_ARRAY1 => "loadArray1",
+            Self::STORE_ARRAY4 => "storeArray4",
+            Self::LOAD_ARRAY4 => "loadArray4",
+            Self::INCR_ARRAY1 => "incrArray1",
+            Self::INCR_ARRAY1_IMM => "incrArray1Imm",
             Self::LAPPEND_LIST_ARRAY => "lappendListArray",
             Self::ARRAY_EXISTS_IMM => "arrayExistsImm",
+            Self::ARRAY_MAKE_IMM => "arrayMakeImm",
             Self::UNSET_ARRAY => "unsetArray",
+            Self::EXIST_ARRAY => "existArray",
+            Self::CONST_IMM => "constImm",
             _ => return None,
         })
     }
@@ -514,30 +619,45 @@ impl Op {
         match self {
             Self::STORE_STK => "storeStk",
             Self::LOAD_STK => "loadStk",
+            Self::STORE_SCALAR_STK => "storeScalarStk",
+            Self::LOAD_SCALAR_STK => "loadScalarStk",
             Self::STORE_ARRAY_STK => "storeArrayStk",
             Self::LOAD_ARRAY_STK => "loadArrayStk",
             Self::INCR_STK => "incrStk",
             Self::INCR_STK_IMM => "incrStkImm",
             Self::INCR_ARRAY_STK_IMM => "incrArrayStkImm",
+            Self::INCR_SCALAR_STK => "incrScalarStk",
+            Self::INCR_SCALAR_STK_IMM => "incrScalarStkImm",
+            Self::INCR_ARRAY_STK => "incrArrayStk",
             Self::APPEND_STK => "appendStk",
             Self::LAPPEND_STK => "lappendStk",
+            Self::APPEND_ARRAY_STK => "appendArrayStk",
+            Self::LAPPEND_ARRAY_STK => "lappendArrayStk",
             Self::LAPPEND_LIST => "lappendList",
             Self::LAPPEND_LIST_STK => "lappendListStk",
             Self::LAPPEND_LIST_ARRAY_STK => "lappendListArrayStk",
             Self::UNSET_STK => "unsetStk",
+            Self::UNSET_ARRAY_STK => "unsetArrayStk",
             Self::CONCAT_STK => "concatStk",
             Self::EXIST_STK => "existStk",
+            Self::EXIST_ARRAY_STK => "existArrayStk",
+            Self::ARRAY_EXISTS_STK => "arrayExistsStk",
+            Self::ARRAY_MAKE_STK => "arrayMakeStk",
+            Self::CONST_STK => "constStk",
             Self::RETURN_STK => "returnStk",
             Self::VERIFY_DICT => "verifyDict",
             Self::DICT_GET => "dictGet",
+            Self::DICT_GET_DEF => "dictGetDef",
             Self::DICT_EXISTS => "dictExists",
             Self::DICT_SET => "dictSet",
             Self::DICT_UNSET => "dictUnset",
             Self::DICT_INCR_IMM => "dictIncrImm",
             Self::DICT_APPEND => "dictAppend",
             Self::DICT_LAPPEND => "dictLappend",
+            Self::DICT_RECOMBINE_STK => "dictRecombineStk",
             Self::UPVAR => "upvar",
             Self::NSUPVAR => "nsupvar",
+            Self::VARIABLE => "variable",
             Self::OVER => "over",
             Self::REVERSE => "reverse",
             Self::PUSH_RETURN_OPTS => "pushReturnOpts",
@@ -570,13 +690,21 @@ impl Op {
                 | Self::LAPPEND_LIST
                 | Self::STORE_ARRAY1
                 | Self::LOAD_ARRAY1
+                | Self::STORE_ARRAY4
+                | Self::LOAD_ARRAY4
+                | Self::INCR_ARRAY1
+                | Self::INCR_ARRAY1_IMM
                 | Self::LAPPEND_LIST_ARRAY
                 | Self::ARRAY_EXISTS_IMM
+                | Self::ARRAY_MAKE_IMM
                 | Self::EXIST_SCALAR
+                | Self::EXIST_ARRAY
+                | Self::CONST_IMM
                 | Self::DICT_APPEND
                 | Self::DICT_LAPPEND
                 | Self::UPVAR
                 | Self::NSUPVAR
+                | Self::VARIABLE
         )
     }
 
@@ -597,10 +725,18 @@ impl Op {
     /// True for opcodes encoded as a bare byte with no operands (size 1).
     ///
     /// This is by far the largest size class, so it lives in its own helper to
-    /// keep [`Op::size`] small; the two functions together still match every
-    /// opcode and are covered by `opcode_family_partition_total`.
+    /// keep [`Op::size`] small, and is itself split in two — value/control ops
+    /// and data-access ops — so neither match outgrows the crate's
+    /// function-length limit. The three together still match every opcode and
+    /// are covered by `opcode_family_partition_total`.
     #[must_use]
     pub const fn is_one_byte(self) -> bool {
+        self.is_one_byte_value() || self.is_one_byte_access()
+    }
+
+    /// The operand-free arithmetic, comparison, coercion and stack/control
+    /// opcodes — half of [`Op::is_one_byte`].
+    const fn is_one_byte_value(self) -> bool {
         matches!(
             self,
             Self::POP
@@ -624,7 +760,40 @@ impl Op {
                 | Self::GT
                 | Self::LE
                 | Self::GE
-                | Self::STR_EQ
+                | Self::UMINUS
+                | Self::UPLUS
+                | Self::BITNOT
+                | Self::LNOT
+                | Self::NOT
+                | Self::LAND
+                | Self::LOR
+                | Self::NUMERIC_TYPE
+                | Self::TRY_CVT_TO_NUMERIC
+                | Self::TRY_CVT_TO_BOOLEAN
+                | Self::DONE
+                | Self::BREAK
+                | Self::CONTINUE
+                | Self::END_CATCH
+                | Self::PUSH_RESULT
+                | Self::PUSH_RETURN_CODE
+                | Self::PUSH_RETURN_OPTS
+                | Self::RETURN_STK
+                | Self::FOREACH_STEP
+                | Self::FOREACH_END
+                | Self::LMAP_COLLECT
+                | Self::NOP
+                | Self::EXPAND_START
+                | Self::INVOKE_EXPANDED
+                | Self::EXPAND_DROP
+        )
+    }
+
+    /// The operand-free string, list, variable, dict and introspection opcodes
+    /// — the other half of [`Op::is_one_byte`].
+    const fn is_one_byte_access(self) -> bool {
+        matches!(
+            self,
+            Self::STR_EQ
                 | Self::STR_NEQ
                 | Self::STR_CMP
                 | Self::STR_LT
@@ -633,28 +802,6 @@ impl Op {
                 | Self::STR_GE
                 | Self::STR_LEN
                 | Self::STR_INDEX
-                | Self::LIST_LENGTH
-                | Self::LIST_INDEX
-                | Self::DONE
-                | Self::BREAK
-                | Self::CONTINUE
-                | Self::END_CATCH
-                | Self::PUSH_RESULT
-                | Self::PUSH_RETURN_CODE
-                | Self::FOREACH_STEP
-                | Self::FOREACH_END
-                | Self::LMAP_COLLECT
-                | Self::DICT_EXPAND
-                | Self::NOP
-                | Self::UMINUS
-                | Self::UPLUS
-                | Self::BITNOT
-                | Self::LNOT
-                | Self::NOT
-                | Self::LAND
-                | Self::LOR
-                | Self::LIST_IN
-                | Self::LIST_NOT_IN
                 | Self::STR_MAP
                 | Self::STR_FIND
                 | Self::STR_RFIND
@@ -668,24 +815,6 @@ impl Op {
                 | Self::STR_RANGE
                 | Self::STR_REVERSE
                 | Self::STR_REPEAT
-                | Self::STORE_STK
-                | Self::LOAD_STK
-                | Self::STORE_ARRAY_STK
-                | Self::LOAD_ARRAY_STK
-                | Self::INCR_STK
-                | Self::APPEND_STK
-                | Self::LAPPEND_STK
-                | Self::LAPPEND_LIST_STK
-                | Self::LAPPEND_LIST_ARRAY_STK
-                | Self::TRY_CVT_TO_NUMERIC
-                | Self::VERIFY_DICT
-                | Self::EXIST_STK
-                | Self::LSET_LIST
-                | Self::LIST_CONCAT
-                | Self::PUSH_RETURN_OPTS
-                | Self::RETURN_STK
-                | Self::NUMERIC_TYPE
-                | Self::TRY_CVT_TO_BOOLEAN
                 | Self::IRULE_CONTAINS
                 | Self::IRULE_STARTS_WITH
                 | Self::IRULE_ENDS_WITH
@@ -695,8 +824,40 @@ impl Op {
                 | Self::IRULE_WORD_AND
                 | Self::IRULE_WORD_OR
                 | Self::IRULE_WORD_NOT
-                | Self::EXPAND_START
-                | Self::INVOKE_EXPANDED
+                | Self::LIST_LENGTH
+                | Self::LIST_INDEX
+                | Self::LIST_IN
+                | Self::LIST_NOT_IN
+                | Self::LIST_CONCAT
+                | Self::LSET_LIST
+                | Self::STORE_STK
+                | Self::LOAD_STK
+                | Self::STORE_SCALAR_STK
+                | Self::LOAD_SCALAR_STK
+                | Self::STORE_ARRAY_STK
+                | Self::LOAD_ARRAY_STK
+                | Self::INCR_STK
+                | Self::INCR_SCALAR_STK
+                | Self::INCR_ARRAY_STK
+                | Self::APPEND_STK
+                | Self::LAPPEND_STK
+                | Self::APPEND_ARRAY_STK
+                | Self::LAPPEND_ARRAY_STK
+                | Self::LAPPEND_LIST_STK
+                | Self::LAPPEND_LIST_ARRAY_STK
+                | Self::EXIST_STK
+                | Self::EXIST_ARRAY_STK
+                | Self::ARRAY_EXISTS_STK
+                | Self::ARRAY_MAKE_STK
+                | Self::CONST_STK
+                | Self::VERIFY_DICT
+                | Self::DICT_EXPAND
+                | Self::DICT_RECOMBINE_STK
+                | Self::CURRENT_NAMESPACE
+                | Self::INFO_LEVEL_NUM
+                | Self::INFO_LEVEL_ARGS
+                | Self::RESOLVE_CMD
+                | Self::ORIGIN_CMD
         )
     }
 
@@ -729,16 +890,20 @@ impl Op {
             | Self::LAPPEND_ARRAY1
             | Self::STORE_ARRAY1
             | Self::LOAD_ARRAY1
+            | Self::INCR_ARRAY1
             | Self::INCR_STK_IMM
+            | Self::INCR_SCALAR_STK_IMM
             | Self::INCR_ARRAY_STK_IMM
             | Self::UNSET_STK
+            | Self::UNSET_ARRAY_STK
             | Self::TAILCALL
             | Self::STR_MATCH
             | Self::REGEXP
+            | Self::CLOCK_READ
             | Self::STR_CLASS => 2,
 
             // 3-byte: opcode + 2 1-byte operands
-            Self::INCR_SCALAR1_IMM => 3,
+            Self::INCR_SCALAR1_IMM | Self::INCR_ARRAY1_IMM => 3,
 
             // 5-byte: opcode + 4-byte operand
             Self::PUSH4
@@ -762,16 +927,23 @@ impl Op {
             | Self::LAPPEND_SCALAR4
             | Self::APPEND_ARRAY4
             | Self::LAPPEND_ARRAY4
+            | Self::STORE_ARRAY4
+            | Self::LOAD_ARRAY4
             | Self::LAPPEND_LIST_ARRAY
             | Self::ARRAY_EXISTS_IMM
+            | Self::ARRAY_MAKE_IMM
             | Self::CONCAT_STK
             | Self::DICT_GET
+            | Self::DICT_GET_DEF
             | Self::DICT_EXISTS
             | Self::EXIST_SCALAR
+            | Self::EXIST_ARRAY
+            | Self::CONST_IMM
             | Self::DICT_APPEND
             | Self::DICT_LAPPEND
             | Self::UPVAR
             | Self::NSUPVAR
+            | Self::VARIABLE
             | Self::LSET_FLAT
             | Self::REVERSE
             | Self::OVER
@@ -1193,6 +1365,85 @@ mod tests {
     #[test]
     fn op_display() {
         assert_eq!(format!("{}", Op::JUMP4), "jump4");
+    }
+
+    /// The variable/array/dict/introspection opcodes the VM implements without
+    /// codegen support yet: mnemonic and encoded size must match
+    /// `tclInstructionTable` (`tclCompile.c`) exactly, since the disassembler
+    /// and the byte layout are both derived from them.
+    #[test]
+    fn op_table_matches_c_instruction_table() {
+        for (op, mnemonic, size) in [
+            (Op::LOAD_SCALAR_STK, "loadScalarStk", 1),
+            (Op::STORE_SCALAR_STK, "storeScalarStk", 1),
+            (Op::LOAD_ARRAY4, "loadArray4", 5),
+            (Op::STORE_ARRAY4, "storeArray4", 5),
+            (Op::INCR_SCALAR_STK, "incrScalarStk", 1),
+            (Op::INCR_SCALAR_STK_IMM, "incrScalarStkImm", 2),
+            (Op::INCR_ARRAY1, "incrArray1", 2),
+            (Op::INCR_ARRAY1_IMM, "incrArray1Imm", 3),
+            (Op::INCR_ARRAY_STK, "incrArrayStk", 1),
+            (Op::APPEND_ARRAY_STK, "appendArrayStk", 1),
+            (Op::LAPPEND_ARRAY_STK, "lappendArrayStk", 1),
+            (Op::EXIST_ARRAY, "existArray", 5),
+            (Op::EXIST_ARRAY_STK, "existArrayStk", 1),
+            (Op::UNSET_ARRAY_STK, "unsetArrayStk", 2),
+            (Op::ARRAY_EXISTS_STK, "arrayExistsStk", 1),
+            (Op::ARRAY_MAKE_IMM, "arrayMakeImm", 5),
+            (Op::ARRAY_MAKE_STK, "arrayMakeStk", 1),
+            (Op::VARIABLE, "variable", 5),
+            (Op::CONST_IMM, "constImm", 5),
+            (Op::CONST_STK, "constStk", 1),
+            (Op::CURRENT_NAMESPACE, "currentNamespace", 1),
+            (Op::INFO_LEVEL_NUM, "infoLevelNumber", 1),
+            (Op::INFO_LEVEL_ARGS, "infoLevelArgs", 1),
+            (Op::RESOLVE_CMD, "resolveCmd", 1),
+            (Op::ORIGIN_CMD, "originCmd", 1),
+            (Op::CLOCK_READ, "clockRead", 2),
+            (Op::DICT_GET_DEF, "dictGetDef", 5),
+            (Op::DICT_RECOMBINE_STK, "dictRecombineStk", 1),
+            (Op::EXPAND_DROP, "expandDrop", 1),
+        ] {
+            assert_eq!(op.mnemonic(), mnemonic, "mnemonic of {op:?}");
+            assert_eq!(op.size(), size, "size of {op:?}");
+            assert_eq!(
+                op.is_one_byte(),
+                size == 1,
+                "is_one_byte must agree with size for {op:?}"
+            );
+        }
+    }
+
+    /// Every opcode whose *first* operand is an LVT slot must say so, or the
+    /// disassembler renders the slot as a bare integer instead of `%vN`.
+    #[test]
+    fn op_is_lvt_covers_the_new_slot_operands() {
+        for op in [
+            Op::LOAD_ARRAY4,
+            Op::STORE_ARRAY4,
+            Op::INCR_ARRAY1,
+            Op::INCR_ARRAY1_IMM,
+            Op::EXIST_ARRAY,
+            Op::ARRAY_MAKE_IMM,
+            Op::VARIABLE,
+            Op::CONST_IMM,
+            Op::LAPPEND_LIST_ARRAY,
+        ] {
+            assert!(op.is_lvt_op(), "{op:?} takes an LVT slot as operand 0");
+        }
+        // The stack forms name their variable at run time — no slot operand.
+        for op in [
+            Op::LOAD_SCALAR_STK,
+            Op::STORE_SCALAR_STK,
+            Op::INCR_ARRAY_STK,
+            Op::UNSET_ARRAY_STK,
+            Op::ARRAY_MAKE_STK,
+            Op::CONST_STK,
+            Op::CLOCK_READ,
+            Op::DICT_GET_DEF,
+        ] {
+            assert!(!op.is_lvt_op(), "{op:?} has no LVT operand");
+        }
     }
 
     #[test]

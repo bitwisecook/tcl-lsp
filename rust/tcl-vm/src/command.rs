@@ -1445,7 +1445,10 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// variable or an array (element) is an error. The value is written through the
 /// normal scalar path (so write traces fire) and only then flagged constant, so
 /// a trace that vetoes the write leaves no constant (var-26.14).
-fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+///
+/// Shared with the `constImm`/`constStk` opcodes (C's `doConst` block), which
+/// pass the name from their LVT slot / the stack.
+pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name_v, value] = args else {
         return err("wrong # args: should be \"const varName value\"");
     };

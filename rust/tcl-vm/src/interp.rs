@@ -2937,6 +2937,24 @@ impl Vm {
         imported
     }
 
+    /// The command key `key` ultimately came from, following the
+    /// `namespace import` chain to its source — C's `TclGetOriginalCommand`,
+    /// which backs the `originCmd` opcode (`namespace origin`). `key` itself
+    /// when it names no import. Keys are canonical (unrooted), as
+    /// `imported_commands` stores them.
+    pub(crate) fn command_origin_key(&self, key: &str) -> String {
+        let mut cur = key.to_owned();
+        // Bounded walk: a chain cannot be longer than the import table, so a
+        // (malformed) cycle terminates instead of spinning.
+        for _ in 0..self.imported_commands.len() {
+            match self.imported_commands.get(&cur) {
+                Some(next) => cur = next.clone(),
+                None => break,
+            }
+        }
+        cur
+    }
+
     /// `namespace forget pattern` — remove previously imported commands matching
     /// `pattern` from the current namespace (C `Tcl_ForgetImport`). Only commands
     /// created by `namespace import` are removed; a real command of the same name
