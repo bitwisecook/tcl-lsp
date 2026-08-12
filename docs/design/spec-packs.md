@@ -139,8 +139,9 @@ the hardest commands, so the DSL takes them in four buckets:
 
 **Execution engine: `tcl-vm` is the canonical answer everywhere** —
 server, CLI, and studio alike (it ships to WASM already). The studio
-may additionally offer an opt-in experimental path running hook bodies
-through the compiler's Tcl→WASM codegen: useful dogfooding that
+therefore **defaults to tclvm-in-wasm**, with a visible switch to run
+the same hook bodies through the compiler's Tcl→WASM codegen instead:
+useful dogfooding that
 pressures that backend to mature, and any behavioural divergence
 between the two engines on a hook body is differential-testing signal,
 not just a bug. Performance investment lands in the VM — hooks give it
