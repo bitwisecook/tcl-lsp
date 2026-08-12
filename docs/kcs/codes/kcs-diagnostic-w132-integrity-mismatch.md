@@ -50,5 +50,5 @@ The resolver re-fetches the package and recomputes the hash.
 ## Related
 
 - [KCS codes index](README.md)
-- [Design: cache integrity](../../design/contracts/tclpkg-cache.md)
+- [Design: cache integrity](../../design/contracts/tclpkg-contracts.md)
 - Related codes: `W130`, `W131`

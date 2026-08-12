@@ -41,10 +41,11 @@ use crate::query::{ReportError, Source};
 const REPORT_TEMPLATE: &str = include_str!("../../templates/report.html.j2");
 
 // Front-end shared with the Python `f5report` generator: TypeScript sources live
-// in `rust/bigip-report/shared/src` (`pages/`, `search/`, `styles/`), built to
-// `shared/dist/*.js` (committed) and embedded verbatim here so both generators
-// emit the same page. Vendored third-party assets live in `shared/public`. The
-// rendered report is a single self-contained HTML file — every asset inlined.
+// in `rust/bigip-report-gen/frontend/src` (`pages/`, `search/`, `styles/`),
+// built to `frontend/dist/*.js` (committed) and embedded verbatim here so both
+// generators emit the same page. Vendored third-party assets live in
+// `rust/bigip-report-gen/assets`. The rendered report is a single
+// self-contained HTML file — every asset inlined.
 const REPORT_CSS: &str = include_str!("../../frontend/src/styles/report.css");
 const TOPOLOGY_CSS: &str = include_str!("../../frontend/src/styles/topology.css");
 const REPORT_JS: &str = include_str!("../../frontend/dist/report.js");
@@ -54,7 +55,7 @@ const WASM_GLUE: &str = include_str!("../../assets/f5query_wasm.js");
 const WASM_BIN: &[u8] = include_bytes!("../../assets/f5query_wasm_bg.wasm");
 
 // The certificate + secrets + APM tabs (their scripts/styles also live in
-// `shared/`; the APM walk itself is embedded only by this Rust generator, but
+// `frontend/`; the APM walk itself is embedded only by this Rust generator, but
 // elkjs + the renderer are shared with the Python generator).
 const CERTS_CSS: &str = include_str!("../../frontend/src/styles/certs.css");
 const CERTS_JS: &str = include_str!("../../frontend/dist/certs.js");

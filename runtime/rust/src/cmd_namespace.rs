@@ -27,8 +27,7 @@
 //! that dispatch re-resolves by the source FQN, and `forget` removes those
 //! redirects by matching the same FQN.
 //!
-//! See `docs/design/runtime/namespace-tree.md` for the model and the deferred
-//! list (variable namespaces, ensembles, traces, `namespace delete`).
+//! See `docs/design/runtime/namespace-tree.md` for the model.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]

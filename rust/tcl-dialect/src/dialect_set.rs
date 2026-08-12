@@ -108,10 +108,10 @@ bitflags! {
         // every command carries an explicit `dialects` group (universal
         // `dialects: None` was eliminated registry-wide), with the `IRULES`
         // bit present iff iRules enables it — so a K36322151-banned command
-        // such as `exec` is just
-        // `ALL_TCL` and never intersects the bare `IRULES` mask. The only
-        // remaining profile-level exclusion is `Traits::OPERATOR_COMMAND` +
-        // `operators_as_commands` for the math-operator heads.
+        // such as `exec` is just `ALL_TCL` and never intersects the bare
+        // `IRULES` mask. The only remaining profile-level exclusion is
+        // `Traits::OPERATOR_COMMAND` + `operators_as_commands` for the
+        // math-operator heads.
     }
 }
 

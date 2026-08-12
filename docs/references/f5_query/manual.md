@@ -186,8 +186,10 @@ Major families:
 - **HTTP-response helpers** — `http_ok`, `http_client_error`,
   `http_header`, `http_body_json`
 - **network probes** (need `--enable-probes`) — `url_get`,
-  `url_head`, `url_options`, `tls_handshake`, `dns_resolve`,
-  `ping`, `port_ping`
+  `url_head`, `url_options`, `url_post` (not yet implemented —
+  see [Network probes](#network-probes)), `tls_handshake`, `ping`,
+  `portping`, `traceroute`.  `dns` / `rev_dns` are ungated (they
+  resolve without `--enable-probes`).
 - **cert / X.509** — `x509_parse`, `cert_load`,
   `x509_from_config`, `x509_eq`
 - **external inputs** — `json_load`, `jsonl_load`, `csv_load`,
@@ -195,18 +197,26 @@ Major families:
 
 ## Network probes {#network-probes}
 
-All probes need `f5 query --enable-probes` (the gate keeps
-read-only queries from accidentally reaching out).  Probe results
-are **not** cached or memoised — each call is a fresh network
-round-trip, so referencing the same probe repeatedly in one query
-repeats the work.
+Most probes need `f5 query --enable-probes` (the gate keeps
+read-only queries from accidentally reaching out) — `dns` /
+`rev_dns` are the exception, ungated as benign name resolution.
+Probe results are **not** cached or memoised — each call is a fresh
+network round-trip, so referencing the same probe repeatedly in one
+query repeats the work.
+
+**`url_get` / `url_head` / `url_options` / `url_post` are not
+currently implemented.**  The live HTTP request path was deferred
+(non-deterministic / not golden-testable); every call returns the
+shape below with `status: null` and an explanatory `error`,
+regardless of the target URL.  `tls_handshake`, `dns`, `rev_dns`,
+`ping`, `portping`, and `traceroute` are fully implemented.
 
 | Builtin | Returns |
 |---|---|
-| `url_get(url, [headers])` | `{ status, headers, body, body_json, peer_cert, reason, error }` |
-| `url_head(url, [headers])` | same shape, no body |
-| `url_options(url, [headers])` | same shape |
-| `url_post(url, [body], [headers])` | same shape — note the argument order differs from `url_get` / `url_head` / `url_options` |
+| `url_get(url, [headers])` — *not implemented* | `{ status, headers, body, body_json, peer_cert, error }` |
+| `url_head(url, [headers])` — *not implemented* | same shape, no body |
+| `url_options(url, [headers])` — *not implemented* | same shape |
+| `url_post(url, [body], [headers])` — *not implemented* | same shape — note the argument order differs from `url_get` / `url_head` / `url_options` |
 | `tls_handshake(host, port, [sni])` | `{ protocol, cipher, peer_cert, alpn_selected, verify_status, reason, error }` |
 | `dns(name)` | `list[string]` — sorted, unique A + AAAA addresses (not cached; see [`dns`](builtins.md#dns)) |
 | `rev_dns(ip)` | `list[string]` — reverse-DNS name(s), best-effort |
@@ -276,8 +286,10 @@ SHA-256 hash (BIG-IP's TMSH surface).
   its PEM with `cert_load` instead.
 - `tls_handshake(host, port).peer_cert` — capture during a live
   TLS handshake.
-- `url_get(url).peer_cert` — capture during an HTTPS request, no
-  extra round-trip.
+- `url_get(url).peer_cert` — always `null` today: the live HTTP
+  request path is not yet implemented (see
+  [Network probes](#network-probes)); use `tls_handshake` for a
+  live peer certificate.
 
 ## External inputs {#external-inputs}
 
@@ -618,7 +630,8 @@ openssl x509 -in server.crt -noout -subject -issuer -dates -fingerprint -sha256
 
 ### Running a self-signed HTTPS server in Python {#python-https}
 
-For the cert-audit `tls_handshake` / `url_get` recipes:
+For the cert-audit `tls_handshake` recipes (`url_get` is not yet
+implemented — see [Network probes](#network-probes)):
 
 ```python
 # https_server.py
@@ -691,16 +704,15 @@ f5 query --enable-probes '
 kill %1
 ```
 
-### Probe gating, caching, and CA bundles {#probe-controls}
+### Probe gating and CA bundles {#probe-controls}
 
 | Behaviour | Knob |
 |---|---|
-| Gate (refuses by default) | `--enable-probes` |
+| Gate (refuses by default) | `--enable-probes` — `dns` / `rev_dns` are ungated exceptions |
 | Pin a CA bundle | `--ca-bundle /path/to/ca.crt` |
-| Cache TLS handshakes by `(host, port, sni, ca_bundle)` | automatic; same handshake within one query is one round-trip |
-| Cache URL responses by `(method, url, headers, ca_bundle)` | automatic |
-| Disable cert verification per-query | implicit — the probe retries after a `SSLCertVerificationError` |
-| Set per-call timeout | `tls_handshake(h, p, timeout_s=10)` / `url_get(url, headers={})` |
+| Result caching | **none** — every probe call is a fresh network round-trip; nothing is cached or memoised across calls in a query |
+| Cert-verification failures | reported, not retried insecurely — `tls_handshake` sets `verify_status` / `reason.kind` and still captures `peer_cert` when the handshake reached the certificate message |
+| Per-call timeout | not configurable — `tls_handshake` hardcodes 5s connect/read/write timeouts; `ping` / `portping` hardcode 2s |
 
 ### Per-builtin lookup {#per-builtin-lookup}
 

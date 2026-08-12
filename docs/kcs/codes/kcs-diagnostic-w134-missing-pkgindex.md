@@ -50,5 +50,5 @@ package ifneeded mypkg 1.0.0 [list source [file join $dir mypkg.tcl]]
 ## Related
 
 - [KCS codes index](README.md)
-- [Design: package loading](../../design/contracts/tclpkg-cache.md)
+- [Design: package loading](../../design/contracts/tclpkg-contracts.md)
 - Related codes: `W130`, `W131`

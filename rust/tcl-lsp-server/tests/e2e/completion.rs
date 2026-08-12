@@ -792,9 +792,9 @@ fn fuzzy_method_fallback_does_not_hijack_prefix_match() {
     }
 }
 
-// -- Dialect-profile availability in completion (dialect-profile-model.md,
-// Milestone 4): the composed vendor masks, the subtractive iRules disable
-// list, and the §5.1 subcommand gap — end-to-end over JSON-RPC.
+// -- Dialect-profile availability in completion
+// (dialect-profile-model.md): the composed vendor masks, the iRules
+// exclusions, and the §5.1 subcommand gap — end-to-end over JSON-RPC.
 
 #[test]
 fn iapps_completion_offers_embedded_85_core_end_to_end() {

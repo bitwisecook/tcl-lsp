@@ -4556,10 +4556,12 @@ Looks *name* up in the response's headers; the match is
 case-insensitive (``Content-Type`` finds ``content-type``).
 Returns ``null`` when the header isn't present.
 
-Note: HTTP allows multiple headers with the same name to
-repeat (e.g. ``Set-Cookie``).  The underlying urllib path
-collapses repeats into a single comma-separated string,
-matching the wire-format convention.
+Note: HTTP allows multiple headers with the same name to repeat
+(e.g. ``Set-Cookie``).  How repeats are represented in the
+``headers`` object depends on the response producer — see
+``url_get``'s **Not currently implemented** note; this builtin
+itself does a single lowercase-key lookup and does no merging of
+its own.
 
 **Examples**
 
@@ -5792,12 +5794,16 @@ HTTP GET request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``GET`` to *url* via the ``ureq`` HTTP client.
-Returns ``{status: int | null, headers: object, body: string,
-body_json: any | null, peer_cert: object | null, reason: object | null,
-error: string | null}``.  Default timeout 5s.
+**Not currently implemented.**  The live HTTP request path is not
+wired up (deterministic golden-testing constraints); every call
+returns ``{status: null, headers: {}, body: "", body_json: null,
+peer_cert: null, error: "live HTTP probe is not yet implemented …"}``
+regardless of *url* or reachability.  The ``ureq`` dependency is in
+place for when this lands.  The deterministic probe surface
+(``x509_parse``, ``x509_eq``, ``dns``) is unaffected.
 
-Optional second argument is a dict of request headers.
+Optional second argument is a dict of request headers (accepted but,
+per the above, not yet sent anywhere).
 
 Related: ``url_get``, ``url_head``, ``url_post``,
 ``url_options``.
@@ -5819,12 +5825,12 @@ HTTP HEAD request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``HEAD`` to *url* via the ``ureq`` HTTP client.
-Returns ``{status: int | null, headers: object, body: string,
-body_json: any | null, peer_cert: object | null, reason: object | null,
-error: string | null}``.  Default timeout 5s.
+**Not currently implemented.**  Same caveat as ``url_get``: every
+call returns the same "not yet implemented" error shape regardless
+of *url*.
 
-Optional second argument is a dict of request headers.
+Optional second argument is a dict of request headers (accepted but
+not yet sent anywhere).
 
 Related: ``url_get``, ``url_head``, ``url_post``,
 ``url_options``.
@@ -5846,12 +5852,12 @@ HTTP OPTIONS request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``OPTIONS`` to *url* via the ``ureq`` HTTP client.
-Returns ``{status: int | null, headers: object, body: string,
-body_json: any | null, peer_cert: object | null, reason: object | null,
-error: string | null}``.  Default timeout 5s.
+**Not currently implemented.**  Same caveat as ``url_get``: every
+call returns the same "not yet implemented" error shape regardless
+of *url*.
 
-Optional second argument is a dict of request headers.
+Optional second argument is a dict of request headers (accepted but
+not yet sent anywhere).
 
 Related: ``url_get``, ``url_head``, ``url_post``,
 ``url_options``.
@@ -5873,10 +5879,9 @@ HTTP POST request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``POST`` to *url* via the ``ureq`` HTTP client.
-Returns ``{status: int | null, headers: object, body: string,
-body_json: any | null, peer_cert: object | null, reason: object | null,
-error: string | null}``.  Default timeout 5s.
+**Not currently implemented.**  Same caveat as ``url_get``: every
+call returns the same "not yet implemented" error shape regardless
+of *url*.
 
 Unlike ``url_get`` / ``url_head`` / ``url_options``, the optional
 second argument is the request *body* (a string) and the optional

@@ -907,8 +907,8 @@ impl DialectProfile {
     /// [`Self::runtime_base`] is a real `V8_4`) so versioned const-folds
     /// keep returning the dialect-invariant subset there until the
     /// optimiser/SCCP output is verified against real 8.4/8.5/8.6
-    /// interpreters. The modelled
-    /// runtime is `runtime_base`; this accessor is the *fold* policy.
+    /// interpreters. The modelled runtime is `runtime_base`; this accessor
+    /// is the *fold* policy.
     #[must_use]
     pub fn const_fold_version(&self) -> Option<TclVersion> {
         TclVersion::from_dialect(Some(self.name))

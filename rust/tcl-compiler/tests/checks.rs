@@ -2432,17 +2432,16 @@ mod read_before_set_correct {
 }
 
 // ===========================================================================
-// W210 — catch-body variable definitions suppress the false positive (FIXED).
+// W210 — catch-body variable definitions suppress the false positive.
 //
 // tclsh ground truth (8.6 + 9.0): `if {![catch {set x 1}]} { puts $x }` prints
 // `1` — the catch *body* defines `x`, so the read in the if-body is safe and
 // W210 must NOT fire. Recognising only the `[catch {…} err]` *result-message*
 // var (FP-RBS-02), and not a body-`set` of an *other* variable read after the
-// catch, false-fires W210. The
-// command-substitution out-var recovery therefore also scans the catch body, and
-// the read-before-set suppression scans branch conditions (not just
-// `set x [expr …]` assignments), so these guard-safe reads are no longer
-// flagged.
+// catch, would false-fire W210. The command-substitution out-var recovery
+// therefore also scans the catch body, and the read-before-set suppression
+// scans branch conditions (not just `set x [expr …]` assignments), so these
+// guard-safe reads stay unflagged.
 // ===========================================================================
 mod catch_body_defs_no_false_w210 {
     use super::*;

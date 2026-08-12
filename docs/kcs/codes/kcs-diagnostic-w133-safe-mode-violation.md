@@ -49,4 +49,4 @@ declarative directives — see `tcl pkg init` for the full list.
 ## Related
 
 - [KCS codes index](README.md)
-- [Design: manifest contracts](../../design/contracts/tclpkg-manifest.md)
+- [Design: manifest contracts](../../design/contracts/tclpkg-contracts.md)
