@@ -3,7 +3,7 @@
 > **Status:** design sketch for [spec-packs.md](../spec-packs.md) and
 > [issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363).
 > Nothing here is implemented. The syntax below was **designed by
-> porting**: every construct exists because one of the nine
+> porting**: every construct exists because one of the eleven
 > `*.tclspec.tcl` files beside this page needed it to say something a
 > shipped spec already says.
 
@@ -24,16 +24,27 @@ one.
 | [`geturl.tclspec.tcl`](geturl.tclspec.tcl) | `commands/tcllib/uri__geturl.rs` + `commands/stdlib/http__geturl.rs` | package gating, tri-state index lists, credential options |
 | [`irules-http-header.tclspec.tcl`](irules-http-header.tclspec.tcl) | `commands/irules/http__header.rs` | event requirements, subcommand-scoped taint sinks |
 | [`upvar.tclspec.tcl`](upvar.tclspec.tcl) | `commands/tcl/upvar_.rs` | `frame_effect`, and state transitions derived from it |
+| [`snit-type.tclspec.tcl`](snit-type.tclspec.tcl) | `commands/tcllib/snit__type.rs` + `definer.rs`'s `SNIT_GRAMMAR` | the inline `definition_body` grammar: member rows, built-in method rows, member-body commands, bare-word construction |
+| [`return.tclspec.tcl`](return.tclspec.tcl) | `commands/tcl/return_.rs` | the option-arity hook inside an option row, a context gate, per-option dialect gates, dialect-gated form rows |
 
 `if` is a ninth, unrequested port: it is the only shipped consumer of
 `clause_shape_check`, and the DSL's whole answer to that field is to make
 it unnecessary, so the design is not testable without it.
 
+`snit::type` and `return` are the two **pre-freeze** ports. The design
+review found the sketch failing its own rubric in two places, and both
+are places where the honest fix is a port rather than an amendment:
+[`tricky-surfaces.md`](tricky-surfaces.md) requires definer grammars and
+`body_scope` "from day one" while the sketch made both reference-only,
+and it names `return -errorstack` as "the worked example" of an
+option-arity hook while no such example existed and the family's inputs
+were unspecified. Both constructs are now designed *by* those ports, not
+around them.
+
 ## Shape of a pack
 
 ```tcl
 speclib <pack-name> <dsl-version> {
-    pragma      …                 ;# loader directives
     default     <key> <value>…    ;# pack-wide default for one availability key
     values      <name> { … }      ;# a shared argument-value table
     hook        <name> {params} { … }   ;# a shared hook body
@@ -49,6 +60,25 @@ hook body, and only at query time, in the sandbox described below.
 
 `speclib`'s version is the **DSL vocabulary version**, not the library's:
 it gates hard breaks (a word whose *meaning* changed), never additions.
+It is the **only** loader directive: an earlier sketch of this grammar
+also showed a `pragma …` statement, which is **dropped** — it was never
+given a meaning, and the one job it could have had (gating a hard break)
+is what the `speclib` version word already does. A pack containing
+`pragma` therefore hits the ordinary unknown-property rule below: dropped
+with a logged notice.
+
+**Statement separation is ordinary Tcl.** Statements end at a newline or
+at a `;`, so a short declaration can be written on one line —
+`subcommand at { arity 1 ; detail {Get header name by index.} ;
+synopsis {HTTP::header at <index>} }`, as
+[`irules-http-header.tclspec.tcl`](irules-http-header.tclspec.tcl) does
+throughout. The trap that comes with it is also ordinary Tcl: a `#` only
+starts a comment **where a command word would start**, so
+`arity 2 # not a comment` passes `#` and `not` and `a` and `comment` to
+the `arity` row as flags (all four dropped with a notice), and a trailing
+comment on a statement needs the `;#` spelling. Both behaviours are the
+Tcl an author already knows; they are written down here because a spec
+pack looks like data and invites the assumption that it is not a script.
 
 ## Words and values
 
@@ -58,7 +88,7 @@ it gates hard breaks (a word whose *meaning* changed), never additions.
 | tri-state bool | `xc_translatable no` | the argument is required — absent is `unset`, which is not `false` |
 | count / index | `reserved_trailing_words 2` | plain integer |
 | text | `taint_output_sink IRULE3002` | brace it when it has spaces |
-| prose | `description { … }` | a braced word may span lines; newlines are kept |
+| prose | `description { … }` | a braced word may span lines; **every byte between the braces is the value**, newlines included — see "Brace-quoted prose" below |
 | text list | `excluded_events {HTTP_REQUEST CLIENT_ACCEPTED}` | a Tcl list |
 | index list | `taint_network_sink_args {0}` | tri-state where the field is: `{}` is *declared empty*, absent is *unset* |
 | enum | `body_kind Structural` | the variant name **verbatim** from the studio catalogue |
@@ -127,11 +157,19 @@ option -stride -takes strideLength -integer {Range 2 max} -dialects tcl8.6+ \
 
 `-takes HINT` is what makes an option a value option; without it the
 option is a flag. The value's own fields are flags on the same row:
-`-arity {Fixed 4}`, `-role`, `-also-role`, `-body-kind`, `-values` /
-`-values-from`, `-closed`, `-integer`, `-appends`. The option's own
-fields are `-detail`, `-aliases`, `-dialects`, `-min-abbrev`, and the four
-lifecycle flags `-introduced` / `-deprecated` / `-retired` /
-`-deprecation-fix`.
+`-arity {Fixed 4}`, `-arity-hook`, `-role`, `-also-role`, `-body-kind`,
+`-values` / `-values-from`, `-closed`, `-integer`, `-appends`. The
+option's own fields are `-detail`, `-aliases`, `-dialects`,
+`-min-abbrev`, and the four lifecycle flags `-introduced` /
+`-deprecated` / `-retired` / `-deprecation-fix`.
+
+`-arity` takes the static shapes only (`{Fixed N}`; `One` is the
+default). `OptionArity`'s third variant is a hook, and it gets its own
+flag, `-arity-hook {words ctx} { … }` (or `-arity-hook -native ID`),
+because a hook is *two* words — a parameter list and a body — where every
+other flag value is one, and because a row parser must not have to tell
+`{words ctx}` from an enum payload by inspection. See "The option-arity
+hook" under Hooks, and [`return.tclspec.tcl`](return.tclspec.tcl).
 
 ### Other rows
 
@@ -191,7 +229,7 @@ stating the key itself wins.
 
 ### Block statements
 
-Seven properties take a braced block instead of a value, and each may
+Ten properties take a braced block instead of a value, and each may
 instead name a `descriptor` or a shipped constant. Their inner words are
 the descriptor's own field names, so nothing new has to be learnt:
 
@@ -205,9 +243,12 @@ the descriptor's own field names, so nothing new has to be learnt:
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
 | `state_transitions` | `composition`, `argument_shape`, `resolver`, `widen -operands L -domains {…}`*, `covers SOURCE -domains {…}`*, `commit` |
 | `object_class NAME` | `superclasses`, `allow_unknown_methods`, `method NAME { … }`* (a `subcommand` body) |
+| `definition_body` | `family`, `member …`*, `member_option …`*, `implicit_vars`, `member_body_namespace_path`, `builtin_type_methods`, `builtin_object_method …`*, `builtin_terminating_methods`, `member_body_command …`*, `bare_word_construction`, `dynamic_method_dispatch`, `manufacturer …`*, `unknown_dispatch_method`, `property_accessor_methods` |
+| `body_scope` | `name`, `include_sibling_definitions`, `allow_unknown_commands`, `command NAME { … }`* |
 
 `*` marks a repeatable row. `world_effects none` is the one-word
-`WorldEffectDescriptor::EMPTY`.
+`WorldEffectDescriptor::EMPTY`. The last two are specified under
+"Definer grammars and scoped bodies" below.
 
 ## Hooks
 
@@ -218,6 +259,10 @@ body with a proc-shaped signature**:
 ```tcl
 <field> {words ctx} { … body … }
 ```
+
+The ninth — the option-arity hook — is a *flag* on an option row rather
+than a property statement, so it is spelled `-arity-hook {words ctx}
+{ … }`; everything else in this section applies to it unchanged.
 
 or a reference to a shipped implementation:
 
@@ -265,6 +310,65 @@ value. A word whose kind is not `literal` appears in `words` as the empty
 string, so a hook that forgets to check `kinds` sees nothing rather than
 source spelling.
 
+Two families add keys of their own, because their Rust signatures take
+more than `args`:
+
+| family | extra `ctx` keys |
+|---|---|
+| option-arity hook | `option` — the option word as written (`-errorstack`); `option-index` — its 0-based index in `words`; `option-value-start` — index of the first value word, i.e. `option-index + 1` |
+| `const_fold_versioned` | none beyond `tcl-version`, which is always present |
+
+### When a hook runs
+
+**Normative.** `const_fold`, `const_fold_versioned`, and the option-arity
+hook are invoked **only when every word's `kinds` entry is `literal`**;
+every other family states its own precondition in the verb table below.
+A loader that calls a fold body on a call carrying a dynamic word is
+wrong, not merely imprecise.
+
+This is not a new rule, it is the rule the Rust already obeys and the DSL
+failed to write down. The fold callbacks are reached from
+`ConstSubstCtx::fold_at_depth`
+(`rust/tcl-compiler/src/const_subst.rs:103-134`), whose first act is
+`literal_words_at_depth`, which bails — no fold at all — if any word is
+not a single clean literal token. Because the DSL's own convention is
+that a non-literal word arrives as the empty string, a fold body that
+never consults `kinds` would otherwise fold `string length $x` to `0`,
+`string range $s 0 1` to `""`, and `string map $m abc` to `abc`. With the
+sentence above, all three bodies in
+[`string.tclspec.tcl`](string.tclspec.tcl) are sound exactly as written;
+without it, all three are unsound. **No fold body should re-check
+`kinds` itself** — the precondition is the loader's, stated once, rather
+than a guard every author must remember.
+
+The option-arity hook's precondition is the same sentence but splits in
+two on the way through, and the split is worth pinning because it is what
+the shipped consumers do:
+
+- Its **`consume N`** is a syntax fact the option scanner needs for every
+  call, literal or not, so a non-literal call does not run the hook and
+  takes the option's declared fallback span instead — `-arity {Fixed N}`
+  when the row states one, otherwise one word. That fallback is what
+  `errorstack_value` itself returns for any present word, so for `return`
+  the split is behaviour-preserving; an option whose *word count* is a
+  function of dynamic content cannot be a pack option and is a
+  contribution.
+- Its **`-invalid MESSAGE`** is discarded unless every value word it
+  covers is literal. That half is not a design choice: `w141_hook_hit`
+  (`rust/tcl-compiler/src/analyser/diagnostics/security.rs:1712-1726`)
+  already skips the hook outright when any value word contains `$` or
+  `[`, precisely so a content check never fires against a word whose
+  content is unknown.
+
+An unversioned `const_fold` body inherits the hook VM's Tcl semantics
+while the target profile may be anything from 8.4 to 9.1, so a third
+rule falls out of the same place: **an unversioned fold body must be
+version-invariant over the inputs it accepts**, and the equivalence gate
+runs per dialect. The `string` port is what this rule is drawn from —
+its `length` / `map` / `range` bodies all guard on `string is ascii`
+precisely to stay inside the range where 8.x and 9.x agree, and
+`string is` stays `-native` because it is version-aware by nature.
+
 ### Outputs: the emitter protocol
 
 **Every hook's own return value is ignored.** Each family injects one to
@@ -281,11 +385,50 @@ always the conservative one.
 | `context_gate` | `reject MESSAGE` | the call is allowed |
 | `literal_argument_validator` | `invalid -index N -subject S -reason … -allowed {…} ?-replacement V?`, `abstain REASON` | valid |
 | `clause_shape_check` | `missing-expr ?after?`, `missing-body after`, `extra-words first` | the shape is accepted |
-| option-value hook (`OptionArity::Hook`) | `consume N ?-invalid MESSAGE?` | consume one word |
+| option-arity hook (`-arity-hook`) | `consume N ?-invalid MESSAGE?` | consume one word |
 
 Returning early (`return`) is the ordinary way to abstain, which is why
 the emitter protocol beats returning a value: `if {…} return` reads
 naturally and cannot be confused with "folds to the empty string".
+
+### The option-arity hook
+
+The one family with no example until now, and the one the rubric names
+as "the worked example of a hook *inside* an option row". Its calling
+convention differs from the eight property hooks in exactly one way: the
+Rust signature is `fn(args: &[&str], start: usize)`
+(`rust/tcl-registry/src/hover.rs:89`), so a uniform `{words ctx}` would
+throw away the `start` the body needs. The fix is `ctx`, not a third
+parameter:
+
+- `words` **is** `args` — the call's argument words after the command
+  name, unchanged from every other family. Note that this is the *whole*
+  argument list, not the option's value slice: the hook is free to look
+  before and after its own option, which is what lets one option's span
+  depend on a preceding flag.
+- `ctx`'s `option-value-start` **is** `start` — the index in `words` of
+  the first value word. `option-index` (`start - 1`) and `option`
+  (the option word as written) are supplied alongside it so a body never
+  recomputes either; the caller always knows both
+  (`OptionSpec::value_span` derives `start` from `flag_idx + 1`,
+  `hover.rs:557`).
+- The emitter verb is `consume N ?-invalid MESSAGE?`, and silence
+  consumes one word. `consume 0` is how the shipped hook reports a
+  missing value: it is *not* an abstention, because a hook that emits
+  nothing still consumes one.
+
+[`return.tclspec.tcl`](return.tclspec.tcl) is the port. The whole family
+exists for the `-errorstack` shape — a *fixed* one-word span whose
+**content** needs checking — so its body never varies the span at all;
+it emits `consume 1` three ways and `consume 0` once. Two notes from
+writing it:
+
+- The sandbox has no `catch`, so the Rust's `split_list_raw` →
+  `Ok`/`Err` split is written as `string is list`. The two agree on
+  which words are lists, and `string` is on the whitelist.
+- The three messages are carried verbatim from the `.rs`. They are user
+  visible (W141), so an equivalence gate compares them as data, not as
+  behaviour.
 
 ### Error means abstain
 
@@ -339,6 +482,20 @@ clause_grammar {
 - Inside a slot list, a bare word is an `ArgRole` name and `?word?` is an
   optional noise keyword.
 
+**Normative — where keywords match.** A `clause_grammar` keyword is
+matched **only at a clause boundary and at a `?noise?` position**; every
+other slot is filled positionally and consumes whatever word is there,
+including one spelled like a keyword. The rule is stated for the whole
+grammar, not just for `head`: an earlier draft said it of `head` alone,
+which is not enough to derive `walk_if`'s own test matrix. `if 1 a
+elseif else b` is the row that proves it — the `else` is the `Expr` slot
+of the `elseif` clause, matched positionally *inside a repeated clause*,
+and the call is well-formed. Reading it any other way makes the tail
+keyword win and turns a valid `if` into a shape error. The one-line
+version an implementer can test against: at each step the walk asks
+"does a clause start here?", and only that question ever compares a word
+against a keyword.
+
 From that one declaration the loader derives **both** hook behaviours:
 
 - `arg_role_resolver` — the roles the walk assigns, and
@@ -357,6 +514,62 @@ they are a *value* (`{pattern body …}` inside one word) rather than a
 word grammar. `case_list switch` names the shipped descriptor;
 `case_list { … }` spells out all thirteen plain-data fields, which is
 what a private Expect-like command needs.
+
+## Derivations, exactly
+
+A derivation keyword replaces a hook with a rule the loader runs over
+data the spec already declares. That makes each one a **claim about the
+Rust it replaces**, so each needs its behaviour written down normatively
+rather than left in a port's comment — which is where two of the three
+were living.
+
+**`arg_role_resolver from-manufacturers`.** The rule is: look
+`words[0]` up in **this spec's own `manufacturer` rows**; if it names one
+and that row has a `-definition-body-at N`, emit `role N Body`, provided
+`N` is a valid index into the call's arguments; otherwise emit nothing.
+Three details are load-bearing and none is negotiable:
+
+- **`words[0]` only.** The manufacturer keyword is the first argument
+  word, never searched for elsewhere in the call.
+- **`Body` only.** `-names-instance-at` and `-constructor-args-from` are
+  read by other consumers and contribute **no** role here. A derivation
+  that also emitted a role for the instance name would be a different
+  (and wrong) resolver.
+- **Bounds-checked.** `oo::class create` with no body word emits nothing
+  rather than a role pointing past the end.
+
+That is `oo_class_arg_roles` (`rust/tcl-registry/src/commands/tcl/oo_class.rs:245-256`)
+exactly: `args.first()` → `manufacturer(word)` → `definition_body_at` →
+`(body < args.len())`.
+
+**`state_transitions … resolver from-frame-effect`.** The rule is: read
+the command's own `frame_effect`; take the level word from its
+`-level-word` policy; then walk the remaining words as the `-layout`
+says. Two policies must be pinned because they are where an
+implementation would silently differ from the shipped resolver
+(`upvar_.rs:59-97`):
+
+- **A dynamic level word aborts the whole derivation** — zero
+  transitions for the call, not "assume the default frame".
+- **A dynamic member of an alias pair skips that pair and continues** —
+  the pairs after it still produce transitions.
+
+**`clause_grammar`.** Derives both `arg_role_resolver` and
+`clause_shape_check`; its own normative rule (where keywords match) is
+stated above.
+
+**Derivation is a proof obligation, not a shorthand.** Each keyword
+above asserts that a data-driven rule reproduces a shipped function.
+Reading the Rust, all three do — but an implementation must **prove**
+it, not assume it, and the fidelity table below flags each port that
+rests on one. The sharpest case is `oo::class`: the shipped resolver
+reads `TCLOO_GRAMMAR.manufacturers` while the spec field the port
+declares is `TCLOO_ROOT_CLASS_MANUFACTURERS`. Those are two *different*
+tables — they differ on `new`'s visibility — that happen to agree on
+every keyword and body index today. The derivation is therefore correct
+now and is not correct *by construction*; a loader must diff the two
+before trusting it, and a future divergence must fail the equivalence
+gate rather than pass silently.
 
 ## Load policy
 
@@ -477,6 +690,31 @@ lone `{` needs the quoted form and a backslash — ordinary Tcl quoting,
 but it is the one place the format will bite an author writing about
 Tcl syntax. *Rejected:* a heredoc form. It buys one rare case and costs
 the property that a pack is an ordinary Tcl script.
+
+**Newlines in a braced word are significant, and the loader does not
+reflow.** The value of a braced word is *every byte between its braces*,
+verbatim: leading and trailing newlines, interior blank lines, and the
+author's indentation are all part of the string. Nothing is stripped,
+joined, dedented, or wrapped. This has to be pinned rather than left to
+taste because the equivalence gate compares the loaded field with the
+compiled `&'static str` **byte for byte**, so a wrap-happy author who
+breaks a long `description` across two lines to fit 80 columns has
+changed the value and will fail the gate — the DSL cannot tell that
+newline from a deliberate one. Two consequences worth stating
+explicitly:
+
+- **Prose is one long line, or it is not the same string.** Every ported
+  `description` / `detail` / `returns` in this directory is a single
+  physical line, however long, because its `.rs` original is.
+- **Repeated `example` rows join with a single `\n`.** A spec whose Rust
+  `examples` string separates its examples with a *blank* line therefore
+  writes them as one braced block rather than three rows —
+  [`return.tclspec.tcl`](return.tclspec.tcl) is the worked case, and says
+  so at the site.
+
+An author who wants soft-wrapped source can still have it: the escape is
+ordinary Tcl line continuation inside a *quoted* word, which is a
+different (and lossier) spelling, not a second meaning for braces.
 
 ## Fidelity of the ports
 

@@ -147,6 +147,17 @@ between the two engines on a hook body is differential-testing signal,
 not just a bug. Performance investment lands in the VM — hooks give it
 a hot, measurable, real workload to justify that effort.
 
+**The framework is a Rust crate linking the VM the way a C extension
+links C Tcl.** The DSL host (loader, hook harness, sandbox) registers
+its surface natively: the emitter verbs (`role`, `fold`, `reject`, …)
+and the sandbox builtins (e.g. the conservative `foldlist`) are Rust
+commands in the hook interpreter, and hook inputs/outputs cross the
+boundary as structured VM values — never string round-trips. One crate
+backs every deployment (native server, CLI, wasm studio), so the
+extension-registration path itself becomes a first-class, dogfooded
+API — the same road a future C-extension-style plugin story would
+take — and the DSL gets the best performance floor the VM can offer.
+
 Hot-path budget: role resolvers run per call site during semantic
 tokens. Built-in packs keep native pointers (bucket 2 of the
 architecture above), so only pack-declared commands pay the VM cost —
