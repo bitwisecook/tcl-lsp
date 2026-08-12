@@ -444,11 +444,13 @@ speclib hooked 1 {
         }])
     }
 
+    /// A reload that changes nothing must not spend a slot: 64 per family is
+    /// a compile-time bound, and an editor reloads a pack on every save.
     #[test]
     fn the_same_pack_content_keeps_the_same_slots() {
-        let a = pack_set("same-a", SOURCE);
-        let b = pack_set("same-b", SOURCE);
-        assert_eq!(a.key, b.key, "same bytes, same key");
+        let a = pack_set("same", SOURCE);
+        let b = pack_set("same", SOURCE);
+        assert_eq!(a.key, b.key, "same path, same bytes, same key");
         let (x, y) = (plan_for(&a), plan_for(&b));
         assert_eq!(x.packs()[0].programs[0].slot, y.packs()[0].programs[0].slot);
         assert!(x.packs()[0].programs[0].slot.is_some());

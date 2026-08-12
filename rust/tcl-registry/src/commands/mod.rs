@@ -17,19 +17,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Command specification modules — one directory per dialect.
+//!
+//! The EDA vendor libraries are **not** here: `sdc_base` and the five vendor
+//! packs ship as bundled `.tclspec` loadables under `specs/`, loaded by
+//! `tcl-spectcl` (`docs/design/spec-packs.md`, "the EDA vendor libraries ship
+//! as bundled `.tclspec` loadables … so the loader path is exercised in
+//! production from day one").
 
 pub mod argparse;
 pub mod bpf;
-pub mod eda_cadence;
-pub mod eda_mentor;
-pub mod eda_quartus;
-pub mod eda_synopsys;
-pub mod eda_xilinx;
 pub mod expect;
 pub mod iapps;
 pub mod irules;
 pub mod itcl;
-pub mod sdc_base;
 pub mod spectcl;
 pub mod stdlib;
 pub mod tcl;

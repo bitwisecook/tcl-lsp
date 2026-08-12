@@ -166,11 +166,27 @@ pub fn user_dir() -> PathBuf {
 }
 
 /// The bundled-pack directory: [`BUNDLED_DIR_ENV`] when set, else the
-/// `specs/` directory beside the running executable, else nothing.
+/// `specs/` directory beside the running executable, else — in a debug build
+/// only — the `specs/` directory of the source checkout this binary was built
+/// from, else nothing.
 ///
 /// Deliberately *not* an `include_dir!` of the shipped loadables: the bundled
 /// tier exists so the loader path is exercised in production, and a directory
 /// on disk is what the production layout actually is.
+///
+/// # The debug fallback
+///
+/// A release lays `specs/` down beside the executable (the `install-specs`
+/// Makefile rule, and the same staging that puts the server binary in the
+/// VSIX / JetBrains plugin). A `cargo build` lays down nothing, so a
+/// `target/debug/tcl` — or a test binary in `target/debug/deps/` — would find
+/// no loadables and quietly lose the EDA vendor libraries, which since their
+/// migration exist *only* as packs. Compiling the checkout's `specs/` path in
+/// under `debug_assertions` makes a development build behave like an install
+/// without any per-developer setup. It cannot fire in a shipped binary: the
+/// path is not compiled in at all when `debug_assertions` is off, and a test
+/// that wants a *different* bundled directory still sets
+/// [`BUNDLED_DIR_ENV`] or passes `bundled_dir` explicitly, both of which win.
 #[must_use]
 pub fn bundled_dir() -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os(BUNDLED_DIR_ENV)
@@ -178,9 +194,22 @@ pub fn bundled_dir() -> Option<PathBuf> {
     {
         return Some(PathBuf::from(dir));
     }
-    let exe = std::env::current_exe().ok()?;
-    let beside = exe.parent()?.join(USER_PACK_SUBDIR);
-    beside.is_dir().then_some(beside)
+    if let Some(exe) = std::env::current_exe().ok()
+        && let Some(parent) = exe.parent()
+    {
+        let beside = parent.join(USER_PACK_SUBDIR);
+        if beside.is_dir() {
+            return Some(beside);
+        }
+    }
+    #[cfg(debug_assertions)]
+    {
+        let checkout = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../specs"));
+        if checkout.is_dir() {
+            return Some(checkout);
+        }
+    }
+    None
 }
 
 /// `true` when `path` names a `.tclspec` file (case-insensitively, matching

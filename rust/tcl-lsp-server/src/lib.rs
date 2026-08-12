@@ -1499,6 +1499,27 @@ async fn report_analysis_worker_panic(
     client.log_message(MessageType::ERROR, message).await;
 }
 
+/// Run `work` on this worker thread with the workspace's `SpecTcl` hook host
+/// installed.
+///
+/// A pack's `const_fold` / `arg_role_resolver` / … body runs on a sandboxed VM,
+/// and a VM is not `Send`, so the host that owns one is **per thread**
+/// (`tcl_registry::pack_hooks`: "a thread with no host installed abstains").
+/// Analysis and optimisation run on `spawn_blocking` workers, and the pool
+/// hands work to whichever thread is free, so the host cannot be installed
+/// where the packs are loaded — [`Backend::reload_spec_packs`] publishes the
+/// plan and this builds a thread's host from it the first time that thread does
+/// analysis, and again after a pack edit changes the plan.
+///
+/// The cost with no packs loaded — the overwhelmingly common case — is one
+/// relaxed atomic load, which is why this can sit at the top of every worker
+/// closure that reaches the registry's hook fields rather than being threaded
+/// through their inputs.
+fn with_pack_hooks<R>(work: impl FnOnce() -> R) -> R {
+    tcl_spectcl::hooks::ensure_thread_host();
+    work()
+}
+
 /// Base analysis: the cancellable salsa `file_analysis_incremental` query
 /// (slice 5), off the LSP event loop — the whole-file per-item walk that
 /// dominates the deep pass and feeds *both* the workspace-independent fast tier
@@ -1546,9 +1567,11 @@ async fn compute_base_analysis(
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
         return match tokio::task::spawn_blocking(move || {
-            Backend::recovery_analyser(a_disabled, non_ascii_mode, widened)
-                .analyse(&a_text, &a_dialect)
-                .clone()
+            with_pack_hooks(|| {
+                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened)
+                    .analyse(&a_text, &a_dialect)
+                    .clone()
+            })
         })
         .await
         {
@@ -1566,10 +1589,12 @@ async fn compute_base_analysis(
         // exclusive-access-blocking references across the debounce sleep.
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
-                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+            with_pack_hooks(|| {
+                salsa::Cancelled::catch(|| {
+                    tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                })
+                .ok()
             })
-            .ok()
         })
         .await
         {
@@ -1601,13 +1626,15 @@ async fn compute_base_analysis(
         let a_path = uri.to_file_path().map(|p| p.display().to_string());
         let a_bigip = config.bigip_version(&*db.lock().await).clone();
         let analysis = tokio::task::spawn_blocking(move || {
-            Arc::new(
-                Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra)
-                    .with_file_path(a_path)
-                    .with_bigip_version(a_bigip)
-                    .analyse(&a_text, &a_dialect)
-                    .clone(),
-            )
+            with_pack_hooks(|| {
+                Arc::new(
+                    Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra)
+                        .with_file_path(a_path)
+                        .with_bigip_version(a_bigip)
+                        .analyse(&a_text, &a_dialect)
+                        .clone(),
+                )
+            })
         })
         .await
         .unwrap_or_default();
@@ -1886,10 +1913,12 @@ async fn compute_compiler_diags(
     if let Some(file) = file {
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
-                tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+            with_pack_hooks(|| {
+                salsa::Cancelled::catch(|| {
+                    tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+                })
+                .ok()
             })
-            .ok()
         })
         .await
         {
@@ -1913,16 +1942,19 @@ async fn compute_compiler_diags(
         let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
         ControlFlow::Continue(
             tokio::task::spawn_blocking(move || {
-                Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
-                    &c_text,
-                    c_registry,
-                    &c_dialect,
-                    c_generic.as_deref(),
-                    // The no-salsa-input fallback: this document is not in the
-                    // db, so there is genuinely no workspace view to pass —
-                    // `None` is the honest answer, not a missed wiring.
-                    None,
-                ))
+                with_pack_hooks(|| {
+                    Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
+                        &c_text,
+                        c_registry,
+                        &c_dialect,
+                        c_generic.as_deref(),
+                        // The no-salsa-input fallback: this document is not in
+                        // the db, so there is genuinely no workspace view to
+                        // pass — `None` is the honest answer, not a missed
+                        // wiring.
+                        None,
+                    ))
+                })
             })
             .await
             .unwrap_or_else(|_| {
@@ -10418,6 +10450,7 @@ impl Backend {
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
         let value = tokio::task::spawn_blocking(move || {
+            tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = Some(dialect.as_str());
             let (source, opts) = if profile == "full" {
                 tcl_compiler::optimiser::optimise_source_multipass(&text, registry, dialect_opt, 5)
@@ -12774,6 +12807,15 @@ impl Backend {
         };
 
         let packs = self.spec_packs().await;
+        if changed {
+            // Publish the hook plan for the new pack set: slots are allocated
+            // once, here, for the whole process, and each worker thread builds
+            // its own sandboxed host from the plan the first time it runs
+            // analysis (`with_pack_hooks`).  A `HookHost` owns VM instances,
+            // which are not `Send`, so this cannot install anything itself —
+            // it records what to install.
+            tcl_spectcl::hooks::publish(&packs);
+        }
         self.publish_spec_pack_notices(&packs).await;
         if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();

@@ -460,6 +460,24 @@ of pairwise syncs to maintain.
   the whole pack as editable drafts. The studio's unit of work becomes
   the **library**: a pack browser beside the registry browser, multi
   command editing, pack-level defaults and shared tables surfaced.
+- **Point it at a directory; the machine does the mechanical share.**
+  The import surface grows from per-file proc inference to a
+  whole-library pass (directory picker in the browser, a path for the
+  CLI twin): the compiler's inference plus **the corpus-derived shape
+  heuristics implemented as deterministic analysis**, not model
+  guesses — option tables recovered from `-*` dispatch loops and
+  `Tcl_GetIndexFromObj`-style tables, closed value sets and integer
+  domains from the consuming branches, `--` handling, n-paired tails
+  from stride loops and parity checks, mutual-exclusion checks, mode
+  words that select tails becoming subcommands, callbacks with their
+  observed appended arity, `namespace ensemble -map` assembly,
+  TclOO/snit classes into `object_class` + manufacturers, aliasing via
+  `interp alias`/`rename`. Every mechanical conclusion carries its
+  evidence line, exactly as today's importer does; what remains for
+  the human (or the AI tab) is judgment — taint, effects, versions —
+  not transcription. One Rust engine serves all three consumers: the
+  studio's import tab, the spec-author skill, and a `tcl spec infer`
+  CLI.
 - **A Test tab.** Paste code that uses built-ins *plus* the pack under
   edit. The embedded wasm already carries the real analyser and
   registry; the pack loads as an overlay, then the tab shows exactly

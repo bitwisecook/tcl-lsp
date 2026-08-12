@@ -261,12 +261,11 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
         add(crate::commands::irules::irules_command_specs());
         add(crate::commands::iapps::iapps_command_specs());
         add(crate::commands::expect::expect_command_specs());
-        add(crate::commands::sdc_base::sdc_base_command_specs());
-        add(crate::commands::eda_synopsys::eda_synopsys_command_specs());
-        add(crate::commands::eda_cadence::eda_cadence_command_specs());
-        add(crate::commands::eda_xilinx::eda_xilinx_command_specs());
-        add(crate::commands::eda_quartus::eda_quartus_command_specs());
-        add(crate::commands::eda_mentor::eda_mentor_command_specs());
+        // The EDA vendor libraries are deliberately NOT added: they ship as
+        // bundled `.tclspec` loadables (`docs/design/spec-packs.md`), so this
+        // crate does not know their names at compile time and W002 reports an
+        // EDA command outside an EDA profile as an ordinary unknown command
+        // rather than as "exists, but not here". The pack is what knows.
         // SpecTcl is deliberately NOT added. This set answers "is this name a
         // command in *some* dialect", and W002 turns a `true` into "exists,
         // but not here". SpecTcl's statement words are ordinary English nouns
@@ -421,41 +420,17 @@ impl CommandRegistry {
             // underneath (hook bodies are real Tcl); this layer adds the
             // declaration vocabulary on top of it.
             d if d == DialectSet::SPECTCL => crate::commands::spectcl::spectcl_command_specs(),
-            // The EDA shells load by profile identity via `load_eda_packs`
-            // (below), not a DialectSet bit — they are modelled as base-Tcl-
-            // version dialects plus `required_package`-gated command libraries
-            // (design doc `eda-library-packages.md`).
+            // The EDA shells have no DialectSet bit and no compiled-in pack —
+            // they are base-Tcl-version dialects plus `required_package`-gated
+            // command libraries (design doc `eda-library-packages.md`), and
+            // those libraries ship as bundled `.tclspec` loadables that
+            // `tcl_spectcl::bundled` installs (`docs/design/spec-packs.md`).
             _ => Vec::new(),
         };
         for spec in specs {
             self.insert(spec);
         }
         self.loaded_dialects |= dialect;
-    }
-
-    /// Load an EDA shell profile's command packs by profile name — the shared
-    /// `sdc_base` constraint/collection library plus the vendor's tool packs.
-    ///
-    /// EDA shells are modelled as a base Tcl version (loaded via
-    /// [`Self::load_dialect`] with the version bit) plus `required_package`-
-    /// gated libraries, rather than a vendor `DialectSet` bit (design doc
-    /// `eda-library-packages.md`), so their packs load by profile identity.
-    /// A no-op for any non-EDA profile name.
-    pub fn load_eda_packs(&mut self, profile_name: &str) {
-        let vendor = match profile_name {
-            "xilinx-eda-tcl" => crate::commands::eda_xilinx::eda_xilinx_command_specs(),
-            "synopsys-eda-tcl" => crate::commands::eda_synopsys::eda_synopsys_command_specs(),
-            "cadence-eda-tcl" => crate::commands::eda_cadence::eda_cadence_command_specs(),
-            "intel-quartus-eda-tcl" => crate::commands::eda_quartus::eda_quartus_command_specs(),
-            "mentor-eda-tcl" => crate::commands::eda_mentor::eda_mentor_command_specs(),
-            _ => return,
-        };
-        for spec in crate::commands::sdc_base::sdc_base_command_specs() {
-            self.insert(spec);
-        }
-        for spec in vendor {
-            self.insert(spec);
-        }
     }
 
     /// Load iRules dialect commands (convenience wrapper).
@@ -5375,13 +5350,6 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.load_dialect(DialectSet::EXPECT);
         assert!(reg.get("expect").is_some() || reg.get("spawn").is_some());
-    }
-
-    #[test]
-    fn load_eda_synopsys() {
-        let mut reg = CommandRegistry::build_default();
-        reg.load_eda_packs("synopsys-eda-tcl");
-        assert!(reg.len() > 100);
     }
 
     #[test]

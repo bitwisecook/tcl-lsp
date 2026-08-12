@@ -117,10 +117,6 @@ pub fn registry_for_profile_with_overlay(
     for &layer in profile.base_layers {
         registry.load_dialect(layer);
     }
-    // EDA shells load their command packs (shared `sdc_base` + the vendor tool
-    // packs) by profile identity, not a DialectSet bit — a no-op for every
-    // other profile (design doc `eda-library-packages.md`).
-    registry.load_eda_packs(profile.name);
     extend(&mut registry);
     registry.set_profile(profile);
     let leaked: &'static CommandRegistry = Box::leak(Box::new(registry));
