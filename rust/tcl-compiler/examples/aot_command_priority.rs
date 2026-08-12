@@ -60,10 +60,11 @@
 //! `experiments/aot-corpus/fetch_corpus.sh`'s layout).
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tcl_compiler::segmenter::segment_commands;
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands};
 use tcl_registry::{ArgRole, CommandRegistry};
 use tcl_syntax::case_list::{CallShape, CaseListShape, clause_list_call, split_case_list};
 
@@ -84,6 +85,17 @@ struct FormStats {
     /// macro/helper), not a Tcl builtin, so it is out of scope for AOT
     /// direct-emission prioritisation.
     in_registry: bool,
+}
+
+impl FormStats {
+    /// The most frequently seen argument count for this form, with how many
+    /// call sites had it. `(0, 0)` when no site was recorded.
+    fn dominant_arity(&self) -> (usize, u64) {
+        self.arity_hist
+            .iter()
+            .max_by_key(|(_, count)| **count)
+            .map_or((0, 0), |(arity, count)| (*arity, *count))
+    }
 }
 
 #[derive(Default)]
@@ -126,163 +138,195 @@ fn word_is_literal(fragments: &[tcl_compiler::segmenter::WordFragment]) -> bool 
         })
 }
 
-#[allow(clippy::too_many_arguments)]
-fn walk_script(
-    source: &str,
-    registry: &CommandRegistry,
-    repo: &str,
-    in_value_position: bool,
-    depth: u32,
-    forms: &mut HashMap<(String, Option<String>), FormStats>,
-    dynamic: &mut DynamicStats,
-) {
-    if depth > MAX_DEPTH {
-        return;
-    }
-    let commands = segment_commands(source);
-    for cmd in &commands {
-        if cmd.texts.is_empty() {
-            continue;
+/// The accumulating census. `repo` names the repository whose files are being
+/// walked right now; `forms` and `dynamic` accumulate across the whole corpus.
+struct Census<'a> {
+    registry: &'a CommandRegistry,
+    repo: String,
+    forms: HashMap<(String, Option<String>), FormStats>,
+    dynamic: DynamicStats,
+}
+
+impl Census<'_> {
+    fn walk_script(&mut self, source: &str, in_value_position: bool, depth: u32) {
+        if depth > MAX_DEPTH {
+            return;
         }
-        let word0_literal = cmd
-            .word_fragments
-            .first()
-            .is_some_and(|f| word_is_literal(f));
-        let expanded0 = cmd
-            .expand_word
-            .as_ref()
-            .and_then(|v| v.first())
-            .copied()
-            .unwrap_or(false);
-
-        if word0_literal && !expanded0 {
-            let name = cmd.texts[0].clone();
-            let args: Vec<&str> = cmd.texts[1..].iter().map(String::as_str).collect();
-            let arity = args.len();
-
-            let has_subcommands = registry
-                .get(&name)
-                .is_some_and(|s| !s.subcommands.is_empty());
-            let subcommand = if has_subcommands && !args.is_empty() {
-                let word1_literal = cmd
-                    .word_fragments
-                    .get(1)
-                    .is_some_and(|f| word_is_literal(f));
-                Some(if word1_literal {
-                    args[0].to_string()
-                } else {
-                    "<dynamic>".to_string()
-                })
-            } else {
-                None
-            };
-
-            let literal_args = cmd
+        for cmd in &segment_commands(source) {
+            if cmd.texts.is_empty() {
+                continue;
+            }
+            let word0_literal = cmd
                 .word_fragments
-                .iter()
-                .skip(1)
-                .all(|f| word_is_literal(f));
+                .first()
+                .is_some_and(|f| word_is_literal(f));
+            let expanded0 = cmd
+                .expand_word
+                .as_ref()
+                .and_then(|v| v.first())
+                .copied()
+                .unwrap_or(false);
 
-            let in_registry = registry.get(&name).is_some();
-            let stats = forms.entry((name.clone(), subcommand)).or_default();
-            stats.in_registry = in_registry;
-            stats.total += 1;
-            if in_value_position {
-                stats.value_position += 1;
+            if word0_literal && !expanded0 {
+                self.walk_literal_head(cmd, in_value_position, depth);
             } else {
-                stats.statement_position += 1;
+                self.dynamic.total += 1;
+                if in_value_position {
+                    self.dynamic.value_position += 1;
+                } else {
+                    self.dynamic.statement_position += 1;
+                }
             }
-            stats.repos.insert(repo.to_string());
-            *stats.arity_hist.entry(arity).or_default() += 1;
-            if literal_args {
-                stats.all_args_literal += 1;
+
+            self.walk_substitutions(cmd, depth);
+        }
+    }
+
+    /// Record one call site whose command word is a literal, then recurse into
+    /// whatever bodies it carries.
+    fn walk_literal_head(&mut self, cmd: &SegmentedCommand, in_value_position: bool, depth: u32) {
+        let name = cmd.texts[0].clone();
+        let args: Vec<&str> = cmd.texts[1..].iter().map(String::as_str).collect();
+        self.record(cmd, &name, &args, in_value_position);
+
+        // Clause-list commands (`switch`'s combined `{pat body …}` form) must
+        // run first so the generic Body-role pass skips the same argument index
+        // rather than re-segmenting the whole pattern+body blob as a script.
+        let clause_handled_index = self.walk_clause_bodies(cmd, &name, &args, depth);
+        self.walk_body_args(cmd, &name, &args, clause_handled_index, depth);
+    }
+
+    fn record(
+        &mut self,
+        cmd: &SegmentedCommand,
+        name: &str,
+        args: &[&str],
+        in_value_position: bool,
+    ) {
+        let has_subcommands = self
+            .registry
+            .get(name)
+            .is_some_and(|s| !s.subcommands.is_empty());
+        let subcommand = if has_subcommands && !args.is_empty() {
+            let word1_literal = cmd
+                .word_fragments
+                .get(1)
+                .is_some_and(|f| word_is_literal(f));
+            Some(if word1_literal {
+                args[0].to_string()
             } else {
-                stats.some_args_substituted += 1;
-            }
-
-            // Clause-list commands (`switch`'s combined `{pat body …}` form):
-            // split with the real clause-list parser and walk only the body
-            // half of each clause. Must run before the generic Body-role
-            // pass below so that pass skips the same argument index rather
-            // than re-segmenting the whole pattern+body blob as a script.
-            let mut clause_handled_index: Option<usize> = None;
-            if let Some(case) = registry.get(&name).and_then(|s| s.case_list) {
-                let call_shape = CallShape {
-                    subject_args: usize::from(case.subject_args),
-                    regex_option: case.regex_option,
-                    value_options: case.value_options_require_regex,
-                };
-                if let Some(clause_call) = clause_list_call(&args, &call_shape) {
-                    clause_handled_index = Some(clause_call.index);
-                    let word_idx = 1 + clause_call.index;
-                    if let Some(fragments) = cmd.word_fragments.get(word_idx)
-                        && fragments.len() == 1
-                        && fragments[0].token.kind == tcl_lexer::TokenType::Str
-                    {
-                        let inner = &fragments[0].text;
-                        let clause_shape = CaseListShape {
-                            clause_flags: case.clause_flags,
-                            clause_value_flags: case.clause_value_flags,
-                        };
-                        for clause in split_case_list(inner, &clause_shape) {
-                            let Some(body) = clause.body else { continue };
-                            // `case_list::Element` includes the opening `{`
-                            // (for fold-range purposes) but its `end` already
-                            // sits before the closing `}`, so a braced body's
-                            // clean content is `[start+1, end)`.
-                            let text = if body.braced {
-                                inner.get(body.start + 1..body.end)
-                            } else {
-                                inner.get(body.start..body.end)
-                            };
-                            let Some(text) = text else { continue };
-                            // A bare fallthrough marker (switch's `-` body) is
-                            // not code — it means "fall through to the next
-                            // clause's body" and has no statements of its own.
-                            if !body.braced && Some(text) == case.fallthrough_body {
-                                continue;
-                            }
-                            walk_script(text, registry, repo, false, depth + 1, forms, dynamic);
-                        }
-                    }
-                }
-            }
-
-            // Recurse into Body-role arguments (proc/if/while/for/foreach/
-            // catch/try/namespace eval/… bodies) when written as a literal
-            // brace-string.
-            let body_indices = registry.arg_indices_for_role(&name, &args, ArgRole::Body);
-            for idx in body_indices {
-                if Some(idx) == clause_handled_index {
-                    continue;
-                }
-                let word_idx = 1 + idx;
-                let Some(fragments) = cmd.word_fragments.get(word_idx) else {
-                    continue;
-                };
-                if fragments.len() == 1 && fragments[0].token.kind == tcl_lexer::TokenType::Str {
-                    walk_script(
-                        &fragments[0].text,
-                        registry,
-                        repo,
-                        false,
-                        depth + 1,
-                        forms,
-                        dynamic,
-                    );
-                }
-            }
+                "<dynamic>".to_string()
+            })
         } else {
-            dynamic.total += 1;
-            if in_value_position {
-                dynamic.value_position += 1;
-            } else {
-                dynamic.statement_position += 1;
-            }
+            None
+        };
+
+        let literal_args = cmd
+            .word_fragments
+            .iter()
+            .skip(1)
+            .all(|f| word_is_literal(f));
+        let in_registry = self.registry.get(name).is_some();
+        let repo = self.repo.clone();
+
+        let stats = self
+            .forms
+            .entry((name.to_string(), subcommand))
+            .or_default();
+        stats.in_registry = in_registry;
+        stats.total += 1;
+        if in_value_position {
+            stats.value_position += 1;
+        } else {
+            stats.statement_position += 1;
+        }
+        stats.repos.insert(repo);
+        *stats.arity_hist.entry(args.len()).or_default() += 1;
+        if literal_args {
+            stats.all_args_literal += 1;
+        } else {
+            stats.some_args_substituted += 1;
+        }
+    }
+
+    /// Walk the body half of each clause of a clause-list command, returning
+    /// the argument index consumed by the clause list so the generic Body-role
+    /// pass can skip it.
+    fn walk_clause_bodies(
+        &mut self,
+        cmd: &SegmentedCommand,
+        name: &str,
+        args: &[&str],
+        depth: u32,
+    ) -> Option<usize> {
+        let case = self.registry.get(name).and_then(|s| s.case_list)?;
+        let call_shape = CallShape {
+            subject_args: usize::from(case.subject_args),
+            regex_option: case.regex_option,
+            value_options: case.value_options_require_regex,
+        };
+        let clause_call = clause_list_call(args, &call_shape)?;
+        let fragments = cmd.word_fragments.get(1 + clause_call.index)?;
+        if fragments.len() != 1 || fragments[0].token.kind != tcl_lexer::TokenType::Str {
+            return Some(clause_call.index);
         }
 
-        // Recurse into every `[...]` command substitution in every word,
-        // regardless of whether the command head itself was literal.
+        let inner = &fragments[0].text;
+        let clause_shape = CaseListShape {
+            clause_flags: case.clause_flags,
+            clause_value_flags: case.clause_value_flags,
+        };
+        for clause in split_case_list(inner, &clause_shape) {
+            let Some(body) = clause.body else { continue };
+            // `case_list::Element` includes the opening `{` (for fold-range
+            // purposes) but its `end` already sits before the closing `}`, so a
+            // braced body's clean content is `[start+1, end)`.
+            let text = if body.braced {
+                inner.get(body.start + 1..body.end)
+            } else {
+                inner.get(body.start..body.end)
+            };
+            let Some(text) = text else { continue };
+            // A bare fallthrough marker (switch's `-` body) is not code — it
+            // means "fall through to the next clause's body".
+            if !body.braced && Some(text) == case.fallthrough_body {
+                continue;
+            }
+            self.walk_script(text, false, depth + 1);
+        }
+        Some(clause_call.index)
+    }
+
+    /// Recurse into Body-role arguments (proc/if/while/for/foreach/catch/try/
+    /// namespace eval/… bodies) written as a literal brace-string.
+    fn walk_body_args(
+        &mut self,
+        cmd: &SegmentedCommand,
+        name: &str,
+        args: &[&str],
+        clause_handled_index: Option<usize>,
+        depth: u32,
+    ) {
+        for idx in self
+            .registry
+            .arg_indices_for_role(name, args, ArgRole::Body)
+        {
+            if Some(idx) == clause_handled_index {
+                continue;
+            }
+            let Some(fragments) = cmd.word_fragments.get(1 + idx) else {
+                continue;
+            };
+            if fragments.len() == 1 && fragments[0].token.kind == tcl_lexer::TokenType::Str {
+                let text = fragments[0].text.clone();
+                self.walk_script(&text, false, depth + 1);
+            }
+        }
+    }
+
+    /// Recurse into every `[...]` command substitution in every word, whether
+    /// or not the command head itself was literal.
+    fn walk_substitutions(&mut self, cmd: &SegmentedCommand, depth: u32) {
         for fragments in &cmd.word_fragments {
             for frag in fragments {
                 if frag.token.kind == tcl_lexer::TokenType::Cmd
@@ -290,8 +334,8 @@ fn walk_script(
                     && frag.text.starts_with('[')
                     && frag.text.ends_with(']')
                 {
-                    let inner = &frag.text[1..frag.text.len() - 1];
-                    walk_script(inner, registry, repo, true, depth + 1, forms, dynamic);
+                    let inner = frag.text[1..frag.text.len() - 1].to_string();
+                    self.walk_script(&inner, true, depth + 1);
                 }
             }
         }
@@ -329,8 +373,12 @@ fn main() {
     }
 
     let registry = CommandRegistry::build_default();
-    let mut forms: HashMap<(String, Option<String>), FormStats> = HashMap::new();
-    let mut dynamic = DynamicStats::default();
+    let mut census = Census {
+        registry: &registry,
+        repo: String::new(),
+        forms: HashMap::new(),
+        dynamic: DynamicStats::default(),
+    };
     let mut repo_file_counts: Vec<(String, usize)> = Vec::new();
     let mut total_files = 0usize;
     let mut total_bytes = 0u64;
@@ -358,6 +406,7 @@ fn main() {
             );
             let mut files = Vec::new();
             collect_tcl_files(&repo_dir, &mut files);
+            census.repo = repo_name.clone();
             let mut file_count = 0usize;
             for f in &files {
                 let Ok(meta) = fs::metadata(f) else { continue };
@@ -371,15 +420,7 @@ fn main() {
                 total_bytes += meta.len();
                 file_count += 1;
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    walk_script(
-                        &src,
-                        &registry,
-                        &repo_name,
-                        false,
-                        0,
-                        &mut forms,
-                        &mut dynamic,
-                    );
+                    census.walk_script(&src, false, 0);
                 }));
                 if result.is_err() {
                     eprintln!("panic while segmenting, skipped: {}", f.display());
@@ -401,11 +442,11 @@ fn main() {
     }
     eprintln!(
         "dynamic-head call sites (command word not a literal): total={} value={} stmt={}",
-        dynamic.total, dynamic.value_position, dynamic.statement_position
+        census.dynamic.total, census.dynamic.value_position, census.dynamic.statement_position
     );
 
-    let mut rows: Vec<(&(String, Option<String>), &FormStats)> = forms.iter().collect();
-    rows.sort_by(|a, b| b.1.total.cmp(&a.1.total));
+    let mut rows: Vec<(&(String, Option<String>), &FormStats)> = census.forms.iter().collect();
+    rows.sort_by_key(|(_, stats)| std::cmp::Reverse(stats.total));
 
     if let Some(path) = &csv_path {
         let mut out = String::new();
@@ -413,14 +454,10 @@ fn main() {
             "command,subcommand,total,value_position,statement_position,repo_breadth,dominant_arity,dominant_arity_count,all_args_literal,some_args_substituted,in_registry\n",
         );
         for ((name, sub), stats) in &rows {
-            let (dom_arity, dom_count) = stats
-                .arity_hist
-                .iter()
-                .max_by_key(|(_, c)| **c)
-                .map(|(a, c)| (*a, *c))
-                .unwrap_or((0, 0));
-            out.push_str(&format!(
-                "{},{},{},{},{},{},{},{},{},{},{}\n",
+            let (dom_arity, dom_count) = stats.dominant_arity();
+            let _ = writeln!(
+                out,
+                "{},{},{},{},{},{},{},{},{},{},{}",
                 csv_escape(name),
                 csv_escape(sub.as_deref().unwrap_or("")),
                 stats.total,
@@ -432,7 +469,7 @@ fn main() {
                 stats.all_args_literal,
                 stats.some_args_substituted,
                 stats.in_registry,
-            ));
+            );
         }
         if let Some(parent) = Path::new(path).parent() {
             let _ = fs::create_dir_all(parent);
@@ -446,12 +483,7 @@ fn main() {
         "command", "subcommand", "total", "value", "stmt", "repos", "arity", "reg"
     );
     for ((name, sub), stats) in rows.iter().take(160) {
-        let (dom_arity, _) = stats
-            .arity_hist
-            .iter()
-            .max_by_key(|(_, c)| **c)
-            .map(|(a, c)| (*a, *c))
-            .unwrap_or((0, 0));
+        let (dom_arity, _) = stats.dominant_arity();
         println!(
             "{:<24} {:<16} {:>8} {:>8} {:>8} {:>6} {:>6} {:>4}",
             name,
