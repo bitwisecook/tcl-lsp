@@ -50,13 +50,14 @@ variable name.
 outside its structural role (i.e. not closing a brace-group or command
 substitution) receives `TokenType.ESC`, not a special type. Downstream
 consumers that check for stray punctuation must test
-`tok.type is TokenType.ESC` in addition to `tok.text` to distinguish stray
+`tok.kind == TokenType::ESC` in addition to `tok.text` to distinguish stray
 characters from structural delimiters (which are part of `STR` or `CMD`
 tokens).
 
 **Line-tracking convention** — the lexer resolves line/column two ways that
-must agree: a `\n`-only line-start index (`_line_starts`, consumed by
-`_pos_at` and the red [concrete syntax tree](syntax-tree.md) overlay), and an
+must agree: a `\n`-only line-start index (`LineIndex`'s `line_starts`,
+consumed by `position_at` and the red [concrete syntax tree](syntax-tree.md)
+overlay), and an
 incremental `line`/`col` counter advanced per character. **Only `\n` is a line
 break for positions.** A lone carriage return — including a backslash-CR
 *continuation* (`\<CR>`, the old-Mac line ending) — splits the word like any
@@ -70,7 +71,7 @@ position-tracking path must keep the two mechanisms in lock-step.
 
 `segment_commands()` no longer runs its own hand-rolled token loop: it builds
 the canonical lossless **red-green concrete syntax tree** for the region
-(`compiler/parsing/syntax/`, see
+(`rust/tcl-compiler/src/parsing/syntax/`, see
 [syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
 it.  The derivation matches the token loop field-for-field — `span`, `argv`,
 `texts`, `single_token_word`, `all_tokens`, `preceding_comment`, and
@@ -112,7 +113,7 @@ VAR tokens are wrapped in `${…}` form: `$x` → `texts[i] = "${x}"`.
 
 `{*}` is the Tcl 8.5+ argument-expansion prefix.  When enabled, the
 lexer emits a zero-width `EXPAND` token at word start, and the
-segmenter records `expand_word[i] = True` for the following word so
+segmenter records `expand_word` flag `i` as `true` for the following word so
 that downstream passes can distinguish `{*}$list` (expanded to zero or
 more runtime args) from a literal `*${list}` word.
 
@@ -141,14 +142,14 @@ be **single-token** (so concatenations like `{*}$x$y` or
 - **Analyser layer (user proc calls)** can refine
   - braced literal lists (`{*}{a b c}` → 3, `{*}{}` → 0),
   - pure variable references with a known constant string value
-    (`set rgb {255 255 255}; foo {*}$rgb` → 3) via the
-    `_const_strings` map.
+    (`set rgb {255 255 255}; foo {*}$rgb` → 3) via the analyser's
+    `const_strings` map (`rust/tcl-compiler/src/analyser/state.rs`).
 - **IR layer (built-in commands)** can refine
   - braced literal lists (the segmenter strips the braces, so the
     refinement uses the original `STR` token type to disambiguate
     the resulting text from a variable substitution),
   - literal `[list ...]` command substitutions via
-    `_extract_foreach_elements`.
+    `extract_foreach_elements` (`rust/tcl-compiler/src/sccp.rs`).
   IR-layer refinement does *not* yet resolve `$var` substitutions
   back to their constant values — pure-var expansions in built-in
   calls fall back to the `0..∞` range below.
@@ -163,12 +164,12 @@ arguments alone exceed the signature maximum.
 
 ### How segmented data feeds the compiler
 
-1. **IR lowering** reads `texts[0]` to identify the command, `argv[i].type`
+1. **IR lowering** reads `texts[0]` to identify the command, `argv[i].kind`
    to pattern-match on token types (e.g. `lower_set()` checks if the value
    is `STR`, `ESC`, `CMD`, or `VAR`).
 2. **Error recovery** re-parses with virtual tokens injected, producing
    clean `SegmentedCommand` objects.
-3. **Semantic analysis** uses `range` for diagnostic positions and
+3. **Semantic analysis** uses `span` for diagnostic positions and
    `all_tokens` for syntax highlighting/semantic tokens.
 
 ### Shared tokenisation memo (now the green token tree)
@@ -192,40 +193,40 @@ analysis-scoped intern index, with the same correctness rules:
   build their own derived structures and never mutate it.
 - Regions lexed with error-recovery virtual insertions are never interned
   (the insertions are request-specific).
-- The index lives in a `contextvars.ContextVar` activated by
-  `green_tree_scope()` (reentrant), opened at `Analyser.analyse` and
-  `lower_to_ir`. It is discarded when the scope exits, so memory is bounded
-  by one analysis and lexer-affecting context (dialect, strict-quoting) is
-  stable for its lifetime.
+- The index is scoped to one analysis and discarded when that analysis
+  ends, so memory is bounded and the lexer-affecting context (dialect,
+  strict-quoting) is stable for its lifetime.
 
-`var_refs` lexes at base offset 0 (it extracts position-independent variable
-names) and keeps its own text-keyed result-LRU, which shares across the SSA /
-GVN / interprocedural scanner singletons (and across documents) in a way the
-absolute-offset, per-document tree cannot. It consults `green_tree.tokenise()`
-for the leaf tokenisation but keeps that result cache.
+`var_refs` (`rust/tcl-compiler/src/var_refs.rs`) lexes at base offset 0 (it
+extracts position-independent variable names) and keeps its own bounded LRU
+keyed by the scanned text and scan mode, which shares across the SSA / GVN /
+interprocedural scanners (and across documents) in a way the
+absolute-offset, per-document tree cannot. It consults the tree's leaf
+tokenisation but keeps that result cache.
 
 ### Worked example — `set y $x`
 
-```python
-# Segmented:
-SegmentedCommand(
-    texts=["set", "y", "${x}"],
-    single_token_word=[True, True, True],
-    argv=[Token(ESC,"set"), Token(ESC,"y"), Token(VAR,"x")],
-)
+```rust
+// Segmented:
+SegmentedCommand {
+    texts: vec!["set", "y", "${x}"],
+    single_token_word: vec![true, true, true],
+    argv: vec![Token(ESC, "set"), Token(ESC, "y"), Token(VAR, "x")],
+    ..
+}
 
-# Lowered (Stage 3):
-IRAssignValue(name="y", value="${x}")
-# (not IRAssignConst — the value contains a variable substitution)
+// Lowered (Stage 3):
+Statement::AssignValue { name: "y", value: "${x}", .. }
+// (not Statement::AssignConst — the value contains a variable substitution)
 ```
 
 ## Decision rule
 
 - If a command is not being lowered correctly, check `single_token_word` and
-  `argv[i].type` — these drive pattern matching in lowering hooks.
-- Multi-token words (interpolated strings) have `single_token_word[i]=False`
-  and produce `IRAssignValue` (not `IRAssignConst`).
-- `is_partial=True` on a `SegmentedCommand` means it was recovered from
+  `argv[i].kind` — these drive pattern matching in lowering hooks.
+- Multi-token words (interpolated strings) have `single_token_word[i] == false`
+  and produce `Statement::AssignValue` (not `Statement::AssignConst`).
+- `is_partial == true` on a `SegmentedCommand` means it was recovered from
   malformed input — downstream passes should still work but may have
   degraded precision.
 

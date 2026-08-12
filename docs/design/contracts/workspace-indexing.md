@@ -465,4 +465,3 @@ change another file's answer retains the necessary whole-workspace cost.
 - [KCS index](../../../docs/design/README.md)
 - [LSP feature providers](../../../docs/design/contracts/lsp-feature-providers.md)
 - [package loading](../../../docs/design/contracts/package-loading.md)
-- [stale cache troubleshooting](../../../docs/kcs/kcs-issue-stale-compiler-cache.md)
