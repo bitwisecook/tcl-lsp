@@ -2672,26 +2672,57 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
 /// project-wide fold of per-file analyses is the cycle the input channel
 /// exists to break.)
 ///
-/// Compare-then-set with an `Arc::ptr_eq` fast path, so an index that has
-/// stopped moving writes nothing and invalidates nothing — every file stores
-/// a clone of the *same* `Arc`, and the steady state is one pointer
-/// comparison per file.  An empty view is stored as `None`, so a workspace
-/// with no class hierarchies at all never leaves the input's default.
+/// **Each file stores only its own slice** — the entries for classes *it*
+/// defines (creation site or `oo::define` stub), which are the only
+/// receivers its `my`-dispatch W308 sites can name
+/// (`enclosing_class_at_offset` resolves within the document).  The first
+/// draft stored the whole project map on every file, which turned every
+/// index movement into a whole-project invalidation: during a scan or a
+/// benchmark's document churn the map moves with nearly every publish, so
+/// N documents cost ~N² re-analyses and the Performance suite ran from its
+/// ~5-minute baseline into the 60-minute timeout.  Sliced, an edit
+/// invalidates exactly the files whose own classes gained or lost
+/// subclass-provided methods.
+///
+/// The project fold itself is one bounded pass
+/// ([`core_workspace_index::WorkspaceIndex::subclass_provided_methods`] —
+/// edge maps built once, not per class), so running it per publish costs the
+/// same order as the sibling evidence syncs.  An empty slice is stored as
+/// `None`, so a workspace with no class hierarchies never leaves the
+/// input's default.
 ///
 /// Lock discipline: the index read completes and drops before the `db` lock
 /// is taken (the global order puts `db` before `workspace_index`; holding
 /// neither across the other sidesteps the ordering entirely).
 async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> {
     use salsa::Setter as _;
-    let want: Option<Arc<tcl_compiler::analyser::SubclassProvidedMethods>> = {
+    // The project fold and each document's class list, under one index read.
+    let (full, classes_by_uri) = {
         let index = handles.workspace_index.read().await;
-        let map = workspace_subclass_provided_methods(&index);
-        (!map.is_empty()).then(|| Arc::new(map))
+        let full = index.subclass_provided_methods();
+        let mut classes_by_uri: HashMap<String, Vec<String>> = HashMap::new();
+        for c in index.live_classes() {
+            classes_by_uri
+                .entry(c.uri.clone())
+                .or_default()
+                .push(c.qualified_name.clone());
+        }
+        (full, classes_by_uri)
     };
     let mut db = handles.db.lock().await;
     let db_files = handles.db_files.lock().await;
     let mut changed = Vec::new();
     for (uri, &file) in db_files.iter() {
+        let slice: tcl_compiler::analyser::SubclassProvidedMethods = classes_by_uri
+            .get(uri.as_str())
+            .into_iter()
+            .flatten()
+            .filter_map(|qname| {
+                full.get(qname)
+                    .map(|methods| (qname.clone(), methods.clone()))
+            })
+            .collect();
+        let want = (!slice.is_empty()).then(|| Arc::new(slice));
         let have = file.workspace_subclass_methods(&*db);
         let matches = match (have.as_ref(), want.as_ref()) {
             (Some(have), Some(want)) => Arc::ptr_eq(have, want) || **have == **want,
@@ -2701,72 +2732,10 @@ async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> 
         if matches {
             continue;
         }
-        file.set_workspace_subclass_methods(&mut *db)
-            .to(want.clone());
+        file.set_workspace_subclass_methods(&mut *db).to(want);
         changed.push(uri.clone());
     }
     changed
-}
-
-/// The project-wide subclass-provided-method view, computed from the
-/// workspace index: for every class, the instance-side member names
-/// dispatchable on some **other** class whose linearisation contains it.
-///
-/// Built descendant-first: each class `D` contributes its dispatchable
-/// surface — the union of instance members over its whole linearisation, so
-/// a name `D` inherits from a mixin counts (`my Render` in a base is as
-/// callable when the subclass mixes `Render` in as when it writes it) — to
-/// every *other* class on that linearisation.  `private` members are
-/// excluded: `TclOO` hides them even from an ancestor's own `my` dispatch.
-/// Class-object-side members (`classmethod` / `self method`) are excluded
-/// too — `my` inside an instance method dispatches instance-side.
-///
-/// A class whose linearisation the index cannot compute (cyclic, or over
-/// the shared complexity budget) contributes nothing — the abstention needs
-/// evidence, and none is available for it.
-fn workspace_subclass_provided_methods(
-    index: &core_workspace_index::WorkspaceIndex,
-) -> tcl_compiler::analyser::SubclassProvidedMethods {
-    use std::collections::BTreeSet;
-    let qnames: BTreeSet<&str> = index
-        .live_classes()
-        .map(|c| c.qualified_name.as_str())
-        .collect();
-    // Per-class direct instance-member names, memoised — several
-    // linearisations share ancestors.
-    let mut own: HashMap<String, BTreeSet<String>> = HashMap::new();
-    let mut member_names = |index: &core_workspace_index::WorkspaceIndex, q: &str| {
-        own.entry(q.to_owned())
-            .or_insert_with(|| {
-                index
-                    .effective_members(q)
-                    .into_iter()
-                    .filter(|m| m.method.kind != "classmethod" && !m.method.private)
-                    .map(|m| m.name.to_owned())
-                    .collect()
-            })
-            .clone()
-    };
-    let mut map = tcl_compiler::analyser::SubclassProvidedMethods::new();
-    for d in &qnames {
-        let lin = index.class_linearisation(d);
-        if lin.iter().all(|c| c == d) {
-            continue;
-        }
-        let mut dispatchable: BTreeSet<String> = BTreeSet::new();
-        for x in &lin {
-            dispatchable.extend(member_names(index, x));
-        }
-        if dispatchable.is_empty() {
-            continue;
-        }
-        for ancestor in lin.iter().filter(|c| c.as_str() != *d) {
-            map.entry(ancestor.clone())
-                .or_default()
-                .extend(dispatchable.iter().cloned());
-        }
-    }
-    map
 }
 
 /// The evidence `uri` should be carrying, or `None` when the host cannot claim
