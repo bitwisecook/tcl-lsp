@@ -50,32 +50,47 @@ positive paired delta favours the base.
 
 ## Reading
 
-**The proof is not a net cost.** Total CPU falls 7.7% and resident memory is
-flat to slightly lower. That is a stronger result than "acceptable overhead",
-and it needs explaining rather than celebrating, because a new analysis that
-makes the server faster is prima facie suspicious.
+**The headline deltas above must not be attributed to the dispatch proof,
+because the proof never runs on this corpus.** A census over the same 113
+files, counting every function unit the compilation units expose, measured:
 
-The explanation is that the change removes more work than it adds. Widening
-in the contents lattice is absorbing: no transfer restores a widened ledger or
-a cleared stability flag. A unit whose dispatch entry contract is
-`UnknownWorld` therefore starts at the lattice top and stays there, so every
-site proof it could produce fails closed. Procedure, method, and body units
-all carry that contract.
+| Quantity | Count |
+|---|---:|
+| Function units analysed (`tcl9.0`) | 994 |
+| World-state graphs built by the candidate | **0** |
+| World-state graphs the base policy would build | 10 |
+| O105 findings from the proof path | **0** |
+| O105 findings from the legacy string classifier | 99 |
 
-The base has no entry contract, so `interactive_gvn_needs_world_state` builds
-a world-state SSA graph for *every* unit containing a closed
-referentially-transparent call — `llength`, `format`, `lindex`, `join`,
-`split` and friends, which is most units in real Tcl — and common GVN then
-declines at every site anyway. Those graphs were pure cost. The candidate
-builds them only where a proof can succeed, and pays the lattice only there.
-So the measured delta is one analysis added at top level against many graphs
-removed everywhere else.
+So the candidate performs no dispatch-stability analysis at all here, and
+emits no O105 through the semantic path. The only work the change removes is
+the base's ten world-graph constructions; the only work it adds is the entry
+check that avoids them. A −7.7% CPU delta cannot be produced by that alone
+without those ten units being unusually expensive, and this comparison does
+not establish that they are. The honest conclusion is that the deltas are
+dominated by run-to-run and environmental variation, and that **this corpus
+cannot measure this feature**.
 
-An earlier revision of this branch, before that short-circuit, measured
-**+12.8% wall and +11.5% CPU** against the same corpus, with the cost falling
-entirely on workspace-wide checks. Those figures are the honest cost of the
-analysis as first written; the ones above are the cost after the entry
-contract is used to skip units that cannot benefit.
+An earlier revision of this branch, before the entry-contract short-circuit,
+measured **+12.8% wall and +11.5% CPU** against the *previous* base. That
+figure is subject to the same caveat and was additionally taken on a machine
+with intermittent competing load. Neither number is a trustworthy attribution.
+
+### Why the proof never fires here
+
+Real library Tcl puts almost nothing in a flat top-level statement sequence.
+Top level holds `package require`, `namespace eval`, and `proc` definitions;
+the `llength`/`format`/`lindex` calls that could be commoned live inside
+procedure and method bodies, which carry the `UnknownWorld` entry contract and
+therefore start at the lattice top, or inside `if`/`while`/`foreach`, which the
+linear compatibility IR represents as opaque regions with no exact invocation
+mapping. All ten units with a reusable-call candidate are of the first kind.
+
+That is a statement about the feature's *reach*, not its correctness: every
+abstention above is deliberate and tested. But it means the user-visible
+benefit on library-style code is currently nil, and the work that would change
+that is an entry contract for procedure bodies derived from file or workspace
+facts, not further tuning of the lattice.
 
 Two per-check figures are larger than the mechanism justifies and should be
 read as noise, not as wins: `edit.tokens` (−20.6%) and `nav.hover` (−26.4%)
