@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="470" viewBox="0 0 900 470" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
+<rect width="900" height="470" fill="#ffffff"/>
+<text x="450.0" y="24" text-anchor="middle" font-size="15" font-weight="600" fill="#1f2328">Per-check wall time — PR base vs PR #1366 (log scale)</text>
+<rect x="630" y="34" width="10" height="10" fill="#8a8f98"/><text x="645" y="43" font-size="10" fill="#57606a">base 6aba7b8</text>
+<rect x="740" y="34" width="10" height="10" fill="#2ea043"/><text x="755" y="43" font-size="10" fill="#57606a">PR #1366</text>
+<text x="292" y="69" text-anchor="end" font-size="10.5" fill="#1f2328">Workspace scan (cold index)</text>
+<rect x="300" y="57" width="498.6" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="68" width="499.9" height="9" fill="#2ea043" rx="2"/>
+<text x="805.9216814704398" y="71" font-size="9.5" fill="#57606a">2.572s / 2.614s</text>
+<text x="292" y="95" text-anchor="end" font-size="10.5" fill="#1f2328">Open 4 documents + analyse</text>
+<rect x="300" y="83" width="307.5" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="94" width="303.9" height="9" fill="#2ea043" rx="2"/>
+<text x="613.512835566522" y="97" font-size="9.5" fill="#57606a">0.235s / 0.225s</text>
+<text x="292" y="121" text-anchor="end" font-size="10.5" fill="#1f2328">Typing storm (400 edits, no requests)</text>
+<rect x="300" y="109" width="462.9" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="120" width="453.6" height="9" fill="#2ea043" rx="2"/>
+<text x="768.860597471609" y="123" font-size="9.5" fill="#57606a">1.643s / 1.463s</text>
+<text x="292" y="147" text-anchor="end" font-size="10.5" fill="#1f2328">Typing + semantic tokens (100 edits)</text>
+<rect x="300" y="135" width="543.5" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="146" width="545.4" height="9" fill="#2ea043" rx="2"/>
+<text x="851.4379040196511" y="149" font-size="9.5" fill="#57606a">4.511s / 4.622s</text>
+<text x="292" y="173" text-anchor="end" font-size="10.5" fill="#1f2328">Hover at definition sites</text>
+<rect x="300" y="161" width="13.2" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="172" width="14.6" height="9" fill="#2ea043" rx="2"/>
+<text x="320.5620959803489" y="175" font-size="9.5" fill="#57606a">0.006s / 0.006s</text>
+<text x="292" y="199" text-anchor="end" font-size="10.5" fill="#1f2328">Go to definition</text>
+<rect x="300" y="187" width="9.1" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="198" width="17.2" height="9" fill="#2ea043" rx="2"/>
+<text x="323.18103230100917" y="201" font-size="9.5" fill="#57606a">0.006s / 0.006s</text>
+<text x="292" y="225" text-anchor="end" font-size="10.5" fill="#1f2328">Find references</text>
+<rect x="300" y="213" width="396.8" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="224" width="397.1" height="9" fill="#2ea043" rx="2"/>
+<text x="703.0518387779913" y="227" font-size="9.5" fill="#57606a">0.719s / 0.721s</text>
+<text x="292" y="251" text-anchor="end" font-size="10.5" fill="#1f2328">Completion at definition sites</text>
+<rect x="300" y="239" width="208.2" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="250" width="211.5" height="9" fill="#2ea043" rx="2"/>
+<text x="517.464255122224" y="253" font-size="9.5" fill="#57606a">0.068s / 0.071s</text>
+<text x="292" y="277" text-anchor="end" font-size="10.5" fill="#1f2328">Document symbols + folding</text>
+<rect x="300" y="265" width="292.3" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="276" width="293.3" height="9" fill="#2ea043" rx="2"/>
+<text x="599.3440236220636" y="279" font-size="9.5" fill="#57606a">0.194s / 0.197s</text>
+<text x="292" y="303" text-anchor="end" font-size="10.5" fill="#1f2328">Code lens + resolve</text>
+<rect x="300" y="291" width="339.1" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="302" width="343.6" height="9" fill="#2ea043" rx="2"/>
+<text x="649.5512497644553" y="305" font-size="9.5" fill="#57606a">0.349s / 0.369s</text>
+<text x="292" y="329" text-anchor="end" font-size="10.5" fill="#1f2328">Code actions at definition sites</text>
+<rect x="300" y="317" width="315.8" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="328" width="318.5" height="9" fill="#2ea043" rx="2"/>
+<text x="624.5129639580705" y="331" font-size="9.5" fill="#57606a">0.261s / 0.270s</text>
+<text x="292" y="355" text-anchor="end" font-size="10.5" fill="#1f2328">Rename symbol (one per document)</text>
+<rect x="300" y="343" width="522.9" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="354" width="523.3" height="9" fill="#2ea043" rx="2"/>
+<text x="829.2533904352554" y="357" font-size="9.5" fill="#57606a">3.487s / 3.501s</text>
+<text x="292" y="381" text-anchor="end" font-size="10.5" fill="#1f2328">External file rename (one per document)</text>
+<rect x="300" y="369" width="335.1" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="380" width="333.0" height="9" fill="#2ea043" rx="2"/>
+<text x="641.1360630551721" y="383" font-size="9.5" fill="#57606a">0.332s / 0.323s</text>
+<text x="292" y="407" text-anchor="end" font-size="10.5" fill="#1f2328">Find references after rename</text>
+<rect x="300" y="395" width="317.4" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="406" width="316.4" height="9" fill="#2ea043" rx="2"/>
+<text x="623.4096405096278" y="409" font-size="9.5" fill="#57606a">0.266s / 0.263s</text>
+<text x="292" y="433" text-anchor="end" font-size="10.5" fill="#1f2328">Close all documents</text>
+<rect x="300" y="421" width="327.2" height="9" fill="#8a8f98" rx="2"/>
+<rect x="300" y="432" width="327.2" height="9" fill="#2ea043" rx="2"/>
+<text x="633.2030920806885" y="435" font-size="9.5" fill="#57606a">0.301s / 0.301s</text>
+</svg>
