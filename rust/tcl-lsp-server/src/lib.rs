@@ -29137,6 +29137,58 @@ mod tests {
         );
     }
 
+    /// Opening a `.tclspec` activates the `SpecTcl` pack.
+    ///
+    /// Every editor integration registers `.tclspec` under the plain `tcl`
+    /// language id (the extension is the registration `spec-packs.md` asks
+    /// for), so the routing that has to work is the bare-`tcl` path: the
+    /// shared detector reads the extension — and, for a pack saved under
+    /// another name, the `speclib` content signature — and answers `spectcl`.
+    /// The canonical name and the editor spellings are accepted directly too,
+    /// for MCP / direct callers and any integration that contributes its own
+    /// language id.
+    #[tokio::test]
+    async fn dialect_for_open_routes_tclspec_to_the_spectcl_dialect() {
+        let backend = test_backend();
+        // A folder override is in place precisely to prove the file's own
+        // identity beats it: a `.tclspec` under an iRules folder is still a
+        // spec pack.
+        *backend.folder_dialects.lock().await = vec![(
+            Uri::from_str("file:///workspace/").unwrap(),
+            "f5-irules".to_owned(),
+        )];
+        let pack = Uri::from_str("file:///workspace/mylib.tclspec").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&pack, "tcl", "command foo { arity 1 }\n")
+                .await,
+            "spectcl".to_owned(),
+            "the `.tclspec` extension selects the SpecTcl dialect",
+        );
+        // The `speclib` directive is a content signature, so a pack saved
+        // under a `.tcl` name routes too.
+        let misnamed = Uri::from_str("file:///workspace/mylib.tcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&misnamed, "tcl", "speclib mylib 1.0 {\n}\n")
+                .await,
+            "spectcl".to_owned(),
+        );
+        // An explicit language id — canonical or editor spelling — routes
+        // directly, without consulting the document at all.
+        for id in ["spectcl", "tclspec", "tcl-spec"] {
+            assert_eq!(
+                backend.dialect_for_open(&pack, id, "").await,
+                "spectcl".to_owned(),
+                "language id {id:?} names the SpecTcl dialect",
+            );
+        }
+        // …and the registry that dialect resolves to really carries the pack.
+        let reg = tcl_registry::registry_for_dialect("spectcl");
+        assert!(reg.get("speclib").is_some(), "the SpecTcl pack is loaded");
+        assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
+    }
+
     /// A `dialect =` key in `config.ini` / `.tcl-lsp.ini` sets the session
     /// `default_dialect`; a normally-opened `.tcl` buffer (language id `"tcl"`,
     /// which every editor sends) must resolve to it rather than pinning

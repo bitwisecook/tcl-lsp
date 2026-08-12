@@ -1924,7 +1924,9 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     //     grammar, so recursing into one switches vocabulary) --------------
     MemberSpec::flat("subcommand", SPECTCL_NAMED_BLOCK_ROLES),
     MemberSpec::flat("hover", BODY0_ROLES),
-    MemberSpec::flat("values", SPECTCL_NAMED_BLOCK_ROLES),
+    // `values NAME { … }` is deliberately absent: the memo makes the shared
+    // value table a *pack-level* declaration, referenced from here by
+    // `arg -values-from NAME` / `option -values-from NAME`.
     MemberSpec::flat("case_list", BODY0_ROLES),
     MemberSpec::flat("clause_grammar", BODY0_ROLES),
     MemberSpec::flat("event_requires", BODY0_ROLES),
@@ -1932,7 +1934,16 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("state_transitions", BODY0_ROLES),
     MemberSpec::flat("definition_body", BODY0_ROLES),
     MemberSpec::flat("body_scope", BODY0_ROLES),
-    MemberSpec::flat("object_class", SPECTCL_NAMED_BLOCK_ROLES),
+    // `object_class NAME ?-superclass {…}? ?-allow-unknown? { … }` is
+    // deliberately NOT a member row. Its block's index is a function of two
+    // optional flags of *different widths*, which `OptionalMemberArgument`
+    // (one optional word, one position) cannot express — and a member layout
+    // that guessed index 1 would paint `-superclass`'s braced class list as a
+    // definition block. It is instead a plain registered statement carrying
+    // an `arg_role_resolver`, which reads the whole call; the word still
+    // paints as a keyword (`Traits::LANGUAGE_KEYWORD`) and its block still
+    // switches grammars (`CommandSpec::definition_body`), so nothing is lost
+    // but the wrong answer.
     // --- hook bodies: a proc-shaped `{words ctx} { … }` pair -------------
     MemberSpec::flat("arg_role_resolver", SPECTCL_HOOK_ROLES),
     MemberSpec::flat("command_prefix_resolver", SPECTCL_HOOK_ROLES),

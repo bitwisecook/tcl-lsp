@@ -246,6 +246,18 @@ fn object_class_finds_its_block_past_any_flags() {
         reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
             .is_empty()
     );
+    // …and it is deliberately not a *member row* of the command grammar: a
+    // member layout cannot express two optional flags of different widths, so
+    // it would have painted `-superclass`'s braced class list as a block. The
+    // word still reads as a keyword (`LANGUAGE_KEYWORD`) and still switches
+    // grammars (`definition_body`), which is everything member-hood bought it.
+    assert!(
+        !tcl_registry::definer::SPECTCL_COMMAND_GRAMMAR.is_member("object_class"),
+        "the resolver, not a member layout, owns `object_class`'s block index"
+    );
+    let spec = reg.get("object_class").expect("registered statement");
+    assert!(spec.traits.contains(tcl_registry::Traits::LANGUAGE_KEYWORD));
+    assert!(spec.definition_body.is_some());
 }
 
 /// `SpecTcl` is a *declaration* family, not a class system: it manufactures
