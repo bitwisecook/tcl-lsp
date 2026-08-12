@@ -1,8 +1,9 @@
-# Spec packs — a Tcl DSL for private command databases
+# Spec packs — a Tcl DSL for command databases
 
-> **Status:** proposal, for discussion on
+> **Status:** proposal under active design, for
 > [issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363).
-> Nothing here is implemented.
+> Nothing here is implemented. Design-by-porting sketches live in
+> [`spec-dsl-examples/`](spec-dsl-examples/) as they land.
 
 ## The problem
 
@@ -11,6 +12,29 @@ the shipped registry, and stubs deliberately carry only a fraction of what
 a `CommandSpec` can say. They need a way to author a full command database
 for their own code and load it into the server — without a Rust toolchain,
 and without rebuilding it for every tcl-lsp release.
+
+## The ambition: one authoring format, two backends
+
+The DSL is not a side door for private specs — it is the **primary
+authoring format**, with two outputs:
+
+- **Ahead-of-time**: `tcl spec build --emit rust` renders DSL sources to
+  the registry `.rs` modules (the studio's `render_rs` already does
+  draft → `.rs`; the DSL maps to the same draft model). The most common
+  libraries — tcllib, Tk, the core packs — stay **compiled in** exactly
+  as today, for zero-cost loading in the general case. Over time their
+  *sources* can migrate to DSL files that generate the Rust.
+- **Runtime**: private packs load the same DSL directly, paying only a
+  one-time parse.
+
+The equivalence gate falls out of that architecture: re-express a shipped
+pack in the DSL, load it, and assert field-for-field equality with the
+compiled spec. That round-trip is both the migration test and the proof
+the DSL "entirely covers" the spec surface. The design itself is being
+driven the same way — by porting hard shipped specs (`lsort`, `switch`,
+TclOO definers, `upvar`) and by drafting specs for external libraries
+(ticklecharts, apave, SpiceGenTcl, uncovered tcllib modules) rather than
+by inventing syntax in the abstract.
 
 ## Performance: the format does not decide it
 
@@ -72,14 +96,54 @@ Why this beats JSON for the author:
   path from existing sidecars.
 - Tcl quoting and line-continuation are what our users already know.
 
-**Evaluation is static, never a live interp.** The pack is parsed with
-the same analyser that parses stubs — declarations are read from the
-CST, not executed, so a pack cannot run anything. If loops/templating
-prove necessary ("declare these 40 subcommands"), the escape hatch is
-evaluation inside `tcl-vm` with only the spec-building commands exposed
-(the sandbox posture `tcl pkg` already takes for untrusted build
-scripts), still producing pure data. Start static; add the VM path only
-on demand.
+**The declaration layer is static, never a live interp.** Declarations
+are read from the CST the way stubs are — loading a pack executes
+nothing. If loops/templating prove necessary ("declare these 40
+subcommands"), the escape hatch is evaluation inside `tcl-vm` with only
+the spec-building commands exposed (the sandbox posture `tcl pkg`
+already takes for untrusted build scripts), still producing pure data.
+
+## Covering the hooks
+
+"Entirely cover hooks" is the hard requirement, and the shipped registry
+says how big it really is: of ~2,210 command modules, 44 set an
+argument-role resolver, 45 a const-folder, 11 a command-prefix resolver,
+and the remaining hook kinds are single digits (one `taint_sink_gate`,
+one `context_gate`, one `clause_shape_check`, four literal-argument
+validators, five frame effects). Hooks are the 5% tail — but they gate
+the hardest commands, so the DSL takes them in four buckets:
+
+1. **Declarative data, first.** The named-descriptor fields
+   (`definition_body` grammars, `object_class`, `case_list`,
+   `body_scope`, handle bindings, repeated-arg layouts, deprecation
+   fixes) are plain structs — `coverage.rs` already enumerates every
+   field — so they get first-class DSL forms, not code. A declarative
+   clause-grammar form should also absorb most would-be
+   `clause_shape_check` uses (`if`'s chain is a grammar, not an
+   algorithm).
+2. **Named native hooks.** Lowering / codegen / analyser hook IDs,
+   shared definer grammars, and `frame_effect` descriptors are closed
+   sets referenced by name. A pack reuses them; it cannot add to them.
+3. **Tcl hook bodies on the VM.** Resolvers, folders, and the predicate
+   gates are small **pure functions from words to data** — ideal
+   sandboxed-VM material. Each hook kind gets a fixed calling
+   convention (inputs: the call's words plus a context dict; output: a
+   declared result protocol; error or no result = abstain), compiled to
+   bytecode once at pack load, fuel-limited, no ambient authority. This
+   is the one executable surface a pack has, and it is deprivileged,
+   deterministic, and bounded. A const-folder even has a degenerate
+   sweet case: for a command implemented in pure Tcl, "fold" can mean
+   running the implementation itself on the literal arguments.
+4. **Stays native.** Anything that cannot be a pure words→data function
+   is a contribution, as today.
+
+Hot-path budget: role resolvers run per call site during semantic
+tokens. Built-in packs keep native pointers (bucket 2 of the
+architecture above), so only pack-declared commands pay the VM cost —
+and those calls are memoisable by (command, word-shape). Whether that is
+enough is a measurement question, currently being benchmarked (bytecode
+compile cost per hook, ns/invocation VM vs native, memo hit-rate
+sensitivity); the numbers land here when they exist.
 
 ## Compatibility policy
 
@@ -110,10 +174,27 @@ let packs survive releases without rebuilds:
   optimisation only — never required, never version-locked beyond the
   DSL itself.
 
-## What a pack cannot say
+## Phasing
 
-Function-pointer behaviour (bespoke resolvers, folders, gates) stays
-out: hooks are referenced by name from the closed tables, and commands
-that need new code are contribution candidates. That is the boundary we
-want — private data stays private, behaviour that needs code goes
-through review.
+1. **Freeze the surface**: one DSL word per schema key, enumerated from
+   the studio's coverage gates; the syntax memo and ported examples in
+   `spec-dsl-examples/`.
+2. **Port the hard shipped specs** by hand (`lsort`, `switch`, `string`,
+   the TclOO/snit definers, `upvar`, an iRules taint command) and let
+   the syntax fight back before any loader exists.
+3. **External corpus**: draft specs for ticklecharts, apave,
+   SpiceGenTcl, and uncovered tcllib modules; every construct the DSL
+   cannot express is a design bug filed against phase 1.
+4. **Loader + equivalence gate**: static parse → draft → registry
+   insert; round-trip a shipped pack and assert equality with the
+   compiled specs.
+5. **Hook bodies on the VM**, resolver and folder first, behind the
+   measured budget; then the `--emit rust` backend, at which point
+   shipped packs can migrate to DSL sources with no runtime change.
+
+## What a pack still cannot say
+
+Behaviour that is not a pure words→data function stays native:
+commands needing new lowering/codegen/analyser specialisations are
+contribution candidates, as today. Private data stays private; new
+*code* in the engine goes through review.
