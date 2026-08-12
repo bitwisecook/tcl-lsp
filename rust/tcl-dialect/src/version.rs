@@ -61,6 +61,22 @@ impl StringCharacterModel {
             Self::UnicodeScalars => value.chars().count(),
         }
     }
+
+    /// The character count `model` defines, or — when no release is selected —
+    /// the count both models agree on, if they agree.
+    ///
+    /// A dialect that names no runtime release still counts every string
+    /// outside the supplementary planes identically under both models, so a
+    /// consumer keeps those answers and gives up only the genuinely ambiguous
+    /// ones rather than declining wholesale.
+    #[must_use]
+    pub fn count_for(model: Option<Self>, value: &str) -> Option<usize> {
+        if let Some(model) = model {
+            return Some(model.count(value));
+        }
+        let scalars = Self::UnicodeScalars.count(value);
+        (scalars == Self::Utf16CodeUnits.count(value)).then_some(scalars)
+    }
 }
 
 /// A specific Tcl release whose **compile-time** semantics a constant fold may

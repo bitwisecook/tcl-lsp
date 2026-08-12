@@ -287,9 +287,9 @@ fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
 /// Character length of string-valued SSA versions from literal assignments,
 /// counted under the selected dialect's character model.
 ///
-/// `None` means no runtime release was selected, leaving a supplementary
-/// character's width ambiguous; such a string contributes no length fact
-/// rather than one release's answer.
+/// `None` means no runtime release was selected: a string the two models count
+/// identically still contributes its length, while a supplementary character
+/// leaves the width ambiguous and contributes no fact at all.
 fn string_length_map(
     ssa: &SsaFunction,
     characters: Option<StringCharacterModel>,
@@ -314,8 +314,8 @@ fn string_length_map(
             } else {
                 value.clone()
             };
-            if let Some(characters) = characters
-                && let Ok(len) = i64::try_from(characters.count(&resolved))
+            if let Some(count) = StringCharacterModel::count_for(characters, &resolved)
+                && let Ok(len) = i64::try_from(count)
             {
                 for (&sym, &ver) in &s.defs {
                     lengths.insert((sym, ver), len);
