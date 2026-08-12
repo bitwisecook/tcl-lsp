@@ -137,23 +137,38 @@ parse couldn't read back in.
 Hand-rolled scanner.  Single pass, one-character lookahead.  Key
 symbols:
 
-- `TokenKind` (enum) — ~60 token classes.  Operators (`PIPE`,
-  `PIPE_EQ`, `PLUS_EQ`, `EQ`, `EQ_EQ`, `BANG_EQ`, `LT`, `GT`,
-  `LT_EQ`, `GT_EQ`), path syntax (`DOT`, `LBRACKET`, `RBRACKET`,
-  `QUESTION`), keywords (`AND`, `OR`, `NOT`, `IF`, `THEN`,
-  `ELIF`, `ELSE`, `END`, `AS`, `TRUE`, `FALSE`, `NULL`),
-  literals (`NUMBER`, `STRING`, `REGEX`, `IDENT`, `VAR`).
-- `Token` (struct) — carries `kind`, `text`, byte
-  `offset`, optional `value` for already-parsed literals.
+- `TokenKind` (enum) — 43 token classes.  Operators (`Pipe`,
+  `PipeEq`, `Plus`, `PlusEq`, `Minus`, `MinusEq`, `Star`, `Slash`,
+  `Eq`, `EqEq`, `Neq`, `Lt`, `Le`, `Gt`, `Ge`), path and grouping
+  syntax (`Dot`, `LBracket`, `RBracket`, `LParen`, `RParen`,
+  `LBrace`, `RBrace`, `Comma`, `Colon`, `Semicolon`, `Question`),
+  keywords (`And`, `Or`, `Not`, `If`, `Then`, `Elif`, `Else`,
+  `End`, `As`, `True`, `False`, `Null`), literals and names
+  (`Number`, `String`, `Ident`, `DollarIdent`), and `Eof`.
+  `TokenKind::as_str` gives each an upper-case display spelling for
+  error messages and the differential fixtures — note that a few
+  are not a mechanical shout-case of the variant (`EqEq` renders
+  `EQEQ`, `Neq` renders `NEQ`, `Le` / `Ge` render `LE` / `GE`).
+  There is no dedicated regex token: a regex literal is a `String`
+  the builtins compile.
+- `Token` (struct) — carries `kind`, `text`, `offset`, and a
+  `value: LitValue` for already-parsed literals (`LitValue::Null`
+  when the token carries none).
 - `tokenise(source: &str) -> Result<Vec<Token>, QueryError>` — entry point.  Comment
   syntax is `#` to end-of-line.  Barewords (identifiers) may
   contain `-` so TMSH names like `source-address-translation`
   lex as one ident.
-- `keyword(text) -> Option<TokenKind>` — the keyword table.
+- `keyword(text) -> Option<TokenKind>` — the keyword table
+  (module-private).
+
+**Offsets are code-point indices, not byte offsets.** The source is
+scanned as a `Vec<char>` and `Token::offset` matches `source[i]`
+indexing exactly, so a non-ASCII string literal earlier in the query
+does not skew a later reported position.
 
 If you need to add a new operator, this is the first edit — add
-the `TokenKind`, add the two-char lookahead in `tokenise`, then
-wire it into the parser's precedence cascade.
+the `TokenKind`, its `as_str` spelling, the two-char lookahead in
+`tokenise`, then wire it into the parser's precedence cascade.
 
 ### `parser.rs` — Recursive-descent parser
 
