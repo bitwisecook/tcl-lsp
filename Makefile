@@ -204,7 +204,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
 .PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets
-.PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
+.PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 # Rust runtime port
 .PHONY: runtime-rust-test runtime-rust-lint zed-query-check vm-test vm-lint
@@ -660,7 +660,7 @@ tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in syn
 # Phase targets for parallel prep-pr execution
 _prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets typecheck-spec-studio-ts lint-spec-studio-ts
 _prep-pr-tests: test-rust
-_prep-pr-smoke: smoke-vsix
+_prep-pr-smoke: smoke-vsix verify-standalone-eda
 
 # Rust-side check gate (fmt + clippy + generated-file drift).  Mirrors the
 # pr-gate job in GitHub Actions (ci.yml).
@@ -1478,6 +1478,49 @@ $(ST_PACKAGE): rust-server
 publish-sublime: build-editor-sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
 	@bash $(ROOT)scripts/release/publish_sublime.sh
 
+# The standalone-binary packaging gate. The VSIX / JetBrains / Sublime
+# bundles all stage `specs/` beside the server binary (SPEC_PACK_SRC above)
+# and the three gates above this one prove that staging happened. The
+# `tcl-lsp-server-<triple>` / `tcl-mcp-<triple>` / `tcl-<triple>` /
+# `f5-query-<triple>` release assets (publish-native-binaries in ci.yml)
+# ship as *bare* binaries with nothing staged beside them at all — what the
+# Zed extension downloads at runtime, and what every "point an LSP client at
+# a binary" editor in INSTALL-editors.md (Neovim, Emacs, Helix, Vim, Kate,
+# Kakoune, Notepad++, Geany, Lite XL, micro, CudaText, JupyterLab) is told to
+# fetch. There is nothing to stage for those, so there is nothing a content
+# listing can check; `rust/tcl-spectcl/src/bundled.rs` instead compiles the
+# six EDA `.tclspec` sources into the binary as a fallback the loader falls
+# back to only when no `specs/` directory exists anywhere `bundled_dir`
+# looks — see that module's "The embedded fallback" doc section. This gate
+# proves the fallback behaviourally: build the `tcl` CLI in release (so the
+# `#[cfg(debug_assertions)]` dev-checkout fallback in `bundled_dir` is
+# compiled out, not just absent at runtime), copy *only* the binary into an
+# empty directory, and ask it to resolve a shipped Xilinx EDA command with
+# `TCL_LSP_SPEC_PACK_DIR` unset. `rust/tcl-spectcl/src/bundled.rs`'s own test
+# suite (`cargo test -p tcl-spectcl bundled::`, part of every `make test-rust`
+# run) proves the same fallback at the registry level on every PR; this is
+# the once-per-release confirmation that an actual compiled, isolated binary
+# does too.
+verify-standalone-eda: ## Prove a bare release binary with no specs/ beside it still resolves an EDA command (the embedded-pack fallback)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: cargo is required."; exit 1; \
+	fi; \
+	echo "==> Building native tcl CLI (release) for the standalone-EDA check"; \
+	cd $(ROOT) && cargo build -p tcl-cli --release --quiet; \
+	iso="$$(mktemp -d)"; \
+	trap 'rm -rf "$$iso"' EXIT; \
+	cp "$(ROOT)target/release/tcl" "$$iso/tcl"; \
+	chmod +x "$$iso/tcl"; \
+	echo "==> Running $$iso/tcl (alone, no specs/, TCL_LSP_SPEC_PACK_DIR unset) against synth_design"; \
+	if ! (cd "$$iso" && env -u TCL_LSP_SPEC_PACK_DIR ./tcl command-info synth_design --dialect xilinx-eda-tcl); then \
+		echo "FAILED: a standalone tcl binary with no specs/ beside it could not resolve"; \
+		echo "        the Xilinx EDA command 'synth_design' — the embedded-pack fallback"; \
+		echo "        in rust/tcl-spectcl/src/bundled.rs is broken or was bypassed."; \
+		exit 1; \
+	fi; \
+	echo "==> OK: standalone tcl CLI resolved synth_design with no specs/ present"
+
 # Zed extension
 
 ZED_DIR     := $(ROOT)editors/zed
@@ -1520,7 +1563,7 @@ publish-zed: build-editor-zed ## Publish Zed extension (prep local PR branch for
 
 # Release
 
-release: package-vsix package-vsix-targets claude-skills build-editor-jetbrains build-editor-sublime build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
+release: package-vsix package-vsix-targets claude-skills build-editor-jetbrains build-editor-sublime verify-standalone-eda build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 
