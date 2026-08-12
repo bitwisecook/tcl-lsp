@@ -1515,7 +1515,7 @@ SegmentedCommand(
     range=Range(Pos(0,0,0), Pos(0,8,8)),
     argv=[Token(ESC,"set",...), Token(ESC,"x",...), Token(ESC,"42",...)],
     texts=["set", "x", "42"],
-    single_token_word=[True, True, True],
+    single_token_word=[true, true, true],
     all_tokens=[...all 6 tokens...],
 )
 ```
@@ -1524,86 +1524,92 @@ SegmentedCommand(
 - `texts[1] == "x"` → variable name argument
 - `texts[2] == "42"` → value argument
 - All words are single-token (no interpolation), so `single_token_word` is
-  all `True` — this tells the lowerer the value is a compile-time constant.
+  all `true` — this tells the lowerer the value is a compile-time constant.
 
-### Stage 3 — IR Lowering → IRAssignConst
+### Stage 3 — IR Lowering → Statement::AssignConst
 
 The lowerer pattern-matches `set` with two arguments where the second argument
 is a single-token constant:
 
 ```
-IRModule(
-    top_level=IRScript(statements=(
-        IRAssignConst(
-            range=Range(Pos(0,0,0), Pos(0,8,8)),
-            name="x",
-            value="42",
-        ),
-    )),
-    procedures={},
-)
+Module {
+    top_level: Script { statements: [
+        Statement::AssignConst {
+            span: Span { start: 0, end: 8 },
+            name: "x",
+            value: "42",
+        },
+    ] },
+    procedures: {},
+}
 ```
 
-Why `IRAssignConst` and not `IRAssignValue`?  Because `"42"` is a single
-atomic token with no variable substitution — it's known at compile time.
+Why `Statement::AssignConst` and not `Statement::AssignValue`?  Because
+`"42"` is a single atomic token with no variable substitution — it's known
+at compile time.
 
 ### Stage 4 — CFG → single basic block
 
 With no control flow, the CFG is trivial:
 
 ```
-CFGFunction(
-    name="::top",
-    entry="entry_1",
-    blocks={
-        "entry_1": CFGBlock(
-            name="entry_1",
-            statements=(IRAssignConst(name="x", value="42"),),
-            terminator=None,
-        ),
-        "exit_2": CFGBlock(
-            name="exit_2",
-            statements=(),
-            terminator=None,
-        ),
+Function {
+    name: "::top",
+    entry: entry_1,
+    blocks: {
+        entry_1: Block {
+            name: "entry_1",
+            statements: [Statement::AssignConst { name: "x", value: "42" }],
+            terminator: None,
+        },
+        exit_2: Block {
+            name: "exit_2",
+            statements: [],
+            terminator: None,
+        },
     },
-)
+}
 ```
 
-The builder creates an entry block containing the statement, linked to an
-exit block via `CFGGoto`.
+Blocks are keyed by `BlockId`, shown here by the display name
+`Function::block_name` resolves each id to.  The builder creates an entry
+block containing the statement, linked to an exit block via
+`Terminator::Goto`.
 
 ### Stage 5 — SSA → x₀
 
 With a single block and a single definition, SSA is trivial:
 
 ```
-SSAFunction blocks:
+SsaFunction blocks:
   entry_1:
-    phis: ()
-    statements: (
-        SSAStatement(
-            statement=IRAssignConst(name="x", value="42"),
-            uses={},
-            defs={"x": 1},
-        ),
-    )
+    phis: []
+    statements: [
+        SsaStatement {
+            statement: Statement::AssignConst { name: "x", value: "42" },
+            uses: {},
+            defs: {x: 1},
+        },
+    ]
     entry_versions: {}
-    exit_versions: {"x": 1}
+    exit_versions: {x: 1}
 ```
 
-- `x` gets version 1 (its first definition): SSA value key `("x", 1)` (see [Glossary → SSA](#glossary)).
+`uses`, `defs`, and the version maps key on the interned `Symbol`, shown here
+by the display name `SsaFunction::var_name` resolves it to.
+
+- `x` gets version 1 (its first definition): SSA value key `(x, 1)` (see [Glossary → SSA](#glossary)).
 - No phi nodes — there is only one path through the program (see [Glossary → Phi node](#glossary)).
 - `uses` is empty — `set x 42` doesn't read any variables.
 
 ### Stage 6 — Core analyses
 
-**SCCP** (see [Glossary](#glossary))**:** `("x", 1)` → `LatticeValue(CONST, "42")` — provably constant.
+**SCCP** (see [Glossary](#glossary))**:** `(x, 1)` → `LatticeValue(CONST, "42")` — provably constant.
 
-**Type inference:** `("x", 1)` → `TypeLattice.of(TclType.INT)` — `"42"` is
+**Type inference:** `(x, 1)` → `TypeLattice.of(TclType.INT)` — `"42"` is
 a valid integer literal, so the intrep is INT.
 
-**Liveness:** `("x", 1)` is dead if nothing reads it.
+**Liveness:** `(x, 1)` is dead if nothing reads it.
 
 **Dead stores:** If `x` is never read, SCCP marks it as a dead store →
 diagnostic `O109` (dead store elimination).
@@ -1655,13 +1661,13 @@ Two `SegmentedCommand` objects:
 # Command 1: set x 42
 SegmentedCommand(
     texts=["set", "x", "42"],
-    single_token_word=[True, True, True],   # all constant
+    single_token_word=[true, true, true],   # all constant
 )
 
 # Command 2: set y $x
 SegmentedCommand(
     texts=["set", "y", "${x}"],             # VAR token → "${x}" text
-    single_token_word=[True, True, True],   # single token, but it's a VAR
+    single_token_word=[true, true, true],   # single token, but it's a VAR
 )
 ```
 
@@ -1671,22 +1677,24 @@ In command 2, `texts[2]` is `"${x}"` — the segmenter wraps `VAR` tokens in
 ### Stage 3 — IR Lowering
 
 ```
-IRScript(statements=(
-    IRAssignConst(name="x", value="42"),
-    IRAssignValue(name="y", value="${x}"),     # has variable reference
-))
+Script { statements: [
+    Statement::AssignConst { name: "x", value: "42" },
+    Statement::AssignValue { name: "y", value: "${x}" },   # has variable reference
+] }
 ```
 
-The second `set` produces `IRAssignValue` (not `IRAssignConst`) because the
-value `${x}` contains a variable substitution that must be resolved at
-runtime.
+The second `set` produces `Statement::AssignValue` (not
+`Statement::AssignConst`) because the value `${x}` contains a variable
+substitution that must be resolved at runtime.
 
 ### Stage 5 — SSA
 
 ```
   entry_1:
-    SSAStatement(IRAssignConst(name="x", value="42"), uses={}, defs={"x": 1})
-    SSAStatement(IRAssignValue(name="y", value="${x}"), uses={"x": 1}, defs={"y": 1})
+    SsaStatement { statement: Statement::AssignConst { name: "x", value: "42" },
+                   uses: {}, defs: {x: 1} }
+    SsaStatement { statement: Statement::AssignValue { name: "y", value: "${x}" },
+                   uses: {x: 1}, defs: {y: 1} }
 ```
 
 - `x₁ = "42"` — defined by the first `set`.
@@ -1730,25 +1738,25 @@ expr {2 + 3}
 The `expr` command with a braced body triggers expression parsing:
 
 ```
-IRScript(statements=(
-    IRExprEval(
-        range=Range(...),
-        expr=ExprBinary(
-            op=BinOp.ADD,
-            left=ExprLiteral(text="2", start=0, end=1),
-            right=ExprLiteral(text="3", start=4, end=5),
-        ),
-    ),
-))
+Script { statements: [
+    Statement::ExprEval {
+        span: Span { .. },
+        expr: ExprNode::Binary {
+            op: BinOp::Add,
+            left: ExprNode::Literal { text: "2", start: 0, end: 1 },
+            right: ExprNode::Literal { text: "3", start: 4, end: 5 },
+        },
+    },
+] }
 ```
 
-The expression parser produces a structured `ExprBinary` node, not a raw
+The expression parser produces a structured `ExprNode::Binary` node, not a raw
 string.
 
 ### Stage 6 — SCCP
 
-SCCP evaluates the expression: `ExprLiteral("2") + ExprLiteral("3")` →
-`CONST(5)`.  The compiler knows the result at compile time.
+SCCP evaluates the expression: the two `ExprNode::Literal` operands `"2"` and
+`"3"` fold to `CONST(5)`.  The compiler knows the result at compile time.
 
 ### Stage 7 — Bytecode (matches tclsh 9.0)
 
@@ -1780,17 +1788,17 @@ expr {$a + $b}
 ### Stage 3 — IR Lowering
 
 ```
-IRScript(statements=(
-    IRAssignConst(name="a", value="10"),
-    IRAssignConst(name="b", value="20"),
-    IRExprEval(
-        expr=ExprBinary(
-            op=BinOp.ADD,
-            left=ExprVar(text="$a", name="a", start=0, end=2),
-            right=ExprVar(text="$b", name="b", start=5, end=7),
-        ),
-    ),
-))
+Script { statements: [
+    Statement::AssignConst { name: "a", value: "10" },
+    Statement::AssignConst { name: "b", value: "20" },
+    Statement::ExprEval {
+        expr: ExprNode::Binary {
+            op: BinOp::Add,
+            left: ExprNode::Var { text: "$a", name: "a", start: 0, end: 2 },
+            right: ExprNode::Var { text: "$b", name: "b", start: 5, end: 7 },
+        },
+    },
+] }
 ```
 
 ### Stage 5 — SSA
@@ -1798,7 +1806,7 @@ IRScript(statements=(
 ```
   a₁ = "10"   (CONST)
   b₁ = "20"   (CONST)
-  ExprEval uses: {a: 1, b: 1}
+  Statement::ExprEval uses: {a: 1, b: 1}
 ```
 
 SCCP propagates: `a₁ = 10`, `b₁ = 20`, so the expression result is
@@ -1838,7 +1846,8 @@ transformation.
 
 ## Example 5: `if {$x} { set y 10 }`
 
-The simplest conditional — introduces `CFGBranch` and forked control flow.
+The simplest conditional — introduces `Terminator::Branch` and forked
+control flow.
 
 ### Source
 
@@ -1852,53 +1861,53 @@ if {$x} {
 ### Stage 3 — IR Lowering
 
 ```
-IRScript(statements=(
-    IRAssignConst(name="x", value="1"),
-    IRIf(
-        range=Range(...),
-        clauses=(
-            IRIfClause(
-                condition=ExprVar(text="$x", name="x", start=0, end=2),
-                condition_range=Range(...),
-                body=IRScript(statements=(
-                    IRAssignConst(name="y", value="10"),
-                )),
-                body_range=Range(...),
-            ),
-        ),
-        else_body=None,
-    ),
-))
+Script { statements: [
+    Statement::AssignConst { name: "x", value: "1" },
+    Statement::If {
+        span: Span { .. },
+        clauses: [
+            IfClause {
+                condition: ExprNode::Var { text: "$x", name: "x", start: 0, end: 2 },
+                condition_span: Span { .. },
+                body: Script { statements: [
+                    Statement::AssignConst { name: "y", value: "10" },
+                ] },
+                body_span: Span { .. },
+            },
+        ],
+        else_body: None,
+    },
+] }
 ```
 
-- `IRIf` holds a tuple of `IRIfClause` objects (one per `if`/`elseif`).
-- The condition `{$x}` is parsed as `ExprVar(name="x")`.
+- `Statement::If` holds a `Vec` of `IfClause` values (one per `if`/`elseif`).
+- The condition `{$x}` is parsed as `ExprNode::Var { name: "x", .. }`.
 - No `else_body` for this example.
 
 ### Stage 4 — CFG decomposition
 
-The `IRIf` is decomposed into basic blocks:
+The `Statement::If` is decomposed into basic blocks:
 
 ```
   entry_1:
-    statements: [IRAssignConst(name="x", value="1")]
-    terminator: CFGBranch(
-        condition=ExprVar("$x"),
-        true_target="if_then_3",
-        false_target="if_next_4"
-    )
+    statements: [Statement::AssignConst { name: "x", value: "1" }]
+    terminator: Terminator::Branch {
+        condition: ExprNode::Var { text: "$x", .. },
+        true_target: if_then_3,
+        false_target: if_next_4,
+    }
 
   if_then_3:
-    statements: [IRAssignConst(name="y", value="10")]
-    terminator: CFGGoto(target="if_end_2")
+    statements: [Statement::AssignConst { name: "y", value: "10" }]
+    terminator: Terminator::Goto { target: if_end_2 }
 
   if_next_4:
     statements: []
-    terminator: CFGGoto(target="if_end_2")
+    terminator: Terminator::Goto { target: if_end_2 }
 
   if_end_2:
     statements: []
-    terminator: CFGGoto(target="exit_5")
+    terminator: Terminator::Goto { target: exit_5 }
 ```
 
 ```
@@ -1943,7 +1952,7 @@ This produces a `ConstantBranch`:
 ConstantBranch(
     block="entry_1",
     condition="$x",
-    value=True,
+    value=true,
     taken_target="if_then_3",
     not_taken_target="if_next_4",
 )
@@ -1997,21 +2006,22 @@ if {1} {
 ### Stage 3 — IR Lowering
 
 ```
-IRIf(
-    clauses=(
-        IRIfClause(
-            condition=ExprLiteral(text="1", start=0, end=1),
-            body=IRScript((IRAssignConst(name="x", value="1"),)),
-        ),
-    ),
-    else_body=IRScript((IRAssignConst(name="x", value="2"),)),
-)
+Statement::If {
+    clauses: [
+        IfClause {
+            condition: ExprNode::Literal { text: "1", start: 0, end: 1 },
+            body: Script { statements: [Statement::AssignConst { name: "x", value: "1" }] },
+        },
+    ],
+    else_body: Some(Script { statements: [Statement::AssignConst { name: "x", value: "2" }] }),
+}
 ```
 
 ### Stage 4/5 — CFG and SCCP
 
-SCCP immediately determines `ExprLiteral("1")` is truthy → the else branch
-is unreachable.  The constant branch detection marks `if_next` as dead code.
+SCCP immediately determines the `ExprNode::Literal` `"1"` is truthy → the
+else branch is unreachable.  The constant branch detection marks `if_next`
+as dead code.
 
 ### Stage 7 — Bytecode (matches tclsh 9.0)
 
@@ -2053,23 +2063,23 @@ if {$x < 0} {
 ### Stage 3 — IR Lowering
 
 ```
-IRIf(
-    clauses=(
-        IRIfClause(
-            condition=ExprBinary(op=BinOp.LT,
-                left=ExprVar(text="$x", name="x"),
-                right=ExprLiteral(text="0")),
-            body=IRScript((IRAssignConst(name="sign", value="-1"),)),
-        ),
-        IRIfClause(
-            condition=ExprBinary(op=BinOp.GT,
-                left=ExprVar(text="$x", name="x"),
-                right=ExprLiteral(text="0")),
-            body=IRScript((IRAssignConst(name="sign", value="1"),)),
-        ),
-    ),
-    else_body=IRScript((IRAssignConst(name="sign", value="0"),)),
-)
+Statement::If {
+    clauses: [
+        IfClause {
+            condition: ExprNode::Binary { op: BinOp::Lt,
+                left: ExprNode::Var { text: "$x", name: "x", .. },
+                right: ExprNode::Literal { text: "0", .. } },
+            body: Script { statements: [Statement::AssignConst { name: "sign", value: "-1" }] },
+        },
+        IfClause {
+            condition: ExprNode::Binary { op: BinOp::Gt,
+                left: ExprNode::Var { text: "$x", name: "x", .. },
+                right: ExprNode::Literal { text: "0", .. } },
+            body: Script { statements: [Statement::AssignConst { name: "sign", value: "1" }] },
+        },
+    ],
+    else_body: Some(Script { statements: [Statement::AssignConst { name: "sign", value: "0" }] }),
+}
 ```
 
 ### Stage 4 — CFG decomposition
@@ -2167,19 +2177,20 @@ while {$i < 5} {
 ### Stage 3 — IR Lowering
 
 ```
-IRScript(statements=(
-    IRAssignConst(name="i", value="0"),
-    IRWhile(
-        condition=ExprBinary(op=BinOp.LT,
-            left=ExprVar(text="$i", name="i"),
-            right=ExprLiteral(text="5")),
-        body=IRScript((IRIncr(name="i"),)),
-    ),
-))
+Script { statements: [
+    Statement::AssignConst { name: "i", value: "0" },
+    Statement::While {
+        condition: ExprNode::Binary { op: BinOp::Lt,
+            left: ExprNode::Var { text: "$i", name: "i", .. },
+            right: ExprNode::Literal { text: "5", .. } },
+        body: Script { statements: [Statement::Incr { name: "i", .. }] },
+    },
+] }
 ```
 
-- `IRWhile` has a structured `ExprBinary` condition and an `IRScript` body.
-- `IRIncr(name="i")` with `amount=None` means increment by 1.
+- `Statement::While` has a structured `ExprNode::Binary` condition and a
+  `Script` body.
+- `Statement::Incr { name: "i", .. }` with `amount: None` means increment by 1.
 
 ### Stage 4 — CFG decomposition
 
@@ -2199,7 +2210,7 @@ IRScript(statements=(
 ```
 
 The `while` decomposes into:
-- A header block with the condition `CFGBranch`
+- A header block with the condition `Terminator::Branch`
 - A body block that jumps back to the header (back edge)
 - An exit block for when the condition is false
 
@@ -2211,7 +2222,7 @@ The `while` decomposes into:
     branch uses: {i: 2}
 
   while_body_4:
-    IRIncr(i) → i₃ = i₂ + 1
+    Statement::Incr { name: "i", .. } → i₃ = i₂ + 1
 ```
 
 The phi node at the loop header merges:
@@ -2270,14 +2281,14 @@ for {set i 0} {$i < 10} {incr i} {
 ### Stage 3 — IR Lowering
 
 ```
-IRFor(
-    init=IRScript((IRAssignConst(name="i", value="0"),)),
-    condition=ExprBinary(op=BinOp.LT,
-        left=ExprVar(text="$i", name="i"),
-        right=ExprLiteral(text="10")),
-    next=IRScript((IRIncr(name="i"),)),
-    body=IRScript((IRAssignValue(name="x", value="${i}"),)),
-)
+Statement::For {
+    init: Script { statements: [Statement::AssignConst { name: "i", value: "0" }] },
+    condition: ExprNode::Binary { op: BinOp::Lt,
+        left: ExprNode::Var { text: "$i", name: "i", .. },
+        right: ExprNode::Literal { text: "10", .. } },
+    next: Script { statements: [Statement::Incr { name: "i", .. }] },
+    body: Script { statements: [Statement::AssignValue { name: "x", value: "${i}" }] },
+}
 ```
 
 ### Stage 4 — CFG decomposition
@@ -2352,25 +2363,26 @@ foreach item {a b c} {
 ### Stage 3 — IR Lowering
 
 ```
-IRForeach(
-    iterators=((("item",), "{a b c}"),),
-    body=IRScript((IRAssignValue(name="x", value="${item}"),)),
-    is_lmap=False,
-)
+Statement::Foreach {
+    iterators: [ForeachIterator { vars: ["item"], list_arg: "{a b c}", .. }],
+    body: Script { statements: [Statement::AssignValue { name: "x", value: "${item}" }] },
+    is_lmap: false,
+}
 ```
 
 ### Stage 4 — CFG (top-level deferral)
 
 At top level, `foreach` is **not** inlined into a loop CFG.  Instead, it is
-emitted as an opaque `IRCall`:
+emitted as an opaque `Statement::Call`:
 
 ```
-CFGBlock(
-    statements=[
-        IRCall(command="foreach", args=("item", "{a b c}", "\n    set x $item\n"),
-               defs=("item",)),
+Block {
+    statements: [
+        Statement::Call { command: "foreach",
+                          args: ["item", "{a b c}", "\n    set x $item\n"],
+                          defs: ["item"] },
     ],
-)
+}
 ```
 
 This matches tclsh 9.0's behaviour: top-level `foreach` is compiled as a
@@ -2410,27 +2422,27 @@ proc add {a b} {
 ### Stage 3 — IR Lowering
 
 ```
-IRModule(
-    top_level=IRScript(statements=()),   # proc def is extracted
-    procedures={
-        "::add": IRProcedure(
-            name="add",
-            qualified_name="::add",
-            params=("a", "b"),
-            body=IRScript(statements=(
-                IRExprEval(
-                    expr=ExprBinary(op=BinOp.ADD,
-                        left=ExprVar(text="$a", name="a"),
-                        right=ExprVar(text="$b", name="b")),
-                ),
-            )),
-        ),
+Module {
+    top_level: Script { statements: [] },   # proc def is extracted
+    procedures: {
+        "::add": Procedure {
+            name: "add",
+            qualified_name: "::add",
+            params: ["a", "b"],
+            body: Script { statements: [
+                Statement::ExprEval {
+                    expr: ExprNode::Binary { op: BinOp::Add,
+                        left: ExprNode::Var { text: "$a", name: "a", .. },
+                        right: ExprNode::Var { text: "$b", name: "b", .. } },
+                },
+            ] },
+        },
     },
-)
+}
 ```
 
 The procedure definition is extracted from `top_level` into
-`IRModule.procedures`.  The top-level code emits the `proc` registration
+`Module::procedures`.  The top-level code emits the `proc` registration
 as an `invokeStk` call.
 
 ### Stage 7 — Bytecode (matches tclsh 9.0)
@@ -2553,21 +2565,21 @@ SubCommand {
 ### Stage 3 — IR Lowering
 
 ```
-IRModule(
-    top_level=IRScript(statements=()),
-    procedures={
-        "::when::HTTP_REQUEST": IRProcedure(
-            body=IRScript(statements=(
-                IRAssignValue(name="host", value="[HTTP::header value Host]"),
-                IRAssignValue(name="lower", value="[string tolower ${host}]"),
-                IRCall(command="HTTP::respond",
-                       args=("200", "content",
-                             "<h1>Welcome to ${lower}</h1>"),
-                       defs=(), reads=("lower",)),
-            )),
-        ),
+Module {
+    top_level: Script { statements: [] },
+    procedures: {
+        "::when::HTTP_REQUEST": Procedure {
+            body: Script { statements: [
+                Statement::AssignValue { name: "host", value: "[HTTP::header value Host]" },
+                Statement::AssignValue { name: "lower", value: "[string tolower ${host}]" },
+                Statement::Call { command: "HTTP::respond",
+                                  args: ["200", "content",
+                                         "<h1>Welcome to ${lower}</h1>"],
+                                  defs: [], reads: ["lower"] },
+            ] },
+        },
     },
-)
+}
 ```
 
 ### Stage 4 — CFG
@@ -2586,9 +2598,12 @@ A single straight-line block (no control flow):
 
 ```
   entry_1:
-    SSAStatement(IRAssignValue(name="host", ...), uses={}, defs={"host": 1})
-    SSAStatement(IRAssignValue(name="lower", ...), uses={"host": 1}, defs={"lower": 1})
-    SSAStatement(IRCall("HTTP::respond", ...), uses={"lower": 1}, defs={})
+    SsaStatement { statement: Statement::AssignValue { name: "host", .. },
+                   uses: {}, defs: {host: 1} }
+    SsaStatement { statement: Statement::AssignValue { name: "lower", .. },
+                   uses: {host: 1}, defs: {lower: 1} }
+    SsaStatement { statement: Statement::Call { command: "HTTP::respond", .. },
+                   uses: {lower: 1}, defs: {} }
 ```
 
 ### Taint propagation
@@ -2596,30 +2611,31 @@ A single straight-line block (no control flow):
 The taint engine (`rust/tcl-compiler/src/optimiser/propagation.rs`)
 walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 
-1. **`("host", 1)`** — the `[HTTP::header value Host]` command substitution
+1. **`(host, 1)`** — the `[HTTP::header value Host]` command substitution
    is evaluated:
    - `_taint_source_colour("HTTP::header", ("value", "Host"))` looks up the
      `TaintHint` from the registry → returns `TaintColour.TAINTED`.
-   - Result: `TaintLattice(tainted=True, colour=TAINTED)`
+   - Result: `TaintLattice(tainted=true, colour=TAINTED)`
 
-2. **`("lower", 1)`** — `[string tolower $host]`:
-   - The argument `$host` has taint `("host", 1)` → `TAINTED`.
-   - `_is_sanitiser("string", ("tolower", ...))` → `False` (case
+2. **`(lower, 1)`** — `[string tolower $host]`:
+   - The argument `$host` has taint `(host, 1)` → `TAINTED`.
+   - `_is_sanitiser("string", ("tolower", ...))` → `false` (case
      conversion does not sanitise).
    - `_derive_transform_colours("string", ("tolower", ...))` → no extra
      colours.
    - The command is pure, so taint flows through: result inherits from
      arguments.
-   - Result: `TaintLattice(tainted=True, colour=TAINTED)`
+   - Result: `TaintLattice(tainted=true, colour=TAINTED)`
 
 3. **`HTTP::respond`** — the sink check:
-   - `_classify_sink(IRCall("HTTP::respond", ...))` queries the registry:
+   - `_classify_sink(Statement::Call { command: "HTTP::respond", .. })`
+     queries the registry:
      `REGISTRY.classify_taint_sinks("HTTP::respond", None, dialect)`.
    - Returns `[("IRULE3001", "HTTP::respond")]` — the content body is an
      XSS-sensitive output sink.
    - `_stmt_var_arg_indexes(stmt, "lower")` → `(2,)` — `$lower` appears at
      arg index 2 (the content argument).
-   - The taint of `("lower", 1)` is `TAINTED` with no mitigating colours
+   - The taint of `(lower, 1)` is `TAINTED` with no mitigating colours
      (e.g. `HTML_ESCAPED` would suppress the warning).
 
 ### Taint warning emitted
@@ -2648,7 +2664,7 @@ when HTTP_REQUEST {
 }
 ```
 
-Now `("safe", 1)` has `TaintLattice(tainted=True, colour=TAINTED | HTML_ESCAPED)`.
+Now `(safe, 1)` has `TaintLattice(tainted=true, colour=TAINTED | HTML_ESCAPED)`.
 The sink check sees `HTML_ESCAPED` is present → suppresses IRULE3001.
 
 ### Taint colour lattice at join points
@@ -2673,15 +2689,15 @@ At the merge point after `if`:
     phi: val₃ = phi(val₁ from if_then, val₂ from if_else)
 ```
 
-- `val₁` → `TaintLattice(tainted=True, colour=TAINTED)` (from HTTP::header)
-- `val₂` → `TaintLattice(tainted=False)` (constant "unknown")
+- `val₁` → `TaintLattice(tainted=true, colour=TAINTED)` (from HTTP::header)
+- `val₂` → `TaintLattice(tainted=false)` (constant "unknown")
 
 `taint_join(val₁, val₂)`:
 - Either operand tainted → result is tainted.
 - Colours: only keep colours present in **both** tainted operands.
   Since `val₂` is untainted, it contributes the tainted operand's colours
   unchanged.
-- Result: `TaintLattice(tainted=True, colour=TAINTED)`
+- Result: `TaintLattice(tainted=true, colour=TAINTED)`
 
 The IRULE3001 warning fires on the `HTTP::respond` line.
 
@@ -2706,26 +2722,26 @@ puts $result
 ### Stage 3 — IR Lowering
 
 ```
-IRModule(
-    top_level=IRScript(statements=(
-        IRAssignValue(name="result", value="[double 21]"),
-        IRCall(command="puts", args=("${result}",)),
-    )),
-    procedures={
-        "::double": IRProcedure(
-            name="double",
-            qualified_name="::double",
-            params=("n",),
-            body=IRScript(statements=(
-                IRExprEval(
-                    expr=ExprBinary(op=BinOp.MUL,
-                        left=ExprVar(text="$n", name="n"),
-                        right=ExprLiteral(text="2")),
-                ),
-            )),
-        ),
+Module {
+    top_level: Script { statements: [
+        Statement::AssignValue { name: "result", value: "[double 21]" },
+        Statement::Call { command: "puts", args: ["${result}"] },
+    ] },
+    procedures: {
+        "::double": Procedure {
+            name: "double",
+            qualified_name: "::double",
+            params: ["n"],
+            body: Script { statements: [
+                Statement::ExprEval {
+                    expr: ExprNode::Binary { op: BinOp::Mul,
+                        left: ExprNode::Var { text: "$n", name: "n", .. },
+                        right: ExprNode::Literal { text: "2", .. } },
+                },
+            ] },
+        },
     },
-)
+}
 ```
 
 ### Interprocedural analysis
@@ -2803,13 +2819,15 @@ immediately overwritten.
 `optimise_code_sinking()` in
 `rust/tcl-compiler/src/optimiser/code_sinking.rs`:
 
-1. **Sinkability check** (`_is_sinkable()`): `IRAssignConst(name="msg", value="Request denied")`
-   is sinkable — it is a simple constant assignment with no command
+1. **Sinkability check** (`_is_sinkable()`):
+   `Statement::AssignConst { name: "msg", value: "Request denied" }` is
+   sinkable — it is a simple constant assignment with no command
    substitutions.
 
-2. **Variable reference scan** (`_stmt_uses_var()`): walks the `IRIf` body
-   recursively.  `$msg` appears only in the `else` body (`HTTP::respond ...
-   $msg`), not in the `if` body (which defines a new `msg`).
+2. **Variable reference scan** (`_stmt_uses_var()`): walks the
+   `Statement::If` body recursively.  `$msg` appears only in the `else`
+   body (`HTTP::respond ... $msg`), not in the `if` body (which defines a
+   new `msg`).
 
 3. **Deepest target** (`_find_deepest_sink_targets()`): the only use of the
    original `msg` is in the `else` branch → sink target is the else body.
@@ -2883,7 +2901,7 @@ single event), so the second call is redundant.
 `rust/tcl-compiler/src/gvn.rs`:
 
 1. **Purity check** (`_is_pure_command()`): looks up `HTTP::uri` in the
-   command registry → `CommandSpec.pure = True`, `cse_candidate = True`.
+   command registry → `CommandSpec.pure = true`, `cse_candidate = true`.
 
 2. **Value numbering**: assigns a canonical `ExprKey` to each computation.
    Both `[HTTP::uri]` calls get the same key `("HTTP::uri",)`.
@@ -3181,15 +3199,15 @@ The parser uses binding powers to handle precedence:
 Result:
 
 ```
-ExprBinary(
-    op=BinOp.ADD,
-    left=ExprVar(text="$a", name="a"),
-    right=ExprBinary(
-        op=BinOp.MUL,
-        left=ExprVar(text="$b", name="b"),
-        right=ExprLiteral(text="2"),
-    ),
-)
+ExprNode::Binary {
+    op: BinOp::Add,
+    left: ExprNode::Var { text: "$a", name: "a", .. },
+    right: ExprNode::Binary {
+        op: BinOp::Mul,
+        left: ExprNode::Var { text: "$b", name: "b", .. },
+        right: ExprNode::Literal { text: "2", .. },
+    },
+}
 ```
 
 ### Unbraced expression: `expr $a + $b * 2`
@@ -3207,10 +3225,10 @@ variable references, but since it cannot know the runtime values, it
 falls back to:
 
 ```
-ExprRaw(text="${a} + ${b} * 2")
+ExprNode::Raw { text: "${a} + ${b} * 2" }
 ```
 
-`ExprRaw` is the fallback — the compiler cannot statically analyse the
+`ExprNode::Raw` is the fallback — the compiler cannot statically analyse the
 expression, which is why diagnostic **W100** ("Unbraced expr body")
 warns about this pattern.  Braced expressions enable compile-time
 parsing, constant folding, and type inference.
@@ -3246,21 +3264,21 @@ _lower_command(cmd)
     │   (e.g. set → lower_set(), incr → lower_incr())
     │
     ├─ match cmd_name:
-    │   ├─ "proc"     → extract params, lower body, register IRProcedure
+    │   ├─ "proc"     → extract params, lower body, register Procedure
     │   ├─ "when"     → lower iRules event handler body
-    │   ├─ "if"       → _lower_if() → IRIf with IRIfClause list
-    │   ├─ "for"      → _lower_for() → IRFor (init, cond, step, body)
-    │   ├─ "while"    → _lower_while() → IRWhile (cond, body)
-    │   ├─ "foreach"  → _lower_foreach() → IRForeach
-    │   ├─ "catch"    → _lower_catch() → IRCatch
-    │   ├─ "try"      → _lower_try() → IRTry with IRTryHandler
-    │   ├─ "switch"   → _lower_switch() → IRSwitch with IRSwitchArm
-    │   ├─ eval/uplevel/upvar → IRBarrier (defeats static analysis)
+    │   ├─ "if"       → _lower_if() → Statement::If with IfClause list
+    │   ├─ "for"      → _lower_for() → Statement::For (init, cond, step, body)
+    │   ├─ "while"    → _lower_while() → Statement::While (cond, body)
+    │   ├─ "foreach"  → _lower_foreach() → Statement::Foreach
+    │   ├─ "catch"    → _lower_catch() → Statement::Catch
+    │   ├─ "try"      → _lower_try() → Statement::Try with TryHandler
+    │   ├─ "switch"   → _lower_switch() → Statement::Switch with SwitchArm
+    │   ├─ eval/uplevel/upvar → Statement::Barrier (defeats static analysis)
     │   │
     │   └─ default (fallthrough):
-    │       ├─ arg_indices_for_role(BODY) → IRBarrier (has body args)
-    │       ├─ arg_indices_for_role(VAR_NAME) → IRCall with defs
-    │       └─ else → IRCall (generic)
+    │       ├─ arg_indices_for_role(BODY) → Statement::Barrier (has body args)
+    │       ├─ arg_indices_for_role(VAR_NAME) → Statement::Call with defs
+    │       └─ else → Statement::Call (generic)
 ```
 
 ### Example: `lower_set()` — the `set` lowering hook
@@ -3271,11 +3289,11 @@ It pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |
 |-------------------------|-----------------|---------|
-| `STR` (braced string) | `IRAssignConst` | `set x {hello}` |
-| `ESC` (decimal integer) | `IRAssignConst` | `set x 42` |
-| `CMD` wrapping `expr` | `IRAssignExpr` | `set x [expr {$a + 1}]` |
-| `VAR` or interpolated | `IRAssignValue` | `set x $y`, `set x "hi $name"` |
-| 0 args (getter) | `IRCall` | `set x` (read variable) |
+| `STR` (braced string) | `Statement::AssignConst` | `set x {hello}` |
+| `ESC` (decimal integer) | `Statement::AssignConst` | `set x 42` |
+| `CMD` wrapping `expr` | `Statement::AssignExpr` | `set x [expr {$a + 1}]` |
+| `VAR` or interpolated | `Statement::AssignValue` | `set x $y`, `set x "hi $name"` |
+| 0 args (getter) | `Statement::Call` | `set x` (read variable) |
 
 ### Example: fallthrough with `arg_roles`
 
@@ -3296,36 +3314,36 @@ var_indices = arg_indices_for_role("regexp", args, ArgRole.VAR_NAME)
 This produces:
 
 ```
-IRCall(
-    command="regexp",
-    args=(r"(\d+)", "${input}", "match", "submatch"),
-    defs=("match", "submatch"),   # SSA tracks these as definitions
-)
+Statement::Call {
+    command: "regexp",
+    args: [r"(\d+)", "${input}", "match", "submatch"],
+    defs: ["match", "submatch"],   # SSA tracks these as definitions
+}
 ```
 
-The `defs` tuple tells the SSA builder that `regexp` defines `match` and
+The `defs` list tells the SSA builder that `regexp` defines `match` and
 `submatch`, so they get new SSA versions.
 
 ### Example: barrier commands
 
 Commands in `_DYNAMIC_BARRIER_COMMANDS` (e.g. `eval`, `uplevel`, `upvar`)
-always produce `IRBarrier`:
+always produce `Statement::Barrier`:
 
 ```tcl
 eval $script
 ```
 
 ```
-IRBarrier(
-    range=Range(...),
-    reason="dynamic command",
-    command="eval",
-    args=("${script}",),
-)
+Statement::Barrier {
+    span: Span { .. },
+    reason: "dynamic command",
+    command: "eval",
+    args: ["${script}"],
+}
 ```
 
-`IRBarrier` tells all downstream passes: *stop reasoning about variable
-state here* — the command can read/write any variable, define new
+`Statement::Barrier` tells all downstream passes: *stop reasoning about
+variable state here* — the command can read/write any variable, define new
 procedures, or modify the call stack.
 
 ---
@@ -3350,7 +3368,7 @@ proc process {items} {
 
 `build_execution_intent()` in
 `rust/tcl-compiler/src/execution_intent.rs` walks each
-`IRAssignValue` in the CFG and parses the command substitution:
+`Statement::AssignValue` in the CFG and parses the command substitution:
 
 **`[llength $items]`:**
 
@@ -3434,12 +3452,12 @@ ProcLocalSummary(
     params=("x",),
     arity=Arity(1, 1),
     calls=(),                        # no internal proc calls
-    has_barrier=False,               # no eval/uplevel
-    has_unknown_calls=False,
-    writes_global=False,
+    has_barrier=false,               # no eval/uplevel
+    has_unknown_calls=false,
+    writes_global=false,
     local_effect_reads=EffectRegion(0),   # reads only local params
     local_effect_writes=EffectRegion(0),  # writes only local var
-    returns_constant=False,               # depends on param
+    returns_constant=false,               # depends on param
     constant_return=None,
     return_depends_on_params=("x",),      # return value depends on x
     return_passthrough_param=None,
@@ -3454,9 +3472,9 @@ ProcLocalSummary(
     params=("a", "b"),
     arity=Arity(2, 2),
     calls=("::helper",),            # calls helper
-    has_barrier=False,
-    has_unknown_calls=False,
-    writes_global=False,
+    has_barrier=false,
+    has_unknown_calls=false,
+    writes_global=false,
     local_effect_reads=EffectRegion(0),
     local_effect_writes=EffectRegion.LOG_IO,  # puts writes to output
 )
@@ -3493,17 +3511,17 @@ ProcSummary(
     params=("x",),
     arity=Arity(1, 1),
     calls=(),
-    has_barrier=False,
-    has_unknown_calls=False,
-    writes_global=False,
-    pure=True,
+    has_barrier=false,
+    has_unknown_calls=false,
+    writes_global=false,
+    pure=true,
     effect_reads=EffectRegion(0),
     effect_writes=EffectRegion(0),
-    returns_constant=False,
+    returns_constant=false,
     constant_return=None,
     return_depends_on_params=("x",),
     return_passthrough_param=None,
-    can_fold_static_calls=True,
+    can_fold_static_calls=true,
 )
 ```
 
@@ -3650,12 +3668,12 @@ walking up the namespace hierarchy.
 ### Resulting IR module
 
 ```
-IRModule(
-    procedures={
-        "::mylib::helper": IRProcedure(name="helper", ...),
-        "::mylib::compute": IRProcedure(name="compute", ...),
+Module {
+    procedures: {
+        "::mylib::helper": Procedure { name: "helper", .. },
+        "::mylib::compute": Procedure { name: "compute", .. },
     },
-)
+}
 ```
 
 ---
@@ -3839,16 +3857,16 @@ CommandSideEffects(
     effects=(
         SideEffect(
             target=SideEffectTarget.HTTP_URI,
-            reads=True,
-            writes=False,
+            reads=true,
+            writes=false,
             storage_type=StorageType.SCALAR,
             scope=StorageScope.EVENT,
             connection_side=ConnectionSide.CLIENT,
         ),
     ),
-    pure=True,             # reading is side-effect-free
-    deterministic=True,    # same result within one event
-    dynamic_barrier=False,
+    pure=true,             # reading is side-effect-free
+    deterministic=true,    # same result within one event
+    dynamic_barrier=false,
 )
 ```
 
@@ -3859,17 +3877,17 @@ CommandSideEffects(
     effects=(
         SideEffect(
             target=SideEffectTarget.HTTP_HEADER,
-            reads=False,
-            writes=True,                     # modifying a header
+            reads=false,
+            writes=true,                     # modifying a header
             storage_type=StorageType.SCALAR,
             scope=StorageScope.EVENT,
             connection_side=ConnectionSide.CLIENT,
             key="Host",                      # literal header name
         ),
     ),
-    pure=False,            # writing is a side effect
-    deterministic=False,
-    dynamic_barrier=False,
+    pure=false,            # writing is a side effect
+    deterministic=false,
+    dynamic_barrier=false,
 )
 ```
 
@@ -3880,15 +3898,15 @@ CommandSideEffects(
     effects=(
         SideEffect(
             target=SideEffectTarget.POOL_SELECTION,
-            reads=False,
-            writes=True,
+            reads=false,
+            writes=true,
             storage_type=StorageType.SCALAR,
             scope=StorageScope.CONNECTION,
             connection_side=ConnectionSide.SERVER,
         ),
     ),
-    pure=False,
-    deterministic=False,
+    pure=false,
+    deterministic=false,
 )
 ```
 
@@ -3899,15 +3917,15 @@ CommandSideEffects(
     effects=(
         SideEffect(
             target=SideEffectTarget.LOG_IO,
-            reads=False,
-            writes=True,
+            reads=false,
+            writes=true,
             storage_type=StorageType.SCALAR,
             scope=StorageScope.GLOBAL,
             connection_side=ConnectionSide.NONE,
         ),
     ),
-    pure=False,
-    deterministic=False,
+    pure=false,
+    deterministic=false,
 )
 ```
 
@@ -3918,28 +3936,28 @@ The classification function follows this resolution order:
 1. **Interprocedural summary** — if `callee_summary` is provided (for
    user-defined procs), use its `effect_reads`/`effect_writes` directly.
 
-2. **Dynamic barriers** — `eval`, `uplevel` → `dynamic_barrier=True`,
+2. **Dynamic barriers** — `eval`, `uplevel` → `dynamic_barrier=true`,
    all effects unknown.
 
 3. **Subcommand resolution** — for `HTTP::header replace`:
    - Look up `CommandSpec` for `HTTP::header`.
-   - Find `SubCommand` for `replace` → `mutator=True`.
+   - Find `SubCommand` for `replace` → `mutator=true`.
    - Read `side_effect_hints` from the subcommand.
 
 4. **Form resolution** — for `HTTP::uri` (no args):
    - `CommandSpec.resolve_form(args)` matches the getter form
      (`arity=Arity(0, 0)`).
-   - Getter form has `pure=True` and `reads=True` hints.
+   - Getter form has `pure=true` and `reads=true` hints.
 
 ### How consumers use side effects
 
 | Consumer | Uses |
 |----------|------|
-| **GVN/CSE** | `pure=True` → result can be cached (O105) |
-| **ADCE** | `pure=True` + `NO_ESCAPE` → statement is removable |
-| **Optimiser** | `pure=False` → cannot propagate across this command |
+| **GVN/CSE** | `pure=true` → result can be cached (O105) |
+| **ADCE** | `pure=true` + `NO_ESCAPE` → statement is removable |
+| **Optimiser** | `pure=false` → cannot propagate across this command |
 | **iRules flow** | `RESPONSE_LIFECYCLE` write → response-commit tracking |
-| **Taint engine** | `pure=True` → taint flows through unchanged |
+| **Taint engine** | `pure=true` → taint flows through unchanged |
 
 ---
 
@@ -4173,16 +4191,16 @@ Source text  ──────────────────────�
   "set x 42"                                                        push1/storeStk/done
        │                                                                 ▲
        ▼                                                                 │
-  Token stream         SegmentedCommand        IRAssignConst         Instruction
+  Token stream         SegmentedCommand  Statement::AssignConst      Instruction
   ┌──────────┐        ┌──────────────┐        ┌───────────┐        ┌───────────┐
   │ type:ESC │   ──►  │ texts:       │  ──►   │ name:"x"  │  ──►   │ op:PUSH1  │
   │ text:"set"│       │  ["set",     │        │ value:"42"│        │ operands: │
-  │ start:0,0│        │   "x","42"]  │        │ range:... │        │  (0,)     │
+  │ start:0,0│        │   "x","42"]  │        │ span:...  │        │  (0,)     │
   │ end:0,3  │        │ single:      │        └───────────┘        └───────────┘
   └──────────┘        │  [T, T, T]   │              │                    ▲
                       └──────────────┘              │                    │
                                                     ▼                    │
-                                              CFGBlock            FunctionAsm
+                                                Block              FunctionAsm
                                               ┌──────────┐       ┌───────────┐
                                               │ stmts:   │       │ literals: │
                                               │  [Assign]│       │  LitTable │
@@ -4191,14 +4209,14 @@ Source text  ──────────────────────�
                                               └──────────┘       │ instrs:   │
                                                     │            │  [Instr]  │
                                                     ▼            └───────────┘
-                                              SSABlock                ▲
-                                              ┌──────────┐           │
-                                              │ phis: () │           │
-                                              │ stmts:   │     codegen_module()
-                                              │  SSAStmt │  ────────┘
-                                              │ defs:    │
-                                              │  {x: 1}  │
-                                              └──────────┘
+                                               SsaBlock                    ▲
+                                              ┌───────────────┐            │
+                                              │ phis: []      │            │
+                                              │ stmts:        │      codegen_module()
+                                              │  SsaStatement │  ──────────┘
+                                              │ defs:         │
+                                              │  {x: 1}       │
+                                              └───────────────┘
 ```
 
 Each stage transforms the data into a richer representation:
