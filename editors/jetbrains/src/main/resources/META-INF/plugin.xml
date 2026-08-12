@@ -30,7 +30,7 @@
         <fileType name="Tcl" language="Tcl"
             implementationClass="com.tcllsp.jetbrains.TclFileType"
             fieldName="INSTANCE"
-            extensions="tcl;tk;itcl;tm;test;iapp;iappimpl;impl;apl;exp"/>
+            extensions="tcl;tk;itcl;tm;test;iapp;iappimpl;impl;apl;exp;tclspec"/>
         <fileType name="iRule" language="Tcl"
             implementationClass="com.tcllsp.jetbrains.TclIruleFileType"
             fieldName="INSTANCE"

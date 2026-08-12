@@ -258,17 +258,31 @@ let packs survive releases without rebuilds:
 
 ## Loading and tooling
 
-- Discovery: `tclLsp.specPacks`, plus `*.tclspec` beside a
-  `tclpkg.tcl` manifest or under `.tcl-lsp/`. Name collisions with
-  shipped specs are reported, shipped wins unless the pack says
-  `-override`.
+- Discovery, three tiers with defined precedence (nearest wins:
+  workspace > user > bundled): **workspace** — `tclLsp.specPacks`
+  paths (mirrored as a setting in every editor integration), plus
+  `*.tclspec` beside a `tclpkg.tcl` manifest or under `.tcl-lsp/`;
+  **user** — packs the user drops in the platform config directory
+  (`$XDG_CONFIG_HOME/tcl-lsp/specs/` and the macOS/Windows
+  equivalents via the platform-dirs machinery `tcl pkg` already uses),
+  loaded for every workspace; **bundled** — the shipped EDA loadables.
+  Name collisions with shipped specs are reported, shipped wins unless
+  the pack says `-override`.
+- **Compiled-pack cache in the OS cache directory**
+  (`$XDG_CACHE_HOME/tcl-lsp/spectcl/` and platform equivalents): on
+  first load a pack's compiled form — resolved drafts plus hook
+  bytecode — is written keyed by a lightweight non-cryptographic hash
+  (xxhash-class) of the pack source **plus the SpecTcl vocabulary
+  version and loader build**, so an edited pack or an upgraded server
+  recompiles exactly once and everything else is a hash-check and an
+  mmap-fast read. The cache is disposable by contract: delete it and
+  nothing breaks but first-load time; a corrupt or stale entry falls
+  back to a fresh parse, never an error.
 - `tcl spec check lib.tclspec` validates a pack from the CLI; the
   Spec Studio gains a DSL renderer beside the `.rs` and stub renderers
   (drafts round-trip through it), and the `spec-author` skill emits the
-  DSL for the private-library path.
-- An optional compiled cache (`tcl spec build`) is a load-time
-  optimisation only — never required, never version-locked beyond the
-  DSL itself.
+  DSL for the private-library path. `tcl spec build` pre-warms the same
+  cache — an optimisation, never a requirement.
 
 ## The acceptance rubric
 
