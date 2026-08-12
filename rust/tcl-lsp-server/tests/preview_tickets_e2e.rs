@@ -139,25 +139,6 @@ where
     true
 }
 
-async fn collect_frames<R>(reader: &mut BufReader<R>, window: Duration) -> Vec<String>
-where
-    R: tokio::io::AsyncRead + Unpin,
-{
-    let mut frames = Vec::new();
-    let deadline = tokio::time::Instant::now() + window;
-    loop {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if remaining.is_zero() {
-            break;
-        }
-        match tokio::time::timeout(remaining, read_frame(reader)).await {
-            Ok(body) => frames.push(body),
-            Err(_) => break,
-        }
-    }
-    frames
-}
-
 /// Spawn a server, initialize a push-only client, return the reader + writer.
 async fn start_session() -> (
     BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
@@ -210,16 +191,31 @@ async fn did_close(writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>, u
     writer.write_all(frame(&msg).as_bytes()).await.unwrap();
 }
 
-/// The published diagnostics frame for `uri` (or empty string if none seen).
+/// The next `publishDiagnostics` frame for `uri`.
+///
+/// Waits for the publish instead of collecting whatever turns up inside a
+/// fixed window. The publish is the server's terminal signal for the work it
+/// was just asked to do, so waiting for it is exact; a window is a bet on how
+/// long that work takes, and losing the bet is silent — the caller is handed
+/// an empty string and every `!diags.contains(CODE)` assertion passes as
+/// though the server had cleanly reported nothing. Returns empty only if the
+/// backstop expires, which means the server really did stop publishing.
 async fn published_codes(
     reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
     uri: &str,
 ) -> String {
-    let frames = collect_frames(reader, Duration::from_millis(1200)).await;
-    frames
-        .into_iter()
-        .rfind(|f| f.contains("publishDiagnostics") && f.contains(uri))
-        .unwrap_or_default()
+    let deadline = tokio::time::Instant::now() + ANALYSIS_BACKSTOP;
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return String::new();
+        }
+        match tokio::time::timeout(remaining, read_frame(reader)).await {
+            Ok(body) if body.contains("publishDiagnostics") && body.contains(uri) => return body,
+            Ok(_) => {}
+            Err(_) => return String::new(),
+        }
+    }
 }
 
 #[tokio::test]
