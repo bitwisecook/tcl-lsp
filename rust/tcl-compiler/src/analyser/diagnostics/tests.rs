@@ -4741,7 +4741,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
         .collect();
     assert!(
         w220s.is_empty(),
-        "W220 must skip ``IRAssignExpr`` containing a command call; got {w220s:?}",
+        "W220 must skip ``Statement::AssignExpr`` containing a command call; got {w220s:?}",
     );
 }
 
@@ -4792,7 +4792,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
         .collect();
     assert!(
         w220s.iter().all(|d| !d.message.contains("'a'")),
-        "W220 must skip ``IRCall.defs`` side-effecting writes; got {w220s:?}",
+        "W220 must skip ``Statement::Call.defs`` side-effecting writes; got {w220s:?}",
     );
 }
 
