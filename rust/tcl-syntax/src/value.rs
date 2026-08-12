@@ -51,13 +51,22 @@
 
 use std::rc::Rc;
 
-use tcl_dialect::{StringCharacterModel, TclVersion};
+use tcl_dialect::TclVersion;
 
 /// Count the release-defined Tcl characters in a UTF-8 string value.
 ///
 /// Rust strings cannot contain unpaired UTF-16 surrogates, but every Unicode
 /// scalar has the same width C Tcl assigns it: one Tcl 9 character, and one or
 /// two Tcl 8 `Tcl_UniChar` units depending on whether it is supplementary.
+///
+/// **Counting is the only versioned string operation.** Character *indexing*
+/// (`string index`, `range`, `first`, `last`, …) addresses Unicode scalars in
+/// both runtimes whatever the dialect, so on Tcl 8 a string holding a
+/// supplementary character has a length that disagrees with those indices.
+/// That case is unsupported, deliberately rather than accidentally: reproducing
+/// it needs a value layer that can hold an unpaired surrogate, and anything
+/// less approximates. See the Tcl 8 supplementary-character boundary in
+/// `docs/design/compiler/semantic-aot-optimisation.md`.
 #[must_use]
 pub fn string_char_len(value: &str, version: TclVersion) -> usize {
     version.string_character_model().count(value)

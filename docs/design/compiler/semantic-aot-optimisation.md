@@ -64,6 +64,27 @@ dispatch. The representation belongs below both TclVM and WASM code generation;
 an emitter or command-specific compiler branch must not approximate it with
 Unicode scalar iteration or replacement characters.
 
+#### Current support status: unsupported, not approximated
+
+Only `string length` is versioned today. Every character-*indexed* string
+operation — `index`, `range`, `first`, `last`, `replace`, `insert`, `reverse`,
+`wordstart`/`wordend`, and the ranged case converters — addresses Unicode
+scalars in both runtimes and in the compile-time folds, whichever dialect is
+selected.
+
+The consequence is deliberate and stated rather than hidden: on a Tcl 8
+dialect, a string holding a supplementary character has a `string length` that
+does not agree with the indices those operations use. That case is **not
+supported**. It is also not approximated — addressing UTF-16 code units and
+decoding a split surrogate pair to U+FFFD was implemented and then reverted,
+because a replacement character is a wrong answer that looks like a right one,
+and the oracle above is what it would have to meet.
+
+Strings outside the supplementary planes are unaffected: both models agree on
+every index, so ordinary Tcl 8 scripts see exact behaviour. Closing the gap
+means the lossless value representation described above, below both runtimes,
+as its own change.
+
 `WasmCodegenPlan::GenericInvoke` remains the top-level record for the guarded
 intrinsic because the operation's exact slow path is still generic argv
 dispatch; `regions[].selectedKind` records `guarded-intrinsic`. The native
