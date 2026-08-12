@@ -110,6 +110,32 @@ fn is_two_plain_names(vars_text: &str) -> Option<[String; 2]> {
     Some([a, b])
 }
 
+/// Normalise a parsed `return -code C -level L` into the `(code, level)`
+/// immediates `returnImm` carries, exactly as C's `TclMergeReturnOptions`
+/// hands them to `CompileReturnInternal`.
+///
+/// Two rules do all the work (`tclResult.c:866-974`):
+///
+/// 1. `-level` defaults to **1**, not 0 — a plain `return` is `(0, 1)`, and
+///    `(0, 0)` means something else entirely (`TclProcessReturn` at level 0
+///    with code OK falls through to the next instruction).
+/// 2. `-code return` is rewritten to `-code ok -level L+1`, so `TCL_RETURN`
+///    never reaches the operand: `return -code return` is `(0, 2)`, and
+///    `return -code return -level 3` is `(0, 4)`.
+///
+/// Every other code rides its own operand with the level untouched:
+/// `-code error` → `(1, 1)`, `-code break` → `(3, 1)`, `-code continue` →
+/// `(4, 1)`, `-code N` → `(N, 1)`.
+fn merge_return_operands(code: Option<i32>, level: Option<i32>) -> (i32, i32) {
+    let mut ret_code = code.unwrap_or(0);
+    let mut ret_level = level.unwrap_or(1);
+    if ret_code == 2 {
+        ret_level = ret_level.saturating_add(1);
+        ret_code = 0;
+    }
+    (ret_code, ret_level)
+}
+
 // CodegenCtx methods
 
 /// Instruction indices in [`CodegenCtx::emit_dict_map`] whose slot operands are
@@ -893,12 +919,7 @@ impl CodegenCtx<'_> {
             &remaining[0].0
         };
 
-        let (ret_code, ret_level) = match code {
-            None => (0, 1),                               // Simple return
-            Some(1) => (1, level.unwrap_or(1)),           // error
-            Some(c) if c >= 2 => (0, level.unwrap_or(c)), // return/break/continue
-            _ => (0, level.unwrap_or(1)),
-        };
+        let (ret_code, ret_level) = merge_return_operands(code, level);
 
         self.emit_value(value, true);
         self.push_lit("");

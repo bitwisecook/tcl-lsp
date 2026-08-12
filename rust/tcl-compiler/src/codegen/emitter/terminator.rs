@@ -160,8 +160,14 @@ impl CodegenCtx<'_> {
             // Top-level `RETURN_IMM` pops [result, options]; push the empty
             // options dict so the pair is the top of stack even when a prior
             // statement (e.g. `if` with no `else`) left a value behind.
+            //
+            // A plain `return` outside a proc is `(code 0, level 1)` — C's
+            // default `-level` (`TclMergeReturnOptions`), carried on the operands
+            // by `CompileReturnInternal`. `(0, 0)` is `TclProcessReturn` at level
+            // 0 with code OK, which falls through to the next instruction instead
+            // of ending the script.
             self.push_lit("");
-            self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
+            self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(1)]);
         }
     }
 
@@ -518,7 +524,12 @@ mod tests {
             braced: false,
         };
         ctx.emit_term(&cfg, &term, None);
-        assert_eq!(ctx.instructions.last().map(|i| i.op), Some(Op::RETURN_IMM));
+        let last = ctx.instructions.last().expect("terminator emitted");
+        assert_eq!(last.op, Op::RETURN_IMM);
+        // A plain `return` outside a proc is C's `returnImm 0 1`
+        // (`TclMergeReturnOptions` defaults `-level` to 1). `(0, 0)` would fall
+        // through to the next instruction instead of ending the script.
+        assert_eq!(last.operands, vec![Operand::Imm(0), Operand::Imm(1)]);
     }
 
     #[test]

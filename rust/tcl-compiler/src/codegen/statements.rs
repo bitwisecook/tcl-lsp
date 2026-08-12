@@ -339,7 +339,13 @@ impl CodegenCtx<'_> {
                 if !self.is_proc {
                     self.push_lit("");
                 }
-                self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
+                // A plain `return` is `(code 0, level 1)`: C's
+                // `TclMergeReturnOptions` defaults `-level` to 1, and
+                // `CompileReturnInternal` puts the merged pair on the operands
+                // (`tclCompCmdsGR.c:2410`). `(0, 0)` would mean "push the result
+                // and fall through", not "return". Proc bodies re-key on the same
+                // pair in `fold_tail_return_to_done`.
+                self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(1)]);
             }
 
             // Static-body uplevel: `UpFrame` is the structured IR form the

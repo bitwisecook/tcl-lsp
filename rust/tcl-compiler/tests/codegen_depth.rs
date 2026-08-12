@@ -62,7 +62,9 @@
 
 use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
-use tcl_compiler::codegen::{Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op};
+use tcl_compiler::codegen::{
+    Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op, Operand,
+};
 use tcl_compiler::ir::{Module as IrModule, Procedure, Statement};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
@@ -331,6 +333,97 @@ fn catch_body_const_div_zero_emits_syntax() {
     );
     assert!(ops.contains(&Op::BEGIN_CATCH4));
     assert!(fa.literals.entries().iter().any(|l| l == "divide by zero"));
+}
+
+/// The `(code, level)` immediates `emit_catch_return` puts on `returnImm`, per
+/// C's `TclMergeReturnOptions` → `CompileReturnInternal`
+/// (`tclResult.c:866-974`, `tclCompCmdsGR.c:2410`).
+///
+/// Two normalisations produce the whole table: `-level` defaults to **1** (so a
+/// plain `return` is `(0, 1)`, never `(0, 0)` — that pair means "push the result
+/// and fall through"), and `-code return` is rewritten to `-code ok -level L+1`,
+/// so `TCL_RETURN` never reaches the operand.
+///
+/// The `break`/`continue`/non-standard rows previously encoded the code *as the
+/// level* (`(0, 3)`, `(0, 4)`), which the old compensating VM read back as the
+/// right completion by accident; under C semantics they are levels, so they
+/// would have unwound N proc frames instead of breaking a loop.
+#[test]
+fn catch_return_operands_match_c_merge_table() {
+    for (body, want) in [
+        // plain `return` inside a catch range: C emits `returnImm 0 1`
+        // (the `done` fold needs "no enclosing catch").
+        ("return", (0, 1)),
+        ("return x", (0, 1)),
+        // `-code error` → `(1, 1)`.
+        ("return -code error x", (1, 1)),
+        // `-code return` → merged to `-code ok -level 2` → `(0, 2)`.
+        ("return -code return x", (0, 2)),
+        ("return -code return -level 3 x", (0, 4)),
+        // `-code break`/`-code continue` keep the code on the operand.
+        ("return -code break x", (3, 1)),
+        ("return -code continue x", (4, 1)),
+        // a non-standard code rides the operand too.
+        ("return -code 7 x", (7, 1)),
+        // an explicit `-level` is used verbatim.
+        ("return -level 0 -code error x", (1, 0)),
+        ("return -level 2 -code error x", (1, 2)),
+        // `return -level 0` alone: C elides the instruction entirely, and
+        // `(0, 0)` is the equivalent "push the result and continue".
+        ("return -level 0 x", (0, 0)),
+    ] {
+        let src = format!("proc p {{}} {{ set rc [catch {{{body}}} e]; return $rc }}");
+        let fa = proc_via_backend(&src, "::p");
+        let ri = fa
+            .instructions
+            .iter()
+            .find(|i| i.op == Op::RETURN_IMM)
+            .unwrap_or_else(|| panic!("no returnImm for `{body}`: {:?}", opcodes(&fa)));
+        assert_eq!(
+            ri.operands,
+            vec![Operand::Imm(want.0), Operand::Imm(want.1)],
+            "`{body}` must compile to returnImm {} {}",
+            want.0,
+            want.1
+        );
+    }
+}
+
+/// `error msg` is `returnImm 1 0` — an immediate `TCL_ERROR`, not a level-1
+/// return (`TclCompileErrorCmd`, `tclCompCmds.c:2470`). Unchanged by the
+/// realignment; pinned here so the two encodings cannot drift together.
+#[test]
+fn catch_error_operands_are_code_error_level_zero() {
+    let fa = proc_via_backend(
+        "proc e {} { set rc [catch {error boom} m]; return $rc }",
+        "::e",
+    );
+    let ri = fa
+        .instructions
+        .iter()
+        .find(|i| i.op == Op::RETURN_IMM)
+        .expect("error → returnImm");
+    assert_eq!(ri.operands, vec![Operand::Imm(1), Operand::Imm(0)]);
+}
+
+/// A top-level plain `return` is `returnImm 0 1`, and the proc-body one folds to
+/// `done` (`TclCompileReturnCmd`'s `INST_DONE` optimisation).
+#[test]
+fn plain_return_encodings_top_level_and_proc() {
+    let top = module_inline_via_backend("return ok").top_level;
+    let ri = top
+        .instructions
+        .iter()
+        .find(|i| i.op == Op::RETURN_IMM)
+        .unwrap_or_else(|| panic!("top-level return → returnImm: {:?}", opcodes(&top)));
+    assert_eq!(ri.operands, vec![Operand::Imm(0), Operand::Imm(1)]);
+
+    let body = proc_via_backend("proc p {} { return ok }", "::p");
+    let ops = opcodes(&body);
+    assert!(
+        ops.contains(&Op::DONE) && !ops.contains(&Op::RETURN_IMM),
+        "a proc's plain return folds to done: {ops:?}"
+    );
 }
 
 #[test]

@@ -803,16 +803,6 @@ fn char_find(hay: &str, needle: &str, last: bool) -> i64 {
     })
 }
 
-fn code_from_int(n: i32) -> Code {
-    match n {
-        1 => Code::Error,
-        2 => Code::Return,
-        3 => Code::Break,
-        4 => Code::Continue,
-        _ => Code::Ok,
-    }
-}
-
 fn label_to_idx(asm: &FunctionAsm, off2idx: &HashMap<i32, usize>, label: &str) -> Option<usize> {
     let off = *asm.labels.get(label)?;
     let off_i32 = i32::try_from(off).ok()?;
@@ -1467,9 +1457,9 @@ impl Vm {
         if c.code == Code::Return {
             // While the carried return level stays positive the TCL_RETURN keeps
             // unwinding one proc level at a time; when it reaches 0 the carried
-            // `-code` takes effect. `Code::from_int` (not the local
-            // `code_from_int`): `return -code N` for a non-standard N must surface
-            // `Code::Other(N)`, not collapse to `Ok` (coroutine-2.4).
+            // `-code` takes effect. `Code::from_int` (never a 0..=4-only map):
+            // `return -code N` for a non-standard N must surface `Code::Other(N)`,
+            // not collapse to `Ok` (coroutine-2.4).
             let level = crate::command::opt_get(&c.options, "-level")
                 .and_then(|v| v.as_int().ok())
                 .unwrap_or(1);
@@ -3115,17 +3105,30 @@ impl Vm {
             }
 
             // -- return --
-            // `SYNTAX` shares `RETURN_IMM`'s shape (a code immediate, result +
-            // options on the stack): the inline `if {…}` codegen emits it to
-            // raise a compile-time expression error at runtime.
+            // `SYNTAX` shares `RETURN_IMM`'s arm in C too (`tclExecute.c:2287`
+            // falls through the two labels): both carry `(code, level)`
+            // immediates and read `OBJ_AT_TOS` as the return-options dict,
+            // `OBJ_UNDER_TOS` as the result — `CompileReturnInternal` pushes the
+            // options *last*. The inline `if {…}`/`expr` codegen emits `syntax`
+            // to raise a compile-time expression error at runtime.
             //
-            // Divergence from C, tracked in the opcode-status doc: our codegen
-            // pushes `result` then `options` (options on top) and encodes an
-            // immediate code as `level 0` where C pushes options *under* the
-            // result and compiles a plain `return` as `(code 0, level 1)`;
-            // realigning is a compiler-identity change (peephole `done`
-            // folding, tclsh byte comparison), not a VM-only one.
+            // `TclProcessReturn` (`tclResult.c:777-785`) decides the completion:
+            // `level != 0` raises TCL_RETURN carrying `-code`/`-level` for the
+            // proc-boundary countdown, while `level == 0` makes the completion
+            // *be* `code` — so `(0, 0)` is not a return at all, it falls through
+            // to the next instruction with the result left on the stack
+            // (`INST_RETURN_IMM`'s `NEXT_INST_F(9, 1, 0)` pops only the dict).
+            //
+            // The immediates are the authoritative merged `-code`/`-level`:
+            // `TclMergeReturnOptions` consumes both keys out of the literal
+            // dict, which is why they ride the operands. Appending them after
+            // `-options` lets them win, exactly as C's out-params do.
             Op::RETURN_IMM | Op::SYNTAX => {
+                // C's compiler guarantees both stack slots. Ours only pushes the
+                // options literal outside a proc — inside one the plain return is
+                // expected to fold to `done` — so an unfolded proc-body
+                // `returnImm` arrives with the result alone; treat that as empty
+                // options rather than eating whatever sits underneath.
                 let (result, options) = if f.stack.len() >= 2 {
                     let opts = pop(f);
                     let res = pop(f);
@@ -3133,9 +3136,23 @@ impl Vm {
                 } else {
                     (pop(f), Value::empty())
                 };
-                let code = code_from_int(imm0(instr));
-                let final_code = if code == Code::Ok { Code::Return } else { code };
-                return Tick::Return(Completion::new(final_code, result, options));
+                let c = crate::command::cmd_return(
+                    self,
+                    &[
+                        Value::string("-options"),
+                        options,
+                        Value::string("-code"),
+                        Value::int(i64::from(imm0(instr))),
+                        Value::string("-level"),
+                        Value::int(i64::from(imm_at(instr, 1))),
+                        result,
+                    ],
+                );
+                if c.code == Code::Ok {
+                    f.stack.push(c.result);
+                } else {
+                    return Tick::Return(c);
+                }
             }
             // `returnStk` is C-ordered — result on top, the return-options dict
             // under it — and applies the dict exactly as `return -options $opts

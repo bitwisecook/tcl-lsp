@@ -236,31 +236,45 @@ deliberate divergences; everything else matches C per the parity suites.
    `pushResult`/`pushReturnCode`/`pushReturnOpts` read the absorbed
    completion (result / numeric code / full options dict, with
    `errorInfo`/`errorCode` published exactly as `finish_catch` does).
-2. **`returnImm`/`syntax` operand *values* are VM-local — the stack order is
-   already C-exact.** C's `INST_RETURN_IMM` reads `OBJ_AT_TOS` as the options
-   dict and `OBJ_UNDER_TOS` as the result (`CompileReturnInternal` pushes the
-   options *last*), which is exactly what our codegen emits and our arm pops.
-   Note C's `returnStk` is the **opposite** order — result on top, options
-   under (`tclExecute.c` pops the result first) — and ours matches that too.
-   What genuinely diverges is the immediates: a plain top-level `return`
-   compiles to `(code 0, level 0)` where C emits `(0, 1)`, and the arm decodes
-   but ignores `level`, relying on the options dict for the proc-boundary
-   countdown. The VM compensates by treating code 0 as `TCL_RETURN`, whereas
-   C's `(0, 0)` — `TclProcessReturn` at level 0 with code OK — *falls through
-   to the next instruction*. Codegen and VM are thus self-consistent but both
-   diverge from C.
+2. **`returnImm`/`syntax` carry C's `(code, level)` operands** — both the stack
+   order and the immediates are now C-exact. `INST_RETURN_IMM` reads
+   `OBJ_AT_TOS` as the options dict and `OBJ_UNDER_TOS` as the result
+   (`CompileReturnInternal` pushes the options *last*), which is what our
+   codegen emits and our arm pops; C's `returnStk` is the **opposite** order —
+   result on top, options under — and ours matches that too.
 
-   Realigning is three sites in one change: the codegen encoding, the VM's
-   `(code, level)` handling, and the two peephole passes that pattern-match
-   the literal `(0, 0)` operand pair (`fold_tail_return_to_done`,
-   `strip_unused_start_cmd`) — which would otherwise silently stop firing and
-   *change* the emitted bytes. Done together, byte parity with tclsh
-   **improves**: the instruction is 9 bytes either way, C also folds a proc's
-   plain tail `return` to `done` (in fact more aggressively — any plain
-   `return` in a proc with no enclosing catch), and a top-level `return`
-   becomes the `returnImm 0 1` tclsh emits. An earlier revision of this note
-   claimed the stack order differed and that realigning would break the
-   byte-for-byte comparison; both claims were wrong.
+   The arm now implements `TclProcessReturn` (`tclResult.c:777-785`): `level
+   != 0` raises `TCL_RETURN` carrying `-code`/`-level` for the proc-boundary
+   countdown, and `level == 0` makes the completion *be* `code`, so `(0, 0)`
+   falls through to the next instruction with the result on the stack rather
+   than returning. It delegates to `cmd_return` with the operands appended
+   after `-options`, so the immediates win over the literal dict exactly as
+   C's `TclMergeReturnOptions` out-params do.
+
+   The encodings codegen emits, per `TclCompileReturnCmd` /
+   `CompileReturnInternal` / `TclCompileErrorCmd`: a plain `return` in a proc
+   with no enclosing catch folds to `done`; a plain `return` anywhere else is
+   `(0, 1)` (C's default `-level` is 1); `-code error` is `(1, 1)`; `-code
+   return` merges to `-code ok -level L+1`, i.e. `(0, 2)`; `-code break` /
+   `-code continue` / `-code N` are `(3, 1)` / `(4, 1)` / `(N, 1)`; and `error
+   msg` is `(1, 0)`. `return -level 0 $x` stays `(0, 0)` where C elides the
+   instruction outright — equivalent under the corrected semantics, since
+   `(0, 0)` just leaves the result on the stack.
+
+   Two peephole passes are keyed on the plain-return pair and were re-keyed
+   from `(0, 0)` to `(0, 1)` in the same change (`fold_tail_return_to_done`,
+   `strip_unused_start_cmd`) — otherwise they silently stop firing and *that*
+   changes the emitted bytes. An earlier revision of this note claimed the
+   stack order differed, that realigning would break the byte-for-byte
+   comparison, and that `-code return` should emit `(2, 1)`; all three were
+   wrong — `TclMergeReturnOptions` (`tclResult.c:969-974`) rewrites `-code
+   return` to `-code ok -level L+1`, so `TCL_RETURN` never reaches the operand.
+
+   Still divergent, and *not* part of this realignment: the runtime `return`
+   **command** (`cmd_return`) omits that same `-code return` → `-code ok
+   -level L+1` normalisation. A plain proc-body `return -code …` compiles to a
+   generic invoke rather than `returnImm`, so `proc p {} {return -code return}`
+   escapes as `TCL_RETURN` instead of returning from `p`'s caller.
 3. **`dictRecombineImm`/`dictRecombineStk` ignore the key path** — the
    compiled `dict with` writeback handles a top-level dict variable only, not
    a nested `dict with d k {…}` path (pre-existing in the `Imm` form; the
