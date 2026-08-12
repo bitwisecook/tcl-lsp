@@ -137,6 +137,15 @@ the hardest commands, so the DSL takes them in four buckets:
 4. **Stays native.** Anything that cannot be a pure words→data function
    is a contribution, as today.
 
+**Execution engine: `tcl-vm` is the canonical answer everywhere** —
+server, CLI, and studio alike (it ships to WASM already). The studio
+may additionally offer an opt-in experimental path running hook bodies
+through the compiler's Tcl→WASM codegen: useful dogfooding that
+pressures that backend to mature, and any behavioural divergence
+between the two engines on a hook body is differential-testing signal,
+not just a bug. Performance investment lands in the VM — hooks give it
+a hot, measurable, real workload to justify that effort.
+
 Hot-path budget: role resolvers run per call site during semantic
 tokens. Built-in packs keep native pointers (bucket 2 of the
 architecture above), so only pack-declared commands pay the VM cost —
