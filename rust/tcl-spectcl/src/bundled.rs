@@ -35,9 +35,9 @@
 //! is the same code the server runs.
 //!
 //! Loading is done **once per process** and the result is cached, so the cost
-//! is one directory scan plus ~3,700 lines of Tcl parsed at first use.
+//! is one directory scan plus ~4,700 lines of Tcl parsed at first use.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::OnceLock;
 
 use tcl_dialect::DialectProfile;
@@ -72,13 +72,6 @@ pub fn packs() -> &'static PackSet {
         Some(dir) => load_from(&dir),
         None => PackSet::default(),
     })
-}
-
-/// The bundled directory this process will read, for a diagnostic or a log
-/// line that needs to say *why* an EDA command did not resolve.
-#[must_use]
-pub fn dir() -> Option<PathBuf> {
-    crate::discovery::bundled_dir()
 }
 
 /// The cached registry for `profile` with the shipped loadables installed.
@@ -119,6 +112,7 @@ pub fn registry_for_dialect_from(dialect: &str, all: &PackSet) -> &'static Comma
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     /// The repository's `specs/` directory, which is what a release lays down
     /// beside the executable.

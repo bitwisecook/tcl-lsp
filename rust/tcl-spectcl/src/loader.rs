@@ -67,9 +67,9 @@ use std::fmt;
 
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
+use tcl_core_types::DiagCode;
 use tcl_dialect::{DialectSet, TclVersion};
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
-use tcl_core_types::DiagCode;
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
@@ -77,12 +77,12 @@ use tcl_registry::body_kind::BodyKind;
 use tcl_registry::byte_array_effect::ByteArrayEffect;
 use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::command_table::CommandTableEffect;
-use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::definer::{
     BuiltinMethodReceiver, BuiltinObjectMethod, DefinerFamily, DefinitionBodyGrammar,
     ManufacturerMethod, MemberBodyCommand, MemberKind, MemberRefKind, MemberRetraction, MemberSpec,
     MemberVisibility, SlotOp, SlotSpec,
 };
+use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::events::EventRequires;
 use tcl_registry::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevelWord};
 use tcl_registry::handle_binding::{
@@ -1288,13 +1288,7 @@ fn parse_byte_array_effect(text: &str, line: u32, log: &mut Log) -> Option<ByteA
         };
         return Some(ByteArrayEffect::Rebinarifies { value_arg });
     }
-    enum_by_name(
-        BYTE_ARRAY_EFFECTS,
-        text,
-        "byte array effect",
-        line,
-        log,
-    )
+    enum_by_name(BYTE_ARRAY_EFFECTS, text, "byte array effect", line, log)
 }
 
 /// `deprecation_fix -replace WORD -description {…} -safety S`.
@@ -1475,7 +1469,10 @@ fn parse_defines_symbol(stmt: &Stmt, log: &mut Log) -> Option<SymbolDef> {
         i += 1;
     }
     let (Some(name_arg), Some(kind)) = (name_arg, kind) else {
-        log.say(stmt.line, "`defines_symbol` needs `-name-arg N` and `-kind KIND`");
+        log.say(
+            stmt.line,
+            "`defines_symbol` needs `-name-arg N` and `-kind KIND`",
+        );
         return None;
     };
     Some(SymbolDef {

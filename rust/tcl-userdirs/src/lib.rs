@@ -153,12 +153,7 @@ mod tests {
     /// touches the filesystem to answer.
     #[test]
     fn every_dir_is_product_scoped() {
-        for dir in [
-            cache_dir(),
-            config_dir(),
-            system_config_dir(),
-            state_dir(),
-        ] {
+        for dir in [cache_dir(), config_dir(), system_config_dir(), state_dir()] {
             assert!(
                 dir.components().any(|c| c.as_os_str() == "tcl-lsp"),
                 "{} is not scoped to the product",

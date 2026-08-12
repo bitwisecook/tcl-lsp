@@ -146,7 +146,8 @@ fn build_config(db: &TclDatabase) -> AnalyserConfig {
         Vec::new(),
         None,
         None,
-     0,)
+        0,
+    )
 }
 
 /// Baseline edits driven through the database, on the narrowest machine.

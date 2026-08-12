@@ -758,7 +758,11 @@ for the contract.
 
 Command metadata lives on the `CommandSpec` type in `rust/tcl-registry`,
 **not** in hardcoded sets scattered across consumer modules. Commands are
-defined in the registry's per-dialect spec packs (Tcl, F5 iRules/iApps, EDA).
+defined in the registry's per-dialect spec packs (Tcl, F5 iRules/iApps, Tk,
+Expect, …) — **except the EDA vendor libraries**, which ship as bundled
+`SpecTcl` loadables in `specs/*.tclspec` and reach a registry only through
+`tcl_spectcl::bundled` (`docs/design/spec-packs.md`). Editing an EDA command
+means editing the `.tclspec`, not a Rust module.
 
 When a consumer needs to know something about a command (e.g. "is this an
 action?", "does this mutate state?"), add a field to `CommandSpec`, a query

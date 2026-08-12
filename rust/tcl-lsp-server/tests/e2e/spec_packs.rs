@@ -26,8 +26,8 @@
 //! absence of an unknown-command diagnostic, and load notices squiggled on the
 //! pack file itself.
 
-use crate::common::helpers::hover_text;
 use crate::common::Lsp;
+use crate::common::helpers::hover_text;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
@@ -134,22 +134,6 @@ fn await_pack_named(lsp: &mut Lsp, name: &str) {
     }
 }
 
-/// Block until the server reports at least one loaded pack.
-fn await_packs_loaded(lsp: &mut Lsp) -> Vec<Value> {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-    loop {
-        let packs = loaded_packs(lsp);
-        if !packs.is_empty() {
-            return packs;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "no SpecTcl pack was ever reported as loaded"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-}
-
 /// The headline case: a workspace pack makes an unknown command resolve, with
 /// hover.
 ///
@@ -166,11 +150,10 @@ fn a_workspace_pack_makes_an_unknown_command_resolve_with_hover() {
     let doc = root.join("app.tcl");
     write(&doc, source);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let uri = file_uri(&doc);
+    await_pack_named(&mut lsp, "mylib");
     lsp.open_ready(&uri, source);
 
     let hover = hover_text(&lsp.hover(&uri, 0, 4));
@@ -183,13 +166,14 @@ fn a_workspace_pack_makes_an_unknown_command_resolve_with_hover() {
         "hover carries the pack's synopsis; got:\n{hover}"
     );
 
+    // Named, not counted: the bundled tier ships the EDA loadables, so the
+    // list is never just this workspace's pack.
     let packs = loaded_packs(&mut lsp);
-    assert_eq!(packs.len(), 1, "exactly the workspace pack: {packs:#?}");
-    assert_eq!(packs[0].get("name").and_then(Value::as_str), Some("mylib"));
-    assert_eq!(
-        packs[0].get("tier").and_then(Value::as_str),
-        Some("workspace")
-    );
+    let mine = packs
+        .iter()
+        .find(|pack| pack.get("name").and_then(Value::as_str) == Some("mylib"))
+        .unwrap_or_else(|| panic!("the workspace pack: {packs:#?}"));
+    assert_eq!(mine.get("tier").and_then(Value::as_str), Some("workspace"));
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -203,10 +187,8 @@ fn without_a_pack_the_same_command_is_unknown() {
     let doc = root.join("app.tcl");
     write(&doc, source);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let uri = file_uri(&doc);
     lsp.open_ready(&uri, source);
     let hover = hover_text(&lsp.hover(&uri, 0, 4));
@@ -214,9 +196,12 @@ fn without_a_pack_the_same_command_is_unknown() {
         !hover.contains("Run a script with a caller variable bound."),
         "no pack, no pack hover; got:\n{hover}"
     );
+    // "No packs" means no *workspace* pack: the bundled tier (the shipped EDA
+    // loadables) is always there, and is what this control is controlling for.
     assert!(
-        loaded_packs(&mut lsp).is_empty(),
-        "and the server reports no packs at all"
+        !pack_names(&mut lsp).iter().any(|name| name == "mylib"),
+        "and the server reports no `mylib` pack at all; got {:?}",
+        pack_names(&mut lsp)
     );
 
     let _ = std::fs::remove_dir_all(&root);
@@ -231,25 +216,21 @@ fn a_pack_added_after_startup_reloads_and_re_analyses_open_documents() {
     let doc = root.join("app.tcl");
     write(&doc, source);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let uri = file_uri(&doc);
     lsp.open_ready(&uri, source);
     assert!(
-        !hover_text(&lsp.hover(&uri, 0, 4))
-            .contains("Run a script with a caller variable bound."),
+        !hover_text(&lsp.hover(&uri, 0, 4)).contains("Run a script with a caller variable bound."),
         "nothing is known about the command before the pack exists"
     );
-    assert!(loaded_packs(&mut lsp).is_empty());
+    assert!(!pack_names(&mut lsp).iter().any(|name| name == "mylib"));
 
     let pack = root.join(".tcl-lsp/mylib.tclspec");
     write(&pack, MYLIB_PACK);
     notify_pack_changed(&mut lsp, &pack, CREATED);
 
-    let packs = await_packs_loaded(&mut lsp);
-    assert_eq!(packs[0].get("name").and_then(Value::as_str), Some("mylib"));
+    await_pack_named(&mut lsp, "mylib");
     let hover = hover_text(&lsp.hover(&uri, 0, 4));
     assert!(
         hover.contains("Run a script with a caller variable bound."),
@@ -271,17 +252,14 @@ fn pack_load_notices_are_diagnostics_on_the_pack_file() {
          nonsense_property yes\n    }\n}\n",
     );
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let pack_uri = file_uri(&pack);
 
-    let diagnostics = lsp.await_diagnostics_settled(
-        &pack_uri,
-        std::time::Duration::from_secs(15),
-        |diags| !diags.is_empty(),
-    );
+    let diagnostics =
+        lsp.await_diagnostics_settled(&pack_uri, std::time::Duration::from_secs(15), |diags| {
+            !diags.is_empty()
+        });
     let notice = diagnostics
         .iter()
         .find(|d| {
@@ -289,7 +267,9 @@ fn pack_load_notices_are_diagnostics_on_the_pack_file() {
                 .and_then(Value::as_str)
                 .is_some_and(|m| m.contains("nonsense_property"))
         })
-        .unwrap_or_else(|| panic!("expected a notice about the unknown property: {diagnostics:#?}"));
+        .unwrap_or_else(|| {
+            panic!("expected a notice about the unknown property: {diagnostics:#?}")
+        });
     assert_eq!(
         notice.get("code").and_then(Value::as_str),
         Some("SPECTCL"),
@@ -361,11 +341,10 @@ fn a_pack_beside_a_package_manifest_is_discovered() {
     let doc = root.join("app.tcl");
     write(&doc, source);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let uri = file_uri(&doc);
+    await_pack_named(&mut lsp, "mylib");
     lsp.open_ready(&uri, source);
 
     let hover = hover_text(&lsp.hover(&uri, 0, 4));
@@ -397,11 +376,10 @@ fn a_multi_file_pack_merges_and_both_commands_resolve() {
     let doc = root.join("app.tcl");
     write(&doc, source);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let uri = file_uri(&doc);
+    await_pack_named(&mut lsp, "mylib");
     lsp.open_ready(&uri, source);
 
     assert!(hover_text(&lsp.hover(&uri, 0, 4)).contains("The alpha command."));
@@ -426,10 +404,8 @@ fn a_pack_cannot_silently_redefine_a_shipped_command() {
     let doc = root.join("app.tcl");
     write(&doc, source);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let uri = file_uri(&doc);
     let diagnostics = lsp.open_ready(&uri, source);
 
@@ -528,10 +504,8 @@ fn a_pack_const_fold_body_folds_a_call_site_in_the_optimiser() {
     let doc = root.join("app.tcl");
     write(&doc, FOLDER_SOURCE);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let uri = file_uri(&doc);
     lsp.open_ready(&uri, FOLDER_SOURCE);
     await_pack_named(&mut lsp, "folder");
@@ -563,10 +537,8 @@ fn without_the_pack_the_same_call_site_does_not_fold() {
     let doc = root.join("app.tcl");
     write(&doc, FOLDER_SOURCE);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     let uri = file_uri(&doc);
     lsp.open_ready(&uri, FOLDER_SOURCE);
     assert!(
@@ -606,10 +578,8 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
     let doc = root.join("build.tcl");
     write(&doc, source);
 
-    let mut lsp = Lsp::with_config_at_root(
-        json!({ "features": { "linkedEditingRange": true } }),
-        &root,
-    );
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     await_pack_named(&mut lsp, "eda_xilinx");
     assert!(
         pack_names(&mut lsp).iter().any(|name| name == "sdc_base"),
@@ -621,12 +591,7 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
     let diagnostics = lsp.open_ready(&uri, source);
     let unknown: Vec<String> = diagnostics
         .iter()
-        .filter(|d| {
-            matches!(
-                d.get("code").and_then(Value::as_str),
-                Some("W123") | Some("W002")
-            )
-        })
+        .filter(|d| matches!(d.get("code").and_then(Value::as_str), Some("W123" | "W002")))
         .filter_map(|d| d.get("message").and_then(Value::as_str))
         .map(ToOwned::to_owned)
         .collect();

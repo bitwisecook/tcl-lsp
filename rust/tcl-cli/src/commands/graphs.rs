@@ -191,7 +191,9 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
-    let result = Analyser::new().analyse(&source, &dialect);
+    let result = Analyser::new()
+        .with_pack_overlay(tcl_cli_support::spec_pack_key())
+        .analyse(&source, &dialect);
     let line_index = LineIndex::new(&source);
 
     let mut entries = detect_event_entries(&source, &line_index);

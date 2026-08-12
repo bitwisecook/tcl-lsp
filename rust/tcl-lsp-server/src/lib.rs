@@ -1627,7 +1627,10 @@ async fn compute_base_analysis(
         let a_path = uri.to_file_path().map(|p| p.display().to_string());
         let (a_bigip, a_packs) = {
             let db = db.lock().await;
-            (config.bigip_version(&*db).clone(), config.spec_pack_key(&*db))
+            (
+                config.bigip_version(&*db).clone(),
+                config.spec_pack_key(&*db),
+            )
         };
         let analysis = tokio::task::spawn_blocking(move || {
             with_pack_hooks(|| {
@@ -4926,7 +4929,8 @@ impl Backend {
             Vec::new(),
             None,
             None,
-         0,);
+            0,
+        );
         Self {
             client,
             documents: Arc::new(Mutex::new(HashMap::new())),
@@ -12941,7 +12945,9 @@ impl Backend {
             self.client.publish_diagnostics(uri, Vec::new(), None).await;
         }
         for (uri, diagnostics) in by_uri {
-            self.client.publish_diagnostics(uri, diagnostics, None).await;
+            self.client
+                .publish_diagnostics(uri, diagnostics, None)
+                .await;
         }
     }
 
@@ -23363,13 +23369,14 @@ mod tests {
     #[test]
     fn configured_analyser_threads_mode_and_disabled() {
         // `Off` mode suppresses W108 entirely.
-        let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off, HashSet::new());
+        let mut a =
+            Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off, HashSet::new(), 0);
         let r = a.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
         // A disabled code is filtered from the analyser's output.
         let mut disabled = HashSet::new();
         disabled.insert("W108".to_string());
-        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict, HashSet::new());
+        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict, HashSet::new(), 0);
         let r = b.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
     }
@@ -25467,7 +25474,8 @@ mod tests {
             Vec::new(),
             None,
             None,
-         0,);
+            0,
+        );
         Backend {
             client: service.inner().client.clone(),
             documents: Arc::new(Mutex::new(HashMap::new())),

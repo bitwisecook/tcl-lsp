@@ -35,7 +35,14 @@ use tcl_registry::{CommandRegistry, CommandTableEffect, Traits};
 /// the same list `registry_sweep.rs` uses — so the sweep sees every spec,
 /// including dialect twins (the iRules `proc`).
 const LOADABLE_DIALECTS: &[&str] = &[
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules", "f5-iapps", "expect", "bpf",
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "f5-irules",
+    "f5-iapps",
+    "expect",
+    "bpf",
 ];
 
 /// The shipped `.tclspec` loadables, which is where the EDA vendor libraries
@@ -48,7 +55,9 @@ const LOADABLE_DIALECTS: &[&str] = &[
 /// discovery's defaults keeps the test independent of where the test binary
 /// happens to sit.
 fn bundled_packs() -> tcl_spectcl::PackSet {
-    tcl_spectcl::bundled::load_from(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs"))
+    tcl_spectcl::bundled::load_from(
+        &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs"),
+    )
 }
 
 /// A registry with every loadable dialect pack merged in — compiled-in

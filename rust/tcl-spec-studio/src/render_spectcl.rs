@@ -874,7 +874,10 @@ fn var_elements_effect_word(expr: &str) -> Option<String> {
     Some(match variant {
         "SetsDictValue" | "ListifiesDictValue" => variant.to_owned(),
         "AppendsListElements" | "ExtendsDictValuesByName" => {
-            format!("{{{variant} {}}}", struct_fields(inner)?.get("values_from")?)
+            format!(
+                "{{{variant} {}}}",
+                struct_fields(inner)?.get("values_from")?
+            )
         }
         _ => return None,
     })
@@ -940,7 +943,10 @@ fn defines_symbol_row(expr: &str) -> Option<Vec<String>> {
         "-name-arg".to_owned(),
         (*fields.get("name_arg")?).to_owned(),
     ];
-    for (flag, key) in [("-detail-arg", "detail_arg"), ("-requires-arg", "requires_arg")] {
+    for (flag, key) in [
+        ("-detail-arg", "detail_arg"),
+        ("-requires-arg", "requires_arg"),
+    ] {
         if let Some(index) = unwrap_some(fields.get(key)?) {
             row.push(flag.to_owned());
             row.push(index.to_owned());
@@ -1775,14 +1781,32 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         }
     }
     expr_word(out, ctx, draft, "return_elements", return_elements_word);
-    expr_word(out, ctx, draft, "var_elements_effect", var_elements_effect_word);
-    expr_word(out, ctx, draft, "representation_effect", representation_effect_word);
+    expr_word(
+        out,
+        ctx,
+        draft,
+        "var_elements_effect",
+        var_elements_effect_word,
+    );
+    expr_word(
+        out,
+        ctx,
+        draft,
+        "representation_effect",
+        representation_effect_word,
+    );
     enum_word(out, ctx, draft, "inferred_storage_type");
     enum_word(out, ctx, draft, "body_kind");
     expr_word(out, ctx, draft, "byte_array_effect", byte_array_effect_word);
     enum_word(out, ctx, draft, "pattern_type");
     enum_word(out, ctx, draft, "format_string_type");
-    expr_row(out, ctx, draft, "byte_array_payload", byte_array_payload_row);
+    expr_row(
+        out,
+        ctx,
+        draft,
+        "byte_array_payload",
+        byte_array_payload_row,
+    );
 
     arg_rows(out, ctx, draft);
     if ctx.set(draft, "repeated_args")
@@ -2100,11 +2124,29 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft) {
         }
     }
     expr_word(out_body, ctx, sub, "return_elements", return_elements_word);
-    expr_word(out_body, ctx, sub, "var_elements_effect", var_elements_effect_word);
-    expr_word(out_body, ctx, sub, "representation_effect", representation_effect_word);
+    expr_word(
+        out_body,
+        ctx,
+        sub,
+        "var_elements_effect",
+        var_elements_effect_word,
+    );
+    expr_word(
+        out_body,
+        ctx,
+        sub,
+        "representation_effect",
+        representation_effect_word,
+    );
     enum_word(out_body, ctx, sub, "inferred_storage_type");
     enum_word(out_body, ctx, sub, "body_kind");
-    expr_word(out_body, ctx, sub, "byte_array_effect", byte_array_effect_word);
+    expr_word(
+        out_body,
+        ctx,
+        sub,
+        "byte_array_effect",
+        byte_array_effect_word,
+    );
     enum_word(out_body, ctx, sub, "pattern_type");
     enum_word(out_body, ctx, sub, "format_string_type");
 

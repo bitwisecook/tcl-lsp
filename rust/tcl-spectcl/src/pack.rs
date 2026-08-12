@@ -574,7 +574,10 @@ mod tests {
             "speclib mylib 1 {\n  command mylib::x { arity 1 }\n}\n",
         );
         let before = load(&[workspace_file(a.clone())]).key;
-        assert_ne!(before, 0, "a non-empty set never keys as the empty identity");
+        assert_ne!(
+            before, 0,
+            "a non-empty set never keys as the empty identity"
+        );
         assert_eq!(
             before,
             load(&[workspace_file(a.clone())]).key,

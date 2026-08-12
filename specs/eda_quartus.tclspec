@@ -12,10 +12,10 @@
 # Discovery: the **bundled** tier — `specs/` beside the server executable, or
 # wherever $TCL_LSP_SPEC_PACK_DIR points (rust/tcl-spectcl/src/discovery.rs).
 # Edit this file to change the specs; there is no generator to re-run.
-# Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
-#   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
-# The syntax is docs/design/spec-dsl-examples/README.md. Every `TODO(spectcl)`
-#   line below names a field the source spec sets that a pack cannot yet say.
+# Syntax: docs/design/spec-dsl-examples/README.md. The initial text was written
+# by the spec studio's SpecTcl renderer (rust/tcl-spec-studio/src/render_spectcl.rs)
+# from the registry modules, which reported no unwritable field on any command
+# here; this file is hand-maintained from now on.
 
 speclib eda_quartus 1.0 {
 

@@ -27,9 +27,9 @@ use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
 use tcl_dialect::KNOWN_DIALECTS;
 use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
+use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
-use tcl_registry::CommandRegistry;
 
 const IRULES_DIALECT: &str = "f5-irules";
 
@@ -126,8 +126,15 @@ fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Va
 }
 
 /// Analyse `source` under `dialect` (fresh analyser per call, like the facades).
+///
+/// [`registry`] first, then the overlay key it built: the analyser resolves its
+/// own registry from the dialect profile, so without the key it would miss the
+/// bundled `.tclspec` loadables and call every EDA vendor command unknown.
 fn analyse(source: &str, dialect: &str) -> AnalysisResult {
-    Analyser::new().analyse(source, dialect)
+    let _ = registry(dialect);
+    Analyser::new()
+        .with_pack_overlay(tcl_spectcl::bundled::packs().key)
+        .analyse(source, dialect)
 }
 
 /// `"true"`/`"1"`/`"yes"` (case-insensitive) or a JSON `true` — else `false`.
@@ -480,7 +487,7 @@ fn inline_variable(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, &dialect);
+    let analysis = analyse(source, &dialect);
     match tcl_lsp_core::refactor::inline_variable(source, off, &analysis, registry(&dialect), &idx)
     {
         Some(r) => refactoring_json(source, &r),

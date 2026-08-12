@@ -87,7 +87,8 @@ fn alias_declared_outside_body_matches_full() {
         Vec::new(),
         None,
         None,
-     0,);
+        0,
+    );
     let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
     let inc = file_analysis_incremental(&db, file, cfg);
     let full = file_analysis(&db, file, cfg);
@@ -117,7 +118,8 @@ fn rename_declared_outside_body_matches_full() {
         Vec::new(),
         None,
         None,
-     0,);
+        0,
+    );
     let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
     let inc = file_analysis_incremental(&db, file, cfg);
     let full = file_analysis(&db, file, cfg);
@@ -171,7 +173,8 @@ fn file_analysis_incremental_matches_full_over_corpus() {
                     Vec::new(),
                     None,
                     None,
-                 0,);
+                    0,
+                );
                 let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
                 let inc = file_analysis_incremental(&db, file, cfg);
                 let full = file_analysis(&db, file, cfg);

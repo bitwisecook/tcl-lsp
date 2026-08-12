@@ -34,10 +34,10 @@
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use tcl_registry::Traits;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::registry::CommandRegistry;
-use tcl_registry::Traits;
 use tcl_spectcl::{PackSet, bundled};
 
 /// The repository's `specs/` — what a release lays down beside the executable.
@@ -201,7 +201,10 @@ fn the_loaded_specs_carry_their_analysis_facts() {
         &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
         "the variable it writes and the body it runs"
     );
-    assert!(foreach.arity.accepts(3), "foreach_in_collection var coll body");
+    assert!(
+        foreach.arity.accepts(3),
+        "foreach_in_collection var coll body"
+    );
     assert!(!foreach.arity.accepts(2));
 
     let append = reg.get("append_to_collection").expect("an SDC var writer");

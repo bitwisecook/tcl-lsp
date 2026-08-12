@@ -18,6 +18,20 @@ dormant-to-distant enough in this space that the pun wins.)
 > init, reload on pack-file change, and their load notices are published as
 > diagnostics on the pack file. All of it lives in the `tcl-spectcl` crate.
 >
+> **Landed (the EDA migration):** the boundary this document draws is now real
+> on both sides. `sdc_base` and the five vendor packs — 346 commands — are
+> bundled `.tclspec` loadables in `specs/`, shipped beside the server
+> executable; their ~350 Rust modules and `CommandRegistry::load_eda_packs`
+> are deleted. Every command was proved field-for-field equal to its compiled
+> spec through render → load → draft before the modules went, with **zero**
+> renderer losses and zero loader notices across all six packs. Two seams made
+> it work: `install_into` filters a pack command by the profile's ambient
+> packages (all six libraries are discovered for every dialect, and four of
+> them declare a `report_timing`), and `Analyser::with_pack_overlay` lets the
+> analyser — which resolves its own registry and cannot depend on the loader —
+> read the pack-carrying entry, without which an EDA document's every command
+> reported as unknown.
+>
 > **Not yet:** hook bodies do not run — every pack-declared hook installs as an
 > abstaining function pointer, so the cache has no bytecode to hold and stores
 > only the parsed statement tree. See "Hot-path budget" and phase 5 below.

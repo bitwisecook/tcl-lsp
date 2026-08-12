@@ -278,7 +278,10 @@ fn memo_key(source: &str, base_line: u32) -> (u32, u32, u64) {
 pub(crate) fn memo_get(source: &str, base_line: u32) -> Option<Vec<Stmt>> {
     MEMO.with(|cell| {
         let memo = cell.borrow();
-        memo.as_ref()?.entries.get(&memo_key(source, base_line)).cloned()
+        memo.as_ref()?
+            .entries
+            .get(&memo_key(source, base_line))
+            .cloned()
     })
 }
 
@@ -334,7 +337,11 @@ fn write_entry(path: &Path, key: u64, memo: &Memo) {
     buf.extend_from_slice(MAGIC);
     buf.push(FORMAT);
     buf.extend_from_slice(&key.to_le_bytes());
-    buf.extend_from_slice(&u32::try_from(memo.order.len()).unwrap_or(u32::MAX).to_le_bytes());
+    buf.extend_from_slice(
+        &u32::try_from(memo.order.len())
+            .unwrap_or(u32::MAX)
+            .to_le_bytes(),
+    );
     for entry_key in &memo.order {
         let Some(stmts) = memo.entries.get(entry_key) else {
             continue;
@@ -352,12 +359,18 @@ fn put_stmts(buf: &mut Vec<u8>, stmts: &[Stmt]) {
     buf.extend_from_slice(&u32::try_from(stmts.len()).unwrap_or(u32::MAX).to_le_bytes());
     for stmt in stmts {
         buf.extend_from_slice(&stmt.line.to_le_bytes());
-        buf.extend_from_slice(&u32::try_from(stmt.words.len()).unwrap_or(u32::MAX).to_le_bytes());
+        buf.extend_from_slice(
+            &u32::try_from(stmt.words.len())
+                .unwrap_or(u32::MAX)
+                .to_le_bytes(),
+        );
         for word in &stmt.words {
             buf.extend_from_slice(&word.line.to_le_bytes());
             buf.push(u8::from(word.braced));
             buf.extend_from_slice(
-                &u32::try_from(word.text.len()).unwrap_or(u32::MAX).to_le_bytes(),
+                &u32::try_from(word.text.len())
+                    .unwrap_or(u32::MAX)
+                    .to_le_bytes(),
             );
             buf.extend_from_slice(word.text.as_bytes());
         }
@@ -371,7 +384,8 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     std::fs::create_dir_all(parent)?;
     let temp = parent.join(format!(
         ".{}.{}.tmp",
-        path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
+        path.file_name()
+            .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
         std::process::id()
     ));
     {
@@ -413,9 +427,8 @@ impl<'a> Reader<'a> {
     }
 
     fn u64(&mut self) -> Option<u64> {
-        self.take(8).map(|b| {
-            u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]])
-        })
+        self.take(8)
+            .map(|b| u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
     }
 
     /// A length-prefixed count, refused when it could not possibly fit in what
@@ -526,10 +539,8 @@ speclib mylib 1 {
         /// The redirect is process-global, so every test that takes one runs
         /// under [`LOCK`].
         fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "tcl-spectcl-cache-{name}-{}",
-                std::process::id()
-            ));
+            let dir = std::env::temp_dir()
+                .join(format!("tcl-spectcl-cache-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             redirect_for_test(Some((dir.clone(), false)));
             Self(dir)
@@ -595,7 +606,9 @@ speclib mylib 1 {
 
     #[test]
     fn a_cold_load_writes_an_entry_and_a_warm_load_matches_it() {
-        let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("roundtrip");
 
         let cold = load_pack_cached(SOURCE);
@@ -613,7 +626,9 @@ speclib mylib 1 {
 
     #[test]
     fn an_edit_writes_a_second_entry_and_leaves_the_first() {
-        let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("edit");
 
         let _ = load_pack_cached(SOURCE);
@@ -626,7 +641,9 @@ speclib mylib 1 {
 
     #[test]
     fn a_corrupt_entry_falls_back_to_a_fresh_parse() {
-        let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("corrupt");
         let expected = shape(&crate::loader::load_pack(SOURCE));
 
@@ -639,7 +656,10 @@ speclib mylib 1 {
             ("header only", good[..4].to_vec()),
             ("truncated mid-entry", good[..good.len() / 2].to_vec()),
             ("trailing garbage", [good.clone(), vec![0xff; 8]].concat()),
-            ("wrong magic", [b"XXXXXXX".to_vec(), good[7..].to_vec()].concat()),
+            (
+                "wrong magic",
+                [b"XXXXXXX".to_vec(), good[7..].to_vec()].concat(),
+            ),
             ("wrong key", {
                 let mut bytes = good.clone();
                 bytes[8] ^= 0xff;
@@ -667,7 +687,9 @@ speclib mylib 1 {
 
     #[test]
     fn a_write_failure_is_not_an_error() {
-        let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("unwritable");
         // A *file* where the cache directory should be: every create_dir_all
         // under it fails, so nothing can ever be written.
@@ -696,7 +718,9 @@ speclib mylib 1 {
 
     #[test]
     fn disabling_the_cache_changes_nothing_but_speed() {
-        let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("disabled");
         cache.disable();
         let loaded = load_pack_cached(SOURCE);
@@ -706,7 +730,9 @@ speclib mylib 1 {
 
     #[test]
     fn the_cache_directory_is_under_the_os_cache_dir() {
-        let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         redirect_for_test(None);
         if std::env::var_os(DIR_ENV).is_some_and(|v| !v.is_empty()) {
             // An operator-configured cache directory is by definition not the
@@ -715,12 +741,18 @@ speclib mylib 1 {
         }
         let dir = dir();
         assert!(dir.ends_with("spectcl"), "{}", dir.display());
-        assert!(dir.starts_with(tcl_userdirs::cache_dir()), "{}", dir.display());
+        assert!(
+            dir.starts_with(tcl_userdirs::cache_dir()),
+            "{}",
+            dir.display()
+        );
     }
 
     #[test]
     fn clearing_an_absent_cache_is_not_an_error() {
-        let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("clear");
         let _ = load_pack_cached(SOURCE);
         assert!(!cache.entries().is_empty());

@@ -71,10 +71,7 @@ pub fn registry_with_packs(
 /// registry lookup in the server resolves one — so an alias or a typo lands on
 /// the same entry it always would, now with the workspace's packs on top.
 #[must_use]
-pub fn registry_for_dialect_with_packs(
-    dialect: &str,
-    packs: &PackSet,
-) -> &'static CommandRegistry {
+pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> &'static CommandRegistry {
     registry_with_packs(DialectProfile::by_name(dialect), packs)
 }
 
@@ -108,11 +105,7 @@ pub fn registry_for_dialect_with_packs(
 ///
 /// Hosted packages (`Tk`, tcllib, a private pack's own `package require`) are
 /// never affected: they are ambient in no profile, so the gate passes them.
-fn install_into(
-    registry: &mut CommandRegistry,
-    packs: &PackSet,
-    profile: &'static DialectProfile,
-) {
+fn install_into(registry: &mut CommandRegistry, packs: &PackSet, profile: &'static DialectProfile) {
     let plan = hooks::plan_for(packs);
     for pack in &packs.packs {
         for command in &pack.commands {

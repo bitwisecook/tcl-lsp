@@ -155,7 +155,11 @@ impl HookPlan {
         self.packs.iter().flat_map(move |pack| {
             pack.programs.iter().filter_map(move |program| {
                 (program.command == command)
-                    .then(|| program.slot.map(|slot| (&program.owner, program.family, slot)))
+                    .then(|| {
+                        program
+                            .slot
+                            .map(|slot| (&program.owner, program.family, slot))
+                    })
                     .flatten()
             })
         })
@@ -188,15 +192,15 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
         // A family with no slots left installs no hook at all: the command
         // keeps its declarative facts, which is the documented degradation and
         // is cheaper than an abstaining call per query.
-        programs
-            .programs
-            .retain_mut(|program| match pack_hooks::allocate(program.family, &program.inputs) {
+        programs.programs.retain_mut(|program| {
+            match pack_hooks::allocate(program.family, &program.inputs) {
                 Some(slot) => {
                     program.slot = Some(slot);
                     true
                 }
                 None => false,
-            });
+            }
+        });
         built.packs.push(programs);
     }
     let plan = Arc::new(built);
@@ -228,10 +232,15 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
             bind_command(&mut out, family, slot);
         }
     }
-    if bindings
-        .iter()
-        .any(|(owner, ..)| matches!(owner, HookOwner::Option { subcommand: None, .. }))
-    {
+    if bindings.iter().any(|(owner, ..)| {
+        matches!(
+            owner,
+            HookOwner::Option {
+                subcommand: None,
+                ..
+            }
+        )
+    }) {
         let mut options: Vec<OptionSpec> = out.options.to_vec();
         for &(owner, _, slot) in &bindings {
             if let HookOwner::Option {
@@ -244,7 +253,10 @@ pub fn specialise(command: &PackCommand, plan: &HookPlan) -> &'static CommandSpe
         }
         out.options = Box::leak(options.into_boxed_slice());
     }
-    if bindings.iter().any(|(owner, ..)| owner.subcommand().is_some()) {
+    if bindings
+        .iter()
+        .any(|(owner, ..)| owner.subcommand().is_some())
+    {
         let mut subs: Vec<SubCommand> = out.subcommands.to_vec();
         for sub in &mut subs {
             bind_subcommand(sub, &bindings);
@@ -308,7 +320,11 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
                 | HookFamily::OptionArity => {}
             },
             HookOwner::Option { option, .. } => {
-                bind_option(options.get_or_insert_with(|| sub.options.to_vec()), option, slot);
+                bind_option(
+                    options.get_or_insert_with(|| sub.options.to_vec()),
+                    option,
+                    slot,
+                );
             }
             HookOwner::Command => {}
         }

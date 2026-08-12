@@ -103,7 +103,8 @@ fn main() {
         Vec::new(),
         None,
         None,
-     0,);
+        0,
+    );
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
     let _ = file_analysis_incremental(&db, file, cfg);
     let _ = compiler_check_diagnostics(&db, file, cfg);
@@ -238,7 +239,8 @@ fn breadth_for_edit(src: &str, dialect: &str, edited: &str) -> (Vec<String>, Vec
         Vec::new(),
         None,
         None,
-     0,);
+        0,
+    );
     let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
     let _ = file_analysis_incremental(&db, file, cfg);
     let _ = compiler_check_diagnostics(&db, file, cfg);
