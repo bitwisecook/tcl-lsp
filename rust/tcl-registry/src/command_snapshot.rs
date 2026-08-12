@@ -106,8 +106,8 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
 // inverts — rather than a parallel hand-list. A hand-list here missed
 // `tcl9.1`/`bpf` once (a `TCL90_PLUS` spec dropped its 9.1
 // membership and a BPF-only spec serialised `[]`, indistinguishable from
-// "available nowhere") and the Milestone 6 `TMSH`/`BIGIP` bits a second
-// time, so new primitive bits can never be forgotten again.
+// "available nowhere") and the `TMSH`/`BIGIP` bits a second time, so new
+// primitive bits can never be forgotten again.
 
 /// Serialise an [`Arity`] as `{"min", "max"}` (`max` null = unbounded).
 fn arity_json(arity: Arity) -> Json {

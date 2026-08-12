@@ -64,4 +64,3 @@ denormalised copy of it.
 - [Design doc index](../README.md)
 - [parsing contracts](parsing.md)
 - [the canonical concrete syntax tree](../compiler/syntax-tree.md)
-- [range-drift troubleshooting](../../kcs/kcs-issue-range-drift.md)

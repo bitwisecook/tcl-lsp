@@ -2104,8 +2104,7 @@ mod tests {
     // `Tcl_ParseVarName` is `while (numBytes && (*src != '}'))`, no brace
     // counting, no backslash) — [`BracedVarStyle::FirstClose`], which every
     // 8.x-runtime dialect profile selects via `LexerConfig::for_dialect`
-    // (dialect-profile-model.md, Milestone 3; previously the parse was
-    // standardised on 9.0.3 for all dialects).
+    // (dialect-profile-model.md).
 
     #[test]
     fn var_braced_escaped_close_brace_is_part_of_name() {

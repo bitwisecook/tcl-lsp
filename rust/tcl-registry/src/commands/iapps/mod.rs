@@ -132,7 +132,7 @@ pub fn iapps_command_specs() -> Vec<CommandSpec> {
 /// `iapps_command_specs` registers (tagged `IAPPS|TMSH`: real in both an
 /// iApp's host script and a tmsh script), collected separately so
 /// `load_dialect(TMSH)` can register the tmsh shell's command pack
-/// without the iApp-only surface (Milestone 6, D8).
+/// without the iApp-only surface (D8).
 #[must_use]
 pub fn tmsh_command_specs() -> Vec<CommandSpec> {
     vec![
