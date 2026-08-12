@@ -227,7 +227,7 @@ flowchart TD
         direction TB
         DX["diagnostics"]
         SC["global_scope"]
-        PR["procedures"]
+        PR["all_procs / all_classes / all_variables"]
         CI["command_invocations"]
         SL["suppressed_lines"]
     end
@@ -849,28 +849,33 @@ flowchart TD
 Tcl `expr` bodies are parsed into a separate AST, used by SCCP, type
 inference, the optimiser, and shimmer detection.
 
+Both stages are free functions, not types: `tcl_lexer::expr_lexer::
+tokenise_expr()` and `tcl_syntax::expr::parser::parse_expr()`.  Each takes an
+optional dialect name, because a dialect can widen the operator and function
+surface an expression accepts.
+
 ```mermaid
 flowchart LR
-    EXPR["expr source string"] --> ELEX["ExprLexer<br/>tokenise_expr()"]
-    ELEX --> EPAR["ExprParser<br/>parse_expr()"]
+    EXPR["expr source string"] --> ELEX["tokenise_expr(src, dialect)<br/>→ Vec&lt;ExprToken&gt;"]
+    ELEX --> EPAR["parse_expr(src, dialect)"]
     EPAR --> EAST["ExprNode AST"]
 
     subgraph "ExprNode variants"
         direction TB
-        LIT["ExprLiteral"]
-        VAR["ExprVar"]
-        CMD["ExprCommand"]
-        STR["ExprString"]
-        BIN["ExprBinary"]
-        UNA["ExprUnary"]
-        TER["ExprTernary"]
-        CAL["ExprCall"]
-        RAW["ExprRaw (fallback)"]
+        LIT["Literal"]
+        STR["String"]
+        VAR["Var"]
+        CMD["Command"]
+        BIN["Binary"]
+        UNA["Unary"]
+        TER["Ternary"]
+        CAL["Call"]
+        RAW["Raw (fallback)"]
     end
 ```
 
-`ExprRaw` is a fallback for expressions the parser cannot handle — every
-consumer must treat it as opaque and conservative.
+`ExprNode::Raw` is a fallback for expressions the parser cannot handle —
+every consumer must treat it as opaque and conservative.
 
 ## Diagnostic code taxonomy
 

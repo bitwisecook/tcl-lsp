@@ -21,7 +21,8 @@ result stays *sound* under Tcl's runtime dynamism.
 "Efficiently Computing Static Single Assignment Form and the Control Dependence
 Graph," *ACM TOPLAS* 13(4):451–490, 1991 (doi:10.1145/115372.115320).
 
-**Where.** `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `_phi_vars`, renaming).
+**Where.** `rust/tcl-compiler/src/ssa.rs` (`build_ssa`, `compute_phi_vars`,
+the `RenameWalk` dominator-tree rename).
 
 **Adaptation.** Phi placement uses the iterated dominance frontier exactly as in
 Cytron et al.  Tcl-specific: variables that escape the frame
@@ -37,13 +38,30 @@ sets are not blind to `[expr {$x}]`-style hidden references.
 Algorithm," Rice University TR, 2001 (the iterative O(N²)-in-practice
 dominator/df formulation).
 
-**Where.** `rust/tcl-compiler/src/ssa.rs` (`_compute_idom_fast`, `_dominance_frontier`),
+**Where.** `rust/tcl-compiler/src/ssa.rs` (`compute_idom_fast`,
+`compute_dominance_frontier`, `build_dom_tree`),
 `rust/tcl-compiler/src/loops.rs` (`dominates`).
 
 **Adaptation.** Used as published over the per-function CFG.  The CFG itself is
 Tcl-shaped: control structures (`if`/`while`/`for`/`foreach`/`switch`/`catch`/
 `try`) are lowered to blocks, and any command we cannot reason about lowers to
-an **`IRBarrier`** node that conservatively breaks dataflow.
+a **`Statement::Barrier`** node that conservatively breaks dataflow.
+
+`compute_idom_fast` is the production path: it works on reverse-postorder
+indices and one `idom` pointer per block, so it is O(N·D) time and O(N)
+memory.  The set-based `compute_dominators` + `compute_idom` pair is kept
+only as the reference implementation the fast path is cross-validated
+against (`#[cfg(test)]`), because materialising the dominator *sets* is
+O(N²) memory on a multi-thousand-branch generated proc.
+
+Dominance is queried two ways.  The default is a walk up the `idom` chain
+(`loops::dominates`, `intervals::dominates`,
+`diagnostics::helpers::block_dominated_by`), which is O(depth).  On a flat
+N-branch dispatch chain the chain *is* the whole function, so a per-block-pair
+loop over it is O(V²); `SsaFunction::dominator_intervals` answers the same
+question in O(1) from a pre-order DFS numbering of the dominator tree
+(half-open `[enter, exit)` intervals, nesting = dominance).  GVN's
+loop-invariant scan is the one consumer that needs it.
 
 ## Natural-loop forest
 
