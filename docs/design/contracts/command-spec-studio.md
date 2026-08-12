@@ -38,6 +38,23 @@ Everything else reads that table:
 **Adding a field to `CommandSpec` means adding one `FieldSchema` entry and one
 line in `draft`.** No UI, serialiser, or renderer change is needed.
 
+### Long-form help rides the schema
+
+`help.rs` carries the Tcl-developer-facing text behind the form's **?**
+buttons and the Reference tab: one long-form entry per field key (shared
+between the command and subcommand tables), one per group heading, and a
+`(title, intro)` pair per catalogue id. `FieldSchema::to_json` resolves the
+field entry into the schema JSON as `help`, and `schema::to_json` adds
+`groupHelp` and `catalogueHelp` maps — so the front-end still knows no field
+names, and the Reference tab is rendered entirely from the same wire schema
+the form reads.
+
+The tests in `help.rs` enforce coverage in both directions: every schema
+field, group, and catalogue must have help (a new field fails by name until
+its entry is written), and every help entry must name something that still
+exists. "A **?** on everything" is therefore a property of the build, not a
+review habit.
+
 ### Invariant: the schema covers every spec field
 
 `tests/schema_coverage.rs` reads `tcl-registry/src/spec.rs` at compile time

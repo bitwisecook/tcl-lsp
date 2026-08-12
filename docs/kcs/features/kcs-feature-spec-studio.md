@@ -34,7 +34,10 @@ including offline, and including from a file you saved to disk.
 3. **Edit any field.** The form is grouped — Identity, Availability, Arity and
    arguments, Types, and so on. A field that differs from the default is
    marked **set**, and each group heading counts how many of its fields are
-   set, so what a command actually declares is visible at a glance.
+   set, so what a command actually declares is visible at a glance. Every
+   group and every field carries a **?** button that opens a plain-language
+   explanation, written for Tcl developers, with Tcl examples rather than
+   Rust ones.
 4. **Read the output** on the **Rendered .rs** and **Tcl stub** tabs. Both
    update as you type.
 5. **Copy** it, **Download** it, or **Add to files** to collect several
@@ -52,6 +55,16 @@ pressing **Load** matters there: the list is off-screen, so filtering alone
 would look like nothing had happened.
 
 ![The spec studio on a phone, with a command loaded by name](../../screenshots/spec-studio-mobile.png)
+
+### Looking things up: the Reference tab
+
+The **Reference** tab holds the registry's whole vocabulary behind one
+search box: every specification field, every behavioural trait, every
+argument role, every taint colour, and the rest of the picker catalogues,
+each with what it means and what it drives. Searching "taint" finds the
+taint fields and every taint colour; searching "upvar" finds the traits
+and fields about scope aliasing. The same text sits behind the form's
+**?** buttons, so nothing has to be learned in two places.
 
 ### Nothing you type is uploaded
 
@@ -136,6 +149,8 @@ reasoning that produced it.
 
 ## See also
 
+- [How to create a command spec without knowing Rust](../kcs-howto-create-command-specs-without-rust.md)
+  — the step-by-step path from "my command is unknown" to a proposed spec.
 - [The command registry contract](../../design/compiler/command-registry.md) —
   the full field reference.
 - [The spec studio design doc](../../design/contracts/command-spec-studio.md) —

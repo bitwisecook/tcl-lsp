@@ -24,7 +24,17 @@
 // browser, the output panes, the file tray, the GitHub issue, and the package
 // importer.
 
-import { byId, clear, clone, copyText, deepEqual, download, el, setStatus } from "./dom.js";
+import {
+  byId,
+  clear,
+  clone,
+  copyText,
+  deepEqual,
+  download,
+  el,
+  setStatus,
+  type Child,
+} from "./dom.js";
 import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
 import type {
   CommandIndex,
@@ -54,7 +64,7 @@ const MAX_LISTED = 400;
 /// How many names to offer the browser's native autocomplete at once.
 const MAX_SUGGESTED = 50;
 
-const TABS = ["editor", "rs", "stub", "import", "share"] as const;
+const TABS = ["editor", "rs", "stub", "import", "reference", "share"] as const;
 type Tab = (typeof TABS)[number];
 
 interface State {
@@ -80,6 +90,42 @@ let renderTimer: number | undefined;
 function isSet(draft: Draft, field: FieldSchema, which: "command" | "subcommand"): boolean {
   const base = which === "subcommand" ? state.defaultSubcommand : state.defaultCommand;
   return !deepEqual(draft[field.key], base[field.key]);
+}
+
+/* Help ------------------------------------------------------------------ */
+
+/** Long-form help text as a stack of paragraphs. */
+function helpParagraphs(text: string): HTMLElement {
+  const node = el("div", { class: "helptext" });
+  for (const para of text.split(/\n\n+/)) {
+    if (para.trim()) node.appendChild(el("p", { text: para }));
+  }
+  return node;
+}
+
+/**
+ * A `?` button that toggles `panel`. The panel starts hidden; the button
+ * carries `aria-expanded` so the state is visible to assistive tech too.
+ */
+function helpButton(panel: HTMLElement, label: string): HTMLButtonElement {
+  panel.hidden = true;
+  const button = el("button", {
+    type: "button",
+    class: "qbtn",
+    text: "?",
+    title: `About ${label}`,
+    "aria-label": `About ${label}`,
+    "aria-expanded": "false",
+  });
+  button.addEventListener("click", (event) => {
+    // Inside a <summary>, a plain click would also toggle the group open or
+    // closed — the reader asked for help, not for the group to collapse.
+    event.preventDefault();
+    event.stopPropagation();
+    panel.hidden = !panel.hidden;
+    button.setAttribute("aria-expanded", panel.hidden ? "false" : "true");
+  });
+  return button;
 }
 
 /* Form ------------------------------------------------------------------ */
@@ -111,6 +157,12 @@ function buildForm(
         text: setCount ? `${setCount} set of ${list.length}` : `${list.length} fields`,
       }),
     ]);
+    const groupHelp = state.schema.groupHelp[group];
+    if (groupHelp) {
+      const panel = helpParagraphs(groupHelp);
+      summary.appendChild(helpButton(panel, `the ${group} group`));
+      body.appendChild(panel);
+    }
     const details = el("details", { class: "group" }, [summary, body]);
     // Open the group the author starts in, plus any group that already
     // carries a non-default value.
@@ -128,13 +180,32 @@ function buildField(
   onChange: () => void,
 ): HTMLElement {
   const ctl = el("div", { class: "ctl" });
+  const help = helpParagraphs(field.help);
+  // An enum / flag-set field's vocabulary has a fuller write-up on the
+  // Reference tab; link straight to it from the help panel.
+  const catalogueId = field.kind.catalogue;
+  const catalogue = catalogueId ? state.schema.catalogueHelp[catalogueId] : undefined;
+  if (catalogue) {
+    help.appendChild(
+      el("p", {}, [
+        el("button", {
+          type: "button",
+          class: "ghost",
+          text: `All ${catalogue.title.toLowerCase()} on the Reference tab →`,
+          onclick: () => openReference(catalogue.title),
+        }),
+      ]),
+    );
+  }
   const lbl = el("div", { class: "lbl" }, [
     el("span", { class: "name", text: field.label }),
     el("code", { class: "key", text: field.key }),
+    helpButton(help, field.label),
   ]);
   const node = el("div", { class: "field" }, [
     lbl,
     el("div", { class: "doc", text: field.doc }),
+    help,
     ctl,
   ]);
 
@@ -596,6 +667,140 @@ function runImport(payload: { name: string; text: string }[]): void {
   );
 }
 
+/* Reference ------------------------------------------------------------- */
+
+// The Reference tab renders the registry's whole vocabulary — every spec
+// field and every catalogue (traits, argument roles, taint colours, …) with
+// its long-form help — behind one search box. Sections and rows are built
+// once at boot; searching toggles `hidden`, so filtering thousands of rows
+// stays instant.
+
+interface RefRow {
+  node: HTMLElement;
+  hay: string;
+}
+
+interface RefSection {
+  node: HTMLElement;
+  /**
+   * Matches against the section's title only — an introduction that merely
+   * *mentions* taint must not make every trait a hit for "taint".
+   */
+  hay: string;
+  rows: RefRow[];
+  /** The count badge in the section heading, updated as filtering changes. */
+  count: HTMLElement;
+}
+
+const refSections: RefSection[] = [];
+
+function refRow(term: string, badges: string[], doc: string, help?: string): RefRow {
+  const head = el("div", { class: "hd" }, [el("code", { class: "term", text: term })]);
+  for (const badge of badges) head.appendChild(el("span", { class: "badge", text: badge }));
+  const kids: Child[] = [head, el("div", { class: "doc", text: doc })];
+  if (help && help !== doc) {
+    kids.push(el("details", {}, [el("summary", { text: "More" }), helpParagraphs(help)]));
+  }
+  const node = el("div", { class: "refrow" }, kids);
+  return { node, hay: `${term} ${badges.join(" ")} ${doc} ${help ?? ""}`.toLowerCase() };
+}
+
+function refSection(title: string, intro: string, rows: RefRow[]): void {
+  const body = el("div", { class: "body" }, [
+    el("p", { class: "intro", text: intro }),
+    ...rows.map((row) => row.node),
+  ]);
+  const count = el("span", { class: "n", text: `${rows.length}` });
+  const node = el("details", { class: "group ref", open: true }, [
+    el("summary", {}, [document.createTextNode(title), count]),
+    body,
+  ]);
+  byId("refOut").appendChild(node);
+  refSections.push({ node, hay: title.toLowerCase(), rows, count });
+}
+
+function buildReference(): void {
+  const schema = state.schema;
+
+  // Spec fields, both tables merged: most keys exist on the command and its
+  // subcommands with the same meaning, so one row carries where it applies.
+  const onCommand = new Set(schema.command.map((f) => f.key));
+  const onSubcommand = new Set(schema.subcommand.map((f) => f.key));
+  const seen = new Set<string>();
+  const fieldRows: RefRow[] = [];
+  for (const field of [...schema.command, ...schema.subcommand]) {
+    if (seen.has(field.key)) continue;
+    seen.add(field.key);
+    const badges = [field.group];
+    if (!onSubcommand.has(field.key)) badges.push("command only");
+    else if (!onCommand.has(field.key)) badges.push("subcommand only");
+    fieldRows.push(refRow(field.key, badges, `${field.label} — ${field.doc}`, field.help));
+  }
+  refSection(
+    "Spec fields",
+    "Every field a command specification can set, with what it drives. The same keys appear in the editor form, grouped the same way.",
+    fieldRows,
+  );
+
+  // One section per catalogue, ordered by title.
+  const ids = Object.keys(schema.catalogues).sort((a, b) => {
+    const ta = schema.catalogueHelp[a]?.title ?? a;
+    const tb = schema.catalogueHelp[b]?.title ?? b;
+    return ta.localeCompare(tb);
+  });
+  for (const id of ids) {
+    const help = schema.catalogueHelp[id];
+    const variants = schema.catalogues[id] ?? [];
+    refSection(
+      help?.title ?? id,
+      help?.intro ?? "",
+      variants.map((variant) => refRow(variant.key, [], variant.doc)),
+    );
+  }
+
+  byId("refSearch").addEventListener("input", filterReference);
+  filterReference();
+}
+
+function filterReference(): void {
+  const query = byId<HTMLInputElement>("refSearch").value.trim().toLowerCase();
+  const tokens = query.split(/\s+/).filter(Boolean);
+  let shown = 0;
+  let total = 0;
+  for (const section of refSections) {
+    // A token can match at either level: a section whose title matches keeps
+    // every row ("taint" keeps all taint colours), otherwise rows filter one
+    // by one.
+    const sectionWide = tokens.every((t) => section.hay.includes(t));
+    let visible = 0;
+    for (const row of section.rows) {
+      total += 1;
+      const on = sectionWide || tokens.every((t) => row.hay.includes(t));
+      row.node.hidden = !on;
+      if (on) {
+        visible += 1;
+        shown += 1;
+      }
+    }
+    section.node.hidden = visible === 0;
+    section.count.textContent =
+      tokens.length && visible < section.rows.length
+        ? `${visible} of ${section.rows.length}`
+        : `${section.rows.length}`;
+    if (tokens.length && visible > 0) section.node.setAttribute("open", "");
+  }
+  byId("refCount").textContent = tokens.length
+    ? `${shown} of ${total} entries match`
+    : `${total} entries`;
+}
+
+/** Switch to the Reference tab with `query` in the search box. */
+function openReference(query: string): void {
+  byId<HTMLInputElement>("refSearch").value = query;
+  filterReference();
+  selectTab("reference");
+}
+
 /* Tabs ------------------------------------------------------------------ */
 
 function selectTab(name: Tab): void {
@@ -762,6 +967,7 @@ function boot(): void {
       bindUi();
       loadIndex();
       renderFiles();
+      buildReference();
       loadDraft(
         newCommandDraft(),
         "A new command — every field at its CommandSpec::DEFAULT. Pick one on the left to load a real spec.",

@@ -166,6 +166,43 @@ footer a { color: var(--accent); }
 .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent); }
 
+/* Long-form help: the ? buttons on groups and fields, and the panels they
+   open. The same text backs the Reference tab. */
+.qbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.15rem; height: 1.15rem; padding: 0; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+  font-size: .72rem; font-weight: 700; line-height: 1; vertical-align: 1px;
+}
+.qbtn:hover, .qbtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+summary .qbtn { margin-left: .45rem; }
+.helptext {
+  border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  padding: .55rem .75rem; margin: .35rem 0 .5rem; font-size: .84rem;
+}
+.helptext p { margin: 0 0 .5rem; }
+.helptext p:last-child { margin-bottom: 0; }
+.helptext[hidden] { display: none; }
+
+/* The Reference tab: searchable sections of fields and catalogue entries. */
+.refbar { display: flex; gap: .6rem; align-items: center; margin-bottom: .8rem; }
+.refbar input[type=search] { flex: 1 1 auto; min-width: 0; }
+.refbar .count { color: var(--muted); font-size: .82rem; white-space: nowrap; }
+.ref .intro { color: var(--muted); font-size: .85rem; margin: .4rem 0 .6rem; }
+.refrow { padding: .45rem 0; border-top: 1px solid var(--border); }
+.refrow:first-of-type { border-top: 0; }
+.refrow[hidden] { display: none; }
+.refrow .hd { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.refrow .term { font-weight: 600; }
+.refrow .badge {
+  font-size: .7rem; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0 .4rem; white-space: nowrap;
+}
+.refrow .doc { color: var(--muted); font-size: .82rem; margin-top: .1rem; }
+.refrow details { margin-top: .25rem; }
+.refrow details summary { cursor: pointer; font-size: .78rem; color: var(--accent); }
+
 /* Repeating rows (arg roles, options, side effects, subcommands …). */
 .rows { display: flex; flex-direction: column; gap: .4rem; margin-top: .3rem; }
 .row {

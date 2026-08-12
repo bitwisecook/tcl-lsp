@@ -183,6 +183,9 @@ pub struct FieldSchema {
 
 impl FieldSchema {
     /// The JSON the front-end builds its editor from.
+    ///
+    /// `help` is the long-form text behind the field's **?** button, from
+    /// [`crate::help::field_help`]; the one-line `doc` stays under the label.
     #[must_use]
     pub fn to_json(&self) -> Value {
         json!({
@@ -190,6 +193,7 @@ impl FieldSchema {
             "label": self.label,
             "doc": self.doc,
             "group": self.group,
+            "help": crate::help::field_help(self.key).unwrap_or(self.doc),
             "kind": self.kind.to_json(),
         })
     }
@@ -1731,15 +1735,26 @@ pub fn catalogues() -> Value {
     })
 }
 
-/// The whole schema — catalogues, group order, and both field tables.
+/// The whole schema — catalogues, group order, both field tables, and the
+/// long-form help behind the form's **?** buttons and the Reference tab.
 #[must_use]
 pub fn to_json() -> Value {
     fn fields(list: &[FieldSchema]) -> Value {
         Value::Array(list.iter().map(FieldSchema::to_json).collect())
     }
+    let group_help: serde_json::Map<String, Value> = crate::help::GROUP_HELP
+        .iter()
+        .map(|(group, text)| ((*group).to_owned(), json!(text)))
+        .collect();
+    let catalogue_help: serde_json::Map<String, Value> = crate::help::CATALOGUE_HELP
+        .iter()
+        .map(|(id, title, intro)| ((*id).to_owned(), json!({ "title": title, "intro": intro })))
+        .collect();
     json!({
         "groups": GROUPS,
+        "groupHelp": group_help,
         "catalogues": catalogues(),
+        "catalogueHelp": catalogue_help,
         "command": fields(COMMAND_FIELDS),
         "subcommand": fields(SUBCOMMAND_FIELDS),
     })

@@ -251,6 +251,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — declare third-party Tcl commands (sqlite `eval`, vendor builtins,
   factory-created instance commands) so the call graph, arity checker,
   and trait inferencer understand them.
+- [kcs-howto-create-command-specs-without-rust.md](kcs-howto-create-command-specs-without-rust.md)
+  — describe your own package's commands in the Command Spec Studio, a
+  web form with plain-language help on every field, and propose them
+  for the shipped registry without writing any Rust.
 - [kcs-howto-add-command-registry-package.md](kcs-howto-add-command-registry-package.md)
   — add first-class registry support for a Tcl package (sqlite3,
   tcllib, etc.) so the shipped distribution recognises its commands

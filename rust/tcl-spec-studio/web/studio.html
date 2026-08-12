@@ -64,6 +64,7 @@ __STYLES__
           <button type="button" role="tab" id="tab-rs" aria-controls="pane-rs" aria-selected="false">Rendered .rs</button>
           <button type="button" role="tab" id="tab-stub" aria-controls="pane-stub" aria-selected="false">Tcl stub</button>
           <button type="button" role="tab" id="tab-import" aria-controls="pane-import" aria-selected="false">Import a package</button>
+          <button type="button" role="tab" id="tab-reference" aria-controls="pane-reference" aria-selected="false">Reference</button>
           <button type="button" role="tab" id="tab-share" aria-controls="pane-share" aria-selected="false">Files &amp; issue</button>
         </div>
 
@@ -117,6 +118,15 @@ __STYLES__
           <input type="file" id="picker" multiple accept=".tcl,.tm,.test,text/plain">
           <div class="status" id="importStatus" style="margin-top:.6rem"></div>
           <div id="importOut" style="margin-top:.8rem"></div>
+        </section>
+
+        <section class="pane" id="pane-reference" role="tabpanel" aria-labelledby="tab-reference" hidden>
+          <p class="hint" style="margin-top:0">The registry's whole vocabulary in one place: every specification field, every behavioural trait, every argument role, every taint colour, and the rest of the picker catalogues — each with what it means and what it drives. The same text sits behind the <b>?</b> buttons in the editor form.</p>
+          <div class="refbar">
+            <input type="search" id="refSearch" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search — try “taint”, “body”, “upvar”, “deprecated”…" aria-label="Search the reference">
+            <span class="count" id="refCount">—</span>
+          </div>
+          <div id="refOut"></div>
         </section>
 
         <section class="pane" id="pane-share" role="tabpanel" aria-labelledby="tab-share" hidden>

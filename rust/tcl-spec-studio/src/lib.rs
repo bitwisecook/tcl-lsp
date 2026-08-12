@@ -31,6 +31,9 @@
 //!   the form, the draft model, and the renderer from a single table.
 //! - [`catalogue`] — the registry's enum and bitflag vocabularies, with
 //!   compile-time witnesses that they stay complete.
+//! - [`help`] — the long-form, Tcl-developer-facing help behind the form's
+//!   **?** buttons and the Reference tab, with tests that keep it covering
+//!   every field, group, and catalogue.
 //! - [`coverage`] — the same idea one level down: exhaustive *destructurings*
 //!   of the `CommandSpec` family, so a new registry **field** breaks the build
 //!   until it is surfaced in the studio (or explicitly excluded).
@@ -42,6 +45,7 @@
 pub mod catalogue;
 pub mod coverage;
 pub mod draft;
+pub mod help;
 pub mod infer;
 pub mod render_rs;
 pub mod render_stub;

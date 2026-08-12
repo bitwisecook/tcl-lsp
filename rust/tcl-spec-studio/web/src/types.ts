@@ -54,13 +54,25 @@ export interface FieldSchema {
   label: string;
   doc: string;
   group: string;
+  /** Long-form help behind the field's ? button, from `help::field_help`. */
+  help: string;
   kind: FieldKind;
+}
+
+/** A catalogue's title and introduction, from `help::CATALOGUE_HELP`. */
+export interface CatalogueHelp {
+  title: string;
+  intro: string;
 }
 
 /** The whole schema, from `schema::to_json`. */
 export interface Schema {
   groups: string[];
+  /** Long-form help per group heading, from `help::GROUP_HELP`. */
+  groupHelp: Record<string, string>;
   catalogues: Catalogues;
+  /** Title and introduction per catalogue id, from `help::CATALOGUE_HELP`. */
+  catalogueHelp: Record<string, CatalogueHelp>;
   command: FieldSchema[];
   subcommand: FieldSchema[];
 }
