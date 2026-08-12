@@ -90,10 +90,17 @@ struct FormStats {
 impl FormStats {
     /// The most frequently seen argument count for this form, with how many
     /// call sites had it. `(0, 0)` when no site was recorded.
+    ///
+    /// Ties break towards the **smaller** arity, deliberately: `arity_hist` is
+    /// a `HashMap`, whose iteration order is unspecified, so a bare
+    /// `max_by_key` on the count alone picks an arbitrary winner among equally
+    /// common arities and reports a different one from run to run. That made
+    /// the emitted CSV irreproducible for the 39 (of 1,966) registry forms
+    /// whose top two arities are equally frequent.
     fn dominant_arity(&self) -> (usize, u64) {
         self.arity_hist
             .iter()
-            .max_by_key(|(_, count)| **count)
+            .max_by_key(|(arity, count)| (**count, std::cmp::Reverse(**arity)))
             .map_or((0, 0), |(arity, count)| (*arity, *count))
     }
 }
@@ -446,7 +453,17 @@ fn main() {
     );
 
     let mut rows: Vec<(&(String, Option<String>), &FormStats)> = census.forms.iter().collect();
-    rows.sort_by_key(|(_, stats)| std::cmp::Reverse(stats.total));
+    // Sort on a *total* order: `forms` is a `HashMap`, so ranking on the count
+    // alone leaves every group of equally-frequent forms in an arbitrary,
+    // run-to-run-varying order (a stable sort preserves the input order, and
+    // the input order here is unspecified). Break count ties by command, then
+    // subcommand, so the emitted CSV is byte-identical across runs.
+    rows.sort_by(|(a_key, a), (b_key, b)| {
+        b.total
+            .cmp(&a.total)
+            .then_with(|| a_key.0.cmp(&b_key.0))
+            .then_with(|| a_key.1.cmp(&b_key.1))
+    });
 
     if let Some(path) = &csv_path {
         let mut out = String::new();

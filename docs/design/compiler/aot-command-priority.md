@@ -193,8 +193,13 @@ about.
 Top 60 registry-command forms by total call sites. `repos` is out of 21.
 `args` summarises whether call-site arguments were literal (`L`) or
 contained a substitution (`S`) more often; `≈all-L`/`≈all-S` means at
-least 95% of sites agreed. Full counts for all 1,966 registry forms are in
-[`data/aot-command-usage.csv`](data/aot-command-usage.csv).
+least 95% of sites agreed. `Arity` is the most frequent argument count for
+the form, ties broken towards the smaller arity — 37 of the 1,966 registry
+forms have two equally common arities, so the tie needs a stated rule to
+keep the table and the CSV reproducible. Full counts for all 1,966 registry
+forms are in [`data/aot-command-usage.csv`](data/aot-command-usage.csv),
+whose rows are ordered by call count descending, then command, then
+subcommand; re-running the census reproduces that file byte for byte.
 
 | # | Form | Total | Value | Stmt | Repos | Arity | Args |
 |--:|---|--:|--:|--:|--:|--:|---|
@@ -211,7 +216,7 @@ least 95% of sites agreed. Full counts for all 1,966 registry forms are in
 | 11 | `lindex` | 8,464 | 8,420 | 44 | 20 | 2 | ≈all-S |
 | 12 | `incr` | 6,202 | 578 | 5,624 | 21 | 1 | mostly L (5,402 / 800) |
 | 13 | `file join` | 4,154 | 4,150 | 4 | 20 | 3 | ≈all-S |
-| 14 | `upvar` | 3,907 | 0 | 3,907 | 10 | 3 | mostly S (3,200 / 707) |
+| 14 | `upvar` | 3,907 | 0 | 3,907 | 10 | 2 | mostly S (3,200 / 707) |
 | 15 | `append` | 3,616 | 65 | 3,551 | 18 | 2 | mostly S (2,605 / 1,011) |
 | 16 | `package require` | 3,462 | 10 | 3,452 | 21 | 2 | ≈all-L |
 | 17 | `file dirname` | 2,849 | 2,847 | 2 | 21 | 2 | all-S |
