@@ -16,32 +16,34 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! From `.tclspec` source to a folded call site, through the real loader.
+//! From `.tclspec` source to a folded call site, through the real loader and
+//! the real install path.
 //!
-//! [`const_fold_e2e`] proves the host and the optimiser agree; this proves the
-//! *seam* between the loader and the host — that a hook written in a pack file
-//! as a `const_fold {words ctx} { … }` statement, carried by the loader as a
-//! `HookDecl`, becomes the function pointer a `CommandSpec` holds.
+//! `tcl-spec-hooks/tests/const_fold_e2e.rs` proves the host and the optimiser
+//! agree; this proves the *seam* between the loader and the host — that a hook
+//! written in a pack file as a `const_fold {words ctx} { … }` statement,
+//! carried by the loader as a `HookDecl`, becomes the function pointer the
+//! installed `CommandSpec` holds.
 //!
-//! The adapter below (`programs_of`) is the whole bridge, and it is
-//! deliberately in a test rather than in either crate: the loader depends on no
-//! host type, the host depends on no loader type, and the dozen lines that
-//! join them belong to whoever owns both — today the pack-installation path,
-//! tomorrow the LSP's workspace loader.
-//!
-//! [`const_fold_e2e`]: ../const_fold_e2e/index.html
+//! The adapter is no longer written out here: it is
+//! [`tcl_spectcl::hooks`](tcl_spectcl::hooks), which the workspace install path
+//! runs for real. What this file still owns is the claim that the two halves
+//! line up end to end.
 
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::CommandRegistry;
 use tcl_registry::pack_hooks::{self, HookInputs};
-use tcl_registry::spec::CommandSpec;
-use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms, tclvm_host};
-use tcl_spectcl::loader::{self, HookOwner as DeclOwner, HookSource, Pack};
+use tcl_spec_hooks::tclvm_host;
+use tcl_spectcl::discovery::{Origin, PackFile, Tier};
+use tcl_spectcl::hooks;
+use tcl_spectcl::loader::{self, HookSource};
+use tcl_spectcl::pack::PackSet;
 
 /// A pack file: one command, whose folder is a Tcl body.
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 speclib mylib 1 {
     command mylib::strlen {
         arity 1
@@ -53,43 +55,37 @@ speclib mylib 1 {
         }
     }
 }
-"#;
+";
 
-/// The bridge: the loader's `HookDecl`s for one command become the host's
-/// `HookProgram`s. Only bodies cross — a `-native` id names engine code and a
-/// derivation keyword is the loader's own business.
-fn programs_of(pack: &Pack) -> PackPrograms {
-    let mut programs = PackPrograms::new(pack.name.clone());
-    programs.dsl_version = pack.dsl_version.clone();
-    for command in &pack.commands {
-        for hook in &command.hooks {
-            let HookSource::Body {
-                params,
-                body,
-                inputs,
-            } = &hook.source
-            else {
-                continue;
-            };
-            let owner = match &hook.owner {
-                DeclOwner::Command => HookOwner::Command,
-                DeclOwner::Subcommand(name) => HookOwner::Subcommand(name.clone()),
-                DeclOwner::Option { subcommand, option } => HookOwner::Option {
-                    subcommand: subcommand.clone(),
-                    option: option.clone(),
-                },
-            };
-            programs.programs.push(HookProgram {
-                command: command.spec.name.to_owned(),
-                owner,
-                family: hook.family,
-                parameters: params.clone(),
-                body: body.clone(),
-                inputs: inputs.clone(),
-            });
-        }
-    }
-    programs
+/// The same source as a discovered, merged pack set — the shape the install
+/// path takes.
+fn pack_set(name: &str) -> PackSet {
+    let dir = std::env::temp_dir().join(format!(
+        "tcl-spectcl-pack-source-{name}-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let path: PathBuf = dir.join("mylib.tclspec");
+    std::fs::write(&path, SOURCE).expect("write pack");
+    tcl_spectcl::pack::load(&[PackFile {
+        tier: Tier::Workspace,
+        path,
+        origin: Origin::DotDir,
+    }])
+}
+
+fn folds(registry: &CommandRegistry) -> Vec<String> {
+    optimise_raw(
+        "proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n",
+        registry,
+        None,
+    )
+    .into_iter()
+    .filter(|optimisation| optimisation.code.as_str() == "O129")
+    .map(|optimisation| optimisation.replacement)
+    .collect()
 }
 
 #[test]
@@ -110,66 +106,43 @@ fn the_loader_carries_the_declared_inputs() {
 
 #[test]
 fn a_pack_file_folds_a_call_site_in_the_optimiser() {
-    let pack = loader::load_pack(SOURCE);
+    let packs = pack_set("folds");
     assert!(
-        pack.notices.is_empty(),
+        packs.notices.is_empty(),
         "the pack loads cleanly: {:?}",
-        pack.notices
+        packs.notices
     );
 
+    // The production adapter, and the production slot assignment.
+    let plan = hooks::plan_for(&packs);
+    assert!(!plan.is_empty(), "the pack declares one hook body");
+
     let host = Rc::new(tclvm_host());
-    let installed = host.load_pack(programs_of(&pack));
+    for programs in plan.packs() {
+        let installed = host.load_pack(programs.clone());
+        for (installation, program) in installed.iter().zip(&programs.programs) {
+            assert_eq!(
+                installation.slot, program.slot,
+                "the host binds the slot the plan assigned, never a fresh one: {:?}",
+                installation.declined
+            );
+        }
+    }
     pack_hooks::install_host(host);
-    let [installation] = &installed[..] else {
-        panic!("one installed hook");
-    };
-    let slot = installation.slot.expect("the hook claimed a slot");
 
-    // Installation: the loaded spec, with the pack's folder in place of the
-    // abstaining placeholder the loader installs.
-    let mut spec: CommandSpec = pack
-        .command("mylib::strlen")
-        .expect("declared")
-        .spec
-        .clone();
-    spec.const_fold = pack_hooks::const_fold_fn(slot);
-
-    let mut registry = CommandRegistry::build_default();
-    registry.insert(spec);
-
-    let folded: Vec<String> = optimise_raw(
-        "proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n",
-        &registry,
-        None,
-    )
-    .into_iter()
-    .filter(|optimisation| optimisation.code.as_str() == "O129")
-    .map(|optimisation| optimisation.replacement)
-    .collect();
-    assert_eq!(folded, vec!["5".to_string()]);
+    // The registry the workspace would install — same call the LSP makes.
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+    assert_eq!(folds(registry), vec!["5".to_string()]);
     pack_hooks::clear_host();
 }
 
 #[test]
-fn without_the_host_the_loaded_pack_simply_does_not_fold() {
-    // The loader installs an abstaining placeholder, so a pack loaded with no
-    // hook host behaves exactly as it did before hooks could run: the command
-    // keeps its declarative facts and nothing folds.
-    let pack = loader::load_pack(SOURCE);
-    let mut registry = CommandRegistry::build_default();
-    registry.insert(
-        pack.command("mylib::strlen")
-            .expect("declared")
-            .spec
-            .clone(),
-    );
-    let folded = optimise_raw(
-        "proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n",
-        &registry,
-        None,
-    )
-    .into_iter()
-    .filter(|optimisation| optimisation.code.as_str() == "O129")
-    .count();
-    assert_eq!(folded, 0);
+fn without_a_host_the_installed_pack_simply_does_not_fold() {
+    // The thunk is in place, but a thread with no host installed gets the
+    // family's silence — the same answer the loader's abstaining placeholder
+    // gave before hooks could run.
+    let packs = pack_set("hostless");
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+    pack_hooks::clear_host();
+    assert!(folds(registry).is_empty());
 }

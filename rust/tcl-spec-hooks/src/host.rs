@@ -232,17 +232,15 @@ impl<E: Engine> HookHost<E> {
         // A pre-assigned slot is bound, never re-allocated: the spec the
         // caller already built carries that slot's thunk, and every thread's
         // host must answer for the same one.
-        let slot = match program.slot {
-            Some(slot) => slot,
-            None => {
-                let Some(slot) = pack_hooks::allocate(program.family, &program.inputs) else {
-                    return declined(format!(
-                        "no {:?} slot is left in this process",
-                        program.family
-                    ));
-                };
-                slot
-            }
+        let slot = if let Some(slot) = program.slot {
+            slot
+        } else if let Some(slot) = pack_hooks::allocate(program.family, &program.inputs) {
+            slot
+        } else {
+            return declined(format!(
+                "no {:?} slot is left in this process",
+                program.family
+            ));
         };
         self.slots
             .borrow_mut()

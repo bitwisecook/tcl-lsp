@@ -133,7 +133,7 @@ fn call<'w>(words: &'w [HookWord<'w>]) -> HookCall<'w> {
     }
 }
 
-fn literal<'w>(value: &'w str) -> HookWord<'w> {
+fn literal(value: &str) -> HookWord<'_> {
     HookWord {
         value,
         kind: InvocationWordKind::Literal,

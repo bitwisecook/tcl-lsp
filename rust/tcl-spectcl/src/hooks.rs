@@ -81,8 +81,8 @@ pub fn programs_of(
     commands: &[PackCommand],
 ) -> PackPrograms {
     let mut programs = PackPrograms::new(pack);
-    programs.dsl_version = dsl_version.to_owned();
-    programs.content_hash = content_hash.to_owned();
+    dsl_version.clone_into(&mut programs.dsl_version);
+    content_hash.clone_into(&mut programs.content_hash);
     for command in commands {
         for hook in &command.hooks {
             // Only a Tcl body crosses: `-native ID` names engine code and a
@@ -415,7 +415,7 @@ mod tests {
     use crate::discovery::{Origin, PackFile, Tier};
     use std::path::PathBuf;
 
-    const SOURCE: &str = r#"
+    const SOURCE: &str = r"
 speclib hooked 1 {
     command hooked::strlen {
         arity 1
@@ -425,7 +425,7 @@ speclib hooked 1 {
         }
     }
 }
-"#;
+";
 
     fn pack_set(name: &str, source: &str) -> PackSet {
         let dir = std::env::temp_dir().join(format!(

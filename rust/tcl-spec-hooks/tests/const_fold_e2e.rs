@@ -44,11 +44,11 @@ use tcl_spec_hooks::{HookProgram, PackPrograms, tclvm_host};
 /// the range 8.x and 9.x agree on.
 ///
 /// [`string.tclspec`]: docs/design/spec-dsl-examples/string.tclspec
-const STRLEN_BODY: &str = r#"
+const STRLEN_BODY: &str = r"
     set subject [lindex $words 0]
     if {![string is ascii $subject]} { return }
     fold [string length $subject]
-"#;
+";
 
 /// Inputs the two folders are compared on. ASCII only: the body declines
 /// anything else, and so does the equivalence claim.

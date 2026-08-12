@@ -32,6 +32,10 @@
 //!
 //! [`cache`] sits beside them: a disposable, hash-keyed compiled-pack cache in
 //! the OS cache directory that makes a reload of an unchanged pack cheap.
+//! [`bundled`] sits beside them as well: the **bundled** tier on its own, for
+//! the consumers that have no workspace to discover — the `tcl` CLI, the MCP
+//! server, a test harness — since the EDA vendor libraries are now loadables
+//! and reach a registry only through the loader.
 //! [`hooks`] sits beside them too: the seam that turns a pack's declared hook
 //! *bodies* into live function pointers by way of the `tcl-spec-hooks` host —
 //! it is here, and not in either neighbour, because this is the only crate
@@ -59,6 +63,7 @@
 //! (`docs/design/spec-packs.md`, "Performance: the format does not decide
 //! it").
 
+pub mod bundled;
 pub mod cache;
 pub mod catalogue;
 pub mod discovery;
