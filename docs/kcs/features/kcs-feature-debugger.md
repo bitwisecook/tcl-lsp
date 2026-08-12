@@ -62,14 +62,6 @@ The debugger consists of:
 - A DAP server (`tcl-debug --dap`) that maps the same backend to the Debug
   Adapter Protocol for editor front-ends.
 
-## File-path anchors
-
-- `rust/tcl-debugger/` — the debugger crate (produces the `tcl-debug` binary)
-- `rust/tcl-debugger/src/backend.rs` — VM backend: breakpoints, stepping, state
-- `rust/tcl-debugger/src/dap.rs` — Debug Adapter Protocol server
-- `rust/tcl-debugger/src/main.rs` — interactive CLI / `--dap` entry point
-- `rust/tcl-vm/` — bytecode VM with the debug hook
-
 ## Failure modes
 
 - Scripts using commands not yet implemented in the VM will fail.

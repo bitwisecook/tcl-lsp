@@ -56,11 +56,6 @@ The MCP server communicates over stdio using JSON-RPC 2.0. Connect any MCP-compa
 
 Native Rust implementation — a single self-contained `tcl-mcp` binary, no runtime dependencies. Uses the same analysis engine (`tcl-compiler`/`tcl-lsp-server`) as the LSP server.
 
-## File-path anchors
-
-- `rust/tcl-mcp/` — the native MCP server crate
-- `scripts/tcl-mcp` — launcher used by the repo `.mcp.json`
-
 ## Failure modes
 
 - Stdin/stdout hijacked by other tools.

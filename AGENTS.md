@@ -555,9 +555,11 @@ type:
     `licm`, `instcombine`, `ipa`, `memssa`, `dataflow`, `taint`,
     `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
     `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
-    `strength-reduce`, `codegen`). The vocabulary lives in the `tcl-cli`
-    KCS/help data (`rust/tcl-cli`) and is documented
-    in [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11). Per-code
+    `strength-reduce`, `pattern`, `codegen`). The tables in
+    [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11) are the canonical
+    vocabulary: `rust/tcl-cli/build.rs` indexes whatever tokens the
+    `## Applies to` line carries rather than validating them, so an
+    unrecognised tag is silently indexed, not rejected. Per-code
     pages and compiler-internals feature pages must carry the
     compiler-pass tag of the pass that produces the code or the
     facts they consume.

@@ -29,10 +29,6 @@ VS Code
 
 BIG-IP configuration files embed iRules as `ltm rule` blocks. These commands parse the config file, extract the Tcl source from each rule block, and open it in the correct dialect for full LSP support.
 
-## File-path anchors
-
-- `editors/vscode/src/extension.ts`
-
 ## Failure modes
 
 - Extraction fails for non-standard config formatting.

@@ -148,28 +148,6 @@ of the dynamic dispatch rather than a misleading command highlight (issue
 #797). The words *after* the head (the method and its `-option` pairs) are
 still highlighted by the object-method / generic passes above.
 
-## File-path anchors
-
-  (registry options), `insert_object_method_overrides` (object methods, incl.
-  `collection_head_element_classes` for `[dict get …]` receivers and
-  `user_class_provides_method` / `insert_user_configure_options` for user
-  classes), `insert_generic_option_overrides` (fallback), `head_is_computed` +
-  `collect_script` (computed heads are tokenised, not painted as command tokens)
-  `object_collection_classes` (handle & collection → class provenance)
-  container element-typing in the SSA lattice (`TypeLattice::element_class`)
-- `rust/tcl-registry/src/spec.rs` — `ObjectClassSpec`
-- `rust/tcl-registry/src/commands/ticklecharts/mod.rs` — the ticklecharts pack
-- `rust/tcl-registry/src/commands/tk/*.rs` — every widget-constructor
-  `CommandSpec` sets `creates_instance_at`; the 9 with a real subcommand
-  table (`ttk__treeview.rs`, `ttk__notebook.rs`, `listbox.rs`, `text.rs`,
-  `canvas.rs`, `entry.rs`, `menu.rs`, `panedwindow.rs`, `spinbox.rs`)
-  additionally set a self-referential `object_class`
-  (registry-driven `instance_classes`/`created_instance_commands` binding,
-  covers both Tk widgets and tcllib factories), `bind_registry_instance_class`
-  (collision-safe insertion)
-  widget-instance W001/E002/E003 diagnostic (`docs/design/tk-widget-instance-typing.md`)
-  `registry_method_completions`
-
 ## Failure modes
 
 - A `-option` on an unmodelled object method is highlighted by shape only, so

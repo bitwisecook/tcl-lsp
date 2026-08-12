@@ -39,12 +39,6 @@ The same side-scoping governs the `export` / `unexport` words, which change a me
 
 A BIG-IP `.conf` file (any canonical basename — `bigip.conf`, `bigip_base.conf`, …) gets a different outline shape: a `module → kind → object` tree built from the config stanza tree rather than the Tcl scope walk. Nameless global singletons (`auth password-policy`, `net self-allow`, …) fall back to their kind label so no outline entry is ever empty.
 
-## File-path anchors
-
-- `rust/tcl-registry/src/symbol_def.rs` — `SymbolDef` / `DefinedSymbolKind` (registry-driven symbol-definer commands)
-- `rust/tcl-registry/src/commands/irules/when.rs` — `when` declares its event name as the handler's outline entry
-- `rust/tcl-registry/src/definer.rs` — `MemberSpec::wrapper_or_body` (which members take a bare script block), `MemberSpec::retraction` / `MemberRetraction` (which member words delete the members they name, and which of their arguments), `MemberSpec::visibility_effect` / `MemberVisibility` (which words export / unexport) — each with its oracle transcript
-
 ## Failure modes
 
 - Symbols missing or mis-nested after parser changes.

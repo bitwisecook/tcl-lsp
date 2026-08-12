@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [Interpreter domain](#interpreter-domain) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Tail position](#tail-position) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dominator / idom](#dominator--idom) · [Dominance frontier](#dominance-frontier) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [Interpreter domain](#interpreter-domain) · [InstCombine](#instcombine) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail-call optimisation](#tail-call-optimisation) · [Tail position](#tail-position) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis)
 
 ---
 
@@ -777,6 +777,31 @@ safe interpreter) contributes no edge.
 
 ## Phase 7 — Interprocedural analysis and specialised passes
 
+### Compilation unit
+
+Every compiled artefact for one source document, held in a single
+value. The unit carries the source text, the lowered [IR](#ir) module,
+the module [CFG](#cfg), and one **function unit** per top-level body,
+procedure, `TclOO` method, and `apply` / `namespace eval` body. Each
+function unit in turn carries that function's CFG, [SSA](#ssa) form,
+[def-use chains](#def-use-chains), and the core-analysis lattices
+([SCCP](#sccp), [types](#type-inference), [taints](#taint-analysis),
+and [rendered-value properties](#rendered-value-properties)). The
+[interprocedural summary](#ipa) and the caller-scope facts hang off the
+unit as a whole. A pass reads what it needs from the unit rather than
+re-lexing or re-lowering, and the unit is also the scope the
+interprocedural passes reason about — "every call site" means every
+call site in this unit, which is why [unit linkage](#unit-linkage)
+exists to say when that is not the whole story. Defined as
+`CompilationUnit` (and `FunctionUnit`) in
+`tcl_compiler::compilation_unit`, built by
+`CompilationUnit::build_with_options`; the language server takes one
+per document from the [salsa](#salsa) `compilation_unit` query in
+`tcl-lsp-db`.
+
+See also: [Compilation unit contracts](design/compiler/compilation-unit-contracts.md)
+and [Compilation unit scope](design/compiler/compilation-unit-scope.md).
+
 ### Unit linkage
 
 The registry-declared fact that a file is part of a **bigger program**, and
@@ -832,8 +857,14 @@ KCS tag: `ipa`.
 
 Interprocedural Constant/Inline Propagation — evaluates procedure calls
 with known constant arguments at compile time and replaces the call with
-the result.  Reported as `O103`.  See `optimise_static_proc_calls()` in
-`tcl_compiler::optimiser::propagation`.
+the result.  Reported as `O103`.  The foldability facts come from the
+callee's [`ProcSummary`](#ipa) — `can_fold_static_calls` and
+`constant_return` in `tcl_compiler::interprocedural`.  Two sites in
+`tcl_compiler::optimiser::propagation` consume them:
+`try_o103_proc_fold()` rewrites a `[proc …]` command substitution
+inside another call's arguments, and `try_fold_static_proc_call()`
+handles the bare statement form, which stays hint-only because folding
+`::answer` to `42` there would leave an invalid command name.
 
 ```mermaid
 flowchart LR

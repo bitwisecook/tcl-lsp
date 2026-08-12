@@ -25,10 +25,6 @@ VS Code
 
 The scaffold creates a standard Tcl package layout with `pkgIndex.tcl`, a main source file with namespace and `package provide`, and optional test files.
 
-## File-path anchors
-
-- `editors/vscode/src/scaffold.ts`
-
 ## Failure modes
 
 - Scaffold overwrites existing files without warning.

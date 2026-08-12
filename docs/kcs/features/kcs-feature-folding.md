@@ -75,10 +75,6 @@ ever contain a dot. The *dialect* names (`tcl8.4`, `tcl9.0`, …) are a separate
 namespace and keep their dots; the server accepts both spellings as a
 `languageId` so the other editor integrations keep working.
 
-## File-path anchors
-
-- `editors/vscode/package.json` — `configurationDefaults` sticky-scroll model per language
-
 ## Failure modes
 
 - Folding ranges missing or incorrect after parser changes.

@@ -47,7 +47,7 @@ Every KCS note, regardless of category, has the same top:
 # KCS: <short title>
 
 > **Audience:** User | Contributor | Maintainer
-> **Type:** Issue | Q&A | How-To | Functionality
+> **Type:** Issue | Q&A | How-To | Functionality | Diagnostic | Optimisation
 
 ## Question
 

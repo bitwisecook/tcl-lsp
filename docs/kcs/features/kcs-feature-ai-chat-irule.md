@@ -45,13 +45,6 @@ Or ask a free-form iRules question without a slash command.
 
 The chat participant uses the LSP server for diagnostics, symbols, and optimisations, then sends the analysis context to the language model. The agentic loop can iteratively fix code until diagnostics are clean. Requires `tclLsp.ai.enabled` to be true.
 
-## File-path anchors
-
-- `editors/vscode/src/chat/iruleParticipant.ts`
-- `editors/vscode/src/chat/commands/`
-- `editors/vscode/src/chat/agenticLoop.ts`
-- `editors/vscode/src/chat/contextPack.ts`
-
 ## Failure modes
 
 - AI features disabled (`tclLsp.ai.enabled` is false).

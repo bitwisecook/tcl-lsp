@@ -140,14 +140,18 @@ technical term is unavoidable, link it to the
 
 **Good**
 
-> The [language server](../GLOSSARY.md#lsp) publishes problem markers
-> after the [compiler pipeline](../GLOSSARY.md#compiler-pipeline)
-> finishes.
+> The language server publishes problem markers after the
+> [compiler pipeline](../GLOSSARY.md#full-pipeline) finishes its
+> [constant propagation](../GLOSSARY.md#sccp) pass.
+
+"LSP" has a plain name — "the language server" — so it needs no link.
+"CFG", "SSA", and "SCCP" do not, so they are either dropped or linked
+to the glossary entry that defines them.
 
 You do not need to expand every acronym — "VS Code" stays "VS Code",
 "URL" stays "URL" — but anything internal to tcl-lsp (CFG, SSA, SCCP,
-IR, CU, SSA value key, lattice, shimmer, taint colour) must either be
-replaced with a plain phrase or linked to the glossary.
+IR, compilation unit, SSA value key, lattice, shimmer, taint colour)
+must either be replaced with a plain phrase or linked to the glossary.
 
 ### 7. Exact UI labels
 
@@ -176,6 +180,10 @@ a list of twelve file paths.
 **Good** — a KCS note that says "The core and LSP packages share a set
 of position helpers. For the full contract, see [shared
 utilities](../design/contracts/shared-utility-contracts-rust.md)."
+
+The design docs are where a `## File-path anchors` section belongs, and
+they already carry one. A KCS note that grows a second, drifting copy
+gives the reader two lists to distrust instead of one to follow.
 
 ### 9. One screen
 
@@ -248,9 +256,14 @@ list**, not bullet points. Each item is a tag. The build and query
 scripts normalise each tag by lowercasing it and replacing internal
 spaces with a hyphen, so `VS Code` and `vs-code` are the same tag.
 
-The canonical tag vocabulary lives in the `tcl-cli` KCS/help data
-(`rust/tcl-cli/build.rs`). The mini glossary below lists every tag the
-build and query paths recognise.
+The tables below are the canonical tag vocabulary. The build side keeps
+no closed list: `parse_applies_to` in `rust/tcl-cli/build.rs` normalises
+whatever tokens it finds and stores them in the help database's
+`feature_tags` table, so an unrecognised tag is indexed rather than
+rejected. The one exception is `LSP_EDITOR_TAGS` in the same file, which
+is the set `all-editors` expands to. Keeping the vocabulary honest is
+therefore a review job, not a compile error — treat these tables as the
+list of tags a reader can filter by.
 
 #### Editor tags (driven by the LSP server)
 
@@ -345,13 +358,14 @@ entry for the pass, which in turn links to the compiler design doc.
 | `rendered-props` | String content properties over SSA |
 | `const-fold` | Compile-time constant folding |
 | `strength-reduce` | Strength reduction (`x**2` → `x*x`) |
+| `pattern` | Whole-idiom pattern recognition (`incr`, `end-N`, build-chain collapse) |
 | `codegen` | Bytecode codegen, local variable table, peephole |
 
 Every tag in this table matches a glossary entry in
 [`docs/GLOSSARY.md`](../GLOSSARY.md). The glossary entry links to the
 design doc under [`docs/design/compiler/`](../design/compiler/README.md).
-When you add a compiler pass, update all three in the same change:
-the `TAG_DISPLAY` dict, this table, and the glossary.
+When you add a compiler pass, update both in the same change: this
+table, and the glossary entry it points at.
 
 #### Writing the Applies to line
 
@@ -390,18 +404,20 @@ before storing tags.
 #### Adding a new tag
 
 When you need a tag that is not already in the glossary above, add
-it in the same change that introduces it. The three steps are:
+it in the same change that introduces it. The steps are:
 
-1. **Add the tag to the vocabulary** in `rust/tcl-cli/build.rs` with
-   its human-readable display form. If the tag should count as an LSP
-   editor, also add it to `LSP_EDITOR_TAGS` there.
-2. **Add a row** to the appropriate table in this file (rule 11)
+1. **Add a row** to the appropriate table in this file (rule 11)
    with a one-line description of what the tag means. Keep the
-   table ordered alphabetically within its group.
-3. **Update the vocabulary summary** in `AGENTS.md` (rule 12) so
+   table ordered alphabetically within its group, except for the
+   compiler-pass table, which follows pipeline order.
+2. **Update the vocabulary summary** in `AGENTS.md` (rule 12) so
    agents and reviewers see the full list at a glance.
+3. **If the tag names a new LSP editor**, add it to `LSP_EDITOR_TAGS`
+   in `rust/tcl-cli/build.rs` as well, so `all-editors` expands to it
+   and the help database groups the note correctly. No other tag
+   needs a code change.
 
-Tags are cheap — a new one costs three small edits. A fuzzy or
+Tags are cheap — a new one costs two or three small edits. A fuzzy or
 overloaded Applies to line is expensive — a reader cannot filter
 by it cleanly. Prefer adding a new tag over reusing an existing
 one with a stretched meaning.

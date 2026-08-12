@@ -1,7 +1,7 @@
 # KCS: <CODE> — <plain-English question>
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 
@@ -54,7 +54,7 @@ No jargon without a glossary link.>
 
 <When this optimisation is skipped. Common reasons include:
 - a variable is [shimmered](../../GLOSSARY.md#shimmer);
-- a basic block contains a [barrier](../../GLOSSARY.md#ircall-ircmd)
+- a basic block contains a [barrier](../../GLOSSARY.md#barrier)
   (`upvar`, `eval`, a call to a proc with unknown side-effects);
 - [taint colours](../../GLOSSARY.md#taint-colour) require sanitisation;
 - the rewrite would change observable script results (for example,

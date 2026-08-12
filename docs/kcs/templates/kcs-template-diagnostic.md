@@ -1,7 +1,7 @@
 # KCS: <CODE> — <plain-English question>
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -18,7 +18,8 @@ all-editors, diagnostic, <compiler-pass-tag>
     `lowering`, `type-infer`). If more than one pass contributes,
     list them all.
   - If the code is opt-in, also add `opt-in`. (If you add this tag,
-    remember to register it in `TAG_DISPLAY` in the same change.)
+    remember to add a row for it to the rule 11 tables in
+    docs/kcs/STYLE.md in the same change.)
 -->
 
 ## Profiles

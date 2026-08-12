@@ -200,10 +200,6 @@ The refactoring supports two source patterns:
 
 Type inference uses Python's `ipaddress` module for IP/CIDR detection, which natively supports both IPv4 and IPv6 address families. The AI-enhanced suggestion tool returns structured context including pattern type, variable name, inferred type, CIDR presence, body shape, confidence level, and a pre-computed static result for each candidate.
 
-## File-path anchors
-
-- `ai/claude/skills/irule-datagroup/SKILL.md`
-
 ## Failure modes
 
 - Fewer than 2 distinct literal values (not worth extracting).

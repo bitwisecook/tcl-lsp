@@ -45,12 +45,6 @@ all-editors
 | `irule-collect-release` | HTTP collect/release pair |
 | `irule-class-lookup` | Data-group lookup and routing |
 
-## File-path anchors
-
-- `editors/vscode/src/templateSnippets.ts`
-- `editors/zed/snippets/`
-- `editors/sublime-text/Snippets/`
-
 ## Failure modes
 
 - Snippet produces invalid code for a specific dialect.

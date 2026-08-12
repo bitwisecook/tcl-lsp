@@ -62,15 +62,6 @@ and the dead-store/unused diagnostics, plus `rust/tcl-lsp-core` hover.
    (`rust/tcl-compiler/tests/checks.rs` dead-store/RBS cases), or e2e
    (`diagnostic_matrix.rs` array rows).
 
-## File-path anchors
-
-- `rust/tcl-syntax/src/naming.rs` — `element_var_name{,_braced}`,
-  `array_key_is_literal`
-  `SsaStatement::may_defs`, `SsaFunction::is_synthetic_def`
-  — may-def join + valueless base rules
-  `rust/tcl-compiler/src/optimiser/elimination.rs` — synthetic-def skips,
-  base-keyed policy checks
-
 ## Failure modes
 
 - Treating a may-def like a real def (missing `is_synthetic_def` skip)

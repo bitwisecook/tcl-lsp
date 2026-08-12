@@ -1491,33 +1491,38 @@ set x 42
 The `TclLexer` scans character-by-character and produces a flat stream:
 
 ```
-Token(type=ESC, text="set",  start=Pos(0,0,0),  end=Pos(0,3,3))
-Token(type=SEP, text=" ",    start=Pos(0,3,3),  end=Pos(0,4,4))
-Token(type=ESC, text="x",    start=Pos(0,4,4),  end=Pos(0,5,5))
-Token(type=SEP, text=" ",    start=Pos(0,5,5),  end=Pos(0,6,6))
-Token(type=ESC, text="42",   start=Pos(0,6,6),  end=Pos(0,8,8))
-Token(type=EOF, text="",     start=Pos(0,8,8),  end=Pos(0,8,8))
+Token { kind: TokenType::Esc, span: Span { start: 0, end: 3 } }   // "set"
+Token { kind: TokenType::Sep, span: Span { start: 3, end: 4 } }   // " "
+Token { kind: TokenType::Esc, span: Span { start: 4, end: 5 } }   // "x"
+Token { kind: TokenType::Sep, span: Span { start: 5, end: 6 } }   // " "
+Token { kind: TokenType::Esc, span: Span { start: 6, end: 8 } }   // "42"
+Token { kind: TokenType::Eof, span: Span { start: 8, end: 8 } }   // ""
 ```
 
+The trailing comments are the text each span covers — a `Token` stores only
+its `Span`, and the text is resolved through the `SourceMap` on demand.
+
 Key observations:
-- `set`, `x`, and `42` are all `ESC` (plain word fragments) — no variable
+- `set`, `x`, and `42` are all `Esc` (plain word fragments) — no variable
   substitution or braces involved.
-- Whitespace becomes `SEP` tokens — they delimit words but carry no semantic
+- Whitespace becomes `Sep` tokens — they delimit words but carry no semantic
   value.
 
 ### Stage 2 — Segmenter → SegmentedCommand
 
 The segmenter builds the red-green CST for the source and derives one
-`SegmentedCommand` per command (split at `EOL`/`EOF` boundaries):
+`SegmentedCommand` per command (split at `Eol`/`Eof` boundaries):
 
 ```
-SegmentedCommand(
-    range=Range(Pos(0,0,0), Pos(0,8,8)),
-    argv=[Token(ESC,"set",...), Token(ESC,"x",...), Token(ESC,"42",...)],
-    texts=["set", "x", "42"],
-    single_token_word=[true, true, true],
-    all_tokens=[...all 6 tokens...],
-)
+SegmentedCommand {
+    span: Span { start: 0, end: 8 },
+    argv: [Token { kind: TokenType::Esc, .. },   // "set"
+           Token { kind: TokenType::Esc, .. },   // "x"
+           Token { kind: TokenType::Esc, .. }],  // "42"
+    texts: ["set", "x", "42"],
+    single_token_word: [true, true, true],
+    all_tokens: [/* all 6 tokens */],
+}
 ```
 
 - `texts[0] == "set"` → command name
@@ -1606,7 +1611,7 @@ by the display name `SsaFunction::var_name` resolves it to.
 
 **SCCP** (see [Glossary](#glossary))**:** `(x, 1)` → `LatticeValue(CONST, "42")` — provably constant.
 
-**Type inference:** `(x, 1)` → `TypeLattice.of(TclType.INT)` — `"42"` is
+**Type inference:** `(x, 1)` → `TypeLattice::of(TclType::Int)` — `"42"` is
 a valid integer literal, so the intrep is INT.
 
 **Liveness:** `(x, 1)` is dead if nothing reads it.
@@ -1645,33 +1650,37 @@ set y $x
 ### Stage 1 — Lexer
 
 ```
-Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "x")  Token(SEP, " ")  Token(ESC, "42")  Token(EOL, "\n")
-Token(ESC, "set")  Token(SEP, " ")  Token(ESC, "y")  Token(SEP, " ")  Token(VAR, "x")   Token(EOF, "")
+Esc "set"   Sep " "   Esc "x"   Sep " "   Esc "42"   Eol "\n"
+Esc "set"   Sep " "   Esc "y"   Sep " "   Var "x"    Eof ""
 ```
 
-Note the critical difference: `42` is `ESC` (plain text), but `$x` produces
-`Token(type=VAR, text="x")` — the `$` prefix is consumed by the lexer, and
-the token text is the bare variable name.
+(each entry is a `Token` whose `kind` is the named `TokenType` variant and
+whose `span` covers the quoted text)
+
+Note the critical difference: `42` is `Esc` (plain text), but `$x` produces a
+token whose `kind` is `TokenType::Var` spanning `x` — the `$` prefix is
+consumed by the lexer's `content_offset`, and the spanned text is the bare
+variable name.
 
 ### Stage 2 — Segmenter
 
-Two `SegmentedCommand` objects:
+Two `SegmentedCommand` values:
 
 ```
-# Command 1: set x 42
-SegmentedCommand(
-    texts=["set", "x", "42"],
-    single_token_word=[true, true, true],   # all constant
-)
+// Command 1: set x 42
+SegmentedCommand {
+    texts: ["set", "x", "42"],
+    single_token_word: [true, true, true],   // all constant
+}
 
-# Command 2: set y $x
-SegmentedCommand(
-    texts=["set", "y", "${x}"],             # VAR token → "${x}" text
-    single_token_word=[true, true, true],   # single token, but it's a VAR
-)
+// Command 2: set y $x
+SegmentedCommand {
+    texts: ["set", "y", "${x}"],             // Var token → "${x}" text
+    single_token_word: [true, true, true],   // single token, but it's a Var
+}
 ```
 
-In command 2, `texts[2]` is `"${x}"` — the segmenter wraps `VAR` tokens in
+In command 2, `texts[2]` is `"${x}"` — the segmenter wraps `Var` tokens in
 `${...}` form so the text reflects what the user wrote.
 
 ### Stage 3 — IR Lowering
@@ -1949,13 +1958,13 @@ SCCP determines:
 
 This produces a `ConstantBranch`:
 ```
-ConstantBranch(
-    block="entry_1",
-    condition="$x",
-    value=true,
-    taken_target="if_then_3",
-    not_taken_target="if_next_4",
-)
+ConstantBranch {
+    block: "entry_1",
+    condition: "$x",
+    value: true,
+    taken_target: "if_then_3",
+    not_taken_target: "if_next_4",
+}
 ```
 
 **Optimisation opportunity — O112 (constant condition elimination):**
@@ -2614,8 +2623,9 @@ walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 1. **`(host, 1)`** — the `[HTTP::header value Host]` command substitution
    is evaluated:
    - `_taint_source_colour("HTTP::header", ("value", "Host"))` looks up the
-     `TaintHint` from the registry → returns `TaintColour.TAINTED`.
-   - Result: `TaintLattice(tainted=true, colour=TAINTED)`
+     `TaintHint` from the registry → returns `TaintColour::TAINTED`.
+   - Result: `TaintLattice { colours: TaintColour::TAINTED }` —
+     `is_tainted()` is true because `TAINTED` is a member of `colours`.
 
 2. **`(lower, 1)`** — `[string tolower $host]`:
    - The argument `$host` has taint `(host, 1)` → `TAINTED`.
@@ -2625,7 +2635,7 @@ walks the SSA graph and computes a `TaintLattice` for each SSA value key:
      colours.
    - The command is pure, so taint flows through: result inherits from
      arguments.
-   - Result: `TaintLattice(tainted=true, colour=TAINTED)`
+   - Result: `TaintLattice { colours: TaintColour::TAINTED }`
 
 3. **`HTTP::respond`** — the sink check:
    - `_classify_sink(Statement::Call { command: "HTTP::respond", .. })`
@@ -2641,14 +2651,15 @@ walks the SSA graph and computes a `TaintLattice` for each SSA value key:
 ### Taint warning emitted
 
 ```
-TaintWarning(
-    range=Range(Pos(3,4,...), Pos(3,55,...)),   # HTTP::respond line
-    variable="lower",
-    sink_command="HTTP::respond",
-    code="IRULE3001",
-    message="Tainted variable $lower in HTTP response body (HTTP::respond); "
-            "risk of XSS or content injection",
-)
+TaintWarning {
+    // the HTTP::respond line — line 3, columns 4..55
+    span: Span { .. },
+    variable: "lower",
+    sink_command: "HTTP::respond",
+    code: DiagCode::Irule3001,
+    message: "Tainted variable $lower in HTTP response body (HTTP::respond); \
+              risk of XSS or content injection",
+}
 ```
 
 ### How to suppress the warning
@@ -2664,7 +2675,8 @@ when HTTP_REQUEST {
 }
 ```
 
-Now `(safe, 1)` has `TaintLattice(tainted=true, colour=TAINTED | HTML_ESCAPED)`.
+Now `(safe, 1)` has
+`TaintLattice { colours: TaintColour::TAINTED | TaintColour::HTML_ESCAPED }`.
 The sink check sees `HTML_ESCAPED` is present → suppresses IRULE3001.
 
 ### Taint colour lattice at join points
@@ -2689,15 +2701,15 @@ At the merge point after `if`:
     phi: val₃ = phi(val₁ from if_then, val₂ from if_else)
 ```
 
-- `val₁` → `TaintLattice(tainted=true, colour=TAINTED)` (from HTTP::header)
-- `val₂` → `TaintLattice(tainted=false)` (constant "unknown")
+- `val₁` → `TaintLattice { colours: TaintColour::TAINTED }` (from HTTP::header)
+- `val₂` → `TaintLattice { colours: TaintColour::empty() }` (constant "unknown")
 
 `taint_join(val₁, val₂)`:
 - Either operand tainted → result is tainted.
 - Colours: only keep colours present in **both** tainted operands.
   Since `val₂` is untainted, it contributes the tainted operand's colours
   unchanged.
-- Result: `TaintLattice(tainted=true, colour=TAINTED)`
+- Result: `TaintLattice { colours: TaintColour::TAINTED }`
 
 The IRULE3001 warning fires on the `HTTP::respond` line.
 
@@ -2770,12 +2782,12 @@ for each procedure.  For `::double`:
 7. Emits:
 
 ```
-Optimisation(
-    code="O103",
-    message="Fold static procedure call",
-    range=Range(Pos(4,13,...), Pos(4,23,...)),  # [double 21]
-    replacement="42",
-)
+Optimisation {
+    code: DiagCode::O103,
+    message: "Fold static procedure call",
+    span: Span { .. },   // [double 21] — line 4, columns 13..23
+    replacement: "42",
+}
 ```
 
 After applying O103, the source becomes:
@@ -2836,23 +2848,23 @@ immediately overwritten.
    optimisations:
 
 ```
-# Part 1: Comment out the original statement
-Optimisation(
-    code="O125",
-    message="Sink set msg \"Request denied\" into else body",
-    range=Range(Pos(0,0,...), Pos(0,24,...)),   # set msg "Request denied"
-    replacement="",
-    group=0,
-)
+// Part 1: Comment out the original statement
+Optimisation {
+    code: DiagCode::O125,
+    message: "Sink set msg \"Request denied\" into else body",
+    span: Span { .. },   // set msg "Request denied" — line 0, columns 0..24
+    replacement: "",
+    group: Some(0),
+}
 
-# Part 2: Insert at the start of the else body
-Optimisation(
-    code="O125",
-    message="Insert sunk set msg \"Request denied\"",
-    range=Range(Pos(6,0,...), Pos(6,0,...)),     # start of else body
-    replacement="    set msg \"Request denied\"\n",
-    group=0,
-)
+// Part 2: Insert at the start of the else body
+Optimisation {
+    code: DiagCode::O125,
+    message: "Insert sunk set msg \"Request denied\"",
+    span: Span { .. },   // start of else body — line 6, column 0 (zero-width)
+    replacement: "    set msg \"Request denied\"\n",
+    group: Some(0),
+}
 ```
 
 After applying O125 to both statements:
@@ -2916,14 +2928,14 @@ single event), so the second call is redundant.
 5. **Emission**:
 
 ```
-RedundantComputation(
-    range=Range(Pos(4,28,...), Pos(4,40,...)),    # second [HTTP::uri]
-    first_range=Range(Pos(1,8,...), Pos(1,20,...)),  # first [HTTP::uri]
-    expression_text="HTTP::uri",
-    code="O105",
-    message="Redundant computation of [HTTP::uri]; result already "
-            "available from line 2",
-)
+RedundantComputation {
+    span: Span { .. },        // second [HTTP::uri] — line 4, columns 28..40
+    first_span: Span { .. },  // first [HTTP::uri]  — line 1, columns 8..20
+    expression_text: "HTTP::uri",
+    code: DiagCode::O105,
+    message: "Redundant computation of [HTTP::uri]; result already \
+              available from line 2",
+}
 ```
 
 The fix is to extract to a local variable:
@@ -2981,12 +2993,12 @@ proc compute {x} {
 a dead store:
 
 ```
-Optimisation(
-    code="O109",
-    message="Dead store: unused is set but never read",
-    range=Range(...),   # set unused 99
-    replacement="",
-)
+Optimisation {
+    code: DiagCode::O109,
+    message: "Dead store: unused is set but never read",
+    span: Span { .. },   // set unused 99
+    replacement: "",
+}
 ```
 
 **O107 — Dead Code Elimination (basic DCE):**
@@ -3114,42 +3126,43 @@ end of the line without a matching `]`.
 ### Stage 0 — Error recovery
 
 `rust/tcl-compiler/src/segmenter.rs` runs a first-pass parse via
-`segment_commands()`.  The segmenter detects that the `CMD` token starting
-at `[` is unterminated (the character after the CMD text is not `]`).
+`segment_commands()`.  The segmenter detects that the `Cmd` token starting
+at `[` is unterminated (the character after the `Cmd` text is not `]`).
 
-**Heuristic — command-break detection** (`_detect_missing_bracket_at_command`):
+**Heuristic — command-break detection** (`e201_at_command`):
 The next non-blank line starts with `set` — a known command name.  This
 signals that `]` should be inserted at the end of line 1.
 
-A `VirtualToken` is created:
+`segment_with_recovery()` records the insertion as a *ghost* entry in its
+`ghosts: BTreeMap<u32, u8>` (source offset → inserted byte), paired with the
+`Diagnostic` the heuristic produced.  There is no distinct token type for the
+insertion — the ghost byte is fed back into the re-lex:
 
 ```
-VirtualToken(
-    offset=29,        # end of "hello" on line 1
-    char="]",         # the missing delimiter
-    diagnostic=Diagnostic(
-        code="E201",
-        message='missing close-bracket',
-        range=Range(Pos(0,8,...), Pos(0,8,...)),
-        severity=Severity.ERROR,
-        fix=CodeFix(
-            description='Insert "]"',
-            ...
-        ),
-    ),
-)
+// ghosts entry: 29u32 → b']'
+//   offset 29 = end of "hello" on line 1; b']' = the missing delimiter
+Diagnostic {
+    code: DiagCode::E201,
+    message: "missing close-bracket",
+    span: Span { .. },   // line 0, column 8 (zero-width)
+    severity: Severity::Error,
+    fixes: [CodeFix {
+        description: "Insert \"]\"",
+        ..
+    }],
+}
 ```
 
-**Re-parse with virtual token:** The lexer sees the injected `]` and
-produces a clean `CMD` token.  The second parse yields two well-formed
-`SegmentedCommand` objects:
+**Re-parse with the ghost byte:** The lexer sees the injected `]` and
+produces a clean `Cmd` token.  The second parse yields two well-formed
+`SegmentedCommand` values:
 
 ```
-# Command 1 (recovered):
-SegmentedCommand(texts=["set", "x", '[string length "hello"]'])
+// Command 1 (recovered):
+SegmentedCommand { texts: ["set", "x", "[string length \"hello\"]"] }
 
-# Command 2 (clean):
-SegmentedCommand(texts=["set", "y", "42"])
+// Command 2 (clean):
+SegmentedCommand { texts: ["set", "y", "42"] }
 ```
 
 Both downstream passes (IR lowering, CFG, SSA, codegen) proceed on the
@@ -3182,11 +3195,11 @@ passed verbatim to the expression parser.
 **Tokenisation** (`tokenise_expr()`): produces `ExprToken` stream:
 
 ```
-ExprToken(VAR, "$a")
-ExprToken(OP, "+")
-ExprToken(VAR, "$b")
-ExprToken(OP, "*")
-ExprToken(NUM, "2")
+ExprToken { kind: ExprTokenType::Variable, text: "$a", .. }
+ExprToken { kind: ExprTokenType::Operator, text: "+",  .. }
+ExprToken { kind: ExprTokenType::Variable, text: "$b", .. }
+ExprToken { kind: ExprTokenType::Operator, text: "*",  .. }
+ExprToken { kind: ExprTokenType::Number,   text: "2",  .. }
 ```
 
 **Pratt parsing** (`_PrattParser` in
@@ -3289,10 +3302,10 @@ It pattern-matches on the second argument's token type:
 
 | Token type of `args[1]` | IR node produced | Example |
 |-------------------------|-----------------|---------|
-| `STR` (braced string) | `Statement::AssignConst` | `set x {hello}` |
-| `ESC` (decimal integer) | `Statement::AssignConst` | `set x 42` |
-| `CMD` wrapping `expr` | `Statement::AssignExpr` | `set x [expr {$a + 1}]` |
-| `VAR` or interpolated | `Statement::AssignValue` | `set x $y`, `set x "hi $name"` |
+| `Str` (braced string) | `Statement::AssignConst` | `set x {hello}` |
+| `Esc` (decimal integer) | `Statement::AssignConst` | `set x 42` |
+| `Cmd` wrapping `expr` | `Statement::AssignExpr` | `set x [expr {$a + 1}]` |
+| `Var` or interpolated | `Statement::AssignValue` | `set x $y`, `set x "hi $name"` |
 | 0 args (getter) | `Statement::Call` | `set x` (read variable) |
 
 ### Example: fallthrough with `arg_roles`
@@ -3303,12 +3316,12 @@ For a command like `regexp`:
 regexp {(\d+)} $input match submatch
 ```
 
-The registry declares `ArgRole.VAR_NAME` at arg indices 2 and 3 (the
+The registry declares `ArgRole::VarWrite` at arg indices 2 and 3 (the
 match variables).  The fallthrough path calls:
 
 ```
-var_indices = arg_indices_for_role("regexp", args, ArgRole.VAR_NAME)
-# → {2, 3}  (match, submatch)
+let var_indices = registry.arg_indices_for_role("regexp", args, ArgRole::VarWrite);
+// → [2, 3]  (match, submatch)
 ```
 
 This produces:
@@ -3373,40 +3386,40 @@ proc process {items} {
 **`[llength $items]`:**
 
 ```
-CommandSubstitutionIntent(
-    command="llength",
-    args=("$items",),
-    arg_categories=(SubstitutionCategory.SCALAR_VAR,),
-    side_effect=SideEffectClass.PURE,      # llength is pure
-    escape=EscapeClass.NO_ESCAPE,          # no dynamic barriers
-    shimmer_pressure=1,                     # one var arg
-)
+CommandSubstitutionIntent {
+    command: "llength",
+    args: ["$items"],
+    arg_categories: [SubstitutionCategory::ScalarVar],
+    side_effect: SideEffectClass::Pure,      // llength is pure
+    escape: EscapeClass::NoEscape,           // no dynamic barriers
+    shimmer_pressure: 1,                     // one var arg
+}
 ```
 
 **`[format "Total: %d" $count]`:**
 
 ```
-CommandSubstitutionIntent(
-    command="format",
-    args=('"Total: %d"', "$count"),
-    arg_categories=(SubstitutionCategory.LITERAL, SubstitutionCategory.SCALAR_VAR),
-    side_effect=SideEffectClass.PURE,
-    escape=EscapeClass.NO_ESCAPE,
-    shimmer_pressure=1,
-)
+CommandSubstitutionIntent {
+    command: "format",
+    args: ["\"Total: %d\"", "$count"],
+    arg_categories: [SubstitutionCategory::Literal, SubstitutionCategory::ScalarVar],
+    side_effect: SideEffectClass::Pure,
+    escape: EscapeClass::NoEscape,
+    shimmer_pressure: 1,
+}
 ```
 
 **`[http::geturl $url]`:**
 
 ```
-CommandSubstitutionIntent(
-    command="http::geturl",
-    args=("$url",),
-    arg_categories=(SubstitutionCategory.SCALAR_VAR,),
-    side_effect=SideEffectClass.MAY_SIDE_EFFECT,  # network I/O
-    escape=EscapeClass.MAY_ESCAPE,                 # may throw
-    shimmer_pressure=1,
-)
+CommandSubstitutionIntent {
+    command: "http::geturl",
+    args: ["$url"],
+    arg_categories: [SubstitutionCategory::ScalarVar],
+    side_effect: SideEffectClass::MaySideEffect,  // network I/O
+    escape: EscapeClass::MayEscape,               // may throw
+    shimmer_pressure: 1,
+}
 ```
 
 ### How ADCE uses execution intent
@@ -3414,9 +3427,9 @@ CommandSubstitutionIntent(
 `_is_adce_removable_statement()` checks the intent before removing a
 "dead" assignment:
 
-- `[llength $items]` → PURE + NO_ESCAPE → **safe to remove** if `count`
+- `[llength $items]` → `Pure` + `NoEscape` → **safe to remove** if `count`
   is never read.
-- `[http::geturl $url]` → MAY_SIDE_EFFECT → **cannot remove** even if
+- `[http::geturl $url]` → `MaySideEffect` → **cannot remove** even if
   `result` is never read (the network call is observable).
 
 ---
@@ -3506,23 +3519,23 @@ When the optimiser encounters `[helper 21]` with a constant argument,
 ### Final `ProcSummary`
 
 ```
-ProcSummary(
-    qualified_name="::helper",
-    params=("x",),
-    arity=Arity(1, 1),
-    calls=(),
-    has_barrier=false,
-    has_unknown_calls=false,
-    writes_global=false,
-    pure=true,
-    effect_reads=EffectRegion(0),
-    effect_writes=EffectRegion(0),
-    returns_constant=false,
-    constant_return=None,
-    return_depends_on_params=("x",),
-    return_passthrough_param=None,
-    can_fold_static_calls=true,
-)
+ProcSummary {
+    qualified_name: "::helper",
+    params: ["x"],
+    arity: Arity { min: 1, max: 1, .. },
+    calls: [],
+    has_barrier: false,
+    has_unknown_calls: false,
+    writes_global: false,
+    pure: true,
+    effect_reads: EffectRegion::NONE,
+    effect_writes: EffectRegion::NONE,
+    returns_constant: false,
+    constant_return: None,
+    return_depends_on_params: ["x"],
+    return_passthrough_param: None,
+    can_fold_static_calls: true,
+}
 ```
 
 ---
@@ -3566,23 +3579,23 @@ each event's SSA blocks:
 **CLIENT_ACCEPTED:**
 
 ```
-EventVarSummary(
-    event="CLIENT_ACCEPTED",
-    defs={"conn_start", "request_count"},
-    uses_before_def={},    # no version-0 reads
-    unsets={},
-)
+EventVarSummary {
+    event: "CLIENT_ACCEPTED",
+    defs: {"conn_start", "request_count"},
+    uses_before_def: {},    // no version-0 reads
+    unsets: {},
+}
 ```
 
 **HTTP_REQUEST:**
 
 ```
-EventVarSummary(
-    event="HTTP_REQUEST",
-    defs={"request_count"},      # incr defines it
-    uses_before_def={"request_count", "conn_start"},  # version 0
-    unsets={},
-)
+EventVarSummary {
+    event: "HTTP_REQUEST",
+    defs: {"request_count"},      // incr defines it
+    uses_before_def: {"request_count", "conn_start"},  // version 0
+    unsets: {},
+}
 ```
 
 ### Cross-event set computation
@@ -3594,11 +3607,11 @@ EventVarSummary(
 - Intersection: `{conn_start, request_count}` — these flow across events.
 
 ```
-ConnectionScope(
-    summaries={...},
-    cross_event_defs={"conn_start", "request_count"},
-    cross_event_imports={"conn_start", "request_count"},
-)
+ConnectionScope {
+    summaries: {/* … */},
+    cross_event_defs: {"conn_start", "request_count"},
+    cross_event_imports: {"conn_start", "request_count"},
+}
 ```
 
 ### Effect on diagnostics
@@ -3701,8 +3714,8 @@ The `_Emitter` constructor creates a `LocalVarTable` from the
 parameter list:
 
 ```
-LocalVarTable(params=("n",))
-# LVT slots: %v0 = "n"
+LocalVarTable::new(&["n"])
+// LVT slots: %v0 = "n"
 ```
 
 Inside a `proc`, all variable accesses use LVT-indexed instructions
@@ -3853,80 +3866,80 @@ when HTTP_REQUEST {
 **`HTTP::uri` (getter form):**
 
 ```
-CommandSideEffects(
-    effects=(
-        SideEffect(
-            target=SideEffectTarget.HTTP_URI,
-            reads=true,
-            writes=false,
-            storage_type=StorageType.SCALAR,
-            scope=StorageScope.EVENT,
-            connection_side=ConnectionSide.CLIENT,
-        ),
-    ),
-    pure=true,             # reading is side-effect-free
-    deterministic=true,    # same result within one event
-    dynamic_barrier=false,
-)
+CommandSideEffects {
+    effects: [
+        SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            storage_type: StorageType::Scalar,
+            scope: StorageScope::Event,
+            connection_side: ConnectionSide::Client,
+        },
+    ],
+    pure: true,             // reading is side-effect-free
+    deterministic: true,    // same result within one event
+    dynamic_barrier: false,
+}
 ```
 
 **`HTTP::header replace Host "example.com"` (setter form):**
 
 ```
-CommandSideEffects(
-    effects=(
-        SideEffect(
-            target=SideEffectTarget.HTTP_HEADER,
-            reads=false,
-            writes=true,                     # modifying a header
-            storage_type=StorageType.SCALAR,
-            scope=StorageScope.EVENT,
-            connection_side=ConnectionSide.CLIENT,
-            key="Host",                      # literal header name
-        ),
-    ),
-    pure=false,            # writing is a side effect
-    deterministic=false,
-    dynamic_barrier=false,
-)
+CommandSideEffects {
+    effects: [
+        SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: false,
+            writes: true,                     // modifying a header
+            storage_type: StorageType::Scalar,
+            scope: StorageScope::Event,
+            connection_side: ConnectionSide::Client,
+            key: Some("Host"),                // literal header name
+        },
+    ],
+    pure: false,            // writing is a side effect
+    deterministic: false,
+    dynamic_barrier: false,
+}
 ```
 
 **`pool my_pool`:**
 
 ```
-CommandSideEffects(
-    effects=(
-        SideEffect(
-            target=SideEffectTarget.POOL_SELECTION,
-            reads=false,
-            writes=true,
-            storage_type=StorageType.SCALAR,
-            scope=StorageScope.CONNECTION,
-            connection_side=ConnectionSide.SERVER,
-        ),
-    ),
-    pure=false,
-    deterministic=false,
-)
+CommandSideEffects {
+    effects: [
+        SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: false,
+            writes: true,
+            storage_type: StorageType::Scalar,
+            scope: StorageScope::Connection,
+            connection_side: ConnectionSide::Server,
+        },
+    ],
+    pure: false,
+    deterministic: false,
+}
 ```
 
 **`log local0. "Routing $uri"`:**
 
 ```
-CommandSideEffects(
-    effects=(
-        SideEffect(
-            target=SideEffectTarget.LOG_IO,
-            reads=false,
-            writes=true,
-            storage_type=StorageType.SCALAR,
-            scope=StorageScope.GLOBAL,
-            connection_side=ConnectionSide.NONE,
-        ),
-    ),
-    pure=false,
-    deterministic=false,
-)
+CommandSideEffects {
+    effects: [
+        SideEffect {
+            target: SideEffectTarget::LogIo,
+            reads: false,
+            writes: true,
+            storage_type: StorageType::Scalar,
+            scope: StorageScope::Global,
+            connection_side: ConnectionSide::None,
+        },
+    ],
+    pure: false,
+    deterministic: false,
+}
 ```
 
 ### How classification resolves form and subcommand
@@ -3954,7 +3967,7 @@ The classification function follows this resolution order:
 | Consumer | Uses |
 |----------|------|
 | **GVN/CSE** | `pure=true` → result can be cached (O105) |
-| **ADCE** | `pure=true` + `NO_ESCAPE` → statement is removable |
+| **ADCE** | `pure=true` + `NoEscape` → statement is removable |
 | **Optimiser** | `pure=false` → cannot propagate across this command |
 | **iRules flow** | `RESPONSE_LIFECYCLE` write → response-commit tracking |
 | **Taint engine** | `pure=true` → taint flows through unchanged |

@@ -195,12 +195,6 @@ proc unsafe {} {global myvar;set myvar 42}
 
 The minifier entrypoints are `minify_tcl` (basic), `minify_tcl_compact` (compact, returns `(source, SymbolMap)`), and `minify_tcl_aggressive` (returns a `MinifyResult`), all in `rust/tcl-lsp-core/src/minify.rs`.  Basic minification is idempotent.  Compact mode uses the analyser's scope model to identify renameable symbols; every observability fact it consults is a `tcl-registry` trait (`CREATES_DYNAMIC_BARRIER`, `INTROSPECTS_BY_NAME`, `REFLECTS_COMMAND_NAMES`, `ALIASES_CALLER_FRAME`, `EVALUATES_IN_SHIFTED_FRAME`, `DESTROYS_VARIABLE`), never a command-name list in the minifier.  Case-list minification is driven by the registry's `CommandSpec::case_list` descriptor and the central list parser in `rust/tcl-syntax/src/list.rs`.
 
-## File-path anchors
-
-- `rust/tcl-registry/src/traits.rs` — the observability traits the fences consume
-- `rust/tcl-syntax/src/list.rs`, `rust/tcl-syntax/src/case_list.rs` — the list grammar used for case lists
-- `editors/vscode/src/extension.ts` (`minifyDocument` handler)
-
 ## Failure modes
 
 - Non-idempotent minification (re-minify changes output).

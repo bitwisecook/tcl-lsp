@@ -114,11 +114,3 @@ toupper`/`tolower`/`totitle`, `encoding convertto`) corrupt binary data. Which
 operation does which is registry data — the
 [`ByteArrayEffect`](../../design/compiler/byte-array-corruption.md) on each
 command / subcommand — not a hardcoded list in the compiler.
-
-## File-path anchors
-
-  `byte_array_effect`, `payload_replace_data_index`
-- `rust/tcl-registry/src/byte_array_effect.rs` — `ByteArrayEffect`
-- `rust/tcl-registry/src/commands/tcl/string_.rs` — per-subcommand
-  `byte_array_effect`
-- `rust/tcl-registry/src/commands/irules/*__payload*.rs` — `byte_array_payload`

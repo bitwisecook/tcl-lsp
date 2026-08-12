@@ -154,17 +154,6 @@ read that nothing binds shows **nothing at all** rather than falling back to a
 command or method of the same name: Tcl keeps variable names and command names
 in separate tables, so `$dataset` can never mean a method called `dataset`.
 
-## File-path anchors
-
-  `qualified_symbol_hover` for a symbol defined in another document and
-  `qualified_variable_hover` for a namespace variable declared in one
-  and the `$`-led abstention shared with Go to Definition and Find References
-  `expr` math-function call, and what does it resolve to" helper
-  keep hover silent on text Tcl never substitutes
-- `rust/tcl-registry/src/mathfunc.rs` — the registry's math-function query
-  (bare name to command name, plus the two version axes)
-  `cross_document_variable_hover`, the workspace and library-index fallbacks
-
 ## Failure modes
 
 - Missing hover after command registry updates.

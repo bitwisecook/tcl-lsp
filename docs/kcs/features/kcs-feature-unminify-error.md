@@ -210,12 +210,6 @@ The `unminify_error` function is a pure function that takes an error string and 
 
 The `SymbolMap.parse()` method is the inverse of `SymbolMap.format()` — it reads the human-readable text format back into a `SymbolMap` object.  The `SymbolMap.reverse()` method builds the compacted→original lookup dictionary used for translation.
 
-## File-path anchors
-
-- `editors/vscode/src/extension.ts` (`unminifyError` handler)
-- `editors/vscode/package.json` (`tclLsp.unminifyError` command registration)
-- `editors/sublime-text/plugin.py` (`TclUnminifyErrorCommand`)
-
 ## Failure modes
 
 - Symbol map file doesn't match the deployed minified code (different version).

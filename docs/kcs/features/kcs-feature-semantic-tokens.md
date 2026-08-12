@@ -49,11 +49,6 @@ else (`puts {$n}`) stays a string.
   §7 and [`docs/design/rust/incremental-analysis.md`](../../design/rust/incremental-analysis.md)
   (Slice 6).
 
-## File-path anchors
-
-  race), `SemanticTokensRefreshCtx`, `db_semantic_tokens`
-- `rust/tcl-lsp-db/src/lib.rs` — `semantic_tokens` salsa query
-
 ## Failure modes
 
 - Token types misclassified after regex or format parser changes.

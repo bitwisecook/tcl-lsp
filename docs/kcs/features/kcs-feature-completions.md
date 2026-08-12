@@ -79,10 +79,6 @@ The list follows your chosen Tcl version: `max` needs Tcl 8.5 or later,
 expression offers no math functions at all, because Tcl cannot call them
 there.
 
-## File-path anchors
-
-- `rust/tcl-registry/src/mathfunc.rs` — the registry's math-function query
-
 ## Failure modes
 
 - Missing completions after registry or parser changes.

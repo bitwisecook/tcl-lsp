@@ -29,10 +29,6 @@ VS Code, Copilot Chat, Claude skill
 
 The skeleton generator uses the event registry to know which events exist, their firing order, and which commands are valid in each event. This helps users start new iRules with the correct structure.
 
-## File-path anchors
-
-- `editors/vscode/src/iruleSkeleton.ts`
-
 ## Failure modes
 
 - Missing events after registry updates.

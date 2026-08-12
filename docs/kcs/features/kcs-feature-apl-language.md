@@ -79,16 +79,6 @@ directory.  Resolution is recursive with circular-include protection.
 the `f5-iapps` and `f5-tmsh` dialects with hover documentation and arity
 validation.
 
-## File-path anchors
-
-- `editors/vscode/package.json` — `tcl-apl` language registration and colours
-- `editors/vscode/apl-language-configuration.json` — editor behaviour
-- `editors/zed/languages/apl/config.toml` — Zed APL language registration
-- `editors/jetbrains/src/main/resources/META-INF/plugin.xml` — JetBrains file type
-- `editors/neovim/tcl_lsp.lua` — Neovim filetype mapping
-- `editors/sublime-text/APL.sublime-syntax` — Sublime Text APL syntax
-- `editors/sublime-text/LSP-Tcl.sublime-settings` — Sublime APL semantic tokens
-
 ## Failure modes
 
 - APL-specific tokens not emitted when `is_apl=False` (language detection miss).
