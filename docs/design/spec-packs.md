@@ -24,10 +24,15 @@ authoring format**, with two outputs:
 
 - **Ahead-of-time**: `tcl spec build --emit rust` renders DSL sources to
   the registry `.rs` modules (the studio's `render_rs` already does
-  draft → `.rs`; the DSL maps to the same draft model). The most common
-  libraries — tcllib, Tk, the core packs — stay **compiled in** exactly
-  as today, for zero-cost loading in the general case. Over time their
-  *sources* can migrate to DSL files that generate the Rust.
+  draft → `.rs`; the DSL maps to the same draft model). The compiled-in
+  set is decided: **core Tcl, tcllib, and Tk stay compiled in** (their
+  *sources* migrating to SpecTcl files that generate the Rust); **every
+  other library pack ships as a bundled `.tclspec` loadable** — expect,
+  the EDA vendor libraries, the stdlib extras, and all future additions
+  — so the loader path is exercised in production from day one rather
+  than reserved for private packs. The F5 dialect packs are dialect
+  infrastructure rather than libraries and stay compiled until decided
+  otherwise.
 - **Runtime**: private packs load the same DSL directly, paying only a
   one-time parse.
 
