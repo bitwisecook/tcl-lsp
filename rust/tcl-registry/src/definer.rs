@@ -1181,7 +1181,11 @@ impl DefinitionBodyGrammar {
     pub fn member_default_exported(&self, name: &str) -> bool {
         match self.family {
             DefinerFamily::TclOo => name.starts_with(|c: char| c.is_ascii_lowercase()),
-            DefinerFamily::Snit | DefinerFamily::Itcl => true,
+            // SpecTcl declares no members that are ever *dispatched*, so the
+            // question is vacuous for it; answering `true` keeps the visible
+            // set equal to the declared set, which is the only reading of
+            // "exported" a declaration-only family has.
+            DefinerFamily::Snit | DefinerFamily::Itcl | DefinerFamily::SpecTcl => true,
         }
     }
 }
