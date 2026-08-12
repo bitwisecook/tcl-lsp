@@ -58,7 +58,6 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 pub struct SemanticAnalysisBundle {
     dialect: DialectSet,
     executable: ExecutableAnalysisAvailability,
-    mixed_plan: MixedRegionPlanAvailability,
 }
 
 impl SemanticAnalysisBundle {
@@ -166,10 +165,23 @@ impl SemanticAnalysisBundle {
         &self.executable
     }
 
-    /// Retained mixed per-region plan, or why no faithful plan was available.
+    /// The mixed per-region plan for this bundle, or why no faithful plan was
+    /// available.
+    ///
+    /// Built on demand rather than retained.  Interactive analysis constructs a
+    /// bundle for every procedure on every keystroke and never reads this plan,
+    /// whereas its consumers — the WASM pipeline and Explorer — ask for it once
+    /// per compile.  Retaining it would put a whole-function plan build and its
+    /// validation on the per-keystroke path for no consumer.
     #[must_use]
-    pub const fn mixed_plan(&self) -> &MixedRegionPlanAvailability {
-        &self.mixed_plan
+    pub fn mixed_plan(&self) -> MixedRegionPlanAvailability {
+        match self.executable.function() {
+            Some(function) => match MixedRegionPlan::build(function) {
+                Ok(plan) => MixedRegionPlanAvailability::Available(plan),
+                Err(decline) => MixedRegionPlanAvailability::Declined(decline),
+            },
+            None => MixedRegionPlanAvailability::ExecutableUnavailable,
+        }
     }
 
     /// Return mixed-region evidence after explicitly enabled common semantic
@@ -183,13 +195,13 @@ impl SemanticAnalysisBundle {
         &self,
         config: SemanticOptimisationConfig,
     ) -> MixedRegionPlanAvailability {
+        let baseline = self.mixed_plan();
         if !config.is_enabled(SemanticOptimisationPassId::GuardedIntrinsic) {
-            return self.mixed_plan.clone();
+            return baseline;
         }
-        let (MixedRegionPlanAvailability::Available(plan), Some(function)) =
-            (&self.mixed_plan, self.executable.function())
-        else {
-            return self.mixed_plan.clone();
+        let (function, plan) = match (self.executable.function(), baseline) {
+            (Some(function), MixedRegionPlanAvailability::Available(plan)) => (function, plan),
+            (_, baseline) => return baseline,
         };
         let provenance = CommonAnalysisProvenance { _private: () };
         let runtime_version = self
@@ -205,18 +217,13 @@ impl SemanticAnalysisBundle {
         }
     }
 
-    fn from_executable(dialect: DialectSet, executable: ExecutableAnalysisAvailability) -> Self {
-        let mixed_plan = match executable.function() {
-            Some(function) => match MixedRegionPlan::build(function) {
-                Ok(plan) => MixedRegionPlanAvailability::Available(plan),
-                Err(decline) => MixedRegionPlanAvailability::Declined(decline),
-            },
-            None => MixedRegionPlanAvailability::ExecutableUnavailable,
-        };
+    const fn from_executable(
+        dialect: DialectSet,
+        executable: ExecutableAnalysisAvailability,
+    ) -> Self {
         Self {
             dialect,
             executable,
-            mixed_plan,
         }
     }
 }

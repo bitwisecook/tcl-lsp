@@ -522,6 +522,7 @@ pub enum ClosedProgramCoverageDecision {
 pub struct CommonAotProofPlan {
     environment: CommonAotEnvironment,
     direct_calls: BTreeMap<DirectCallSiteId, DirectProcDecision>,
+    declined_direct_callees: BTreeSet<String>,
     semantic_calls: BTreeMap<DirectCallSiteId, SemanticCallDecision>,
     closed_program_coverage: ClosedProgramCoverageDecision,
     materialisable_slots: BTreeMap<SsaValueIdentity, MaterialisableSlotDecision>,
@@ -543,6 +544,7 @@ impl CommonAotProofPlan {
             crate::command_binding::scan_module_command_mutations(&unit.ir_module, registry);
         let direct = collect_direct_calls(unit, registry, dialect, config, &escape, &mutations);
         let direct_calls = direct.decisions;
+        let declined_direct_callees = direct.declined_callees;
         let propagated = direct.propagated;
 
         let semantic_calls =
@@ -576,6 +578,7 @@ impl CommonAotProofPlan {
         Self {
             environment,
             direct_calls,
+            declined_direct_callees,
             semantic_calls,
             closed_program_coverage,
             materialisable_slots,
@@ -592,6 +595,20 @@ impl CommonAotProofPlan {
     /// Direct-call decisions in stable IR order.
     pub fn direct_calls(&self) -> impl Iterator<Item = (&DirectCallSiteId, &DirectProcDecision)> {
         self.direct_calls.iter()
+    }
+
+    /// Whether any direct-call candidate naming `callee` was declined.
+    ///
+    /// A selected call site proves nothing about the *other* ways a procedure
+    /// can be reached: a same-arity call through an alias, a rebound name, or
+    /// a candidate declined for exceptional control flow still invokes it with
+    /// values the selected sites never carry.  A consumer that joins facts
+    /// across selected sites — caller operand ranges, propagated actual types —
+    /// must therefore treat a decline naming the same callee as proof that the
+    /// selected sites do not exhaust its callers.
+    #[must_use]
+    pub fn has_declined_direct_call_to(&self, callee: &str) -> bool {
+        self.declined_direct_callees.contains(callee)
     }
 
     /// Registry semantic-call decisions in stable CFG identity order.
@@ -708,6 +725,10 @@ fn call_sites<'a>(caller: &str, function: &'a FunctionUnit) -> Vec<CallCandidate
 
 struct DirectCollection {
     decisions: BTreeMap<DirectCallSiteId, DirectProcDecision>,
+    /// Callees named by at least one *declined* candidate — the set a consumer
+    /// joining facts across selected sites must consult before treating those
+    /// sites as the callee's complete caller set.
+    declined_callees: BTreeSet<String>,
     propagated: HashMap<(String, usize), Option<TypeLattice>>,
 }
 
@@ -721,6 +742,7 @@ fn collect_direct_calls(
 ) -> DirectCollection {
     let known: HashSet<String> = unit.ir_module.procedures.keys().cloned().collect();
     let mut direct_calls = BTreeMap::new();
+    let mut declined_callees = BTreeSet::new();
     // `None` is a poison fact: at least one selected call supplied an actual
     // whose type was not proved. `TypeLattice::Unknown` is lattice bottom, so
     // joining it directly would incorrectly preserve another call's fact.
@@ -762,11 +784,15 @@ fn collect_direct_calls(
                     .is_enabled(SemanticOptimisationPassId::NativeInteger),
             });
             propagate_actual_types(&mut propagated, &callee_name, &decision);
+            if matches!(decision, DirectProcDecision::Declined(_)) {
+                declined_callees.insert(callee_name);
+            }
             direct_calls.insert(site.id, decision);
         }
     }
     DirectCollection {
         decisions: direct_calls,
+        declined_callees,
         propagated,
     }
 }

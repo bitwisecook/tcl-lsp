@@ -452,12 +452,19 @@ fn collect_caller_ranges(
         return Err(NativeIntegerDeclineReason::DynamicCallerInput);
     }
 
+    // Joined operand ranges bound this procedure's parameters only if the
+    // selected call sites are *all* of its callers.  A declined candidate
+    // naming it — a same-arity call reached through an alias, a rebound name,
+    // a site inside exceptional control flow — still invokes it with values no
+    // selected site carries, so the evidence is refused rather than narrowed
+    // against an incomplete caller set.
+    if common_plan.has_declined_direct_call_to(function) {
+        return Err(NativeIntegerDeclineReason::MissingDirectProcEvidence);
+    }
+
     let mut ranges = std::collections::HashMap::<String, Interval>::new();
     let mut call_sites = Vec::new();
     let mut dependencies = DispatchDependencies::BASE;
-    let has_declined_direct_candidate = common_plan
-        .direct_calls()
-        .any(|(_, decision)| matches!(decision, DirectProcDecision::Declined(_)));
     for (id, decision) in common_plan.direct_calls() {
         let DirectProcDecision::Selected(direct) = decision else {
             continue;
@@ -530,11 +537,7 @@ fn collect_caller_ranges(
         call_sites.push(id.clone());
     }
     if call_sites.is_empty() {
-        return Err(if has_declined_direct_candidate {
-            NativeIntegerDeclineReason::MissingDirectProcEvidence
-        } else {
-            NativeIntegerDeclineReason::DynamicCallerInput
-        });
+        return Err(NativeIntegerDeclineReason::DynamicCallerInput);
     }
     if ranges.len() != params.len() {
         return Err(NativeIntegerDeclineReason::MissingDirectProcEvidence);
@@ -1051,6 +1054,30 @@ mod tests {
                 lo: Some(3),
                 hi: Some(7)
             })
+        );
+    }
+
+    #[test]
+    fn a_declined_caller_refuses_the_selected_sites_as_the_whole_caller_set() {
+        // The call inside `::risky` reaches `::add` with operands no selected
+        // site carries, but its candidate declines (`ExceptionalControlFlow`)
+        // and the arity gate cannot see it: it supplies the same two arguments
+        // the selected site does.  Joining only `add $d $e` would publish a
+        // [2,2]/[4,4] operand range the procedure does not actually have.
+        let source = format!(
+            "{ADD_BODY}proc risky {{}} {{ try {{ add 100 200 }} on error {{}} {{}} }}\n\
+             set d 2\nset e 4\nputs [add $d $e]\n"
+        );
+        let decision = one_decision(prove(&source, "tcl9.0", enabled(), checked_i64()));
+        assert!(
+            matches!(
+                decision,
+                NativeAddDecision::Declined {
+                    reason: NativeIntegerDeclineReason::MissingDirectProcEvidence,
+                    ..
+                }
+            ),
+            "an unselected caller must refuse the proof, got {decision:?}"
         );
     }
 

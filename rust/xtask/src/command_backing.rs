@@ -52,6 +52,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
+use std::sync::LazyLock;
 
 use anyhow::{Context, Result};
 use regex::Regex;
@@ -486,6 +487,13 @@ fn core_commands() -> BTreeSet<String> {
         .collect()
 }
 
+/// The `register_spec_builtin` form recognised by [`scan_handler_source`],
+/// compiled once rather than once per scanned runtime source file.
+static SPEC_REGISTRATION_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)register_spec_builtin\(\s*[A-Za-z_][A-Za-z0-9_]*\.get\(\s*"([^"]+)"\s*\)"#)
+        .expect("static direct register_spec_builtin regex")
+});
+
 /// Scan one runtime source file for registry-backed command registrations.
 ///
 /// Ordinary handlers expose their name directly through
@@ -506,11 +514,7 @@ fn scan_handler_source(text: &str) -> BTreeSet<String> {
         }
     }
 
-    let spec_registrations = Regex::new(
-        r#"(?s)register_spec_builtin\(\s*[A-Za-z_][A-Za-z0-9_]*\.get\(\s*"([^"]+)"\s*\)"#,
-    )
-    .expect("static direct register_spec_builtin regex");
-    for captures in spec_registrations.captures_iter(text) {
+    for captures in SPEC_REGISTRATION_RE.captures_iter(text) {
         if let Some(name) = captures.get(1).map(|capture| capture.as_str()) {
             names.insert(canon(name).to_string());
         }
