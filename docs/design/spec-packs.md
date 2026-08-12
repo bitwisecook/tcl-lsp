@@ -439,18 +439,27 @@ of pairwise syncs to maintain.
   (IndexedDB): pack sources, drafts, settings, the Test tab's sample
   code. Reload, crash, or restart resumes exactly; explicit export
   remains the way bytes leave the browser.
-- **Skill-in-studio.** A tab to configure an OpenAI-compatible endpoint
-  and API key, driving the spec-author flow in the page: the model gets
-  the studio's own wasm functions (import/inference, command lookup,
-  analyse) as its tools, so the evidence loop is identical to the CLI
-  skill and everything except the model calls stays client-side.
-  **Design tension, stated up front:** today's page ships
-  `connect-src 'none'` — the never-phones-home guarantee. The AI tab
-  requires network. Resolution: the default build keeps `'none'`; AI is
-  a separately-built variant (or an explicit opt-in page) whose CSP
-  allows only user-configured origins, with the key held in local
-  storage and a plain warning that it is sent to the endpoint the user
-  named. The guarantee is preserved by *build*, not by promise.
+- **Skill-in-studio, fully integrated.** A tab to configure an
+  OpenAI-compatible endpoint and API key, driving the complete
+  spec-author flow in the page: the model gets the studio's own wasm
+  functions (import/inference, command lookup, analyse, and
+  `spectcl_check`'s report) as its tools, so the evidence loop is
+  identical to the CLI skill and everything except the model calls
+  stays client-side.
+- **A real code editor, a real LSP.** The DSL and Test tabs embed
+  Monaco (the editor VS Code uses) with **the LSP itself compiled to a
+  wasm bundle** attached as its language server — so pack authoring in
+  the browser gets the identical SpecTcl experience an editor gets:
+  the self-spec pack's keywords, hover, completion, diagnostics, all
+  from the same code, not a re-implementation.
+- **Deployment: static documents, same-origin only.** The single-file
+  constraint is dropped — the studio ships as a set of static
+  documents (wasm bundles, JS, CSS, pages) served from one origin.
+  The privacy guarantee restates for that shape: CSP permits requests
+  **only to the origin serving the studio** (its own static assets) —
+  never anywhere else — with exactly one exception, the user-configured
+  OpenAI-style endpoint for the built-in skill, key in local storage
+  and a plain warning that it is sent to the endpoint the user named.
 
 ## What a pack still cannot say
 
