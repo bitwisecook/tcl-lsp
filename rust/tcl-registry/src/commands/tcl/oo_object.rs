@@ -76,6 +76,7 @@ fn object_create_state_transitions(arguments: InvocationArguments<'_>) -> StateT
         transitions.push(StateTransition::CommandBinding(
             CommandBindingTransition::Define {
                 name: target.clone(),
+                kind: CommandBindingDefinitionKind::Object,
             },
         ));
     }
@@ -211,7 +212,10 @@ pub fn spec() -> CommandSpec {
         // absence of a definition body is what correctly keeps `create`
         // classified as an instance factory, not a class definer (see
         // the `oo_object_instance_creation_not_a_class_definer` test).
-        traits: Traits::IS_OO_METACLASS | Traits::LANGUAGE_KEYWORD | Traits::NOT_PROC_FACTORY,
+        traits: Traits::IS_OO_METACLASS
+            | Traits::OBJECT_COMMAND_SURFACE
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::NOT_PROC_FACTORY,
         // Verified absent (soft-404 "URL Not Found" page, HTTP 200) from
         // the tcl-lang.org manpage tree for 8.4 and 8.5; present with
         // byte-identical NAME/SYNOPSIS/CLASS HIERARCHY/DESCRIPTION/
@@ -271,7 +275,7 @@ mod tests {
         );
         assert!(named_transitions.facts().iter().any(|fact| matches!(
             &fact.transition,
-            StateTransition::CommandBinding(CommandBindingTransition::Define { name })
+            StateTransition::CommandBinding(CommandBindingTransition::Define { name, .. })
                 if name.literal() == Some("::obj")
         )));
         assert!(named_transitions.facts().iter().any(|fact| matches!(

@@ -36,6 +36,9 @@ use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
 use crate::intrinsic::IntrinsicId;
 use crate::invocation_words::{InvocationWordKind, InvocationWords};
+use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValidator};
+use crate::representation::RepresentationEffect;
+use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::side_effects::SideEffect;
 use crate::spec::{ArgRoleResolver, CommandSpec, SubCommand};
@@ -116,7 +119,25 @@ fn resolve_invocation_semantics<'r>(
             .or(sub.and_then(|sub| sub.completion))
             .or(spec.completion)
             .unwrap_or(CompletionDescriptor::CONSERVATIVE),
-        traits: spec.traits | sub.map_or_else(Traits::empty, |sub| sub.traits),
+        result_stability: form
+            .and_then(|form| form.result_stability)
+            .or(sub.and_then(|sub| sub.result_stability))
+            .or(spec.result_stability)
+            .unwrap_or_default(),
+        representation_effect: form
+            .and_then(|form| form.representation_effect)
+            .or(sub.and_then(|sub| sub.representation_effect))
+            .or(spec.representation_effect)
+            .unwrap_or_default(),
+        traits: spec.traits
+            | sub.map_or_else(Traits::empty, |sub| {
+                sub.traits
+                    | if sub.pure {
+                        Traits::PURE
+                    } else {
+                        Traits::empty()
+                    }
+            }),
         arity: form.map_or_else(
             || sub.map_or(spec.arity, |sub| sub.arity),
             |form| form.arity,
@@ -159,6 +180,10 @@ fn resolve_invocation_semantics<'r>(
             subcommand: sub.and_then(|sub| sub.dispatch_dependencies),
             form: form.and_then(|form| form.dispatch_dependencies),
         },
+        literal_argument_validator: form
+            .and_then(|form| form.literal_argument_validator)
+            .or(sub.and_then(|sub| sub.literal_argument_validator))
+            .or(spec.literal_argument_validator),
     }
 }
 
@@ -441,6 +466,10 @@ pub struct InvocationSemantics<'r> {
     /// then the command descriptor, falling back to the conservative generic
     /// invoke contract only when the registry supplied none of them.
     pub completion: CompletionDescriptor,
+    /// Registry-declared dependency contract for the invocation's result.
+    pub result_stability: ResultStability,
+    /// Effective Tcl value-representation effect.
+    pub representation_effect: RepresentationEffect,
     /// Additive command and subcommand behaviour traits.
     pub traits: Traits,
     /// Effective arity after command/subcommand/form resolution.
@@ -498,6 +527,8 @@ pub struct InvocationSemantics<'r> {
     /// This descriptor chain is independent of backend guard encodings. An
     /// unstamped command resolves to the conservative Tcl dependency set.
     pub dispatch_dependencies: ResolvedDispatchDependencies,
+    /// Registry-selected relationship/content validator for literal arguments.
+    pub literal_argument_validator: Option<LiteralArgumentValidator>,
 }
 
 /// A command invocation resolved to target-neutral registry semantics.
@@ -541,6 +572,10 @@ pub struct InvocationFacts {
     pub operation: SemanticOperationId,
     /// Effective Tcl completion descriptor.
     pub completion: CompletionDescriptor,
+    /// Registry-declared dependency contract for the invocation's result.
+    pub result_stability: ResultStability,
+    /// Effective Tcl value-representation effect.
+    pub representation_effect: RepresentationEffect,
     /// Fully resolved mutable-world footprint.
     ///
     /// Writes covered by [`Self::transition_effect_coverage`] have already
@@ -562,7 +597,11 @@ pub struct InvocationFacts {
     pub arity: Arity,
     /// Number of leading post-head words before static argument roles start.
     pub argument_offset: usize,
-    /// Effective static argument-role declarations.
+    /// Effective argument-role declarations for this invocation.
+    ///
+    /// A registry resolver is evaluated here when every argument is literal.
+    /// Otherwise this retains the descriptor's conservative static roles and
+    /// [`Self::arg_roles_complete`] is `false`.
     pub arg_roles: Vec<(u8, ArgRole)>,
     /// Whether [`Self::arg_roles`] is the complete role assignment.
     ///
@@ -675,6 +714,17 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .0
     }
 
+    /// Validate registry-declared relationships between literal arguments.
+    ///
+    /// An absent descriptor is a conservative abstention: it is never treated
+    /// as proof that arbitrary command arguments are valid.
+    #[must_use]
+    pub fn validate_literal_arguments(&self) -> Option<LiteralArgumentValidation> {
+        self.semantics
+            .literal_argument_validator
+            .map(|validator| validator(self.words.arguments()))
+    }
+
     /// Materialise the target-neutral facts for an owned consumer such as an
     /// executable IR node.
     ///
@@ -687,12 +737,30 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .semantics
             .state_transitions
             .resolve_with_effect_coverage(self.words.arguments());
+        let (arg_roles, arg_roles_complete) = match self.semantics.arg_role_resolver {
+            Some(resolver) => self
+                .words
+                .arguments()
+                .literal_values()
+                .and_then(|arguments| {
+                    arguments
+                        .get(self.semantics.argument_offset..)
+                        .map(resolver)
+                })
+                .map_or_else(
+                    || (self.semantics.arg_roles.to_vec(), false),
+                    |roles| (roles, true),
+                ),
+            None => (self.semantics.arg_roles.to_vec(), true),
+        };
         InvocationFacts {
             canonical_command: self.canonical_command.to_owned(),
             subcommand: self.subcommand.into_owned(),
             form: self.form.map(|form| form.name.to_owned()),
             operation: self.semantics.operation,
             completion: self.semantics.completion,
+            result_stability: self.semantics.result_stability,
+            representation_effect: self.semantics.representation_effect,
             effects: self.effect_footprint_with_transition_coverage(&transition_effect_coverage),
             state_transitions: if self.semantics.state_transitions.is_declared() {
                 StateTransitionKnowledge::Declared(transitions)
@@ -704,8 +772,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             traits: self.semantics.traits,
             arity: self.semantics.arity,
             argument_offset: self.semantics.argument_offset,
-            arg_roles: self.semantics.arg_roles.to_vec(),
-            arg_roles_complete: self.semantics.arg_role_resolver.is_none(),
+            arg_roles,
+            arg_roles_complete,
             return_type: self.semantics.return_type,
             var_write_typing: self.semantics.var_write_typing,
             return_elements: self.semantics.return_elements,
@@ -727,12 +795,12 @@ mod tests {
         SubjectScope, WorldEffectComposition, WorldEffectDescriptor, WorldStateDomain,
     };
     use crate::{
-        AbruptTransitionTransfer, CallerFrameSelection, CommandBindingTransition, CommandRegistry,
-        CompletionCode, CompletionCodeDomain, CompletionDescriptor, DispatchDependencies,
-        DispatchDependencyDescriptor, DispatchDependencyDomain, NamespaceTransition,
-        NamespaceTransitionTarget, Reentrancy, StateTransition, StateTransitionCommit,
-        StateTransitionDescriptor, StateTransitionDomain, StateTransitionKnowledge,
-        TransitionSubject, VariableAliasTarget,
+        AbruptTransitionTransfer, CallerFrameSelection, CommandBindingDefinitionKind,
+        CommandBindingTransition, CommandRegistry, CompletionCode, CompletionCodeDomain,
+        CompletionDescriptor, DispatchDependencies, DispatchDependencyDescriptor,
+        DispatchDependencyDomain, NamespaceTransition, NamespaceTransitionTarget, Reentrancy,
+        StateTransition, StateTransitionCommit, StateTransitionDescriptor, StateTransitionDomain,
+        StateTransitionKnowledge, TransitionSubject, VariableAliasTarget,
     };
 
     const COMMAND_CODES: &[CompletionCode] = &[CompletionCode::Error];
@@ -1209,6 +1277,7 @@ mod tests {
         assert_eq!(facts.form.as_deref(), Some("argument-targeted"));
         assert_eq!(facts.operation, SemanticOperationId::Invoke);
         assert_eq!(facts.completion, CompletionDescriptor::CONSERVATIVE);
+        assert_eq!(facts.result_stability, ResultStability::Unknown);
         assert_eq!(facts.arity, Arity::exact(1));
         assert_eq!(facts.argument_offset, 1);
         assert!(facts.arg_roles.is_empty());
@@ -1223,6 +1292,84 @@ mod tests {
             access.domain == WorldStateDomain::VariableTraces
                 && access.subject == SubjectScope::named("targetCell")
         }));
+    }
+
+    #[test]
+    fn invocation_facts_expose_closed_referential_result_proofs() {
+        let registry = CommandRegistry::build_default();
+        let cases: &[(&str, &[&str])] = &[
+            ("format", &["%s", "x"]),
+            ("join", &["a b"]),
+            ("lindex", &["a b", "0"]),
+            ("linsert", &["a b", "0", "x"]),
+            ("llength", &["a b"]),
+            ("lrange", &["a b", "0", "end"]),
+            ("lremove", &["a b", "0"]),
+            ("lreplace", &["a b", "0", "0", "x"]),
+            ("lreverse", &["a b"]),
+            ("split", &["ab"]),
+        ];
+
+        for (command, arguments) in cases {
+            let facts = registry
+                .resolve_invocation(command, arguments, DialectSet::TCL91)
+                .unwrap_or_else(|| panic!("{command} resolves"))
+                .facts();
+
+            assert_eq!(
+                facts.result_stability,
+                ResultStability::ReferentiallyTransparent,
+                "{command}"
+            );
+            assert!(
+                facts.traits.contains(Traits::PURE | Traits::CSE_CANDIDATE),
+                "{command}"
+            );
+            assert!(facts.effects.accesses().is_empty(), "{command}");
+            assert!(!facts.effects.requires_world_barrier(), "{command}");
+            assert!(
+                matches!(
+                    facts.state_transitions,
+                    StateTransitionKnowledge::Declared(ref transitions)
+                        if transitions.facts().is_empty()
+                ),
+                "{command}"
+            );
+        }
+    }
+
+    #[test]
+    fn clock_result_dependencies_are_selected_by_subcommand() {
+        let registry = CommandRegistry::build_default();
+        let seconds = registry
+            .resolve_invocation("clock", &["seconds"], DialectSet::TCL90)
+            .expect("clock seconds resolves")
+            .facts();
+        assert_eq!(seconds.result_stability, ResultStability::Volatile);
+        assert!(
+            seconds.traits.contains(Traits::PURE),
+            "the established subcommand pure fact must reach common semantics"
+        );
+        assert!(seconds.effects.requires_world_barrier());
+        assert_eq!(
+            seconds.state_transitions,
+            StateTransitionKnowledge::UnknownInvocation,
+            "a result declaration must not fabricate effect or transition closure"
+        );
+
+        let add = registry
+            .resolve_invocation("clock", &["add", "0", "1", "day"], DialectSet::TCL90)
+            .expect("clock add resolves")
+            .facts();
+        assert!(matches!(
+            add.result_stability,
+            ResultStability::ReadsVersionedWorld(_)
+        ));
+        let dependencies = add.result_stability.versioned_world_dependencies();
+        assert!(dependencies.contains(&WorldStateDomain::HostCapabilities));
+        assert!(dependencies.contains(&WorldStateDomain::PackageState));
+        assert!(dependencies.contains(&WorldStateDomain::VariableStore));
+        assert!(add.effects.requires_world_barrier());
     }
 
     #[test]
@@ -1263,6 +1410,7 @@ mod tests {
             transition.transition,
             StateTransition::CommandBinding(CommandBindingTransition::Define {
                 name: TransitionSubject::Literal("::precise".to_owned()),
+                kind: CommandBindingDefinitionKind::Procedure,
             })
         );
     }
@@ -1475,7 +1623,7 @@ mod tests {
     }
 
     #[test]
-    fn invocation_facts_mark_resolver_backed_roles_as_incomplete() {
+    fn invocation_facts_resolve_roles_for_literal_argv() {
         let mut registry = CommandRegistry::build_default();
         registry.insert(CommandSpec {
             name: "resolver-backed-roles-fixture",
@@ -1493,11 +1641,38 @@ mod tests {
             .expect("fixture command resolves")
             .facts();
 
+        assert_eq!(facts.arg_roles, vec![(1, ArgRole::VarRead)]);
+        assert!(facts.arg_roles_complete);
+    }
+
+    #[test]
+    fn invocation_facts_keep_dynamic_resolver_roles_incomplete() {
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "resolver-backed-dynamic-roles-fixture",
+            arity: Arity::any(),
+            arg_roles: &[(0, ArgRole::VarWrite)],
+            arg_role_resolver: Some(resolver_backed_arg_roles),
+            ..CommandSpec::DEFAULT
+        });
+        let arguments = [
+            crate::InvocationWord::Literal("first"),
+            crate::InvocationWord::Dynamic,
+        ];
+        let facts = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("resolver-backed-dynamic-roles-fixture"),
+                    &arguments,
+                ),
+                DialectSet::empty(),
+            )
+            .resolved()
+            .expect("fixture command resolves")
+            .facts();
+
         assert_eq!(facts.arg_roles, vec![(0, ArgRole::VarWrite)]);
-        assert!(
-            !facts.arg_roles_complete,
-            "the static slice is only a prefix when registry metadata requires a resolver"
-        );
+        assert!(!facts.arg_roles_complete);
     }
 
     #[test]

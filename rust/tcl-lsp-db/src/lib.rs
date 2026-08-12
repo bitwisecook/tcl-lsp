@@ -327,6 +327,23 @@ pub struct SourceFile {
     /// almost no document declares a metaclass.
     #[returns(ref)]
     pub workspace_class_factories: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+    /// Instance methods dispatchable on some workspace **descendant** of each
+    /// class, keyed by ancestor qualified name — the cross-file half of the
+    /// template-method W308 abstention (issue #1367): a base class calling
+    /// `my Render` is refuted by a subclass in a sibling document, which the
+    /// per-file analysis cannot see.
+    ///
+    /// `None` means "no workspace view", and the warning fires on the
+    /// per-file evidence alone — the behaviour every standalone consumer
+    /// keeps.
+    ///
+    /// Set by the server from the workspace index (compare-then-set), the
+    /// same discipline as its two siblings above: a view that does not move
+    /// invalidates nothing.  Unlike the factories this feeds only the
+    /// *analysis* queries, never [`item_tree`] — which methods a subclass
+    /// provides changes no declaration structure.
+    #[returns(ref)]
+    pub workspace_subclass_methods: Option<Arc<tcl_compiler::analyser::SubclassProvidedMethods>>,
     /// Monotonic revision of workspace sidecar stubs. The server advances this
     /// input for every `<dialect>.tcl.stubs` create/change/delete, so Salsa
     /// invalidates analyses that read an external declaration bundle.
@@ -344,7 +361,7 @@ impl SourceFile {
         dialect: String,
         path: Option<String>,
     ) -> Self {
-        Self::with_call_site_evidence(db, text, dialect, path, None, None, 0)
+        Self::with_call_site_evidence(db, text, dialect, path, None, None, None, 0)
     }
 }
 
@@ -414,7 +431,8 @@ pub fn file_analysis(
         .with_extra_commands(extra)
         .with_bigip_version(config.bigip_version(db).clone())
         .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(file.workspace_class_factories(db).clone());
+        .with_workspace_class_factories(file.workspace_class_factories(db).clone())
+        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
     Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
 }
 
@@ -1021,6 +1039,38 @@ fn cross_file_arity_diagnostic(
     })
 }
 
+/// Diagnose one exact callback argument count when no visible proc candidate
+/// accepts it. Unlike the direct-call compatibility helper above, this also
+/// handles a genuine gap between disjoint same-tail proc arities: every
+/// possible target rejects the count, so E005 is the precise shape error.
+fn callback_exact_arity_diagnostic(
+    name: &str,
+    span: tcl_lexer::Span,
+    argc: usize,
+    candidates: &[(usize, usize)],
+) -> Option<tcl_compiler::analyser::types::Diagnostic> {
+    use tcl_compiler::analyser::types::{Diagnostic, Severity};
+
+    if candidates
+        .iter()
+        .any(|&(min, max)| min <= argc && argc <= max)
+    {
+        return None;
+    }
+    if let Some(diag) = cross_file_arity_diagnostic(name, span, (argc, Some(argc)), candidates) {
+        return Some(diag);
+    }
+    Some(Diagnostic {
+        code: DiagCode::E005,
+        span,
+        message: format!(
+            "Wrong argument count for callback '{name}': no visible definition accepts {argc} arguments"
+        ),
+        severity: Severity::Error,
+        fixes: Vec::new(),
+    })
+}
+
 /// Legacy standalone project resolution: a W123 (unknown
 /// command) whose command tail is a workspace proc is **suppressed** (resolved
 /// cross-file); if that call's arg count is known and fits **none** of the
@@ -1107,12 +1157,12 @@ pub fn apply_project_callback_arity<S: std::hash::BuildHasher>(
 /// Exactly(2)`), check that the referenced project proc accepts the arguments
 /// the calling command appends.
 ///
-/// The effective arg count is a RANGE — `baked` args already in the prefix
-/// (`{myCmp extra}` bakes one; a bare word bakes zero) plus the command's
-/// appended arity (`Exactly(n)` ⇒ `(n, Some(n))`, `AtLeast(n)` ⇒ `(n, None)`).
-/// Skipped for `Unknown`/absent arities and for tails the project resolves
-/// with a non-proc (empty candidate list), reusing the same E002/E003 codes,
-/// disable filter, and message shape as the direct-call cross-file check.
+/// The effective arg count is `baked` args already in the prefix (`{myCmp
+/// extra}` bakes one; a bare word bakes zero) plus the command's appended
+/// arity. `Exactly(n)` checks one count; `OneOf(set)` requires the proc to
+/// accept every exact alternative; `AtLeast(n)` retains the conservative open
+/// range. Skipped for `Unknown`/absent arities and for tails the project
+/// resolves with a non-proc (empty candidate list).
 /// Same-file callbacks are covered too: `project_command_arities` aggregates
 /// every file, so a same-file proc's arity is in `arities`.
 fn apply_callback_arity<S: std::hash::BuildHasher>(
@@ -1139,9 +1189,18 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
         // Baked args already present in the prefix (0 for a bareword head,
         // N for a braced multi-word prefix like `-command {cb a b}`).
         let baked = inv.callback_baked_args;
-        let lo = baked + appended.min() as usize;
-        let hi = appended.max().map(|m| baked + m as usize);
-        if let Some(diag) = cross_file_arity_diagnostic(&inv.name, inv.range, (lo, hi), candidates)
+        let diagnostic = if let Some(exact_counts) = appended.exact_counts() {
+            exact_counts
+                .map(|count| baked + usize::from(count))
+                .find_map(|count| {
+                    callback_exact_arity_diagnostic(&inv.name, inv.range, count, candidates)
+                })
+        } else {
+            let lo = baked + appended.min() as usize;
+            let hi = appended.max().map(|m| baked + m as usize);
+            cross_file_arity_diagnostic(&inv.name, inv.range, (lo, hi), candidates)
+        };
+        if let Some(diag) = diagnostic
             && !is_disabled(diag.code.as_str())
         {
             out.push(diag);
@@ -2909,7 +2968,8 @@ pub fn file_analysis_incremental(
         .with_extra_commands(extra_commands)
         .with_bigip_version(config.bigip_version(db).clone())
         .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(workspace_class_factories.clone());
+        .with_workspace_class_factories(workspace_class_factories.clone())
+        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's
@@ -6419,16 +6479,66 @@ mod tests {
     }
 
     #[test]
-    fn callback_arity_atleast_does_not_false_fire_too_few() {
-        // FP guard: `trace add variable` appends 3 (AtLeast? no — Exactly(3)); use
-        // `trace add execution` (AtLeast(2)) against a 4-param handler.  The
-        // open-ended max means "too few" must not fire even though `min`=2 < 4.
-        let src = "proc h {a b c d} { return 0 }\ntrace add execution somecmd enter h\n";
-        let d = callback_arity_codes(src);
-        assert!(
-            !d.iter().any(|(c, _)| c == "E002"),
-            "an AtLeast(2) callback must not false-fire E002 against a 4-param handler; got {d:?}"
-        );
+    fn execution_trace_callback_arity_distinguishes_enter_and_leave() {
+        for (operations, params, expected_code) in [
+            ("enter", "a b", None),
+            ("enterstep", "a b c d", Some("E002")),
+            ("leave", "a b c d", None),
+            ("leavestep", "a b", Some("E003")),
+        ] {
+            let source = format!(
+                "proc h {{{params}}} {{ return 0 }}\ntrace add execution somecmd {operations} h\n"
+            );
+            let diagnostics = callback_arity_codes(&source);
+            let actual = diagnostics
+                .iter()
+                .find(|(code, _)| matches!(code.as_str(), "E002" | "E003" | "E005"))
+                .map(|(code, _)| code.as_str());
+            assert_eq!(
+                actual, expected_code,
+                "unexpected callback result for {operations}/{params}: {diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_execution_trace_requires_every_exact_alternative() {
+        for (params, expected_code) in [
+            ("a b", Some("E003")),
+            ("a b c", Some("E002")),
+            ("a b c d", Some("E002")),
+            ("a b {c default} {d default}", None),
+            ("a b args", None),
+        ] {
+            let source = format!(
+                "proc h {{{params}}} {{ return 0 }}\ntrace add execution somecmd {{enter leave}} h\n"
+            );
+            let diagnostics = callback_arity_codes(&source);
+            let actual = diagnostics
+                .iter()
+                .find(|(code, _)| matches!(code.as_str(), "E002" | "E003" | "E005"))
+                .map(|(code, _)| code.as_str());
+            assert_eq!(
+                actual, expected_code,
+                "the callback must accept both 2 and 4 arguments for params {params:?}: {diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn execution_trace_dynamic_and_malformed_operation_lists_abstain() {
+        for source in [
+            "proc h {a b c} { return 0 }\nset operations {enter leave}\ntrace add execution somecmd $operations h\n",
+            "proc h {a b c} { return 0 }\ntrace add execution somecmd \"{enter\" h\n",
+        ] {
+            let diagnostics = callback_arity_codes(source);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|(code, _)| matches!(code.as_str(), "E002" | "E003" | "E005")),
+                "an unproved operation list must not drive callback arity: {diagnostics:?}"
+            );
+        }
     }
 
     #[test]

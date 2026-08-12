@@ -34,11 +34,8 @@
 
 use std::fs;
 
-use tcl_compiler::codegen::wasm::{
-    RESERVED_DATA_BASE, wasm_codegen_module_based, wasm_codegen_module_standalone,
-    wasm_codegen_module_standalone_init,
-};
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
 fn main() {
@@ -66,18 +63,13 @@ fn main() {
     };
     let src = fs::read_to_string(script_path).expect("read script");
     let registry = CommandRegistry::build_default();
-    let module = lower_to_ir(&src, &registry);
-    // Relocate the constant pool into the runtime's reserved gap so boxed
-    // command strings sit at non-null offsets — at base 0 the first string lands
-    // at offset 0 and `tcl_obj_new_string(ptr=0, …)` is read as a null/empty
-    // pointer, silently dropping that command.
-    let mut wasm = if init {
-        wasm_codegen_module_standalone_init(&module, &src, RESERVED_DATA_BASE)
-    } else if standalone {
-        wasm_codegen_module_standalone(&module, &src, RESERVED_DATA_BASE)
+    let unit = CompilationUnit::build_for_dialect(&src, &registry, false, "tcl9.0");
+    let options = if standalone {
+        WasmCompileOptions::standalone(init)
     } else {
-        wasm_codegen_module_based(&module, &src, RESERVED_DATA_BASE)
+        WasmCompileOptions::runtime_linked()
     };
+    let mut wasm = compile_wasm(&unit, &registry, options);
     fs::write(out_path, wasm.to_bytes()).expect("write wasm");
     let tag = match (standalone, init) {
         (_, true) => " [standalone +_start +init_library]",

@@ -17,15 +17,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The Tcl bytecode VM as a self-contained `wasm32-unknown-unknown` cdylib
-//! (RUST_ISSUE_008 — the primary wasm compile target).
+//! (RUST_ISSUE_008 — a self-contained runtime artefact).
 //!
 //! The VM and compiler are statically linked, so the module has **no host
 //! imports and needs no WASI** (the VM's numeric tower is pure-Rust
 //! `num-bigint`, not C libtommath). A host writes a Tcl script into linear
 //! memory and calls [`tcl_eval`]; the VM compiles it in-module and runs it,
 //! coroutines included, on its explicit activation stack. This supersedes the
-//! tree-walker C-ABI emitter (a bare module importing `tcl_*` over a separately
-//! built runtime.wasm) as the default wasm backend.
+//! canonical Tcl-to-WASM compiler path in `tcl-compiler`; it is an embeddable
+//! execution engine, not a selectable `tcl compwasm` code-generation backend.
 //!
 //! ## ABI
 //! Strings cross the boundary as `(ptr, len)` byte spans in the module's own

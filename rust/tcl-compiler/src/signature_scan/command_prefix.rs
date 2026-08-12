@@ -62,8 +62,8 @@
 //!
 //! [`ArgRole::CommandPrefix`]: tcl_registry::arg_role::ArgRole::CommandPrefix
 
-use tcl_lexer::{Span, Token, TokenType};
-use tcl_registry::{AppendedArity, CommandRegistry};
+use tcl_lexer::{SourceMap, Span, Token, TokenType};
+use tcl_registry::{AppendedArity, CommandRegistry, InvocationWord};
 use tcl_syntax::list::find_element;
 
 use crate::segmenter::{SegmentedCommand, segment_commands_with_offset};
@@ -83,30 +83,74 @@ pub(crate) struct CommandPrefixInvocation {
     pub baked: usize,
 }
 
+/// Parallel source facts for the post-head words of one invocation.
+///
+/// Keeping the slices together prevents call sites from accidentally pairing
+/// text, tokens, expansion facts, or the source map from different commands.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CommandPrefixWords<'a, 'source> {
+    pub(crate) texts: &'a [String],
+    pub(crate) tokens: &'a [Token],
+    pub(crate) single_token: &'a [bool],
+    pub(crate) expanded: &'a [bool],
+    pub(crate) source_map: Option<&'a SourceMap<'source>>,
+}
+
+impl<'a> CommandPrefixWords<'a, 'static> {
+    /// Group post-head word facts before a source map is attached.
+    pub(crate) const fn source_less(
+        texts: &'a [String],
+        tokens: &'a [Token],
+        single_token: &'a [bool],
+        expanded: &'a [bool],
+    ) -> Self {
+        Self {
+            texts,
+            tokens,
+            single_token,
+            expanded,
+            source_map: None,
+        }
+    }
+}
+
 /// Extract the command-prefix callback heads of a call.
 ///
-/// `name` is the command head; `arg_texts` / `arg_tokens` / `arg_single` are
-/// the per-argument reconstructed text, representative token, and
-/// single-token flag for the words *after* the head (parallel, 0-indexed) —
-/// the same slices `registry.command_prefixes` indexes into.
+/// `name` is the command head; `words` describes the words after it (parallel,
+/// zero-indexed), which are the same words `registry.command_prefixes` indexes.
 pub(crate) fn command_prefix_invocations(
     registry: &CommandRegistry,
     name: &str,
-    arg_texts: &[String],
-    arg_tokens: &[Token],
-    arg_single: &[bool],
+    words: CommandPrefixWords<'_, '_>,
 ) -> Vec<CommandPrefixInvocation> {
-    let arg_strs: Vec<&str> = arg_texts.iter().map(String::as_str).collect();
+    let arg_strs: Vec<&str> = words.texts.iter().map(String::as_str).collect();
+    let structured: Vec<_> = words
+        .texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            invocation_word(
+                words.source_map,
+                text,
+                words.tokens.get(index).copied(),
+                words.single_token.get(index).copied().unwrap_or(false),
+                words.expanded.get(index).copied().unwrap_or(false),
+            )
+        })
+        .collect();
     let mut out = Vec::new();
-    for (idx, appended) in registry.command_prefixes(name, &arg_strs) {
-        let (Some(&tok), Some(text)) = (arg_tokens.get(idx), arg_texts.get(idx)) else {
+    for (idx, appended) in registry.command_prefixes_structured(name, &arg_strs, &structured) {
+        let (Some(&tok), Some(text)) = (words.tokens.get(idx), words.texts.get(idx)) else {
             continue;
         };
+        if words.expanded.get(idx).copied().unwrap_or(false) {
+            continue;
+        }
         if let Some((head, span, baked)) = extract_prefix_head(
             registry,
             tok,
             text,
-            arg_single.get(idx).copied().unwrap_or(false),
+            words.single_token.get(idx).copied().unwrap_or(false),
         ) {
             out.push(CommandPrefixInvocation {
                 head,
@@ -124,32 +168,47 @@ pub(crate) fn command_prefix_invocations(
 /// `$t walkproc … cb`).
 ///
 /// `class` is the receiver's resolved class; `method` is the dispatched method
-/// name; the `method_*` slices are the reconstructed text, representative
-/// token, and single-token flag for the words *after* the method name
-/// (parallel, 0-indexed) — the slices [`CommandRegistry::instance_method_command_prefixes`]
-/// indexes into.  Same literal-bareword guard as [`command_prefix_invocations`].
+/// name; `words` describes the words after the method name, which are the
+/// slices [`CommandRegistry::instance_method_command_prefixes`] indexes into.
+/// Same literal-bareword guard as [`command_prefix_invocations`].
 ///
 /// [`CommandRegistry::instance_method_command_prefixes`]: tcl_registry::CommandRegistry::instance_method_command_prefixes
 pub(crate) fn instance_method_command_prefix_invocations(
     registry: &CommandRegistry,
     class: &str,
     method: &str,
-    method_arg_texts: &[String],
-    method_arg_tokens: &[Token],
-    method_arg_single: &[bool],
+    words: CommandPrefixWords<'_, '_>,
 ) -> Vec<CommandPrefixInvocation> {
-    let arg_strs: Vec<&str> = method_arg_texts.iter().map(String::as_str).collect();
+    let arg_strs: Vec<&str> = words.texts.iter().map(String::as_str).collect();
+    let structured: Vec<_> = words
+        .texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            invocation_word(
+                words.source_map,
+                text,
+                words.tokens.get(index).copied(),
+                words.single_token.get(index).copied().unwrap_or(false),
+                words.expanded.get(index).copied().unwrap_or(false),
+            )
+        })
+        .collect();
     let mut out = Vec::new();
-    for (idx, appended) in registry.instance_method_command_prefixes(class, method, &arg_strs) {
-        let (Some(&tok), Some(text)) = (method_arg_tokens.get(idx), method_arg_texts.get(idx))
-        else {
+    for (idx, appended) in
+        registry.instance_method_command_prefixes_structured(class, method, &arg_strs, &structured)
+    {
+        let (Some(&tok), Some(text)) = (words.tokens.get(idx), words.texts.get(idx)) else {
             continue;
         };
+        if words.expanded.get(idx).copied().unwrap_or(false) {
+            continue;
+        }
         if let Some((head, span, baked)) = extract_prefix_head(
             registry,
             tok,
             text,
-            method_arg_single.get(idx).copied().unwrap_or(false),
+            words.single_token.get(idx).copied().unwrap_or(false),
         ) {
             out.push(CommandPrefixInvocation {
                 head,
@@ -160,6 +219,44 @@ pub(crate) fn instance_method_command_prefix_invocations(
         }
     }
     out
+}
+
+/// Project one segmented source word into the registry's conservative word
+/// vocabulary. Shared by callback-arity resolution and literal-argument
+/// diagnostics so both features draw the same literal/dynamic boundary.
+pub(crate) fn invocation_word<'a>(
+    source_map: Option<&SourceMap<'_>>,
+    text: &'a str,
+    token: Option<Token>,
+    single_token: bool,
+    expanded: bool,
+) -> InvocationWord<'a> {
+    if expanded {
+        return InvocationWord::Expanded;
+    }
+    let Some(token) = token else {
+        return InvocationWord::Opaque;
+    };
+    if !single_token {
+        return InvocationWord::Dynamic;
+    }
+    let delimited = source_map.is_some_and(|map| {
+        matches!(
+            map.source().as_bytes().get(token.span.start() as usize),
+            Some(b'{' | b'"')
+        )
+    });
+    if delimited
+        && source_map.is_some_and(|map| tcl_lexer::word_closer_offset(map, token).is_none())
+    {
+        return InvocationWord::Opaque;
+    }
+    match token.kind {
+        TokenType::Str => InvocationWord::Literal(text),
+        TokenType::Esc if !text.contains('\\') => InvocationWord::Literal(text),
+        TokenType::Var | TokenType::Cmd => InvocationWord::Dynamic,
+        _ => InvocationWord::Opaque,
+    }
 }
 
 /// Whether `text` cannot be a resolvable command-prefix head: empty, a
@@ -399,4 +496,68 @@ pub(crate) fn list_build_is_literal(registry: &CommandRegistry, seg: &SegmentedC
         return false;
     }
     seg.texts.get(1).is_some_and(|t| !looks_unresolvable(t))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_registry::AppendedAritySet;
+
+    fn trace_callback_arity(source: &str) -> AppendedArity {
+        let registry = CommandRegistry::build_default();
+        let segmented = crate::segmenter::segment_commands(source);
+        let command = segmented
+            .iter()
+            .find(|command| command.name() == "trace")
+            .expect("trace command is segmented");
+        let source_map = SourceMap::new(source);
+        let expanded = command
+            .expand_word
+            .as_deref()
+            .and_then(|words| words.get(1..))
+            .unwrap_or(&[]);
+        let invocations = command_prefix_invocations(
+            &registry,
+            command.name(),
+            CommandPrefixWords {
+                texts: &command.texts[1..],
+                tokens: &command.argv[1..],
+                single_token: &command.single_token_word[1..],
+                expanded,
+                source_map: Some(&source_map),
+            },
+        );
+        assert_eq!(invocations.len(), 1);
+        invocations[0].appended
+    }
+
+    #[test]
+    fn source_aware_callback_resolution_preserves_execution_arity_alternatives() {
+        assert_eq!(
+            trace_callback_arity("trace add execution target enter callback\n"),
+            AppendedArity::Exactly(2)
+        );
+        assert_eq!(
+            trace_callback_arity("trace add execution target leave callback\n"),
+            AppendedArity::Exactly(4)
+        );
+        assert_eq!(
+            trace_callback_arity("trace add execution target {enter leave} callback\n"),
+            AppendedArity::OneOf(AppendedAritySet::from_sorted_unique(&[2, 4]))
+        );
+    }
+
+    #[test]
+    fn source_aware_callback_resolution_abstains_on_dynamic_and_malformed_lists() {
+        assert_eq!(
+            trace_callback_arity(
+                "set operations {enter leave}\ntrace add execution target $operations callback\n"
+            ),
+            AppendedArity::Unknown
+        );
+        assert_eq!(
+            trace_callback_arity("trace add execution target \"{enter\" callback\n"),
+            AppendedArity::Unknown
+        );
+    }
 }

@@ -28,7 +28,7 @@ use crate::prelude::*;
 /// reference), not a script body.  It is always the last argument; the
 /// leading option/value pairs and `window` precede it.  Args here are
 /// those *after* the `handle` subcommand word.
-fn selection_handle_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn selection_handle_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     match u8::try_from(args.len()) {
         // window + command are both required (arity at_least(2)), so the
         // command prefix is the final argument.  Tk invokes it with `offset

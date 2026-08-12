@@ -16,8 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The greenfield WASM codegen backend — the first consumer of the [`Emit`] seam
-//! and the structured [`structured`](crate::codegen::structured) driver.
+//! The sole WASM module emitter behind the canonical compilation pipeline.
+//!
+//! Backend selection changes the typed input plan, not the emitter. A selected
+//! prebuilt-argv semantic invocation and general structured Tcl lowering both
+//! enter [`emit_wasm`], share one module-construction implementation, and
+//! target the same runtime ABI.
 //!
 //! The analysis-aware tier emits binding-proven assignments, procedure calls,
 //! arithmetic, and registry-selected commands over owned `TclObj` pointers.
@@ -54,7 +58,14 @@ use crate::command_binding::{
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
-use tcl_runtime_api::codegen_abi::WASM32_CODEGEN_DATA_START;
+use tcl_runtime_api::codegen_abi::{
+    CodegenAbiImportId, CodegenAbiValueType, WASM32_CODEGEN_DATA_START, WASM32_COMPLETION_ALIGN,
+    WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
+    WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE, WASM32_POINTER_BYTES,
+};
+
+use super::pipeline::WasmCompileOptions;
+use super::semantic_plan::WasmGenericInvokePlan;
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
@@ -82,6 +93,7 @@ const TCL_CONTINUE: i64 = 4;
 pub const RESERVED_DATA_BASE: i64 = WASM32_CODEGEN_DATA_START;
 
 /// Indices of the `"tcl"` host imports the emitted module calls.
+#[derive(Clone, Copy)]
 struct Imports {
     /// `(ptr, len) -> obj` — box a data-section string as a `TclObj`.
     obj_new_string: u32,
@@ -94,6 +106,47 @@ struct Imports {
     /// `(expr_obj) -> i32` — evaluate a condition to a boolean.
     expr_bool: u32,
     aot: Option<AotImports>,
+}
+
+/// Runtime ABI imports used by the semantic prebuilt-argv mode of the same
+/// module emitter.
+#[derive(Clone, Copy)]
+struct SemanticImports {
+    frame_alloc: u32,
+    frame_free: u32,
+    string_owned: u32,
+    invoke_argv: u32,
+    completion_release: u32,
+    object_retain: u32,
+    object_release: u32,
+}
+
+#[derive(Clone, Copy)]
+enum EmitterImports {
+    General(Imports),
+    Semantic(SemanticImports),
+}
+
+#[derive(Clone, Copy)]
+struct SemanticCallFrameLayout {
+    completion_offset: i32,
+    bytes: i32,
+}
+
+impl SemanticCallFrameLayout {
+    fn validated(argc: usize) -> Self {
+        let argc = i32::try_from(argc).expect("semantic plan validated argc");
+        let completion_offset = argc
+            .checked_mul(WASM32_POINTER_BYTES)
+            .expect("semantic plan validated argv size");
+        let bytes = completion_offset
+            .checked_add(WASM32_COMPLETION_SIZE)
+            .expect("semantic plan validated frame size");
+        Self {
+            completion_offset,
+            bytes,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -140,7 +193,7 @@ struct LoopFrame {
 
 /// Collects a function body + data section as the structured walk drives it.
 struct WasmEmitter {
-    imports: Imports,
+    imports: EmitterImports,
     body: Vec<WasmInstruction>,
     data: Vec<WasmData>,
     data_offset: i64,
@@ -160,6 +213,39 @@ struct WasmEmitter {
 }
 
 impl WasmEmitter {
+    fn for_semantic_invoke(imports: SemanticImports, data_offset: i64) -> Self {
+        Self {
+            imports: EmitterImports::Semantic(imports),
+            body: Vec::new(),
+            data: Vec::new(),
+            data_offset,
+            ctrl_depth: 0,
+            loops: Vec::new(),
+            code_local: 0,
+            mode: FunctionMode::Top,
+            local_slots: HashMap::new(),
+            proc_indices: HashMap::new(),
+            procedure_arity: HashMap::new(),
+            direct_procs: HashSet::new(),
+            procedures_by_span: HashMap::new(),
+            facts: FunctionFacts::default(),
+        }
+    }
+
+    fn general_imports(&self) -> Imports {
+        match self.imports {
+            EmitterImports::General(imports) => imports,
+            EmitterImports::Semantic(_) => unreachable!("general lowering in semantic mode"),
+        }
+    }
+
+    fn semantic_imports(&self) -> SemanticImports {
+        match self.imports {
+            EmitterImports::Semantic(imports) => imports,
+            EmitterImports::General(_) => unreachable!("semantic lowering in general mode"),
+        }
+    }
+
     /// Intern `text` into the data section, returning its `(offset, len)`.
     fn intern(&mut self, text: &str) -> (i64, i64) {
         let offset = self.data_offset;
@@ -233,7 +319,7 @@ impl WasmEmitter {
         let (offset, len) = self.intern(text);
         self.push_i32(offset);
         self.push_i32(len);
-        self.call(self.imports.obj_new_string);
+        self.call(self.general_imports().obj_new_string);
     }
 
     fn push_text_pair(&mut self, text: &str) {
@@ -243,7 +329,7 @@ impl WasmEmitter {
     }
 
     fn box_value(&mut self, text: &str) -> bool {
-        let Some(aot) = self.imports.aot else {
+        let Some(aot) = self.general_imports().aot else {
             return false;
         };
         self.push_text_pair(text);
@@ -252,7 +338,7 @@ impl WasmEmitter {
     }
 
     fn emit_var_get(&mut self, name: &str) -> bool {
-        let Some(aot) = self.imports.aot else {
+        let Some(aot) = self.general_imports().aot else {
             return false;
         };
         if self.mode == FunctionMode::DirectProc {
@@ -280,7 +366,7 @@ impl WasmEmitter {
                 if !self.emit_expr_value(left) || !self.emit_expr_value(right) {
                     return false;
                 }
-                let Some(aot) = self.imports.aot else {
+                let Some(aot) = self.general_imports().aot else {
                     return false;
                 };
                 self.call(aot.expr_add);
@@ -328,7 +414,7 @@ impl WasmEmitter {
     }
 
     fn emit_proc_prelude(&mut self, proc: &Procedure) {
-        let Some(aot) = self.imports.aot else {
+        let Some(aot) = self.general_imports().aot else {
             return;
         };
         self.call(aot.frame_push);
@@ -342,7 +428,7 @@ impl WasmEmitter {
     }
 
     fn try_emit_typed_statement(&mut self, statement: &Statement) -> bool {
-        let Some(aot) = self.imports.aot else {
+        let Some(aot) = self.general_imports().aot else {
             return false;
         };
         match statement {
@@ -443,8 +529,122 @@ impl WasmEmitter {
         ));
     }
 
+    fn local_tee(&mut self, idx: u64) {
+        self.body.push(WasmInstruction::with_operands(
+            WasmOp::LocalTee,
+            leb128_unsigned(idx),
+        ));
+    }
+
+    fn store_i32(&mut self, offset: i64) {
+        let mut operands = leb128_unsigned(2);
+        operands.extend(leb128_unsigned(
+            u64::try_from(offset).expect("non-negative semantic frame offset"),
+        ));
+        self.body
+            .push(WasmInstruction::with_operands(WasmOp::I32Store, operands));
+    }
+
+    fn load_i32(&mut self, offset: i64) {
+        let mut operands = leb128_unsigned(2);
+        operands.extend(leb128_unsigned(
+            u64::try_from(offset).expect("non-negative completion offset"),
+        ));
+        self.body
+            .push(WasmInstruction::with_operands(WasmOp::I32Load, operands));
+    }
+
+    /// Emit the selected semantic invocation through this emitter's shared
+    /// instruction and data builders.
+    fn finish_semantic_invoke(&mut self, plan: &WasmGenericInvokePlan) -> WasmFunction {
+        const FRAME_LOCAL: u64 = 0;
+        const COMPLETION_LOCAL: u64 = 1;
+        const CODE_LOCAL: u64 = 2;
+        const RESULT_LOCAL: u64 = 3;
+        const OPTIONS_LOCAL: u64 = 4;
+        let word_local = |index: usize| u64::try_from(5 + index).expect("word local fits u64");
+        let imports = self.semantic_imports();
+        let layout = SemanticCallFrameLayout::validated(plan.argv_literals.len());
+        let literals = plan
+            .argv_literals
+            .iter()
+            .map(|literal| self.intern(literal))
+            .collect::<Vec<_>>();
+
+        self.push_i32(i64::from(layout.bytes));
+        self.push_i32(i64::from(WASM32_COMPLETION_ALIGN));
+        self.call(imports.frame_alloc);
+        self.local_set(FRAME_LOCAL);
+
+        for (index, (offset, length)) in literals.iter().copied().enumerate() {
+            self.push_i32(offset);
+            self.push_i32(length);
+            self.call(imports.string_owned);
+            self.local_set(word_local(index));
+            self.local_get(FRAME_LOCAL);
+            self.local_get(word_local(index));
+            self.store_i32(i64::try_from(index * 4).expect("argv offset fits i64"));
+        }
+
+        self.local_get(FRAME_LOCAL);
+        self.push_i32(i64::try_from(plan.argv_literals.len()).expect("validated argc"));
+        self.local_get(FRAME_LOCAL);
+        self.push_i32(i64::from(layout.completion_offset));
+        self.push(WasmOp::I32Add);
+        self.local_tee(COMPLETION_LOCAL);
+        self.call(imports.invoke_argv);
+        self.push(WasmOp::Drop);
+
+        self.local_get(COMPLETION_LOCAL);
+        self.load_i32(i64::from(WASM32_COMPLETION_CODE_OFFSET));
+        self.local_set(CODE_LOCAL);
+        self.local_get(COMPLETION_LOCAL);
+        self.load_i32(i64::from(WASM32_COMPLETION_RESULT_OFFSET));
+        self.call(imports.object_retain);
+        self.local_set(RESULT_LOCAL);
+        self.local_get(COMPLETION_LOCAL);
+        self.load_i32(i64::from(WASM32_COMPLETION_OPTIONS_OFFSET));
+        self.call(imports.object_retain);
+        self.local_set(OPTIONS_LOCAL);
+        self.local_get(COMPLETION_LOCAL);
+        self.call(imports.completion_release);
+
+        for index in 0..literals.len() {
+            self.local_get(word_local(index));
+            self.call(imports.object_release);
+        }
+        self.local_get(FRAME_LOCAL);
+        self.call(imports.frame_free);
+        self.push(WasmOp::Drop);
+
+        self.local_get(CODE_LOCAL);
+        self.local_get(RESULT_LOCAL);
+        self.local_get(OPTIONS_LOCAL);
+        self.push(WasmOp::Return);
+
+        let mut local_names = vec![
+            "$frame".to_string(),
+            "$completion".to_string(),
+            "$code".to_string(),
+            "$result".to_string(),
+            "$options".to_string(),
+        ];
+        local_names.extend((0..literals.len()).map(|index| format!("$word{index}")));
+        WasmFunction {
+            name: plan.function_name.clone(),
+            params: Vec::new(),
+            results: vec![ValType::I32, ValType::I32, ValType::I32],
+            locals: vec![ValType::I32; 5 + literals.len()],
+            body: std::mem::take(&mut self.body),
+            local_names,
+            exported: true,
+            source_range: None,
+            kind: "semantic-generic-invoke".to_string(),
+        }
+    }
+
     /// Honour the completion code a leaf command's [`tcl_eval_code`] left on the
-    /// stack — the AOT realisation of the tree-walker's "stop the script on the
+    /// stack — the AOT realisation of "stop the script on the
     /// first non-`OK` command" loop (`eval_script_mode`), so abrupt completion
     /// propagates through compiled `if`/`while`/`for` instead of being swallowed.
     ///
@@ -505,7 +705,7 @@ impl WasmEmitter {
         let direct = self.mode == FunctionMode::DirectProc;
         if direct {
             self.box_value("");
-            if let Some(aot) = self.imports.aot {
+            if let Some(aot) = self.general_imports().aot {
                 self.call(aot.frame_pop);
             }
         }
@@ -563,14 +763,14 @@ impl Emit for WasmEmitter {
         // (error/return unwinds, break/continue re-enters the loop) instead of
         // swallowing it — the top-level result stays the interp's own result.
         self.box_text(source_text);
-        self.call(self.imports.eval_code);
+        self.call(self.general_imports().eval_code);
         self.emit_completion_dispatch();
     }
 
     fn begin_if(&mut self, cond_text: &str) {
         // if (tcl_expr_bool(box(cond)))   — void block type (no result)
         self.box_text(cond_text);
-        self.call(self.imports.expr_bool);
+        self.call(self.general_imports().expr_bool);
         self.open_frame(WasmOp::If);
     }
 
@@ -599,7 +799,7 @@ impl Emit for WasmEmitter {
         if let Some(cond) = cond_text {
             // if (!tcl_expr_bool(box(cond))) br <break>
             self.box_text(cond);
-            self.call(self.imports.expr_bool);
+            self.call(self.general_imports().expr_bool);
             self.push(WasmOp::I32Eqz);
             if let Some(frame) = self.loops.last() {
                 let brk = frame.break_block;
@@ -853,6 +1053,59 @@ fn add_tcl_import(m: &mut WasmModule, name: &str, params: &[ValType], results: &
     u32::try_from(m.add_import("tcl", name, params, results)).expect("import index fits in u32")
 }
 
+const fn abi_value_type(value: CodegenAbiValueType) -> ValType {
+    match value {
+        CodegenAbiValueType::I32 => ValType::I32,
+    }
+}
+
+fn add_semantic_imports(wasm: &mut WasmModule) -> SemanticImports {
+    let add = |module: &mut WasmModule, import: CodegenAbiImportId| {
+        let descriptor = import.descriptor();
+        let parameters = descriptor
+            .parameters
+            .iter()
+            .copied()
+            .map(abi_value_type)
+            .collect::<Vec<_>>();
+        let results = descriptor
+            .results
+            .iter()
+            .copied()
+            .map(abi_value_type)
+            .collect::<Vec<_>>();
+        u32::try_from(module.add_import(descriptor.module, descriptor.name, &parameters, &results))
+            .expect("WASM import index fits u32")
+    };
+    SemanticImports {
+        frame_alloc: add(wasm, CodegenAbiImportId::CallFrameAlloc),
+        frame_free: add(wasm, CodegenAbiImportId::CallFrameFree),
+        string_owned: add(wasm, CodegenAbiImportId::NewOwnedString),
+        invoke_argv: add(wasm, CodegenAbiImportId::InvokeArgv),
+        completion_release: add(wasm, CodegenAbiImportId::CompletionRelease),
+        object_retain: add(wasm, CodegenAbiImportId::ObjectRetain),
+        object_release: add(wasm, CodegenAbiImportId::ObjectRelease),
+    }
+}
+
+fn add_general_imports(wasm: &mut WasmModule, analysis: bool) -> Imports {
+    let mut imports = Imports {
+        obj_new_string: add_tcl_import(
+            wasm,
+            "tcl_obj_new_string",
+            &[ValType::I32, ValType::I32],
+            &[ValType::I32],
+        ),
+        eval_code: add_tcl_import(wasm, "tcl_eval_code", &[ValType::I32], &[ValType::I32]),
+        expr_bool: add_tcl_import(wasm, "tcl_expr_bool", &[ValType::I32], &[ValType::I32]),
+        aot: None,
+    };
+    if analysis {
+        imports.aot = Some(add_aot_imports(wasm));
+    }
+    imports
+}
+
 fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
     AotImports {
         value_new_string: add_tcl_import(
@@ -976,92 +1229,42 @@ fn procedure_plan<'a>(
     }
 }
 
-/// Lower a module's top-level script to a WASM module (source fallback +
-/// structured control flow). `source` is the original Tcl text, sliced for
-/// command / expression text. The constant pool is placed at offset 0 — valid
-/// for a standalone module (own memory) or one whose host keeps low memory free.
-#[must_use]
-pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
-    codegen(module, source, 0, false, false, None)
+/// Selected input mode for the single module emitter.
+#[derive(Clone, Copy)]
+pub(super) enum WasmEmissionMode<'a> {
+    /// `BackendRegistry` selected one prebuilt-argv semantic invocation.
+    SemanticInvoke(&'a WasmGenericInvokePlan),
+    /// General structured lowering, retaining a typed semantic decline in the
+    /// outer [`super::WasmCompilation`] evidence.
+    General,
 }
 
-/// Emit from a complete compiler unit, enabling registry- and lattice-proven
-/// direct statements while retaining source-span fallback for the rest.
-#[must_use]
-pub fn wasm_codegen_compilation_unit(
+/// Internal emitter behind the canonical [`super::compile_wasm`] pipeline.
+///
+/// Packaging flags alter relocation and bootstrap only. Direct
+/// specialisations may be conservatively disabled for a restricted test host;
+/// unsupported statements always fall back inside this emitter.
+pub(super) fn emit_wasm(
     unit: &CompilationUnit,
     registry: &CommandRegistry,
+    options: WasmCompileOptions,
+    mode: WasmEmissionMode<'_>,
 ) -> WasmModule {
+    let analysis = (matches!(mode, WasmEmissionMode::General)
+        && options.analysis_specialisations())
+    .then_some((unit, registry));
     codegen(
         &unit.ir_module,
         &unit.source,
-        0,
-        false,
-        false,
-        Some((unit, registry)),
+        options.data_base,
+        options.is_standalone(),
+        options.initialise_library(),
+        analysis,
+        mode,
     )
 }
 
-/// As [`wasm_codegen_module`], but relocate the constant pool to `data_base` so
-/// it lands in the runtime's reserved region (see [`RESERVED_DATA_BASE`]) when
-/// the emitted module shares the runtime's linear memory in the whole-program
-/// link. Both the data segments and the `i32.const` offsets the module passes to
-/// `tcl_obj_new_string` are based at `data_base`.
-#[must_use]
-pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) -> WasmModule {
-    codegen(module, source, data_base, false, false, None)
-}
-
-/// Relocated form of [`wasm_codegen_compilation_unit`].
-#[must_use]
-pub fn wasm_codegen_compilation_unit_based(
-    unit: &CompilationUnit,
-    registry: &CommandRegistry,
-    data_base: i64,
-) -> WasmModule {
-    codegen(
-        &unit.ir_module,
-        &unit.source,
-        data_base,
-        false,
-        false,
-        Some((unit, registry)),
-    )
-}
-
-/// As [`wasm_codegen_module_based`], but also emit a WASI-command entry point
-/// (`_start`) that bootstraps an interp and runs `::top`, for a **single
-/// self-contained binary**: merge the emitted module with the runtime (e.g.
-/// `wasm-merge runtime.wasm tcl out.wasm user`), then run the one module with
-/// `wasmtime merged.wasm` — no host orchestration. `_start` calls
-/// `tcl_runtime_create_interp` + `tcl_runtime_set_current_interp` (imported from
-/// `"tcl"`, resolved to the runtime's exports by the merge) then `::top`. The
-/// runtime's `.command_export` wrappers run its ctors on first entry, so no
-/// separate `_initialize` call is needed.
-#[must_use]
-pub fn wasm_codegen_module_standalone(module: &Module, source: &str, data_base: i64) -> WasmModule {
-    codegen(module, source, data_base, true, false, None)
-}
-
-/// As [`wasm_codegen_module_standalone`], but the emitted `_start` also calls
-/// `tcl_runtime_init_library` (between `set_current_interp` and `::top`) to
-/// bootstrap the standard library — `source $TCL_LIBRARY/init.tcl`, bringing up
-/// `unknown`/auto-load/`package`. With the runtime built with the embedded
-/// stdlib (`--features wasm_stdlib`), the merged module runs a compiled script
-/// against a fully initialised interpreter — so `package require tcltest` and
-/// the rest of the stdlib work from a single `wasmtime merged.wasm`.
-#[must_use]
-pub fn wasm_codegen_module_standalone_init(
-    module: &Module,
-    source: &str,
-    data_base: i64,
-) -> WasmModule {
-    codegen(module, source, data_base, true, true, None)
-}
-
-/// Shared codegen for the linkable ([`wasm_codegen_module_based`]) and
-/// self-contained ([`wasm_codegen_module_standalone`]) forms. `init` adds the
-/// `tcl_runtime_init_library` bootstrap call to a standalone `_start`.
+/// Shared implementation for hosted, linked, and standalone packaging.
 fn codegen(
     module: &Module,
     source: &str,
@@ -1069,23 +1272,18 @@ fn codegen(
     standalone: bool,
     init: bool,
     analysis: Option<(&CompilationUnit, &CommandRegistry)>,
+    mode: WasmEmissionMode<'_>,
 ) -> WasmModule {
     let mut wasm = WasmModule::new();
-    let imports = Imports {
-        obj_new_string: add_tcl_import(
-            &mut wasm,
-            "tcl_obj_new_string",
-            &[ValType::I32, ValType::I32],
-            &[ValType::I32],
-        ),
-        eval_code: add_tcl_import(&mut wasm, "tcl_eval_code", &[ValType::I32], &[ValType::I32]),
-        expr_bool: add_tcl_import(&mut wasm, "tcl_expr_bool", &[ValType::I32], &[ValType::I32]),
-        aot: None,
-    };
-    let mut imports = imports;
-    if analysis.is_some() {
-        imports.aot = Some(add_aot_imports(&mut wasm));
+    if let WasmEmissionMode::SemanticInvoke(plan) = mode {
+        let imports = add_semantic_imports(&mut wasm);
+        let mut emitter = WasmEmitter::for_semantic_invoke(imports, data_base);
+        wasm.functions.push(emitter.finish_semantic_invoke(plan));
+        wasm.memory_pages = required_pages(data_base, &emitter.data);
+        wasm.data_segments = emitter.data;
+        return wasm;
     }
+    let imports = add_general_imports(&mut wasm, analysis.is_some());
 
     // Standalone: the interp-bootstrap imports `_start` drives. Added after the
     // ABI imports so the ABI indices in `Imports` are unchanged.
@@ -1118,7 +1316,7 @@ fn codegen(
     });
 
     let mut emitter = WasmEmitter {
-        imports,
+        imports: EmitterImports::General(imports),
         body: Vec::new(),
         data: Vec::new(),
         data_offset: data_base,
@@ -1188,6 +1386,21 @@ fn codegen(
     }
 
     wasm
+}
+
+fn required_pages(data_base: i64, data: &[WasmData]) -> u64 {
+    let end = data.iter().fold(data_base, |largest, segment| {
+        let segment_end = segment
+            .offset
+            .checked_add(i64::try_from(segment.data.len()).expect("literal length fits i64"))
+            .expect("semantic plan validated constant-pool bounds");
+        largest.max(segment_end)
+    });
+    let pages = end
+        .checked_add(65_535)
+        .expect("semantic plan validated page calculation")
+        / 65_536;
+    u64::try_from(pages.max(1)).expect("validated wasm32 page count")
 }
 
 /// The `_start` WASI-command entry:

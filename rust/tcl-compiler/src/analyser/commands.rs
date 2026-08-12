@@ -35,6 +35,7 @@ use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::parsing::syntax::descend::{descend_command, descend_token};
 use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
+use crate::signature_scan::command_prefix::CommandPrefixWords;
 
 use super::state::Analyser;
 use super::types::{CodeFix, Diagnostic, Severity};
@@ -901,9 +902,9 @@ impl Analyser {
             // myCompare`, `trace add … cb`) as command invocations too, so
             // find-references / rename / call-hierarchy / code-lens / W123 /
             // callback-arity see the callback exactly like a direct call.
-            self.record_command_prefix_invocations(
-                cmd_name, args, arg_tokens, arg_single, scope_path,
-            );
+            let expanded = arg_expand_in.get(1..).unwrap_or(&[]);
+            let words = CommandPrefixWords::source_less(args, arg_tokens, arg_single, expanded);
+            self.record_command_prefix_invocations(cmd_name, words, scope_path);
 
             // Record `ArgRole::CommandName` arguments (`info body PROC`,
             // `namespace which -command NAME`) — a bare command name held as
@@ -953,20 +954,8 @@ impl Analyser {
             // instance's class entirely.
             self.record_pending_instance_class_site(cmd_name, args, arg_tokens);
 
-            // Generic EXPR-argument walk via the command registry's
-            // ``ArgRole::Expr``.  Picks up the condition arg of
-            // ``if`` / ``elseif`` / ``while`` / the cond+next slots
-            // of ``for`` / the body of ``expr`` / etc.  Currently
-            // hosts the W110 (``==``/``!=`` vs ``eq``/``ne``)
-            // emitter; future EXPR-role checks slot in here.
-            //
-            // Run *before* the early-returning handlers
-            // (``handle_for_command`` / ``handle_foreach_command`` /
-            // ``handle_switch_command`` / ``handle_catch_command`` /
-            // ``handle_try_command``) so EXPR-role args on those
-            // commands aren't skipped — none of those handlers
-            // process EXPR args themselves (they own *body*
-            // recursion only), so this can't double-fire.
+            // Registry-owned expression arguments must be diagnosed before
+            // body-owning handlers take their early-return paths.
             self.dispatch_expr_arguments(cmd_name, args, arg_tokens, cmd_tok);
 
             // Dispatch-site diagnostic emitters (W302 / W001 / E004 / W101
@@ -988,6 +977,37 @@ impl Analyser {
         } // end `if !self.structure_only`
 
         self.dispatch_command_handlers(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
+    }
+
+    /// Run E006 for the argument shapes the active command spec identifies as
+    /// formal lists. This is deliberately a registry-only query, including
+    /// resolver-defined roles and nested lambda literals.
+    fn emit_formal_parameter_list_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        let Some(registry) = self.registry else {
+            return;
+        };
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let parameter_indices =
+            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::ParamList);
+        super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+            self,
+            args,
+            arg_tokens,
+            &parameter_indices,
+        );
+        let lambda_indices =
+            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::LambdaLiteral);
+        super::diagnostics::emit_invalid_lambda_parameter_list_diagnostics(
+            self,
+            args,
+            arg_tokens,
+            &lambda_indices,
+        );
     }
 
     /// Record an iRules `call PROC ARG...`'s target as its own
@@ -1486,6 +1506,27 @@ impl Analyser {
         self.emit_w303_redos(cmd_name, args, arg_tokens);
     }
 
+    /// Registry-owned literal/value diagnostics. Kept as one dispatch-site
+    /// group so adding a registry validator does not grow the main diagnostic
+    /// dispatcher; none of these consumers knows a command name.
+    fn emit_registry_argument_diagnostics(&mut self, site: &DispatchSite<'_>) {
+        self.emit_w127_closed_value_args(site.cmd_name, site.args, site.arg_tokens, site.cmd_tok);
+        self.emit_w127_closed_option_values(
+            site.cmd_name,
+            site.args,
+            site.arg_tokens,
+            site.cmd_tok,
+        );
+        self.emit_w146_literal_argument_validation(
+            site.cmd_name,
+            site.args,
+            site.arg_tokens,
+            site.arg_single,
+            site.arg_expand_in.get(1..).unwrap_or(&[]),
+            site.scope_path,
+        );
+    }
+
     /// Dispatch-site diagnostic emitters, run from
     /// [`Self::process_command`] before the early-returning handlers so
     /// option-bearing / body-owning commands still get checked.
@@ -1520,6 +1561,7 @@ impl Analyser {
             scope_path,
             presubstituted_args,
         } = *site;
+        self.emit_formal_parameter_list_diagnostics(cmd_name, args, arg_tokens);
         // W302 dispatches off the registry's own `AnalyserHookId::Catch`
         // stamp rather than the literal head text, so any spelling the
         // registry resolves to that spec is covered without the analyser
@@ -1618,8 +1660,7 @@ impl Analyser {
         self.result.diagnostics.extend(lset_diags);
         let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(str_diags);
-        self.emit_w127_closed_value_args(cmd_name, args, arg_tokens, cmd_tok);
-        self.emit_w127_closed_option_values(cmd_name, args, arg_tokens, cmd_tok);
+        self.emit_registry_argument_diagnostics(site);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w217_unset_option_only(cmd_name, args, arg_tokens);
         self.emit_w004_dialect_invalid_option(
@@ -2148,16 +2189,22 @@ impl Analyser {
     fn record_command_prefix_invocations(
         &mut self,
         cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        arg_single: &[bool],
+        words: CommandPrefixWords<'_, '_>,
         scope_path: &[usize],
     ) {
         let Some(registry) = self.registry else {
             return;
         };
+        let source_map = SourceMap::new(&self.source);
+        let words = CommandPrefixWords {
+            texts: words.texts,
+            tokens: words.tokens,
+            single_token: words.single_token,
+            expanded: words.expanded,
+            source_map: Some(&source_map),
+        };
         let mut invs = crate::signature_scan::command_prefix::command_prefix_invocations(
-            registry, cmd_name, args, arg_tokens, arg_single,
+            registry, cmd_name, words,
         );
         // Instance-method dispatch: `$obj method …` / `objName method …` where
         // the receiver's class is a registry-modelled object class and the
@@ -2165,7 +2212,7 @@ impl Analyser {
         // `$t walkproc … cb`).  The receiver's class comes from the progressive
         // `instance_classes` map (bound by a prior `struct::graph name` /
         // `set g [Class new]`), keyed by the bare handle (leading `$` stripped).
-        if let Some(method) = args.first() {
+        if let Some(method) = words.texts.first() {
             // The handle is a bare object command (`objName method …`) or a
             // variable dispatch, whose head reconstructs as `$g` or `${g}` — map
             // all three to the `instance_classes` key (the bare name).
@@ -2180,9 +2227,13 @@ impl Analyser {
                         registry,
                         class,
                         method,
-                        args.get(1..).unwrap_or(&[]),
-                        arg_tokens.get(1..).unwrap_or(&[]),
-                        arg_single.get(1..).unwrap_or(&[]),
+                        CommandPrefixWords {
+                            texts: words.texts.get(1..).unwrap_or(&[]),
+                            tokens: words.tokens.get(1..).unwrap_or(&[]),
+                            single_token: words.single_token.get(1..).unwrap_or(&[]),
+                            expanded: words.expanded.get(1..).unwrap_or(&[]),
+                            source_map: Some(&source_map),
+                        },
                     ),
                 );
             }
@@ -4562,13 +4613,24 @@ fn record_command_invocations(
         let arg_texts: Vec<String> = seg.texts.iter().skip(1).cloned().collect();
         let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
         let arg_single: Vec<bool> = seg.single_token_word.iter().skip(1).copied().collect();
-        for inv in crate::signature_scan::command_prefix::command_prefix_invocations(
-            registry,
-            name,
-            &arg_texts,
-            &arg_tokens,
-            &arg_single,
-        ) {
+        let arg_expanded: Vec<bool> = seg
+            .expand_word
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .skip(1)
+            .copied()
+            .collect();
+        let words = CommandPrefixWords {
+            texts: &arg_texts,
+            tokens: &arg_tokens,
+            single_token: &arg_single,
+            expanded: &arg_expanded,
+            source_map: Some(sm),
+        };
+        for inv in
+            crate::signature_scan::command_prefix::command_prefix_invocations(registry, name, words)
+        {
             out.push((inv.head, inv.span, None, Some(inv.appended), None));
         }
     }

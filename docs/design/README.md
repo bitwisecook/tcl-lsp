@@ -15,13 +15,8 @@ rules for the KCS/documentation split live in
 
 - [compiler-architecture.md](compiler-architecture.md) — high-level map of
   the multi-pass compiler pipeline with diagrams and cross-links.
-- [common-runtime-emitter-architecture.md](common-runtime-emitter-architecture.md)
-  — steering doc reasoning across the whole space (TCLVM bytecode emitter, WASM
-  emitter, and the runtimes/VM) to fix the right split and interface shapes: the
-  two interface families (emitter vs runtime-state), why the bytecode VM is a
-  reified-state runtime, and the WASM migration path (WASM engine untouched).
-- [family-b-routing.md](family-b-routing.md) — companion to the above (§4
-  Family B): the Family-B runtime contract as implemented on both runtimes,
+- [family-b-routing.md](family-b-routing.md) — the Family-B runtime contract
+  as implemented on both runtimes,
   which command families were lifted to shared cores, the bugs that surfaced,
   and the boundaries where a command cannot be a shared body.
 - [example-script-walkthroughs.md](example-script-walkthroughs.md) — full
@@ -157,9 +152,8 @@ surface.
   environment layout, activation scripts, tclsh wrapper.
 - [contracts/tclpkg-lsp.md](contracts/tclpkg-lsp.md) — project root
   detection, W130–W134 diagnostics, code actions.
-- [contracts/explorer-view-audit.md](contracts/explorer-view-audit.md) —
-  audit of the compiler-explorer views to represent the Rust compiler,
-  not the Python one.
+- [contracts/explorer-compiler-coverage.md](contracts/explorer-compiler-coverage.md)
+  — coverage contract for durable Rust compiler artefacts in Explorer.
 
 ## Compiler internals
 
@@ -264,16 +258,6 @@ chunk-by-chunk dispatch story lives in
   passes/features): one missing command (``ledit``), four Rust-only
   optimiser miscompiles, an unwired inliner, and the deleted parity-check
   tooling.
-- [rust/coherence-and-coverage-2026-06-23.md](rust/coherence-and-coverage-2026-06-23.md)
-  — closing review pass: a coverage map proving every goal aspect is documented
-  across the six reviews, plus the remaining axes — **type-system coherence**
-  (bimodal: the value/registry half is the template, the editor half fractures
-  along the UTF-16 seam — raw offsets, 3 `Severity` enums, 2 `Diagnostic`
-  structs, stringly-typed IR), **naming coherence + glossary currency**, the
-  **explorer trio (CLI/TUI/GUI)** (the model of one-core reuse), and the
-  **"information" subsystem** (Info→Hint severity collapse; `info`-command
-  `VM ⊂ WASM` parity gap). Reconciled against the just-landed `origin/rust`
-  API-PYO3 / xtask / TEST-MIGRATE work.
 - [rust/srv-incremental-review-2026-06-23.md](rust/srv-incremental-review-2026-06-23.md)
   — deep review of the SRV-INCREMENTAL work (#692): per-edit incremental salsa
   pipeline (incremental `LineIndex`, per-function check memo, interprocedural
@@ -328,42 +312,9 @@ chunk-by-chunk dispatch story lives in
 ## Optional WASM extensions
 
 - [compiler/wasm-extensions.md](compiler/wasm-extensions.md) —
-  contract for shipping optional runtime features the user's
-  program requests via ``package require``. Variant runtimes today;
-  deferred Stage 2 plan for separately-merged extension WASMs.
-  Includes the file layout for the in-tree tcltest port (every ~107
-  upstream tcltest command registered, PORTABLE/PARTIAL ones
-  implemented and NOT-PORTABLE ones stubbed with explicit error
-  messages).
+  current `wasm_stdlib` embedding boundary and the explicitly dated,
+  not-yet-implemented package-driven extension design.
 
-## Compiler staircase (S0–S6)
-
-The phased plan to drive the Tcl-WASM AOT compiler from "frames
-everywhere" baseline through inlining and SSA-driven optimisations.
-Each stage doc lists tasks, file paths, test plans, and acceptance
-gates.
-
-- [compiler/wasm-aot-staircase.md](compiler/wasm-aot-staircase.md)
-  — overview tying S0 through S6 together: stage status,
-  acceptance gates, sequencing rules.
-- [compiler/wasm-aot-staircase-s0.md](compiler/wasm-aot-staircase-s0.md)
-  — S0 foundations: leak detector, refcount contract,
-  deterministic repro for the canonical bug.
-- [compiler/wasm-aot-staircase-s1.md](compiler/wasm-aot-staircase-s1.md)
-  — S1 frames-everywhere baseline + ``--no-frame-elision``
-  kill-switch.
-- [compiler/wasm-aot-staircase-s2.md](compiler/wasm-aot-staircase-s2.md)
-  — S2 per-proc frame elision with refcount discipline.
-- [compiler/wasm-aot-staircase-s3.md](compiler/wasm-aot-staircase-s3.md)
-  — S3 escape-analysis tightening + ``pure_leaf`` predicate.
-- [compiler/wasm-aot-staircase-s4.md](compiler/wasm-aot-staircase-s4.md)
-  — S4 IR-level inlining (catalogue + inliner).
-- [compiler/wasm-aot-staircase-s5.md](compiler/wasm-aot-staircase-s5.md)
-  — S5 SSA-driven codegen optimisations (LICM + GVN + DCE).
-- [compiler/wasm-aot-staircase-s6.md](compiler/wasm-aot-staircase-s6.md)
-  — S6 allocation + small-value representation (free-lists,
-  inline strings, dict hash side-cache, tagged immediates,
-  per-statement arena).
 - [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
   — the `S110` byte-array corruption diagnostic: binary data forced
   through character-string semantics.
@@ -419,8 +370,10 @@ are its rules, and what are the failure modes". One contract per file.
 - [vscode-extension.md](contracts/vscode-extension.md) — VS Code
   extension integration contracts.
 - [wasm-explorer-view.md](contracts/wasm-explorer-view.md) — JSON
-  shape produced by `WasmModule.to_explorer_json()` and consumed by
+  shape produced by `wasm_to_explorer_json` and consumed by
   the compiler explorer disassembly panel.
+- [explorer-compiler-coverage.md](contracts/explorer-compiler-coverage.md) —
+  durable compiler artefacts that every Explorer front-end must expose.
 - [differential-fuzzing.md](contracts/differential-fuzzing.md) —
   differential fuzzing oracle and coverage-guided mutation contracts.
 - [pipeline-lsp-first.md](contracts/pipeline-lsp-first.md) — pipeline

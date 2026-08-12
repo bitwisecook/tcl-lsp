@@ -1,205 +1,48 @@
-# KCS: Full pipeline walkthrough — source to bytecode and diagnostics
+# Compiler pipeline walkthrough
 
-## Symptom
+This is the current Rust path from Tcl source to reusable analysis facts and
+target artefacts. It is a contract map, not a record of retired implementations.
 
-A contributor needs an end-to-end understanding of how Tcl source is
-transformed through every compiler stage into bytecode and diagnostics,
-including all specialised analyses (taint, shimmer, side-effects,
-connection scope).
-
-## Context
-
-The compiler pipeline has 8 phases, plus two diagnostic tiers.  Each phase
-produces reusable facts consumed by later phases.  The entry point is
-`compile_source()` in `compilation_unit.py`, which orchestrates parsing,
-lowering, CFG/SSA construction, analyses, and codegen.
-
-This KCS ties together all the individual topic KCS files and the worked
-examples in the walkthrough document.
-
-## Content
-
-### Pipeline overview
-
-```
-Source text
-    │
-    ▼
-Phase 0: Error recovery (recovery.py)
-    │  Inject VirtualTokens for unclosed delimiters → E201–E206
-    │
-    ▼
-Phase 1: Lexing (tokens.py)
-    │  Token stream: ESC, STR, VAR, CMD, SEP, NL, ...
-    │
-    ▼
-Phase 2: Segmentation (command_segmenter.py → syntax/ CST)
-    │  Build the lossless red-green CST, derive SegmentedCommand objects
-    │  (texts[] / single[] arrays) byte-identically from it
-    │
-    ▼
-Phase 3: IR lowering (lowering.py, lowering_hooks/)
-    │  IRModule with IRStatement nodes (IRAssignConst, IRIf, IRCall, ...)
-    │  Expression parsing: Pratt parser → ExprNode AST (expr_parser.py)
-    │  Namespace resolution: normalise_qualified_name() (naming.py)
-    │  Lowering dispatch: hooks → match/case → arg_roles fallthrough
-    │
-    ▼
-Phase 4: CFG construction (cfg.py)
-    │  CFGFunction with CFGBlock nodes, terminators (Goto, Branch, Return)
-    │
-    ▼
-Phase 5: SSA construction (ssa.py)
-    │  SSAFunction with SSABlock, SSAStmt, SSAPhi nodes
-    │  Dominator tree, dominance frontiers
-    │
-    ▼
-Phase 6: Core analyses (core_analyses.py)
-    │  SCCP: constant propagation + unreachable-code detection
-    │  Liveness: live_in/live_out per block
-    │  Type lattice: type inference per SSA value
-    │  Execution intent: side-effect/escape classification
-    │  Side-effects classification: CommandSideEffects per statement
-    │
-    ▼
-Phase 7: Specialised passes
-    │
-    ├── Interprocedural analysis (interprocedural.py)
-    │   ProcSummary with purity, effects, constant-fold eligibility
-    │
-    ├── Connection scope (connection_scope.py)  [iRules only]
-    │   EventVarSummary per handler, cross-event variable flow
-    │
-    ├── Optimiser (_manager.py, _propagation.py, _elimination.py, ...)
-    │   O100–O130: constant propagation, folding, ICIP, DCE, DSE, ADCE,
-    │   InstCombine, GVN/CSE, code sinking, tail-call, unused procs
-    │
-    ├── Taint engine (taint/)
-    │   TaintLattice per SSA value, TaintColour flags, source/sink matching,
-    │   interprocedural taint propagation
-    │   T100–T106, IRULE3001–3004
-    │
-    ├── Shimmer detector (shimmer.py)
-    │   S100–S102: type coercion warnings
-    │
-    └── iRules flow checker
-        IRULE1005–5004: collect/release, response lifecycle, flow
-    │
-    ▼
-Phase 8: Bytecode codegen (codegen/)
-    │  LVT allocation, block linearisation (RPO), bottom-tested loop reorder,
-    │  label-based emission, jump size optimisation, peephole passes,
-    │  literal table construction
-    │
-    ▼
-FunctionAsm (instructions + LVT + literal table)
+```text
+Tcl source
+  -> lexer + red-green CST + segmented commands
+  -> registry-driven lowering to source-faithful IR
+  -> CFG construction and layout
+  -> scalar SSA, def-use, memory SSA, and semantic sidecars
+  -> diagnostics, interprocedural facts, taint, shimmer, and optimisation
+  -> bytecode ModuleAsm or canonical WASM compile_wasm output
+  -> LSP / CLI / Explorer serialisation
 ```
 
-### Phase-by-phase with examples
+## Stage ownership
 
-**Phase 0 — Error recovery** ([KCS](../../../docs/design/compiler/error-recovery.md), [Example 20](../../../docs/design/example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)):
-Virtual token injection for unclosed `[`, `"`, `{`.  Heuristics detect command
-breaks to determine where to insert the missing delimiter.
+- **Lexing and syntax:** `rust/tcl-lexer`, `rust/tcl-syntax`, and
+  `rust/tcl-compiler/src/parsing/` retain token and source identity.
+- **Lowering:** `lowering/` and `lowering_hooks.rs` convert structured words
+  and registry descriptors into IR. Dynamic or incomplete constructs remain
+  explicit rather than being reparsed by a consumer.
+- **CFG and dataflow:** `cfg_builder/`, `cfg.rs`, `cfg_layout.rs`, `ssa.rs`,
+  `def_use.rs`, and `memory_ssa.rs` build control-flow and versioned facts.
+- **Semantic analysis:** `executable_ir.rs`, `semantic_analysis.rs`,
+  `effect_ssa.rs`, and `registry_invocation.rs` retain invocation, completion,
+  dispatch, world-state, representation, and proof evidence.
+- **Specialised passes:** `interprocedural.rs`, `connection_scope.rs`,
+  `taint.rs`, `shimmer/`, `intervals.rs`, `interval_bounds.rs`, and
+  `optimiser/` add diagnostics and sound transformations.
+- **Targets:** `codegen/` emits bytecode artefacts from the common unit;
+  `codegen/wasm::compile_wasm` selects a typed WASM plan and emits the shared
+  target IR. The VM executes bytecode; it is not a second WASM compiler.
 
-**Phase 1–2 — Lexing and segmentation** ([Examples 1–2](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42), [KCS: CST](../../../docs/design/compiler/syntax-tree.md)):
-`set x 42` → Token(`ESC`, `"set"`), Token(`ESC`, `"x"`), Token(`ESC`, `"42"`)
-→ `SegmentedCommand(texts=["set", "x", "42"])`.  Segmentation builds the
-canonical red-green concrete syntax tree (`syntax/`) and derives the
-`SegmentedCommand`s from it byte-identically — the single representation the
-formatter, minifier, lowering, and per-command tooling are migrating onto.
+## Consumer contract
 
-**Phase 3 — IR lowering** ([KCS: lowering](../../../docs/design/compiler/lowering-dispatch.md), [KCS: expressions](../../../docs/design/compiler/expression-parsing.md), [KCS: namespaces](../../../docs/design/compiler/namespace-resolution.md)):
-- Dispatch hierarchy: hooks → match/case → arg_roles fallthrough
-- Expression parsing: Pratt parser with binding powers
-- Namespace resolution: `normalise_qualified_name()` + context propagation
-- [Examples 1–11](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42), [Example 22](../../../docs/design/example-script-walkthroughs.md#example-22-lowering-dispatch--arg_roles-and-command-classification)
+`CompilationUnit` is the durable hand-off between analysis and consumers.
+LSP providers and Explorer serialisers read its retained facts and typed
+declines. They do not infer command semantics from rendered output or add
+command-name branches.
 
-**Phase 4 — CFG** ([Examples 5–10](../../../docs/design/example-script-walkthroughs.md#example-5-if-x--set-y-10-)):
-`if`/`while`/`for`/`foreach` decompose into basic blocks with Branch/Goto
-terminators.
+## Related
 
-**Phase 5 — SSA** ([Examples 5–10](../../../docs/design/example-script-walkthroughs.md#example-5-if-x--set-y-10-)):
-Phi nodes at merge points, dominator tree, versioned definitions.
-
-**Phase 6 — Core analyses** ([KCS: execution intent](../../../docs/design/compiler/execution-intent-model.md), [KCS: side-effects](../../../docs/design/compiler/side-effects-system.md)):
-- SCCP resolves constants and marks unreachable blocks
-- Execution intent classifies command substitutions (PURE/MAY_SIDE_EFFECT)
-- Side-effects classification builds `CommandSideEffects` per command
-- [Example 23](../../../docs/design/example-script-walkthroughs.md#example-23-execution-intent--command-substitution-classification), [Example 28](../../../docs/design/example-script-walkthroughs.md#example-28-side-effects-classification)
-
-**Phase 7 — Specialised passes**:
-- Interprocedural: [KCS](../../../docs/design/compiler/interprocedural-analysis.md), [Example 24](../../../docs/design/example-script-walkthroughs.md#example-24-interprocedural-analysis--summary-construction)
-- Connection scope: [KCS](../../../docs/design/compiler/connection-scope.md), [Example 25](../../../docs/design/example-script-walkthroughs.md#example-25-connection-scope--cross-event-variable-flow-irules)
-- Optimiser: [KCS](../../../docs/design/compiler/optimisation-passes.md), [Examples 13–19](../../../docs/design/example-script-walkthroughs.md#example-13-icip--interprocedural-constant-propagation-o103)
-- Taint: [KCS](../../../docs/design/compiler/taint-analysis.md), [Example 12](../../../docs/design/example-script-walkthroughs.md#example-12-taint-analysis--httpheader-to-httprespond-subcommand-flow-and-spec)
-
-**Phase 8 — Codegen** ([KCS](../../../docs/design/compiler/codegen-internals.md), [Example 27](../../../docs/design/example-script-walkthroughs.md#example-27-codegen-internals--labels-lvt-linearisation-peephole)):
-LVT allocation → RPO linearisation → label emission → jump optimisation →
-peephole → literal table → `FunctionAsm`.
-
-### Diagnostics architecture
-
-([KCS](../../../docs/design/compiler/diagnostics-calculation.md), [Diagnostics section](../../../docs/design/example-script-walkthroughs.md#how-diagnostics-are-calculated))
-
-Two-phase delivery:
-1. **Basic** (synchronous): W-codes from semantic analysis + style checks
-2. **Deep** (background thread): O-codes, T-codes, S-codes, IRULE-codes
-
-`DiagnosticScheduler` manages cancellation on new keystrokes and version
-tracking to discard stale results.
-
-### Data flow summary
-
-```
-Source text  ──────────────────────────────────────────────►  Bytecode
-  "set x 42"                                                  push1/storeStk/done
-       │                                                           ▲
-       ▼                                                           │
-  Token stream → SegmentedCommand → IR → CFG → SSA → Analyses → Codegen
-                                                  │
-                                                  ├─► Optimisations (O100–O130)
-                                                  ├─► Taint warnings (T100+)
-                                                  ├─► Shimmer warnings (S100+)
-                                                  └─► Flow warnings (IRULE+)
-```
-
-## Decision rule
-
-- If a fact can improve diagnostics/completions/quick fixes, model it at
-  IR/CFG/SSA/pass level — not as codegen-only behaviour.
-- New analyses that need SSA data belong in Phase 6 or 7.
-- New diagnostics that only need tokens/AST belong in Phase 1 (basic).
-- When adding cross-cutting features, trace data flow through the pipeline
-  using the examples to verify each phase produces the expected output.
-
-## Related docs
-
-- [Example script walkthroughs](../../../docs/design/example-script-walkthroughs.md) (all 28 examples)
-- [GLOSSARY.md](../../GLOSSARY.md)
-- [compiler-architecture.md](../../../docs/design/compiler-architecture.md)
-- Individual topic KCS files:
-  - [kcs-lexing-segmentation.md](../../../docs/design/compiler/lexing-segmentation.md)
-  - [syntax-tree.md](../../../docs/design/compiler/syntax-tree.md) — the canonical red-green CST
-  - [kcs-error-recovery.md](../../../docs/design/compiler/error-recovery.md)
-  - [kcs-expression-parsing.md](../../../docs/design/compiler/expression-parsing.md)
-  - [kcs-ir-types-lowering.md](../../../docs/design/compiler/ir-types-lowering.md)
-  - [kcs-lowering-dispatch.md](../../../docs/design/compiler/lowering-dispatch.md)
-  - [kcs-command-registry.md](../../../docs/design/compiler/command-registry.md)
-  - [kcs-cfg-construction.md](../../../docs/design/compiler/cfg-construction.md)
-  - [kcs-ssa-construction.md](../../../docs/design/compiler/ssa-construction.md)
-  - [kcs-sccp-core-analyses.md](../../../docs/design/compiler/sccp-core-analyses.md)
-  - [kcs-constant-folding-type-inference.md](../../../docs/design/compiler/constant-folding-type-inference.md)
-  - [kcs-control-flow-patterns.md](../../../docs/design/compiler/control-flow-patterns.md)
-  - [kcs-interprocedural-analysis.md](../../../docs/design/compiler/interprocedural-analysis.md)
-  - [kcs-connection-scope.md](../../../docs/design/compiler/connection-scope.md)
-  - [kcs-namespace-resolution.md](../../../docs/design/compiler/namespace-resolution.md)
-  - [kcs-codegen-internals.md](../../../docs/design/compiler/codegen-internals.md)
-  - [kcs-taint-analysis.md](../../../docs/design/compiler/taint-analysis.md)
-  - [kcs-optimisation-passes.md](../../../docs/design/compiler/optimisation-passes.md)
-  - [kcs-diagnostics-calculation.md](../../../docs/design/compiler/diagnostics-calculation.md)
-  - [kcs-dialects-events.md](../../../docs/design/compiler/dialects-events.md)
-  - [kcs-data-structure-reference.md](../../../docs/design/compiler/data-structure-reference.md)
-  - [kcs-execution-intent-model.md](../../../docs/design/compiler/execution-intent-model.md)
-  - [kcs-side-effects-system.md](../../../docs/design/compiler/side-effects-system.md)
-  - [kcs-cfg-ssa-fact-model.md](../../../docs/design/compiler/cfg-ssa-fact-model.md)
-  - [kcs-compilation-unit-contracts.md](../../../docs/design/compiler/compilation-unit-contracts.md)
+- [Compiler pipeline overview](compiler-pipeline-overview.md)
+- [Common semantic compiler contract](common-semantic-compiler.md)
+- [Code-generation internals](codegen-internals.md)
+- [Explorer coverage contract](../contracts/explorer-compiler-coverage.md)

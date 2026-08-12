@@ -66,10 +66,8 @@ record:
   internally.
 - Fast paths that mutate the input in place (`tcl_cmd_lappend`'s
   in-place append, `tcl_cmd_append`'s buffer growth) are
-  flagged: the rc==1 check is the predicate today; once
-  compile-side discipline (S2 in
-  `docs/design/compiler/wasm-aot-staircase.md`) lands the
-  predicate may need updating.
+  flagged: the rc==1 check is the predicate today, and any compile-side
+  optimisation must preserve that ownership contract.
 
 ## Subsystems
 
@@ -203,8 +201,8 @@ the tool that mechanically checked for missing rows is gone.
 
 - Runtime memory-management plan and audit history:
   [`memory-management.md`](memory-management.md).
-- Compile-side discipline plan:
-  [`../compiler/wasm-aot-staircase-s2.md`](../compiler/wasm-aot-staircase-s2.md).
+- Compile-side proof and ownership contract:
+  [`../compiler/var-escape-analysis.md`](../compiler/var-escape-analysis.md).
 - The `MM-B` audit commits (`fe68d410`, `1ddb903d`, `9c7e4add`,
   `48a7138b`, `43a12cb2`) provide the historical basis for many
   of the rows above.

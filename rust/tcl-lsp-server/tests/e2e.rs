@@ -85,6 +85,10 @@ mod issue1329_self_dispatch_w308;
 mod issue1333_diagnostic_tags;
 #[path = "e2e/issue1345_transport_liveness.rs"]
 mod issue1345_transport_liveness;
+#[path = "e2e/issue1362_configurable_property_accessors.rs"]
+mod issue1362_configurable_property_accessors;
+#[path = "e2e/issue1367_template_method_self_dispatch.rs"]
+mod issue1367_template_method_self_dispatch;
 
 /// Issues #1331 / #1332 — cross-file command resolution in the diagnostics
 /// path, and the facts a `source`d file contributes.

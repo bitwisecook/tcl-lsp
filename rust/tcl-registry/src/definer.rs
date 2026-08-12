@@ -948,6 +948,32 @@ pub struct DefinitionBodyGrammar {
     /// [`Self::bare_word_construction`] — a documented property of the type
     /// command, not a user-written fallback member.
     pub unknown_dispatch_method: Option<&'static str>,
+
+    /// The instance methods this definer **generates** from the class's
+    /// declared `property` members — Tcl 9.0's `oo::configurable`, whose
+    /// instances answer `configure` (`configurable.n`).
+    ///
+    /// Distinct from [`Self::builtin_object_methods`] in *who* supplies them:
+    /// those come from the family's root object and are on every instance of
+    /// the family, while these come from one specific metaclass and are only
+    /// on the classes it manufactures. Every `TclOO` metaclass shares this
+    /// one grammar, so `oo::configurable` carries its own copy
+    /// ([`TCLOO_CONFIGURABLE_GRAMMAR`]) rather than handing `configure` to
+    /// plain `oo::class` instances, which really do fail with `unknown
+    /// method "configure"`.
+    ///
+    /// **Only `configure`.** `cget` is *not* generated: `configurable.n` for
+    /// both 9.0 and 9.1 documents `configure` and the internal
+    /// `<ReadProp-name>` / `<WriteProp-name>` accessors and no `cget` at all,
+    /// and this workspace's own VM implements the same single method
+    /// (`tcl-vm/src/cmd_oo.rs`). A `cget` on a configurable object is a
+    /// genuine unknown-method error, so a consumer must not accept it (issue
+    /// #1362). snit and [incr Tcl] *do* give every instance `configure` /
+    /// `cget`, but those are family built-ins and live in
+    /// [`Self::builtin_object_methods`], not here.
+    ///
+    /// Empty for every family that generates no such methods.
+    pub property_accessor_methods: &'static [&'static str],
 }
 
 /// One method of a class system's **class command** that manufactures an
@@ -1404,6 +1430,27 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // This is what makes `::C x` above *reachable* rather than fatal once a
     // class (or its metaclass) declares one.
     unknown_dispatch_method: Some("unknown"),
+    // Plain `oo::class` / `oo::abstract` / `oo::singleton` instances generate
+    // nothing from properties — only `oo::configurable` does, and it carries
+    // its own grammar below.
+    property_accessor_methods: &[],
+};
+
+/// The definition-body grammar for `oo::configurable` — [`TCLOO_GRAMMAR`]
+/// plus the one method that metaclass generates for a class's declared
+/// `property` members.
+///
+/// A separate constant precisely because the definition *body* grammar is
+/// identical (`property` is a member of `TCLOO_MEMBERS` already): what
+/// differs is the instance surface the manufactured class ends up with.
+/// Attaching this to the shared grammar would have told every consumer that
+/// an `oo::class` instance answers `configure`, which it does not.
+pub const TCLOO_CONFIGURABLE_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+    // `configurable.n` (9.0.4 and 9.1b0, byte-identical but for the version
+    // banner): "making a `configure` method available within the instances".
+    // No `cget` — see `property_accessor_methods`' own note.
+    property_accessor_methods: &["configure"],
+    ..TCLOO_GRAMMAR
 };
 
 /// `TclOO`'s class-command manufacturers — see
@@ -1633,6 +1680,10 @@ pub const SNIT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // rather than a member body this analysis can read; there is no snit
     // counterpart of TclOO's `unknown`.
     unknown_dispatch_method: None,
+    // snit's `configure` / `cget` are on every instance of the family, not
+    // generated from property declarations, so they live in
+    // `builtin_object_methods`.
+    property_accessor_methods: &[],
 };
 
 /// The definition-body grammar for snit `widget` / `widgetadaptor`: the same
@@ -1664,6 +1715,10 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // rather than a member body this analysis can read; there is no snit
     // counterpart of TclOO's `unknown`.
     unknown_dispatch_method: None,
+    // snit's `configure` / `cget` are on every instance of the family, not
+    // generated from property declarations, so they live in
+    // `builtin_object_methods`.
+    property_accessor_methods: &[],
 };
 
 // ---------------------------------------------------------------------------
@@ -1765,6 +1820,9 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     manufacturers: &[],
     // [incr Tcl] has no user-writable unrecognised-method fallback member.
     unknown_dispatch_method: None,
+    // itcl's `configure` / `cget` are family built-ins (every instance has
+    // them), so they live in `builtin_object_methods`.
+    property_accessor_methods: &[],
 };
 
 #[cfg(test)]

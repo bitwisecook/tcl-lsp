@@ -99,6 +99,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::def_use::{DefUseResult, UseKind, UseSite};
@@ -120,36 +121,32 @@ struct CopyPair {
     span: Span,
 }
 
-/// The variable-mutating commands whose C implementations duplicate a
-/// shared value before writing (see the module docs for the exact
-/// `Tcl_IsShared → Tcl_DuplicateObj` sites). Returns the mutated variable's
-/// argument word, or `None` when `stmt` is not one of them.
+/// Resolve the registry-declared shared-container mutation target.
 ///
-/// Arity guards keep degenerate non-mutating spellings out: `lappend v`
-/// (no values) only reads/creates, and `lset v newValue` (no indices) is a
-/// plain assignment that replaces rather than mutates the old value.
-fn mutation_target(stmt: &Statement) -> Option<&str> {
+/// The effective command, subcommand, form, target position, and arity floor
+/// are all registry data. Unknown or dynamic shapes abstain.
+fn mutation_target<'a>(stmt: &'a Statement, registry: &CommandRegistry) -> Option<&'a str> {
     let Statement::Call { args, .. } = stmt else {
         return None;
     };
-    match stmt.canonical_command_or_source() {
-        "lappend" if args.len() >= 2 => Some(&args[0]),
-        "lset" if args.len() >= 3 => Some(&args[0]),
-        "dict"
-            if args.len() >= 3
-                && matches!(
-                    args[0].as_str(),
-                    "set" | "unset" | "append" | "lappend" | "incr"
-                ) =>
-        {
-            Some(&args[1])
-        }
-        _ => None,
-    }
+    let values: Vec<&str> = args.iter().map(String::as_str).collect();
+    let invocation = registry.resolve_invocation(
+        stmt.canonical_command_or_source(),
+        &values,
+        DialectSet::empty(),
+    )?;
+    let offset = invocation.semantics.argument_offset;
+    let effective_count = args.len().checked_sub(offset)?;
+    let target = invocation
+        .semantics
+        .representation_effect
+        .mutation_target_index(effective_count, offset)?;
+    args.get(target).map(String::as_str)
 }
 
 /// Function-wide inputs and memos threaded through the walk.
 struct SharingCtx<'a> {
+    registry: &'a CommandRegistry,
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
     def_use: &'a DefUseResult,
@@ -201,6 +198,7 @@ pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
         excluded_names.extend(extra.iter().cloned());
     }
     let mut ctx = SharingCtx {
+        registry,
         cfg,
         ssa,
         def_use,
@@ -290,7 +288,7 @@ fn mutation_warning(
     stmt: &Statement,
     pairs: &[CopyPair],
 ) -> Option<SharingWarning> {
-    let target_name = normalise_var_name(mutation_target(stmt)?);
+    let target_name = normalise_var_name(mutation_target(stmt, ctx.registry)?);
     let target_sym = ctx.ssa.var_symbol(target_name)?;
     if ctx.excluded(target_name, target_sym) {
         return None;
@@ -447,23 +445,32 @@ fn use_span(ctx: &SharingCtx<'_>, u: &UseSite) -> Option<Span> {
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
-    use tcl_registry::CommandRegistry;
+    use tcl_registry::side_effects::{ConnectionSide, SideEffect, SideEffectTarget};
+    use tcl_registry::{ArgRole, Arity, CommandSpec, RepresentationEffect, Traits};
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
     }
 
-    fn warnings_for_fn(src: &str, name: &str) -> Vec<SharingWarning> {
-        let cu = CompilationUnit::build_for(src, &registry(), false);
+    fn warnings_for_fn_with_registry(
+        src: &str,
+        name: &str,
+        registry: &CommandRegistry,
+    ) -> Vec<SharingWarning> {
+        let cu = CompilationUnit::build_for(src, registry, false);
         let fu = cu.function(name).unwrap();
         find_sharing_warnings(
             &fu.cfg,
             &fu.ssa,
             &fu.def_use,
             &fu.sccp.executable_blocks,
-            &registry(),
+            registry,
             None::<&HashSet<String>>,
         )
+    }
+
+    fn warnings_for_fn(src: &str, name: &str) -> Vec<SharingWarning> {
+        warnings_for_fn_with_registry(src, name, &registry())
     }
 
     fn warnings_for(src: &str) -> Vec<SharingWarning> {
@@ -488,6 +495,39 @@ mod tests {
         assert_eq!(w[0].shared_with, "a");
         assert_eq!(w[0].command, "lappend");
         assert_eq!(w[0].code, DiagCode::S103);
+    }
+
+    #[test]
+    fn s103_consumes_representation_effect_without_command_name_knowledge() {
+        let mut registry = registry();
+        registry.insert(CommandSpec {
+            name: "bagmutate",
+            traits: Traits::READS_BEFORE_WRITE | Traits::FIRST_ARG_VARNAME,
+            arity: Arity::at_least(2),
+            arg_roles: &[(0, ArgRole::VarWrite)],
+            assigns_variable_at: Some(0),
+            representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
+            side_effects: &[SideEffect {
+                target: SideEffectTarget::Variable,
+                reads: true,
+                writes: true,
+                connection_side: ConnectionSide::None,
+                dialects: None,
+            }],
+            ..CommandSpec::DEFAULT
+        });
+        let warnings = warnings_for_fn_with_registry(
+            "set a [list 1 2 3]\nset b $a\nbagmutate b y\nputs [llength $a]",
+            "::top",
+            &registry,
+        );
+
+        assert_eq!(
+            warnings.len(),
+            1,
+            "registry-declared mutation: {warnings:?}"
+        );
+        assert_eq!(warnings[0].command, "bagmutate");
     }
 
     /// TP: `lset` on the copy (tclsh-verified: `set d $c; lset d 0 z` gives

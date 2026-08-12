@@ -130,6 +130,6 @@ pub fn spec() -> CommandSpec {
                 transparent_from: &[],
             },
         )],
-        ..CommandSpec::DEFAULT
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

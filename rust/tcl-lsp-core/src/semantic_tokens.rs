@@ -2522,15 +2522,15 @@ fn insert_object_method_overrides(
     }
     // 2. User-defined class — resolve the method through the class hierarchy
     //    (workspace-wide when a project index is supplied, so a class defined in
-    //    another file resolves too); for an `oo::configurable` receiver, colour
-    //    `configure` / `cget` property options.
+    //    another file resolves too); for a configurable receiver, colour the
+    //    generated accessor's property options.
     if let Some(hierarchy) = classes
         && let Some(cls) = candidates
             .iter()
             .find(|c| user_class_provides_method(hierarchy, registry, c, method))
     {
         mark_method_word(seg, overrides);
-        insert_user_configure_options(seg, hierarchy, cls, method, overrides);
+        insert_user_configure_options(seg, hierarchy, registry, cls, method, overrides);
     }
 }
 
@@ -2650,9 +2650,13 @@ fn collection_head_element_classes<'a>(
 
 /// Whether a *user-defined* class provides `method` for an instance dispatch:
 /// the class hierarchy's MRO resolves it (a declared method on the class or an
-/// ancestor), or it is an `TclOO` builtin every instance answers — `destroy`,
-/// or `configure` / `cget` on an `oo::configurable` receiver.  `hierarchy` is
-/// the local file's hierarchy or a workspace-merged project index.
+/// ancestor), it is an `TclOO` builtin every instance answers (`destroy`), or
+/// it is one the class system generates from the class's declared properties
+/// — decided by the same registry-driven
+/// [`ClassHierarchy::property_accessor_methods`] the analyser's W308
+/// existence check uses, so colouring and diagnostics cannot disagree about
+/// whether a method exists.  `hierarchy` is the local file's hierarchy or a
+/// workspace-merged project index.
 fn user_class_provides_method(
     hierarchy: &ClassHierarchy,
     registry: &CommandRegistry,
@@ -2662,68 +2666,33 @@ fn user_class_provides_method(
     if hierarchy.method_target(class, method).is_some() {
         return true;
     }
-    match method {
-        "destroy" => true,
-        "configure" | "cget" => class_is_configurable(hierarchy, registry, class),
-        _ => false,
+    if method == "destroy" {
+        return true;
     }
+    hierarchy.is_property_accessor(Some(registry), class, method)
 }
 
-/// Whether `class` (or any class in its MRO) is created by a metaclass whose
-/// instances answer `configure` / `cget` against declared properties, or itself
-/// declares such properties.
-///
-/// The metaclass test is registry data
-/// ([`Traits::CONFIGURES_BY_PROPERTY`](tcl_registry::Traits::CONFIGURES_BY_PROPERTY)),
-/// not the `metaclass == "oo::configurable"` spelling comparison this used to
-/// make (issue #1275).  A metaclass the registry does not model answers
-/// `false`: abstention, so an unknown factory is never treated as configurable.
-/// tclsh 9.0.4: an `oo::configurable` instance answers `[$pt configure]` with
-/// its property dict, an `oo::class` one answers `unknown method "configure"`.
-fn class_is_configurable(
-    hierarchy: &ClassHierarchy,
-    registry: &CommandRegistry,
-    class: &str,
-) -> bool {
-    class_mro(hierarchy, class).iter().any(|c| {
-        hierarchy.classes.get(c).is_some_and(|cd| {
-            !cd.properties.is_empty()
-                || registry.get(&cd.metaclass).is_some_and(|spec| {
-                    spec.traits
-                        .contains(tcl_registry::prelude::Traits::CONFIGURES_BY_PROPERTY)
-                })
-        })
-    })
-}
-
-/// The MRO (self first) of `class` from `hierarchy`, or just `[class]` when the
-/// hierarchy has no entry (an external / unindexed class).
-fn class_mro(hierarchy: &ClassHierarchy, class: &str) -> Vec<String> {
-    hierarchy
-        .mro_map
-        .get(class)
-        .cloned()
-        .unwrap_or_else(|| vec![class.to_string()])
-}
-
-/// Colour the `-property` options of a `configure` / `cget` dispatch on an
-/// `oo::configurable` user class: a word `-<name>` whose `name` is a property
-/// declared on the class or an ancestor becomes a [`ArgOverride::Decorator`],
-/// and a following literal value an [`TokenKind::OptionValue`].  A non-property
-/// `-word` is left to the generic option fallback.  No-op for any method other
-/// than `configure` / `cget`.
+/// Colour the `-property` options of a generated property-accessor dispatch
+/// (`oo::configurable`'s `configure`) on a user class: a word `-<name>` whose
+/// `name` is a property declared on the class or an ancestor becomes a
+/// [`ArgOverride::Decorator`], and a following literal value an
+/// [`TokenKind::OptionValue`].  A non-property `-word` is left to the generic
+/// option fallback.  No-op for any method the class system does not generate
+/// from properties.
 fn insert_user_configure_options(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     hierarchy: &ClassHierarchy,
+    registry: &CommandRegistry,
     class: &str,
     method: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if method != "configure" && method != "cget" {
+    if !hierarchy.is_property_accessor(Some(registry), class, method) {
         return;
     }
     // Property names across the whole MRO (`-node`, `-name`, inherited …).
-    let props: std::collections::HashSet<String> = class_mro(hierarchy, class)
+    let props: std::collections::HashSet<String> = hierarchy
+        .mro_or_self(class)
         .iter()
         .filter_map(|c| hierarchy.classes.get(c))
         .flat_map(|cd| cd.properties.keys().cloned())
@@ -2926,7 +2895,7 @@ fn insert_self_method_overrides(
         return;
     }
     mark_method_word(seg, overrides);
-    insert_user_configure_options(seg, hierarchy, &class, method, overrides);
+    insert_user_configure_options(seg, hierarchy, registry, &class, method, overrides);
 }
 
 /// The *user-defined* class named by a direct exported manufacturer head,
@@ -5517,7 +5486,7 @@ fn scan_loop_vars(
         base_offset,
         tcl_lexer::LexerConfig::for_file_dialect(dialect).at_depth(depth),
     ) {
-        bind_loop_vars_for_call(&seg.texts, registry, collections, handles);
+        bind_loop_vars_for_call(full_source, &seg, registry, collections, handles);
         // Recurse into braced-script words (loop bodies, proc / method / class
         // bodies, `namespace eval` blocks, `if`/`switch` arms, …) and into
         // `[…]` command substitutions (a loop can be `return [dict map …]`).
@@ -5731,7 +5700,7 @@ fn class_declares_typemethod(
         .and_then(|spec| spec.definition_body)
         .is_some_and(|grammar| grammar.is_builtin_type_method(name));
     builtin
-        || class_mro(hierarchy, class).iter().any(|c| {
+        || hierarchy.mro_or_self(class).iter().any(|c| {
             hierarchy
                 .classes
                 .get(c)
@@ -5754,33 +5723,89 @@ fn class_declares_typemethod(
 /// variable holds the element, and anything else binds every variable in the
 /// group.
 fn bind_loop_vars_for_call(
-    texts: &[String],
+    source: &str,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     collections: &ObjectClassMap,
     handles: &mut ObjectClassMap,
 ) {
-    let Some(name) = texts.first() else { return };
-    let refs: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+    // A recovery segment can expose a plausible-looking `texts` prefix even
+    // when the command's final word is incomplete. Binding from that prefix
+    // would make a malformed or dynamic loop look proven.
+    if seg.is_partial {
+        return;
+    }
+    let Some(name) = seg.texts.first() else {
+        return;
+    };
+    let refs: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     for idx in registry.arg_indices_for_role(name, &refs, tcl_registry::ArgRole::LoopVarList) {
-        let (Some(var_list), Some(collection)) = (refs.get(idx), refs.get(idx + 1)) else {
+        let (Some(_var_list), Some(collection)) = (refs.get(idx), refs.get(idx + 1)) else {
             continue;
         };
         let Some(classes) = object_handle_name(collection).and_then(|c| collections.get(c)) else {
+            continue;
+        };
+        // Segment text is not a Tcl list parser. Prove the word is static,
+        // then use the shared Tcl list grammar; malformed values abstain.
+        let Some(var_names) = static_loop_var_names(source, seg, idx + 1) else {
             continue;
         };
         let keyed = registry
             .arg_type_hint(name, &refs, idx + 1)
             .is_some_and(|hint| hint.expected == Some(tcl_registry::types::TclType::Dict));
         if keyed {
-            if let Some(value_var) = var_list.split_whitespace().nth(1) {
+            if let Some(value_var) = var_names.get(1) {
                 bind_loop_var(handles, value_var, classes);
             }
         } else {
-            for var in var_list.split_whitespace() {
+            for var in &var_names {
                 bind_loop_var(handles, var, classes);
             }
         }
     }
+}
+
+/// Decode a literal loop-variable-list word using Tcl's canonical list
+/// grammar. Substitutions, expansions, compound words, incomplete commands,
+/// and malformed list values all abstain.
+fn static_loop_var_names(
+    source: &str,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    word_index: usize,
+) -> Option<Vec<String>> {
+    if seg.is_partial || seg.single_token_word.get(word_index) != Some(&true) {
+        return None;
+    }
+    let token = *seg.argv.get(word_index)?;
+    if matches!(
+        token.kind,
+        TokenType::Var | TokenType::Cmd | TokenType::Expand
+    ) {
+        return None;
+    }
+    // The segmenter strips a braced/quoted word's delimiters. Validate the
+    // original token too, so incomplete recovery text cannot masquerade as a
+    // valid list value.
+    let raw_start = token.span.start() as usize;
+    let raw_end = token.span.end() as usize;
+    let raw = source.get(raw_start..raw_end)?;
+    if raw.starts_with(['{', '"']) {
+        let closing = if raw.starts_with('{') { b'}' } else { b'"' };
+        let raw = if source.as_bytes().get(raw_end) == Some(&closing) {
+            source.get(raw_start..raw_end + 1)?
+        } else {
+            raw
+        };
+        tcl_syntax::list::find_element(raw, 0).ok()??;
+    }
+    let text = seg.texts.get(word_index)?;
+    tcl_syntax::list::split_list(text).ok().map(|elements| {
+        elements
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect()
+    })
 }
 
 /// Everything an object-handle scan needs that does **not** change as the walk
@@ -10208,6 +10233,36 @@ mod tests {
         assert_eq!(roles("::dict", &["for", "{k v}", "$d", "{}"]), vec![1]);
         // A command with no loop-variable list reports none.
         assert!(roles("puts", &["hi"]).is_empty());
+    }
+
+    #[test]
+    fn loop_var_binding_uses_tcl_list_grammar_and_abstains_when_dynamic() {
+        use tcl_compiler::segmenter::segment_commands;
+
+        let names = |src: &str| {
+            let command = segment_commands(src)
+                .into_iter()
+                .next()
+                .expect("one command");
+            static_loop_var_names(src, &command, 1)
+        };
+
+        assert_eq!(
+            names("foreach {a b} $coll {}\n"),
+            Some(vec![String::from("a"), String::from("b")])
+        );
+        assert_eq!(
+            names("foreach \"a b\" $coll {}\n"),
+            Some(vec![String::from("a"), String::from("b")])
+        );
+        assert_eq!(
+            names("foreach a\\ b $coll {}\n"),
+            Some(vec![String::from("a b")])
+        );
+        assert_eq!(names("foreach {} $coll {}\n"), Some(Vec::new()));
+        assert_eq!(names("foreach $vars $coll {}\n"), None);
+        assert_eq!(names("foreach [makeVars] $coll {}\n"), None);
+        assert_eq!(names("foreach {a b $coll {}\n"), None);
     }
 
     #[test]

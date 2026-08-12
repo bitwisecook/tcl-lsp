@@ -214,4 +214,3 @@ helper without reading the rationale:
 - [core-lsp-shared-utility.md](core-lsp-shared-utility.md)
 - [family-b-routing.md](../family-b-routing.md) — the runtime seam this
   crate layering serves.
-- [common-runtime-emitter-architecture.md](../common-runtime-emitter-architecture.md)

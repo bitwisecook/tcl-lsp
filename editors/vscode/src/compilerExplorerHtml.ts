@@ -897,6 +897,7 @@ body {
 .optlens-add { background: rgba(166, 227, 161, 0.12); color: var(--green); }
 .optlens-del { background: rgba(243, 139, 168, 0.12); color: var(--red); }
 .optlens-elide { color: var(--text-dim); font-style: italic; padding: 2px 4px 2px 20px; }
+.generic-explorer-view { margin: 8px; padding: 8px; overflow: auto; white-space: pre-wrap; color: var(--text-dim); }
 </style>
 </head>
 <body>
@@ -1236,6 +1237,7 @@ function updateStatusLight() {
 // tabs still render, and renderAll itself never throws — so the caller's
 // spinner always settles (issues #1182 / #1183).
 function renderAll() {
+  const genericViews = reconcileExplorerViews();
   return runRenderSteps([
     { name: 'Stats', run: renderStats },
     { name: 'IR', pane: '#pane-ir', run: renderIR },
@@ -1251,7 +1253,12 @@ function renderAll() {
     { name: 'Callouts', pane: '#pane-callouts', run: renderCallouts },
     { name: 'Tcl ASM', pane: '#pane-asm', run: renderAsm },
     { name: 'WASM', pane: '#pane-wasm', run: renderWasm },
-    { name: 'badges', run: updateBadges },
+    ...genericViews.map(view => ({
+      name: view.label || view.id,
+      pane: '#pane-' + explorerPaneId(view.id),
+      run: () => renderGenericExplorerView(view),
+    })),
+    { name: 'badges', run: () => { updateBadges(); updateGenericExplorerBadges(genericViews); } },
   ]);
 }
 

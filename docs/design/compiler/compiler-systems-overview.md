@@ -1,44 +1,32 @@
-# KCS: Compiler systems overview (contracts by subsystem)
+# Compiler systems overview
 
-## Symptom
+Use this map to find the owner of a compiler fact. The authoritative
+implementation is the Rust workspace under `rust/`.
 
-Contributors know a bug is "in compiler" but cannot quickly determine which subsystem owns the relevant fact contract.
+## Fact ownership
 
-## Operational context
+| Concern | Rust owner |
+|---|---|
+| Lexing, syntax, and segmentation | `tcl-lexer`, `tcl-syntax`, `tcl-compiler/src/parsing/` |
+| Lowering and registry dispatch | `tcl-compiler/src/lowering/`, `lowering_hooks.rs`, `tcl-registry` |
+| CFG construction and layout | `tcl-compiler/src/cfg_builder/`, `cfg.rs`, `cfg_layout.rs` |
+| Scalar SSA, def-use, and memory SSA | `ssa.rs`, `def_use.rs`, `memory_ssa.rs`, `place.rs` |
+| Executable semantic and world-state facts | `executable_ir.rs`, `semantic_analysis.rs`, `effect_ssa.rs`, `registry_invocation.rs` |
+| Interprocedural and cross-event facts | `interprocedural.rs`, `unit_scope.rs`, `connection_scope.rs` |
+| Diagnostics and security checks | `analyser/`, `compiler_checks.rs`, `irules_checks.rs` |
+| Optimisation and proof declines | `optimiser/`, `gvn.rs`, `sccp.rs`, `var_escape/` |
+| Bytecode emission | `codegen/`, `tcl-bytecode` |
+| WASM plan selection and emission | `codegen/wasm/`, `tcl-runtime-api`, `runtime/rust/` |
 
-Compiler work spans lowering, CFG/SSA, core analyses, interprocedural summaries, pass-specific findings, diagnostics integration, and codegen boundaries.
+## Decision rules
 
-## Decision rules / contracts
+Change the earliest producer that can establish a reusable fact. Keep command
+semantics in the registry, expose typed evidence on compiler-owned results, and
+make consumers abstain when a proof is incomplete. Update the relevant
+contract and focused Rust tests with every ownership change.
 
-1. Prefer changing the earliest subsystem that can produce a reusable fact safely.
-2. Preserve explicit producer/consumer ownership when adding new facts.
-3. Update subsystem-specific KCS notes whenever contract semantics change.
+## Related
 
-## File-path anchors
-
-- `compiler/lowering.py`
-- `compiler/cfg.py`
-- `compiler/ssa.py`
-- `compiler/core_analyses.py`
-- `compiler/interprocedural.py`
-- `compiler/optimiser/`
-- `compiler/codegen/` (package: `__init__.py`, `bytecode/opcodes.py`, `bytecode/layout.py`, `bytecode/format.py`)
-
-## Failure modes
-
-- Fixes applied in late consumers when root cause is earlier fact production.
-- New facts added without ownership/docs leading to duplicated pass logic.
-- Divergence between diagnostics and codegen expectations for same IR shape.
-
-## Test anchors
-
-- `tests/test_diagnostics.py`
-- `tests/test_optimiser.py`
-- `tests/test_gvn.py`
-- `tests/test_bytecode_identity.py`
-
-## Discoverability
-
-- [compiler KCS index](README.md)
-- [pass/fact ownership matrix](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
-- [compiler pipeline overview](../../../docs/design/compiler/compiler-pipeline-overview.md)
+- [Compiler pipeline overview](compiler-pipeline-overview.md)
+- [Pass/fact ownership matrix](pass-fact-ownership-matrix.md)
+- [Compilation-unit contracts](compilation-unit-contracts.md)

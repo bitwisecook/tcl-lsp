@@ -365,6 +365,14 @@ declare_traits! {
     IrulesTopLevelOnly => IRULES_TOP_LEVEL_ONLY;
     /// `TclOO` metaclass (`oo::class`, `oo::abstract`).
     IsOoMetaclass => IS_OO_METACLASS;
+    /// Registry command whose subcommand table is the universal method
+    /// surface inherited by `TclOO` object commands.
+    ///
+    /// Consumers that know a source head denotes an object can query this
+    /// surface generically for method metadata (for example, destructive
+    /// lifecycle operations) without naming the registry command that owns
+    /// the table.
+    ObjectCommandSurface => OBJECT_COMMAND_SURFACE;
     /// A metaclass whose **instances** answer `configure` / `cget` against
     /// declared properties — Tcl 9.0's `oo::configurable`.
     ///

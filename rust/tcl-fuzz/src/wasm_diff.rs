@@ -51,7 +51,8 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::codegen::wasm::wasm_codegen_module;
+use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_traced};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Vm};
@@ -162,8 +163,15 @@ fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
         let src = src.to_owned();
         std::panic::catch_unwind(move || {
             let registry = CommandRegistry::build_default();
-            let module = lower_to_ir(&src, &registry);
-            wasm_codegen_module(&module, &src).to_bytes()
+            let unit = CompilationUnit::build_for(&src, &registry, false);
+            compile_wasm(
+                &unit,
+                &registry,
+                WasmCompileOptions::hosted()
+                    .for_eval_only_test_host()
+                    .with_data_base(0),
+            )
+            .to_bytes()
         })
         .map_err(|_| "wasm codegen panicked".to_owned())?
     };

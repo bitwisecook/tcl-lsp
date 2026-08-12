@@ -129,6 +129,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
         return_type: Some(TclType::List),
+        representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 3)),
         inferred_storage_type: Some(StorageType::List),
         hover: Some(HoverSnippet {
             summary: "Change an element (or nested element) in a list stored in a variable.",

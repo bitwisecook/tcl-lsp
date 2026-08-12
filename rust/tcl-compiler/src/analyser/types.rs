@@ -1035,6 +1035,20 @@ pub struct ManufacturerSpec {
 /// when `Meta` is written in another document (issue #1276).
 pub type ClassFactoryIndex = BTreeMap<String, ClassFactory>;
 
+/// Instance methods dispatchable on some workspace **descendant** of each
+/// class, keyed by the ancestor's fully-qualified name — what a host hands
+/// the analyser so the template-method abstention (issue #1367) can see a
+/// subclass written in another document.
+///
+/// `map["::Formatter"]` holds every instance-side member name reachable on
+/// any workspace class that lists `::Formatter` anywhere in its
+/// linearisation — including names the descendant inherits from a mixin,
+/// and excluding `private` members, which `TclOO` hides even from a base
+/// class's own `my` dispatch.  `BTreeMap`/`BTreeSet` so equal contents
+/// compare equal regardless of build order (the host's compare-then-set
+/// depends on it).
+pub type SubclassProvidedMethods = BTreeMap<String, std::collections::BTreeSet<String>>;
+
 /// How a user-defined `TclOO` metaclass manufactures classes.
 ///
 /// Recorded on the metaclass's own [`ClassDef`] when it is written, so a

@@ -179,7 +179,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects tcltest-sweep tcltest-sweep-check
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle tcltest-sweep tcltest-sweep-check
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-gen-tmlanguage-keywords
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
@@ -629,6 +629,11 @@ xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry 
 xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from built tclsh trees (on-demand; needs tmp/tcl*/unix)
 	@echo "==> Auditing OptionSpec dialect gates (cargo xtask)"
 	cd $(ROOT) && cargo xtask audit-option-dialects
+
+xtask-registry-oracle: ## Audit the iRules registry against a local BIG-IP extract (IRULES_ORACLE_ROOT=/path/to/bigip-extract)
+	@test -n "$(IRULES_ORACLE_ROOT)" || (echo "Set IRULES_ORACLE_ROOT=/path/to/bigip-extract"; exit 2)
+	@echo "==> Auditing the iRules registry against the local BIG-IP source oracle (cargo xtask)"
+	cd $(ROOT) && cargo xtask registry-oracle --irules-root "$(IRULES_ORACLE_ROOT)" --check
 
 tcltest-sweep: ## Regenerate the VM-vs-C tcltest parity scoreboard (runs the suite through the VM + reference tclsh; slow, on-demand)
 	@echo "==> Sweeping the C tcltest suite through the VM + reference tclsh (cargo xtask)"

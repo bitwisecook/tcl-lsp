@@ -5382,6 +5382,7 @@ impl Analyser {
                     );
                 }
                 super::oo::parse_oo_define_inline_in(
+                    self,
                     grammar,
                     &inline_args,
                     &inline_tokens,
@@ -8746,6 +8747,7 @@ impl Analyser {
                     );
                 }
                 super::oo::parse_oo_define_inline_in(
+                    self,
                     grammar,
                     &inline_args,
                     &inline_tokens,

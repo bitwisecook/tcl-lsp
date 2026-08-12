@@ -104,6 +104,34 @@ impl TransitionSubject {
     }
 }
 
+/// Return the namespace qualifier Tcl derives from a command or variable name.
+///
+/// This is the same byte-oriented operation exposed by `namespace qualifiers`:
+/// it splits at the final `::` run without consulting the interpreter's
+/// namespace table.  Keeping it here makes registry transition resolvers use
+/// one Tcl-compatible spelling rule when a command implicitly creates a
+/// namespace for a qualified target.
+#[must_use]
+pub fn namespace_qualifiers(name: &str) -> &str {
+    let bytes = name.as_bytes();
+    let mut position = bytes.len();
+    while position > 0 {
+        position -= 1;
+        if bytes[position] == b':' && position > 0 && bytes[position - 1] == b':' {
+            let mut qualifier_end = position - 1;
+            while qualifier_end > 0 && bytes[qualifier_end - 1] == b':' {
+                qualifier_end -= 1;
+            }
+            return if qualifier_end == 0 {
+                ""
+            } else {
+                &name[..qualifier_end]
+            };
+        }
+    }
+    ""
+}
+
 /// A transition that changes a Tcl command binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandBindingTransition {
@@ -111,6 +139,8 @@ pub enum CommandBindingTransition {
     Define {
         /// The command name being bound.
         name: TransitionSubject,
+        /// The semantic kind of binding installed at that name.
+        kind: CommandBindingDefinitionKind,
     },
     /// Move a command binding in the current interpreter.
     Move {
@@ -144,6 +174,22 @@ pub enum CommandBindingTransition {
         /// Operands that prevented a precise define/move/delete/alias fact.
         operands: Vec<TransitionSubject>,
     },
+}
+
+/// The semantic identity installed by a command-binding definition.
+///
+/// Consumers use this to preserve useful binding information without
+/// rediscovering which command performed the definition.  It deliberately
+/// describes the resulting binding, rather than the defining command's
+/// spelling or syntax.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CommandBindingDefinitionKind {
+    /// An ordinary Tcl command whose more-specific identity is not modelled.
+    Command,
+    /// A Tcl procedure.
+    Procedure,
+    /// A `TclOO`, snit, or other registry-described object/class command.
+    Object,
 }
 
 /// A transition of a child interpreter's lifecycle or policy.
@@ -970,6 +1016,7 @@ mod tests {
         transitions.push(StateTransition::CommandBinding(
             CommandBindingTransition::Define {
                 name: TransitionSubject::Literal(name.to_owned()),
+                kind: CommandBindingDefinitionKind::Command,
             },
         ));
         transitions
@@ -1049,6 +1096,7 @@ mod tests {
             transitions.facts()[0].transition,
             StateTransition::CommandBinding(CommandBindingTransition::Define {
                 name: TransitionSubject::Literal("form".to_owned()),
+                kind: CommandBindingDefinitionKind::Command,
             })
         );
     }

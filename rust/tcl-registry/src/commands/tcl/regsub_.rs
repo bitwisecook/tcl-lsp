@@ -106,7 +106,8 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// `-command`, `subSpec` is an ordinary string (no prefix). `-command` is
 /// confirmed absent from the fetched 8.4, 8.5, and 8.6 switch lists and
 /// present, identically, in the fetched 9.0 and 9.1 manpages.
-fn regsub_command_prefixes(args: &[&str]) -> Vec<(u8, AppendedArity)> {
+fn regsub_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
+    let args = args.spellings();
     let mut i = 0;
     let mut has_command = false;
     while i < args.len() {
@@ -355,7 +356,9 @@ mod tests {
         // Exact `-command` at the front: `subSpec` (index 3: -command, exp,
         // string, subSpec) is a command prefix appending >= 1 arg.
         assert_eq!(
-            regsub_command_prefixes(&["-command", "exp", "string", "prefix"]),
+            regsub_command_prefixes(CommandPrefixArguments::literals(&[
+                "-command", "exp", "string", "prefix",
+            ])),
             vec![(3, AppendedArity::AtLeast(1))]
         );
         // Any abbreviation of `-command` is a distinct (invalid-in-real-Tcl)
@@ -364,7 +367,9 @@ mod tests {
         // mismodel a script real Tcl rejects with "bad option".
         for abbrev in ["-c", "-co", "-com", "-comm", "-comma", "-comman"] {
             assert_eq!(
-                regsub_command_prefixes(&[abbrev, "exp", "string", "prefix"]),
+                regsub_command_prefixes(CommandPrefixArguments::literals(&[
+                    abbrev, "exp", "string", "prefix",
+                ])),
                 Vec::new(),
                 "{abbrev} must not enable command-prefix mode"
             );

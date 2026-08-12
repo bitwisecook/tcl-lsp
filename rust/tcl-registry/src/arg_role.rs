@@ -414,11 +414,47 @@ impl ArgRole {
     }
 }
 
+/// A canonical finite set of exact callback argument counts.
+///
+/// Used when one registry-declared callback site can invoke the same prefix
+/// with several non-contiguous arities.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AppendedAritySet {
+    counts: &'static [u8],
+}
+
+impl AppendedAritySet {
+    /// Build a non-empty, strictly increasing set of exact appended counts.
+    ///
+    /// Keeping construction checked makes equality, hashing, iteration, and
+    /// diagnostics deterministic without asking generic consumers to
+    /// normalise registry data.
+    #[must_use]
+    pub const fn from_sorted_unique(counts: &'static [u8]) -> Self {
+        assert!(!counts.is_empty(), "an appended-arity set cannot be empty");
+        let mut index = 1;
+        while index < counts.len() {
+            assert!(
+                counts[index - 1] < counts[index],
+                "appended arities must be strictly increasing"
+            );
+            index += 1;
+        }
+        Self { counts }
+    }
+
+    /// The possible exact appended counts, in increasing order.
+    #[must_use]
+    pub const fn counts(self) -> &'static [u8] {
+        self.counts
+    }
+}
+
 /// How many arguments a command appends to a [`ArgRole::CommandPrefix`]
 /// callback when it invokes it.
 ///
-/// Sourced from C Tcl 9.0 behaviour (`lsort -command` appends 2, `trace add
-/// variable` appends 3, `socket -server` appends 3, …).  Paired with a
+/// Sourced from C Tcl behaviour (`lsort -command` appends 2, `trace add
+/// variable` appends 3, `socket -server` appends 3, …). Paired with a
 /// `CommandPrefix` declaration so the arity checker can validate that the
 /// referenced proc accepts `baked_args + appended` arguments, where
 /// `baked_args` are any words already present in the prefix itself
@@ -428,9 +464,13 @@ impl ArgRole {
 pub enum AppendedArity {
     /// Exactly `n` args are appended (`lsort -command` → `Exactly(2)`).
     Exactly(u8),
+    /// One count from a finite, non-contiguous set is appended. Every count in
+    /// the set must be accepted by a statically checked callback (`trace add
+    /// execution` with both `enter` and `leave` → `OneOf({2, 4})`).
+    OneOf(AppendedAritySet),
     /// At least `n` args are appended; the maximum is unbounded or
-    /// form-dependent (`trace add execution` → `AtLeast(2)`, `regsub
-    /// -command` → `AtLeast(1)`, variadic `interp alias` → `AtLeast(0)`).
+    /// form-dependent (`regsub -command` → `AtLeast(1)`, variadic `interp
+    /// alias` → `AtLeast(0)`).
     AtLeast(u8),
     /// The appended count can't be determined statically — no arity check.
     /// The default, so a bare `CommandPrefix` declaration is arity-inert.
@@ -444,6 +484,7 @@ impl AppendedArity {
     pub const fn min(self) -> u8 {
         match self {
             Self::Exactly(n) | Self::AtLeast(n) => n,
+            Self::OneOf(set) => set.counts()[0],
             Self::Unknown => 0,
         }
     }
@@ -454,6 +495,7 @@ impl AppendedArity {
     pub const fn max(self) -> Option<u8> {
         match self {
             Self::Exactly(n) => Some(n),
+            Self::OneOf(set) => Some(set.counts()[set.counts().len() - 1]),
             Self::AtLeast(_) | Self::Unknown => None,
         }
     }
@@ -464,11 +506,36 @@ impl AppendedArity {
     pub const fn is_checkable(self) -> bool {
         !matches!(self, Self::Unknown)
     }
+
+    /// Iterate the finite exact alternatives, if this descriptor has them.
+    ///
+    /// `AtLeast` is an open range and `Unknown` deliberately carries no
+    /// checkable alternatives, so both return `None`.
+    #[must_use]
+    pub fn exact_counts(self) -> Option<impl Iterator<Item = u8>> {
+        let (single, alternatives) = match self {
+            Self::Exactly(count) => (Some(count), &[][..]),
+            Self::OneOf(set) => (None, set.counts()),
+            Self::AtLeast(_) | Self::Unknown => return None,
+        };
+        Some(single.into_iter().chain(alternatives.iter().copied()))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::ArgRole;
+    use super::{AppendedArity, AppendedAritySet, ArgRole};
+
+    #[test]
+    fn finite_appended_arity_sets_preserve_non_contiguous_counts() {
+        let arity = AppendedArity::OneOf(AppendedAritySet::from_sorted_unique(&[2, 4]));
+        assert_eq!(arity.min(), 2);
+        assert_eq!(arity.max(), Some(4));
+        assert_eq!(
+            arity.exact_counts().unwrap().collect::<Vec<_>>(),
+            vec![2, 4]
+        );
+    }
 
     /// `braced_word_evaluated_in_frame` is the one answer to "does the callee
     /// substitute this brace-quoted word against the *caller's* variables?".

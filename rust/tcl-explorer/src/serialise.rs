@@ -29,7 +29,12 @@ use serde_json::{Map, Value, json};
 
 use tcl_compiler::cfg::{Function, Terminator};
 use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
-use tcl_compiler::dataflow_graph::{FunctionInputs, extract_dataflow_graph};
+use tcl_compiler::dataflow_graph::extract_function_dataflow;
+use tcl_compiler::effect_ssa::WorldStateIntentKind;
+use tcl_compiler::executable_ir::{
+    ExecutableInstruction, ExecutableTerminator, InvocationResolution,
+    OwnedInvocationResolutionUnresolved,
+};
 use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
@@ -42,13 +47,20 @@ use tcl_compiler::irules_checks::{
     find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
 };
 use tcl_compiler::loops::{build_loop_forest, dominates};
+use tcl_compiler::memory_ssa::{MemoryLocationKind, MemoryOpKind, MemorySsaFunction};
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
 use tcl_compiler::segmenter::{segment_commands, segment_commands_with_offset_and_config};
+use tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability;
 use tcl_compiler::shimmer::{
     find_byte_array_warnings_for_cu, find_sharing_warnings_for_cu, find_shimmer_warnings_for_cu,
     find_thunking_warnings_for_cu, type_name,
 };
+use tcl_compiler::state_ssa::adapters::{
+    WorldInterpreterScope, WorldNamespaceScope, WorldRegion, WorldRegionKind, WorldSubjectScope,
+};
+use tcl_compiler::state_ssa::{CfgStatePosition, StateOp, StateSite};
 use tcl_compiler::taint::find_taint_warnings_for_cu;
+use tcl_compiler::world_state_ssa::{WorldStateSsaDecline, project_transition_facts};
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 use tcl_registry::{available_dialects, registry_for_dialect};
 use tcl_syntax::expr::ast::render_expr;
@@ -70,7 +82,15 @@ pub fn serialise_meta() -> Value {
         .collect();
     let views: Vec<Value> = VIEW_META
         .iter()
-        .map(|&(id, label, group)| json!({ "id": id, "label": label, "group": group }))
+        .map(|view| {
+            json!({
+                "id": view.id,
+                "label": view.label,
+                "payload": view.payload,
+                "group": view.group,
+                "renderKind": view.render_kind.as_str(),
+            })
+        })
         .collect();
     let severities: Vec<Value> = Severity::ALL
         .iter()
@@ -207,10 +227,12 @@ fn serialise_children(stmt: &Statement, li: &LineIndex, source: &str) -> Option<
 /// module-wide counts (`functionCount` / `totalInstrCount`) and the type
 /// section come from `wasm_to_explorer_json` itself.
 fn serialise_wasm(result: &ExplorerResult) -> Value {
-    use tcl_compiler::codegen::wasm::wasm_codegen_compilation_unit;
+    use tcl_compiler::codegen::wasm::{
+        WasmCodegenPlan, WasmCompileOptions, WasmSemanticDecline, compile_wasm,
+    };
 
     let registry = registry_for_dialect(&result.dialect);
-    let mut wasm = wasm_codegen_compilation_unit(&result.unit, registry);
+    let mut wasm = compile_wasm(&result.unit, registry, WasmCompileOptions::hosted());
     let wat = wasm.to_wat();
 
     // Rich per-instruction entries (module header first, then functions).
@@ -222,6 +244,39 @@ fn serialise_wasm(result: &ExplorerResult) -> Value {
     // `name`/`instrCount` on each function entry, both already present).
     if let Some(Value::Object(header)) = entries.first_mut() {
         header.insert("text".to_owned(), Value::String(wat));
+        let plan = match &wasm.plan {
+            WasmCodegenPlan::GenericInvoke { .. } => json!({
+                "kind": wasm.plan.as_str(),
+                "operation": wasm.plan.operation_kind(),
+                "semanticDecline": Value::Null,
+            }),
+            WasmCodegenPlan::General { semantic_decline } => {
+                let evidence = match semantic_decline {
+                    WasmSemanticDecline::Packaging(constraint) => json!({
+                        "kind": semantic_decline.as_str(),
+                        "detailKind": constraint.as_str(),
+                    }),
+                    WasmSemanticDecline::ExecutableUnavailable(decline) => json!({
+                        "kind": semantic_decline.as_str(),
+                        "availability": decline.as_str(),
+                        "detailKind": decline.detail_kind(),
+                    }),
+                    WasmSemanticDecline::SemanticPlansDisabled
+                    | WasmSemanticDecline::BackendSelection(_)
+                    | WasmSemanticDecline::PlanLayout(_)
+                    | WasmSemanticDecline::SelectorRegistration => json!({
+                        "kind": semantic_decline.as_str(),
+                        "detailKind": semantic_decline.detail_kind(),
+                    }),
+                };
+                json!({
+                    "kind": wasm.plan.as_str(),
+                    "operation": Value::Null,
+                    "semanticDecline": evidence,
+                })
+            }
+        };
+        header.insert("codegenPlan".to_owned(), plan);
     }
     Value::Array(entries)
 }
@@ -319,7 +374,7 @@ fn serialise_cfg_edges(func: &Function, order: &[String]) -> Value {
 #[must_use]
 pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let funcs: Vec<Value> = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .map(|snap| {
             let cfg = &snap.unit.cfg;
@@ -351,6 +406,7 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
                 .collect();
             json!({
                 "name": snap.name,
+                "kind": snap.kind.as_str(),
                 "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
                 "blocks": blocks,
@@ -378,7 +434,7 @@ fn arity_str(arity: tcl_registry::Arity) -> String {
 #[must_use]
 pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .filter_map(|snap| {
             let ssa = &snap.unit.ssa;
@@ -396,7 +452,7 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
                     Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "may": may, "must": must }))
                 })
                 .collect();
-            (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
+            (!entries.is_empty()).then(|| json!({ "name": snap.name, "kind": snap.kind.as_str(), "entries": entries }))
         })
         .collect();
     Value::Array(funcs)
@@ -485,6 +541,366 @@ fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, S
     }
     let unit = crate::run_pipeline(&optimised, &result.dialect);
     Some((unit, optimised))
+}
+
+/// The stable name of a tracked mutable-world domain.
+fn world_domain_name(kind: WorldRegionKind) -> &'static str {
+    match kind {
+        WorldRegionKind::InterpreterTopology => "interpreter-topology",
+        WorldRegionKind::CommandBindings => "command-bindings",
+        WorldRegionKind::NamespaceLookup => "namespace-lookup",
+        WorldRegionKind::NamespaceUnknown => "namespace-unknown",
+        WorldRegionKind::ExecutionTraces => "execution-traces",
+        WorldRegionKind::VariableTraces => "variable-traces",
+        WorldRegionKind::CommandTraces => "command-traces",
+        WorldRegionKind::ObjectDispatch => "object-dispatch",
+        WorldRegionKind::InterpreterPolicy => "interpreter-policy",
+        WorldRegionKind::PackageState => "package-state",
+        WorldRegionKind::HostCapabilities => "host-capabilities",
+        WorldRegionKind::VariableStore => "variable-store",
+        WorldRegionKind::ExternalResource(_) => "external-resource",
+    }
+}
+
+fn serialise_interpreter_scope(scope: &WorldInterpreterScope) -> Value {
+    match scope {
+        WorldInterpreterScope::Current => json!({ "kind": "current" }),
+        WorldInterpreterScope::Named(name) => json!({ "kind": "named", "name": name }),
+        WorldInterpreterScope::Any => json!({ "kind": "any" }),
+    }
+}
+
+fn serialise_namespace_scope(scope: &WorldNamespaceScope) -> Value {
+    match scope {
+        WorldNamespaceScope::Current => json!({ "kind": "current" }),
+        WorldNamespaceScope::Named(name) => json!({ "kind": "named", "name": name }),
+        WorldNamespaceScope::Any => json!({ "kind": "any" }),
+    }
+}
+
+fn serialise_subject_scope(scope: &WorldSubjectScope) -> Value {
+    match scope {
+        WorldSubjectScope::Named(name) => json!({ "kind": "named", "name": name }),
+        WorldSubjectScope::Wildcard => json!({ "kind": "wildcard" }),
+    }
+}
+
+/// Serialise a typed world-state location without falling back to a display
+/// string.  Consumers can therefore distinguish a literal identity from a
+/// dynamic wildcard, which is essential when explaining a GVN abstention.
+fn serialise_world_region(region: &WorldRegion) -> Value {
+    match region {
+        WorldRegion::Scoped {
+            kind,
+            interpreter,
+            namespace,
+            subject,
+        } => {
+            let mut value = json!({
+                "kind": "scoped",
+                "domain": world_domain_name(*kind),
+                "interpreter": serialise_interpreter_scope(interpreter),
+                "namespace": serialise_namespace_scope(namespace),
+                "subject": serialise_subject_scope(subject),
+            });
+            if let WorldRegionKind::ExternalResource(target) = kind {
+                // The external resource partition is an established registry
+                // enum, not an untyped all-external bucket. Retain its exact
+                // identity even though it has no Tcl namespace component.
+                value["externalTarget"] = json!(target.as_str());
+            }
+            value
+        }
+        WorldRegion::InterpreterWildcard { interpreter } => json!({
+            "kind": "interpreter-wildcard",
+            "domain": "all",
+            "interpreter": serialise_interpreter_scope(interpreter),
+        }),
+        WorldRegion::NamespaceSubtree {
+            interpreter,
+            namespace,
+        } => json!({
+            "kind": "namespace-subtree",
+            "domain": "namespace-owned",
+            "interpreter": serialise_interpreter_scope(interpreter),
+            "namespace": serialise_namespace_scope(namespace),
+        }),
+        WorldRegion::NamespaceLineage {
+            interpreter,
+            namespace,
+        } => json!({
+            "kind": "namespace-lineage",
+            "domain": "namespace-lookup",
+            "interpreter": serialise_interpreter_scope(interpreter),
+            "namespace": serialise_namespace_scope(namespace),
+        }),
+        WorldRegion::Any => json!({ "kind": "any", "domain": "all" }),
+    }
+}
+
+fn serialise_cfg_position(position: CfgStatePosition) -> Value {
+    match position {
+        CfgStatePosition::Phi { ordinal } => json!({ "kind": "phi", "ordinal": ordinal }),
+        CfgStatePosition::Statement { index, ordinal } => {
+            json!({ "kind": "statement", "index": index, "ordinal": ordinal })
+        }
+        CfgStatePosition::Terminator { ordinal } => {
+            json!({ "kind": "terminator", "ordinal": ordinal })
+        }
+    }
+}
+
+fn serialise_state_site(site: &StateSite) -> Value {
+    match site {
+        StateSite::Node { node, ordinal } => {
+            json!({ "kind": "node", "path": node.path(), "ordinal": ordinal })
+        }
+        StateSite::Cfg(cfg) => json!({
+            "kind": "cfg",
+            "block": cfg.block.0,
+            "position": serialise_cfg_position(cfg.position),
+        }),
+        StateSite::Edge(edge) => json!({
+            "kind": "edge",
+            "predecessor": edge.predecessor.0,
+            "successor": edge.successor.0,
+            "origin": serialise_cfg_position(edge.origin),
+        }),
+    }
+}
+
+fn serialise_world_operation(operation: &StateOp<WorldRegion>) -> Value {
+    let mut value = json!({
+        "kind": match operation {
+            StateOp::Use(_) => "use",
+            StateOp::Def(_) => "def",
+            StateOp::Phi(_) => "phi",
+            StateOp::Clobber(_) => "clobber",
+        },
+        "location": serialise_world_region(operation.location()),
+        "site": serialise_state_site(operation.site()),
+        "version": operation.version().raw(),
+        "definesVersion": operation.defines_version(),
+    });
+    match operation {
+        StateOp::Use(use_op) => value["reachingVersion"] = json!(use_op.reaching_version.raw()),
+        StateOp::Phi(phi) => {
+            value["incoming"] = Value::Array(
+                phi.incoming
+                    .iter()
+                    .map(|(block, version)| json!({ "block": block.0, "version": version.raw() }))
+                    .collect(),
+            );
+            value["includesInitial"] = json!(phi.includes_initial());
+        }
+        StateOp::Def(_) | StateOp::Clobber(_) => {}
+    }
+    value
+}
+
+fn transition_kind_name(transition: &tcl_registry::StateTransition) -> &'static str {
+    match transition {
+        tcl_registry::StateTransition::CommandBinding(_) => "command-binding",
+        tcl_registry::StateTransition::Interpreter(_) => "interpreter",
+        tcl_registry::StateTransition::VariableCellAlias(_) => "variable-cell-alias",
+        tcl_registry::StateTransition::Namespace(_) => "namespace",
+        tcl_registry::StateTransition::Trace(_) => "trace",
+        tcl_registry::StateTransition::ObjectDispatch(_) => "object-dispatch",
+        tcl_registry::StateTransition::Widen(_) => "widen",
+    }
+}
+
+fn registry_world_domain_name(domain: tcl_registry::WorldStateDomain) -> String {
+    match domain {
+        tcl_registry::WorldStateDomain::InterpreterTopology => "interpreter-topology".to_owned(),
+        tcl_registry::WorldStateDomain::CommandBindings => "command-bindings".to_owned(),
+        tcl_registry::WorldStateDomain::NamespaceLookup => "namespace-lookup".to_owned(),
+        tcl_registry::WorldStateDomain::NamespaceUnknown => "namespace-unknown".to_owned(),
+        tcl_registry::WorldStateDomain::ExecutionTraces => "execution-traces".to_owned(),
+        tcl_registry::WorldStateDomain::VariableTraces => "variable-traces".to_owned(),
+        tcl_registry::WorldStateDomain::CommandTraces => "command-traces".to_owned(),
+        tcl_registry::WorldStateDomain::OoDispatch => "object-dispatch".to_owned(),
+        tcl_registry::WorldStateDomain::InterpreterPolicy => "interpreter-policy".to_owned(),
+        tcl_registry::WorldStateDomain::PackageState => "package-state".to_owned(),
+        tcl_registry::WorldStateDomain::HostCapabilities => "host-capabilities".to_owned(),
+        tcl_registry::WorldStateDomain::VariableStore => "variable-store".to_owned(),
+        tcl_registry::WorldStateDomain::LegacyExternal(target) => {
+            format!("external-resource:{}", target.as_str())
+        }
+    }
+}
+
+fn serialise_result_stability(stability: tcl_registry::ResultStability) -> Value {
+    match stability {
+        tcl_registry::ResultStability::Unknown => json!({ "kind": "unknown", "domains": [] }),
+        tcl_registry::ResultStability::ReferentiallyTransparent => {
+            json!({ "kind": "referentially-transparent", "domains": [] })
+        }
+        tcl_registry::ResultStability::ReadsVersionedWorld(domains) => json!({
+            "kind": "reads-versioned-world",
+            "domains": domains.iter().copied().map(registry_world_domain_name).collect::<Vec<_>>(),
+        }),
+        tcl_registry::ResultStability::Volatile => json!({ "kind": "volatile", "domains": [] }),
+    }
+}
+
+fn dispatch_dependency_name(domain: tcl_registry::DispatchDependencyDomain) -> &'static str {
+    match domain {
+        tcl_registry::DispatchDependencyDomain::CommandBinding => "command-binding",
+        tcl_registry::DispatchDependencyDomain::NamespaceLookup => "namespace-lookup",
+        tcl_registry::DispatchDependencyDomain::CommandTraces => "command-traces",
+        tcl_registry::DispatchDependencyDomain::InterpreterPolicy => "interpreter-policy",
+        tcl_registry::DispatchDependencyDomain::ObjectDispatch => "object-dispatch",
+        tcl_registry::DispatchDependencyDomain::UnknownHandling => "unknown-handling",
+    }
+}
+
+fn serialise_world_invocations(availability: &ExecutableAnalysisAvailability) -> Value {
+    Value::Array(
+        availability
+            .invocations()
+            .map(|invoke| match &invoke.resolution {
+                InvocationResolution::Resolved(facts) => {
+                    let (transition_knowledge, transitions) = facts.state_transitions.declared().map_or_else(
+                        || ("unknown", Vec::new()),
+                        |declared| (
+                            "declared",
+                            declared
+                                .facts()
+                                .iter()
+                                .map(|fact| {
+                                    let intents = project_transition_facts(std::slice::from_ref(fact));
+                                    let (commit, abrupt_transfer) = match fact.commit {
+                                        tcl_registry::StateTransitionCommit::OnOkOnly => ("on-ok-only", "unchanged"),
+                                        tcl_registry::StateTransitionCommit::MayCommitBeforeAbruptCompletion => {
+                                            ("may-commit-before-abrupt-completion", "join-with-transition")
+                                        }
+                                    };
+                                    json!({
+                                        "kind": transition_kind_name(&fact.transition),
+                                        "commit": commit,
+                                        "abruptTransfer": abrupt_transfer,
+                                        "intents": intents.into_iter().map(|intent| json!({
+                                            "kind": match intent.kind {
+                                                WorldStateIntentKind::Use => "use",
+                                                WorldStateIntentKind::Def => "def",
+                                                WorldStateIntentKind::Clobber => "clobber",
+                                            },
+                                            "location": serialise_world_region(&intent.location),
+                                            "commit": match intent.commit {
+                                                tcl_registry::StateTransitionCommit::OnOkOnly => "on-ok-only",
+                                                tcl_registry::StateTransitionCommit::MayCommitBeforeAbruptCompletion => "may-commit-before-abrupt-completion",
+                                            },
+                                        })).collect::<Vec<_>>(),
+                                    })
+                                })
+                                .collect(),
+                        ),
+                    );
+                    json!({
+                        "resolution": "resolved",
+                        "command": facts.canonical_command,
+                        "node": invoke.node.path(),
+                        "completion": invoke.completion.index(),
+                        "transitionKnowledge": transition_knowledge,
+                        "transitions": transitions,
+                        "proof": {
+                            "resultStability": serialise_result_stability(facts.result_stability),
+                            "dispatchDependencies": facts.dispatch_dependencies.iter()
+                                .map(dispatch_dependency_name).collect::<Vec<_>>(),
+                            "argumentRolesComplete": facts.arg_roles_complete,
+                        },
+                    })
+                }
+                InvocationResolution::Unresolved(reason) => {
+                    let abstention = match reason {
+                        tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::ComputedHead { .. } => "computed-head",
+                        tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. } => "unknown-literal-head",
+                    };
+                    json!({
+                        "resolution": "unresolved",
+                        "node": invoke.node.path(),
+                        "completion": invoke.completion.index(),
+                        "proof": { "abstention": abstention },
+                    })
+                }
+            })
+            .collect(),
+    )
+}
+
+fn availability_kind(availability: &ExecutableAnalysisAvailability) -> &'static str {
+    match availability {
+        ExecutableAnalysisAvailability::DialectUnavailable { .. } => "dialect-unavailable",
+        ExecutableAnalysisAvailability::Available(_) => "available",
+        ExecutableAnalysisAvailability::WorldStateDeclined { .. } => "world-state-declined",
+        ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => "world-state-not-required",
+        ExecutableAnalysisAvailability::SourceDeclined(_) => "source-declined",
+        ExecutableAnalysisAvailability::SourceUnavailable => "source-unavailable",
+    }
+}
+
+fn availability_reason_kind(availability: &ExecutableAnalysisAvailability) -> Option<&'static str> {
+    match availability {
+        ExecutableAnalysisAvailability::DialectUnavailable { .. }
+        | ExecutableAnalysisAvailability::Available(_)
+        | ExecutableAnalysisAvailability::WorldStateNotRequired { .. }
+        | ExecutableAnalysisAvailability::SourceUnavailable => None,
+        ExecutableAnalysisAvailability::WorldStateDeclined { decline, .. } => Some(match decline {
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::InvalidExecutableIr(_) => "invalid-executable-ir",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::BlockIdOverflow { .. } => "block-id-overflow",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::StateSiteOverflow { .. } => "state-site-overflow",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingCompletionSwitch { .. } => "missing-completion-switch",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::CompletionSwitchMismatch { .. } => "completion-switch-mismatch",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingOkCompletionEdge { .. } => "missing-ok-completion-edge",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingCfgEdge { .. } => "missing-cfg-edge",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingStatePredecessor { .. } => "missing-state-predecessor",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::MissingStateVersion => "missing-state-version",
+            tcl_compiler::world_state_ssa::WorldStateSsaDecline::InvalidStateSsa(_) => "invalid-state-ssa",
+        }),
+        ExecutableAnalysisAvailability::SourceDeclined(decline) => Some(match decline {
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::EmptyScript => "empty-script",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::UnsupportedStatement { .. } => "unsupported-statement",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::MissingCommandTokens { .. } => "missing-command-tokens",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::InconsistentCommandTokens { .. } => "inconsistent-command-tokens",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::MissingCommandHead { .. } => "missing-command-head",
+            tcl_compiler::executable_ir::SourceCompatibilityDecline::IncompleteRegistryResolution { .. } => "incomplete-registry-resolution",
+        }),
+    }
+}
+
+/// Serialise the compiler's existing typed world-state SSA sidecar.
+///
+/// The availability discriminant is always emitted, including every decline,
+/// so front ends explain why proof data is absent rather than treating absent
+/// operations as proof that no mutable world state exists.
+fn serialise_world_ssa(result: &ExplorerResult) -> Value {
+    Value::Array(
+        result
+            .all_snapshots()
+            .into_iter()
+            .map(|snapshot| {
+                let availability = snapshot.unit.semantic_facts.executable();
+                let state = availability.world_state_ssa();
+                json!({
+                    "name": snapshot.name,
+                    "kind": snapshot.kind.as_str(),
+                    "availability": {
+                        "kind": availability_kind(availability),
+                        "hasExecutableIr": availability.function().is_some(),
+                        "reasonKind": availability_reason_kind(availability),
+                    },
+                    "locations": state.map_or_else(Vec::new, |state| {
+                        state.locations.iter().map(serialise_world_region).collect()
+                    }),
+                    "operations": state.map_or_else(Vec::new, |state| {
+                        state.state.operations().iter().map(serialise_world_operation).collect()
+                    }),
+                    "invocations": serialise_world_invocations(availability),
+                })
+            })
+            .collect(),
+    )
 }
 
 /// Serialise the `gvn` view: redundant-computation hints (GVN/CSE + PRE +
@@ -623,7 +1039,7 @@ pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, sourc
 #[must_use]
 pub fn serialise_intervals(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .map(|snap| {
             let ssa = &snap.unit.ssa;
@@ -640,19 +1056,19 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
                     Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "lo": iv.lo, "hi": iv.hi }))
                 })
                 .collect();
-            json!({ "name": snap.name, "entries": entries })
+            json!({ "name": snap.name, "kind": snap.kind.as_str(), "entries": entries })
         })
         .collect();
     Value::Array(funcs)
 }
 
-/// Serialise the `taintTracking` view: every tainted SSA value's taint
-/// lattice per function. — only
-/// tainted entries, functions with none omitted.
+/// Serialise the `taintTracking` view: the complete taint lattice for every
+/// tracked SSA value, per function. Warning rendering remains separate in
+/// `taintWarnings`; this payload is the durable analysis state.
 #[must_use]
 pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .filter_map(|snap| {
             let ssa = &snap.unit.ssa;
@@ -660,11 +1076,9 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
             keys.sort_by(|a, b| ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1)));
             let entries: Vec<Value> = keys
                 .iter()
-                .filter_map(|key| {
+                .map(|key| {
                     let tl = &snap.unit.taints[*key];
-                    tl.colours
-                        .contains(tcl_compiler::taint::TaintColour::TAINTED)
-                        .then(|| json!({ "variable": ssa.var_name(key.0), "version": key.1, "taint": format_taint(tl) }))
+                    json!({ "variable": ssa.var_name(key.0), "version": key.1, "taint": format_taint(tl) })
                 })
                 .collect();
             (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
@@ -720,7 +1134,7 @@ fn ssa_value_detail(
 pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
     let funcs: Vec<Value> = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .map(|snap| {
             let cfg = &snap.unit.cfg;
@@ -810,6 +1224,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
 
             json!({
                 "name": snap.name,
+                "kind": snap.kind.as_str(),
                 "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
                 "blocks": blocks,
@@ -819,6 +1234,426 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
         })
         .collect();
     Value::Array(funcs)
+}
+
+/// Serialise the durable SSA dominator artefacts: immediate dominators,
+/// dominance frontiers, and the materialised dominator tree.  Unlike the
+/// post-SSA CFG summary, this retains the complete graph used by phi
+/// placement and loop analysis, including method and synthetic body units.
+#[must_use]
+pub fn serialise_dominators(result: &ExplorerResult) -> Value {
+    Value::Array(
+        result
+            .all_snapshots()
+            .iter()
+            .map(|snap| {
+                let ssa = &snap.unit.ssa;
+                let mut blocks: Vec<_> = ssa.idom.keys().copied().collect();
+                blocks.sort_unstable();
+                let rows: Vec<Value> = blocks
+                    .iter()
+                    .map(|&block| {
+                        let idom = ssa.idom.get(&block).and_then(|parent| {
+                            parent.map(|parent| ssa.block_name(parent).to_owned())
+                        });
+                        let mut frontier: Vec<String> = ssa
+                            .dominance_frontier
+                            .get(&block)
+                            .into_iter()
+                            .flat_map(|ids| ids.iter().map(|id| ssa.block_name(*id).to_owned()))
+                            .collect();
+                        frontier.sort_unstable();
+                        let mut children: Vec<String> = ssa
+                            .dominator_tree
+                            .get(&block)
+                            .into_iter()
+                            .flat_map(|ids| ids.iter().map(|id| ssa.block_name(*id).to_owned()))
+                            .collect();
+                        children.sort_unstable();
+                        json!({
+                            "block": ssa.block_name(block),
+                            "idom": idom,
+                            "frontier": frontier,
+                            "children": children,
+                        })
+                    })
+                    .collect();
+                json!({ "name": snap.name, "kind": snap.kind.as_str(), "entry": ssa.block_name(ssa.entry), "blocks": rows })
+            })
+            .collect(),
+    )
+}
+
+/// Serialise the complete SCCP lattice and executable CFG facts. The SSA CFG
+/// tab intentionally keeps a compact annotation; this view is the durable
+/// proof surface for constants, reachability, and executable edges.
+#[must_use]
+pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    Value::Array(
+        result
+            .all_snapshots()
+            .iter()
+            .map(|snap| {
+                let ssa = &snap.unit.ssa;
+                let mut values: Vec<_> = snap.unit.sccp.values.iter().collect();
+                values.sort_by(|(a, _), (b, _)| {
+                    ssa.var_name(a.0).cmp(ssa.var_name(b.0)).then(a.1.cmp(&b.1))
+                });
+                let values: Vec<Value> = values
+                    .into_iter()
+                    .map(|(&(symbol, version), lattice)| {
+                        json!({
+                            "variable": ssa.var_name(symbol),
+                            "version": version,
+                            "lattice": format_lattice(lattice),
+                        })
+                    })
+                    .collect();
+                let mut executable_blocks: Vec<String> = snap
+                    .unit
+                    .sccp
+                    .executable_blocks
+                    .iter()
+                    .map(|id| ssa.block_name(*id).to_owned())
+                    .collect();
+                executable_blocks.sort_unstable();
+                let mut executable_edges: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .executable_edges
+                    .iter()
+                    .map(|(from, to)| json!({ "from": ssa.block_name(*from), "to": ssa.block_name(*to) }))
+                    .collect();
+                executable_edges.sort_by_key(std::string::ToString::to_string);
+                let branches: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .constant_branches
+                    .iter()
+                    .map(|branch| json!({
+                        "block": branch.block,
+                        "condition": preview(&branch.condition, 80),
+                        "value": branch.value,
+                        "takenTarget": branch.taken_target,
+                        "notTakenTarget": branch.not_taken_target,
+                        "range": branch.span.map(|span| range_dict(span, li, source)),
+                    }))
+                    .collect();
+                json!({
+                    "name": snap.name,
+                    "kind": snap.kind.as_str(),
+                    "values": values,
+                    "executableBlocks": executable_blocks,
+                    "executableEdges": executable_edges,
+                    "constantBranches": branches,
+                })
+            })
+            .collect(),
+    )
+}
+
+/// Serialise def-use/liveness evidence without re-deriving it in the
+/// front-end. Every chain is retained, including dead definitions and their
+/// exact use-site kinds; the O109 collector is included as the optimiser's
+/// authoritative dead-store result.
+#[must_use]
+pub fn serialise_liveness(result: &ExplorerResult) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    Value::Array(
+        result
+            .all_snapshots()
+            .iter()
+            .map(|snap| {
+                let mut chains: Vec<_> = snap.unit.def_use.chains.values().collect();
+                chains.sort_by(|a, b| a.key.cmp(&b.key));
+                let chains: Vec<Value> = chains
+                    .iter()
+                    .map(|chain| {
+                        json!({
+                            "variable": chain.key.0,
+                            "version": chain.key.1,
+                            "definition": {
+                                "block": chain.definition.block,
+                                "kind": def_kind_label(chain.definition.kind),
+                                "statementIndex": chain.definition.statement_index,
+                            },
+                            "uses": chain.uses.iter().map(|use_site| json!({
+                                "block": use_site.block,
+                                "kind": use_kind_label(use_site.kind),
+                                "statementIndex": use_site.statement_index,
+                                "class": use_class_label(use_site.class),
+                            })).collect::<Vec<_>>(),
+                        })
+                    })
+                    .collect();
+                let dead_stores: Vec<Value> =
+                    tcl_compiler::dead_stores::liveness_dead_stores(snap.unit, registry)
+                        .iter()
+                        .map(|dead| {
+                            json!({
+                                "block": dead.block,
+                                "statementIndex": dead.statement_index,
+                                "variable": dead.variable,
+                                "version": dead.version,
+                            })
+                        })
+                        .collect();
+                json!({ "name": snap.name, "kind": snap.kind.as_str(), "chains": chains, "deadStores": dead_stores })
+            })
+            .collect(),
+    )
+}
+
+fn def_kind_label(kind: tcl_compiler::def_use::DefKind) -> &'static str {
+    match kind {
+        tcl_compiler::def_use::DefKind::Statement => "statement",
+        tcl_compiler::def_use::DefKind::Phi => "phi",
+        tcl_compiler::def_use::DefKind::Parameter => "parameter",
+    }
+}
+
+fn use_kind_label(kind: tcl_compiler::def_use::UseKind) -> &'static str {
+    match kind {
+        tcl_compiler::def_use::UseKind::Operand => "operand",
+        tcl_compiler::def_use::UseKind::PhiIncoming => "phi-incoming",
+        tcl_compiler::def_use::UseKind::Terminator => "terminator",
+    }
+}
+
+fn use_class_label(class: tcl_compiler::ssa::UseClass) -> &'static str {
+    match class {
+        tcl_compiler::ssa::UseClass::Substituted => "substituted",
+        tcl_compiler::ssa::UseClass::Quoted => "quoted",
+    }
+}
+
+fn executable_instruction_kind(instruction: &ExecutableInstruction) -> &'static str {
+    match instruction {
+        ExecutableInstruction::EvaluateWord { .. } => "evaluate-word",
+        ExecutableInstruction::ExpandWord { .. } => "expand-word",
+        ExecutableInstruction::BuildArgv { .. } => "build-argv",
+        ExecutableInstruction::Invoke(_) => "invoke",
+        ExecutableInstruction::ExecuteLowered(_) => "execute-lowered",
+        ExecutableInstruction::ExecuteOpaqueRegion(_) => "execute-opaque-region",
+    }
+}
+
+fn executable_terminator_kind(terminator: Option<&ExecutableTerminator>) -> &'static str {
+    match terminator {
+        Some(ExecutableTerminator::Goto(_)) => "goto",
+        Some(ExecutableTerminator::Branch { .. }) => "branch",
+        Some(ExecutableTerminator::CompletionSwitch { .. }) => "completion-switch",
+        Some(ExecutableTerminator::ReturnCompletion(_)) => "return-completion",
+        None => "missing",
+    }
+}
+
+fn semantic_status(availability: &ExecutableAnalysisAvailability) -> &'static str {
+    match availability {
+        ExecutableAnalysisAvailability::Available(_) => "available",
+        ExecutableAnalysisAvailability::WorldStateDeclined { .. } => "world-state-declined",
+        ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => "world-state-not-required",
+        ExecutableAnalysisAvailability::DialectUnavailable { .. } => "dialect-unavailable",
+        ExecutableAnalysisAvailability::SourceDeclined(_) => "source-declined",
+        ExecutableAnalysisAvailability::SourceUnavailable => "source-unavailable",
+    }
+}
+
+fn lowering_hook_label(hook: tcl_registry::hooks::LoweringHookId) -> &'static str {
+    use tcl_registry::hooks::LoweringHookId as H;
+    match hook {
+        H::Expr => "expr",
+        H::Return => "return",
+        H::Set => "set",
+        H::Incr => "incr",
+        H::AppendOrLappend => "append-or-lappend",
+        H::Unset => "unset",
+        H::Global => "global",
+        H::Variable => "variable",
+        H::Upvar => "upvar",
+        H::Proc => "proc",
+        H::When => "when",
+        H::NamespaceEval => "namespace-eval",
+        H::If => "if",
+        H::Switch => "switch",
+        H::For => "for",
+        H::While => "while",
+        H::Foreach => "foreach",
+        H::Lmap => "lmap",
+        H::ForeachLine => "foreach-line",
+        H::Catch => "catch",
+        H::Try => "try",
+        H::Dict => "dict",
+        H::Eval => "eval",
+        H::Uplevel => "uplevel",
+        H::Apply => "apply",
+        H::ArrayFor => "array-for",
+    }
+}
+
+fn invocation_resolution_label(
+    resolution: &tcl_compiler::executable_ir::InvocationResolution,
+) -> &'static str {
+    match resolution {
+        tcl_compiler::executable_ir::InvocationResolution::Resolved(_) => "resolved",
+        tcl_compiler::executable_ir::InvocationResolution::Unresolved(
+            OwnedInvocationResolutionUnresolved::ComputedHead { .. },
+        ) => "unresolved-computed-head",
+        tcl_compiler::executable_ir::InvocationResolution::Unresolved(
+            OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. },
+        ) => "unresolved-unknown-literal-head",
+    }
+}
+
+fn world_state_decline_label(decline: &WorldStateSsaDecline) -> &'static str {
+    match decline {
+        WorldStateSsaDecline::InvalidExecutableIr(_) => "invalid-executable-ir",
+        WorldStateSsaDecline::BlockIdOverflow { .. } => "block-id-overflow",
+        WorldStateSsaDecline::StateSiteOverflow { .. } => "state-site-overflow",
+        WorldStateSsaDecline::MissingCompletionSwitch { .. } => "missing-completion-switch",
+        WorldStateSsaDecline::CompletionSwitchMismatch { .. } => "completion-switch-mismatch",
+        WorldStateSsaDecline::MissingOkCompletionEdge { .. } => "missing-ok-completion-edge",
+        WorldStateSsaDecline::MissingCfgEdge { .. } => "missing-cfg-edge",
+        WorldStateSsaDecline::MissingStatePredecessor { .. } => "missing-state-predecessor",
+        WorldStateSsaDecline::MissingStateVersion => "missing-state-version",
+        WorldStateSsaDecline::InvalidStateSsa(_) => "invalid-state-ssa",
+    }
+}
+
+fn source_decline_value(
+    decline: &tcl_compiler::executable_ir::SourceCompatibilityDecline,
+) -> Value {
+    use tcl_compiler::executable_ir::SourceCompatibilityDecline;
+    match decline {
+        SourceCompatibilityDecline::EmptyScript => json!({"kind": "empty-script"}),
+        SourceCompatibilityDecline::UnsupportedStatement {
+            statement_index,
+            kind,
+        } => {
+            json!({"kind": "unsupported-statement", "statementIndex": statement_index, "statementKind": kind})
+        }
+        SourceCompatibilityDecline::MissingCommandTokens { statement_index } => {
+            json!({"kind": "missing-command-tokens", "statementIndex": statement_index})
+        }
+        SourceCompatibilityDecline::InconsistentCommandTokens { statement_index } => {
+            json!({"kind": "inconsistent-command-tokens", "statementIndex": statement_index})
+        }
+        SourceCompatibilityDecline::MissingCommandHead { statement_index } => {
+            json!({"kind": "missing-command-head", "statementIndex": statement_index})
+        }
+        SourceCompatibilityDecline::IncompleteRegistryResolution { statement_index } => {
+            json!({"kind": "incomplete-registry-resolution", "statementIndex": statement_index})
+        }
+    }
+}
+
+fn semantic_decline_value(availability: &ExecutableAnalysisAvailability) -> Option<Value> {
+    match availability {
+        ExecutableAnalysisAvailability::DialectUnavailable { dialect } => {
+            Some(json!({"kind": "dialect-unavailable", "dialect": dialect.canonical_name()}))
+        }
+        ExecutableAnalysisAvailability::WorldStateDeclined { decline, .. } => Some(
+            json!({"kind": "world-state-declined", "reason": world_state_decline_label(decline)}),
+        ),
+        ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => {
+            Some(json!({"kind": "world-state-not-required"}))
+        }
+        ExecutableAnalysisAvailability::SourceDeclined(decline) => {
+            Some(source_decline_value(decline))
+        }
+        ExecutableAnalysisAvailability::SourceUnavailable => {
+            Some(json!({"kind": "source-unavailable"}))
+        }
+        ExecutableAnalysisAvailability::Available(_) => None,
+    }
+}
+
+/// Serialise target-neutral executable semantics and every typed decline.
+/// World-state SSA is deliberately not copied here: its ownership is an
+/// explicit separate Explorer tranche, while executable IR and proof status
+/// are common compiler artefacts.
+#[must_use]
+pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    Value::Array(
+        result
+            .all_snapshots()
+            .iter()
+            .map(|snap| {
+                let availability = snap.unit.semantic_facts.executable();
+                let function = availability.function();
+                let blocks: Vec<Value> = function
+                    .into_iter()
+                    .flat_map(|function| function.blocks.iter())
+                    .map(|block| {
+                        json!({
+                            "index": block.id.index(),
+                            "instructions": block.instructions.iter().map(|instruction| json!({
+                                "kind": executable_instruction_kind(instruction),
+                            })).collect::<Vec<_>>(),
+                            "terminator": executable_terminator_kind(block.terminator.as_ref()),
+                        })
+                    })
+                    .collect();
+                let invocations: Vec<Value> = snap
+                    .unit
+                    .semantic_facts
+                    .executable()
+                    .invocations()
+                    .map(|invoke| {
+                        json!({
+                            "node": invoke.node.path(),
+                            "resolution": invocation_resolution_label(&invoke.resolution),
+                            "range": range_dict(invoke.source.span, li, source),
+                        })
+                    })
+                    .collect();
+                let lowered = snap
+                    .unit
+                    .semantic_facts
+                    .executable()
+                    .lowered_operations()
+                    .map(|operation| {
+                        json!({
+                            "operation": lowering_hook_label(operation.descriptor),
+                            "range": range_dict(operation.source.span, li, source),
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                let opaque = snap
+                    .unit
+                    .semantic_facts
+                    .executable()
+                    .opaque_regions()
+                    .map(|region| {
+                        json!({
+                            "descriptor": region.descriptor.map(lowering_hook_label),
+                            "range": range_dict(region.source.span, li, source),
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                json!({
+                    "name": snap.name,
+                    "kind": snap.kind.as_str(),
+                    "status": semantic_status(availability),
+                    "decline": semantic_decline_value(availability),
+                    "complexityGuarded": snap.unit.complexity_guarded,
+                    "dynamicNames": {
+                        "writes": snap.unit.dynamic_names.writes,
+                        "destroys": snap.unit.dynamic_names.destroys,
+                        "reads": snap.unit.dynamic_names.reads,
+                    },
+                    "methodFacts": snap.unit.method_facts.as_ref().map(|facts| json!({
+                        "params": facts.params,
+                        "instanceVars": facts.instance_vars.iter().cloned().collect::<Vec<_>>(),
+                    })),
+                    "blocks": blocks,
+                    "invocations": invocations,
+                    "lowered": lowered,
+                    "opaque": opaque,
+                })
+            })
+            .collect(),
+    )
 }
 
 /// The function-level `analysis` block of the post-SSA CFG view.
@@ -897,29 +1732,37 @@ fn post_ssa_analysis(
 /// Serialise the `dataflow` view: the def-use data-flow graph, built over
 /// `extract_dataflow_graph`.
 ///
-/// `extract_dataflow_graph` sorts functions, and alias info comes from
-/// memory-SSA (not built here, so `aliases` are limited); the node/edge
-/// detail follows the Rust analyses.
+/// Each graph stays paired with its stable function-owner kind, and alias
+/// information comes from the retained Memory SSA when available.
 #[must_use]
 pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
-    let snaps = result.snapshots();
-    let inputs: Vec<FunctionInputs<'_>> = snaps
+    let snaps = result.all_snapshots();
+    let mut total_defs = 0u32;
+    let mut total_uses = 0u32;
+    let mut total_aliases = 0u32;
+    let functions: Vec<Value> = snaps
         .iter()
-        .map(|s| FunctionInputs {
-            name: s.name,
-            ssa: &s.unit.ssa,
-            du: &s.unit.def_use,
-            sccp: Some(&s.unit.sccp),
-            mem: s.unit.memory_ssa.as_ref(),
-            types: Some(&s.unit.types),
-        })
-        .collect();
-    let graph = extract_dataflow_graph(&inputs);
-
-    let functions: Vec<Value> = graph
-        .functions
-        .iter()
-        .map(|f| {
+        .map(|snap| {
+            // Extract each graph beside its owner identity. Building a module
+            // graph would sort only by display name and could pair a Tcl proc
+            // with a same-named TclOO method's Memory SSA.
+            let f = extract_function_dataflow(
+                snap.name,
+                &snap.unit.ssa,
+                &snap.unit.def_use,
+                Some(&snap.unit.sccp),
+                snap.unit.memory_ssa.as_ref(),
+                Some(&snap.unit.types),
+            );
+            total_defs = total_defs.saturating_add(f.total_defs);
+            total_uses = total_uses.saturating_add(f.total_uses);
+            total_aliases =
+                total_aliases.saturating_add(u32::try_from(f.aliases.len()).unwrap_or(u32::MAX));
+            let memory = snap
+                .unit
+                .memory_ssa
+                .as_ref()
+                .map_or(Value::Null, serialise_memory_ssa);
             let nodes: Vec<Value> = f
                 .nodes
                 .iter()
@@ -967,9 +1810,11 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .collect();
             json!({
                 "name": f.function_name,
+                "kind": snap.kind.as_str(),
                 "nodes": nodes,
                 "edges": edges,
                 "aliases": aliases,
+                "memorySsa": memory,
                 "summary": {
                     "totalDefs": f.total_defs,
                     "totalUses": f.total_uses,
@@ -983,11 +1828,81 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     json!({
         "functions": functions,
         "summary": {
-            "totalDefs": graph.total_defs(),
-            "totalUses": graph.total_uses(),
-            "totalAliases": graph.total_aliases(),
-            "functionCount": graph.functions.len(),
+            "totalDefs": total_defs,
+            "totalUses": total_uses,
+            "totalAliases": total_aliases,
+            "functionCount": snaps.len(),
         },
+    })
+}
+
+fn memory_location_kind_label(kind: MemoryLocationKind) -> &'static str {
+    match kind {
+        MemoryLocationKind::Local => "local",
+        MemoryLocationKind::Upvar => "upvar",
+        MemoryLocationKind::Global => "global",
+        MemoryLocationKind::NamespaceVar => "namespace-var",
+        MemoryLocationKind::ArrayElement => "array-element",
+        MemoryLocationKind::InstanceVar => "instance-var",
+        MemoryLocationKind::Unknown => "unknown",
+    }
+}
+
+fn memory_op_kind_label(kind: MemoryOpKind) -> &'static str {
+    match kind {
+        MemoryOpKind::Def => "def",
+        MemoryOpKind::Use => "use",
+        MemoryOpKind::Phi => "phi",
+        MemoryOpKind::Clobber => "clobber",
+    }
+}
+
+fn serialise_memory_ssa(memory: &MemorySsaFunction) -> Value {
+    let alias_sets: Vec<Value> = memory
+        .alias_sets
+        .iter()
+        .map(|set| {
+            let locations: Vec<Value> = set
+                .locations
+                .iter()
+                .map(|location| {
+                    json!({
+                        "kind": memory_location_kind_label(location.kind),
+                        "name": location.name,
+                        "qualifier": location.qualifier,
+                    })
+                })
+                .collect();
+            json!({ "reason": set.reason, "locations": locations })
+        })
+        .collect();
+    let ops: Vec<Value> = memory
+        .memory_ops
+        .iter()
+        .map(|op| {
+            json!({
+                "kind": memory_op_kind_label(op.kind),
+                "location": {
+                    "kind": memory_location_kind_label(op.location.kind),
+                    "name": op.location.name,
+                    "qualifier": op.location.qualifier,
+                },
+                "version": op.version,
+                "reachingVersion": op.reaching_version,
+                "block": op.block,
+                "statementIndex": op.statement_index,
+            })
+        })
+        .collect();
+    json!({
+        "aliasSets": alias_sets,
+        "operations": ops,
+        "counts": {
+            "defs": memory.count_defs,
+            "uses": memory.count_uses,
+            "clobbers": memory.count_clobbers,
+        },
+        "wildcardAliasing": memory.has_wildcard_aliasing,
     })
 }
 
@@ -1019,6 +1934,41 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
     Value::Array(out)
 }
 
+/// Serialise the retained cross-event connection scope, including each event
+/// summary and the conservative cross-event/racy sets used by diagnostics.
+#[must_use]
+pub fn serialise_connection_scope(result: &ExplorerResult) -> Value {
+    let Some(scope) = result.unit.connection_scope.as_ref() else {
+        return json!({ "available": false, "summaries": [] });
+    };
+    let mut events: Vec<_> = scope.summaries.values().collect();
+    events.sort_by(|a, b| a.event.cmp(&b.event));
+    let summaries: Vec<Value> = events
+        .iter()
+        .map(|summary| {
+            let mut defs: Vec<_> = summary.defs.iter().cloned().collect();
+            defs.sort_unstable();
+            let mut uses: Vec<_> = summary.uses_before_def.iter().cloned().collect();
+            uses.sort_unstable();
+            let mut unsets: Vec<_> = summary.unsets.iter().cloned().collect();
+            unsets.sort_unstable();
+            json!({ "event": summary.event, "defs": defs, "usesBeforeDef": uses, "unsets": unsets })
+        })
+        .collect();
+    let sorted = |set: &std::collections::HashSet<String>| {
+        let mut values: Vec<_> = set.iter().cloned().collect();
+        values.sort_unstable();
+        values
+    };
+    json!({
+        "available": true,
+        "summaries": summaries,
+        "crossEventDefs": sorted(&scope.cross_event_defs),
+        "crossEventImports": sorted(&scope.cross_event_imports),
+        "racyStaticDefs": sorted(&scope.racy_static_defs),
+    })
+}
+
 /// Serialise the `loops` view: the natural-loop forest per function, with
 /// nesting depth, built over
 /// `build_loop_forest`. Depth = 1 + the number of *other* loop headers
@@ -1026,7 +1976,7 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
 #[must_use]
 pub fn serialise_loops(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .map(|snap| {
             let executable = &snap.unit.sccp.executable_blocks;
@@ -1056,7 +2006,7 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
                     })
                 })
                 .collect();
-            json!({ "name": snap.name, "loops": loops })
+            json!({ "name": snap.name, "kind": snap.kind.as_str(), "loops": loops })
         })
         .collect();
     Value::Array(funcs)
@@ -1071,7 +2021,7 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
 #[must_use]
 pub fn serialise_bounds(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .map(|snap| {
             let findings: Vec<Value> = find_interval_bounds(
@@ -1102,7 +2052,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             .iter()
             .map(|d| json!({ "code": "W233", "op": d.op }))
             .collect();
-            json!({ "name": snap.name, "findings": findings, "divzero": divzero })
+            json!({ "name": snap.name, "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero })
         })
         .collect();
     Value::Array(funcs)
@@ -1243,7 +2193,7 @@ pub fn serialise_interproc(
 #[must_use]
 pub fn serialise_types(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .filter_map(|snap| {
             let mut entries: Vec<Value> = Vec::new();
@@ -1266,7 +2216,9 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
                     "kind": type_kind_name(tl.kind()),
                 }));
             }
-            (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
+            (!entries.is_empty()).then(
+                || json!({ "name": snap.name, "kind": snap.kind.as_str(), "entries": entries }),
+            )
         })
         .collect();
     Value::Array(funcs)
@@ -1498,6 +2450,20 @@ pub fn serialise_source_map(source: &str, li: &LineIndex) -> Value {
     })
 }
 
+fn serialise_source_map_units(result: &ExplorerResult) -> Value {
+    result
+        .all_snapshots()
+        .iter()
+        .map(|snap| {
+            json!({
+                "name": snap.name,
+                "kind": snap.kind.as_str(),
+                "baseOffset": snap.unit.base_offset,
+            })
+        })
+        .collect()
+}
+
 /// Serialise the `stats` summary.
 ///
 /// `deadStores` counts the optimiser's **O109** dead stores (there is no
@@ -1509,7 +2475,7 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
     let dialect = Some(result.dialect.as_str());
 
     let unreachable: usize = result
-        .snapshots()
+        .all_snapshots()
         .iter()
         .map(|s| {
             s.unit
@@ -1538,7 +2504,7 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
 
     json!({
         "procedures": result.unit.ir_module.procedures.len(),
-        "functions": result.snapshots().len(),
+        "functions": result.all_snapshots().len(),
         "blocks": result.total_blocks(),
         "deadStores": dead_stores,
         "unreachableBlocks": unreachable,
@@ -1636,7 +2602,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
     // Dead stores (O109 optimiser findings — Rust has no standalone liveness
     // pass), constant branches, and unreachable blocks, per function.
     let dead_stores = find_dead_stores(&result.unit, registry, dialect);
-    for snap in result.snapshots() {
+    for snap in result.all_snapshots() {
         for dead in dead_stores.iter().filter(|d| d.function == snap.name) {
             let Some(block) = snap.unit.cfg.block_by_name(&dead.block) else {
                 continue;
@@ -1839,6 +2805,16 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "cfgPostSsa".to_owned(),
         serialise_cfg_post_ssa(result, &li, &result.source),
     );
+    out.insert("dominators".to_owned(), serialise_dominators(result));
+    out.insert(
+        "sccp".to_owned(),
+        serialise_sccp(result, &li, &result.source),
+    );
+    out.insert("liveness".to_owned(), serialise_liveness(result));
+    out.insert(
+        "semantic".to_owned(),
+        serialise_semantic(result, &li, &result.source),
+    );
     if let Some(interproc) = &result.unit.interproc {
         out.insert(
             "interprocedural".to_owned(),
@@ -1846,6 +2822,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         );
     }
     out.insert("unitScope".to_owned(), serialise_unit_scope(result));
+    out.insert("worldSsa".to_owned(), serialise_world_ssa(result));
     out.insert("types".to_owned(), serialise_types(result));
     // Honour the document's dialect so the CST and segment views tokenise
     // `{*}` / iRules braces the same way the rest of the pipeline does.
@@ -1864,10 +2841,11 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         serialise_structural_index(&result.source, &li),
     );
     // Rust-native: the LineIndex span model.
-    out.insert(
-        "sourceMap".to_owned(),
-        serialise_source_map(&result.source, &li),
-    );
+    let mut source_map = serialise_source_map(&result.source, &li);
+    if let Value::Object(ref mut map) = source_map {
+        map.insert("units".to_owned(), serialise_source_map_units(result));
+    }
+    out.insert("sourceMap".to_owned(), source_map);
     out.insert("loops".to_owned(), serialise_loops(result));
     out.insert("intervals".to_owned(), serialise_intervals(result));
     out.insert("bounds".to_owned(), serialise_bounds(result));
@@ -1893,11 +2871,19 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         serialise_taint(result, &li, &result.source),
     );
     out.insert("gvn".to_owned(), serialise_gvn(result, &li, &result.source));
-    out.insert("taintTracking".to_owned(), serialise_taint_tracking(result));
+    let taint_facts = serialise_taint_tracking(result);
+    out.insert("taintFacts".to_owned(), taint_facts.clone());
+    // Historical key retained for consumers that have not adopted the
+    // coverage-gated descriptor yet.
+    out.insert("taintTracking".to_owned(), taint_facts);
     out.insert("dataflow".to_owned(), serialise_dataflow(result));
     out.insert(
         "irulesFlow".to_owned(),
         serialise_irules_flow(result, &li, &result.source),
+    );
+    out.insert(
+        "connectionScope".to_owned(),
+        serialise_connection_scope(result),
     );
     out.insert(
         "eventOrder".to_owned(),
@@ -1967,16 +2953,14 @@ mod tests {
         let meta = serialise_meta();
         // 16 dialects: the prior 15 + `tcl9.1` (the Tcl 9.1 sync).
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 16);
-        // 27 views: the base 24 minus the dropped `greentree` tab (Rust has a
-        // single red-green CST) plus the Rust-native `structuralIndex`,
-        // `sourceMap`, and `optimiserPasses` views, plus `unitScope`
-        // (issue #977's cross-file caller evidence).
-        assert_eq!(meta["views"].as_array().unwrap().len(), 27);
+        // The original 27 views, plus World SSA and six durable compiler
+        // artefact views.
+        assert_eq!(meta["views"].as_array().unwrap().len(), 34);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         // The parse-tree tab is the CST; there is no `greentree` entry.
         assert_eq!(
             meta["views"][0],
-            json!({ "id": "cst", "label": "CST", "group": "compiler" })
+            json!({ "id": "cst", "label": "CST", "payload": "cst", "group": "compiler", "renderKind": "frontend" })
         );
         assert!(
             !meta["views"]
@@ -1985,6 +2969,39 @@ mod tests {
                 .iter()
                 .any(|v| v["id"] == "greentree"),
             "greentree tab must be dropped"
+        );
+    }
+
+    #[test]
+    fn wasm_view_exposes_canonical_semantic_plan_and_serialised_output() {
+        let result = run_pipeline("string length hello", "tcl8.6");
+        let wasm = serialise_result(&result)["wasm"].clone();
+        let header = &wasm.as_array().expect("WASM entries")[0];
+
+        assert_eq!(header["codegenPlan"]["kind"], "generic-invoke");
+        assert!(header["codegenPlan"]["semanticDecline"].is_null());
+        assert!(
+            header["text"]
+                .as_str()
+                .expect("serialised WAT")
+                .contains("tcl_invoke_argv")
+        );
+    }
+
+    #[test]
+    fn wasm_view_exposes_typed_semantic_decline() {
+        let result = run_pipeline("string length $value", "tcl8.6");
+        let wasm = serialise_result(&result)["wasm"].clone();
+        let plan = &wasm.as_array().expect("WASM entries")[0]["codegenPlan"];
+
+        assert_eq!(plan["kind"], "general");
+        assert_eq!(
+            plan["semanticDecline"]["kind"],
+            "backend-selection-declined"
+        );
+        assert_eq!(
+            plan["semanticDecline"]["detailKind"],
+            "no-viable-semantic-plan"
         );
     }
 
@@ -2022,6 +3039,63 @@ mod tests {
     }
 
     #[test]
+    fn world_ssa_view_keeps_versions_transitions_and_typed_availability() {
+        let data = serialise_result(&run_pipeline("puts hello\n", "tcl9.0"));
+        let top = data["worldSsa"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["name"] == "::top")
+            .expect("top-level world sidecar");
+        assert!(
+            top["availability"]["hasExecutableIr"].as_bool().unwrap(),
+            "the availability payload must distinguish an absent graph from absent executable IR"
+        );
+        assert!(top["availability"]["kind"].is_string());
+        assert!(
+            !top["operations"].as_array().unwrap().is_empty(),
+            "Explorer explicitly requests deep World SSA rather than the interactive no-graph path: {top}",
+        );
+        assert!(
+            top["operations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|operation| {
+                    operation["location"]["domain"].is_string()
+                        && operation["version"].is_number()
+                        && operation["site"]["kind"].is_string()
+                }),
+            "world operations keep structured location, version, and CFG/site evidence",
+        );
+    }
+
+    #[test]
+    fn world_ssa_decline_preserves_transition_policy_evidence() {
+        let data = serialise_result(&run_pipeline(
+            "interp create child\ninterp hide child puts\n",
+            "tcl9.0",
+        ));
+        let top = data["worldSsa"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["name"] == "::top")
+            .unwrap();
+        assert_eq!(top["availability"]["kind"], "world-state-declined");
+        let transition = top["invocations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|invoke| invoke["transitions"].as_array().unwrap())
+            .next()
+            .expect("registry transition projection");
+        assert!(transition["kind"].is_string());
+        assert!(transition["commit"].is_string());
+        assert!(transition["abruptTransfer"].is_string());
+    }
+
+    #[test]
     fn serialise_result_includes_meta_and_ir() {
         let result = run_pipeline("set x 1", "tcl8.6");
         let value = serialise_result(&result);
@@ -2029,6 +3103,52 @@ mod tests {
         let ir = &value["ir"];
         assert!(ir["topLevel"].is_array());
         assert!(ir["procedures"].is_object());
+    }
+
+    #[test]
+    fn durable_compiler_views_are_present_and_cover_extra_units() {
+        let source = "oo::class create C { method m {} { set x 1 } }\n\
+            set f [list apply {{} { set y 2 }}]\n";
+        let result = run_pipeline(source, "tcl8.6");
+        crate::coverage::assert_durable_field_inventory(&result.unit);
+        let value = serialise_result(&result);
+        for key in ["dominators", "sccp", "liveness", "semantic"] {
+            assert!(
+                value.get(key).is_some(),
+                "missing durable view payload {key}"
+            );
+        }
+        let semantic = value["semantic"].as_array().expect("semantic array");
+        assert!(semantic.iter().any(|f| f["name"] == "::top"));
+        assert!(semantic.iter().any(|f| f["name"] == "::C::m"));
+        let meta = value["meta"]["views"].as_array().expect("view metadata");
+        for id in ["dominators", "sccp", "liveness", "semantic"] {
+            assert!(
+                meta.iter().any(|v| v["id"] == id),
+                "missing tab metadata {id}"
+            );
+        }
+        let source_map = &value["sourceMap"];
+        assert!(
+            source_map["units"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|unit| { unit["name"] == "::C::m" && unit["baseOffset"].is_number() })
+        );
+
+        let dataflow = serialise_result(&run_pipeline(
+            "proc f {name} { upvar 1 $name local }",
+            "tcl8.6",
+        ));
+        let f = dataflow["dataflow"]["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["name"] == "::f")
+            .expect("procedure data-flow function");
+        assert_eq!(f["kind"], "procedure");
+        assert!(f["memorySsa"]["operations"].is_array());
     }
 
     #[test]

@@ -305,30 +305,139 @@ impl ClassHierarchy {
             .collect()
     }
 
-    /// Every method name callable on `class_name` — instance and class
-    /// methods declared anywhere on its linearised MRO — sorted and
-    /// deduplicated.  Feeds the W308 "did you mean…?" suggestion list;
-    /// empty for an unknown class.
+    /// The linearised MRO of `class_name` (self first), or a single-element
+    /// `[class_name]` when the hierarchy has no entry for it — an external or
+    /// otherwise unindexed class is still itself.
     #[must_use]
-    pub fn known_methods(&self, class_name: &str) -> Vec<String> {
+    pub fn mro_or_self(&self, class_name: &str) -> Vec<String> {
+        self.mro_map
+            .get(class_name)
+            .cloned()
+            .unwrap_or_else(|| vec![class_name.to_string()])
+    }
+
+    /// Whether any known **strict descendant** of `class_name` resolves
+    /// `method` — the template-method abstention for `my` dispatch
+    /// (issue #1367).
+    ///
+    /// An abstract base whose method bodies call `my M`, with `M` written
+    /// only by concrete subclasses, runs fine: `my` late-binds on the
+    /// actual receiver, which is always a subclass instance (the base is
+    /// never instantiated), and bypasses export filtering, so even an
+    /// unexported (capitalised) subclass method is reachable.  A known
+    /// subclass that defines `M` is direct evidence the call is that
+    /// pattern and not a typo — with **no** defining subclass anywhere in
+    /// the index, W308 still fires, which is what keeps this from
+    /// swallowing the check on self-dispatch entirely.
+    ///
+    /// Descendants are found through [`Self::mro_map`] (any class whose
+    /// MRO contains `class_name`), and `method` resolves through
+    /// [`Self::method_target`] on the descendant, so a template method the
+    /// subclass itself inherits from a mixin still counts.
+    #[must_use]
+    pub fn subclass_provides_method(&self, class_name: &str, method: &str) -> bool {
+        self.mro_map.iter().any(|(cls, mro)| {
+            cls != class_name
+                && mro.iter().any(|ancestor| ancestor == class_name)
+                && self.method_target(cls, method).is_some()
+        })
+    }
+
+    /// Every instance method some class on `class_name`'s MRO **generates**
+    /// from its declared `property` members — `oo::configurable`'s
+    /// `configure` (Tcl 9.0+).
+    ///
+    /// Registry data throughout: the names come from the manufacturing
+    /// metaclass's
+    /// [`property_accessor_methods`](tcl_registry::definer::DefinitionBodyGrammar::property_accessor_methods),
+    /// so no consumer spells `configure` and none can invent a generated
+    /// method the class system does not have — the `cget` this used to
+    /// hardcode is not one of them (issue #1362; `configurable.n` documents
+    /// no `cget` in either 9.0 or 9.1, and dispatching one really does fail).
+    ///
+    /// The whole MRO is asked, not just the receiver's own class, because the
+    /// generated method is a real method on the configurable ancestor and a
+    /// subclass inherits it.  A class that declares `property` members but
+    /// whose metaclass resolves to no grammar — a user metaclass derived from
+    /// `oo::configurable` — falls back to the dialect-wide
+    /// [`CommandRegistry::property_accessor_methods`](tcl_registry::CommandRegistry::property_accessor_methods),
+    /// so such a class is not told its accessor is missing.
+    ///
+    /// Empty when nothing on the MRO is configurable, and for a registry the
+    /// caller does not have.
+    #[must_use]
+    pub fn property_accessor_methods(
+        &self,
+        registry: Option<&tcl_registry::CommandRegistry>,
+        class_name: &str,
+    ) -> Vec<&'static str> {
+        let Some(registry) = registry else {
+            return Vec::new();
+        };
+        let mut out: Vec<&'static str> = Vec::new();
+        let mut declares_properties = false;
+        for ancestor in self.mro_or_self(class_name) {
+            let Some(cd) = self.classes.get(&ancestor) else {
+                continue;
+            };
+            declares_properties |= !cd.properties.is_empty();
+            if let Some(grammar) = registry.get(&cd.metaclass).and_then(|s| s.definition_body) {
+                out.extend(grammar.property_accessor_methods.iter().copied());
+            }
+        }
+        if out.is_empty() && declares_properties {
+            out = registry.property_accessor_methods();
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// Whether `method` is one the class system generates for `class_name`'s
+    /// properties — see [`Self::property_accessor_methods`].
+    #[must_use]
+    pub fn is_property_accessor(
+        &self,
+        registry: Option<&tcl_registry::CommandRegistry>,
+        class_name: &str,
+        method: &str,
+    ) -> bool {
+        self.property_accessor_methods(registry, class_name)
+            .contains(&method)
+    }
+
+    /// Every method name callable on `class_name` — instance and class
+    /// methods declared anywhere on its linearised MRO, plus whatever its
+    /// class system generates from declared properties — sorted and
+    /// deduplicated.  Feeds the W308 "did you mean…?" suggestion list; empty
+    /// for an unknown class.
+    ///
+    /// The generated-method fold and the W308 *existence* check
+    /// (`Analyser::validate_method_on_class`) both go through
+    /// [`Self::property_accessor_methods`] precisely so they cannot disagree:
+    /// when only this side folded them in, `$obj configure` on a configurable
+    /// class drew "Unknown method 'configure' … did you mean 'configure'?"
+    /// (issue #1362).
+    #[must_use]
+    pub fn known_methods(
+        &self,
+        registry: Option<&tcl_registry::CommandRegistry>,
+        class_name: &str,
+    ) -> Vec<String> {
         let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         if let Some(mro) = self.mro_map.get(class_name) {
             for ancestor in mro {
                 if let Some(cd) = self.classes.get(ancestor) {
                     out.extend(cd.methods.keys().cloned());
                     out.extend(cd.class_methods.keys().cloned());
-                    // A configurable class — the `oo::configurable` metaclass,
-                    // or any class carrying `property` declarations — answers
-                    // `configure`/`cget` for its properties, so those method
-                    // words are known even though no `method` body defines
-                    // them (the accessors are generated by the property).
-                    if cd.metaclass == "oo::configurable" || !cd.properties.is_empty() {
-                        out.insert("configure".to_owned());
-                        out.insert("cget".to_owned());
-                    }
                 }
             }
         }
+        out.extend(
+            self.property_accessor_methods(registry, class_name)
+                .into_iter()
+                .map(str::to_owned),
+        );
         out.into_iter().collect()
     }
 }

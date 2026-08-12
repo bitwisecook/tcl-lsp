@@ -1,102 +1,57 @@
-# KCS: feature — Var-escape analysis
+# KCS: Var-escape analysis
 
 > **Audience:** Contributor
 > **Type:** Functionality
 
-## Summary
-
-Compile-time analysis that decides whether each Tcl local variable stays
-in a WASM local slot (fast) or spills to the runtime frame (visible by
-name to `uplevel`, `upvar`, `eval`, and dynamic `set $name`).
-
 ## Applies to
 
-tcl-lsp CLI, codegen, dataflow, analyser
+tcl-lsp CLI, compiler Explorer, analyser, codegen
 
-## Question
+## What does var-escape analysis prove?
 
-What does the var-escape analysis do, and when does it fire?
+Var-escape analysis decides whether a procedure variable can remain local to
+compiled code or must be visible by name in a Tcl runtime frame. A variable is
+tagged `Local` only when the compiler can prove that features such as `upvar`,
+`uplevel`, dynamic `eval`, and dynamic variable names cannot observe it. Any
+uncertainty raises the result to `Frame`.
 
-## How to use
+The Rust implementation lives in `rust/tcl-compiler/src/var_escape/`. It
+produces a `ProcEscapeSummary` containing per-name and per-[static single
+assignment](../../GLOSSARY.md#ssa) tags, typed barriers, source ranges,
+interprocedural `upvar` sources, and conservative predicates such as
+`safe_to_inline`, `safe_to_dce`, and `safe_for_frame_elision`.
 
-By default, the WASM code generator (`compiler/codegen/wasm/`)
-attempts to run this analysis during module compilation. When it
-succeeds, `analyse_var_escape` walks the IR for each procedure, tags
-each variable as `LOCAL` or `FRAME`, and publishes a
-[`ProcEscapeSummary`](../../design/compiler/var-escape-analysis.md) that
-the emitter consults at `_intern_local`, `_emit_var_read_obj`,
-`_emit_var_write_obj`, and `_emit_frame_sync` sites.
+The production inliner consumes the registry-aware IR analysis. A separate
+`CompilationUnit` entry runs the flow-sensitive control-flow-graph and static
+single-assignment analysis for consumers that need versioned facts. Neither is
+an alternative WebAssembly compiler: `compile_wasm` remains the sole public
+code-generation entry, and any future frame plan must consume these common
+facts through that pipeline.
 
-There is no user-facing flag to toggle the analysis. Internally,
-`wasm_codegen_module` runs it on a best-effort basis: if
-`analyse_var_escape` raises (for example, because the source can't be
-compiled to a `CompilationUnit`), codegen falls back to the
-pre-analysis sync-everything behaviour and continues. Callers that
-have already computed the summaries can also pass them in directly
-via `wasm_codegen_module(..., escape_summaries=...)` to skip the
-analysis run.
-
-Contributors extending it should read the design doc for the lattice,
-the transfer-function table, and the `info` subcommand allow-list.
-
-## Options
-
-- None at the user level.
-- Internally, `analyse_var_escape(source, interprocedural=False)`
-  returns the raw per-proc summary for tests and debugging.
+There is no user-facing switch. Dynamic, malformed, or unmodelled constructs
+degrade to `Frame`; they never make an optimisation eligible by default.
 
 ## Example
-
-### Before — procs paid for sync even when they couldn't escape
 
 ```tcl
 proc add {a b} {
     set sum [expr {$a + $b}]
     return $sum
 }
-```
 
-Before this analysis, if any fallback path ran anywhere in the module,
-the compiled `add` emitted `tcl_local_set` for `a`, `b`, and `sum`
-before every interpreter call. None of those can actually be observed
-by name, so the work was wasted.
-
-### After — pristine procs need no frame sync
-
-```
-# analyse_var_escape(::add) → ProcEscapeSummary(
-#     tags={}, dynamic_barrier=False, frame_needed=False, …)
-```
-
-`frame_needed=False` tells the emitter the proc has nothing to sync.
-The WASM codegen keeps `a`, `b`, and `sum` in WASM local slots
-exclusively.
-
-### Example with escape — only the aliased var spills
-
-```tcl
-proc swap {a b} {
-    upvar 1 $a la
-    upvar 1 $b lb
-    set tmp $la
-    set la $lb
-    set lb $tmp
+proc copy_from_caller {name} {
+    upvar 1 $name value
+    return $value
 }
 ```
 
-- `la` and `lb` are `FRAME` — they're `upvar` targets. Reads and
-  writes route through `tcl_local_get` / `tcl_local_set` so the
-  interpreter's alias resolution sees the current value.
-- `tmp` is `LOCAL` — it never leaves the WASM local slot.
-
-Interprocedurally, a caller whose local name matches a callee's
-upvar source set is also escalated to `FRAME`. See the interprocedural
-upvar tests in `rust/tcl-compiler/src/var_escape/` for the concrete
-test cases.
+`add` can be a pure leaf, so its variables remain `Local`. In
+`copy_from_caller`, `value` is a frame-visible alias and the caller-side name
+is propagated interprocedurally. If the source name or frame level is dynamic,
+the analysis records a typed barrier and abstains from the narrower proof.
 
 ## Related
 
-- [KCS feature index](README.md)
-- [Var-escape analysis (design doc)](../../design/compiler/var-escape-analysis.md)
+- [Var-escape analysis design](../../design/compiler/var-escape-analysis.md)
+- [WASM code generation](../../design/compiler/wasm-codegen.md)
 - [Glossary: escape tag](../../GLOSSARY.md#escape-tag)
-- `rust/tcl-compiler/src/var_escape/` — the native var-escape analysis and its unit tests

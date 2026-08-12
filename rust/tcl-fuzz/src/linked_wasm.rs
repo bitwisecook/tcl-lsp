@@ -36,7 +36,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use tcl_compiler::codegen::wasm::{RESERVED_DATA_BASE, wasm_codegen_compilation_unit_based};
+use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
@@ -219,10 +219,10 @@ pub fn check(
 
     let registry = CommandRegistry::build_default();
     let program = case.program();
-    let unit = CompilationUnit::build_for(&program, &registry, false);
+    let unit = CompilationUnit::build_for_dialect(&program, &registry, false, "tcl9.0");
     let user_path = scratch.join(format!("linked-user-{seed}.wasm"));
     let bootstrap_path = scratch.join(format!("linked-bootstrap-{seed}.wat"));
-    let user = wasm_codegen_compilation_unit_based(&unit, &registry, RESERVED_DATA_BASE).to_bytes();
+    let user = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked()).to_bytes();
     if let Err(error) = std::fs::write(&user_path, user) {
         return LinkedVerdict::Unrunnable(format!("user WASM: {error}"));
     }

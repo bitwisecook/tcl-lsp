@@ -182,10 +182,10 @@ impl OptCategory {
 /// Tagging a newly-added diagnostic is therefore a one-token edit to its row,
 /// never a new `match` arm in a consumer.  The same holds for the
 /// *deprecated-command* diagnostics: which commands are deprecated is
-/// registry data (`CommandSpec`'s deprecation fields drive `W144`, and the
-/// iRules registry drives `IRULE1003`/`IRULE2001`/`IRULE2002`), so marking a
-/// newly-deprecated command is a spec edit and the strikethrough follows for
-/// free.
+/// registry data (a lifecycle declaration and its optional typed fix hook
+/// drive `W144`, and the iRules registry drives
+/// `IRULE1003`/`IRULE2001`/`IRULE2002`), so marking a newly-deprecated
+/// command is a spec edit and the strikethrough follows for free.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum DiagTag {
     /// LSP `DiagnosticTag.Unnecessary` (`1`). Unused or unreachable code —
@@ -391,6 +391,7 @@ diagnostic_codes! {
     E003 => "E003", diag(Error, true, "Too many arguments for command.");
     E004 => "E004", diag_internal(Error, true, "Malformed `if` command — missing clauses or extra words after `else`.");
     E005 => "E005", diag(Error, true, "Wrong argument-count shape for command — an in-range count that doesn't fit the command's key/value-pair or paired-argument pattern (e.g. an odd `dict create` tail, an unpaired `foreach` list, or a `switch` count matching neither its shorthand nor its pattern/body-pair form).");
+    E006 => "E006", diag(Error, true, "Invalid literal formal-parameter list — Tcl cannot create the procedure or method.");
     E100 => "E100", diag_internal(Error, true, "Unmatched `]` — missing opening `[`?");
     E101 => "E101", diag_internal(Error, true, "Missing `{` after `switch` — case bodies follow without braces.");
     E102 => "E102", diag_internal(Error, true, "Unmatched `}` — missing opening `{`?");
@@ -552,8 +553,10 @@ diagnostic_codes! {
     W141 => "W141", diag(Warning, true, "Option value fails a declared shape/content check (e.g. `-errorstack` must be an even-sized list) — the option-value sibling of W127 for a value that is structurally malformed rather than outside a closed set.");
     W142 => "W142", diag(Warning, true, "Command invalid in its current lexical/dispatch context (e.g. `return` with arguments directly inside an iRules event body).");
     W143 => "W143", diag(Warning, true, "Direct call into a private `::tcl::` implementation namespace (e.g. `::tcl::dict::create`) — use the public ensemble command instead (`dict create`).");
-    W144 => "W144", diag(Warning, true, "Command/subcommand/option/argument value is deprecated at the resolved package version — still available, but the registry records a deprecating release.", tag: Deprecated);
+    W144 => "W144", diag(Warning, true, "Command/subcommand/option/argument value is deprecated at the resolved package or Tcl-core version — still available, but the registry records a deprecating release.", tag: Deprecated);
     W145 => "W145", diag(Warning, true, "Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl.");
+    W146 => "W146", diag(Warning, true, "Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type).");
+    W147 => "W147", diag(Warning, true, "Mutually exclusive command options were supplied together.");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");

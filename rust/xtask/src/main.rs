@@ -61,6 +61,7 @@ mod gen_tmlanguage_keywords;
 mod gen_vscode_package;
 mod gen_zed_queries;
 mod kcs_index_links;
+mod registry_oracle;
 mod resolution_drift;
 mod tcltest_sweep;
 mod tzdata_bundle;
@@ -198,6 +199,22 @@ enum Command {
         check: bool,
     },
 
+    /// Compare the iRules registry with a local BIG-IP schema/man-page
+    /// extract; exact source omissions fail, newer registry entries are
+    /// reported separately.
+    #[command(name = "registry-oracle")]
+    RegistryOracle {
+        /// BIG-IP extract root containing `irule-schema-split/` and `man-*`.
+        #[arg(long)]
+        irules_root: PathBuf,
+        /// Write or verify a deterministic Markdown report.
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Verify an existing report instead of writing it.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Run the C tcltest suite through the VM + reference tclsh and regenerate the
     /// VM-vs-C parity scoreboard (`docs/design/runtime/rust-vm-tier-parity.md`).
     TcltestSweep {
@@ -259,6 +276,11 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenAiDiagnostics { check } => gen_ai::run(check),
         Command::WorkflowSync { check } => workflow_sync::run(check),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
+        Command::RegistryOracle {
+            irules_root,
+            output,
+            check,
+        } => registry_oracle::run(&irules_root, output.as_deref(), check),
         Command::TcltestSweep {
             backend,
             stem,

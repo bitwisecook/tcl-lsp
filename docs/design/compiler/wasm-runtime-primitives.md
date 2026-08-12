@@ -1,469 +1,54 @@
-# WASM runtime — compiler-to-interpreter bridge primitives
-
-The Rust runtime (`runtime/rust/`, which builds `tcl_runtime.wasm`) is the
-execution partner of the WASM code we emit from `compiler/codegen/wasm/`.
-Compiled code calls the runtime's exported helpers for the primitives it cannot
-statically compile (list parsing, string operations, the full Tcl
-interpreter for untypable constructs).  This doc lists the boundary
-primitives added to support Tcl 9 compatibility, grouped by the
-contract each one encodes.
-
-Source: `runtime/rust/src/`,
-`compiler/codegen/wasm/`
-
-## Expression evaluation
-
-### `tcl_expr_order_cmp(a, b) → TclObj(i64)`
-
-`value_ops.rs`.  Returns `-1`, `0`, or `1`.  Tries a numeric
-comparison of `a` and `b` first via `try_parse_int`; falls back to a
-bytewise string comparison when either operand is non-numeric.
-
-Emitted by `_emit_expr_order_cmp` for `BinOp.LT`, `GT`, `LE`, `GE` so
-that Tcl 9 expressions like `{"a" < "b"}` evaluate to `1` rather than
-raising `expected floating-point number but got "a"` (Tcl 8.x
-behaviour).  The compiler does not currently thread a target-dialect
-flag through to the emitter — the runtime targets Tcl 9.0 only.
-
-## Call-frame interop
-
-Compiled procs keep their locals in WASM locals for speed.  When a
-compiled body calls `tcl_eval` for a fallback, the Rust interpreter
-needs to read/write the same variables via its frame hash table.  The
-bridge is a sync-then-eval-then-readback sequence:
-
-### `tcl_local_set(name_obj, value) → TclObj`
-
-`frame.rs`.  Writes `value` to the current frame's bucket for
-`name_obj`, following `ALIAS_GLOBAL` / `ALIAS_EXT` redirection.
-Emitted by `_emit_frame_sync` to mirror WASM locals into the frame.
-
-### `tcl_local_get(name) → TclObj`
-
-Read the frame bucket or return `0` (unset).  Emitted by
-`_emit_frame_readback` to pull post-eval values back into WASM locals.
-
-Together they form the eval-fallback bridge:
-
-```
-_emit_frame_sync()        # local_set(name, x) for each WASM local
-tcl_ns_set(ns, len)       # stamp current namespace
-result = tcl_eval(script) # interpreter runs with our frame visible
-tcl_ns_restore(saved)     # unwind namespace context
-_emit_frame_readback()    # local_get(name) → WASM local
-```
-
-## Namespace context
-
-### `ns_set(name_ptr, name_len) → i64 saved`
-
-`interp.rs`.  Pushes `(name_ptr, name_len)` into the interpreter's
-`current_ns_ptr` / `current_ns_len` globals and packs the previous
-values into a single i64 save token.  Emitted just before a
-compiled-in-namespace proc calls `tcl_eval`.
-
-### `ns_restore(saved)`
-
-Unwinds a saved namespace.  Must be called after every `ns_set`.  The
-pair is balanced by the Python emitter (see
-`_emit_eval_fallback`) — the interpreter never produces an unbalanced
-stack mid-eval.
-
-## Catch-result separation
-
-### `catch_set_ok_result(val)`
-
-`cmd_control.rs`.  Records the success-path value of the catch body's
-last statement.  Called by compiled catch bodies in "keep result" mode
-after the last statement.  `catch_result` then returns this value on
-success (code 0) or `error_msg` on error (code 1).  The old
-one-slot-for-both design returned the error message on success, which
-broke `catch body resultVar` when the body succeeded.
-
-## Frame aliasing (`upvar` / `variable`)
-
-The frame bucket encoding is:
-
-| Value                 | Meaning                                        |
-| --------------------- | ---------------------------------------------- |
-| `>= 0`                | TclObj pointer (0 = unset)                     |
-| `-1`                  | `ALIAS_GLOBAL` — same-name global alias        |
-| `<= -65536`           | `ALIAS_EXT` — heap descriptor at `-value`      |
-
-### ALIAS_EXT descriptor layout
-
-12 bytes at the recovered heap address:
-
-| Offset | Field         | Notes                                       |
-| ------ | ------------- | ------------------------------------------- |
-| `0`    | `kind`        | `0 = KIND_GLOBAL_NAMED`, `1 = KIND_FRAME_VAR` |
-| `4`    | `param`       | For `KIND_FRAME_VAR`: absolute target depth |
-| `8`    | `target_name` | TclObj\* for the target variable name       |
-
-### `frame_alias_named(local_name, target_name)`
-
-Registers `local_name` as a global alias to `target_name` (for
-`upvar #0 other local` and `variable`).
-
-### `frame_alias_frame_var(local_name, abs_depth, target_name)`
-
-Registers `local_name` as an alias to `target_name` in the frame at
-1-indexed absolute depth `abs_depth` (for `upvar N other local`).
-
-Both register a descriptor at a fresh heap allocation and store the
-negated descriptor address in the current frame bucket.
-
-## List element encoding
-
-### `list_elem_quote(buf, off, ptr, len) → new_off` (shared)
-
-`list.rs`.  Writes one list element into `buf` starting at `off`.
-Chooses between three forms:
-
-1. **Bare** when the element has no special characters, no backslash,
-   no braces, and no leading `{`.
-2. **Braced** `{…}` when internal braces balance and the content
-   doesn't end in an odd number of backslashes (which would escape
-   the closing `}` per `TclFindElement`).
-3. **Backslash-escaped** — each whitespace, brace, backslash, quote,
-   `$`, `[`, or `;` byte is prefixed with `\`.
-
-`value_ops.rs`'s string-side list quoting is a thin alias; both paths use
-the canonical implementation.
-
-### `copy_unbraced_elem(dst, src_ptr, src_len) → written`
-
-`list.rs`.  Decodes backslash sequences in an unbraced list element
-using the shared `consume_bs_escape` helper, handling the full Tcl
-backslash table (`\n \t \r \a \b \f \v`, `\xNN`, `\uNNNN`,
-`\UNNNNNNNN`, octal `\NNN`, `\<whitespace>` folding).
-
-### `consume_bs_escape(src, si, len, out) → {next_si, written}`
-
-Shared escape decoder used by `subst_flagged` (interpreter word
-substitution) and `copy_unbraced_elem` (list element decoding).  Writes
-up to 4 UTF-8 bytes to `out` for `\uNNNN` / `\UNNNNNNNN`; 1 byte for
-all other escapes.
-
-## `lappend` fast path
-
-`tcl_cmd_lappend` trims trailing whitespace from the existing list
-representation, appends a single space, and appends the quoted new
-element via `list_elem_quote`.  Existing element encodings are
-preserved verbatim — no re-parse, no re-quote — so repeated `lappend`
-is O(1) per call instead of O(existing_elems).  A fallback path
-(`lappend_reparse`) is used only when the existing list ends in an
-unpaired backslash that would eat the separator space.
-
-## Argument expansion (`{*}`)
-
-Tcl 8.5+'s `{*}word` prefix is parsed into a per-word `expand` flag by
-`parse_command` in `parse.rs`.  `eval_script` then splits the
-flagged word's value as a Tcl list and inserts each element as a
-separate argument, up to `MAX_EXPANDED_WORDS = 128`.  Compiled
-callers route `{*}` through `_emit_eval_fallback` with a
-`script_override` that reconstructs the original `{*}word` prefix so
-the interpreter handles the expansion.
-
-## Variadic `args` parameter
-
-When a proc's last formal parameter is literally named `args`, surplus
-call-site arguments are packed into a single Tcl list and bound to
-that slot.  The compiler tracks this per-proc in
-`_proc_args_tail: set[str]` and emits `_emit_args_list(tail_args)` at
-the call site; the runtime (`eval_proc_call` in `interp.rs`) does
-the same packing for interpreter-dispatched calls.
-
-## Clock + timezone resolution
-
-The `clock` ensemble in the WASM runtime supports the four practical
-subcommands a typical Tcl script uses: `seconds` / `clicks` /
-`milliseconds` / `microseconds` (WASI-clock-backed) plus `format` /
-`scan` / `add` (real timezone-aware implementations).  The clock support
-lives in `runtime/rust/src/cmd_clock.rs`, split functionally into:
-
-- the TZif (RFC 8536) parser, 8-slot LRU cache, and the host-tzdata
-  resolver.  Pure-parse + libc `fopen` — no compiler bridge needed.
-- the strftime renderer (`render_format`), broken-down time helper
-  (`break_down`), epoch repacker (`pack_epoch`), and the four
-  exports the interpreter dispatcher calls: `clock_format`,
-  `clock_format_tz`, `clock_scan_obj`, `clock_add_pair`.
-- the interpreter-side `eval_clock` that parses `-format` / `-gmt` /
-  `-timezone` flags and routes to the right export.
-
-### `clock_format_tz(secs, fmt, zone) → TclObj`
-
-Renders `secs` (Unix epoch) under the timezone identified by the
-TclObj `zone`.  Empty `zone` falls through to
-`tz.resolve_default()` — `$TZ` first, then `/etc/localtime`, then
-synthetic UTC.  `fmt == 0` selects the same default as tclsh
-(`%a %b %e %H:%M:%S %Z %Y`).
-
-### `clock_scan_obj(text, zone, gmt) → TclObj(i64)`
-
-Recognises ISO date / RFC 3339 date+time / Zulu / `±HHMM` / `±HH:MM`
-suffixes.  Inputs that don't match fall through to the integer
-parser so `clock scan 12345` returns `12345` (matches the
-counter::init pattern referenced in the KCS issue).  Free-form
-`"next thursday"`-style grammar from `library/clock.tcl::GetDate`
-is *not* supported and is unlikely to land — the C parser is
-~3 KSLOC of yacc grammar.
-
-### `clock_add_pair(base, count, unit) → TclObj(i64)`
-
-Fixed-second units (`seconds` / `minutes` / `hours` / `days` /
-`weeks`) are pure i64 multiplies.  Calendar units (`months` /
-`years`) re-pack via UTC broken-down time with day-of-month
-clamping that matches tclsh — adding 1 month to 2025-01-31 lands
-on 2025-02-28 rather than spilling into March.  The interpreter
-loop iterates `(count, unit)` pairs so multi-unit inputs
-(`clock add $t 1 day 2 hours`) accumulate correctly.
-
-### TZ resolver lookup order
-
-Implemented in `tcl_tz.resolve()`:
-
-1. Synthetic UTC for `UTC` / `GMT` / `:UTC` / `:GMT` / `Etc/UTC` /
-   `Etc/GMT` / `Universal` / `Zulu` — no I/O, always succeeds.
-2. 8-slot LRU cache keyed on the requested zone name.
-3. Host filesystem probe via wasi-libc `open()`:
-   `/usr/share/zoneinfo/<zone>`, `/usr/share/lib/zoneinfo/<zone>`,
-   `/etc/zoneinfo/<zone>`.  Path validation rejects `..` walks
-   and absolute-path overrides as defence in depth — the WASI
-   sandbox already blocks anything outside the embedder's
-   preopens, but the validator keeps a buggy / malicious script
-   from probing arbitrary host files via the resolver.
-4. (`resolve_default()` only) `/etc/localtime` for the
-   system-default zone.
-5. Last-ditch synthetic UTC with a non-zero `last_error` flag so
-   callers can surface a warning if they care.
-
-### Bundled trimmed-tzdata fallback (deferred)
-
-The task spec calls for a bundled blob compiled into the wasm
-binary so a host with no preopened tzdata still produces real
-local-time output.  This is *not* implemented yet — the host
-filesystem path covers the common case (every Linux container in
-the repo's CI image has `/usr/share/zoneinfo`).  When the bundle
-lands it will plug into `tz.resolve()` between the host probe and
-the synthetic-UTC fallback.
-
-The intended trim policy:
-
-- **Decade ± 5 years**.  Real-world callers care about timestamps
-  near "now"; transitions older than ~5 years and newer than
-  ~5 years (rounded to whole-decade boundaries) can be omitted.
-  This trims `/usr/share/zoneinfo` from ~3 MB to a few hundred KB.
-- **Drop unused zones**.  Aliases like `US/Eastern` (which `link`
-  to `America/New_York`) cost only the symlink entry; we keep
-  them.  But obscure zones with no living users (e.g. abolished
-  jurisdictions like `America/Buenos_Aires` superseded by
-  `America/Argentina/Buenos_Aires`) can be dropped from the
-  trimmed bundle if size becomes a concern.
-- **Strip leap-second tables**.  POSIX time pretends leap seconds
-  don't exist and Tcl follows that convention; the leap-second
-  records in TZif are dead weight for our renderer.
-
-The trimmer should live in `scripts/trim_tzdata.py` and run at
-runtime build time (idempotent, a build-time fetch/generate step).
-Output goes to a data blob under `runtime/rust/` and is embedded
-into the runtime binary (via Rust's `include_bytes!`) from the clock module.
-
-## Capability-gated commands
-
-Three commands — `exec`, `exit`, and `glob` — escape the WASM
-sandbox by reaching the host process or the host filesystem.  All
-three live behind a per-runtime capability bitset
-(`runtime/rust/src/host_wasm.rs`); the default sandboxed posture
-refuses each call with a Tcl-catchable
-`permission denied: <cmd> requires CAP_<NAME>` until the embedder
-flips the matching bit.
-
-### Bit layout
-
-| Constant | Bit | Gates |
-|---|---|---|
-| `CAP_EXEC` | `1 << 0` | `exec` |
-| `CAP_EXIT` | `1 << 1` | `exit` |
-| `CAP_FS_GLOB` | `1 << 2` | `glob` |
-
-### Host entry points
-
-#### `tcl_set_capabilities(bits: u32)` → void
-
-`host_wasm.rs`.  Overwrites the active capability mask.  Called by
-the embedder before `tcl_eval` to grant whichever subset of dangerous
-primitives the deployment needs.  Passing `0` resets to the default
-sandboxed posture mid-run, which is honoured for every subsequent
-call.
-
-#### `tcl_get_capabilities() → u32`
-
-Read-only mirror of the active mask.  Exposes the policy for an
-embedder that wraps the runtime in additional guards.
-
-### `host_spawn` (new host import)
-
-`exec` cannot use WASI directly — `wasi_snapshot_preview1` exposes
-`proc_exit` only, not `proc_spawn`.  The runtime declares a single
-new host import:
-
-```rust
-extern "C" {
-    fn host_spawn(
-        argv_ptr: u32,
-        argv_len: u32,
-        stdin_ptr: u32,
-        stdin_len: u32,
-    ) -> i32;
-}
-```
-
-`argv_ptr` / `argv_len` point to a NUL-separated UTF-8 buffer in
-linear memory: every argument is followed by a NUL byte, including
-the last, so the host walks `argv_len` bytes splitting on NUL.  The
-`stdin_*` pair follows the same convention; `(0, 0)` means "no
-stdin".  Return value is a TclObj handle for the captured stdout (a
-string TclObj) on success, or `0` on failure with the host expected
-to have raised a Tcl error through the catch path before returning.
-
-Embedders **must** satisfy `env.host_spawn` even when they never
-intend to grant `CAP_EXEC` — the WASM linker rejects modules with
-unsatisfied imports.  The recommended sandboxed-default stub raises
-`host_spawn: not configured` and returns `0`; the test harness in
-`tests/test_wasm_real_tcl.py` ships with that behaviour and lets
-opt-in tests swap in a real implementation.
-
-### `proc_exit` (existing WASI import)
-
-`exit` calls the WASI `proc_exit` directly — no new host wiring.
-wasmtime surfaces this as an `Exit` trap to the embedder
-(`wasmtime.ExitTrap` in the Python binding); other embedders see
-their environment-specific termination signal.  When `CAP_EXIT` is
-not granted, control never reaches `proc_exit` — the capability
-gate raises `permission denied` first.
-
-### Failure paths through `catch`
-
-Capability denial routes through the runtime's error-raise path
-(`cmd_error.rs`) so a
-`catch` around the call sees `code == 1` with the permission-denied
-message available via `$::errorInfo`.  Bare invocations (no `catch`)
-write the same message to stderr with the standard
-`tcl trap: site=<id>` prefix and trap.
-
-## tcltest 2.5 bootstrap (issue #280)
-
-The Tcl 9 `tcltest` package (`tmp/tcl9.0.3/library/tcltest/tcltest.tcl`)
-relies on two semantic corners that the runtime gets wrong out of the
-box; without compensating fixes, every upstream `*.test` sweep traps
-during package init and never produces a `Total / Passed / Skipped /
-Failed` summary line.
-
-### `lappend` auto-creates an unset target
-
-`lappend var v` on an unset `var` must initialise the variable to
-`[list v]` rather than raise `can't read "<var>": no such variable`.
-The WASM emitter under `_emitter/cmds/lappend_.py` previously
-threaded the read of `var` through `_emit_var_read_obj` — the strict
-variant — so a `variable OptionControlledVariables; lappend
-OptionControlledVariables x` sequence inside `::tcltest::Option` (the
-canonical case) trapped on the first append.  The fix is to read via
-`_emit_var_read_obj_lenient`: the lenient variant returns the null
-TclObj for an unset slot, and `tcl_cmd_lappend` already handles
-`current == 0` by treating the existing list as empty.  Tracked in
-issue #280; same auto-create pattern already lives in the
-`incr` / `append` paths.
-
-### `catch_result` materialises an empty TclObj on null success
-
-`catch {body} resultVar` must always assign *some* string to
-`resultVar` on success — the empty result of a body that produces no
-value is the empty string, not "unset".  The WASM `catch` codegen
-calls `tcl_catch_set_ok_result` with the body's last-statement value;
-when that value is the null TclObj (commands that silently return 0
-under our incomplete arity-check stubs, or arity-shy paths that just
-`return 0`), `catch_result` used to hand the literal 0 back to the
-caller's writeback.  The caller stored 0 into the `resultVar` local
-slot — at which point `$resultVar` mistook the 0 for an unset slot
-and trapped with `can't read "<resultVar>": no such variable`.
-
-The `tcl_catch.catch_result` export now substitutes
-`obj_new_string(0, 0)` (an empty TclObj) when the success path's
-recorded value is null, so the writeback never plants the
-unset sentinel.  Tcltest's `RunTest` runs `set code [catch {uplevel
-1 $script} actualAnswer]` and immediately reads `$actualAnswer`; that
-read no longer traps even when `$script` exercises commands whose
-runtime stubs return 0 instead of a real result.
-
-### `namespace eval [list upvar 0 arr(key) Y]` — source-side workaround
-
-Real Tcl handles `namespace eval ::ns { upvar 0 X(k) Y }` by pushing a
-namespace call-frame and storing the alias in the namespace's own
-variable table (where it persists past the `namespace eval` body).
-Our runtime does neither: `namespace eval` just swaps `current_ns`
-without pushing a frame, so `upvar 0` creates a frame-local alias in
-the calling proc and the alias is gone the moment the proc returns.
-On top of that, `frame_get_at_depth` looks the upvar target up by
-literal name (`"Option(-debug)"`), missing the array-element form.
-
-`tcltest::Option` uses precisely this pattern to thread each option's
-default into a per-option namespace variable (`::tcltest::debug`,
-`::tcltest::verbose`, …); without it, the very first
-`DebugPuts` invoked from `DefineConstraintInitializers` traps with
-`can't read "debug": no such variable`.
-
-The runtime fix is two-part — namespace-eval call-frames plus
-array-element upvar resolution — and out of scope for issue #280.
-The bundle-side workaround in `tests/external/run_tcl9_tests.py`
-(`_patch_tcltest_source`) instead rewrites the upvar dance into a
-direct `eval [list set [namespace current]::$varName $msg]` (the
-``eval`` form goes through the interpreter so the dynamic-target
-write resolves correctly, where the compiled-side `set $tgt $val`
-would interpret `$tgt` as a literal local-slot name), populates an
-`OptionVarName($option) → $varName` mapping, and patches
-`tcltest::Configure` to mirror writes into the per-option variable
-when the mapping is present.  Cost: post-init `configure -X v`
-re-reads still propagate; the strictly-aliased-storage semantics of
-real Tcl are not modelled (no read trace) but no current `_IN_SCOPE`
-test depends on them.
-
-### `glob -directory` neutralisation in tcltest internals
-
-`tcltest::FillFilesExisted` and `tcltest::cleanupTests` both
-enumerate the scratch directory with
-`glob -nocomplain -directory [temporaryDirectory] *`; our WASI
-runtime has no directory-listing primitive, so the real `glob`
-traps with `unsupported command: glob -directory`.
-
-`_patch_tcltest_source` rewrites those two specific call-sites to
-`[list]` (what `-nocomplain` would observe against the freshly-
-allocated empty preopen tmpdir), so tcltest's own init/cleanup paths
-no longer trap.  The patches are intentionally scoped to those two
-lines — an earlier iteration overrode `glob` globally via
-`_PRE_TCLTEST`, but that risked silently turning a real
-glob-dependent test failure into a spurious pass.  In-scope test
-files that call `glob` themselves now hit the real runtime
-behaviour, which traps honestly if the test depends on directory
-enumeration.
-
-## Known limitations
-
-- **Dialect gating** — the runtime targets Tcl 9.0.  `tcl_expr_order_cmp`
-  produces Tcl 9 semantics; no 8.x fallback path exists.
-- **Short-circuit evaluation** — `expr_or` / `expr_and` now thread a
-  `skip` flag through the recursive-descent evaluator so `||` / `&&`
-  do not run side-effecting `[cmd]` substitutions on the discarded
-  branch.
-- **Ensembles, coroutines, OO, zipfs** — not supported in the
-  interpreter dispatch.  Compiled code that reaches these commands
-  produces `unsupported command:` at runtime.
-- **Auto-loading (`unknown` proc)** — not implemented; missing commands
-  produce `unknown command:` errors immediately.
-
-## Related design docs
-
-- [codegen-internals.md](codegen-internals.md) — bytecode LVT and
-  emitter architecture (sibling target).
-- [namespace-resolution.md](namespace-resolution.md) — qualified name
-  handling used by `qualify_name` in the interpreter.
+# WASM runtime boundary
+
+The canonical Tcl-to-WASM compiler is `rust/tcl-compiler/src/codegen/wasm/`.
+Its output uses the ABI implemented by `runtime/rust/src/codegen_abi.rs` and
+the shared declarations in `rust/tcl-runtime-api/`. This document records the
+current boundary; it does not describe a separate emitter or linker.
+
+## Invocation and completion
+
+`tcl_invoke_argv` receives an already evaluated argv, dispatches it through the
+runtime interpreter, and writes the completion triple (code, result object,
+return-options object) to the caller-owned output structure. The ABI validates
+the interpreter, argc, argv, and word pointers before dispatch. It preserves
+normal namespace lookup, aliases, ensembles, traces, safe-interpreter policy,
+and Tcl command completion because the runtime performs the dispatch.
+
+`tcl_eval` and `tcl_eval_code` remain explicit source-evaluation entry points
+for runtime fallback and embedding. They have different ownership and return
+contracts documented in `codegen_abi.rs`; generated code must not infer those
+contracts from a rendered WAT module.
+
+## Object ownership
+
+The ABI exposes object construction, retain, release, and string access through
+`runtime/rust/src/codegen_abi.rs`. Generated code uses `i32` handles into the
+shared linear memory. Every borrowed argv word, returned result, and options
+object follows the retain/release rules in that module. The compiler and
+runtime do not maintain duplicate ABI constants.
+
+## Runtime services
+
+Command implementations are installed by `runtime/rust/src/builtins.rs` and
+the `cmd_*.rs` modules. Parsing and substitutions are implemented by
+`runtime/rust/src/parse.rs` and `subst.rs`; expression evaluation is in
+`expr.rs`. Frame, namespace, trace, package, filesystem, coroutine, and TclOO
+state remain runtime state, not compiler-side approximations.
+
+The optional `wasm_stdlib` feature embeds Tcl scripts and package indices in
+the runtime VFS (`embedded_stdlib.rs`). It does not currently provide a
+package-driven compiler extension selector or a separate tcltest C-command
+runtime. See [WASM extensions](wasm-extensions.md) for the dated future design.
+
+## Capability and host boundaries
+
+Host-facing operations are capability-gated in `runtime/rust/src/host_wasm.rs`.
+The default sandbox rejects operations that require host process or filesystem
+authority. Embedders provide the host hooks and decide which capabilities are
+available; the Tcl completion path remains catchable by the interpreter.
+
+## Related
+
+- [WASM code generation](wasm-codegen.md)
+- [WASM Explorer view contract](../contracts/wasm-explorer-view.md)
+- [Runtime variable and frame model](../contracts/runtime-variable-frame-model.md)

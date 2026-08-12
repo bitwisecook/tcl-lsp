@@ -49,6 +49,73 @@ fn has_code(src: &str, dialect: &str, code: &str) -> bool {
 }
 
 #[test]
+fn e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles() {
+    // Tcl 9.0.4 rejects a formal specifier with three fields, a namespace
+    // qualified name, and an array element.  Duplicate parameter names remain
+    // legal, and a value computed at runtime is deliberately outside the
+    // analyser's proof boundary.
+    for src in [
+        "proc invalid {{a b c}} {}\n",
+        "proc invalid {a::b} {}\n",
+        "proc invalid {a(x)} {}\n",
+    ] {
+        assert!(has_code(src, "tcl9.0", "E006"), "expected E006 for {src:?}");
+    }
+    for src in [
+        "proc duplicate {a a} {}\n",
+        "set params {a::b}\nproc dynamic $params {}\n",
+    ] {
+        assert!(!has_code(src, "tcl9.0", "E006"), "must abstain for {src:?}");
+    }
+}
+
+#[test]
+fn e006_offers_only_the_structurally_unambiguous_parameter_repair() {
+    let mut analyser = crate::analyser::Analyser::new();
+    let result = analyser.analyse("proc invalid {{a b c}} {}\n", "tcl9.0");
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == DiagCode::E006)
+        .expect("E006 is emitted");
+
+    assert_eq!(diagnostic.fixes.len(), 1);
+    assert_eq!(diagnostic.fixes[0].new_text, "{a b c}");
+    assert_eq!(
+        diagnostic.fixes[0].safety,
+        crate::analyser::types::FixSafety::RequiresReview
+    );
+
+    for source in ["proc invalid {a::b} {}\n", "proc invalid {a(x)} {}\n"] {
+        let result = analyser.analyse(source, "tcl9.0");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::E006)
+            .expect("E006 is emitted");
+        assert!(diagnostic.fixes.is_empty(), "must abstain for {source:?}");
+    }
+}
+
+#[test]
+fn e006_discovers_definition_body_and_lambda_parameter_shapes() {
+    // These are not ordinary top-level command arguments.  The TclOO method
+    // shape comes from DefinitionBodyGrammar::member / MemberSpec::arg_roles;
+    // `apply`'s nested first field comes from ArgRole::LambdaLiteral.
+    assert!(has_code(
+        "oo::class create C { method invalid {{a b c}} {} }\n",
+        "tcl9.0",
+        "E006",
+    ));
+    assert!(has_code(
+        "oo::class create C {}\noo::define C method invalid {{a b c}} {}\n",
+        "tcl9.0",
+        "E006",
+    ));
+    assert!(has_code("apply {{{a b c}} {return 1}}\n", "tcl9.0", "E006",));
+}
+
+#[test]
 fn w311_flags_binary_encoding_with_translation() {
     assert!(has_code(
         "fconfigure $ch -encoding binary -translation lf\n",
@@ -433,6 +500,126 @@ fn codes_for_dialect(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect()
+}
+
+#[test]
+fn w146_validates_modern_trace_operation_lists_by_registry_declared_type() {
+    for (invalid, valid) in [
+        (
+            "trace add variable item {read rename write} callback\n",
+            "trace add variable item {array read unset write} callback\n",
+        ),
+        (
+            "trace remove command worker {delete enter rename} callback\n",
+            "trace remove command worker {delete rename} callback\n",
+        ),
+        (
+            "trace add execution worker {enter write leavestep} callback\n",
+            "trace add execution worker {enter leave enterstep leavestep} callback\n",
+        ),
+    ] {
+        assert!(
+            codes_for_dialect(invalid, "tcl9.0").contains(&"W146".to_owned()),
+            "invalid type-specific operation must fire: {invalid}"
+        );
+        assert!(
+            !codes_for_dialect(valid, "tcl9.0").contains(&"W146".to_owned()),
+            "the complete Tcl 9 operation set must stay silent: {valid}"
+        );
+    }
+}
+
+#[test]
+fn w146_mixed_operation_list_fix_preserves_valid_members_and_requires_review() {
+    let source = "trace add variable item {read bogus write} callback\n";
+    let result = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W146)
+        .expect("mixed valid/invalid list fires W146");
+    assert!(diagnostic.message.contains("'bogus'"));
+    assert!(diagnostic.message.contains("array, read, unset, write"));
+    assert_eq!(diagnostic.fixes.len(), 1);
+    assert_eq!(diagnostic.fixes[0].new_text, "{read write}");
+    assert_eq!(
+        diagnostic.fixes[0].safety,
+        crate::irules_checks::FixSafety::RequiresReview
+    );
+    assert_eq!(
+        &source[diagnostic.fixes[0].span.as_range()],
+        "{read bogus write}",
+        "the edit replaces the whole written Tcl word, including delimiters"
+    );
+}
+
+#[test]
+fn w146_abstains_when_a_modern_operation_list_is_not_safely_fixable() {
+    for source in [
+        "trace add variable item $operations callback\n",
+        "trace add variable item [operations] callback\n",
+        "trace add variable item {*}$operations callback\n",
+        "trace add variable item {read {unterminated} callback\n",
+        "trace add not-a-type item {read bogus} callback\n",
+        "trace add variable item\n",
+    ] {
+        assert!(
+            !codes_for_dialect(source, "tcl9.0").contains(&"W146".to_owned()),
+            "dynamic, malformed, incomplete, or invalid-discriminator input must abstain: {source:?}"
+        );
+    }
+
+    for source in [
+        "trace add command worker {} callback\n",
+        "trace add command worker {enter write} callback\n",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W146)
+            .expect("a complete empty/all-invalid list is still diagnosed");
+        assert!(
+            diagnostic.fixes.is_empty(),
+            "removing every member would leave Tcl's invalid empty operation list"
+        );
+    }
+}
+
+#[test]
+fn w146_honours_trace_prefix_and_legacy_version_rules() {
+    assert!(
+        !codes_for_dialect("trace add var item {read write} callback\n", "tcl9.0")
+            .contains(&"W146".to_owned()),
+        "the type discriminator accepts Tcl's unique-prefix rule"
+    );
+    assert!(
+        codes_for_dialect("trace add variable item w callback\n", "tcl9.0")
+            .contains(&"W146".to_owned()),
+        "operation members use exact matching and may not be abbreviated"
+    );
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
+        assert!(
+            codes_for_dialect("trace variable item rwx callback\n", dialect)
+                .contains(&"W146".to_owned()),
+            "the deprecated rwua form is validated on {dialect}"
+        );
+    }
+    assert!(
+        !codes_for_dialect("trace variable item rwx callback\n", "tcl9.0")
+            .contains(&"W146".to_owned()),
+        "Tcl 9 removed the legacy form, so subcommand availability owns it"
+    );
+}
+
+#[test]
+fn w146_drops_registry_finding_when_a_user_command_shadows_trace() {
+    let source =
+        "proc trace args { return user-command }\ntrace add variable item {read bogus} callback\n";
+    assert!(
+        !codes_for_dialect(source, "tcl9.0").contains(&"W146".to_owned()),
+        "post-walk command resolution must suppress registry argument facts for a shadowed builtin"
+    );
 }
 
 /// FP guard (issue #923 audit, `ticklecharts` idx 51): a document that
@@ -1679,6 +1866,69 @@ fn e003_silent_for_subcommand_leading_options() {
 }
 
 #[test]
+fn w147_reports_registry_declared_mutually_exclusive_options() {
+    let mut a = Analyser::new();
+    let result = a.analyse("source -encoding utf-8 -nopkg file.tcl\n", "tcl9.0");
+    let conflicts: Vec<&Diagnostic> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W147)
+        .collect();
+    assert_eq!(
+        conflicts.len(),
+        1,
+        "expected one W147: {:?}",
+        result.diagnostics
+    );
+    assert!(conflicts[0].message.contains("-encoding, -nopkg"));
+    assert!(conflicts[0].fixes.is_empty(), "intent is ambiguous");
+    let mut legacy = Analyser::new();
+    let legacy_result = legacy.analyse("source -encoding utf-8 -nopkg file.tcl\n", "tcl8.6");
+    assert!(
+        !legacy_result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::W147),
+        "Tcl 9-only relationship must not leak into Tcl 8.6"
+    );
+}
+
+#[test]
+fn w147_is_generic_and_covers_glob_without_source_logic() {
+    let mut a = Analyser::new();
+    let result = a.analyse("glob -directory root -path prefix *.tcl\n", "tcl8.6");
+    assert_eq!(
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W147)
+            .count(),
+        1,
+        "expected generic option conflict: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn w147_requires_two_distinct_canonical_options() {
+    for snippet in [
+        "glob -directory root -directory other *.tcl\n",
+        "glob -path root -path other *.tcl\n",
+    ] {
+        let mut a = Analyser::new();
+        let result = a.analyse(snippet, "tcl8.6");
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W147),
+            "repeating one constrained option is not a relationship conflict: {:?}",
+            result.diagnostics
+        );
+    }
+}
+
+#[test]
 fn subcommand_arity_skips_unknown_and_dynamic_subcommands() {
     // An unknown subcommand is W001's job, not E003; a dynamic
     // subcommand word (`$sub`) can't be resolved, so neither path
@@ -1839,8 +2089,6 @@ fn subcommand_version_gates_fire_w002() {
         "trace variable v w {}",
         "trace vdelete v w {}",
         "trace vinfo v",
-        // `interp slaves` was renamed to `interp children` in 9.0.
-        "interp slaves",
     ] {
         assert!(
             !Analyser::new()
@@ -1860,6 +2108,22 @@ fn subcommand_version_gates_fire_w002() {
             "unexpected W001 (should be W002) for {snippet:?} on tcl9.0"
         );
     }
+    // Tcl 8.6 introduced preferred `interp children`, but Tcl 9 still accepts
+    // legacy `interp slaves`.  It is therefore a W144 deprecation with a safe
+    // registry-provided fix, not a W002 unavailable-subcommand diagnostic.
+    let slaves = Analyser::new()
+        .analyse("interp slaves", "tcl9.0")
+        .diagnostics;
+    assert!(
+        slaves.iter().any(|d| d.code == DiagCode::W144),
+        "expected W144 for deprecated-but-working `interp slaves` on tcl9.0"
+    );
+    assert!(
+        !slaves
+            .iter()
+            .any(|d| d.code == DiagCode::W001 || d.code == DiagCode::W002),
+        "`interp slaves` remains available in tcl9.0: {slaves:?}"
+    );
     // A subcommand that exists in *no* dialect is still a genuine W001.
     let typo = Analyser::new()
         .analyse("string bogusxyz abc", "tcl8.6")
@@ -13135,4 +13399,40 @@ fn analyse_w308_1330_quick_fix_span_matches_the_diagnostic() {
         "bakr"
     );
     assert_eq!(fix.new_text, "bark");
+}
+
+#[test]
+fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
+    let src = "interp slaves\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let result = crate::analyser::Analyser::new().analyse(src, dialect);
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::W144)
+            .unwrap_or_else(|| panic!("{dialect}: expected W144, got {:?}", result.diagnostics));
+        assert_eq!(&src[diagnostic.span.as_range()], "slaves");
+        assert!(
+            diagnostic.message.contains("Tcl 8.6") || diagnostic.message.contains("Tcl 9.0"),
+            "{dialect}: W144 must use the active Tcl-core axis: {diagnostic:?}"
+        );
+        assert_eq!(diagnostic.fixes.len(), 1, "{dialect}: {diagnostic:?}");
+        let fix = &diagnostic.fixes[0];
+        assert_eq!(&src[fix.span.as_range()], "slaves");
+        assert_eq!(fix.new_text, "children");
+        assert_eq!(
+            fix.safety,
+            crate::irules_checks::FixSafety::SemanticsEquivalent
+        );
+    }
+
+    let legacy = crate::analyser::Analyser::new().analyse(src, "tcl8.5");
+    assert!(
+        !legacy
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::W144),
+        "slaves predates the Tcl 8.6 preferred spelling: {:?}",
+        legacy.diagnostics
+    );
 }

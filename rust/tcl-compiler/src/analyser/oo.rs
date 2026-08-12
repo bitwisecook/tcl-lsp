@@ -910,6 +910,20 @@ impl Analyser {
             },
         );
         for (texts, argv) in member_calls {
+            if let Some((keyword, args)) = texts.split_first()
+                && let Some(member) = grammar.member(keyword)
+            {
+                let tokens = argv.get(1..).unwrap_or(&[]);
+                let parameter_indices: Vec<usize> = member
+                    .indices_for_call_in(args, self.profile.availability_mask, ArgRole::ParamList)
+                    .collect();
+                super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+                    self,
+                    args,
+                    tokens,
+                    &parameter_indices,
+                );
+            }
             apply_oo_subcommand_in(
                 grammar,
                 texts,
@@ -1446,6 +1460,18 @@ impl Analyser {
         instance_vars: &[String],
         type_vars: &[String],
     ) {
+        let Some(member) = ctx.grammar.member(sub) else {
+            return;
+        };
+        let parameter_indices: Vec<usize> = member
+            .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::ParamList)
+            .collect();
+        super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+            self,
+            sub_args,
+            sub_tokens,
+            &parameter_indices,
+        );
         // snit allows a type-private `proc name args body` — analyse it as an
         // ordinary proc in the enclosing scope, not a method.
         if sub == "proc" {
@@ -1458,9 +1484,6 @@ impl Analyser {
             self.handle_proc_command(sub_args, sub_tokens, &[], ctx.scope_path);
             return;
         }
-        let Some(member) = ctx.grammar.member(sub) else {
-            return;
-        };
         // Only body-bearing members define a walkable method scope; pure
         // declarations (`variable` …) and option/delegate members carry none.
         if member
@@ -1757,6 +1780,15 @@ impl Analyser {
             let Some(member) = grammar.member(kw) else {
                 continue;
             };
+            let parameter_indices: Vec<usize> = member
+                .indices_for_call_in(kw_args, self.profile.availability_mask, ArgRole::ParamList)
+                .collect();
+            super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+                self,
+                kw_args,
+                kw_toks,
+                &parameter_indices,
+            );
             // `variable` / `common` are declarations (handled in pass 1) — skip
             // them even though `variable`'s optional config body carries an
             // `ArgRole::Body` (that body is highlighted by the token walker, not
@@ -1869,6 +1901,7 @@ impl Analyser {
 /// dialect's member layout. A recognised member option from another dialect
 /// is not reinterpreted using the older positional layout.
 pub(super) fn parse_oo_define_inline_in(
+    analyser: &mut Analyser,
     grammar: &DefinitionBodyGrammar,
     args: &[String],
     arg_tokens: &[Token],
@@ -1884,6 +1917,17 @@ pub(super) fn parse_oo_define_inline_in(
         .is_some_and(|member| member.unavailable_option_for(&args[1..], dialect).is_some())
     {
         return;
+    }
+    if let Some(member) = args.first().and_then(|subcmd| grammar.member(subcmd)) {
+        let parameter_indices: Vec<usize> = member
+            .indices_for_call_in(&args[1..], dialect, ArgRole::ParamList)
+            .collect();
+        super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
+            analyser,
+            &args[1..],
+            arg_tokens.get(1..).unwrap_or(&[]),
+            &parameter_indices,
+        );
     }
     // Synthesise a single fake "command" matching what the
     // body walker would have produced.
@@ -3881,11 +3925,12 @@ mod tests {
         );
     }
 
-    /// A configurable class answers `configure`/`cget` for its properties, so
-    /// those accessor method words are folded into its known methods even
-    /// though no `method` body defines them.
+    /// A configurable class answers `configure` for its properties, so that
+    /// generated accessor is folded into its known methods even though no
+    /// `method` body defines it.  `cget` is **not** generated
+    /// (`configurable.n` documents none in 9.0 or 9.1), so it must not be.
     #[test]
-    fn configurable_class_knows_configure_and_cget() {
+    fn configurable_class_knows_configure_but_not_cget() {
         let mut a = Analyser::new();
         let r = a
             .analyse(
@@ -3893,9 +3938,11 @@ mod tests {
                 "tcl9.0",
             )
             .clone();
-        let known = r.class_hierarchy().known_methods("::C");
+        let known = r
+            .class_hierarchy()
+            .known_methods(Some(tcl_registry::registry_for_dialect("tcl9.0")), "::C");
         assert!(known.contains(&"configure".to_owned()), "{known:?}");
-        assert!(known.contains(&"cget".to_owned()), "{known:?}");
+        assert!(!known.contains(&"cget".to_owned()), "{known:?}");
     }
 
     /// A command reference the analyser records for a class-body member

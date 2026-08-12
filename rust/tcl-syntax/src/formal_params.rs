@@ -17,7 +17,7 @@
 //! Consumers remain responsible for converting strings into their own value
 //! representation and for rendering errors at their byte or object boundary.
 
-use crate::list::{ListError, split_list};
+use crate::list::{ListError, join_list, split_list};
 
 /// One decoded formal parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,6 +140,35 @@ pub fn parse_formal_parameters(source: &str) -> Result<Vec<FormalParameter>, For
     Ok(parameters)
 }
 
+/// Repair an accidentally grouped, overlong parameter specifier by splitting
+/// its fields into separate formal parameters.
+///
+/// This is deliberately the only mechanical repair exposed by the strict
+/// parser. An array-element or qualified name has several plausible intended
+/// replacements, while an empty or malformed list may be incomplete source.
+/// A [`FormalParameterError::TooManyFields`] already identifies the first
+/// overlong specifier Tcl rejected; replacing that one element with its
+/// decoded fields produces a canonical, valid outer Tcl list when possible.
+#[must_use]
+pub fn split_overlong_parameter_specifier(
+    source: &str,
+    error: &FormalParameterError,
+) -> Option<String> {
+    let FormalParameterError::TooManyFields { specifier } = error else {
+        return None;
+    };
+    let mut specs = split_list(source).ok()?;
+    let position = specs.iter().position(|candidate| candidate == specifier)?;
+    let fields = split_list(specifier).ok()?;
+    if fields.len() <= 2 {
+        return None;
+    }
+    specs.splice(position..=position, fields);
+    let repaired = join_list(specs);
+    parse_formal_parameters(&repaired).ok()?;
+    Some(repaired)
+}
+
 /// Whether the final formal parameter is Tcl's variadic `args` parameter.
 #[must_use]
 pub fn has_trailing_args(parameters: &[FormalParameter]) -> bool {
@@ -221,6 +250,26 @@ mod tests {
             FormalParameterError::TooManyFields {
                 specifier: "a b c".to_string(),
             }
+        );
+    }
+
+    #[test]
+    fn overlong_specifier_repair_splits_only_the_rejected_group() {
+        let source = "first {second default} {a b c} args";
+        let error = parse_formal_parameters(source).expect_err("overlong specifier");
+        let repaired = split_overlong_parameter_specifier(source, &error)
+            .expect("the structural repair is available");
+
+        assert_eq!(repaired, "first {second default} a b c args");
+        assert!(parse_formal_parameters(&repaired).is_ok());
+        assert!(
+            split_overlong_parameter_specifier(
+                "a(x)",
+                &FormalParameterError::ArrayElement {
+                    name: "a(x)".to_owned()
+                }
+            )
+            .is_none()
         );
     }
 

@@ -111,6 +111,17 @@ fn arity_error_is_e002_with_error_severity() {
     assert_eq!(e002[0].get("severity").and_then(Value::as_i64), Some(1)); // Error
 }
 
+#[test]
+fn invalid_literal_formal_parameter_list_is_e006() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "proc invalid {{name default extra}} {}\n");
+    let e006 = with_code(&diags, "E006");
+    assert_eq!(e006.len(), 1, "got {diags:?}");
+    assert_eq!(e006[0].get("severity").and_then(Value::as_i64), Some(1));
+    assert!(message(&e006[0]).contains("too many fields"));
+}
+
 // -- E004 malformed `if` — end-to-end. Each message/range is
 // cross-checked against tclsh 8.6 and Tcl 9.0.4's `Tcl_IfObjCmd` source
 // in the unit-level truth table (`tcl-registry`'s
@@ -471,6 +482,33 @@ fn tcl9_lowercase_core_package_alias_selects_source_nopkg_grammar() {
         "package require -exact tcl 9.0.3\nsource -nopkg library.tcl\n",
     );
     assert!(!has_code(&diags, "E003"), "got {diags:?}");
+}
+
+#[test]
+fn source_tcl9_rejects_combined_encoding_and_nopkg_end_to_end() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl9.0\nsource -encoding utf-8 -nopkg library.tcl\n",
+    );
+    let conflicts = with_code(&diags, "W147");
+    assert_eq!(conflicts.len(), 1, "expected one W147: {diags:?}");
+    assert!(message(&conflicts[0]).contains("cannot be used together"));
+}
+
+#[test]
+fn repeated_option_is_not_a_mutual_exclusion_conflict() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\nglob -directory root -directory other *.tcl\n",
+    );
+    assert!(
+        !has_code(&diags, "W147"),
+        "one canonical option repeated is not two mutually exclusive options: {diags:?}"
+    );
 }
 
 #[test]
@@ -1680,6 +1718,68 @@ fn callback_dispatch_body_silent() {
     let uri = unique_uri("tcl");
     let src = "namespace eval :: $state(-command) $token\n";
     assert!(!has_code(&lsp.open_ready(&uri, src), "W105"));
+}
+
+#[test]
+fn execution_trace_callback_exact_arities_reach_lsp_diagnostics() {
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "features": { "linkedEditingRange": true, "crossFileResolution": true }
+    }));
+    let uri = unique_uri("tcl");
+    let source = "proc target {} {}\n\
+                  proc enterOk {command op} {}\n\
+                  proc leaveOk {command code result op} {}\n\
+                  proc enterWrong {command code result op} {}\n\
+                  proc leaveWrong {command op} {}\n\
+                  trace add execution target enter enterOk\n\
+                  trace add execution target leave leaveOk\n\
+                  trace add execution target enter enterWrong\n\
+                  trace add execution target leave leaveWrong\n";
+    lsp.open_ready(&uri, source);
+    let diagnostics = lsp.pull_diagnostics(&uri);
+    assert_eq!(on_line(&diagnostics, "E002"), BTreeSet::from([7]));
+    assert_eq!(on_line(&diagnostics, "E003"), BTreeSet::from([8]));
+}
+
+#[test]
+fn mixed_execution_trace_accepts_defaulted_and_variadic_callbacks() {
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "features": { "linkedEditingRange": true, "crossFileResolution": true }
+    }));
+    let uri = unique_uri("tcl");
+    let source = "proc target {} {}\n\
+                  proc fixedThree {a b c} {}\n\
+                  proc defaulted {a b {c default} {d default}} {}\n\
+                  proc variadic {a b args} {}\n\
+                  trace add execution target {enter leave} fixedThree\n\
+                  trace add execution target {enter leave} defaulted\n\
+                  trace add execution target {enter leave} variadic\n";
+    lsp.open_ready(&uri, source);
+    let diagnostics = lsp.pull_diagnostics(&uri);
+    assert_eq!(on_line(&diagnostics, "E002"), BTreeSet::from([4]));
+    assert!(on_line(&diagnostics, "E003").is_empty(), "{diagnostics:?}");
+    assert!(on_line(&diagnostics, "E005").is_empty(), "{diagnostics:?}");
+}
+
+#[test]
+fn execution_trace_dynamic_and_malformed_operation_lists_abstain_end_to_end() {
+    let mut lsp = Lsp::with_config(serde_json::json!({
+        "features": { "linkedEditingRange": true, "crossFileResolution": true }
+    }));
+    let uri = unique_uri("tcl");
+    let source = "proc target {} {}\n\
+                  proc fixedThree {a b c} {}\n\
+                  set operations {enter leave}\n\
+                  trace add execution target $operations fixedThree\n\
+                  trace add execution target \"{enter\" fixedThree\n";
+    lsp.open_ready(&uri, source);
+    let diagnostics = lsp.pull_diagnostics(&uri);
+    for code in ["E002", "E003", "E005"] {
+        assert!(
+            on_line(&diagnostics, code).is_empty(),
+            "{code} must abstain for unproved operation lists: {diagnostics:?}"
+        );
+    }
 }
 
 #[test]

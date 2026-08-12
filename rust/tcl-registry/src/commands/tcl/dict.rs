@@ -115,6 +115,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // behavioural difference.
         return_type: Some(TclType::Dict),
         var_elements_effect: Some(VarElementsEffect::ExtendsDictValuesByName { values_from: 2 }),
+        representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,
@@ -236,6 +237,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Increment a value in a dictionary.",
         synopsis: "dict incr dictionaryVariable key ?increment?",
         arg_roles: &[(0, ArgRole::VarWrite)],
+        representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
         arg_types: &[(
             0,
             ArgTypeHint {
@@ -277,6 +279,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // tclDictObj.c) — true in every version dict exists in.
         return_type: Some(TclType::Dict),
         var_elements_effect: Some(VarElementsEffect::ListifiesDictValue),
+        representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
         safe_on_uninit: Some(DialectSet::ALL_TCL),
@@ -364,6 +367,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
         var_elements_effect: Some(VarElementsEffect::SetsDictValue),
+        representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 3)),
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,
@@ -412,6 +416,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         destructive: true,
         // "The updated dictionary value is returned" (DictUnsetCmd).
         return_type: Some(TclType::Dict),
+        representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
         arg_roles: &[(0, ArgRole::VarWrite)],
         arg_types: &[(
             0,

@@ -49,6 +49,7 @@ use tcl_dialect::DialectSet;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
 use tcl_registry::definer::ManufacturerMethod;
+use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::handle_binding::{
     HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
@@ -59,9 +60,11 @@ use tcl_registry::hover::{
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::repeated::RepeatedArgLayout;
+use tcl_registry::representation::RepresentationEffect;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
-    BytePayloadSpec, CommandSpec, OoContextFact, SubCommand, SubSubCommand, VersionedArgValue,
+    BytePayloadSpec, CommandSpec, OoContextFact, OptionConstraint, SubCommand, SubSubCommand,
+    VersionedArgValue,
 };
 use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::{SetterConstraint, TaintColour};
@@ -83,6 +86,13 @@ pub const UNRENDERABLE_KEY: &str = "__unrenderable";
 /// `options` array so the note clears once every hook holds an expression.
 pub const OPTION_HOOK_KEY: &str = "options.arity_hook";
 
+/// Draft key naming option lifecycle callbacks whose Rust function path must
+/// be supplied by the author.
+pub const OPTION_DEPRECATION_FIX_HOOK_KEY: &str = "options.deprecation_fix_hook";
+
+/// Internal option-row marker for a callback hook that seeding could not name.
+pub const OPTION_DEPRECATION_FIX_UNRECOVERABLE_KEY: &str = "__deprecationFixUnrecoverable";
+
 /// Draft key holding the dialect the draft was seeded from, when it came from
 /// the live registry.
 pub const SOURCE_DIALECT_KEY: &str = "__sourceDialect";
@@ -94,14 +104,17 @@ fn opt_str(value: Option<&'static str>) -> Value {
     value.map_or(Value::Null, |s| json!(s))
 }
 
-/// Write a [`Lifecycle`] into a draft under the three canonical keys used by
-/// every registry surface: `introduced_version`, `deprecated_version`, and
-/// `retired_version` (the last exclusive). `null` means the lifecycle never
-/// reached that state.
-pub(crate) fn insert_lifecycle(d: &mut Map<String, Value>, lifecycle: Lifecycle) {
+/// Write a [`Lifecycle`] into a draft under the canonical keys used by every
+/// registry surface. Returns whether every field round-tripped; a custom
+/// callback cannot reveal its Rust function path and must be supplied by the
+/// author.
+pub(crate) fn insert_lifecycle(d: &mut Map<String, Value>, lifecycle: Lifecycle) -> bool {
+    let (deprecation_fix, complete) = deprecation_fix_value(lifecycle.deprecation_fix);
     d.insert("introduced_version".into(), opt_str(lifecycle.introduced));
     d.insert("deprecated_version".into(), opt_str(lifecycle.deprecated));
     d.insert("retired_version".into(), opt_str(lifecycle.retired));
+    d.insert("deprecation_fix".into(), deprecation_fix);
+    complete
 }
 
 fn str_list(values: &[&'static str]) -> Value {
@@ -255,9 +268,73 @@ fn option_arity(value: OptionArity) -> (Value, bool) {
     }
 }
 
+fn deprecation_fix_safety_expr(safety: DeprecationFixSafety) -> &'static str {
+    match safety {
+        DeprecationFixSafety::SemanticsEquivalent => "DeprecationFixSafety::SemanticsEquivalent",
+        DeprecationFixSafety::RequiresReview => "DeprecationFixSafety::RequiresReview",
+    }
+}
+
+/// Recover a declarative lifecycle edit exactly. Callback function pointers
+/// deliberately abstain: Rust does not expose the symbol path needed in a
+/// rendered source file.
+fn deprecation_fix_expr(hook: DeprecationFixHook) -> Option<String> {
+    let expr = match hook {
+        DeprecationFixHook::ReplaceMatchedWord {
+            replacement,
+            description,
+            safety,
+        } => format!(
+            "DeprecationFixHook::ReplaceMatchedWord {{ replacement: {}, description: {}, safety: {} }}",
+            rust_string(replacement),
+            rust_string(description),
+            deprecation_fix_safety_expr(safety),
+        ),
+        DeprecationFixHook::ReplaceArgument {
+            index,
+            replacement,
+            description,
+            safety,
+        } => format!(
+            "DeprecationFixHook::ReplaceArgument {{ index: {index}, replacement: {}, description: {}, safety: {} }}",
+            rust_string(replacement),
+            rust_string(description),
+            deprecation_fix_safety_expr(safety),
+        ),
+        DeprecationFixHook::ReplaceInvocation {
+            replacement,
+            description,
+            safety,
+        } => format!(
+            "DeprecationFixHook::ReplaceInvocation {{ replacement: {}, description: {}, safety: {} }}",
+            rust_string(replacement),
+            rust_string(description),
+            deprecation_fix_safety_expr(safety),
+        ),
+        DeprecationFixHook::Custom { .. } => return None,
+    };
+    Some(format!("Some({expr})"))
+}
+
+fn deprecation_fix_value(hook: Option<DeprecationFixHook>) -> (Value, bool) {
+    match hook {
+        None => (Value::Null, true),
+        Some(hook) => match deprecation_fix_expr(hook) {
+            Some(expr) => (json!(expr), true),
+            None => (Value::Null, false),
+        },
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct OptionDraftCompleteness {
+    pub(crate) arity_hook: bool,
+    pub(crate) deprecation_fix_hook: bool,
+}
+
 /// Draft form of an option, plus whether it round-tripped completely.
-pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, bool) {
-    let (value, complete) = match opt.value {
+pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) {
+    let (value, arity_hook) = match opt.value {
         OptionValue::Flag => (Value::Null, true),
         OptionValue::Takes(arg) => {
             let (arity_json, arity_complete) = option_arity(arg.arity);
@@ -277,6 +354,8 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, bool) {
             )
         }
     };
+    let (deprecation_fix, deprecation_fix_hook) =
+        deprecation_fix_value(opt.lifecycle.deprecation_fix);
     (
         json!({
             "name": opt.name,
@@ -286,10 +365,15 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, bool) {
             "introduced_version": opt_str(opt.lifecycle.introduced),
             "deprecated_version": opt_str(opt.lifecycle.deprecated),
             "retired_version": opt_str(opt.lifecycle.retired),
+            "deprecation_fix": deprecation_fix,
+            OPTION_DEPRECATION_FIX_UNRECOVERABLE_KEY: !deprecation_fix_hook,
             "min_abbrev": opt_index(opt.min_abbrev),
             "value": value,
         }),
-        complete,
+        OptionDraftCompleteness {
+            arity_hook,
+            deprecation_fix_hook,
+        },
     )
 }
 
@@ -424,13 +508,18 @@ fn opt_str_expr(value: Option<&'static str>) -> String {
 /// `introduced_in(…).deprecated_from(…)` builders, so a release the type gains
 /// later cannot be dropped silently — [`crate::coverage`] checks the rendered
 /// text mentions every field.
-fn lifecycle_expr(value: Lifecycle) -> String {
-    format!(
-        "Lifecycle {{ introduced: {}, deprecated: {}, retired: {} }}",
+fn lifecycle_expr(value: Lifecycle) -> Option<String> {
+    let deprecation_fix = match value.deprecation_fix {
+        Some(hook) => deprecation_fix_expr(hook)?,
+        None => "None".to_owned(),
+    };
+    Some(format!(
+        "Lifecycle {{ introduced: {}, deprecated: {}, retired: {}, deprecation_fix: {} }}",
         opt_str_expr(value.introduced),
         opt_str_expr(value.deprecated),
         opt_str_expr(value.retired),
-    )
+        deprecation_fix,
+    ))
 }
 
 /// The Rust expression for one [`RepeatedArgLayout`].
@@ -541,16 +630,57 @@ fn oo_context_facts_expr(facts: &[(&'static str, OoContextFact)]) -> String {
 }
 
 /// The Rust expression for a `&'static [VersionedArgValue]` field.
-fn versioned_arg_values_expr(gates: &[VersionedArgValue]) -> String {
-    let items: Vec<String> = gates
+fn versioned_arg_values_expr(gates: &[VersionedArgValue]) -> Option<String> {
+    let items: Option<Vec<String>> = gates
         .iter()
         .map(|gate| {
-            format!(
+            Some(format!(
                 "VersionedArgValue {{ index: {}, value: {}, lifecycle: {} }}",
                 gate.index,
                 rust_string(gate.value),
-                lifecycle_expr(gate.lifecycle),
-            )
+                lifecycle_expr(gate.lifecycle)?,
+            ))
+        })
+        .collect();
+    Some(format!("&[{}]", items?.join(", ")))
+}
+
+fn representation_effect_expr(effect: RepresentationEffect) -> String {
+    match effect {
+        RepresentationEffect::None => "Some(RepresentationEffect::None)".to_owned(),
+        RepresentationEffect::CopyOnWriteContainerMutation {
+            variable_arg,
+            minimum_arguments,
+        } => format!(
+            "Some(RepresentationEffect::CopyOnWriteContainerMutation {{ variable_arg: {variable_arg}, minimum_arguments: {minimum_arguments} }})"
+        ),
+    }
+}
+
+fn dialect_set_expr(set: DialectSet) -> String {
+    let members = dialects(Some(set));
+    crate::render_rs::dialect_set(
+        members
+            .as_array()
+            .expect("a present dialect set always seeds an array"),
+    )
+}
+
+fn option_constraints_expr(constraints: &[OptionConstraint]) -> String {
+    let items: Vec<String> = constraints
+        .iter()
+        .map(|constraint| {
+            let options = constraint
+                .options
+                .iter()
+                .map(|option| rust_string(option))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let dialects = constraint.dialects.map_or_else(
+                || "None".to_owned(),
+                |set| format!("Some({})", dialect_set_expr(set)),
+            );
+            format!("OptionConstraint {{ options: &[{options}], dialects: {dialects} }}")
         })
         .collect();
     format!("&[{}]", items.join(", "))
@@ -664,6 +794,11 @@ fn subcommand_types(d: &mut Draft, sub: &SubCommand) {
         sub.var_elements_effect
             .map_or(Value::Null, |e| json!(var_elements_effect_expr(e))),
     );
+    d.insert(
+        "representation_effect".into(),
+        sub.representation_effect
+            .map_or(Value::Null, |e| json!(representation_effect_expr(e))),
+    );
     d.insert("arg_types".into(), arg_type_map(sub.arg_types));
     d.insert("pure".into(), json!(sub.pure));
     d.insert("mutator".into(), json!(sub.mutator));
@@ -724,37 +859,69 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         "dispatch_dependencies".into(),
         lost.expr("dispatch_dependencies", sub.dispatch_dependencies.is_some()),
     );
+    d.insert(
+        "result_stability".into(),
+        lost.expr("result_stability", sub.result_stability.is_some()),
+    );
+    d.insert(
+        "literal_argument_validator".into(),
+        lost.expr(
+            "literal_argument_validator",
+            sub.literal_argument_validator.is_some(),
+        ),
+    );
+}
+
+fn option_rows(options: &[OptionSpec], lost: &mut Unrecovered) -> Value {
+    Value::Array(
+        options
+            .iter()
+            .map(|option| {
+                let (row, complete) = option_spec(option);
+                if !complete.arity_hook {
+                    lost.note(OPTION_HOOK_KEY);
+                }
+                if !complete.deprecation_fix_hook {
+                    lost.note(OPTION_DEPRECATION_FIX_HOOK_KEY);
+                }
+                row
+            })
+            .collect(),
+    )
 }
 
 /// Options, values, availability, behaviour flags, taint, and effects.
 fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
-    let mut options = Vec::new();
-    for opt in sub.options {
-        let (json_value, complete) = option_spec(opt);
-        if !complete {
-            lost.note(OPTION_HOOK_KEY);
-        }
-        options.push(json_value);
-    }
-    d.insert("options".into(), Value::Array(options));
+    d.insert("options".into(), option_rows(sub.options, lost));
+    d.insert(
+        "option_constraints".into(),
+        expr_or_null(!sub.option_constraints.is_empty(), || {
+            option_constraints_expr(sub.option_constraints)
+        }),
+    );
     d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
     d.insert(
         "prefix_matching".into(),
         json!(catalogue::variant_name(&sub.prefix_matching)),
     );
     d.insert("arg_values".into(), arg_value_map(sub.arg_values));
-    d.insert(
-        "versioned_arg_values".into(),
-        expr_or_null(!sub.versioned_arg_values.is_empty(), || {
-            versioned_arg_values_expr(sub.versioned_arg_values)
-        }),
-    );
+    let versioned_arg_values = if sub.versioned_arg_values.is_empty() {
+        Value::Null
+    } else {
+        versioned_arg_values_expr(sub.versioned_arg_values).map_or_else(
+            || lost.expr("versioned_arg_values", true),
+            |expr| json!(expr),
+        )
+    };
+    d.insert("versioned_arg_values".into(), versioned_arg_values);
     d.insert(
         "subcommand_forms".into(),
         lost.expr("subcommand_forms", !sub.subcommand_forms.is_empty()),
     );
     d.insert("dialects".into(), dialects(sub.dialects));
-    insert_lifecycle(d, sub.lifecycle);
+    if !insert_lifecycle(d, sub.lifecycle) {
+        lost.note("deprecation_fix");
+    }
     d.insert("safe_on_uninit".into(), dialects(sub.safe_on_uninit));
     d.insert("loop_list_header".into(), json!(sub.loop_list_header));
     d.insert("creates_scope_alias".into(), json!(sub.creates_scope_alias));
@@ -905,6 +1072,11 @@ fn command_types(d: &mut Draft, spec: &CommandSpec, _lost: &mut Unrecovered) {
         spec.var_elements_effect
             .map_or(Value::Null, |e| json!(var_elements_effect_expr(e))),
     );
+    d.insert(
+        "representation_effect".into(),
+        spec.representation_effect
+            .map_or(Value::Null, |e| json!(representation_effect_expr(e))),
+    );
     d.insert("arg_types".into(), arg_type_map(spec.arg_types));
 }
 
@@ -1016,6 +1188,17 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         ),
     );
     d.insert(
+        "result_stability".into(),
+        lost.expr("result_stability", spec.result_stability.is_some()),
+    );
+    d.insert(
+        "literal_argument_validator".into(),
+        lost.expr(
+            "literal_argument_validator",
+            spec.literal_argument_validator.is_some(),
+        ),
+    );
+    d.insert(
         "inferred_storage_type".into(),
         spec.inferred_storage_type
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
@@ -1024,14 +1207,6 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
 
 /// Options, enumerable values, and availability gating.
 fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
-    let mut options = Vec::new();
-    for opt in spec.options {
-        let (json_value, complete) = option_spec(opt);
-        if !complete {
-            lost.note(OPTION_HOOK_KEY);
-        }
-        options.push(json_value);
-    }
     d.insert("required_package".into(), opt_str(spec.required_package));
     d.insert("excluded_events".into(), str_list(spec.excluded_events));
     d.insert("unsafe_command".into(), json!(spec.unsafe_command));
@@ -1065,7 +1240,13 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             spec.event_handler_priority.is_some(),
         ),
     );
-    d.insert("options".into(), Value::Array(options));
+    d.insert("options".into(), option_rows(spec.options, lost));
+    d.insert(
+        "option_constraints".into(),
+        expr_or_null(!spec.option_constraints.is_empty(), || {
+            option_constraints_expr(spec.option_constraints)
+        }),
+    );
     d.insert(
         "reserved_trailing_words".into(),
         json!(spec.reserved_trailing_words),
@@ -1156,7 +1337,9 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
     );
     d.insert("tcllib_package".into(), opt_str(spec.tcllib_package));
-    insert_lifecycle(d, spec.lifecycle);
+    if !insert_lifecycle(d, spec.lifecycle) {
+        lost.note("deprecation_fix");
+    }
     d.insert(
         "warn_missing_import".into(),
         json!(spec.warn_missing_import),

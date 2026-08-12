@@ -55,9 +55,9 @@
 //! link (`__memory_base` relocation) — both later increments.
 
 use tcl_compiler::codegen::wasm::{
-    ValType, WasmFunction, WasmInstruction, WasmModule, WasmOp, wasm_codegen_module,
+    ValType, WasmCompileOptions, WasmFunction, WasmInstruction, WasmModule, WasmOp, compile_wasm,
 };
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
 /// Is the `wasmtime` CLI present? (Mirrors the skip in `wasm_codegen.rs`.)
@@ -123,8 +123,15 @@ fn host_stub() -> WasmModule {
 /// Lower + emit the user module for `src`.
 fn compile_user(src: &str) -> WasmModule {
     let registry = CommandRegistry::build_default();
-    let module = lower_to_ir(src, &registry);
-    wasm_codegen_module(&module, src)
+    let unit = CompilationUnit::build_for(src, &registry, false);
+    compile_wasm(
+        &unit,
+        &registry,
+        WasmCompileOptions::hosted()
+            .for_eval_only_test_host()
+            .with_data_base(0),
+    )
+    .into_module()
 }
 
 /// Emit `src`'s `::top`, preload the host stub, and invoke it under wasmtime.

@@ -21,44 +21,301 @@
 //! The front-ends key off the `id`
 //! strings, so this table is part of the de-facto explorer contract.
 
-/// One explorer view tab: `(id, label, group)`.
+/// How the shared Explorer renderers present a view.
 ///
-/// `group` is informational (`compiler` / `optimiser` / `codegen`); the
-/// CLI's `--show` grouping uses the separate `VIEW_GROUPS` mapping.
-pub type ViewMeta = (&'static str, &'static str, &'static str);
+/// Keeping this with the public tab metadata avoids a second, manually kept
+/// list of views in the text/TUI renderer. Front ends that do not have a
+/// renderer for a view can still expose its descriptor and degrade locally.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewRenderKind {
+    /// An analysis tree rendered by [`crate::view_tree`].
+    Tree,
+    /// A specialised flat text view such as disassembly.
+    FlatText,
+    /// A front-end-specific visualisation with no shared tree renderer yet.
+    Frontend,
+}
+
+impl ViewRenderKind {
+    /// Stable serialised renderer-family name for front ends.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Tree => "tree",
+            Self::FlatText => "flat-text",
+            Self::Frontend => "frontend",
+        }
+    }
+}
+
+/// One Explorer view descriptor.
+///
+/// `group` is informational (`compiler` / `optimiser` / `codegen`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ViewDescriptor {
+    /// Stable contract key used by front ends.
+    pub id: &'static str,
+    /// Human-readable tab label.
+    pub label: &'static str,
+    /// Top-level Explorer JSON field the view renders.
+    pub payload: &'static str,
+    /// Informational stage group.
+    pub group: &'static str,
+    /// Shared renderer family, if any.
+    pub render_kind: ViewRenderKind,
+}
 
 /// The ordered view-tab table. The parser produces a single red-green CST
 /// (no separate standalone "green tree"), so there is no `greentree` tab and
 /// `cst` is the sole parse-tree view.
-pub const VIEW_META: &[ViewMeta] = &[
-    ("cst", "CST", "compiler"),
-    ("segments", "Segments", "compiler"),
-    ("structuralIndex", "Structural Index", "compiler"),
-    ("sourceMap", "Source Map", "compiler"),
-    ("ir", "IR", "compiler"),
-    ("cfg", "CFG (pre-SSA)", "compiler"),
-    ("ssa", "CFG (post-SSA)", "compiler"),
-    ("loops", "Loops", "compiler"),
-    ("types", "Types", "compiler"),
-    ("intervals", "Intervals", "compiler"),
-    ("bounds", "Bounds", "compiler"),
-    ("dataflow", "Data Flow", "compiler"),
-    ("interproc", "Interprocedural", "compiler"),
-    ("unitScope", "Unit Scope", "compiler"),
-    ("rendered", "Rendered Props", "compiler"),
-    ("opt", "Optimisations", "optimiser"),
-    ("optimiserPasses", "Pass Pipeline", "optimiser"),
-    ("gvn", "GVN", "optimiser"),
-    ("shimmer", "Shimmer", "optimiser"),
-    ("taint", "Taint", "optimiser"),
-    ("irules", "iRules Flow", "optimiser"),
-    ("eventOrder", "Event Order", "optimiser"),
-    ("callouts", "Source Callouts", "optimiser"),
-    ("asm", "Tcl ASM", "codegen"),
-    ("asmOpt", "Tcl ASM (opt)", "codegen"),
-    ("wasm", "WASM", "codegen"),
-    ("wasmOpt", "WASM (opt)", "codegen"),
+pub const VIEW_META: &[ViewDescriptor] = &[
+    ViewDescriptor {
+        id: "cst",
+        label: "CST",
+        payload: "cst",
+        group: "compiler",
+        render_kind: ViewRenderKind::Frontend,
+    },
+    ViewDescriptor {
+        id: "segments",
+        label: "Segments",
+        payload: "segments",
+        group: "compiler",
+        render_kind: ViewRenderKind::Frontend,
+    },
+    ViewDescriptor {
+        id: "structuralIndex",
+        label: "Structural Index",
+        payload: "structuralIndex",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "sourceMap",
+        label: "Source Map",
+        payload: "sourceMap",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "ir",
+        label: "IR",
+        payload: "ir",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "cfg",
+        label: "CFG (pre-SSA)",
+        payload: "cfgPreSsa",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "ssa",
+        label: "CFG (post-SSA)",
+        payload: "cfgPostSsa",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "dominators",
+        label: "Dominators",
+        payload: "dominators",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "sccp",
+        label: "SCCP",
+        payload: "sccp",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "liveness",
+        label: "Liveness",
+        payload: "liveness",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "semantic",
+        label: "Executable Semantics",
+        payload: "semantic",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "worldSsa",
+        label: "World SSA",
+        payload: "worldSsa",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "loops",
+        label: "Loops",
+        payload: "loops",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "types",
+        label: "Types",
+        payload: "types",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "intervals",
+        label: "Intervals",
+        payload: "intervals",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "bounds",
+        label: "Bounds",
+        payload: "bounds",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "dataflow",
+        label: "Data Flow",
+        payload: "dataflow",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "interproc",
+        label: "Interprocedural",
+        payload: "interprocedural",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "unitScope",
+        label: "Unit Scope",
+        payload: "unitScope",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "rendered",
+        label: "Rendered Props",
+        payload: "renderedProperties",
+        group: "compiler",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "opt",
+        label: "Optimisations",
+        payload: "optimisations",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "optimiserPasses",
+        label: "Pass Pipeline",
+        payload: "optimiserPasses",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "gvn",
+        label: "GVN",
+        payload: "gvn",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "shimmer",
+        label: "Shimmer",
+        payload: "shimmer",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "taint",
+        label: "Taint",
+        payload: "taintWarnings",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "taintFacts",
+        label: "Taint Lattice",
+        payload: "taintFacts",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "irules",
+        label: "iRules Flow",
+        payload: "irulesFlow",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "connectionScope",
+        label: "Connection Scope",
+        payload: "connectionScope",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "eventOrder",
+        label: "Event Order",
+        payload: "eventOrder",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "callouts",
+        label: "Source Callouts",
+        payload: "annotations",
+        group: "optimiser",
+        render_kind: ViewRenderKind::Tree,
+    },
+    ViewDescriptor {
+        id: "asm",
+        label: "Tcl ASM",
+        payload: "asm",
+        group: "codegen",
+        render_kind: ViewRenderKind::FlatText,
+    },
+    ViewDescriptor {
+        id: "asmOpt",
+        label: "Tcl ASM (opt)",
+        payload: "asmOptimised",
+        group: "codegen",
+        render_kind: ViewRenderKind::Frontend,
+    },
+    ViewDescriptor {
+        id: "wasm",
+        label: "WASM",
+        payload: "wasm",
+        group: "codegen",
+        render_kind: ViewRenderKind::FlatText,
+    },
+    ViewDescriptor {
+        id: "wasmOpt",
+        label: "WASM (opt)",
+        payload: "wasmOptimised",
+        group: "codegen",
+        render_kind: ViewRenderKind::Frontend,
+    },
 ];
+
+/// IDs handled by the shared Explorer tree model, in tab-table order.
+pub fn tree_view_ids() -> impl Iterator<Item = &'static str> {
+    VIEW_META
+        .iter()
+        .filter(|view| view.render_kind == ViewRenderKind::Tree)
+        .map(|view| view.id)
+}
 
 /// Renderer-agnostic severity classification.
 ///

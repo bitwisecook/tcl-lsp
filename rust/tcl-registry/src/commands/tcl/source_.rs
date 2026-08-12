@@ -35,8 +35,9 @@
 //! `-encoding` assumes the platform's *system* encoding. Tcl 8.6's
 //! source.htm is textually identical to 8.5's source.html (same two
 //! forms, same BOM wording "(utf-8, unicode)", same system-encoding
-//! default). Tcl 9.0 adds `-nopkg`, which sources a library file without
-//! package initialisation. It keeps the existing `-encoding` option, but its
+//! default). Tcl 9.0 adds a separate `-nopkg fileName` form, which sources a
+//! library file without package initialisation. It keeps the existing
+//! `-encoding encodingName fileName` form, but its
 //! prose shifts in two ways: the BOM paragraph spells
 //! out the unicode-family encodings explicitly, "(utf-8, utf-16,
 //! ucs-2)", instead of 8.5/8.6's vaguer "(utf-8, unicode)"; and — the one
@@ -85,7 +86,7 @@ const FORMS: &[FormSpec] = &[
     },
     FormSpec {
         kind: FormKind::Default,
-        synopsis: "source ?-encoding encodingName? ?-nopkg? fileName",
+        synopsis: "source -nopkg fileName",
         dialects: Some(DialectSet::TCL90_PLUS),
     },
     FormSpec {
@@ -123,6 +124,11 @@ const SIDE_EFFECTS: &[SideEffect] = &[
         dialects: None,
     },
 ];
+
+const OPTION_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
+    options: &["-encoding", "-nopkg"],
+    dialects: Some(DialectSet::TCL90_PLUS),
+}];
 
 /// Command spec for `source`.
 pub fn spec() -> CommandSpec {
@@ -182,9 +188,10 @@ pub fn spec() -> CommandSpec {
             // may-escape classification `eval`/`uplevel` already get
             // from this same trait.
             | Traits::CREATES_BARRIER,
-        // Positional-only count: always exactly 1 (fileName). Every
-        // fetched SYNOPSIS adds a Tcl 9 `-nopkg` flag to the plain and
-        // `-encoding` forms. Every accepted modern shape still has exactly
+        // Positional-only count: always exactly 1 (fileName). Tcl 9's
+        // `-nopkg fileName` and `-encoding encodingName fileName` are
+        // separate forms; combining the options is rejected by the Tcl 9
+        // parser. Every accepted modern shape still has exactly
         // one fileName positional word; this project's bytecode-VM
         // `cmd_source` (`tcl-vm/src/command.rs`) implements that contract and
         // rejects a second file name, so
@@ -213,7 +220,10 @@ pub fn spec() -> CommandSpec {
                     dialects: Some(DialectSet::TCL85_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    // Tcl's source parser requires the complete option
+                    // spelling; even the otherwise unique `-enc` is an
+                    // invalid option (tclsh 8.5/8.6/9.0).
+                    min_abbrev: Some(9),
                 },
                 OptionSpec {
                     name: "-nopkg",
@@ -222,16 +232,19 @@ pub fn spec() -> CommandSpec {
                     dialects: Some(DialectSet::TCL90_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    // Likewise, Tcl 9 rejects `-nop` and accepts only the
+                    // complete `-nopkg` spelling.
+                    min_abbrev: Some(6),
                 },
             ]
         },
+        option_constraints: OPTION_CONSTRAINTS,
         hover: Some(HoverSnippet {
             summary: "Evaluate a file or resource as a Tcl script.",
             synopsis: &[
                 "source fileName",
                 "source -encoding encodingName fileName",
-                "source ?-encoding encodingName? ?-nopkg? fileName",
+                "source -nopkg fileName",
             ],
             snippet: "Reads fileName from disk and evaluates its contents as a Tcl script in the caller's own context — inside a proc body, the file's top-level commands run in that proc's frame exactly as if they had been typed there directly, so a top-level `set` in the file can create or overwrite a local variable of the calling proc. The command's own result is the result of the last command executed in the file; if the file raises an error, source propagates it unchanged. A return at the file's top level does not unwind past source itself — it only ends the file early, and source returns normally with the returned value, letting a sourced file guard itself with an early return (e.g. a compatibility check) without also unwinding the caller. Inside the sourced file, info script reports the path currently being sourced.\n\nReading stops at the first ASCII ^Z (0x1A) byte on every platform, so a Tcl script can be followed by arbitrary binary or data content in the same file (a \"scripted document\"); read and gets have no such restriction.\n\nSince Tcl 8.5, -encoding selects the character encoding fileName is decoded with, and a leading byte-order mark is silently stripped whenever the effective encoding is a Unicode one. When -encoding is omitted, Tcl 8.5 and 8.6 fall back to the platform's system encoding; Tcl 9.0 and 9.1 instead always assume utf-8. Tcl 9.0 also adds -nopkg for library sourcing that must bypass package initialisation. Tcl 8.4 has no -encoding option at all, and instead supports two Macintosh-only forms, source -rsrc resourceName ?fileName? and source -rsrcid resourceId ?fileName?, for sourcing code out of a classic Mac OS resource fork; both were dropped in Tcl 8.5.\n\n**Security**: fileName is read and executed unconditionally, so attacker influence over the path lets a caller redirect execution to a file of its own choosing — treat a non-literal fileName the same as eval of arbitrary code, and validate it against a known-good set before sourcing.",
             source: "Tcl source(n)",
@@ -258,5 +271,33 @@ mod tests {
             .expect("Tcl 9 source -nopkg option");
         assert!(matches!(nopkg.value, OptionValue::Flag));
         assert_eq!(nopkg.dialects, Some(DialectSet::TCL90_PLUS));
+        assert_eq!(nopkg.min_abbrev, Some(6));
+
+        let encoding = source
+            .options
+            .iter()
+            .find(|option| option.name == "-encoding")
+            .expect("source -encoding option");
+        assert_eq!(encoding.min_abbrev, Some(9));
+    }
+
+    #[test]
+    fn tcl9_source_forms_do_not_combine_encoding_and_nopkg() {
+        let source = spec();
+        let synopsis = source.hover.expect("source hover").synopsis;
+        assert!(synopsis.contains(&"source -encoding encodingName fileName"));
+        assert!(synopsis.contains(&"source -nopkg fileName"));
+        assert!(!synopsis.contains(&"source ?-encoding encodingName? ?-nopkg? fileName"));
+    }
+
+    #[test]
+    fn tcl9_source_declares_encoding_nopkg_conflict() {
+        let source = spec();
+        let constraint = source
+            .option_constraints
+            .first()
+            .expect("source option constraint");
+        assert_eq!(constraint.options, &["-encoding", "-nopkg"]);
+        assert_eq!(constraint.dialects, Some(DialectSet::TCL90_PLUS));
     }
 }

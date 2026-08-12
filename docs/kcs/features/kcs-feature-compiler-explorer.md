@@ -26,6 +26,18 @@ VS Code, JetBrains, tcl-lsp CLI
 
 If a single output tab cannot render a result, that tab shows the reason and the rest of the panel still renders — a broken pane no longer blanks the panel or leaves the compile throbber spinning.
 
+### World SSA
+
+The **World SSA** tab explains mutable interpreter-world state behind global
+value numbering (GVN): command bindings, namespaces, traces, child
+interpreters, and other registry-described domains. It shows versions, writes,
+clobbers, joins, completion-edge commit policy, and the dispatch or result
+proof that permits reuse. A yellow availability row is an explicit abstention,
+not evidence that no state exists. The Explorer requests this deep view even
+when ordinary interactive analysis avoids building it. Tabs come from the
+compiler's view descriptors; a frontend that has not gained a specialised
+renderer still shows the structured fallback instead of hiding the view.
+
 ## Operational context
 
 The compiler explorer runs the full compilation pipeline (parse, lower, optimise, codegen) and displays the output at each stage.

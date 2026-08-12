@@ -7,7 +7,7 @@
 //! real jobs. Fixture provenance and complete upstream licence texts live in
 //! `fixtures/real_jobs/README.md`.
 
-use tcl_compiler::codegen::wasm::wasm_codegen_module;
+use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::dialects::DialectSet;
@@ -77,12 +77,12 @@ fn real_jobs_lower_and_keep_semantics_around_opaque_regions() {
 }
 
 #[test]
-fn real_jobs_compile_with_the_supported_tree_walker_wasm_api() {
+fn real_jobs_compile_with_the_canonical_wasm_api() {
     let registry = registry_for_dialect("tcl8.6");
 
     for fixture in FIXTURES {
-        let ir = lower_to_ir(fixture.source, registry);
-        let mut wasm = wasm_codegen_module(&ir, fixture.source);
+        let unit = CompilationUnit::build_for_dialect(fixture.source, registry, false, "tcl8.6");
+        let mut wasm = compile_wasm(&unit, registry, WasmCompileOptions::hosted());
         let bytes = wasm.to_bytes();
 
         // `WasmModule::to_bytes` is the library's validated binary encoder;
