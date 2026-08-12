@@ -72,6 +72,15 @@ pub struct HookProgram {
     pub body: String,
     /// The inputs the hook declared it reads — the cacheability rule's input.
     pub inputs: HookInputs,
+    /// The slot this hook is already bound to, when the caller allocated one.
+    ///
+    /// A slot is baked into a leaked `CommandSpec` as a function pointer and
+    /// is therefore *process*-wide, while a host is per **thread** — so a
+    /// second thread building its own host for the same pack must bind the
+    /// slots the spec already carries rather than allocate fresh ones. `None`
+    /// means "allocate one", which is what a caller owning both the spec and
+    /// the host in one thread wants.
+    pub slot: Option<HookSlot>,
 }
 
 impl HookProgram {
@@ -86,6 +95,7 @@ impl HookProgram {
             parameters: vec!["words".to_owned(), "ctx".to_owned()],
             body: body.into(),
             inputs: HookInputs::unrestricted(),
+            slot: None,
         }
     }
 
@@ -100,6 +110,13 @@ impl HookProgram {
     #[must_use]
     pub fn with_inputs(mut self, inputs: HookInputs) -> Self {
         self.inputs = inputs;
+        self
+    }
+
+    /// The same hook, bound to a slot the caller already allocated.
+    #[must_use]
+    pub fn with_slot(mut self, slot: HookSlot) -> Self {
+        self.slot = Some(slot);
         self
     }
 

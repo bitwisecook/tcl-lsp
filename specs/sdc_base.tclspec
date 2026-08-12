@@ -1,0 +1,822 @@
+# Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
+#   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
+# The syntax is docs/design/spec-dsl-examples/README.md. Every `TODO(spectcl)`
+#   line below names a field the source spec sets that a pack cannot yet say.
+
+speclib sdc_base 1.0 {
+
+command all_clocks {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {all_clocks}
+
+    hover {
+        summary {Return all defined clocks.}
+        synopsis {all_clocks}
+        source {F5}
+    }
+}
+
+command all_fanin {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {all_fanin ?-to objects? ?-flat? ?-startpoints_only? ?-only_cells?}
+
+    hover {
+        summary {Return all fanin of a pin/port.}
+        synopsis {all_fanin ?-to objects? ?-flat? ?-startpoints_only? ?-only_cells?}
+        source {F5}
+    }
+}
+
+command all_fanout {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {all_fanout ?-from objects? ?-flat? ?-endpoints_only? ?-only_cells?}
+
+    hover {
+        summary {Return all fanout of a pin/port.}
+        synopsis {all_fanout ?-from objects? ?-flat? ?-endpoints_only? ?-only_cells?}
+        source {F5}
+    }
+}
+
+command all_inputs {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {all_inputs}
+
+    hover {
+        summary {Return all input ports.}
+        synopsis {all_inputs}
+        source {F5}
+    }
+}
+
+command all_outputs {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {all_outputs}
+
+    hover {
+        summary {Return all output ports.}
+        synopsis {all_outputs}
+        source {F5}
+    }
+}
+
+command all_registers {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {all_registers ?-clock clock_name? ?-rise_clock clock_name? ?-fall_clock clock_name? ?-cells? ?-data_pins? ?-clock_pins? ?-slave_clock_pins? ?-async_pins? ?-output_pins? ?-level_sensitive?}
+
+    hover {
+        summary {Return all register cells.}
+        synopsis {all_registers ?-clock clock_name? ?-rise_clock clock_name? ?-fall_clock clock_name? ?-cells? ?-data_}
+        source {F5}
+    }
+}
+
+command append_to_collection {
+    dialects all-tcl
+    arity 2..
+    required_package sdc
+
+    arg 0 -role VarWrite
+
+    form Default {append_to_collection collection ?-unique? objects}
+
+    hover {
+        summary {Append objects to a collection variable.}
+        synopsis {append_to_collection collection ?-unique? objects}
+        source {F5}
+    }
+}
+
+command check_timing {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {check_timing ?-verbose? ?-override_defaults list?}
+
+    hover {
+        summary {Check for unconstrained paths and issues.}
+        synopsis {check_timing ?-verbose? ?-override_defaults list?}
+        source {F5}
+    }
+}
+
+command create_clock {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {create_clock ?-period period? ?-name name? ?-waveform edge_list? ?-add? ?source_objects?}
+
+    hover {
+        summary {Create a clock object.}
+        synopsis {create_clock ?-period period? ?-name name? ?-waveform edge_list? ?-add? ?source_objects?}
+        source {F5}
+    }
+}
+
+command create_generated_clock {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {create_generated_clock ?-name name? -source master_pin ?-edges edge_list? ?-divide_by factor? ?-multiply_by factor? ?-duty_cycle percent? ?-invert? ?-add? source_objects}
+
+    hover {
+        summary {Create a generated clock object.}
+        synopsis {create_generated_clock ?-name name? -source master_pin ?-edges edge_list? ?-divide_by factor? ?-mult}
+        source {F5}
+    }
+}
+
+command current_design {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {current_design ?design_name?}
+
+    hover {
+        summary {Get or set the current design.}
+        synopsis {current_design ?design_name?}
+        source {F5}
+    }
+}
+
+command define_proc_attributes {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {define_proc_attributes proc_name ?-info string?}
+
+    hover {
+        summary {Define attributes for a procedure.}
+        synopsis {define_proc_attributes proc_name ?-info string?}
+        source {F5}
+    }
+}
+
+command filter_collection {
+    dialects all-tcl
+    arity 2
+    required_package sdc
+
+    form Default {filter_collection collection filter_expr}
+
+    hover {
+        summary {Filter a collection by an expression.}
+        synopsis {filter_collection collection filter_expr}
+        source {F5}
+    }
+}
+
+command foreach_in_collection {
+    dialects all-tcl
+    traits {CONTROL_FLOW HAS_LOOP_BODY NEVER_INLINE_BODY LOOP_LIST_HEADER}
+    arity 3
+    required_package sdc
+
+    arg 0 -role VarWrite
+    arg 2 -role Body
+
+    analyser_hook -native Foreach
+
+    form Default {foreach_in_collection var collection body}
+
+    hover {
+        summary {Iterate over objects in a collection.}
+        synopsis {foreach_in_collection var collection body}
+        source {F5}
+    }
+}
+
+command get_cells {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {get_cells ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+
+    hover {
+        summary {Get cell objects matching a pattern.}
+        synopsis {get_cells ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_clocks {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {get_clocks ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+
+    hover {
+        summary {Get clock objects matching a pattern.}
+        synopsis {get_clocks ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_lib_cells {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {get_lib_cells ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+
+    hover {
+        summary {Get library cell objects matching a pattern.}
+        synopsis {get_lib_cells ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_lib_pins {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {get_lib_pins ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+
+    hover {
+        summary {Get library pin objects matching a pattern.}
+        synopsis {get_lib_pins ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_libs {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {get_libs ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+
+    hover {
+        summary {Get library objects matching a pattern.}
+        synopsis {get_libs ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_nets {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {get_nets ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+
+    hover {
+        summary {Get net objects matching a pattern.}
+        synopsis {get_nets ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_object_name {
+    dialects all-tcl
+    arity 1
+    required_package sdc
+
+    form Default {get_object_name object}
+
+    hover {
+        summary {Return the name of an object.}
+        synopsis {get_object_name object}
+        source {F5}
+    }
+}
+
+command get_pins {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {get_pins ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?-leaf? ?patterns?}
+
+    hover {
+        summary {Get pin objects matching a pattern.}
+        synopsis {get_pins ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?-leaf? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_ports {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {get_ports ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+
+    hover {
+        summary {Get port objects matching a pattern.}
+        synopsis {get_ports ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+        source {F5}
+    }
+}
+
+command group_path {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {group_path ?-name group_name? ?-from from_list? ?-through through_list? ?-to to_list? ?-weight weight? ?-default?}
+
+    hover {
+        summary {Group paths for multi-scenario analysis.}
+        synopsis {group_path ?-name group_name? ?-from from_list? ?-through through_list? ?-to to_list? ?-weight weigh}
+        source {F5}
+    }
+}
+
+command link_design {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {link_design ?-keep_sub_designs?}
+
+    hover {
+        summary {Link the design to its library cells.}
+        synopsis {link_design ?-keep_sub_designs?}
+        source {F5}
+    }
+}
+
+command remove_from_collection {
+    dialects all-tcl
+    arity 2..
+    required_package sdc
+
+    arg 0 -role VarWrite
+
+    form Default {remove_from_collection collection objects}
+
+    hover {
+        summary {Remove objects from a collection variable.}
+        synopsis {remove_from_collection collection objects}
+        source {F5}
+    }
+}
+
+command report_area {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {report_area ?-hierarchy?}
+
+    hover {
+        summary {Report design area.}
+        synopsis {report_area ?-hierarchy?}
+        source {F5}
+    }
+}
+
+command report_clock {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {report_clock ?clock_list?}
+
+    hover {
+        summary {Report clock definitions.}
+        synopsis {report_clock ?clock_list?}
+        source {F5}
+    }
+}
+
+command report_clock_timing {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {report_clock_timing ?-type type?}
+
+    hover {
+        summary {Report clock timing characteristics.}
+        synopsis {report_clock_timing ?-type type?}
+        source {F5}
+    }
+}
+
+command report_constraint {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {report_constraint ?-all_violators? ?-max_delay? ?-min_delay?}
+
+    hover {
+        summary {Report design constraints.}
+        synopsis {report_constraint ?-all_violators? ?-max_delay? ?-min_delay?}
+        source {F5}
+    }
+}
+
+command report_power {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {report_power ?-hierarchy? ?-verbose?}
+
+    hover {
+        summary {Report power consumption.}
+        synopsis {report_power ?-hierarchy? ?-verbose?}
+        source {F5}
+    }
+}
+
+command report_timing {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {report_timing ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type type? ?-max_paths n? ?-nworst n? ?-sort_by attr?}
+
+    hover {
+        summary {Report timing paths.}
+        synopsis {report_timing ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type type? ?-max_paths}
+        source {F5}
+    }
+}
+
+command set_case_analysis {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_case_analysis value port_pin_list}
+
+    hover {
+        summary {Set constant case analysis on a port/pin.}
+        synopsis {set_case_analysis value port_pin_list}
+        source {F5}
+    }
+}
+
+command set_clock_groups {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_clock_groups ?-physically_exclusive | -logically_exclusive | -asynchronous? -group clock_list ...}
+
+    hover {
+        summary {Set mutual exclusivity between clock groups.}
+        synopsis {set_clock_groups ?-physically_exclusive | -logically_exclusive | -asynchronous? -group clock_list ..}
+        source {F5}
+    }
+}
+
+command set_clock_latency {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_clock_latency ?-source? ?-early | -late? ?-rise | -fall? delay object_list}
+
+    hover {
+        summary {Set clock network latency.}
+        synopsis {set_clock_latency ?-source? ?-early | -late? ?-rise | -fall? delay object_list}
+        source {F5}
+    }
+}
+
+command set_clock_transition {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_clock_transition ?-rise | -fall? ?-min | -max? transition clock_list}
+
+    hover {
+        summary {Set clock transition time.}
+        synopsis {set_clock_transition ?-rise | -fall? ?-min | -max? transition clock_list}
+        source {F5}
+    }
+}
+
+command set_clock_uncertainty {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_clock_uncertainty ?-setup | -hold? ?-from from_clock? ?-to to_clock? ?-rise | -fall? uncertainty ?object_list?}
+
+    hover {
+        summary {Set clock uncertainty (jitter).}
+        synopsis {set_clock_uncertainty ?-setup | -hold? ?-from from_clock? ?-to to_clock? ?-rise | -fall? uncertainty}
+        source {F5}
+    }
+}
+
+command set_disable_timing {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_disable_timing ?-from from_pin? ?-to to_pin? object_list}
+
+    hover {
+        summary {Disable timing arcs.}
+        synopsis {set_disable_timing ?-from from_pin? ?-to to_pin? object_list}
+        source {F5}
+    }
+}
+
+command set_dont_touch {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_dont_touch object_list}
+
+    hover {
+        summary {Prevent optimization of cells/nets.}
+        synopsis {set_dont_touch object_list}
+        source {F5}
+    }
+}
+
+command set_dont_use {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_dont_use lib_cell_list}
+
+    hover {
+        summary {Prevent use of library cells.}
+        synopsis {set_dont_use lib_cell_list}
+        source {F5}
+    }
+}
+
+command set_driving_cell {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_driving_cell ?-lib_cell cell_name? ?-library lib? ?-pin pin_name? ?-from_pin from_pin_name? ?-no_design_rule? ?-dont_scale? ?-input_transition_rise rise? ?-input_transition_fall fall? port_list}
+
+    hover {
+        summary {Set the driving cell for input ports.}
+        synopsis {set_driving_cell ?-lib_cell cell_name? ?-library lib? ?-pin pin_name? ?-from_pin from_pin_name? ?-no}
+        source {F5}
+    }
+}
+
+command set_false_path {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_false_path ?-setup | -hold? ?-from from_list? ?-through through_list? ?-to to_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-comment comment?}
+
+    hover {
+        summary {Define a false timing path.}
+        synopsis {set_false_path ?-setup | -hold? ?-from from_list? ?-through through_list? ?-to to_list? ?-rise_from }
+        source {F5}
+    }
+}
+
+command set_ideal_latency {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_ideal_latency ?-rise | -fall? ?-min | -max? delay object_list}
+
+    hover {
+        summary {Set ideal latency on a clock network.}
+        synopsis {set_ideal_latency ?-rise | -fall? ?-min | -max? delay object_list}
+        source {F5}
+    }
+}
+
+command set_ideal_network {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_ideal_network ?-no_propagate? object_list}
+
+    hover {
+        summary {Mark a network as ideal.}
+        synopsis {set_ideal_network ?-no_propagate? object_list}
+        source {F5}
+    }
+}
+
+command set_input_delay {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_input_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list}
+
+    hover {
+        summary {Set input delay on ports.}
+        synopsis {set_input_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?}
+        source {F5}
+    }
+}
+
+command set_input_transition {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_input_transition ?-rise | -fall? ?-min | -max? transition port_list}
+
+    hover {
+        summary {Set input transition time on ports.}
+        synopsis {set_input_transition ?-rise | -fall? ?-min | -max? transition port_list}
+        source {F5}
+    }
+}
+
+command set_load {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_load ?-pin_load | -wire_load? ?-min | -max? ?-subtract_pin_load? value objects}
+
+    hover {
+        summary {Set capacitive load on nets or ports.}
+        synopsis {set_load ?-pin_load | -wire_load? ?-min | -max? ?-subtract_pin_load? value objects}
+        source {F5}
+    }
+}
+
+command set_max_area {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {set_max_area area_value}
+
+    hover {
+        summary {Set maximum area constraint.}
+        synopsis {set_max_area area_value}
+        source {F5}
+    }
+}
+
+command set_max_capacitance {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_max_capacitance cap_value object_list}
+
+    hover {
+        summary {Set maximum capacitance constraint.}
+        synopsis {set_max_capacitance cap_value object_list}
+        source {F5}
+    }
+}
+
+command set_max_delay {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_max_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value}
+
+    hover {
+        summary {Set maximum delay constraint on a path.}
+        synopsis {set_max_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value}
+        source {F5}
+    }
+}
+
+command set_max_fanout {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_max_fanout fanout_value object_list}
+
+    hover {
+        summary {Set maximum fanout constraint.}
+        synopsis {set_max_fanout fanout_value object_list}
+        source {F5}
+    }
+}
+
+command set_max_transition {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_max_transition transition_value ?-clock_path? ?-data_path? object_list}
+
+    hover {
+        summary {Set maximum transition time constraint.}
+        synopsis {set_max_transition transition_value ?-clock_path? ?-data_path? object_list}
+        source {F5}
+    }
+}
+
+command set_min_delay {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_min_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value}
+
+    hover {
+        summary {Set minimum delay constraint on a path.}
+        synopsis {set_min_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value}
+        source {F5}
+    }
+}
+
+command set_multicycle_path {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_multicycle_path ?-setup | -hold? ?-start | -end? ?-from from_list? ?-through through_list? ?-to to_list? path_multiplier}
+
+    hover {
+        summary {Define a multicycle timing path.}
+        synopsis {set_multicycle_path ?-setup | -hold? ?-start | -end? ?-from from_list? ?-through through_list? ?-to }
+        source {F5}
+    }
+}
+
+command set_output_delay {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_output_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list}
+
+    hover {
+        summary {Set output delay on ports.}
+        synopsis {set_output_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? }
+        source {F5}
+    }
+}
+
+command set_propagated_clock {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_propagated_clock object_list}
+
+    hover {
+        summary {Specify that clock latency should be propagated.}
+        synopsis {set_propagated_clock object_list}
+        source {F5}
+    }
+}
+
+command set_size_only {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_size_only object_list ?-all_instances?}
+
+    hover {
+        summary {Mark cells as size-only (no restructuring).}
+        synopsis {set_size_only object_list ?-all_instances?}
+        source {F5}
+    }
+}
+
+command set_units {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_units ?-time unit? ?-capacitance unit? ?-resistance unit? ?-voltage unit? ?-current unit? ?-power unit?}
+
+    hover {
+        summary {Set the unit specifications.}
+        synopsis {set_units ?-time unit? ?-capacitance unit? ?-resistance unit? ?-voltage unit? ?-current unit? ?-powe}
+        source {F5}
+    }
+}
+
+command set_wire_load_mode {
+    dialects all-tcl
+    arity 1
+    required_package sdc
+
+    form Default {set_wire_load_mode mode}
+
+    hover {
+        summary {Set the wire load mode.}
+        synopsis {set_wire_load_mode mode}
+        source {F5}
+    }
+}
+
+command set_wire_load_model {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_wire_load_model -name model_name ?-library lib? ?object_list?}
+
+    hover {
+        summary {Set the wire load model.}
+        synopsis {set_wire_load_model -name model_name ?-library lib? ?object_list?}
+        source {F5}
+    }
+}
+
+command sizeof_collection {
+    dialects all-tcl
+    arity 1
+    required_package sdc
+
+    form Default {sizeof_collection collection}
+
+    hover {
+        summary {Return the size of a collection.}
+        synopsis {sizeof_collection collection}
+        source {F5}
+    }
+}
+
+}

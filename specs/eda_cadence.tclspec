@@ -1,0 +1,743 @@
+# Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
+#   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
+# The syntax is docs/design/spec-dsl-examples/README.md. Every `TODO(spectcl)`
+#   line below names a field the source spec sets that a pack cannot yet say.
+
+speclib eda_cadence 1.0 {
+
+command add_endcap {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {add_endcap ?-pre_endcap cell? ?-post_endcap cell?}
+
+    hover {
+        summary {Add endcap cells.}
+        synopsis {add_endcap ?-pre_endcap cell? ?-post_endcap cell?}
+        source {F5}
+    }
+}
+
+command add_filler {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {add_filler ?-cell cell_list? ?-prefix prefix?}
+
+    hover {
+        summary {Add filler cells.}
+        synopsis {add_filler ?-cell cell_list? ?-prefix prefix?}
+        source {F5}
+    }
+}
+
+command add_well_tap {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {add_well_tap ?-cell cell? ?-cell_interval interval?}
+
+    hover {
+        summary {Add well-tap cells.}
+        synopsis {add_well_tap ?-cell cell? ?-cell_interval interval?}
+        source {F5}
+    }
+}
+
+command ccopt_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {ccopt_design ?-cts? ?-post_cts_opt?}
+
+    hover {
+        summary {Perform clock tree synthesis (CTS).}
+        synopsis {ccopt_design ?-cts? ?-post_cts_opt?}
+        source {F5}
+    }
+}
+
+command check_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {check_design ?-all? ?-type type?}
+
+    hover {
+        summary {Check the design for issues.}
+        synopsis {check_design ?-all? ?-type type?}
+        source {F5}
+    }
+}
+
+command check_timing_intent {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {check_timing_intent ?-verbose?}
+
+    hover {
+        summary {Verify timing intent completeness.}
+        synopsis {check_timing_intent ?-verbose?}
+        source {F5}
+    }
+}
+
+command create_analysis_view {
+    dialects tcl8.4
+    arity 1..
+    required_package cadence-innovus
+
+    form Default {create_analysis_view -name name -constraint_mode mode -delay_corner corner}
+
+    hover {
+        summary {Create an analysis view combining mode and corner.}
+        synopsis {create_analysis_view -name name -constraint_mode mode -delay_corner corner}
+        source {F5}
+    }
+}
+
+command create_constraint_mode {
+    dialects tcl8.4
+    arity 1..
+    required_package cadence-innovus
+
+    form Default {create_constraint_mode -name name -sdc_files file_list}
+
+    hover {
+        summary {Create a constraint mode for MMMC.}
+        synopsis {create_constraint_mode -name name -sdc_files file_list}
+        source {F5}
+    }
+}
+
+command create_delay_corner {
+    dialects tcl8.4
+    arity 1..
+    required_package cadence-innovus
+
+    form Default {create_delay_corner -name name ?-library_set lib_set? ?-rc_corner rc_corner?}
+
+    hover {
+        summary {Create a delay corner for MMMC.}
+        synopsis {create_delay_corner -name name ?-library_set lib_set? ?-rc_corner rc_corner?}
+        source {F5}
+    }
+}
+
+command create_floorplan {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {create_floorplan ?-core_utilization util? ?-core_aspect_ratio ratio? ?-core_margins_by die|core? margins}
+
+    hover {
+        summary {Create a floorplan.}
+        synopsis {create_floorplan ?-core_utilization util? ?-core_aspect_ratio ratio? ?-core_margins_by die|core? mar}
+        source {F5}
+    }
+}
+
+command create_route_rule {
+    dialects tcl8.4
+    arity 1..
+    required_package cadence-innovus
+
+    form Default {create_route_rule -name name ?-widths list? ?-spacings list?}
+
+    hover {
+        summary {Create a non-default routing rule.}
+        synopsis {create_route_rule -name name ?-widths list? ?-spacings list?}
+        source {F5}
+    }
+}
+
+command dbGet {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {dbGet object_spec.attribute ?-regexp pattern? ?-e?}
+
+    hover {
+        summary {Get a design database object attribute (legacy).}
+        synopsis {dbGet object_spec.attribute ?-regexp pattern? ?-e?}
+        source {F5}
+    }
+}
+
+command dbQuery {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {dbQuery ?-area box? ?-objType type?}
+
+    hover {
+        summary {Query design database objects (legacy).}
+        synopsis {dbQuery ?-area box? ?-objType type?}
+        source {F5}
+    }
+}
+
+command dbSet {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {dbSet object_spec.attribute value}
+
+    hover {
+        summary {Set a design database object attribute (legacy).}
+        synopsis {dbSet object_spec.attribute value}
+        source {F5}
+    }
+}
+
+command dbShape {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {dbShape ?-shape type? ?-net net_name?}
+
+    hover {
+        summary {Access shape data from the design database (legacy).}
+        synopsis {dbShape ?-shape type? ?-net net_name?}
+        source {F5}
+    }
+}
+
+command edit_pin {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {edit_pin ?-pin pin_list? ?-edge edge? ?-layer layer? ?-start coord? ?-end coord? ?-fixedPin? ?-snap?}
+
+    hover {
+        summary {Place or move pins.}
+        synopsis {edit_pin ?-pin pin_list? ?-edge edge? ?-layer layer? ?-start coord? ?-end coord? ?-fixedPin? ?-snap?}
+        source {F5}
+    }
+}
+
+command elaborate {
+    dialects tcl8.4
+    required_package cadence-genus
+
+    form Default {elaborate ?design_name? ?-parameters params?}
+
+    hover {
+        summary {Elaborate the design hierarchy.}
+        synopsis {elaborate ?design_name? ?-parameters params?}
+        source {F5}
+    }
+}
+
+command get_db {
+    dialects tcl8.4
+    required_package cadence-common
+
+    form Default {get_db object_or_attr ?-regexp? ?-foreach script?}
+
+    hover {
+        summary {Get a database attribute value.}
+        synopsis {get_db object_or_attr ?-regexp? ?-foreach script?}
+        source {F5}
+    }
+}
+
+command init_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {init_design}
+
+    hover {
+        summary {Initialize the design for implementation.}
+        synopsis {init_design}
+        source {F5}
+    }
+}
+
+command opt_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {opt_design ?-post_route? ?-setup? ?-hold? ?-drv?}
+
+    hover {
+        summary {Optimize the design (post-route).}
+        synopsis {opt_design ?-post_route? ?-setup? ?-hold? ?-drv?}
+        source {F5}
+    }
+}
+
+command place_opt_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {place_opt_design ?-effort effort? ?-incremental?}
+
+    hover {
+        summary {Perform placement and optimization.}
+        synopsis {place_opt_design ?-effort effort? ?-incremental?}
+        source {F5}
+    }
+}
+
+command read_hdl {
+    dialects tcl8.4
+    required_package cadence-genus
+
+    form Default {read_hdl ?-language language? ?-define define_list? file_list}
+
+    hover {
+        summary {Read HDL source files (Verilog/SystemVerilog/VHDL).}
+        synopsis {read_hdl ?-language language? ?-define define_list? file_list}
+        source {F5}
+    }
+}
+
+command read_library {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {read_library ?-liberty? ?-lef? file_list}
+
+    hover {
+        summary {Read technology library files.}
+        synopsis {read_library ?-liberty? ?-lef? file_list}
+        source {F5}
+    }
+}
+
+command read_mmmc {
+    dialects tcl8.4
+    arity 1
+    required_package cadence-innovus
+
+    form Default {read_mmmc file_name}
+
+    hover {
+        summary {Read Multi-Mode Multi-Corner (MMMC) configuration.}
+        synopsis {read_mmmc file_name}
+        source {F5}
+    }
+}
+
+command read_netlist {
+    dialects tcl8.4
+    arity 1
+    required_package cadence-innovus
+
+    form Default {read_netlist file_name}
+
+    hover {
+        summary {Read a gate-level netlist.}
+        synopsis {read_netlist file_name}
+        source {F5}
+    }
+}
+
+command read_physical {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {read_physical ?-lef file_list? ?-def file?}
+
+    hover {
+        summary {Read physical data (LEF/DEF).}
+        synopsis {read_physical ?-lef file_list? ?-def file?}
+        source {F5}
+    }
+}
+
+command report_analysis_coverage {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {report_analysis_coverage}
+
+    hover {
+        summary {Report timing analysis coverage.}
+        synopsis {report_analysis_coverage}
+        source {F5}
+    }
+}
+
+command report_area {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {report_area ?-physical? ?-verbose?}
+
+    hover {
+        summary {Report design area.}
+        synopsis {report_area ?-physical? ?-verbose?}
+        source {F5}
+    }
+}
+
+command report_constraint {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {report_constraint ?-all_violators? ?-drv_violation_type type?}
+
+    hover {
+        summary {Report constraint violations.}
+        synopsis {report_constraint ?-all_violators? ?-drv_violation_type type?}
+        source {F5}
+    }
+}
+
+command report_dp {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {report_dp ?-all?}
+
+    hover {
+        summary {Report datapath resources.}
+        synopsis {report_dp ?-all?}
+        source {F5}
+    }
+}
+
+command report_gates {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {report_gates ?-power?}
+
+    hover {
+        summary {Report gate-level statistics.}
+        synopsis {report_gates ?-power?}
+        source {F5}
+    }
+}
+
+command report_power {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {report_power ?-leakage? ?-dynamic? ?-view view_name?}
+
+    hover {
+        summary {Report power consumption.}
+        synopsis {report_power ?-leakage? ?-dynamic? ?-view view_name?}
+        source {F5}
+    }
+}
+
+command report_qor {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {report_qor ?-summary?}
+
+    hover {
+        summary {Report quality-of-results summary.}
+        synopsis {report_qor ?-summary?}
+        source {F5}
+    }
+}
+
+command report_timing {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {report_timing ?-from from? ?-to to? ?-through through? ?-max_paths n? ?-nworst n?}
+
+    hover {
+        summary {Report timing paths.}
+        synopsis {report_timing ?-from from? ?-to to? ?-through through? ?-max_paths n? ?-nworst n?}
+        source {F5}
+    }
+}
+
+command route_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {route_design ?-global_detail?}
+
+    hover {
+        summary {Route the design.}
+        synopsis {route_design ?-global_detail?}
+        source {F5}
+    }
+}
+
+command set_analysis_view {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {set_analysis_view ?-setup view_list? ?-hold view_list?}
+
+    hover {
+        summary {Set active analysis views for setup and hold.}
+        synopsis {set_analysis_view ?-setup view_list? ?-hold view_list?}
+        source {F5}
+    }
+}
+
+command set_db {
+    dialects tcl8.4
+    arity 2..
+    required_package cadence-common
+
+    form Default {set_db object_or_attr value}
+
+    hover {
+        summary {Set a database attribute value.}
+        synopsis {set_db object_or_attr value}
+        source {F5}
+    }
+}
+
+command stream_out {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {stream_out file_name ?-mapFile map?}
+
+    hover {
+        summary {Stream out a GDSII file (legacy).}
+        synopsis {stream_out file_name ?-mapFile map?}
+        source {F5}
+    }
+}
+
+command syn_generic {
+    dialects tcl8.4
+    required_package cadence-genus
+
+    form Default {syn_generic ?-effort effort?}
+
+    hover {
+        summary {Perform technology-independent synthesis.}
+        synopsis {syn_generic ?-effort effort?}
+        source {F5}
+    }
+}
+
+command syn_map {
+    dialects tcl8.4
+    required_package cadence-genus
+
+    form Default {syn_map ?-effort effort?}
+
+    hover {
+        summary {Map the design to target technology.}
+        synopsis {syn_map ?-effort effort?}
+        source {F5}
+    }
+}
+
+command syn_opt {
+    dialects tcl8.4
+    required_package cadence-genus
+
+    form Default {syn_opt ?-effort effort? ?-incremental?}
+
+    hover {
+        summary {Perform post-map optimization.}
+        synopsis {syn_opt ?-effort effort? ?-incremental?}
+        source {F5}
+    }
+}
+
+command time_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {time_design ?-pre_cts? ?-post_cts? ?-post_route? ?-hold? ?-report_prefix prefix?}
+
+    hover {
+        summary {Perform timing analysis.}
+        synopsis {time_design ?-pre_cts? ?-post_cts? ?-post_route? ?-hold? ?-report_prefix prefix?}
+        source {F5}
+    }
+}
+
+command update_timing {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {update_timing ?-full?}
+
+    hover {
+        summary {Update incremental timing.}
+        synopsis {update_timing ?-full?}
+        source {F5}
+    }
+}
+
+command verify_connectivity {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {verify_connectivity ?-type type? ?-error n?}
+
+    hover {
+        summary {Verify design connectivity.}
+        synopsis {verify_connectivity ?-type type? ?-error n?}
+        source {F5}
+    }
+}
+
+command verify_drc {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {verify_drc ?-limit n?}
+
+    hover {
+        summary {Run design rule checking.}
+        synopsis {verify_drc ?-limit n?}
+        source {F5}
+    }
+}
+
+command verify_geometry {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {verify_geometry ?-error n?}
+
+    hover {
+        summary {Verify design geometry (DRC).}
+        synopsis {verify_geometry ?-error n?}
+        source {F5}
+    }
+}
+
+command write_def {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {write_def ?-version version? file_name}
+
+    hover {
+        summary {Write a DEF file.}
+        synopsis {write_def ?-version version? file_name}
+        source {F5}
+    }
+}
+
+command write_design {
+    dialects tcl8.4
+    required_package cadence-genus
+
+    form Default {write_design ?-innovus? ?-base_name name?}
+
+    hover {
+        summary {Write a design database.}
+        synopsis {write_design ?-innovus? ?-base_name name?}
+        source {F5}
+    }
+}
+
+command write_do_lec {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {write_do_lec ?-revised_design design? ?-logicEquivalence? > file}
+
+    hover {
+        summary {Write a Conformal LEC do file.}
+        synopsis {write_do_lec ?-revised_design design? ?-logicEquivalence? > file}
+        source {F5}
+    }
+}
+
+command write_gds {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {write_gds ?-merge gds_files? ?-map_file map? file_name}
+
+    hover {
+        summary {Write a GDSII stream file.}
+        synopsis {write_gds ?-merge gds_files? ?-map_file map? file_name}
+        source {F5}
+    }
+}
+
+command write_hdl {
+    dialects tcl8.4
+    required_package cadence-genus
+
+    form Default {write_hdl ?-lec? ?design_name? > file}
+
+    hover {
+        summary {Write synthesized HDL netlist.}
+        synopsis {write_hdl ?-lec? ?design_name? > file}
+        source {F5}
+    }
+}
+
+command write_netlist {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {write_netlist file_name ?-top_module_first?}
+
+    hover {
+        summary {Write a gate-level netlist.}
+        synopsis {write_netlist file_name ?-top_module_first?}
+        source {F5}
+    }
+}
+
+command write_sdc {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {write_sdc > file}
+
+    hover {
+        summary {Write SDC constraints.}
+        synopsis {write_sdc > file}
+        source {F5}
+    }
+}
+
+command xelab {
+    dialects tcl8.4
+    required_package cadence-xcelium
+
+    form Default {xelab ?-access access_type? ?-top top_module? ?-snapshot snap_name?}
+
+    hover {
+        summary {Elaborate a design for Xcelium simulation.}
+        synopsis {xelab ?-access access_type? ?-top top_module? ?-snapshot snap_name?}
+        source {F5}
+    }
+}
+
+command xrun {
+    dialects tcl8.4
+    required_package cadence-xcelium
+
+    form Default {xrun ?-sv? ?-access access_type? ?-define define? ?-top top_module? ?-input cmd_file? file_list}
+
+    hover {
+        summary {Run Xcelium compilation and simulation in a single step.}
+        synopsis {xrun ?-sv? ?-access access_type? ?-define define? ?-top top_module? ?-input cmd_file? file_list}
+        source {F5}
+    }
+}
+
+command xsim {
+    dialects tcl8.4
+    required_package cadence-xcelium
+
+    form Default {xsim ?-R? ?-input cmd_file? snapshot_name}
+
+    hover {
+        summary {Run Xcelium simulation on an elaborated snapshot.}
+        synopsis {xsim ?-R? ?-input cmd_file? snapshot_name}
+        source {F5}
+    }
+}
+
+}
