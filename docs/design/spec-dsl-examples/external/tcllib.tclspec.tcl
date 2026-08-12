@@ -123,10 +123,15 @@ command struct::tree {
             }
             body_kind Plain
 
-            # The standard codes ARE sayable, as traits -- this is the whole
-            # authorable half of the completion question (../README.md, "Why
-            # `completion` is excluded and `const_fold` is not").
-            traits {HAS_LOOP_BODY BREAKS_LOOP CONTINUES_LOOP}
+            # The standard codes ARE sayable, as traits -- the authorable
+            # half of the completion question (../README.md, "Why
+            # `completion` is excluded and `const_fold` is not").  The
+            # pairing runs in two directions: `walk` accepts a loop body,
+            # so it carries HAS_LOOP_BODY; the commands that PERFORM the
+            # break/continue carry BREAKS_LOOP / CONTINUES_LOOP on
+            # themselves (rust/tcl-registry/src/commands/tcl/break_.rs:40),
+            # not on the loop.
+            traits {HAS_LOOP_BODY}
 
             # G13 is what is left over, and it is recorded, not written.
             # `struct::tree::prune` (tree_tcl.tcl:181-183) is `return -code

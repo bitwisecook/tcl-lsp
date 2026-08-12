@@ -87,7 +87,7 @@ command return {
     form Default {return} -dialects f5-irules
 
     option -code -takes code -values-from return-codes -closed -integer Any \
-        -detail {Exceptional return code: ok/error/return/break/continue, or an integer (5-0x3fffffff reserved for application use by convention, not enforced).}
+        -detail {Exceptional return code: ok/error/return/break/continue, or an integer (5–0x3fffffff reserved for application use by convention, not enforced).}
 
     option -level -takes level -integer {Range 0 2147483647} -dialects tcl8.5+ \
         -detail {Stack levels up the code applies to (default 1). 0 means this `return` itself returns -code. Must be 0..=2147483647; a negative or larger value is a hard error (unlike -code's integer, which never errors in this range).}

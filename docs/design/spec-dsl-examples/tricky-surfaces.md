@@ -83,8 +83,9 @@ ported examples rather than against intent.
   (`return -code` only in a proc; top-level-only commands).
 - Completion codes, **as amended**: a pack must be able to say that a
   command breaks a loop, continues a loop, or always raises — the traits
-  `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW`, which are
-  authorable. The `completion` field itself (`CompletionDescriptor`)
+  `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` on the command
+  that performs it, paired with `HAS_LOOP_BODY` on the command that
+  accepts it. All four are authorable. The `completion` field itself (`CompletionDescriptor`)
   stays **excluded**, because it describes control-flow *edges* and a
   wrong value corrupts the CFG rather than one value; see the DSL memo's
   "Why `completion` is excluded and `const_fold` is not". A

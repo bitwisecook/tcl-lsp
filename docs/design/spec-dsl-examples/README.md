@@ -636,13 +636,20 @@ asymmetry now is cheaper than being asked later:
 
 So the exclusion is not "completion is hard" — it is that completion is
 the one field where the conservative default is free and the
-non-default is a claim only the compiler can check. The **traits**
-`BREAKS_LOOP`, `CONTINUES_LOOP`, and `CATCHABLE_THROW`
-(`rust/tcl-spec-studio/src/catalogue.rs:524-526`) remain authorable and
-cover the standard codes a pack actually needs; what stays out is
-`CompletionDescriptor` itself. A library-defined code — `struct::tree`'s
-`return -code 5`, meaningful only inside its own `walk` body — fits
-neither, and is recorded as a known limit below rather than papered over.
+non-default is a claim only the compiler can check. What a pack *can*
+still say about the standard codes is the **traits**, which stay
+authorable and are paired in two directions: `BREAKS_LOOP`,
+`CONTINUES_LOOP`, and `CATCHABLE_THROW`
+(`rust/tcl-spec-studio/src/catalogue.rs:524-526`) go on the command that
+*performs* the non-normal completion — `break` carries `BREAKS_LOOP`
+(`rust/tcl-registry/src/commands/tcl/break_.rs:37-42`) — and
+`HAS_LOOP_BODY` goes on the command that *accepts* one, such as
+`foreach`. Between them a pack can describe break/continue/raise
+without touching `CompletionDescriptor`. A library-defined code —
+`struct::tree`'s `return -code 5`, meaningful only inside its own `walk`
+body — fits neither half: there is no way to pair a custom code to the
+one command whose body legitimately accepts it. That is recorded as a
+known limit below rather than papered over.
 
 ### Definer grammars and scoped bodies
 
@@ -658,7 +665,9 @@ port, and it designed the form.
 `tcloo-configurable`, `snit`, `snit-widget`, `itcl`) — that is what
 every core port does. `definition_body { … }` and
 `descriptor definition_body NAME { … }` spell one out. The block's rows
-are `DefinitionBodyGrammar`'s own fields:
+are `DefinitionBodyGrammar`'s own fields — the listing below is the
+**grammar**, with `?…?` marking optional flags and `A|B` alternatives, so
+it is not itself a loadable block; the loadable one is the snit port:
 
 ```tcl
 definition_body {
