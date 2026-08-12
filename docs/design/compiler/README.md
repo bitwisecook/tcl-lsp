@@ -211,6 +211,9 @@ User-facing compiler troubleshooting and how-tos live in
   and ownership boundaries.
 - [wasm-runtime-primitives.md](wasm-runtime-primitives.md) — Rust
   runtime ABI at the compiler-to-interpreter boundary.
+- [wasm-target-surfaces.md](wasm-target-surfaces.md) — WASI vs in-browser
+  WASM: the capability matrix, browser-target build/wiring gaps, the
+  proposed host-import surface, and measured module sizes.
 
 ## Related KCS how-tos
 

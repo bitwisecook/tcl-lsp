@@ -319,6 +319,10 @@ chunk-by-chunk dispatch story lives in
 - [compiler/wasm-extensions.md](compiler/wasm-extensions.md) —
   current `wasm_stdlib` embedding boundary and the explicitly dated,
   not-yet-implemented package-driven extension design.
+- [compiler/wasm-target-surfaces.md](compiler/wasm-target-surfaces.md) —
+  WASI vs in-browser WASM: per-command-family capability matrix, the
+  browser-target build/wiring gaps, the proposed host-import surface, and
+  measured module sizes (raw, `wasm-opt`, gzip).
 
 - [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
   — the `S110` byte-array corruption diagnostic: binary data forced
