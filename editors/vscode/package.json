@@ -59,7 +59,8 @@
           ".tk",
           ".itcl",
           ".tm",
-          ".test"
+          ".test",
+          ".tclspec"
         ],
         "configuration": "./language-configuration.json"
       },

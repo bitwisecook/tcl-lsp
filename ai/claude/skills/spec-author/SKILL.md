@@ -11,6 +11,10 @@ the compiler's own inference — never guesswork from names.
 
 ## Background reading (do this first)
 
+- `docs/design/spec-dsl-examples/README.md` — **the frozen SpecTcl
+  syntax specification.** SpecTcl is the output format for everything
+  this skill produces; read the whole memo, and study the eleven
+  `*.tclspec` ports beside it as worked examples before writing a line.
 - `docs/kcs/kcs-howto-create-command-specs-without-rust.md` — the workflow
   and where each artefact goes.
 - `docs/design/compiler/command-registry.md` — what every spec field means.
@@ -42,12 +46,19 @@ the compiler's own inference — never guesswork from names.
    plain `Value`.
 5. Check each name with `mcp__tcl-lsp__command_info` — a clash with a
    built-in needs the user's attention, not a silent overwrite.
-6. Write the output:
-   - **private** — one `<dialect>.tcl.stubs` sidecar at the library root,
-     stub syntax per the stubs how-to; note anything a stub cannot carry.
-   - **contribution** — per-command spec summaries plus an issue body per
-     the how-to, and point the user at the Spec Studio to polish and
-     render the final `.rs`.
+6. Write the output — **SpecTcl in both cases**:
+   - **private** — one `<library>.tclspec` pack at the library root,
+     written strictly to the frozen syntax (schema keys as property
+     words, catalogue spellings verbatim, hook bodies only where the
+     evidence demands one and always with their family's calling
+     convention). Until the pack loader ships, also emit the stub
+     sidecar as the working fallback and say so.
+   - **contribution** — the same `.tclspec` pack plus an issue body per
+     the how-to; the Spec Studio renders the final `.rs` from it.
+   Validate the pack: if the `tcl-mcp` server exposes a SpecTcl check
+   tool (`spectcl_check`-style, structured parse report), call it and
+   fix every finding; otherwise self-check each command against the
+   syntax memo's coverage matrix and say validation was manual.
 7. Validate: re-run `mcp__tcl-lsp__analyze` on a library file that *uses*
    the commands and confirm the unknown-command diagnostics are gone
    (private) or list what will clear once the specs ship (contribution).
