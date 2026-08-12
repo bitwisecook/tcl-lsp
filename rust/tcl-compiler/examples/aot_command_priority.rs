@@ -357,6 +357,95 @@ fn csv_escape(s: &str) -> String {
     }
 }
 
+/// One row of the emitted census: the `(command, subcommand)` key and its stats.
+type Row<'a> = (&'a (String, Option<String>), &'a FormStats);
+
+fn write_csv(path: &str, rows: &[Row<'_>]) {
+    let mut out = String::new();
+    out.push_str(
+        "command,subcommand,total,value_position,statement_position,repo_breadth,dominant_arity,dominant_arity_count,all_args_literal,some_args_substituted,in_registry\n",
+    );
+    for ((name, sub), stats) in rows {
+        let (dom_arity, dom_count) = stats.dominant_arity();
+        let _ = writeln!(
+            out,
+            "{},{},{},{},{},{},{},{},{},{},{}",
+            csv_escape(name),
+            csv_escape(sub.as_deref().unwrap_or("")),
+            stats.total,
+            stats.value_position,
+            stats.statement_position,
+            stats.repos.len(),
+            dom_arity,
+            dom_count,
+            stats.all_args_literal,
+            stats.some_args_substituted,
+            stats.in_registry,
+        );
+    }
+    if let Some(parent) = Path::new(path).parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::write(path, out).expect("write csv");
+    eprintln!("wrote {path}");
+}
+
+/// Walk every repo under one group directory, accumulating into `census`.
+/// Returns the per-repo file counts and the total bytes read.
+fn walk_group(
+    census: &mut Census<'_>,
+    root: &str,
+    repo_file_counts: &mut Vec<(String, usize)>,
+) -> u64 {
+    let root_path = Path::new(root);
+    let Ok(entries) = fs::read_dir(root_path) else {
+        eprintln!("skip (not a dir): {root}");
+        return 0;
+    };
+    let group_name = root_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(root)
+        .to_string();
+    let mut repo_dirs: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+    repo_dirs.sort();
+
+    let mut total_bytes = 0u64;
+    for repo_dir in repo_dirs {
+        if !repo_dir.is_dir() {
+            continue;
+        }
+        let repo_name = format!(
+            "{group_name}/{}",
+            repo_dir.file_name().and_then(|s| s.to_str()).unwrap_or("?")
+        );
+        let mut files = Vec::new();
+        collect_tcl_files(&repo_dir, &mut files);
+        census.repo.clone_from(&repo_name);
+        let mut file_count = 0usize;
+        for f in &files {
+            let Ok(meta) = fs::metadata(f) else { continue };
+            if meta.len() > MAX_FILE_BYTES {
+                eprintln!("skip oversize file ({} bytes): {}", meta.len(), f.display());
+                continue;
+            }
+            let Ok(src) = fs::read_to_string(f) else {
+                continue;
+            };
+            total_bytes += meta.len();
+            file_count += 1;
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                census.walk_script(&src, false, 0);
+            }));
+            if result.is_err() {
+                eprintln!("panic while segmenting, skipped: {}", f.display());
+            }
+        }
+        repo_file_counts.push((repo_name, file_count));
+    }
+    total_bytes
+}
+
 fn main() {
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
     let mut roots: Vec<String> = Vec::new();
@@ -387,56 +476,11 @@ fn main() {
         dynamic: DynamicStats::default(),
     };
     let mut repo_file_counts: Vec<(String, usize)> = Vec::new();
-    let mut total_files = 0usize;
     let mut total_bytes = 0u64;
-
     for root in &roots {
-        let root_path = Path::new(root);
-        let Ok(entries) = fs::read_dir(root_path) else {
-            eprintln!("skip (not a dir): {root}");
-            continue;
-        };
-        let group_name = root_path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(root)
-            .to_string();
-        let mut repo_dirs: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
-        repo_dirs.sort();
-        for repo_dir in repo_dirs {
-            if !repo_dir.is_dir() {
-                continue;
-            }
-            let repo_name = format!(
-                "{group_name}/{}",
-                repo_dir.file_name().and_then(|s| s.to_str()).unwrap_or("?")
-            );
-            let mut files = Vec::new();
-            collect_tcl_files(&repo_dir, &mut files);
-            census.repo = repo_name.clone();
-            let mut file_count = 0usize;
-            for f in &files {
-                let Ok(meta) = fs::metadata(f) else { continue };
-                if meta.len() > MAX_FILE_BYTES {
-                    eprintln!("skip oversize file ({} bytes): {}", meta.len(), f.display());
-                    continue;
-                }
-                let Ok(src) = fs::read_to_string(f) else {
-                    continue;
-                };
-                total_bytes += meta.len();
-                file_count += 1;
-                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    census.walk_script(&src, false, 0);
-                }));
-                if result.is_err() {
-                    eprintln!("panic while segmenting, skipped: {}", f.display());
-                }
-            }
-            total_files += file_count;
-            repo_file_counts.push((repo_name, file_count));
-        }
+        total_bytes += walk_group(&mut census, root, &mut repo_file_counts);
     }
+    let total_files: usize = repo_file_counts.iter().map(|(_, n)| n).sum();
 
     eprintln!(
         "== corpus: {} files, {} bytes, {} repos ==",
@@ -466,33 +510,7 @@ fn main() {
     });
 
     if let Some(path) = &csv_path {
-        let mut out = String::new();
-        out.push_str(
-            "command,subcommand,total,value_position,statement_position,repo_breadth,dominant_arity,dominant_arity_count,all_args_literal,some_args_substituted,in_registry\n",
-        );
-        for ((name, sub), stats) in &rows {
-            let (dom_arity, dom_count) = stats.dominant_arity();
-            let _ = writeln!(
-                out,
-                "{},{},{},{},{},{},{},{},{},{},{}",
-                csv_escape(name),
-                csv_escape(sub.as_deref().unwrap_or("")),
-                stats.total,
-                stats.value_position,
-                stats.statement_position,
-                stats.repos.len(),
-                dom_arity,
-                dom_count,
-                stats.all_args_literal,
-                stats.some_args_substituted,
-                stats.in_registry,
-            );
-        }
-        if let Some(parent) = Path::new(path).parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        fs::write(path, out).expect("write csv");
-        eprintln!("wrote {path}");
+        write_csv(path, &rows);
     }
 
     println!(
