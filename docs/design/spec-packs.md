@@ -233,6 +233,25 @@ only the engine interface beneath it. Engine-agnosticism is therefore
 structural: the host cannot depend on an engine's identity, and a new
 engine (or a shimmed C extension) slots in under the unchanged host.
 
+**Crash containment is a load-bearing guarantee, not a nicety.** A
+spec must never be able to take the LSP down: every hook invocation
+crosses a containment boundary — `catch_unwind` plus the fuel and
+memory budgets in-process (the WASM engine is additionally sandboxed
+by construction) — and a panic, budget blowout, or stack overflow in a
+hook is converted to abstention, never propagation. On the first
+crash, the offending hook is **quarantined** for the session (the
+command falls back to its declarative facts, so one bad hook cannot
+re-crash on every keystroke), and a structured crash record is
+written: pack name and content hash, command and hook family, the
+SpecTcl vocabulary and server versions, the input word *shapes*, and
+the panic payload/backtrace. The user gets an editor toast — "a spec
+pack hook crashed; tcl-lsp is unaffected" — with an **Open a GitHub
+issue** action that pre-fills an issue on tcl-lsp from the crash
+record, shown to the user before posting exactly like the studio's
+issue flow (raw user-code words are included only in what the user
+reviews and sends, never auto-transmitted — nothing leaves the machine
+without a click).
+
 Hot-path budget: role resolvers run per call site during semantic
 tokens. Built-in packs keep native pointers (bucket 2 of the
 architecture above), so only pack-declared commands pay the VM cost —
