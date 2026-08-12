@@ -75,8 +75,7 @@ fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, DialectSet) {
     )
 }
 
-/// Whether `cmd` is present in `dialect` (the Rust equivalent of
-/// `REGISTRY.get(cmd, dialect) is not None`).
+/// Whether `cmd` resolves in `dialect`.
 fn present_in(dialect: &str, cmd: &str) -> bool {
     let (reg, ds) = reg_and_set(dialect);
     reg.get_for_dialect(cmd, ds).is_some()

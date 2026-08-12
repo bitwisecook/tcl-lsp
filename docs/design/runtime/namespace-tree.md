@@ -44,7 +44,7 @@ name, possibly through `namespace import`, possibly from inside
   `resolverEpoch` on compiled bodies). Our bodies are either compiled
   to WASM (resolution happens at lowering time, see P2/P6) or
   re-parsed per call (fixed by P9's parse cache). The `cmdRefEpoch`
-  analogue we add in P5.3 is purely for path-cache invalidation of
+  analogue is purely for path-cache invalidation of
   runtime lookups — no bytecode invalidation.
 - **Not** safe interps, custom resolvers, ensemble dispatch, variable
   traces, or command deletion handlers. See §4 for the full deferred
@@ -155,9 +155,9 @@ the Rust runtime handles locals via frame-local alias slots, not
 Per-proc-invocation frame.  Our existing `runtime/rust/src/frame.rs`
 already covers the local-var + alias slice (`ALIAS_GLOBAL`,
 `ALIAS_EXT` descriptors stand in for `VAR_LINK`).  The one field we
-add in P1.3 is `nsPtr` — which namespace is "current" while this
+carry is `nsPtr` — which namespace is "current" while this
 frame is on the stack.  Today we simulate it with `ns_set`/`ns_restore`
-around an FQN string; after P1.3 we save / restore a `Namespace *`.
+around an FQN string; the tree saves / restores a `Namespace *`.
 
 ### Key resolution entry points (`tclNamesp.c`)
 
@@ -167,7 +167,7 @@ around an FQN string; after P1.3 we save / restore a `Namespace *`.
   alternate "search-from-global" pair.  This is what `ns_resolve_qualified`
   in §5 mirrors.
 - `Tcl_FindCommand` (`:2631`) — unqualified lookup order.  This is
-  what `proc_lookup` gets flipped to in P2.2 / P2.3 / P5.2.
+  what `proc_lookup` resolves through.
 - `Tcl_Export` (`:1454`) — record patterns on `exportArrayPtr`.
 - `Tcl_Import` / `DoImport` (`:1653` / `:1793`) — walk source
   `cmdTable`, match patterns, create redirect cmd in importer,
@@ -226,12 +226,12 @@ pub const Namespace = extern struct {
     var_table: VarTable,
 
     /// ``namespace export`` patterns.  Pointer into ns_arena to an
-    /// array of (pattern_ptr, pattern_len) u32 pairs.  P4.1 fills
+    /// array of (pattern_ptr, pattern_len) u32 pairs.  `namespace export` fills
     /// this in.  Zero while unused.
     export_patterns: u32,
     export_pattern_count: u32,
 
-    /// ``namespace path`` — array of Namespace* (u32).  P5.1 fills
+    /// ``namespace path`` — array of Namespace* (u32).  the `namespace path` builtin fills
     /// this in.  Zero while unused.
     path_array: u32,
     path_len: u32,
@@ -243,7 +243,7 @@ pub const Namespace = extern struct {
 
     /// Head of the back-list of ``NamespacePathEntry`` nodes whose
     /// target is this ns.  When cmd_ref_epoch bumps, we walk this
-    /// list to bump every dependent namespace's epoch too.  P5.3.
+    /// list to bump every dependent namespace's epoch too.
     path_source_head: u32,
 
     /// NS_DYING | NS_DEAD | NS_TEARDOWN.  P1 leaves this at 0 (no
@@ -337,7 +337,7 @@ pub const NamespacePathEntry = extern struct {
 
 `runtime/rust/src/frame.rs` gets one new field appended to its
 per-frame header (outside the bucket array): `ns: u32` — the
-`*Namespace` that was current when the frame was pushed.  P1.3 wires
+`*Namespace` that was current when the frame was pushed.  The frame header carries
 this; until then frames carry no ns pointer and the current-ns state
 lives in the compiler-emitted `tcl_ns_set` / `tcl_ns_restore` global.
 
@@ -431,7 +431,7 @@ through `each()` on the cmd table.
 
 ### `commandPathSourceList` on the *source* ns (**partial**)
 
-We keep the back-list (P5.3) but use it only for `cmd_ref_epoch`
+We keep the back-list but use it only for `cmd_ref_epoch`
 invalidation, not for actual path-entry rewriting.  Path entries
 point at their target by `u32` address and the target is
 never freed, so there's no dangling-pointer problem to solve.
@@ -520,7 +520,7 @@ fn ns_find_command(cxt: *Namespace, name: []const u8) -> ?*Command {
     // B. Unqualified: context ns first.
     if (cxt.cmd_table.find(name)) |c| return c;
 
-    // C. [Added by P5.2] commandPathArray walk.
+    // C. commandPathArray walk.
     for (entry of cxt.path_array[0..cxt.path_len]) {
         const t = entry.target_ns orelse continue;
         if (t.cmd_table.find(name)) |c| return c;
@@ -554,7 +554,7 @@ containing ns, then walk into `var_table`.  The frame-local alias
 bit already present in `frame.rs` (`ALIAS_GLOBAL` / `ALIAS_EXT`)
 maps cleanly to C's `VAR_LINK`: a local whose value is the absolute
 address of a `Var` in some ns's `var_table` is a `VAR_LINK`
-equivalent.  P3.3 wires `variable` / `global` to populate that
+equivalent, which `variable` / `global` populate
 exact shape.
 
 ## 6. Implementation map
@@ -653,7 +653,7 @@ pub fn ns_resolve_qualified_creating(
 ```
 /// Insert or update a command in ``ns.cmd_table``.  Bumps
 /// ``cmd_ref_epoch`` on ns and cascades through ``path_source_head``
-/// (P5.3).  Returns the bucket base.
+/// Returns the bucket base.
 pub fn ns_add_command(ns: u32, name: []const u8) u32;
 
 /// Walk the full resolution chain: context → path → root.
@@ -730,7 +730,7 @@ for backward-compat with existing callers that pass the FQN
 directly?  The resolution chain handles `::tcltest::test` correctly
 (FQN walk hits the right ns), so we shouldn't need to — but it
 means the current flat-table "find by mangled name" fast path no
-longer exists.  Verify in P2.2 that every caller either passes a
+longer exists.  Every caller must either pass a
 FQN (which resolves through the walker) or a simple name + context
 ns (which resolves through B/C/D of §5.2).
 
@@ -741,7 +741,7 @@ the call frame and is restored naturally when the frame pops.  Our
 current `tcl_ns_set` / `tcl_ns_restore` pair is compiler-emitted and
 *surrounds* the frame (not inside it), which breaks cleanly only if
 the runtime never needs the current ns between frame pop and
-`ns_restore`.  P1.3 moves the pointer onto the frame header
+`ns_restore`.  The pointer lives on the frame header
 alongside the alias slots — verify no code reads `ns_current()`
 from a position where the frame has already popped.
 
@@ -753,7 +753,7 @@ uses `TCL_NAMESPACE_ONLY` for the context probe, then separately
 tries global.  Our §5.2 pseudocode matches that (we walk from both
 `cxt` and `root`), but the interaction with `commandPathArray` is
 subtle: the path walks should also use `TCL_NAMESPACE_ONLY`
-anchoring on each path member.  Verify with a fixture test in P5.2
+anchoring on each path member.  Needs a fixture test
 that `path a; path a::b` beats `path a; b` when both exist.
 
 ### 4. Back-list invariants across `namespace import`
@@ -763,14 +763,14 @@ When a source cmd is imported into N namespaces, we accumulate N
 source itself is an import (a redirect), what does `namespace import
 ::mid::x` do?  In C, `DoImport` follows the `ImportedCmdData.realCmdPtr`
 chain to the original and threads the new redirect into *that* list.
-We should do the same in P4.2 — but record in the design that
+The import path does the same — but note that
 chained imports always point at the terminal real cmd, not the
 intermediate.
 
 ### 5. `variable` on an FQN
 
 `variable ::a::b::x` declares (and optionally initialises) a
-namespace variable in `::a::b`, regardless of the current ns.  P3.3
+namespace variable in `::a::b`, regardless of the current ns.  The link path
 must use `ns_resolve_qualified_creating` (not `_creating` would be
 wrong — the ns must exist), then insert into that target's
 `var_table`, then create the `VAR_LINK` entry in the current frame.
@@ -781,7 +781,7 @@ Confirm against `tclVar.c:Tcl_VariableObjCmd`.
 `upvar 1 ::ns::v local` creates a frame-local alias pointing at a
 ns-scoped var.  Our `frame.rs` `ALIAS_EXT` descriptor
 currently supports `KIND_GLOBAL_NAMED` (global by name) and
-`KIND_FRAME_VAR` (another frame).  P3.3 may need a
+`KIND_FRAME_VAR` (another frame).  The link path may need a
 `KIND_NS_VAR` (target ns + simple name) if the ns var doesn't yet
 exist at `upvar` time — or we can follow C's approach and lazily
 create the ns var on `upvar`, keeping only the `VAR_LINK`-to-Var
@@ -791,8 +791,8 @@ shape on the frame side.
 
 `uplevel` temporarily makes an outer frame's ns the current ns for
 the duration of the body.  Today `frame_depth_stash` / `frame_depth_restore`
-handle the frame-depth part; after P1.3 they also need to adjust
-`ns_current()`.  P1.3 should include a test that
+handle the frame-depth part; they also need to adjust
+`ns_current()`.  This needs a test that
 `namespace eval ::a { uplevel #0 { namespace current } }` returns
 `::`.
 

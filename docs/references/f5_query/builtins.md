@@ -2726,9 +2726,10 @@ Fused multiply-add — ``x * y + z`` in one rounding.
 
 **Details**
 
-Matches jq's ``fma``: returns ``x*y + z``.  Python doesn't expose
-hardware FMA in older versions; this implementation computes the
-naive expression, which agrees with FMA to within one ULP.
+Matches jq's ``fma``: returns ``x*y + z``.  This implementation
+computes the naive expression (rather than a true single-rounding
+hardware FMA, e.g. Rust's ``f64::mul_add``), which agrees with FMA
+to within one ULP.
 
 Related: ``pow``, ``hypot``.
 
@@ -2815,8 +2816,8 @@ Matches jq's ``frexp``: returns ``[mantissa, exponent]`` such
 that ``value == mantissa * 2**exponent`` and ``0.5 <= |mantissa|
 < 1`` (or both parts zero when ``value`` is zero).
 
-jq returns a 2-element array; this DSL returns a Python list of
-the same shape.
+jq returns a 2-element array; this DSL returns a list of the same
+shape.
 
 Related: ``ldexp``, ``modf``, ``logb``.
 
@@ -2857,8 +2858,8 @@ gamma(5)                                 # -> 24.0  (4!)
 
 **Details**
 
-Matches jq's ``hypot``: the Euclidean distance.  Uses Python's
-``math.hypot``, which avoids overflow for large operands.
+Matches jq's ``hypot``: the Euclidean distance.  Uses Rust's
+``f64::hypot``, which avoids overflow for large operands.
 
 Related: ``sqrt``, ``pow``.
 
