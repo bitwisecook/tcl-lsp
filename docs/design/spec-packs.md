@@ -238,7 +238,11 @@ spec must never be able to take the LSP down: every hook invocation
 crosses a containment boundary — `catch_unwind` plus the fuel and
 memory budgets in-process (the WASM engine is additionally sandboxed
 by construction) — and a panic, budget blowout, or stack overflow in a
-hook is converted to abstention, never propagation. On the first
+hook is converted to abstention, never propagation. Isolation is
+**per pack**: each loaded pack gets its own sandboxed VM (or wasm
+worker) with no shared interpreter state, so a crash or quarantine in
+one pack can never degrade another — one library's bad hook costs that
+library its hooks, nothing else. On the first
 crash, the offending hook is **quarantined** for the session (the
 command falls back to its declarative facts, so one bad hook cannot
 re-crash on every keystroke), and a structured crash record is
@@ -292,6 +296,14 @@ let packs survive releases without rebuilds:
 
 ## Loading and tooling
 
+- **A pack is a logical unit, not a file.** Authors group however they
+  like — one big `.tclspec`, one per namespace, one per command — and
+  every file whose `speclib` names the same pack merges into one pack
+  model at load. Merging is deterministic (files in sorted path order);
+  a command defined twice within one pack is a load-time diagnostic
+  with the first definition winning, never a silent overwrite. The
+  compiled cache keys per file and per merged pack, so touching one
+  file recompiles one file.
 - Discovery, three tiers with defined precedence (nearest wins:
   workspace > user > bundled): **workspace** — `tclLsp.specPacks`
   paths (mirrored as a setting in every editor integration), plus
