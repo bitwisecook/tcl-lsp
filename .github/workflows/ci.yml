@@ -22,6 +22,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The repo's own build-hygiene contract (scripts/dev/agent-build-env.sh):
+# incremental compilation off (useless for one-shot CI builds, bloats the
+# Swatinem cache), and no debuginfo for dev-profile DEPENDENCY rlibs — the
+# root Cargo.toml's [profile.test] line-tables-only only covers test targets.
+# Measured: a full --all-features --tests target dir shrinks >3x (30 GB+ →
+# 9.4 GB), with correspondingly faster cache save/restore and link steps.
+# Harmless for the release/ci-profile build jobs (release is non-incremental
+# by default and doesn't read CARGO_PROFILE_DEV_DEBUG).
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+
 # Least-privilege default for every job: read-only.  Jobs that need to
 # write to the repo (releases, artefact uploads, attestations) escalate
 # explicitly in their own `permissions:` block.  A compromised step in
@@ -408,9 +420,12 @@ jobs:
   #   rust-tests        workspace minus the VM-sim heavies and tcl-lsp-server,
   #                     plus ALL workspace doctests (cheap; nextest can't run
   #                     doctests, so they live here once rather than in each job)
-  #   rust-tests-heavy  the VM-sim heavies (`tcl-irule-test`, `f5-cli`), which
-  #                     alone were ~2/3 of the run — each sources ~500 KB of
-  #                     orchestrator Tcl on a fresh `tcl-vm` per test
+  #   rust-tests-heavy  the VM-sim heavies (`tcl-irule-test`, `f5-cli`).
+  #                     Measured 2026-08-13: ~44 s total — tcl-irule-test's 19
+  #                     LiveSession tests source the ~320 KB orchestrator bundle
+  #                     on a fresh tcl-vm each (~7-9 s apiece); f5-cli touches
+  #                     it in only 2 of its 149 tests.  Kept split for
+  #                     concurrency, not because it is still the long pole.
   #   lsp-e2e           the native lsp_e2e suite: spawns the real tcl-lsp-server
   #                     via CARGO_BIN_EXE_tcl-lsp-server and drives LSP JSON-RPC
   #                     over stdio (rust/tcl-lsp-server/tests/*_e2e.rs)

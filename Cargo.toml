@@ -207,3 +207,14 @@ codegen-units = 16
 # archive that CI ships between the build and partitioned-test jobs.
 [profile.test]
 debug = "line-tables-only"
+
+# Decompression and crypto are 20-50x slower unoptimised, and the UCS-archive
+# tests (tcl-bigip-io, bigip-report-gen) gunzip + KDF real fixtures on every
+# run — measured ~157 s of dev-profile test time spent inside these three
+# crates' hot loops.  Optimising just them barely moves compile time.
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.aes]
+opt-level = 3

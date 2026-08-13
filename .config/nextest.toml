@@ -44,12 +44,23 @@
 # `rust/tcl-lsp-server/tests/e2e/semantic_tokens_reference_client.rs` and
 # `rust/tcl-lsp-server/tests/e2e/common/mod.rs`. A timeout here is therefore a
 # real signal again, not "the known CPU-starvation flake".
+# The former `heavy-lsp-e2e = { max-threads = 1 }` group is gone: measured
+# 2026-08-13 (this branch), the full lsp-e2e suite passes 1,949/1,949 with the
+# group removed and runs 133 s (24 %) faster — the serial floor was the cost.
+# The grouping stopped being load-bearing after issue #1082 (see the history
+# above); the heaviest members are now `#[ignore]`d into the manual tier
+# instead, which removes the contention at the source rather than scheduling
+# around it.
 [test-groups]
-heavy-lsp-e2e = { max-threads = 1 }
+# Corpus sweeps already parallelise internally; cap how many run concurrently
+# under `--run-ignored` so N sweeps don't each spawn a full rayon pool and
+# thrash the box during `make test-exhaustive`.  Inert in normal runs — every
+# member is #[ignore]d.
+manual-corpus = { max-threads = 2 }
 
 [[profile.default.overrides]]
-filter = 'package(tcl-lsp-server) & (test(/edit_tracking_stress::/) | test(/large_file_/))'
-test-group = 'heavy-lsp-e2e'
+filter = 'binary(/_corpus$/) | binary(/differential_incremental/)'
+test-group = 'manual-corpus'
 
 # Smoke tier (`make smoke` / `make smoke-p P=<crate>`).
 #
@@ -63,7 +74,7 @@ test-group = 'heavy-lsp-e2e'
 # `default-filter` scopes what `--profile smoke` runs with no -E on the
 # command line; a caller's -E still narrows further.
 [profile.smoke]
-default-filter = 'test(/(::|^)smoke/) | binary(/_smoke$/)'
+default-filter = 'test(/(::|^)smoke/) | binary(/(^|_)smoke$/)'
 # A smoke run is a quick green/red signal, not an exhaustive failure report.
 fail-fast = true
 status-level = "fail"
