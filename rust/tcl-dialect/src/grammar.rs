@@ -210,6 +210,19 @@ impl NumberSyntax {
         Self::ALL.iter().all(|&n| f(n))
     }
 
+    /// Whether this grammar is Tcl 9.0's or later.
+    ///
+    /// For the handful of *non-grammar* rules that changed in the same release
+    /// and have no numeral-syntax question of their own — `string is integer`
+    /// becoming unbounded, for instance. Written out as
+    /// `matches!(n, NumberSyntax::Tcl90)` it silently answers `false` for any
+    /// grammar variant added later, which is the failure mode
+    /// [`Self::ALL`] exists to prevent elsewhere.
+    #[must_use]
+    pub fn is_tcl9_or_later(self) -> bool {
+        !matches!(self, Self::Tcl84 | Self::Tcl85)
+    }
+
     /// Whether a bare leading `0` introduces an octal integer (`0755` == 493),
     /// as it does up to 8.6. False from 9.0, where it is plain decimal.
     #[must_use]

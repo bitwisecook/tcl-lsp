@@ -226,7 +226,7 @@ impl SemanticAnalysisBundle {
             .dialect
             .canonical_name()
             .and_then(DialectProfile::find)
-            .and_then(|profile| profile.runtime_base);
+            .and_then(DialectProfile::runtime_version);
         match plan.select_guarded_boxed_intrinsics(function, runtime_version, &provenance) {
             Ok(plan) => MixedRegionPlanAvailability::Available(plan),
             Err(error) => {

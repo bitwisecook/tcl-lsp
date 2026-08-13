@@ -184,7 +184,7 @@ impl FrameLevel {
     /// got before it had a release to name.
     #[must_use]
     pub fn parse_in(word: &str, registry: &crate::registry::CommandRegistry) -> Option<Self> {
-        Self::parse_for(word, registry.profile().and_then(|p| p.runtime_base))
+        Self::parse_for(word, registry.runtime_version())
     }
 
     /// [`Self::parse_for`] with the numeral grammar already chosen.
@@ -234,7 +234,7 @@ impl FrameLevel {
         if word.starts_with('#') {
             return true;
         }
-        let signed = parse_signed_level_value(word, version.map_or(NumberSyntax::Tcl90, TclVersion::number_syntax));
+        let signed = parse_signed_level_value(word, version.map_or_else(NumberSyntax::default, TclVersion::number_syntax));
         let leading_digit = word.as_bytes().first().is_some_and(u8::is_ascii_digit);
         match version {
             // 9.0 / 9.1: the whole word goes to `Tcl_GetIntFromObj`, sign and

@@ -701,7 +701,7 @@ pub fn compute_intervals<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue, S>,
 ) -> HashMap<ValueKey, Interval> {
-    compute_intervals_with(cfg, ssa, values, NumberSyntax::Tcl90)
+    compute_intervals_with(cfg, ssa, values, NumberSyntax::default())
 }
 
 /// Forward interval analysis over the SSA form.  `values` is the SCCP lattice;

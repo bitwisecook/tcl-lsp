@@ -160,7 +160,7 @@ impl<'r> CodegenCtx<'r> {
     #[must_use]
     pub fn new(is_proc: bool, params: &[&str], registry: &'r CommandRegistry) -> Self {
         Self {
-            numbers: tcl_dialect::NumberSyntax::Tcl90,
+            numbers: tcl_dialect::NumberSyntax::default(),
             literals: LiteralTable::new(),
             lvt: LocalVarTable::new(params),
             instructions: Vec::new(),

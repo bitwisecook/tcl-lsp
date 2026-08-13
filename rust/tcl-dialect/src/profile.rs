@@ -32,7 +32,7 @@
 use crate::dialect_set::DialectSet;
 use crate::grammar::{BracedVarStyle, ExprCommentStyle, LexerGrammar, NumberSyntax};
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-use crate::version::{TclVersion, Ternary};
+use crate::version::{StringCharacterModel, TclVersion, Ternary};
 
 /// Library pins for the 8.4/8.5-era plain Tcl profiles: Tk tracks the
 /// embedded base (`wish` 8.5 ships Tk 8.5), Itcl ships the 3.x line.
@@ -842,6 +842,29 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
 };
 
 impl DialectProfile {
+    /// The release this profile's *runtime* behaviour follows, if it names one.
+    ///
+    /// A thin name over [`Self::runtime_base`], but the name is the point: it
+    /// is the sanctioned way to get from a profile to a [`TclVersion`], so the
+    /// step reads the same everywhere and a future rule (a vendor bit that
+    /// overrides the base, say) has one place to land.
+    #[must_use]
+    pub fn runtime_version(&self) -> Option<TclVersion> {
+        self.runtime_base
+    }
+
+    /// The string/character model of the release this profile runs.
+    ///
+    /// Collapses a three-step composition — profile → `runtime_base` →
+    /// [`TclVersion::string_character_model`] — that had four independent
+    /// copies across the compiler, the analyser and the explorer, reached
+    /// through three different spellings of "get the profile". Each copy was
+    /// free to differ in what it did with a profile that names no release.
+    #[must_use]
+    pub fn character_model(&self) -> Option<StringCharacterModel> {
+        self.runtime_version().map(TclVersion::string_character_model)
+    }
+
     /// The full catalog of canonical dialect profiles, in sorted-name order
     /// (the [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) order). Excludes the
     /// [`Self::plain_tcl`] fallback — it is a resolution sink, not a

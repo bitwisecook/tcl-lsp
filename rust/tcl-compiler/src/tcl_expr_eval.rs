@@ -51,7 +51,7 @@
 
 use std::collections::HashMap;
 
-use tcl_dialect::{NumberSyntax, StringCharacterModel, TclVersion};
+use tcl_dialect::{NumberSyntax, StringCharacterModel};
 
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
@@ -262,8 +262,7 @@ impl FoldPolicy {
             octal,
             is_irules: dialect.is_some_and(|d| tcl_dialect::DialectProfile::by_name(d).is_irules()),
             characters: dialect
-                .and_then(|d| tcl_dialect::DialectProfile::by_name(d).runtime_base)
-                .map(TclVersion::string_character_model),
+                .and_then(|d| tcl_dialect::DialectProfile::by_name(d).character_model()),
             numbers: dialect.map(|d| NumberSyntax::of_dialect_name(Some(d))),
         }
     }
@@ -278,10 +277,7 @@ impl FoldPolicy {
             is_irules: registry
                 .profile()
                 .is_some_and(tcl_dialect::DialectProfile::is_irules),
-            characters: registry
-                .profile()
-                .and_then(|profile| profile.runtime_base)
-                .map(TclVersion::string_character_model),
+            characters: registry.character_model(),
             numbers: Some(registry.numbers()),
         }
     }
@@ -315,7 +311,7 @@ pub fn parse_integer_operand_with_policy(text: &str, policy: FoldPolicy) -> Opti
     match strict_number_for_dialect(
         &FoldValue::Str(text.to_owned()),
         policy.octal,
-        policy.numbers.unwrap_or(NumberSyntax::Tcl90),
+        policy.numbers.unwrap_or_default(),
     )? {
         value @ (TclValue::Int(_) | TclValue::Big(_)) => Some(value),
         TclValue::Float(_) => None,
@@ -405,7 +401,7 @@ fn eval_with_config(
         numbers: if octal == Some(true) {
             NumberSyntax::Tcl85
         } else {
-            NumberSyntax::Tcl90
+            NumberSyntax::default()
         },
         math_since,
         is_irules,
@@ -523,7 +519,7 @@ fn classify_operand(value: &FoldValue, octal: Option<bool>, numbers: NumberSynta
         FoldValue::Int(_) | FoldValue::Big(_) | FoldValue::Float(_) => {
             // Already numeric — `to_number` cannot reach the literal parser
             // here, so the grammar it is given is immaterial.
-            return Operand::Num(value.to_number(NumberSyntax::Tcl90).unwrap());
+            return Operand::Num(value.to_number(NumberSyntax::default()).unwrap());
         }
         FoldValue::Str(s) => s.as_str(),
     };
@@ -794,7 +790,7 @@ pub fn format_tcl_value(v: &TclValue) -> String {
 /// Tcl boolean spellings.
 #[must_use]
 pub fn parse_literal(text: &str) -> Option<TclValue> {
-    parse_literal_in(text, NumberSyntax::Tcl90)
+    parse_literal_in(text, NumberSyntax::default())
 }
 
 /// [`parse_literal`] under an explicit release grammar — the form the folder

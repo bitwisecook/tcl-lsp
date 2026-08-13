@@ -476,6 +476,21 @@ impl CommandRegistry {
         self.octal_fold_policy().unwrap_or(true)
     }
 
+    /// The release this registry's dialect runs, if it names one.
+    ///
+    /// The registry-level mirror of [`DialectProfile::runtime_version`], so a
+    /// consumer holding a registry never spells out `profile().and_then(…)`.
+    #[must_use]
+    pub fn runtime_version(&self) -> Option<tcl_dialect::TclVersion> {
+        self.profile().and_then(tcl_dialect::DialectProfile::runtime_version)
+    }
+
+    /// The string/character model of the release this registry's dialect runs.
+    #[must_use]
+    pub fn character_model(&self) -> Option<tcl_dialect::StringCharacterModel> {
+        self.profile().and_then(tcl_dialect::DialectProfile::character_model)
+    }
+
     /// The numeral grammar of the dialect this registry serves, or the
     /// permissive 9.x default when no profile is loaded.
     ///

@@ -134,6 +134,9 @@ mod ambient {
     use std::cell::Cell;
 
     thread_local! {
+        // Spelled out rather than `NumberSyntax::default()` because `Default` is
+        // not const-callable; `numbers_default_matches_the_ambient_initialiser`
+        // pins the two together so they cannot drift.
         static SYNTAX: Cell<NumberSyntax> = const { Cell::new(NumberSyntax::Tcl90) };
     }
 
@@ -1361,5 +1364,15 @@ mod dialect_tests {
         // No dialect named falls to the permissive default, not to 8.x.
         assert_eq!(NumberSyntax::of_dialect_name(None), NumberSyntax::default());
         assert_eq!(NumberSyntax::of_profile(None), NumberSyntax::default());
+    }
+
+    /// The ambient's `const` initialiser cannot call `Default`, so it names the
+    /// variant directly — two places asserting one fact. This pins them.
+    #[test]
+    fn numbers_default_matches_the_ambient_initialiser() {
+        // A fresh thread has never had `set_runtime_syntax` called on it, so it
+        // still holds the initialiser's value.
+        let ambient = std::thread::spawn(runtime_syntax).join().unwrap();
+        assert_eq!(ambient, NumberSyntax::default());
     }
 }

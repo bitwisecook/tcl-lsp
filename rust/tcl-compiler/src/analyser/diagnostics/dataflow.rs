@@ -2086,9 +2086,7 @@ file; this call falls through to the 'unknown' handler."
             &fu.ssa,
             &fu.sccp.values,
             &executable,
-            tcl_dialect::DialectProfile::by_name(self.dialect())
-                .runtime_base
-                .map(tcl_dialect::TclVersion::string_character_model),
+            tcl_dialect::DialectProfile::by_name(self.dialect()).character_model(),
             // The document's own numeral grammar, alongside the character model
             // — both dialect-derived facts, both threaded rather than ambient.
             crate::intervals::numbers_for_dialect(Some(self.dialect())),

@@ -610,7 +610,7 @@ where
         values,
         executable,
         characters,
-        NumberSyntax::Tcl90,
+        NumberSyntax::default(),
     )
 }
 
@@ -983,7 +983,7 @@ where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
 {
-    find_divide_by_zero_with(cfg, ssa, values, executable, NumberSyntax::Tcl90)
+    find_divide_by_zero_with(cfg, ssa, values, executable, NumberSyntax::default())
 }
 
 /// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).

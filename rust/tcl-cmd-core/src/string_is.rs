@@ -175,7 +175,7 @@ enum Width {
 /// "9.0 and later" variant; the boundedness itself is a class-semantics change,
 /// not a numeral-grammar one.
 fn integer_class_width(numbers: NumberSyntax) -> Width {
-    if matches!(numbers, NumberSyntax::Tcl90) {
+    if numbers.is_tcl9_or_later() {
         Width::Unbounded
     } else {
         Width::Wide
