@@ -87,20 +87,6 @@ fn starts_like_a_numeral(text: &str) -> bool {
 }
 
 impl CodegenCtx<'_> {
-    /// The constant-folding policy for this module's compile target.
-    ///
-    /// The registry answers the iRules-operator and character-model facts, but
-    /// its *numeric* answers are re-derived from whatever profile it happens to
-    /// carry — and a hand-built registry has none, so `octal_fold_policy` falls
-    /// back to a loaded-packs heuristic that reads a 9.0 target as 8.x octal.
-    /// `CodegenCtx::numbers` comes from `Module.dialect`, which is the compile
-    /// target itself, so it wins.
-    ///
-    /// Two sources for one fact is exactly the drift the single number facility
-    /// exists to prevent: before this, `puts "x: [expr {0755 + 1}]"` folded to
-    /// 494 for a 9.0 target while the bare `puts [expr {0755 + 1}]` gave the
-    /// correct 756, because only one of the two paths reached a profile-built
-    /// registry.
     /// Read a Tcl source word as a wide integer under this module's compile
     /// target, for an operand baked into the bytecode at compile time.
     ///
@@ -120,6 +106,20 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// The constant-folding policy for this module's compile target.
+    ///
+    /// The registry answers the iRules-operator and character-model facts, but
+    /// its *numeric* answers are re-derived from whatever profile it happens to
+    /// carry — and a hand-built registry has none, so `octal_fold_policy` falls
+    /// back to a loaded-packs heuristic that reads a 9.0 target as 8.x octal.
+    /// `CodegenCtx::numbers` comes from `Module.dialect`, which is the compile
+    /// target itself, so it wins.
+    ///
+    /// Two sources for one fact is exactly the drift the single number facility
+    /// exists to prevent: before this, `puts "x: [expr {0755 + 1}]"` folded to
+    /// 494 for a 9.0 target while the bare `puts [expr {0755 + 1}]` gave the
+    /// correct 756, because only one of the two paths reached a profile-built
+    /// registry.
     fn fold_policy(&self) -> FoldPolicy {
         FoldPolicy {
             octal: Some(self.numbers.leading_zero_is_octal()),

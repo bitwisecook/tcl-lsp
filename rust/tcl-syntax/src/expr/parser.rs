@@ -433,7 +433,7 @@ impl<'a> PrattParser<'a> {
 /// its own text — the silent-wrong-answer shape this whole change removes.
 pub(super) fn numbers_for(dialect: Option<&str>, profile: &DialectProfile) -> NumberSyntax {
     if dialect.is_some() {
-        profile.grammar.numbers
+        NumberSyntax::of_profile(Some(profile))
     } else {
         crate::number::runtime_syntax()
     }

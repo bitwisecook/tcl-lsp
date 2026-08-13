@@ -83,9 +83,7 @@ fn looks_like_float(s: &str) -> bool {
 /// document's grammar decide another's literals.
 #[must_use]
 fn numbers_of(registry: &CommandRegistry) -> NumberSyntax {
-    registry
-        .profile()
-        .map_or(NumberSyntax::Tcl90, |profile| profile.grammar.numbers)
+    registry.numbers()
 }
 
 /// The integer-tower shape of a Tcl integer literal under `numbers` —

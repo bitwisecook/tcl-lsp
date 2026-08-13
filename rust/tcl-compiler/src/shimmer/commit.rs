@@ -271,11 +271,7 @@ impl CommitWalker<'_> {
     /// [`CommitCtx::numbers`].
     #[must_use]
     pub fn numbers(&self) -> tcl_syntax::number::NumberSyntax {
-        self.registry
-            .profile()
-            .map_or(tcl_syntax::number::NumberSyntax::Tcl90, |p| {
-                p.grammar.numbers
-            })
+        self.registry.numbers()
     }
 
     /// The commitment state of `(sym, ver)` at the current point — versions
