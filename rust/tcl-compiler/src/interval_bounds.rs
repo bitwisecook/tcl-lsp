@@ -35,7 +35,7 @@
 
 use std::collections::HashMap;
 use tcl_core_types::DiagCode;
-use tcl_dialect::StringCharacterModel;
+use tcl_dialect::{NumberSyntax, StringCharacterModel};
 
 use tcl_lexer::Span;
 use tcl_syntax::expr::ast::ExprNode;
@@ -43,7 +43,7 @@ use tcl_syntax::expr::ast::ExprNode;
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-use crate::intervals::{Interval, build_guard_index, compute_intervals, refine_interval};
+use crate::intervals::{Interval, build_guard_index, compute_intervals_with, refine_interval};
 use crate::ir::Statement;
 use crate::segmenter::segment_commands;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
@@ -585,8 +585,13 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     false
 }
 
-/// Dynamic out-of-range findings for this function (empty if none).
-/// `executable` restricts to SCCP-reachable blocks.
+/// [`find_interval_bounds_with`] under the Tcl 9.0 numeral grammar.
+///
+/// **A dialect-blind entry point**, kept for out-of-crate consumers that do not
+/// thread a dialect yet (`tcl-explorer`'s bounds view). Every in-crate caller
+/// passes the document's own grammar — see
+/// [`crate::intervals::compute_intervals`] for why `Tcl90` is the fallback and
+/// what it costs on an 8.x target.
 #[must_use]
 pub fn find_interval_bounds<S1, S2>(
     cfg: &CfgFunction,
@@ -599,13 +604,45 @@ where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
 {
+    find_interval_bounds_with(
+        cfg,
+        ssa,
+        values,
+        executable,
+        characters,
+        NumberSyntax::Tcl90,
+    )
+}
+
+/// Dynamic out-of-range findings for this function (empty if none).
+/// `executable` restricts to SCCP-reachable blocks.
+///
+/// `numbers` is the target release's numeric-literal grammar, threaded from the
+/// analyser's dialect alongside `characters` (the same shape of dialect-derived
+/// fact): it decides what an index literal in the guarded expression *is* —
+/// `0755` is 493 up to 8.6 and 755 from 9.0 — so a version-blind read can prove
+/// a range that reality never has.
+#[must_use]
+pub fn find_interval_bounds_with<S1, S2>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &HashMap<ValueKey, LatticeValue, S1>,
+    executable: &std::collections::HashSet<BlockId, S2>,
+    characters: Option<StringCharacterModel>,
+    numbers: NumberSyntax,
+) -> Vec<BoundsFinding>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+{
     if !has_candidate(cfg, ssa) {
         return Vec::new();
     }
     let ctx = BoundsCtx {
         cfg,
         ssa,
-        intervals: compute_intervals(cfg, ssa, values),
+        numbers,
+        intervals: compute_intervals_with(cfg, ssa, values, numbers),
         guard_index: build_guard_index(cfg, ssa),
         pred_counts: cfg
             .predecessors()
@@ -665,6 +702,10 @@ where
 struct BoundsCtx<'a> {
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
+    /// The target release's numeric-literal grammar — carried here so the
+    /// guard-narrowing tables it hands [`refine_interval`] read a branch's
+    /// constant bounds for the right dialect.
+    numbers: NumberSyntax,
     intervals: HashMap<ValueKey, Interval>,
     guard_index: HashMap<ValueKey, Vec<BlockId>>,
     /// Predecessor count per block — used to require a guarded branch target
@@ -767,6 +808,7 @@ impl BoundsCtx<'_> {
             crate::intervals::GuardTables {
                 guard_index: &self.guard_index,
                 pred_counts: &self.pred_counts,
+                numbers: self.numbers,
             },
         );
         if iv.is_top() || iv.is_bottom() {
@@ -883,6 +925,7 @@ fn collect_divzero(
     expr: &ExprNode,
     span: Span,
     env: &HashMap<String, Interval>,
+    numbers: NumberSyntax,
     out: &mut Vec<DivZeroFinding>,
 ) {
     use tcl_syntax::expr::ast::BinOp;
@@ -893,7 +936,7 @@ fn collect_divzero(
                 BinOp::Mod => "%",
                 _ => return,
             };
-            let iv = crate::intervals::eval_expr(right, env);
+            let iv = crate::intervals::eval_expr(right, env, numbers);
             if iv.lo == Some(0) && iv.hi == Some(0) {
                 out.push(DivZeroFinding { span, op });
             }
@@ -923,13 +966,12 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
     false
 }
 
-/// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).
+/// [`find_divide_by_zero_with`] under the Tcl 9.0 numeral grammar.
 ///
-/// Sound: the divisor's interval (guard-narrowed at the use site) must be
-/// exactly `[0, 0]`, and the block must be SCCP-executable. Shares the same
-/// interval machinery (`compute_intervals` / `refine_interval` / `eval_expr`)
-/// as [`find_interval_bounds`]. Findings are returned in source-span order
-/// for deterministic output.
+/// **A dialect-blind entry point**, kept for out-of-crate consumers that do not
+/// thread a dialect yet (`tcl-explorer`'s divide-by-zero view). Every in-crate
+/// caller passes the document's own grammar — see
+/// [`crate::intervals::compute_intervals`] for why `Tcl90` is the fallback.
 #[must_use]
 pub fn find_divide_by_zero<S1, S2>(
     cfg: &CfgFunction,
@@ -941,10 +983,34 @@ where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
 {
+    find_divide_by_zero_with(cfg, ssa, values, executable, NumberSyntax::Tcl90)
+}
+
+/// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).
+///
+/// Sound: the divisor's interval (guard-narrowed at the use site) must be
+/// exactly `[0, 0]`, and the block must be SCCP-executable. Shares the same
+/// interval machinery (`compute_intervals_with` / `refine_interval` /
+/// `eval_expr`) as [`find_interval_bounds_with`], including its `numbers`
+/// numeral grammar — a divisor literal is read for the target release, so a
+/// spelling that is not a numeral there (`0o0` under 8.4) proves nothing.
+/// Findings are returned in source-span order for deterministic output.
+#[must_use]
+pub fn find_divide_by_zero_with<S1, S2>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &HashMap<ValueKey, LatticeValue, S1>,
+    executable: &std::collections::HashSet<BlockId, S2>,
+    numbers: NumberSyntax,
+) -> Vec<DivZeroFinding>
+where
+    S1: std::hash::BuildHasher,
+    S2: std::hash::BuildHasher,
+{
     if !has_division(cfg, ssa) {
         return Vec::new();
     }
-    let intervals = compute_intervals(cfg, ssa, values);
+    let intervals = compute_intervals_with(cfg, ssa, values, numbers);
     let guard_index = build_guard_index(cfg, ssa);
     let pred_counts: HashMap<BlockId, usize> = cfg
         .predecessors()
@@ -970,6 +1036,7 @@ where
                             crate::intervals::GuardTables {
                                 guard_index: &guard_index,
                                 pred_counts: &pred_counts,
+                                numbers,
                             },
                         ),
                     )
@@ -986,7 +1053,7 @@ where
         for s in &sb.statements {
             if let Some(expr) = statement_expr(&s.statement) {
                 let span = statement_span(&s.statement).unwrap_or_else(|| Span::new(0, 0));
-                collect_divzero(expr, span, &env_for(&s.uses, bn), &mut findings);
+                collect_divzero(expr, span, &env_for(&s.uses, bn), numbers, &mut findings);
             }
         }
         let Some(block) = cfg.blocks.get(bid) else {
@@ -1001,13 +1068,20 @@ where
                 condition,
                 *span,
                 &env_for(&sb.exit_versions, bn),
+                numbers,
                 &mut findings,
             ),
             Some(Terminator::Return {
                 expr: Some(e),
                 span: Some(span),
                 ..
-            }) => collect_divzero(e, *span, &env_for(&sb.exit_versions, bn), &mut findings),
+            }) => collect_divzero(
+                e,
+                *span,
+                &env_for(&sb.exit_versions, bn),
+                numbers,
+                &mut findings,
+            ),
             _ => {}
         }
     }

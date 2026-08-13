@@ -95,12 +95,22 @@ use tcl_compiler::analyser::Analyser;
 use tcl_compiler::cfg::Terminator;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::intervals::{
-    Interval, build_guard_index, compute_intervals, constant, refine_interval,
+    Interval, build_guard_index, compute_intervals_with, constant, numbers_for_dialect,
+    refine_interval,
 };
 use tcl_registry::registry_for_dialect;
 
-/// Default dialect (8.6 and 9.0 agree on every Tcl fact exercised here).
+/// Default dialect for the shared helpers below (8.6 and 9.0 agree on every
+/// Tcl fact they exercise). The numeral-grammar tests name their dialect
+/// explicitly, because 8.6 and 9.0 *disagree* there — see
+/// [`dialect_numerals`].
 const D: &str = "tcl8.6";
+
+/// The numeral grammar of [`D`], threaded into every lattice-surface call the
+/// way the analyser threads the document's dialect.
+fn numbers() -> tcl_dialect::NumberSyntax {
+    numbers_for_dialect(Some(D))
+}
 
 // ===========================================================================
 // Diagnostic-surface helpers.
@@ -146,7 +156,7 @@ fn func(src: &str) -> (CompilationUnit, String) {
 /// `compute_intervals` over `::f`, plus a name→Symbol resolver bound to it.
 /// Look up an interval as `iv[("name", version)]`.
 fn intervals_of(fu: &FunctionUnit) -> impl Fn(&str, u32) -> Option<Interval> + '_ {
-    let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
+    let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
     move |name: &str, version: u32| {
         let sym = fu.ssa.var_symbol(name)?;
         iv.get(&(sym, version)).copied()
@@ -753,7 +763,7 @@ mod interval_fixpoint_soundness {
         let src = "proc f {} { set i 0\n while {$i < 5} { incr i }\n return $i }";
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).expect("::f lowered");
-        let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
+        let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
         assert!(!iv.is_empty(), "a counting loop must yield interval facts");
         for &interval in iv.values() {
             assert!(
@@ -849,7 +859,7 @@ mod guard_narrowing {
         let src = "proc f {} { for {set i 0} {$i < 10} {incr i} { puts $i } }";
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).unwrap();
-        let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
+        let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
         let gi = build_guard_index(&fu.cfg, &fu.ssa);
         let body = loop_body_block(fu);
         let sym = fu.ssa.var_symbol("i").expect("i interned");
@@ -868,6 +878,7 @@ mod guard_narrowing {
                     tcl_compiler::intervals::GuardTables {
                         guard_index: &gi,
                         pred_counts: &pc,
+                        numbers: numbers(),
                     },
                 );
                 !r.is_top() && !r.is_bottom() && r.hi == Some(9)
@@ -889,7 +900,7 @@ mod guard_narrowing {
         let src = "proc f {l} { for {set i 0} {$i < [llength $l]} {incr i} { puts $i } }";
         let (cu, key) = func(src);
         let fu = cu.procedures.get(&key).unwrap();
-        let iv = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
+        let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers());
         let gi = build_guard_index(&fu.cfg, &fu.ssa);
         let body = loop_body_block(fu);
         let sym = fu.ssa.var_symbol("i").expect("i interned");
@@ -919,6 +930,7 @@ mod guard_narrowing {
                 tcl_compiler::intervals::GuardTables {
                     guard_index: &gi,
                     pred_counts: &pc,
+                    numbers: numbers(),
                 },
             );
             if r.is_bottom() {
@@ -1001,5 +1013,188 @@ mod interval_arithmetic_observable {
         let lat = intervals_of(fu);
         let header = lat("i", 2).expect("i₂");
         assert_eq!((header.lo, header.hi), (Some(0), None));
+    }
+}
+
+// ===========================================================================
+// Dialect-dependent numerals (the threaded `NumberSyntax`).
+//
+// The interval domain reads every literal through the one shared numeral
+// facility (`tcl_syntax::number`), under the grammar of the release being
+// analysed *for*, passed explicitly. The releases genuinely disagree:
+//
+//   tclsh8.6:  expr {0755}  → 493      (octal by leading zero)
+//   tclsh9.0:  expr {0755}  → 755      (`KILL_OCTAL`; leading zero is decimal)
+//   tclsh8.4:  expr {0o17}  → invalid bareword; tclsh8.5+ → 15
+//   tclsh9.0:  expr {1_000} → 1000;    8.x → invalid bareword
+//
+// so a dialect-blind read is *wrong*, not merely imprecise — hence these run
+// the same source under two grammars and assert two different constants.
+// ===========================================================================
+mod dialect_numerals {
+    use super::*;
+    use tcl_dialect::NumberSyntax;
+
+    /// The finite upper bound the guard `$i < <literal>` proves for the widened
+    /// loop counter inside the body of
+    /// `for {set i 0} {$i < <literal>} {incr i} …`, under `dialect`.
+    ///
+    /// This is the guard-narrowing path (`refine_interval` →
+    /// `guard_constraint` → the numeral reader), deliberately chosen over a
+    /// foldable `set x [expr {…}]`: SCCP's own const-folder seeds that case
+    /// from its lattice before the interval transfer runs, so it would not
+    /// exercise this module's reader at all. Only versions whose base interval
+    /// is unbounded above are considered, so `None` means "the guard proved no
+    /// ceiling" rather than "some point interval happened to have one".
+    fn guard_ceiling(literal: &str, dialect: &str) -> Option<i64> {
+        let src = format!(
+            "proc f {{}} {{ for {{set i 0}} {{$i < {literal}}} {{incr i}} {{ puts $i }} }}"
+        );
+        let cu = CompilationUnit::build_for(&src, registry_for_dialect(dialect), false);
+        let fu = cu.procedures.get("::f").expect("::f lowered");
+        let numbers = numbers_for_dialect(Some(dialect));
+        let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers);
+        let gi = build_guard_index(&fu.cfg, &fu.ssa);
+        let pc = pred_counts(fu);
+        // A spelling that is not a numeral for this release may not even parse
+        // to a comparison — `$i < 0xZZ` leaves no `Binary`-guarded branch to
+        // narrow at, which is itself "no bound proved".
+        let body = fu.cfg.blocks.values().find_map(|b| match &b.terminator {
+            Some(Terminator::Branch {
+                true_target,
+                condition: tcl_compiler::expr_ast::ExprNode::Binary { .. },
+                ..
+            }) => Some(*true_target),
+            _ => None,
+        })?;
+        let sym = fu.ssa.var_symbol("i").expect("i interned");
+        let mut ceiling: Option<i64> = None;
+        for ver in 1u32..=6 {
+            let Some(base) = iv.get(&(sym, ver)).copied() else {
+                continue;
+            };
+            if base.hi.is_some() {
+                continue; // not a widened-above version (e.g. the `set i 0` init)
+            }
+            let refined = refine_interval(
+                &iv,
+                &fu.cfg,
+                &fu.ssa,
+                body,
+                "i",
+                ver,
+                tcl_compiler::intervals::GuardTables {
+                    guard_index: &gi,
+                    pred_counts: &pc,
+                    numbers,
+                },
+            );
+            if refined.is_bottom() {
+                continue;
+            }
+            if let Some(hi) = refined.hi {
+                ceiling = Some(ceiling.map_or(hi, |best: i64| best.max(hi)));
+            }
+        }
+        ceiling
+    }
+
+    /// The same `$i < 0755` guard proves `i <= 492` for an 8.x target and
+    /// `i <= 754` for a 9.0 one (tclsh8.6 `expr {0755}` → 493, tclsh9.0 → 755).
+    /// Before the dialect was threaded both read 755, so an 8.x analysis got a
+    /// range 262 wider than reality — and interval facts feed the W230–W233
+    /// range diagnostics and the native-integer proof.
+    #[test]
+    fn leading_zero_guard_bound_is_octal_for_8_x_and_decimal_for_9_0() {
+        assert_eq!(guard_ceiling("0755", "tcl8.5"), Some(492));
+        assert_eq!(guard_ceiling("0755", "tcl8.6"), Some(492));
+        assert_eq!(guard_ceiling("0755", "tcl9.0"), Some(754));
+    }
+
+    /// `0o17` is 15 from 8.5 and not a numeral at all in 8.4 (no `0o` prefix
+    /// before `tclStrToD.c`'s `ZERO_O` state), so no bound is proved there.
+    #[test]
+    fn octal_prefix_guard_bound_appears_in_8_5() {
+        assert_eq!(guard_ceiling("0o17", "tcl8.5"), Some(14));
+        assert_eq!(guard_ceiling("0o17", "tcl9.0"), Some(14));
+        assert_eq!(
+            guard_ceiling("0o17", "tcl8.4"),
+            None,
+            "0o17 is a bareword under 8.4 — no constant bound"
+        );
+    }
+
+    /// `0d99` and `1_000` are 9.0-only spellings: a bound there, none before.
+    #[test]
+    fn decimal_prefix_and_digit_separators_are_9_0_only() {
+        for (literal, ceiling) in [("0d99", 98), ("1_000", 999)] {
+            assert_eq!(
+                guard_ceiling(literal, "tcl9.0"),
+                Some(ceiling),
+                "{literal} under 9.0"
+            );
+            for old in ["tcl8.4", "tcl8.5", "tcl8.6"] {
+                assert_eq!(
+                    guard_ceiling(literal, old),
+                    None,
+                    "{literal} must prove no bound under {old}"
+                );
+            }
+        }
+    }
+
+    /// A radix-invalid digit is never a numeral, in any release — no bound.
+    #[test]
+    fn radix_invalid_digits_prove_no_bound() {
+        for literal in ["0o8", "0xZZ"] {
+            for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
+                assert_eq!(
+                    guard_ceiling(literal, dialect),
+                    None,
+                    "{literal} must prove no bound under {dialect}"
+                );
+            }
+        }
+    }
+
+    /// A `set x <literal>` const value is read only as canonical decimal, so a
+    /// dialect-ambiguous leading-zero spelling contributes no bound in any
+    /// release rather than a possibly-wrong one. (`0755` parses as 755 to a
+    /// plain decimal reader but *means* 493 up to 8.6.)
+    #[test]
+    fn leading_zero_const_value_abstains() {
+        let x1 = |src: &str, dialect: &str| -> Option<Interval> {
+            let cu = CompilationUnit::build_for(src, registry_for_dialect(dialect), false);
+            let fu = cu.procedures.get("::f").expect("::f lowered");
+            let iv = compute_intervals_with(
+                &fu.cfg,
+                &fu.ssa,
+                &fu.sccp.values,
+                numbers_for_dialect(Some(dialect)),
+            );
+            let sym = fu.ssa.var_symbol("x")?;
+            iv.get(&(sym, 1)).copied()
+        };
+        let src = "proc f {} { set x 0755\n return $x }";
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert!(
+                x1(src, dialect).is_none_or(Interval::is_top),
+                "`set x 0755` must contribute no bound under {dialect}"
+            );
+        }
+        // A canonical decimal still does.
+        let plain = "proc f {} { set x 755\n return $x }";
+        assert_eq!(x1(plain, "tcl8.6"), Some(constant(755)));
+    }
+
+    /// `NumberSyntax` for a dialect name comes from its profile's grammar, and
+    /// a nameless build falls back to 9.0 (the crate-wide convention).
+    #[test]
+    fn numbers_for_dialect_reads_the_profile_grammar() {
+        assert_eq!(numbers_for_dialect(Some("tcl8.4")), NumberSyntax::Tcl84);
+        assert_eq!(numbers_for_dialect(Some("tcl8.5")), NumberSyntax::Tcl85);
+        assert_eq!(numbers_for_dialect(Some("tcl8.6")), NumberSyntax::Tcl85);
+        assert_eq!(numbers_for_dialect(Some("tcl9.0")), NumberSyntax::Tcl90);
+        assert_eq!(numbers_for_dialect(None), NumberSyntax::Tcl90);
     }
 }

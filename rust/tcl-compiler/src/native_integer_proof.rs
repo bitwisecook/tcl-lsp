@@ -23,7 +23,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::BlockId;
 use crate::common_aot_plan::{CommonAotProofPlan, DirectCallSiteId, DirectProcDecision};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::intervals::{Interval, compute_intervals};
+use crate::intervals::{Interval, compute_intervals_with, numbers_for_dialect};
 use crate::ir::Statement;
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::ssa::{SsaStatement, ValueKey};
@@ -266,10 +266,16 @@ pub fn prove_native_integer_adds(
         return NativeIntegerProof::ComplexityGuarded;
     }
 
-    let intervals = compute_intervals(
+    // The numeral grammar of the release this unit was lowered for: a literal
+    // operand's value depends on it (`0755` is 493 up to 8.6, 755 from 9.0), and
+    // this proof turns a range into a native-width decision, so it must be the
+    // target's grammar rather than whatever is ambient.
+    let numbers = numbers_for_dialect(unit.ir_module.dialect.as_deref());
+    let intervals = compute_intervals_with(
         &function_unit.cfg,
         &function_unit.ssa,
         &function_unit.sccp.values,
+        numbers,
     );
     let observability = analyse_var_observability(&function_unit.cfg, registry);
     let params: &[String] = match unit.ir_module.procedures.get(function) {
@@ -477,7 +483,12 @@ fn collect_caller_ranges(
         if args.len() != params.len() {
             return Err(NativeIntegerDeclineReason::MissingDirectProcEvidence);
         }
-        let caller_intervals = compute_intervals(&caller.cfg, &caller.ssa, &caller.sccp.values);
+        let caller_intervals = compute_intervals_with(
+            &caller.cfg,
+            &caller.ssa,
+            &caller.sccp.values,
+            numbers_for_dialect(unit.ir_module.dialect.as_deref()),
+        );
         let caller_observability = analyse_var_observability(&caller.cfg, registry);
         for (param, argument) in params.iter().zip(args.iter()) {
             let range =

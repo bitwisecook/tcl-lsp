@@ -27,7 +27,7 @@
 //!
 //! The workspace therefore has exactly one numeral parser,
 //! [`tcl_syntax::number`], parameterised by `NumberSyntax`. Everything else
-//! asks it. This lint exists because that rule was broken five separate times
+//! asks it. This lint exists because that rule was broken six separate times
 //! before it was enforced, each independently and each with the same shape —
 //! strip a two-character radix prefix by hand, then call `from_str_radix`:
 //!
@@ -65,9 +65,10 @@
 //! - the facility's own implementation is exempt (see [`SANCTIONED_FILES`]);
 //! - integration-test trees and test-only modules are skipped;
 //! - a deliberate, reviewed site carries a `// number-drift-ok: <reason>`
-//!   comment on the flagged line or one of the four lines above it. Parsing a
-//!   radix prefix out of something that is *not* Tcl script text — a `tshark`
-//!   field, a hex colour, a hex-encoded byte string — is the legitimate case.
+//!   marker on the flagged line, or anywhere in the comment block directly
+//!   above it. Parsing a radix prefix out of something that is *not* Tcl script
+//!   text — a `tshark` field, a hex colour, a hex-encoded byte string — is the
+//!   legitimate case, as is recognising a *spelling* without parsing it.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -230,15 +231,30 @@ fn is_recognition_position(text: &str, start: usize, end: usize) -> bool {
     }
 }
 
-/// Whether the flagged line (or one of the four lines above it — room for a
-/// multi-line justification comment) carries a `number-drift-ok:` waiver.
+/// Whether the flagged line carries a `number-drift-ok:` waiver — on the line
+/// itself, or anywhere in the contiguous `//` comment block directly above it.
+///
+/// The whole attached block counts, rather than a fixed number of lines above:
+/// a waiver here has to explain *why* the text being parsed is not Tcl script,
+/// and that is usually several sentences. A fixed window silently stops
+/// recognising the marker once the justification grows past it, which punishes
+/// exactly the thorough explanations the waiver is supposed to require.
 fn line_is_waived(text: &str, line_no: usize) -> bool {
     let lines: Vec<&str> = text.lines().collect();
     let idx = line_no.saturating_sub(1);
-    (idx.saturating_sub(4)..=idx)
-        .filter_map(|i| lines.get(i))
-        .any(|l| l.contains("number-drift-ok:"))
+    if lines.get(idx).is_some_and(|l| l.contains(WAIVER)) {
+        return true;
+    }
+    // Walk up through the comment block immediately above the flagged line.
+    lines[..idx.min(lines.len())]
+        .iter()
+        .rev()
+        .take_while(|l| l.trim_start().starts_with("//"))
+        .any(|l| l.contains(WAIVER))
 }
+
+/// The marker that waives a site.
+const WAIVER: &str = "number-drift-ok:";
 
 #[cfg(test)]
 mod tests {
@@ -295,6 +311,36 @@ mod tests {
         let hits = scan(src);
         assert_eq!(hits.len(), 1);
         assert!(line_is_waived(src, hits[0].0));
+    }
+
+    /// The marker counts anywhere in the attached comment block, however long
+    /// the justification runs — a fixed lookback would stop seeing it.
+    #[test]
+    fn waiver_is_found_through_a_long_justification() {
+        let src = "fn f(s: &str) -> bool {\n\
+                   \x20   // number-drift-ok: first line of the reason\n\
+                   \x20   // second line\n\
+                   \x20   // third line\n\
+                   \x20   // fourth line\n\
+                   \x20   // fifth line\n\
+                   \x20   s.starts_with(\"0o\")\n\
+                   }\n";
+        let hits = scan(src);
+        assert_eq!(hits.len(), 1, "the site is still detected");
+        assert!(line_is_waived(src, hits[0].0), "waiver must be honoured");
+    }
+
+    /// A waiver on some *unrelated* earlier statement must not carry over: the
+    /// walk stops at the first non-comment line above the site.
+    #[test]
+    fn waiver_does_not_leak_past_intervening_code() {
+        let src = "// number-drift-ok: applies to the line below only\n\
+                   let a = other.strip_prefix(\"0x\");\n\
+                   let b = thing.strip_prefix(\"0o\");\n";
+        let hits = scan(src);
+        assert_eq!(hits.len(), 2);
+        assert!(line_is_waived(src, hits[0].0), "first site is waived");
+        assert!(!line_is_waived(src, hits[1].0), "second site is not");
     }
 
     /// A `|` that is not a string-literal alternative must not be mistaken for

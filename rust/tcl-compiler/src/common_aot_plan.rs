@@ -20,7 +20,7 @@ use crate::analyses::LatticeValue;
 use crate::cfg::{Block, BlockId};
 use crate::command_binding::{BindingKind, CommandBinding, analyse_command_binding};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::intervals::{Interval, compute_intervals};
+use crate::intervals::{Interval, compute_intervals_with, numbers_for_dialect};
 use crate::ir::{CommandTokens, Procedure, Statement};
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use crate::representation_plan::{SharingState, VarStorage};
@@ -1457,7 +1457,15 @@ fn collect_materialisable_slots(
                 .map(|summary| summary.local_slots.clone())
                 .unwrap_or_default()
         };
-        let intervals = compute_intervals(&function.cfg, &function.ssa, &function.sccp.values);
+        // The lowered module's own numeral grammar (`Module::dialect`) — the
+        // same source `codegen_module` reads, so a slot decision made here and
+        // the code emitted for it agree on what `0755` is.
+        let intervals = compute_intervals_with(
+            &function.cfg,
+            &function.ssa,
+            &function.sccp.values,
+            numbers_for_dialect(unit.ir_module.dialect.as_deref()),
+        );
         for key in ssa_value_keys(function, unit.ir_module.procedures.get(qname)) {
             let identity = SsaValueIdentity {
                 function: qname.clone(),

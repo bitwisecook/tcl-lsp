@@ -40,7 +40,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_dialect::NumberSyntax;
 use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp};
+use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -224,10 +226,10 @@ fn intersect(a: Interval, b: Interval) -> Interval {
     Interval { lo, hi }
 }
 
-/// The integer value of an `ExprNode::Literal` (incl. bool keyword), else
-/// `None`.
+/// The integer value of an `ExprNode::Literal` (incl. bool keyword) under the
+/// target release's numeral grammar, else `None`.
 #[must_use]
-fn literal_int(node: &ExprNode) -> Option<i64> {
+fn literal_int(node: &ExprNode, numbers: NumberSyntax) -> Option<i64> {
     let ExprNode::Literal { text, .. } = node else {
         return None;
     };
@@ -237,39 +239,96 @@ fn literal_int(node: &ExprNode) -> Option<i64> {
     if let Some(b) = tcl_syntax::boolean::parse_boolean_word(t) {
         return Some(i64::from(b));
     }
-    parse_radix_int(t)
+    parse_whole_int(t, numbers)
 }
 
-/// Parse a literal int: a `0x`/`0o`/`0b` prefix selects the radix (positive
-/// only, keyed on the two-character prefix), otherwise plain decimal (signed).
+/// The `i64` value of a *complete* Tcl integer numeral under `numbers`, via the
+/// one shared numeral facility ([`tcl_syntax::number`]).
+///
+/// The dialect decides the whole shape, and getting it wrong is not merely
+/// imprecise: a bare leading zero is **octal up to 8.6** (`0755` == 493) and
+/// **decimal from 9.0** (`0755` == 755), so a version-blind reader hands the
+/// interval domain a wrong constant. `0o`/`0b` exist only from 8.5, `0d` and
+/// `_` separators only from 9.0; a numeral whose prefix the release lacks, or
+/// whose digits are invalid for its radix (`0o8`, `0xZZ`), is not a number at
+/// all here — it is a bareword, so `None` (→ `TOP`) is the honest answer.
+///
+/// `integer_only` mirrors `TCL_PARSE_INTEGER_ONLY`: a fractional part is
+/// trailing junk rather than a float, so a non-integral literal yields `None`
+/// instead of a truncated integer. A magnitude past a wide comes back as
+/// [`Number::Big`] and is likewise `None` — the domain's bounds are `i64`.
+///
+/// The dialect is an explicit parameter, never the thread-local ambient
+/// ([`tcl_syntax::number::set_runtime_syntax`]): the LSP analyses documents of
+/// different dialects in one process, so ambient state would let one document's
+/// grammar decide another document's constants.
 #[must_use]
-fn parse_radix_int(t: &str) -> Option<i64> {
-    let prefix = t.get(..2).map(str::to_ascii_lowercase);
-    match prefix.as_deref() {
-        Some("0x") => i64::from_str_radix(&t[2..], 16).ok(),
-        Some("0o") => i64::from_str_radix(&t[2..], 8).ok(),
-        Some("0b") => i64::from_str_radix(&t[2..], 2).ok(),
-        _ => t.parse::<i64>().ok(),
+fn parse_whole_int(t: &str, numbers: NumberSyntax) -> Option<i64> {
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::for_syntax(numbers)
+    };
+    match parse_whole_with(t, flags)? {
+        Number::Int(v) => Some(v),
+        Number::Big { .. } | Number::Double(_) | Number::Nan { .. } => None,
     }
 }
 
-/// Parse a literal IR value word as an int, if it is exactly one (plain
-/// decimal, no radix prefixes).
+/// Parse a literal IR value word (an [`crate::ir::Statement::AssignConst`]
+/// value, an [`crate::ir::Statement::Incr`] amount) as an int, if it is
+/// exactly a **canonical** decimal one.
+///
+/// Deliberately *not* the full numeral grammar, and deliberately not
+/// dialect-aware — because it accepts only the spellings every release reads
+/// identically. The accepted shape is an optional sign plus a canonical decimal
+/// digit run (`0`, or a run with no leading zero): no radix prefix, no leading
+/// zero, no `_` separators. Every such text denotes the same integer under
+/// `Tcl84`, `Tcl85` and `Tcl90` alike, so no dialect can change the answer and
+/// there is nothing to thread.
+///
+/// The leading-zero exclusion is the load-bearing part: `"0755"` parses as 755
+/// to `i64::from_str` but *means* 493 up to 8.6, so accepting it would seed a
+/// wrong point interval. This mirrors SCCP's own
+/// [`crate::sccp::parse_literal_value`], which keeps a non-round-tripping
+/// leading-zero literal as a `ConstValue::String` for exactly that reason —
+/// so this function no longer undoes that abstention. Excluded spellings
+/// yield `None` → `TOP`, which is imprecise but always sound.
 #[must_use]
 fn const_int_from_value(text: &str) -> Option<i64> {
-    text.trim().parse::<i64>().ok()
+    let t = text.trim();
+    let digits = t.strip_prefix(['+', '-']).unwrap_or(t);
+    // Canonical decimal: all digits, and no leading zero unless it is `0`
+    // itself (`0755` / `08` are dialect-dependent; `00` is not canonical).
+    let canonical = !digits.is_empty()
+        && digits.bytes().all(|b| b.is_ascii_digit())
+        && (digits == "0" || !digits.starts_with('0'));
+    if canonical {
+        t.parse::<i64>().ok()
+    } else {
+        None
+    }
 }
 
-/// Abstract-evaluate `expr` over the current interval environment.
+/// Abstract-evaluate `expr` over the current interval environment, reading its
+/// numeric literals under `numbers` (the target release's numeral grammar).
 #[must_use]
-pub(crate) fn eval_expr(expr: &ExprNode, env: &HashMap<String, Interval>) -> Interval {
+pub(crate) fn eval_expr(
+    expr: &ExprNode,
+    env: &HashMap<String, Interval>,
+    numbers: NumberSyntax,
+) -> Interval {
     // Public entry: the top of an expression tree is nesting depth 0 (issue
     // #996 — the recursion cap lives in [`eval_expr_at`]).
-    eval_expr_at(expr, env, 0)
+    eval_expr_at(expr, env, 0, numbers)
 }
 
 #[must_use]
-fn eval_expr_at(expr: &ExprNode, env: &HashMap<String, Interval>, depth: u32) -> Interval {
+fn eval_expr_at(
+    expr: &ExprNode,
+    env: &HashMap<String, Interval>,
+    depth: u32,
+    numbers: NumberSyntax,
+) -> Interval {
     // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
     // native frame per level. Past the cap, return `TOP` (the unbounded
     // interval) — the same "know nothing" answer this abstract evaluator
@@ -279,10 +338,10 @@ fn eval_expr_at(expr: &ExprNode, env: &HashMap<String, Interval>, depth: u32) ->
         return TOP;
     }
     match expr {
-        ExprNode::Literal { .. } => literal_int(expr).map_or(TOP, constant),
+        ExprNode::Literal { .. } => literal_int(expr, numbers).map_or(TOP, constant),
         ExprNode::Var { name, .. } => env.get(name).copied().unwrap_or(TOP),
         ExprNode::Unary { op, operand } => {
-            let inner = eval_expr_at(operand, env, depth + 1);
+            let inner = eval_expr_at(operand, env, depth + 1, numbers);
             match op {
                 UnaryOp::Neg => negate(inner),
                 UnaryOp::Pos => inner,
@@ -290,8 +349,8 @@ fn eval_expr_at(expr: &ExprNode, env: &HashMap<String, Interval>, depth: u32) ->
             }
         }
         ExprNode::Binary { op, left, right } => {
-            let la = eval_expr_at(left, env, depth + 1);
-            let ra = eval_expr_at(right, env, depth + 1);
+            let la = eval_expr_at(left, env, depth + 1, numbers);
+            let ra = eval_expr_at(right, env, depth + 1, numbers);
             match op {
                 BinOp::Add => add(la, ra),
                 BinOp::Sub => sub(la, ra),
@@ -365,21 +424,26 @@ fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
 /// interval `name` satisfies when `cond` is true (`negate` for the false edge).
 /// Only a top-level comparison against a literal int is handled.
 #[must_use]
-fn guard_constraint(cond: &ExprNode, name: &str, negate: bool) -> Option<Interval> {
+fn guard_constraint(
+    cond: &ExprNode,
+    name: &str,
+    negate: bool,
+    numbers: NumberSyntax,
+) -> Option<Interval> {
     let ExprNode::Binary { op, left, right } = cond else {
         return None;
     };
     // $name <op> K
     if let ExprNode::Var { name: vn, .. } = left.as_ref()
         && vn == name
-        && let Some(k) = literal_int(right)
+        && let Some(k) = literal_int(right, numbers)
     {
         return guard_interval(*op, k, negate);
     }
     // K <op> $name  → rewrite as $name <flipped-op> K
     if let ExprNode::Var { name: vn, .. } = right.as_ref()
         && vn == name
-        && let Some(k) = literal_int(left)
+        && let Some(k) = literal_int(left, numbers)
     {
         let mirror = match op {
             BinOp::Lt => BinOp::Gt,
@@ -441,15 +505,22 @@ fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
 }
 
 /// The guard-analysis lookup tables [`refine_interval`] consults: the
-/// branch-block index (`build_guard_index`) and the per-block predecessor
-/// count (used for the merge / edge-domination check).  Bundled so the refiner
-/// keeps a small argument list.
+/// branch-block index (`build_guard_index`), the per-block predecessor
+/// count (used for the merge / edge-domination check), and the numeral grammar
+/// the branch conditions' literal bounds are read under.  Bundled so the
+/// refiner keeps a small argument list.
 #[derive(Clone, Copy)]
 pub struct GuardTables<'a> {
     /// Branch blocks that constrain each `(sym, version)`.
     pub guard_index: &'a HashMap<ValueKey, Vec<BlockId>>,
     /// Predecessor count per block.
     pub pred_counts: &'a HashMap<BlockId, usize>,
+    /// The target release's numeric-literal grammar — a guard's constant bound
+    /// (`$i < 0755`) means different numbers in different releases, so the
+    /// dialect rides along with the tables rather than being re-derived (or,
+    /// worse, read from ambient state) inside the refiner. See
+    /// [`parse_whole_int`].
+    pub numbers: NumberSyntax,
 }
 
 /// Narrow `base[(name, version)]` by the constant-bound guards that hold on
@@ -467,6 +538,7 @@ pub fn refine_interval<S1: std::hash::BuildHasher>(
     let GuardTables {
         guard_index,
         pred_counts,
+        numbers,
     } = guards;
     // A name that was never interned is not a tracked SSA value: no base
     // interval and no guard fact, so its interval is TOP.
@@ -532,7 +604,7 @@ pub fn refine_interval<S1: std::hash::BuildHasher>(
                 continue;
             }
         }
-        if let Some(c) = guard_constraint(condition, name, negate) {
+        if let Some(c) = guard_constraint(condition, name, negate, numbers) {
             iv = intersect(iv, c);
         }
     }
@@ -559,11 +631,12 @@ fn transfer(
     name: &str,
     env: &HashMap<String, Interval>,
     old: Interval,
+    numbers: NumberSyntax,
 ) -> Interval {
     use crate::ir::Statement;
     match stmt {
         Statement::AssignConst { value, .. } => const_int_from_value(value).map_or(TOP, constant),
-        Statement::AssignExpr { expr, .. } => eval_expr(expr, env),
+        Statement::AssignExpr { expr, .. } => eval_expr(expr, env, numbers),
         Statement::Incr { amount, .. } => {
             let mut base = env.get(name).copied().unwrap_or(old);
             if base.is_bottom() {
@@ -599,14 +672,54 @@ fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<BlockId> {
     headers
 }
 
-/// Forward interval analysis over the SSA form.  `values` is the SCCP lattice;
-/// a constant integer seeds `[c, c]`.  Everything else starts `BOTTOM` and is
-/// refined to fixpoint with loop-header widening.
+/// The numeric-literal grammar of a lowered module's dialect — the
+/// [`crate::ir::Module::dialect`] name resolved through its
+/// [`tcl_dialect::DialectProfile`].
+///
+/// `None` — and an unknown name — resolve through `by_opt_name` to the plain-Tcl
+/// profile, whose grammar is `Tcl90`: the same default
+/// [`crate::codegen::CodegenCtx::numbers`] takes for its hand-built contexts.
+#[must_use]
+pub fn numbers_for_dialect(dialect: Option<&str>) -> NumberSyntax {
+    tcl_dialect::DialectProfile::by_opt_name(dialect)
+        .grammar
+        .numbers
+}
+
+/// [`compute_intervals_with`] under the Tcl 9.0 numeral grammar.
+///
+/// **A dialect-blind entry point.** It exists for out-of-crate consumers that
+/// do not yet thread a dialect (`tcl-explorer`'s `intervals` view); every
+/// in-crate consumer calls [`compute_intervals_with`] with the dialect its
+/// caller already holds. `Tcl90` is the crate's established
+/// no-dialect-available default (see [`crate::codegen::CodegenCtx::numbers`]),
+/// and under it a bare leading zero is decimal — so for an 8.x target this
+/// entry reads `0755` as 755 rather than 493. Prefer the `_with` form.
 #[must_use]
 pub fn compute_intervals<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     values: &HashMap<ValueKey, LatticeValue, S>,
+) -> HashMap<ValueKey, Interval> {
+    compute_intervals_with(cfg, ssa, values, NumberSyntax::Tcl90)
+}
+
+/// Forward interval analysis over the SSA form.  `values` is the SCCP lattice;
+/// a constant integer seeds `[c, c]`.  Everything else starts `BOTTOM` and is
+/// refined to fixpoint with loop-header widening.
+///
+/// `numbers` is the numeral grammar of the release being analysed *for*, threaded
+/// explicitly from the caller (the analyser's dialect, a registry's profile, or
+/// [`numbers_for_dialect`] over the module's dialect) — never taken from
+/// `tcl_syntax::number`'s thread-local ambient, because one process analyses
+/// documents of several dialects at once. It decides the value of every
+/// numeric literal the pass reads: `0755` is 493 up to 8.6 and 755 from 9.0.
+#[must_use]
+pub fn compute_intervals_with<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    numbers: NumberSyntax,
 ) -> HashMap<ValueKey, Interval> {
     let mut result: HashMap<ValueKey, Interval> = HashMap::new();
     let cur = |result: &HashMap<ValueKey, Interval>, key: &ValueKey| -> Interval {
@@ -654,8 +767,9 @@ pub fn compute_intervals<S: std::hash::BuildHasher>(
                 for (&sym, &ver) in &s.defs {
                     let key = (sym, ver);
                     let nm = ssa.var_name(sym);
-                    let val = seed_const(key, values)
-                        .unwrap_or_else(|| transfer(&s.statement, nm, &env, cur(&result, &key)));
+                    let val = seed_const(key, values).unwrap_or_else(|| {
+                        transfer(&s.statement, nm, &env, cur(&result, &key), numbers)
+                    });
                     if val != cur(&result, &key) {
                         result.insert(key, val);
                         changed = true;
@@ -863,17 +977,23 @@ mod tests {
         assert_eq!(intersect(BOTTOM, iv(0, 10)), BOTTOM);
     }
 
+    /// A `Literal` node for `t`, read under `numbers`.
+    fn lit_at(t: &str, numbers: NumberSyntax) -> Option<i64> {
+        literal_int(
+            &ExprNode::Literal {
+                text: t.to_string(),
+                start: 0,
+                end: 0,
+            },
+            numbers,
+        )
+    }
+
     #[test]
     fn literal_int_parses_radix_and_bool_keywords() {
         // Verified against tclsh9.0: 0xff=255, 0o17=15, 0b101=5,
         // true/yes/on=1, false/no/off=0, 42=42, -7=-7.
-        let lit = |t: &str| {
-            literal_int(&ExprNode::Literal {
-                text: t.to_string(),
-                start: 0,
-                end: 0,
-            })
-        };
+        let lit = |t: &str| lit_at(t, NumberSyntax::Tcl90);
         assert_eq!(lit("0xff"), Some(255));
         assert_eq!(lit("0xFF"), Some(255));
         assert_eq!(lit("0o17"), Some(15));
@@ -889,19 +1009,104 @@ mod tests {
         assert_eq!(lit("notanumber"), None);
         // A non-literal node yields None.
         assert_eq!(
-            literal_int(&ExprNode::Var {
-                text: "$x".into(),
-                name: "x".into(),
-                start: 0,
-                end: 0
-            }),
+            literal_int(
+                &ExprNode::Var {
+                    text: "$x".into(),
+                    name: "x".into(),
+                    start: 0,
+                    end: 0
+                },
+                NumberSyntax::Tcl90
+            ),
             None
         );
-        // parse_radix_int / const_int_from_value directly.
-        assert_eq!(parse_radix_int("0b1111"), Some(15));
-        assert_eq!(parse_radix_int("zzz"), None);
+        // parse_whole_int / const_int_from_value directly.
+        assert_eq!(parse_whole_int("0b1111", NumberSyntax::Tcl90), Some(15));
+        assert_eq!(parse_whole_int("zzz", NumberSyntax::Tcl90), None);
         assert_eq!(const_int_from_value(" 9 "), Some(9));
-        assert_eq!(const_int_from_value("0xff"), None); // const value is plain decimal only
+        assert_eq!(const_int_from_value("0xff"), None); // const value is canonical decimal only
+    }
+
+    /// The numeral grammar is the *target release's*, threaded explicitly.
+    ///
+    /// A bare leading zero is octal up to 8.6 and decimal from 9.0
+    /// (`tcl9.0.3` defines `KILL_OCTAL`), which is the one case where a
+    /// version-blind read is *wrong* rather than merely imprecise: tclsh8.6
+    /// `expr {0755}` → 493, tclsh9.0 `expr {0755}` → 755.
+    #[test]
+    fn leading_zero_literal_is_octal_before_9_0() {
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert_eq!(lit_at("0755", syntax), Some(493), "{syntax:?}");
+            assert_eq!(lit_at("010", syntax), Some(8), "{syntax:?}");
+            // An invalid octal digit stops C's scan, so the whole word is not
+            // a numeral: tclsh8.6 `expr {08}` → "invalid octal number".
+            assert_eq!(lit_at("08", syntax), None, "{syntax:?}");
+        }
+        assert_eq!(lit_at("0755", NumberSyntax::Tcl90), Some(755));
+        assert_eq!(lit_at("010", NumberSyntax::Tcl90), Some(10));
+        assert_eq!(lit_at("08", NumberSyntax::Tcl90), Some(8));
+        // A point interval built from the literal, end to end.
+        let env: HashMap<String, Interval> = HashMap::new();
+        assert_eq!(
+            eval_expr(&pexpr("0755"), &env, NumberSyntax::Tcl85),
+            constant(493)
+        );
+        assert_eq!(
+            eval_expr(&pexpr("0755"), &env, NumberSyntax::Tcl90),
+            constant(755)
+        );
+    }
+
+    /// Radix prefixes appear in the release that added them, `_` separators in
+    /// 9.0, and a radix-invalid digit is never a numeral in any release.
+    #[test]
+    fn radix_prefixes_and_separators_follow_the_release() {
+        // `0x` is universal.
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            assert_eq!(lit_at("0x1f", syntax), Some(31), "{syntax:?}");
+            // Radix-invalid digits are barewords everywhere.
+            assert_eq!(lit_at("0o8", syntax), None, "{syntax:?}");
+            assert_eq!(lit_at("0xZZ", syntax), None, "{syntax:?}");
+        }
+        // `0o` / `0b`: 8.5 onward.
+        assert_eq!(lit_at("0o17", NumberSyntax::Tcl84), None);
+        assert_eq!(lit_at("0b101", NumberSyntax::Tcl84), None);
+        for syntax in [NumberSyntax::Tcl85, NumberSyntax::Tcl90] {
+            assert_eq!(lit_at("0o17", syntax), Some(15), "{syntax:?}");
+            assert_eq!(lit_at("0b101", syntax), Some(5), "{syntax:?}");
+        }
+        // `0d` and `_`: 9.0 only.
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert_eq!(lit_at("0d99", syntax), None, "{syntax:?}");
+            assert_eq!(lit_at("1_000", syntax), None, "{syntax:?}");
+        }
+        assert_eq!(lit_at("0d99", NumberSyntax::Tcl90), Some(99));
+        assert_eq!(lit_at("1_000", NumberSyntax::Tcl90), Some(1000));
+        // A signed radix literal (the old prefix-keyed reader missed these).
+        assert_eq!(lit_at("-0x10", NumberSyntax::Tcl90), Some(-16));
+        // Non-integral and past-a-wide literals give no bound.
+        assert_eq!(lit_at("1.5", NumberSyntax::Tcl90), None);
+        assert_eq!(lit_at("9223372036854775808", NumberSyntax::Tcl90), None);
+    }
+
+    /// The `AssignConst` / `Incr` value reader takes only spellings every
+    /// release reads identically, so it needs no dialect.
+    #[test]
+    fn const_int_from_value_is_canonical_decimal_only() {
+        assert_eq!(const_int_from_value("42"), Some(42));
+        assert_eq!(const_int_from_value("-7"), Some(-7));
+        assert_eq!(const_int_from_value("+5"), Some(5));
+        assert_eq!(const_int_from_value("0"), Some(0));
+        // Dialect-dependent or non-decimal spellings abstain (→ TOP, sound):
+        // `0755` is 493 up to 8.6 and 755 from 9.0, so no single answer is
+        // safe here — the same abstention `sccp::parse_literal_value` makes.
+        for text in ["0755", "08", "00", "0xff", "0o17", "1_000", "0d99", "1.5"] {
+            assert_eq!(const_int_from_value(text), None, "{text}");
+        }
     }
 
     fn pexpr(src: &str) -> ExprNode {
@@ -925,36 +1130,40 @@ mod tests {
                 operand: Box::new(node),
             };
         }
-        let _ = eval_expr(&node, &env);
+        let _ = eval_expr(&node, &env, NumberSyntax::Tcl90);
     }
 
     #[test]
     fn eval_expr_abstract_semantics() {
         let mut env: HashMap<String, Interval> = HashMap::new();
         env.insert("x".to_string(), iv(2, 4));
+        let ev = |src: &str| eval_expr(&pexpr(src), &env, NumberSyntax::Tcl90);
         // literal → point interval.
-        assert_eq!(eval_expr(&pexpr("5"), &env), constant(5));
+        assert_eq!(ev("5"), constant(5));
         // var in env → its interval; unknown var → TOP.
-        assert_eq!(eval_expr(&pexpr("$x"), &env), iv(2, 4));
-        assert_eq!(eval_expr(&pexpr("$unknown"), &env), TOP);
+        assert_eq!(ev("$x"), iv(2, 4));
+        assert_eq!(ev("$unknown"), TOP);
         // unary neg / pos.
-        assert_eq!(eval_expr(&pexpr("-$x"), &env), iv(-4, -2));
-        assert_eq!(eval_expr(&pexpr("+$x"), &env), iv(2, 4));
+        assert_eq!(ev("-$x"), iv(-4, -2));
+        assert_eq!(ev("+$x"), iv(2, 4));
         // binary add/sub/mul over the env.
-        assert_eq!(eval_expr(&pexpr("$x + 1"), &env), iv(3, 5));
-        assert_eq!(eval_expr(&pexpr("$x - 1"), &env), iv(1, 3));
-        assert_eq!(eval_expr(&pexpr("$x * 2"), &env), iv(4, 8));
+        assert_eq!(ev("$x + 1"), iv(3, 5));
+        assert_eq!(ev("$x - 1"), iv(1, 3));
+        assert_eq!(ev("$x * 2"), iv(4, 8));
         // comparison → boolean [0,1].
-        assert_eq!(eval_expr(&pexpr("$x < 3"), &env), iv(0, 1));
+        assert_eq!(ev("$x < 3"), iv(0, 1));
         // division is unmodelled → TOP (sound).
-        assert_eq!(eval_expr(&pexpr("$x / 2"), &env), TOP);
+        assert_eq!(ev("$x / 2"), TOP);
     }
 
     #[test]
     fn guard_constraint_both_operand_orders() {
+        let gc = |src: &str, negate: bool| {
+            guard_constraint(&pexpr(src), "x", negate, NumberSyntax::Tcl90)
+        };
         // `$x < 5` true → x ∈ [-inf, 4] (tclsh: 4<5=1, 5<5=0).
         assert_eq!(
-            guard_constraint(&pexpr("$x < 5"), "x", false),
+            gc("$x < 5", false),
             Some(Interval {
                 lo: None,
                 hi: Some(4)
@@ -962,21 +1171,18 @@ mod tests {
         );
         // mirrored: `5 < $x` true → x ∈ [6, +inf].
         assert_eq!(
-            guard_constraint(&pexpr("5 < $x"), "x", false),
+            gc("5 < $x", false),
             Some(Interval {
                 lo: Some(6),
                 hi: None
             })
         );
         // `$x == 7` → [7,7]; negated → Ne → None.
-        assert_eq!(
-            guard_constraint(&pexpr("$x == 7"), "x", false),
-            Some(constant(7))
-        );
-        assert_eq!(guard_constraint(&pexpr("$x == 7"), "x", true), None);
+        assert_eq!(gc("$x == 7", false), Some(constant(7)));
+        assert_eq!(gc("$x == 7", true), None);
         // not a comparison against this name → None.
-        assert_eq!(guard_constraint(&pexpr("$y < 5"), "x", false), None);
-        assert_eq!(guard_constraint(&pexpr("$x + 1"), "x", false), None);
+        assert_eq!(gc("$y < 5", false), None);
+        assert_eq!(gc("$x + 1", false), None);
     }
 
     #[test]
@@ -1063,7 +1269,12 @@ mod tests {
             false,
         );
         let fu = cu.procedures.get("::f").expect("proc");
-        let intervals = compute_intervals(&fu.cfg, &fu.ssa, &fu.sccp.values);
+        let intervals = compute_intervals_with(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.values,
+            numbers_for_dialect(Some("tcl8.6")),
+        );
         // The analysis runs and produces a (possibly empty but well-formed) map;
         // every computed interval is a valid lattice element (not the lo>hi
         // sentinel unless explicitly bottom).
