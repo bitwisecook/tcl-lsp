@@ -47,7 +47,11 @@ pub use view_tree::{ViewNode, build_view};
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_dialect::DialectProfile;
-use tcl_registry::registry_for_dialect;
+// The pack-carrying registry, not the plain one: since the EDA vendor
+// libraries became `.tclspec` loadables they exist nowhere else, so an
+// explorer on the plain registry reports every `synth_design` unknown while
+// the diagnostic on the same line resolves it.
+use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 
 /// Per-function compilation artefacts surfaced by the explorer.
 ///

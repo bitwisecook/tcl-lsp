@@ -50,7 +50,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex, OnceLock};
 
 use tcl_dialect::TclVersion;
 
@@ -580,6 +580,30 @@ pub fn current_dialect() -> Option<&'static str> {
 /// unaccelerated process pays.
 static ANY_HOST: AtomicBool = AtomicBool::new(false);
 
+/// Builds and installs this thread's host on demand, registered by the layer
+/// that owns the hook host (`tcl-spectcl`).
+///
+/// The registry cannot build a host — that needs the loader and a VM, both of
+/// which sit above it — so the capability is registered downwards once and
+/// called from [`dispatch`].
+static INSTALLER: OnceLock<fn()> = OnceLock::new();
+
+/// Register the thread-host installer. Idempotent; the first registration wins.
+///
+/// # Why this exists
+///
+/// A host is per **thread** (it owns VMs, which are not `Send`), so every
+/// thread that might dispatch a hook has to build one. Relying on each worker
+/// closure to do that by hand made hook availability depend on which Tokio
+/// worker happened to run the task: the analysis and optimisation closures
+/// installed a host, but the semantic-token and minify ones did not, so the
+/// same document could resolve a pack's commands or not depending on
+/// scheduling. Installing lazily at the one point that actually needs a host —
+/// the dispatch — makes that impossible to get wrong by omission.
+pub fn set_installer(installer: fn()) {
+    let _ = INSTALLER.set(installer);
+}
+
 /// Install `host` as this thread's pack-hook host, replacing any previous one.
 ///
 /// Every pack-declared hook on this thread abstains until this is called, so
@@ -708,7 +732,19 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     {
         return hit;
     }
-    let Some(host) = HOST.with(|slot| slot.borrow().clone()) else {
+    let mut host = HOST.with(|slot| slot.borrow().clone());
+    if host.is_none() {
+        // This thread has never dispatched a hook before (or the plan moved
+        // under it). Build its host now rather than abstaining: abstaining
+        // here would silently answer "no packs" on a thread that simply had
+        // not been initialised, which is the same command resolving
+        // differently depending on which worker took the task.
+        if let Some(installer) = INSTALLER.get() {
+            installer();
+            host = HOST.with(|slot| slot.borrow().clone());
+        }
+    }
+    let Some(host) = host else {
         return HookAnswer::Abstain;
     };
     let answer = host.invoke(slot, call);

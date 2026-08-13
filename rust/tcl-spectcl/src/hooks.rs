@@ -387,6 +387,12 @@ pub fn publish(packs: &PackSet) {
     }
     *published = Some(plan);
     GENERATION.fetch_add(1, Ordering::Release);
+    // Teach the registry how to build a thread's host, so any thread that
+    // dispatches a hook gets one whether or not its worker closure remembered
+    // to call `ensure_thread_host`. Registered here because this is the moment
+    // a host becomes worth building at all; idempotent, so repeated reloads
+    // cost one `OnceLock` read.
+    pack_hooks::set_installer(ensure_thread_host);
 }
 
 /// Give this thread a hook host for the published plan, if it does not have

@@ -12924,7 +12924,13 @@ impl Backend {
                 // after the swap would leave a window in which a query sees
                 // the pack's commands with their hooks still abstaining.
                 tcl_spectcl::hooks::publish(&loaded);
-                *guard = Arc::new(loaded);
+                let loaded = Arc::new(loaded);
+                // Publish the same set to every other consumer in this process
+                // — the compiler explorer most of all, which built a plain
+                // registry and so reported a pack's (and every EDA) command
+                // unknown on the very line whose diagnostic resolved it.
+                tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded)));
+                *guard = loaded;
             }
             changed
         };

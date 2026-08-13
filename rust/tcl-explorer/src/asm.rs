@@ -50,7 +50,11 @@ use tcl_compiler::codegen::format::{format_function_asm, instruction_operand_tex
 use tcl_compiler::codegen::{FunctionAsm, ModuleAsm, Op, Operand, codegen_module};
 use tcl_compiler::ir::Module;
 use tcl_lexer::LineIndex;
-use tcl_registry::registry_for_dialect;
+// The pack-carrying registry, not the plain one: since the EDA vendor
+// libraries became `.tclspec` loadables they exist nowhere else, so an
+// explorer on the plain registry reports every `synth_design` unknown while
+// the diagnostic on the same line resolves it.
+use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 
 use crate::ExplorerResult;
 use crate::formatters::range_dict;

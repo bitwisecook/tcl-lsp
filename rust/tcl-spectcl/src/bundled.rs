@@ -59,7 +59,7 @@
 //! before.
 
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock, RwLock};
 
 use tcl_dialect::DialectProfile;
 use tcl_registry::registry::CommandRegistry;
@@ -195,6 +195,51 @@ fn resolve_packs(bundled_dir: Option<PathBuf>) -> PackSet {
 pub fn packs() -> &'static PackSet {
     static PACKS: OnceLock<PackSet> = OnceLock::new();
     PACKS.get_or_init(|| resolve_packs(crate::discovery::bundled_dir()))
+}
+
+/// The workspace's loaded pack set, when a consumer has published one.
+///
+/// [`packs`] is the *bundled* tier only. A server that has discovered and
+/// loaded the workspace and user tiers as well knows strictly more, and every
+/// other consumer in the process should see the same specs it does — otherwise
+/// the compiler explorer reports a pack's command unknown while the diagnostic
+/// on the very same line resolves it.
+static ACTIVE: RwLock<Option<Arc<PackSet>>> = RwLock::new(None);
+
+/// Publish the pack set every consumer in this process should resolve against.
+///
+/// Called by the LSP server on each reload. A `None` set (or never calling
+/// this) leaves consumers on [`packs`], which is what a bare CLI wants.
+pub fn set_active(packs: Option<Arc<PackSet>>) {
+    let mut active = match ACTIVE.write() {
+        Ok(active) => active,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *active = packs;
+}
+
+/// The published workspace pack set, if any.
+#[must_use]
+pub fn active() -> Option<Arc<PackSet>> {
+    match ACTIVE.read() {
+        Ok(active) => active.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    }
+}
+
+/// The registry for `dialect` against the **active** pack set — the workspace's
+/// when one has been published, the bundled loadables otherwise.
+///
+/// The drop-in for any consumer that wants what the workspace actually has
+/// loaded rather than only what shipped: the compiler explorer, `tcl explore`,
+/// and anything else that renders a pipeline the user expects to match their
+/// diagnostics.
+#[must_use]
+pub fn active_registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
+    match active() {
+        Some(packs) => registry_for_dialect_from(dialect, &packs),
+        None => registry_for_dialect(dialect),
+    }
 }
 
 /// The cached registry for `profile` with the shipped loadables installed.

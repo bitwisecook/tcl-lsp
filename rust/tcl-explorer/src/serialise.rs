@@ -67,7 +67,9 @@ use tcl_compiler::state_ssa::{CfgStatePosition, StateOp, StateSite};
 use tcl_compiler::taint::find_taint_warnings_for_cu;
 use tcl_compiler::world_state_ssa::{WorldStateSsaDecline, project_transition_facts};
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
-use tcl_registry::{available_dialects, registry_for_dialect};
+use tcl_registry::available_dialects;
+// See the note in `lib.rs`: the explorer resolves against the active pack set.
+use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 use tcl_syntax::expr::ast::render_expr;
 
 use crate::ExplorerResult;
