@@ -71,6 +71,21 @@ const fn unaryop_folds(op: UnaryOp) -> bool {
     )
 }
 
+/// Whether `text` begins the way a numeral does — an optional sign then an
+/// ASCII digit — which is what makes a failed parse a *bad number* rather than
+/// simply a non-numeric word. C draws the same line in `ParseLexeme`: a word
+/// starting with a digit is scanned as a NUMBER and diagnosed if it does not
+/// parse, while a word starting with a letter is a bareword (a function name,
+/// or an error) and never a numeral diagnosis.
+fn starts_like_a_numeral(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let rest = match bytes.first() {
+        Some(b'+' | b'-') => &bytes[1..],
+        _ => bytes,
+    };
+    rest.first().is_some_and(u8::is_ascii_digit)
+}
+
 impl CodegenCtx<'_> {
     /// Compile an expression AST node; leaves the result on TOS.
     ///
@@ -106,18 +121,32 @@ impl CodegenCtx<'_> {
         // `tcl_expr_eval`'s, and it is dialect-aware in its own right. Folding
         // here instead would put the value where C puts the spelling: the same
         // answer, a different literal pool and one instruction fewer.
-        if tcl_syntax::number::is_whole_number(text.trim(), self.numbers) {
-            self.push_lit(text.trim());
+        let trimmed = text.trim();
+        if tcl_syntax::number::is_whole_number(trimmed, self.numbers) {
+            self.push_lit(trimmed);
             // Not canonical: the caller emits `tryCvtToNumeric`, which converts
             // under the runtime's grammar (`1e3` → `1000.0`, `0xFF` → `255`).
             return false;
         }
-        // Not a numeral in this release. C classifies it as a bareword and
-        // compiles a syntax error; `exprStk` raises the same diagnosis at run
-        // time with the full `ParseExpr` message.
+        // A numeral this release cannot read — `0o8` anywhere, `0d99`/`1_0`/`08`
+        // before 9.0. C classifies it as a bareword and compiles a syntax error;
+        // `exprStk` raises the same diagnosis at run time with the full
+        // `ParseExpr` message.
+        //
+        // Only for text that *tries* to be a numeral, i.e. starts with a digit
+        // after an optional sign. `Literal` is not exclusively an expression
+        // operand: `cfg_lower` models an exact-`switch` arm pattern as one so
+        // the `STR_EQ(subject, pattern)` condition stays foldable into a jump
+        // table, and those patterns are arbitrary strings. Diverting every
+        // non-numeral here would compile `switch zz { a {…} }` into an `expr`
+        // evaluation of the bareword `a`.
+        if starts_like_a_numeral(trimmed) {
+            self.push_lit(text);
+            self.emit(Op::EXPR_STK, vec![]);
+            return true;
+        }
         self.push_lit(text);
-        self.emit(Op::EXPR_STK, vec![]);
-        true
+        false
     }
 
     /// Emit a `String` expression — strips surrounding `"..."` or
@@ -513,6 +542,34 @@ mod tests {
             assert!(!ctx.emit_expr(&lit(text)), "{text}: reported canonical");
             assert_eq!(opcodes(&ctx), vec![Op::PUSH1], "{text}: opcodes");
             assert_eq!(ctx.literals.entries()[0], want, "{text}: literal pool");
+        }
+    }
+
+    /// `ExprNode::Literal` is not exclusively an expression operand, so a
+    /// non-numeral must be pushed verbatim rather than diagnosed.
+    ///
+    /// `cfg_lower` models an exact-`switch` arm pattern as a `Literal` so the
+    /// `STR_EQ(subject, pattern)` condition stays foldable into a jump table,
+    /// and an arm pattern is an arbitrary string. Routing every non-numeral to
+    /// `exprStk` compiled `switch zz { a {puts a} default {puts def} }` into an
+    /// `expr` evaluation of the bareword `a`, which errors — caught by
+    /// `tcl-vm`'s `switch_glob_and_default`. Only text that *starts* like a
+    /// numeral can be a bad numeral; C's `ParseLexeme` draws the same line.
+    #[test]
+    fn a_non_numeral_literal_is_pushed_verbatim_not_diagnosed() {
+        let registry = CommandRegistry::build_default();
+        for text in ["a", "zz", "default", "some pattern", "", "x1"] {
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            let numeric = ctx.emit_expr(&lit(text));
+            assert_eq!(opcodes(&ctx), vec![Op::PUSH1], "{text:?}: opcodes");
+            assert!(!numeric, "{text:?}: must not claim numeric");
+            assert_eq!(ctx.literals.entries()[0], text, "{text:?}: literal pool");
+        }
+        // Sign-led words are words too, not numerals.
+        for text in ["-foo", "+bar"] {
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            ctx.emit_expr(&lit(text));
+            assert_eq!(opcodes(&ctx), vec![Op::PUSH1], "{text:?}");
         }
     }
 
