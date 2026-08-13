@@ -4474,6 +4474,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-host-native",
+ "tcl-lexer",
  "tcl-platform",
  "tcl-regex",
  "tcl-registry",
