@@ -32,18 +32,30 @@
 //! There is **no** boolean handling here —
 //! `true`/`yes`/`on`… are `Tcl_GetBoolean`'s job, not `TclParseNumber`'s.
 //!
-//! ## Tcl 9.0 forms
+//! ## Forms, by release
+//!
+//! The numeric grammar changed twice across the supported range, so the shape
+//! accepted here depends on [`ParseFlags::syntax`] (a [`NumberSyntax`], derived
+//! from the dialect). Defaulting to 9.0 keeps modern rules for callers that
+//! genuinely have no dialect.
 //!
 //! - Optional sign, optional surrounding whitespace (unless [`ParseFlags::no_whitespace`]).
-//! - Radix prefixes `0x`/`0X`, `0o`/`0O`, `0b`/`0B`, `0d`/`0D` (case-insensitive,
-//!   each needs ≥1 following digit). **A bare leading `0` is decimal** (`0755`
-//!   == 755 — the 8.x octal-by-leading-zero rule is gone in 9.0).
-//! - `_` digit separators between same-base digits (`1__000`, `0xff__ff`),
-//!   unless [`ParseFlags::no_underscore`]. Not leading/trailing a digit run.
+//! - `0x`/`0X` hex in every release. `0o`/`0O` and `0b`/`0B` from **8.5**;
+//!   `0d`/`0D` from **9.0** (case-insensitive, each needs ≥1 following digit).
+//!   An unavailable prefix is not a prefix at all, so `0o17` under 8.4 parses as
+//!   `0` with `o17` trailing.
+//! - A bare leading `0` is **octal up to 8.6** (`0755` == 493) and **decimal
+//!   from 9.0** (`0755` == 755). Under the octal rule `08` yields `0` with `8`
+//!   trailing, mirroring C's scan stopping at the invalid digit, while a run
+//!   followed by `.`/`e` stays a decimal float (`0.5`, `07.5`).
+//! - `_` digit separators between same-base digits (`1__000`, `0xff__ff`) from
+//!   **9.0**, and never when [`ParseFlags::no_underscore`] is set.
 //! - Decimal floats: `1.5`, `.5`, `1.`, `1e9`, `1.5E-3` (no hex/oct/bin floats).
 //! - `Inf`/`Infinity` and `NaN`/`NaN(hexpayload)` — case-insensitive.
 
 use std::borrow::Cow;
+
+pub use tcl_dialect::NumberSyntax;
 
 /// Integer radix (base) for a [`Number::Big`]'s digit string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,7 +97,12 @@ pub enum Number {
     },
 }
 
-/// Knobs mirroring `TclParseNumber`'s flag bits (the subset used so far).
+/// How to parse a number: `TclParseNumber`'s flag bits (the subset used so
+/// far) plus the release's numeric-literal grammar.
+///
+/// [`Default`] is Tcl 9.0 syntax, so a caller that does not know its dialect
+/// keeps the modern rules; a version-aware caller sets [`ParseFlags::syntax`]
+/// (or builds one with [`ParseFlags::for_syntax`]).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ParseFlags {
     /// Reject a fractional part / exponent (`TCL_PARSE_INTEGER_ONLY`).
@@ -94,6 +111,27 @@ pub struct ParseFlags {
     pub no_whitespace: bool,
     /// Reject `_` digit separators (`TCL_PARSE_NO_UNDERSCORE`).
     pub no_underscore: bool,
+    /// The release's numeric-literal grammar: which radix prefixes exist,
+    /// whether a bare leading `0` is octal, and whether `_` separators are
+    /// allowed. See [`NumberSyntax`].
+    pub syntax: NumberSyntax,
+}
+
+impl ParseFlags {
+    /// Flags carrying `syntax` with every `TclParseNumber` bit clear.
+    #[must_use]
+    pub fn for_syntax(syntax: NumberSyntax) -> Self {
+        Self {
+            syntax,
+            ..Self::default()
+        }
+    }
+
+    /// Whether `_` digit separators are accepted: both the caller's flag bit
+    /// and the release's grammar have to allow them (they are 9.0+).
+    fn underscores_ok(self) -> bool {
+        !self.no_underscore && self.syntax.allows_digit_separators()
+    }
 }
 
 /// A successful parse: the classified [`Number`] and the byte offset just past
@@ -331,16 +369,19 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
         return parse_inf_nan(b, i, negative);
     }
 
-    // Radix prefix (`0x`/`0o`/`0b`/`0d`), each requiring a following digit. A
-    // bare leading `0` falls through to the decimal path (9.0: not octal).
+    // Radix prefix, each requiring a following digit, and each gated on the
+    // release that introduced it: `0x` is universal, `0b`/`0o` arrived in 8.5,
+    // `0d` in 9.0. An unavailable prefix simply is not a prefix — `0o17` under
+    // 8.4 parses as the single digit `0` with `o17` left over, which is what
+    // makes it a bareword in an expression.
     let mut radix = Radix::Dec;
     let mut int_only_prefix = flags.integer_only;
     if i + 1 < len && b[i] == b'0' {
         let (r, only) = match b[i + 1] {
             b'x' | b'X' => (Some(Radix::Hex), true),
-            b'o' | b'O' => (Some(Radix::Oct), true),
-            b'b' | b'B' => (Some(Radix::Bin), true),
-            b'd' | b'D' => (Some(Radix::Dec), true),
+            b'o' | b'O' if flags.syntax.has_binary_octal_prefix() => (Some(Radix::Oct), true),
+            b'b' | b'B' if flags.syntax.has_binary_octal_prefix() => (Some(Radix::Bin), true),
+            b'd' | b'D' if flags.syntax.has_decimal_prefix() => (Some(Radix::Dec), true),
             _ => (None, false),
         };
         if let Some(r) = r {
@@ -353,9 +394,26 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
         }
     }
 
+    // Octal-by-leading-zero, up to 8.6 (`#undef KILL_OCTAL`): a bare `0`
+    // followed by digits is octal, so `0755` is 493 and `08` yields `0` with
+    // `8` left over — C's octal scan simply stops at the invalid digit. Only
+    // for an *integer*: a digit run followed by `.`/`e` is a decimal float in
+    // every release (`0.5`, `07.5`), which C reaches by backtracking out of its
+    // octal state.
+    if radix == Radix::Dec
+        && flags.syntax.leading_zero_is_octal()
+        && b[i] == b'0'
+        && i + 1 < len
+        && b[i + 1].is_ascii_digit()
+        && !decimal_run_is_fractional(b, i)
+    {
+        radix = Radix::Oct;
+        int_only_prefix = true;
+    }
+
     // Scan the integer magnitude digits (with `_` separators).
     let int_start = i;
-    let scan = scan_digits(b, i, radix as u32, flags.no_underscore);
+    let scan = scan_digits(b, i, radix as u32, !flags.underscores_ok());
     i = scan.end;
 
     // Decimal floats: a `.` or exponent (and not integer-only) makes it a double.
@@ -382,6 +440,18 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
         },
     };
     Some(Parsed { number, end: i })
+}
+
+/// Whether the decimal-digit run at `i` is followed by `.` or an exponent — in
+/// which case it is a decimal float, not an octal integer, in every release.
+/// The lookahead spans decimal digits (not octal ones) so `08.5` and `09e1` are
+/// recognised as floats just as C's backtracking does.
+fn decimal_run_is_fractional(b: &[u8], i: usize) -> bool {
+    let mut j = i;
+    while j < b.len() && b[j].is_ascii_digit() {
+        j += 1;
+    }
+    j < b.len() && matches!(b[j], b'.' | b'e' | b'E')
 }
 
 /// Apply `negative` to a `u64` magnitude, yielding `Some(i64)` when it fits a
@@ -501,7 +571,10 @@ fn parse_decimal_float(
         while i < len {
             if b[i].is_ascii_digit() {
                 i += 1;
-            } else if !flags.no_underscore && b[i] == b'_' && i > start && b[i - 1].is_ascii_digit()
+            } else if flags.underscores_ok()
+                && b[i] == b'_'
+                && i > start
+                && b[i - 1].is_ascii_digit()
             {
                 let mut j = i + 1;
                 while j < len && b[j] == b'_' {
@@ -887,5 +960,149 @@ mod tests {
             compare_int_double(-9_223_372_036_854_775_807, -9.3e18),
             Some(Greater)
         );
+    }
+}
+
+#[cfg(test)]
+mod dialect_tests {
+    use super::{Number, NumberSyntax, ParseFlags, parse, parse_whole_with};
+
+    fn whole(s: &str, syntax: NumberSyntax) -> Option<Number> {
+        parse_whole_with(s, ParseFlags::for_syntax(syntax))
+    }
+
+    /// A bare leading zero is octal up to 8.6 and decimal from 9.0
+    /// (`changes.md`: "`0NNN` format is no longer octal interpretation").
+    #[test]
+    fn leading_zero_is_octal_before_9_0() {
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert_eq!(whole("0755", syntax), Some(Number::Int(493)), "{syntax:?}");
+            assert_eq!(whole("010", syntax), Some(Number::Int(8)), "{syntax:?}");
+        }
+        assert_eq!(whole("0755", NumberSyntax::Tcl90), Some(Number::Int(755)));
+        assert_eq!(whole("010", NumberSyntax::Tcl90), Some(Number::Int(10)));
+        // `0` alone, and a zero run, are the same in every release.
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            assert_eq!(whole("0", syntax), Some(Number::Int(0)), "{syntax:?}");
+            assert_eq!(whole("00", syntax), Some(Number::Int(0)), "{syntax:?}");
+        }
+    }
+
+    /// Under the octal rule an invalid octal digit stops the scan, so `08` is a
+    /// *partial* parse (`0`, with `8` trailing) — `parse_whole` therefore
+    /// rejects it, which is how C reports `08` as a bad octal number. From 9.0
+    /// it is plain decimal 8.
+    #[test]
+    fn invalid_octal_digit_stops_the_scan_before_9_0() {
+        for bad in ["08", "09"] {
+            assert_eq!(whole(bad, NumberSyntax::Tcl85), None, "{bad}");
+            let partial = parse(bad, ParseFlags::for_syntax(NumberSyntax::Tcl85)).unwrap();
+            assert_eq!(partial.number, Number::Int(0));
+            assert_eq!(partial.end, 1, "scan stops at the invalid octal digit");
+        }
+        assert_eq!(whole("08", NumberSyntax::Tcl90), Some(Number::Int(8)));
+        assert_eq!(whole("09", NumberSyntax::Tcl90), Some(Number::Int(9)));
+    }
+
+    /// A digit run followed by `.` or an exponent is a decimal float in every
+    /// release — C backtracks out of its octal state rather than reading `07.5`
+    /// as octal.
+    #[test]
+    fn leading_zero_floats_stay_decimal() {
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            assert_eq!(
+                whole("0.5", syntax),
+                Some(Number::Double(0.5)),
+                "{syntax:?}"
+            );
+            assert_eq!(
+                whole("07.5", syntax),
+                Some(Number::Double(7.5)),
+                "{syntax:?}"
+            );
+            assert_eq!(
+                whole("08.5", syntax),
+                Some(Number::Double(8.5)),
+                "{syntax:?}"
+            );
+            assert_eq!(
+                whole("09e1", syntax),
+                Some(Number::Double(90.0)),
+                "{syntax:?}"
+            );
+        }
+    }
+
+    /// `0x` is universal; `0b`/`0o` arrive in 8.5; `0d` in 9.0. An unavailable
+    /// prefix is not a prefix, so the whole-string parse fails (the trailing
+    /// letters are junk) — which is what makes such a word a bareword in an
+    /// expression.
+    #[test]
+    fn radix_prefixes_appear_in_the_release_that_added_them() {
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            assert_eq!(whole("0x1f", syntax), Some(Number::Int(31)), "{syntax:?}");
+        }
+        // 0b / 0o: absent in 8.4, present from 8.5.
+        assert_eq!(whole("0o17", NumberSyntax::Tcl84), None);
+        assert_eq!(whole("0b101", NumberSyntax::Tcl84), None);
+        for syntax in [NumberSyntax::Tcl85, NumberSyntax::Tcl90] {
+            assert_eq!(whole("0o17", syntax), Some(Number::Int(15)), "{syntax:?}");
+            assert_eq!(whole("0b101", syntax), Some(Number::Int(5)), "{syntax:?}");
+        }
+        // 0d: 9.0 only.
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert_eq!(whole("0d99", syntax), None, "{syntax:?}");
+        }
+        assert_eq!(whole("0d99", NumberSyntax::Tcl90), Some(Number::Int(99)));
+    }
+
+    /// A radix-invalid digit never makes the whole string a number, in any
+    /// release — the basis of C's `invalid bareword "0o8"` report.
+    #[test]
+    fn radix_invalid_digits_are_never_whole_numbers() {
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            for bad in ["0o8", "0o9", "0b2", "0b3", "0x", "0xg"] {
+                assert_eq!(whole(bad, syntax), None, "{bad} under {syntax:?}");
+            }
+        }
+    }
+
+    /// `_` digit separators are 9.0+, and the `no_underscore` flag bit still
+    /// overrides even there.
+    #[test]
+    fn digit_separators_are_9_0_only() {
+        assert_eq!(
+            whole("1__000", NumberSyntax::Tcl90),
+            Some(Number::Int(1000))
+        );
+        assert_eq!(
+            whole("0xff__ff", NumberSyntax::Tcl90),
+            Some(Number::Int(65535))
+        );
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert_eq!(whole("1__000", syntax), None, "{syntax:?}");
+        }
+        let no_sep = ParseFlags {
+            no_underscore: true,
+            syntax: NumberSyntax::Tcl90,
+            ..ParseFlags::default()
+        };
+        assert_eq!(parse_whole_with("1__000", no_sep), None);
     }
 }
