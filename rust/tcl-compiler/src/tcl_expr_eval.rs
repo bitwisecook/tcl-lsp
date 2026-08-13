@@ -312,7 +312,11 @@ pub fn parse_integer_operand_with_policy(text: &str, policy: FoldPolicy) -> Opti
     if let Some(value) = tcl_syntax::boolean::parse_boolean_word(text) {
         return Some(TclValue::Int(i64::from(value)));
     }
-    match strict_number_for_dialect(&FoldValue::Str(text.to_owned()), policy.octal)? {
+    match strict_number_for_dialect(
+        &FoldValue::Str(text.to_owned()),
+        policy.octal,
+        policy.numbers.unwrap_or(NumberSyntax::Tcl90),
+    )? {
         value @ (TclValue::Int(_) | TclValue::Big(_)) => Some(value),
         TclValue::Float(_) => None,
     }
@@ -514,7 +518,7 @@ enum Operand {
 
 /// Classify a comparison operand as [`Operand::Num`] / [`Operand::Str`] /
 /// [`Operand::Ambiguous`], applying the dialect's leading-zero rule.
-fn classify_operand(value: &FoldValue, octal: Option<bool>) -> Operand {
+fn classify_operand(value: &FoldValue, octal: Option<bool>, numbers: NumberSyntax) -> Operand {
     let s = match value {
         FoldValue::Int(_) | FoldValue::Big(_) | FoldValue::Float(_) => {
             // Already numeric — `to_number` cannot reach the literal parser
@@ -530,10 +534,10 @@ fn classify_operand(value: &FoldValue, octal: Option<bool>) -> Operand {
             // (`08`/`09`) is not — Tcl treats it as a string.
             Some(true) => parse_octal_literal(s).map_or(Operand::Str, Operand::Num),
             // 9.0 decimal: the shared number grammar already reads it as decimal.
-            Some(false) => strict_number(value).map_or(Operand::Str, Operand::Num),
+            Some(false) => strict_number(value, numbers).map_or(Operand::Str, Operand::Num),
         };
     }
-    strict_number(value).map_or(Operand::Str, Operand::Num)
+    strict_number(value, numbers).map_or(Operand::Str, Operand::Num)
 }
 
 /// Whether `s` is a bare leading-zero integer (`08`, `-010`) — the only
@@ -606,7 +610,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 let parsed = if boolean_ok {
                     v.to_number(numbers)
                 } else {
-                    strict_number_for_dialect(v, octal)
+                    strict_number_for_dialect(v, octal, numbers)
                 };
                 parsed.and_then(|t| match t {
                     TclValue::Int(i) => Some(Num::Int(i)),
@@ -630,8 +634,8 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // `expr {true + 0}` is an error, not `1`. `strict_number_for_dialect`
         // omits the boolean coercion `to_number`/`parse_literal` add, and
         // additionally honours the dialect's leading-zero rule (see its doc).
-        let a = strict_number_for_dialect(&left, self.octal).ok_or(())?;
-        let b = strict_number_for_dialect(&right, self.octal).ok_or(())?;
+        let a = strict_number_for_dialect(&left, self.octal, self.numbers).ok_or(())?;
+        let b = strict_number_for_dialect(&right, self.octal, self.numbers).ok_or(())?;
         apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())
     }
     fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ()> {
@@ -655,13 +659,13 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             // arithmetic path (`expr {-true}`, `expr {~yes}` are errors), and
             // are dialect-sensitive the same way `arith` is (`expr {-010}`
             // is `-8` in tcl8.x, `-10` in tcl9.0).
-            UnaryOp::Pos => match strict_number_for_dialect(&value, self.octal).ok_or(())? {
+            UnaryOp::Pos => match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
                 // `+NaN` is "can't use non-numeric floating-point value as
                 // operand" in C — never a foldable value.
                 TclValue::Float(f) if f.is_nan() => Err(()),
                 v => Ok(FoldValue::from_tcl(v)),
             },
-            UnaryOp::Neg => match strict_number_for_dialect(&value, self.octal).ok_or(())? {
+            UnaryOp::Neg => match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
                 TclValue::Int(i) => Ok(match i.checked_neg() {
                     Some(n) => FoldValue::Int(n),
                     // −i64::MIN promotes to the bignum tier, exactly as C.
@@ -672,7 +676,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 TclValue::Float(f) if f.is_nan() => Err(()),
                 TclValue::Float(f) => Ok(FoldValue::Float(-f)),
             },
-            UnaryOp::BitNot => match strict_number_for_dialect(&value, self.octal).ok_or(())? {
+            UnaryOp::BitNot => match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
                 TclValue::Int(i) => Ok(FoldValue::Int(!i)),
                 // Two's-complement `~x` is `-x - 1` at any width.
                 TclValue::Big(b) => Ok(FoldValue::from_tcl(TclValue::from_big(-b - 1))),
@@ -698,8 +702,8 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // unknown dialect is `Ambiguous` → mark the fold unreliable so
         // `eval_tcl_expr` declines entirely rather than pick a dialect.
         let (lo, ro) = (
-            classify_operand(left, self.octal),
-            classify_operand(right, self.octal),
+            classify_operand(left, self.octal, self.numbers),
+            classify_operand(right, self.octal, self.numbers),
         );
         if matches!(lo, Operand::Ambiguous) || matches!(ro, Operand::Ambiguous) {
             self.ambiguous = true;
@@ -838,16 +842,23 @@ fn big_from_parts(
 /// Parse a *strict* Tcl number — the number grammar only, **without** the
 /// boolean-word coercion [`parse_literal`] adds. Used for the polymorphic
 /// comparison operators, whose numeric-vs-string decision follows Tcl's number
-/// rules: `true`/`yes`/`off`/… are strings, not numbers. (Leading-zero octal
-/// like `08` is still accepted as the shared grammar parses it; its
-/// dialect-dependent invalidity in tcl8.x is a separate, dialect-aware concern.)
-fn strict_number(value: &FoldValue) -> Option<TclValue> {
+/// rules: `true`/`yes`/`off`/… are strings, not numbers.
+///
+/// Reads the numeral under `numbers`, so every release-dependent spelling is
+/// judged against the fold's own target: `1_0` and `0d1` are numbers only from
+/// 9.0, `0o17`/`0b101` only from 8.5. The bare-leading-zero case is decided one
+/// level up by [`strict_number_for_dialect`], which can also abstain when the
+/// two readings disagree.
+fn strict_number(value: &FoldValue, numbers: NumberSyntax) -> Option<TclValue> {
     use tcl_syntax::number::Number;
     match value {
         FoldValue::Int(i) => Some(TclValue::Int(*i)),
         FoldValue::Float(f) => Some(TclValue::Float(*f)),
         FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
-        FoldValue::Str(s) => match tcl_syntax::number::parse_whole(s)? {
+        FoldValue::Str(s) => match tcl_syntax::number::parse_whole_with(
+            s,
+            tcl_syntax::number::ParseFlags::for_syntax(numbers),
+        )? {
             Number::Int(v) => Some(TclValue::Int(v)),
             Number::Double(d) => Some(TclValue::Float(d)),
             Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
@@ -882,21 +893,25 @@ fn strict_number(value: &FoldValue) -> Option<TclValue> {
 /// falling back to a string classification — arithmetic has no string
 /// fallback in Tcl (`expr {08 + 1}` is a runtime error under the 8.x octal
 /// rule, not a string operation), so "can't fold" is the only sound outcome.
-fn strict_number_for_dialect(value: &FoldValue, octal: Option<bool>) -> Option<TclValue> {
+fn strict_number_for_dialect(
+    value: &FoldValue,
+    octal: Option<bool>,
+    numbers: NumberSyntax,
+) -> Option<TclValue> {
     let FoldValue::Str(s) = value else {
-        return strict_number(value);
+        return strict_number(value, numbers);
     };
     if is_bare_leading_zero(s) {
         return match octal {
             Some(true) => parse_octal_literal(s),
-            Some(false) => strict_number(value),
-            None => match (parse_octal_literal(s), strict_number(value)) {
+            Some(false) => strict_number(value, numbers),
+            None => match (parse_octal_literal(s), strict_number(value, numbers)) {
                 (Some(o), Some(d)) if o == d => Some(o),
                 _ => None,
             },
         };
     }
-    strict_number(value)
+    strict_number(value, numbers)
 }
 
 // Binary operators

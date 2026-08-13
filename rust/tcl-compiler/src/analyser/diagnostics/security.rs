@@ -1334,7 +1334,7 @@ matching time on crafted input."
                     flag_idx: i,
                     cmd_tok,
                 };
-                hits.extend(w127_domain_hits(&occ));
+                hits.extend(w127_domain_hits(&occ, registry));
                 hook_hits.extend(w141_hook_hit(&occ));
                 i += 1 + vals.len();
             }
@@ -1634,7 +1634,18 @@ struct OptionOccurrence<'a> {
 /// [`Analyser::emit_w127_closed_option_values`] — one option's value
 /// word(s) against its declared `values`/`integer`. Returns one hit per
 /// invalid word; empty when the option declares neither (an open value).
-fn w127_domain_hits(occ: &OptionOccurrence<'_>) -> Vec<W127Hit> {
+fn w127_domain_hits(
+    occ: &OptionOccurrence<'_>,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<W127Hit> {
+    // Whether a literal is a Tcl integer is release-dependent (`08` and `1_0`
+    // are integers from 9.0 and not before), so the domain check reads it under
+    // the release being analysed rather than the ambient grammar.
+    let numbers = registry
+        .profile()
+        .map_or(tcl_syntax::number::NumberSyntax::Tcl90, |p| {
+            p.grammar.numbers
+        });
     let allowed = occ.opt.value_values();
     let integer_domain = occ.opt.value_integer_domain();
     let has_closed_set = occ.opt.value_is_closed() && !allowed.is_empty();
@@ -1651,7 +1662,10 @@ fn w127_domain_hits(occ: &OptionOccurrence<'_>) -> Vec<W127Hit> {
         }
         let matches_literal = allowed.iter().any(|av| av.value == value.as_str());
         let matches_integer = integer_domain.is_some_and(|dom| {
-            match tcl_syntax::number::parse_whole(value) {
+            match tcl_syntax::number::parse_whole_with(
+                value,
+                tcl_syntax::number::ParseFlags::for_syntax(numbers),
+            ) {
                 Some(tcl_syntax::number::Number::Int(n)) => dom.accepts(n),
                 // A bignum literal (too large for i64) is always outside a
                 // bounded Range/Port, but still a legal Tcl integer for `Any`.

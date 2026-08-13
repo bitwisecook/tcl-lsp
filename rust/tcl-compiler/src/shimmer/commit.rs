@@ -241,6 +241,24 @@ pub struct CommitCtx<'a> {
     pub values: &'a HashMap<ValueKey, LatticeValue>,
 }
 
+impl CommitCtx<'_> {
+    /// The numeral grammar of the release being analysed, from the registry's
+    /// loaded dialect profile.
+    ///
+    /// Whether a constant is a valid instance of a numeric type is
+    /// release-dependent — `08` and `1_0` are numbers from 9.0 and not before —
+    /// so a shimmer hint keyed on it has to ask the document's own release
+    /// rather than whatever grammar this process was built for.
+    #[must_use]
+    pub fn numbers(&self) -> tcl_syntax::number::NumberSyntax {
+        self.registry
+            .profile()
+            .map_or(tcl_syntax::number::NumberSyntax::Tcl90, |p| {
+                p.grammar.numbers
+            })
+    }
+}
+
 /// A per-block replay of the commitment transfer function, kept in step with a
 /// detector's statement walk: query [`Self::state_of`] *before* checking a
 /// statement, then [`Self::step`] past it.
@@ -253,6 +271,17 @@ pub struct CommitWalker<'a> {
 }
 
 impl CommitWalker<'_> {
+    /// The numeral grammar of the release being analysed — see
+    /// [`CommitCtx::numbers`].
+    #[must_use]
+    pub fn numbers(&self) -> tcl_syntax::number::NumberSyntax {
+        self.registry
+            .profile()
+            .map_or(tcl_syntax::number::NumberSyntax::Tcl90, |p| {
+                p.grammar.numbers
+            })
+    }
+
     /// The commitment state of `(sym, ver)` at the current point — versions
     /// not yet touched start at their def's initial state ([`initial_state`]).
     #[must_use]

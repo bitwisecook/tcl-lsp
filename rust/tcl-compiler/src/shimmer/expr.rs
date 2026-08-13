@@ -393,7 +393,7 @@ fn check_numeric_operand(
         // numeric-valued string in arithmetic are not shimmers. A committed
         // List/Dict/ByteArray, or a pure string that is not a valid instance
         // (`set s hello; expr {$s + 1}`), still fires.
-        if is_uncommitted_first_conversion(current, to_type, ctx.values.get(&(sym, ver))) {
+        if is_uncommitted_first_conversion(current, to_type, ctx.values.get(&(sym, ver)), ctx.commit.numbers()) {
             return;
         }
     }
@@ -469,7 +469,12 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
         // trim "a b c"]; expr {"b" in $hay}` parses it once, losslessly (oracle:
         // the value goes pure → list). Only a committed Dict/ByteArray genuinely
         // re-represents on the `in` list conversion.
-        if is_uncommitted_first_conversion(current, TclType::List, ctx.values.get(&(sym, ver))) {
+        if is_uncommitted_first_conversion(
+            current,
+            TclType::List,
+            ctx.values.get(&(sym, ver)),
+            ctx.commit.numbers(),
+        ) {
             return;
         }
     }

@@ -473,7 +473,7 @@ fn check_argument(
             .get(&var)
             .is_some_and(|targets| targets.len() >= 2);
     if !multi_target_in_loop
-        && is_uncommitted_first_conversion(current, expected, ctx.values.get(&(sym, ver)))
+        && is_uncommitted_first_conversion(current, expected, ctx.values.get(&(sym, ver)), ctx.commit.numbers())
     {
         return;
     }
@@ -738,7 +738,12 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
         // incr n`, `set n 5; incr n`) promotes to `Int` for free — no shimmer.
         // A non-integer pure string (`set n hello; incr n`) is *not* a valid
         // instance, so it still fires: that conversion fails at runtime.
-        if is_uncommitted_first_conversion(current, TclType::Int, ctx.values.get(&(sym, ver))) {
+        if is_uncommitted_first_conversion(
+            current,
+            TclType::Int,
+            ctx.values.get(&(sym, ver)),
+            ctx.commit.numbers(),
+        ) {
             return;
         }
     }
