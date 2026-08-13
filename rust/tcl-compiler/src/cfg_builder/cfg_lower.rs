@@ -93,6 +93,43 @@ fn literal_true_expr() -> ExprNode {
     }
 }
 
+/// A `switch` subject as an operand of the flattened exact-mode dispatch.
+///
+/// The subject is a *word*, never an expression: `TclCompileSwitchCmd`
+/// (`tclCompCmds.c`) pushes it through `TclCompileTokens` — ordinary word
+/// substitution — and compares the resulting string. `ExprNode::String` is the
+/// operand shape codegen emits as exactly that: a bare literal push, which the
+/// VM substitutes (so a `$v` / `[cmd]` inside the word still interpolates).
+///
+/// The `ExprNode::Raw` shape this used to use lowered instead to `push` +
+/// `exprStk`, making the subject an expression — `switch -- abc …` evaluated
+/// `expr {abc}`, which "worked" only while `exprStk` returned an unparsable
+/// expression's own source text, and mis-matched outright where the subject *was*
+/// parsable (`switch -- 1+1 {2 …}` took the `2` arm). A normalised variable
+/// reference keeps the `Raw` form, whose codegen has dedicated scalar-load arms
+/// and so never involved `exprStk` in the first place.
+///
+/// `String` folds where `Raw` did not, but not *here*: branch folding skips any
+/// `StrEq` terminator as a switch dispatch
+/// (`optimiser::branch_folding::is_switch_dispatch_cond`), and codegen's
+/// `fold_const_branch` only folds a whole-condition literal, never a `Binary`.
+/// So the arm-pruning behaviour is unchanged, and an unsubstituted subject word
+/// can never be compared as if it were its own literal text.
+fn switch_subject_operand(subject: &str) -> ExprNode {
+    use crate::codegen::values::{parse_braced_scalar_ref, parse_simple_var_ref};
+
+    if parse_braced_scalar_ref(subject).is_some() || parse_simple_var_ref(subject).is_some() {
+        return ExprNode::Raw {
+            text: subject.to_owned(),
+        };
+    }
+    ExprNode::String {
+        text: subject.to_owned(),
+        start: 0,
+        end: 0,
+    }
+}
+
 impl CfgBuilder {
     // if
 
@@ -719,9 +756,7 @@ impl CfgBuilder {
             let cond = if *mode == SwitchMode::Exact {
                 ExprNode::Binary {
                     op: BinOp::StrEq,
-                    left: Box::new(ExprNode::Raw {
-                        text: subject.clone(),
-                    }),
+                    left: Box::new(switch_subject_operand(subject)),
                     right: Box::new(ExprNode::Literal {
                         text: arm.pattern.clone(),
                         start: 0,

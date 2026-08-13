@@ -196,6 +196,228 @@ fn expr_stk_dynamic_errors() {
     assert_eq!(result, "boom"); // command-subst error propagates
 }
 
+// =====================================================================
+// expr: an unparsable expression is a syntax error
+// =====================================================================
+
+/// C Tcl's syntax errors for expressions that do not parse, through the `expr`
+/// *command*.
+///
+/// `ParseExpr` (`tclCompExpr.c`) names the failure mode, quotes the expression
+/// around the offending position, and — where the position has no offending text
+/// of its own — inserts the `_@_` mark. Each expectation is a `tclsh` result
+/// transcribed from C's own suite, `tests/parseExpr.test`.
+///
+/// These all used to succeed, yielding the expression's own source text: an
+/// unparsable expression short-circuited `Vm::eval_expr` before the shared
+/// walker's `syntax error in expression` could fire.
+#[test]
+fn expr_command_rejects_an_unparsable_expression() {
+    // A dangling operator. tclsh: `missing operand at _@_` (`tclCompExpr.c:1151`)
+    expr_err("1+", "missing operand at _@_\nin expression \"1+_@_\"");
+    // Two operands, no operator (parseExpr-21.6's `expr {0 0}` shape).
+    expr_err("1 2", "missing operator at _@_\nin expression \"1 _@_2\"");
+    // parseExpr-21.19.
+    expr_err("", "empty expression\nin expression \"\"");
+    // A bareword run: C names the *first* word and appends the postscript
+    // listing the spellings it would accept (parseExpr-21.3).
+    expr_err(
+        "foo bar baz",
+        "invalid bareword \"foo\"\nin expression \"foo bar baz\";\n\
+         should be \"$foo\" or \"{foo}\" or \"foo(...)\" or ...",
+    );
+    // TN: the happy path is untouched — a valid expression still evaluates.
+    expr_eq("2+3", "5");
+    expr_eq("1 ? 2 : 3", "2");
+    expr_eq("\"a\" in {a b}", "1");
+}
+
+/// The same four failures through the `EXPR_STK` opcode (the dynamic `expr $e`
+/// form, where the expression text is only known at runtime), plus the
+/// `-errorcode` and `errorInfo` C attaches at the same site.
+#[test]
+fn expr_stk_rejects_an_unparsable_expression() {
+    for (expr, message) in [
+        ("1+", "missing operand at _@_\nin expression \"1+_@_\""),
+        ("1 2", "missing operator at _@_\nin expression \"1 _@_2\""),
+        ("", "empty expression\nin expression \"\""),
+        (
+            "foo bar baz",
+            "invalid bareword \"foo\"\nin expression \"foo bar baz\";\n\
+             should be \"$foo\" or \"{foo}\" or \"foo(...)\" or ...",
+        ),
+    ] {
+        let (ok, result, _) = run(&format!("set e {{{expr}}}\nexpr $e"));
+        assert!(
+            !ok,
+            "`expr $e` with {expr:?} should error, got ok: {result}"
+        );
+        assert_eq!(result, message, "exprStk over {expr:?}");
+    }
+    // `-errorcode` is `TCL PARSE EXPR <detail>` and `errorInfo` carries the
+    // `(parsing expression "…")` frame (`tclCompExpr.c:1461-1469`).
+    // tclsh: `TCL PARSE EXPR MISSING`
+    cmd_eq(
+        "set e {1+}\ncatch {expr $e} m opts\ndict get $opts -errorcode",
+        "TCL PARSE EXPR MISSING",
+    );
+    // tclsh: `TCL PARSE EXPR BAREWORD`
+    cmd_eq(
+        "set e {foo bar}\ncatch {expr $e} m opts\ndict get $opts -errorcode",
+        "TCL PARSE EXPR BAREWORD",
+    );
+    // The frame is seeded, not terminal: the enclosing `expr` still logs its own
+    // `invoked from within` frame on top (as `apply`'s
+    // `(parsing lambda expression …)` frame does — if-2.4 pins the same shape).
+    cmd_eq(
+        "set e {1+}\ncatch {expr $e} m\nset ::errorInfo",
+        "missing operand at _@_\nin expression \"1+_@_\"\n    \
+         (parsing expression \"1+\")\n    invoked from within\n\"expr $e\"",
+    );
+    // TN: a valid dynamic expression still evaluates through the same opcode.
+    cmd_eq("set e {2+3}\nexpr $e", "5");
+}
+
+// =====================================================================
+// expr: TIP 582 `#` comments
+// =====================================================================
+
+/// A `#` comment inside an expression, which C has supported since TIP 582
+/// (`tclCompExpr.c:168` makes `COMMENT` a first-class lexeme; `:1931-1942`
+/// lexes it; `:701` skips it like whitespace).
+///
+/// This is the regression `e1b3e534a` surfaced. Our expr lexer classified `#`
+/// as an unknown character, so `parse_expr` returned `ExprNode::Raw`; while an
+/// unparsable expression silently evaluated to its own source text that was
+/// merely a wrong answer, but once `Raw` became C's syntax error it turned into
+/// a **spurious error on valid Tcl** — `expr {1 + 2 # note}` errored where C
+/// returns 3.
+#[test]
+fn expr_accepts_a_comment_as_c_does() {
+    // The headline case: a trailing comment. C returns 3.
+    expr_eq("1 + 2 # note", "3");
+    // A comment after a command substitution (the operand is not a literal).
+    expr_eq("[llength {a b}] # c", "2");
+    // expr-62.1: the comment eats the rest of the line, so this is just `1`.
+    expr_eq("1 # + 2", "1");
+    // expr-62.3's shape: comments interleaved with a multi-line expression.
+    expr_eq(
+        "\n\t# a comment\n\t1 + 2 + 3\n\t# another\n\t+ 4 + 5\n",
+        "15",
+    );
+    // expr-62.7/8/9/10: comments inside a function call, including between the
+    // function name and its `(` — C's `:750` "obscuring comments" lookahead.
+    expr_eq("max(1,# comment\n2)", "2");
+    expr_eq("max(1# comment\n,2)", "2");
+    expr_eq("max(# comment\n1,2)", "2");
+    expr_eq("max# comment\n(1,2)", "2");
+    // A comment containing `#` is one comment, not two.
+    expr_eq("1 + 2 # a # b", "3");
+    // Comments are skipped in the dynamic `expr $e` form too (the EXPR_STK
+    // opcode), not just the compiled one.
+    cmd_eq("set e {1 + 2 # note}\nexpr $e", "3");
+    // …and in a condition, where the same parse feeds a branch.
+    cmd_eq(
+        "if {1 + 1 == 2 # sanity\n} {set r yes} else {set r no}",
+        "yes",
+    );
+}
+
+/// The terminating newline is not part of the comment (C returns
+/// `size - (byte == '\n')`), so an expression continues on the next line.
+/// expr-62.2 pins exactly this: `expr "1 #\n+ 2"` is 3, not 1.
+#[test]
+fn a_comment_ends_at_its_newline_not_the_expression() {
+    expr_eq("1 #\n+ 2", "3");
+    expr_eq("1 # comment\n+ 2", "3");
+    // expr-62.5/62.6: a comment does not splice the tokens it separates —
+    // `$a#…\nne#…\nfalse` stays three lexemes, so this is a `ne` comparison.
+    cmd_eq(
+        "set a False\nexpr {$a#don't splice\nne#don't splice\nfalse}",
+        "1",
+    );
+    cmd_eq("expr {0x2#don't splice\nne#don't splice\n2}", "1");
+}
+
+/// A comment-only body has no operands, so it is C's *empty* expression —
+/// `ParseExpr` skips the comment and reaches `END` with `lastParsed == START`
+/// (`tclCompExpr.c:1135`). The comment is not an operand and not an error of
+/// its own.
+#[test]
+fn a_comment_only_expression_is_the_empty_expression() {
+    expr_err("# c", "empty expression\nin expression \"# c\"");
+    expr_err("#", "empty expression\nin expression \"#\"");
+    cmd_eq(
+        "set e {# c}\ncatch {expr $e} m opts\ndict get $opts -errorcode",
+        "TCL PARSE EXPR EMPTY",
+    );
+}
+
+/// The regression guard, stated as the bug: valid Tcl carrying an expression
+/// comment must not raise the syntax error `e1b3e534a` introduced.
+#[test]
+fn a_comment_does_not_raise_the_unparsable_expression_error() {
+    for script in [
+        "expr {1 + 2 # note}",
+        "expr {[llength {a b}] # c}",
+        "expr {max# c\n(1,2)}",
+        "set e {1 + 2 # note}\nexpr $e",
+        "if {1 # ok\n} {set r y}",
+        "set i 0\nwhile {$i < 2 # bound\n} {incr i}\nset i",
+    ] {
+        let (ok, result, _) = run(script);
+        assert!(
+            ok,
+            "valid Tcl with an expr comment must not error, but {script:?} gave: {result}"
+        );
+        for fragment in [
+            "syntax error",
+            "invalid character",
+            "empty expression",
+            "missing operand",
+            "invalid bareword",
+        ] {
+            assert!(
+                !result.contains(fragment),
+                "{script:?} reported {fragment:?}: {result}"
+            );
+        }
+    }
+}
+
+/// A `switch` subject and a `[…]` expression operand are *words*, not
+/// expressions — neither may be re-parsed as one.
+///
+/// Both used to be lowered through `exprStk`, so both depended on an unparsable
+/// expression evaluating to its own text: `switch -- abc …` ran `expr {abc}`, and
+/// `[…]` was pushed (which substitutes it) and then evaluated a second time.
+/// Where the intermediate text *was* parsable the double evaluation gave a wrong
+/// answer outright, which is what the `1+1` / `1+2` vectors pin.
+#[test]
+fn a_word_operand_is_not_re_parsed_as_an_expression() {
+    // tclsh: `lit` — the subject is the string `1+1`, so the `1+1` arm matches.
+    assert_eq!(
+        run("switch -- 1+1 {2 {set r two} 1+1 {set r lit} default {set r miss}}").1,
+        "lit"
+    );
+    // tclsh: `hit` for every subject shape.
+    for subject in ["abc", "$s", "a$t", "[string cat a b]", "0o289", "-"] {
+        let script =
+            format!("set s abc; set t bc; switch -- {subject} {{{{}} {{}} default {{set r hit}}}}");
+        // A subject with no matching arm takes `default`; the point is that it
+        // runs at all.
+        let (ok, result, _) = run(&script);
+        assert!(ok, "switch over {subject:?}: {result}");
+        assert_eq!(result, "hit", "switch over {subject:?}");
+    }
+    // tclsh: `1+2` — `expr` returns the command's result, not `3`.
+    cmd_eq("set x {1+2}\nexpr {[set x]}", "1+2");
+    // tclsh: `1` — the `in` right operand is the command's *list* result.
+    cmd_eq("expr {\"set\" in [info commands]}", "1");
+    // tclsh: `a b` — a `[…]` operand keeps its string value.
+    cmd_eq("expr {[list a b]}", "a b");
+}
+
 #[test]
 fn expr_integer_arithmetic() {
     // tclsh: shared 8.6/9.0

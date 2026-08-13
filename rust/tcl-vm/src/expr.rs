@@ -295,9 +295,18 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
     if let Some(b) = value_as_bigint(v) {
         return Ok(Num::Huge(b));
     }
+    // A non-number that *is* a multi-element list gets C's distinct wording,
+    // which `IllegalExprOperandType` applies to binary operators exactly as to
+    // unary ones — `ord` is `"left "`/`"right "` there.
+    let s = v.to_str();
+    if is_list_operand(&s) {
+        return Err(TclError::new(format!(
+            "cannot use a list as {side} operand of \"{}\"",
+            op.as_str()
+        )));
+    }
     // `nan` (and `±NaN`) is a valid floating-point *value* that simply cannot be
     // an arithmetic operand — C words that differently from a non-number string.
-    let s = v.to_str();
     let kind = if matches!(number::parse_whole(s.trim()), Some(Number::Nan { .. })) {
         "floating-point value"
     } else {
@@ -307,6 +316,15 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
         "cannot use non-numeric {kind} \"{s}\" as {side} operand of \"{}\"",
         op.as_str()
     )))
+}
+
+/// C `IllegalExprOperandType`'s list branch (`tclExecute.c:9089-9107`): a value
+/// that is not a number but *is* a well-formed list of more than one element (or
+/// a non-empty dict) is reported as `cannot use a list as …operand of "…"` with
+/// errorCode `ARITH DOMAIN list`, rather than as a non-numeric string. Shared by
+/// the unary and binary operand-error builders so the two agree.
+fn is_list_operand(s: &str) -> bool {
+    tcl_syntax::list::max_list_length(s) > 1 && tcl_syntax::list::split_list(s).is_ok()
 }
 
 fn divzero() -> TclError {
@@ -321,7 +339,7 @@ fn divzero() -> TclError {
 /// the VM does not yet set arith error codes — same as `divide by zero`.)
 fn unary_operand_err(v: &Value, op: &str) -> TclError {
     let s = v.to_str();
-    if tcl_syntax::list::max_list_length(&s) > 1 && tcl_syntax::list::split_list(&s).is_ok() {
+    if is_list_operand(&s) {
         return TclError::new(format!("cannot use a list as operand of \"{op}\""));
     }
     let desc = match number::parse_whole(s.trim()) {
@@ -673,19 +691,85 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
         },
         // `!` accepts any boolean (incl. numbers and the boolean words); a NaN or
         // non-numeric non-boolean is the operand error (not "expected boolean").
-        Not => {
+        // The iRules dialect's `not` is the word spelling of the same operator
+        // (`Op::IRULE_WORD_NOT`), so it shares the coercion and only differs in
+        // the spelling it reports for a bad operand.
+        Not | WordNot => {
+            let spelling = if matches!(op, WordNot) { "not" } else { "!" };
             if matches!(
                 number::parse_whole(v.to_str().trim()),
                 Some(Number::Nan { .. })
             ) {
-                return Err(unary_operand_err(v, "!"));
+                return Err(unary_operand_err(v, spelling));
             }
             match v.as_bool() {
                 Ok(b) => Ok(Value::bool(!b)),
-                Err(_) => Err(unary_operand_err(v, "!")),
+                Err(_) => Err(unary_operand_err(v, spelling)),
             }
         }
-        WordNot => Err(TclError::new("unsupported operator")),
+    }
+}
+
+/// Apply an iRules-dialect binary operator to two already-evaluated operands
+/// (`left` is the subject, `right` the needle/pattern/right-hand side — the
+/// order `Op::from_binop` codegen pushes them in).
+///
+/// One home for the dialect operator semantics, shared by the `IRULE_*` opcodes
+/// and available to any tree-walking consumer that gains dialect support (the
+/// shared walker routes them to `ExprOps::binary_other`). The string tests reuse
+/// the same helpers the equivalent core commands do — `string match`'s glob
+/// matcher, the `regexp` ARE engine, and this module's string comparison — so
+/// the dialect operators cannot drift from `[string match]` / `[regexp]` /
+/// `[string equal]`.
+pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Value, TclError> {
+    use BinOp::{
+        Contains, EndsWith, MatchesGlob, MatchesRegex, StartsWith, StrEquals, WordAnd, WordOr,
+    };
+    // `and`/`or` are boolean tests, not string ones — they never render an
+    // operand.
+    match op {
+        WordAnd => return word_and(left, right).map(Value::bool),
+        WordOr => return word_or(left, right).map(Value::bool),
+        _ => {}
+    }
+    let (subject, operand) = (left.to_str(), right.to_str());
+    let truth = match op {
+        Contains => subject.contains(&*operand),
+        StartsWith => subject.starts_with(&*operand),
+        EndsWith => subject.ends_with(&*operand),
+        // `equals` is the word spelling of `eq`: always a string comparison.
+        StrEquals => compare(BinOp::StrEq, left, right)?,
+        // Case-sensitive `string match` / `regexp` — the dialect operators have
+        // no `-nocase` form.
+        MatchesGlob => tcl_syntax::glob::string_match(&operand, &subject),
+        MatchesRegex => {
+            crate::cmd_regexp::regexp_matches(&operand, &subject, false).map_err(TclError::new)?
+        }
+        _ => return Err(TclError::new("unsupported operator")),
+    };
+    Ok(Value::bool(truth))
+}
+
+/// The iRules `and` word operator over two already-evaluated operands.
+///
+/// The shared tree-walk coerces the right operand only when the left does not
+/// already decide the result; these reproduce that with both operands in hand
+/// (as the opcode form has them), so a non-boolean right operand is an error in
+/// exactly the cases the walker treats as one.
+fn word_and(left: &Value, right: &Value) -> Result<bool, TclError> {
+    if left.as_bool()? {
+        right.as_bool()
+    } else {
+        Ok(false)
+    }
+}
+
+/// The iRules `or` word operator — see [`word_and`].
+fn word_or(left: &Value, right: &Value) -> Result<bool, TclError> {
+    if left.as_bool()? {
+        Ok(true)
+    } else {
+        right.as_bool()
     }
 }
 

@@ -202,6 +202,20 @@ fn expr_string_is_opaque() {
 }
 
 #[test]
+fn expr_comment_is_opaque() {
+    // A TIP 582 `#` comment is one whole token, so a paren inside it never
+    // becomes a `ParenOpen`/`ParenClose` event and cannot skew the balance.
+    let idx = ExprParenIndex::build("(1 + 2) # )");
+    assert_eq!(idx.balance(), ParenBalance::Balanced);
+    let idx = ExprParenIndex::build("(1 + 2) # (");
+    assert_eq!(idx.balance(), ParenBalance::Balanced);
+    assert_eq!(idx.unmatched_opens(), 0);
+    // A genuinely unbalanced paren before the comment is still reported.
+    let idx = ExprParenIndex::build("(1 + 2 # )");
+    assert_eq!(idx.balance(), ParenBalance::OpenHeavy);
+}
+
+#[test]
 fn expr_close_paren_balances() {
     let idx = ExprParenIndex::build("(1 + 2");
     assert_eq!(idx.balance(), ParenBalance::OpenHeavy);

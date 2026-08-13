@@ -167,16 +167,22 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// Replace a final `returnImm 0 0` with `done`.
+    /// Replace a final plain `returnImm 0 1` with `done`.
     ///
-    /// tclsh uses `done` for the proc body's last return, not
-    /// `returnImm`.  Only applies to proc bodies.
+    /// tclsh uses `done` for the proc body's last return, not `returnImm`
+    /// (`TclCompileReturnCmd`'s `INST_DONE` optimisation — in fact C folds *any*
+    /// plain `return` in a proc with no enclosing `catch`, not just the tail
+    /// one). Only applies to proc bodies.
+    ///
+    /// The key is the plain-return encoding `(code 0, level 1)`: C's default
+    /// `-level` is 1, so `(0, 0)` is not a plain return at all — it is
+    /// "push the result and fall through".
     pub fn fold_tail_return_to_done(&mut self) {
         if !self.is_proc || self.instructions.is_empty() {
             return;
         }
         let last = self.instructions.last().unwrap();
-        if last.op == Op::RETURN_IMM && last.operands == [Operand::Imm(0), Operand::Imm(0)] {
+        if last.op == Op::RETURN_IMM && last.operands == [Operand::Imm(0), Operand::Imm(1)] {
             let n = self.instructions.len();
             self.instructions[n - 1] = Instruction::new(Op::DONE, vec![]);
         }
@@ -199,10 +205,14 @@ impl CodegenCtx<'_> {
         ];
         let replaced_ops = [Op::UPVAR, Op::NSUPVAR];
 
+        // A `returnImm` that is *not* the plain `(code 0, level 1)` return stands
+        // in for a non-trivial `return`/`error`/`syntax` (which tclsh reaches via
+        // a generic invoke). Keyed on the plain-return encoding, not `(0, 0)`:
+        // C's default `-level` is 1.
         let has_generic = self.instructions.iter().any(|i| {
             generic_ops.contains(&i.op)
                 || replaced_ops.contains(&i.op)
-                || (i.op == Op::RETURN_IMM && i.operands != [Operand::Imm(0), Operand::Imm(0)])
+                || (i.op == Op::RETURN_IMM && i.operands != [Operand::Imm(0), Operand::Imm(1)])
         });
 
         if has_generic {
@@ -300,16 +310,24 @@ mod tests {
         assert_eq!(ctx.instructions.len(), 3);
     }
 
+    // The fold is keyed on the *plain-return* encoding, which C emits as
+    // `(code 0, level 1)` (`TclMergeReturnOptions` defaults `-level` to 1).
+    // `fold_tail_return_to_done_proc` and `fold_tail_return_toplevel_noop`
+    // previously used `(0, 0)`, which encoded the old compensating-VM bug: under
+    // C semantics `(0, 0)` is a fall-through, not a return, so it must never be
+    // what the `done` fold matches.
     #[test]
     fn fold_tail_return_to_done_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.push_lit("");
-        ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
+        ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(1)]);
         ctx.fold_tail_return_to_done();
         assert_eq!(ctx.instructions.last().unwrap().op, Op::DONE);
     }
 
+    /// `error msg` compiles to `returnImm 1 0` (`TclCompileErrorCmd`), which is
+    /// not a plain return and must survive the fold.
     #[test]
     fn fold_tail_return_non_zero_preserved() {
         let registry = CommandRegistry::build_default();
@@ -317,7 +335,19 @@ mod tests {
         ctx.push_lit("");
         ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
         ctx.fold_tail_return_to_done();
-        // Non-0,0 should be preserved
+        assert_eq!(ctx.instructions.last().unwrap().op, Op::RETURN_IMM);
+    }
+
+    /// A `(0, 0)` pair is *not* a plain return — C only elides it because the
+    /// value push alone is equivalent — so the fold must leave it alone even in
+    /// a proc body, where a `done` would wrongly consume the options dict.
+    #[test]
+    fn fold_tail_return_level_zero_preserved() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.push_lit("");
+        ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
+        ctx.fold_tail_return_to_done();
         assert_eq!(ctx.instructions.last().unwrap().op, Op::RETURN_IMM);
     }
 
@@ -325,7 +355,7 @@ mod tests {
     fn fold_tail_return_toplevel_noop() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry); // not proc
-        ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
+        ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(1)]);
         ctx.fold_tail_return_to_done();
         // Top-level — not changed
         assert_eq!(ctx.instructions.last().unwrap().op, Op::RETURN_IMM);
@@ -363,6 +393,41 @@ mod tests {
         ctx.strip_unused_start_cmd();
         // Should keep startCommand since generic invoke exists
         assert_eq!(ctx.instructions.len(), n);
+    }
+
+    /// The `returnImm` proxy is keyed on the plain-return pair: a top-level
+    /// plain `return` is `(0, 1)` and must NOT read as a generic invoke, or
+    /// `startCommand` stops being stripped and the emitted bytes change.
+    #[test]
+    fn strip_unused_start_cmd_plain_return_is_not_generic() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        ctx.emit(
+            Op::START_CMD,
+            vec![Operand::Label("end_0".into()), Operand::Imm(1)],
+        );
+        ctx.push_lit("");
+        ctx.push_lit("");
+        ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(1)]);
+        ctx.strip_unused_start_cmd();
+        assert!(!ctx.instructions.iter().any(|i| i.op == Op::START_CMD));
+    }
+
+    /// A non-plain `returnImm` (here `error msg`'s `(1, 0)`) still stands in for
+    /// a generic invoke, so `startCommand` is kept.
+    #[test]
+    fn strip_unused_start_cmd_non_plain_return_is_generic() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        ctx.emit(
+            Op::START_CMD,
+            vec![Operand::Label("end_0".into()), Operand::Imm(1)],
+        );
+        ctx.push_lit("boom");
+        ctx.push_lit("");
+        ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
+        ctx.strip_unused_start_cmd();
+        assert!(ctx.instructions.iter().any(|i| i.op == Op::START_CMD));
     }
 
     #[test]

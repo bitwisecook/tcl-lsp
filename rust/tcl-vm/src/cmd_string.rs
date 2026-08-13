@@ -317,18 +317,22 @@ fn case_convert(rest: &[Value], op: &str) -> Completion<Value> {
     let mut out = String::with_capacity(s.to_str().len());
     for (idx, &c) in chars.iter().enumerate() {
         let i = isize::try_from(idx).unwrap_or(isize::MAX);
-        if i >= first && i <= last {
-            match op {
-                "toupper" => out.extend(c.to_uppercase()),
-                "tolower" => out.extend(c.to_lowercase()),
-                // `totitle` titlecases the first character of the range and
-                // lowercases the remainder.
-                _ if i == first => out.extend(c.to_uppercase()),
-                _ => out.extend(c.to_lowercase()),
-            }
-        } else {
+        if i < first || i > last {
             out.push(c);
+            continue;
         }
+        // Per-character Unicode *simple* case mapping, shared with the
+        // `STR_UPPER`/`STR_LOWER`/`STR_TITLE` opcodes and the portable
+        // `tcl_cmd_core::string::case_convert`, so command and bytecode agree
+        // with C's `Tcl_UtfTo{Upper,Lower,Title}` (`string toupper ß` → `ß`,
+        // not Rust's full-mapping `SS`). `totitle` titlecases the first
+        // character of the range and lowercases the remainder.
+        out.push(match op {
+            "toupper" => tcl_cmd_core::string::simple_upper(c),
+            "tolower" => tcl_cmd_core::string::simple_lower(c),
+            _ if i == first => tcl_cmd_core::string::simple_title(c),
+            _ => tcl_cmd_core::string::simple_title_rest(c),
+        });
     }
     ok(Value::string(out))
 }
@@ -456,6 +460,16 @@ fn string_map(pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
         .chunks_exact(2)
         .map(|c| (c[0].to_str().to_string(), c[1].to_str().to_string()))
         .collect();
+    ok(Value::string(map_apply(&map, s, nocase)))
+}
+
+/// Apply a `string map` char-map to `s`, left to right: at each position the
+/// first pair whose key matches wins and the scan resumes after it.
+///
+/// Shared by the `string map` command and the `strmap` opcode (which passes a
+/// single, always case-sensitive pair — C `INST_STR_MAP`), so the two cannot
+/// drift. An empty key never matches (it would not advance).
+pub(crate) fn map_apply(map: &[(String, String)], s: &str, nocase: bool) -> String {
     // Case-insensitive matching compares lower-cased keys against a lower-cased
     // view of the remaining input, advancing by the (original) key length.
     let starts = |rest: &str, from: &str| -> bool {
@@ -471,7 +485,7 @@ fn string_map(pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
     'outer: while !rest.is_empty() {
-        for (from, to) in &map {
+        for (from, to) in map {
             if !from.is_empty() && rest.len() >= from.len() && starts(rest, from) {
                 out.push_str(to);
                 rest = &rest[from.len()..];
@@ -482,7 +496,7 @@ fn string_map(pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
         out.push(ch);
         rest = &rest[ch.len_utf8()..];
     }
-    ok(Value::string(out))
+    out
 }
 
 fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
