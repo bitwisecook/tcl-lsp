@@ -1236,6 +1236,24 @@ impl CodegenCtx<'_> {
     }
 
     fn emit_inline_string_is(&mut self, sargs: &[(String, bool)]) {
+        // Only two shapes can be specialised inline: `CLASS value` and
+        // `CLASS -strict value`. Anything else carries an option this path does
+        // not model — above all `-failindex var`, which has to *write a
+        // variable*. The dispatch that reaches here gates on arity alone, and
+        // this function used to take `sargs.last()` as the value and ignore
+        // everything before it, so `string is integer -failindex fi 1.5`
+        // computed the correct answer and silently never wrote `fi`
+        // (tclsh writes 1). A 2-word form whose second word is `-strict` is a
+        // missing-value arity error, which the generic path reports properly.
+        let specialisable = match sargs.len() {
+            2 => sargs[1].0 != "-strict",
+            3 => sargs[1].0 == "-strict",
+            _ => false,
+        };
+        if !specialisable {
+            self.emit_string_is_generic(sargs);
+            return;
+        }
         let class_name = &sargs[0].0;
         // Detect -strict flag and value
         let (strict, val_arg) = if sargs.len() == 3 && sargs[1].0 == "-strict" {

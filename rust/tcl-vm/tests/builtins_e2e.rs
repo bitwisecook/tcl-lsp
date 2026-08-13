@@ -1204,6 +1204,35 @@ fn channel_io() {
     );
 }
 
+/// `-failindex` must be written. The inline `string is` codegen gates on arity
+/// alone, so it used to accept `CLASS -failindex var value`, take the last word
+/// as the value, and silently drop the option — the class answer was right and
+/// the variable was never assigned. Pinned against tclsh 8.6.16 / 9.0.4, which
+/// report index 1 here.
+#[test]
+fn string_is_failindex_is_written() {
+    out_eq(
+        "set fi UNSET
+set r [string is integer -failindex fi 1.5]
+puts \"$r $fi\"\n",
+        "0 1\n",
+    );
+    // Through a variable, and inside a proc body (a different codegen path).
+    out_eq(
+        "proc p {v} {\n set fi UNSET\n set r [string is integer -failindex fi $v]\n return \"$r $fi\"\n}\nputs [p 12x]\n",
+        "0 2\n",
+    );
+    // A member leaves the variable untouched.
+    out_eq(
+        "set fi UNSET
+set r [string is integer -failindex fi 42]
+puts \"$r $fi\"\n",
+        "1 UNSET\n",
+    );
+    // `-strict` still specialises inline and stays correct.
+    out_eq("puts [string is alpha -strict \"\"]\n", "0\n");
+}
+
 #[test]
 fn string_is_classes() {
     out_eq("puts [string is print 4]\n", "1\n");
