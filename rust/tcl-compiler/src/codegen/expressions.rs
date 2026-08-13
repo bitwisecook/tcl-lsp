@@ -87,6 +87,47 @@ fn starts_like_a_numeral(text: &str) -> bool {
 }
 
 impl CodegenCtx<'_> {
+    /// The constant-folding policy for this module's compile target.
+    ///
+    /// The registry answers the iRules-operator and character-model facts, but
+    /// its *numeric* answers are re-derived from whatever profile it happens to
+    /// carry — and a hand-built registry has none, so `octal_fold_policy` falls
+    /// back to a loaded-packs heuristic that reads a 9.0 target as 8.x octal.
+    /// `CodegenCtx::numbers` comes from `Module.dialect`, which is the compile
+    /// target itself, so it wins.
+    ///
+    /// Two sources for one fact is exactly the drift the single number facility
+    /// exists to prevent: before this, `puts "x: [expr {0755 + 1}]"` folded to
+    /// 494 for a 9.0 target while the bare `puts [expr {0755 + 1}]` gave the
+    /// correct 756, because only one of the two paths reached a profile-built
+    /// registry.
+    /// Read a Tcl source word as a wide integer under this module's compile
+    /// target, for an operand baked into the bytecode at compile time.
+    ///
+    /// `str::parse::<i64>` is wrong here even though it looks harmless: it is
+    /// Rust's decimal grammar, not Tcl's, so it reads `010` as 10 on every
+    /// release (8.6 says 8), rejects `0x10`/`0o17`/`1_0` that Tcl accepts, and
+    /// accepts nothing Tcl's radix forms need. An operand folded into an
+    /// instruction has to mean what the target release says it means.
+    pub(super) fn parse_int_operand(&self, text: &str) -> Option<i64> {
+        let flags = tcl_syntax::number::ParseFlags {
+            integer_only: true,
+            ..tcl_syntax::number::ParseFlags::for_syntax(self.numbers)
+        };
+        match tcl_syntax::number::parse_whole_with(text, flags)? {
+            tcl_syntax::number::Number::Int(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    fn fold_policy(&self) -> FoldPolicy {
+        FoldPolicy {
+            octal: Some(self.numbers.leading_zero_is_octal()),
+            numbers: Some(self.numbers),
+            ..FoldPolicy::from_registry(self.registry)
+        }
+    }
+
     /// Compile an expression AST node; leaves the result on TOS.
     ///
     /// Returns `true` when the result is *guaranteed numeric*
@@ -313,16 +354,8 @@ impl CodegenCtx<'_> {
             _ => false,
         };
         if foldable
-            && let Some(TclValue::Int(i)) = eval_tcl_expr_with_policy(
-                node,
-                &Env::new(),
-                // Profile-built registries answer both facts from the dialect
-                // profile — the octal rule (octal in 8.x, decimal in 9.x/bpf,
-                // abstain with no Tcl runtime) and whether the `expr` grammar
-                // carries the iRules word operators; hand-built ones keep the
-                // loaded-packs octal rule and decline the word operators.
-                FoldPolicy::from_registry(self.registry),
-            )
+            && let Some(TclValue::Int(i)) =
+                eval_tcl_expr_with_policy(node, &Env::new(), self.fold_policy())
         {
             self.push_lit(&i.to_string());
             return true;

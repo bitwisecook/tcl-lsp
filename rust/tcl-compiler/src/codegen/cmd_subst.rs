@@ -956,7 +956,7 @@ impl CodegenCtx<'_> {
                 );
             } else {
                 let amt_str = &args[1].0;
-                if let Ok(amt) = amt_str.parse::<i64>() {
+                if let Some(amt) = self.parse_int_operand(amt_str) {
                     if (-128..=127).contains(&amt) {
                         self.emit_comment(
                             Op::INCR_SCALAR1_IMM,
@@ -1001,7 +1001,7 @@ impl CodegenCtx<'_> {
                 // `load_var` of a variable *named* after the number — a
                 // phantom-variable read. Parse as `i64` and fall back to the
                 // full `INCR_STK` for anything outside the 1-byte range.
-                if let Ok(amt) = amt_str.parse::<i64>() {
+                if let Some(amt) = self.parse_int_operand(amt_str) {
                     if (-128..=127).contains(&amt) {
                         self.emit(
                             Op::INCR_STK_IMM,

@@ -332,7 +332,7 @@ impl CodegenCtx<'_> {
                 );
             }
             Some(amt) if is_integer_literal(amt) => {
-                if let Ok(imm) = amt.parse::<i64>() {
+                if let Some(imm) = self.parse_int_operand(amt) {
                     if (-128..=127).contains(&imm) {
                         self.emit_comment(
                             Op::INCR_SCALAR1_IMM,
@@ -391,7 +391,7 @@ impl CodegenCtx<'_> {
                 }
             }
             Some(amt) if is_integer_literal(amt) => {
-                if let Ok(imm) = amt.parse::<i64>() {
+                if let Some(imm) = self.parse_int_operand(amt) {
                     if (-128..=127).contains(&imm) {
                         if let Some((base, elem)) = arr {
                             self.push_lit(base);
