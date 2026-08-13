@@ -1279,7 +1279,7 @@ tcl-vm-wasm: ## Build the bytecode VM as a self-contained wasm32 cdylib (the pri
 .PHONY: report-wasm
 report-wasm: ## Build the in-browser BIG-IP report generator (Rust → WASM) into rust/bigip-report-gen/wasm/dist/
 	@command -v wasm-bindgen >/dev/null 2>&1 || { \
-		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.126'"; exit 1; }
+		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli --version 0.2.127'"; exit 1; }
 	bash $(ROOT)rust/bigip-report-gen/wasm/build-wasm.sh
 
 .PHONY: spec-studio-assets spec-studio-wasm

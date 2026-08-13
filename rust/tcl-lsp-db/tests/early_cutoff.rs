@@ -54,15 +54,16 @@ impl ProbeDb {
 struct Item {
     #[returns(ref)]
     body: String,
+    #[returns(copy)]
     sig: u32,
 }
 
-#[salsa::tracked]
+#[salsa::tracked(returns(copy))]
 fn item_analysis(db: &dyn salsa::Database, item: Item) -> usize {
     item.body(db).len()
 }
 
-#[salsa::tracked]
+#[salsa::tracked(returns(copy))]
 fn file_diag(db: &dyn salsa::Database, a: Item, b: Item) -> usize {
     item_analysis(db, a) + item_analysis(db, b) + a.sig(db) as usize + b.sig(db) as usize
 }

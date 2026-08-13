@@ -14,7 +14,7 @@ interned id for each of them per edit, and each id holds a body's worth of
 leak.
 
 It does not leak. The reason is **salsa's interned garbage collector**, an
-implementation detail of salsa 0.27 that nothing in this repository used to
+implementation detail of salsa 0.28 that nothing in this repository used to
 assert. Two plausible, review-friendly changes would silently disable it and
 restore a KB-per-keystroke leak of the [#1035](#related-issues) class. This
 document is the written form of that invariant; the code and tests that pin it
@@ -43,9 +43,9 @@ Two other interned structs are deliberately **outside** this contract:
   equal, so it churns only when a signature moves. It is reclaimed by the same
   mechanism when that happens.
 
-## How the collector works (salsa 0.27.2)
+## How the collector works (salsa 0.28.2)
 
-From `salsa-0.27.2/src/interned.rs`:
+From `salsa-0.28.2/src/interned.rs`:
 
 1. **Slot reuse on a cold intern.** Interning a value that is not already in
    the table walks the shard's LRU list from the tail. Any slot whose
@@ -54,15 +54,24 @@ From `salsa-0.27.2/src/interned.rs`:
    is bumped, and `clear_memos` is called on its memo table. That `clear_memos`
    is what actually drops the retained `Arc`s. Only if no stale slot is found
    does salsa allocate a new one.
-2. **`Durability::LOW` only.** `ValueShared::is_reusable_with_durability`
-   returns `true` **only** for `Durability::LOW`. Collecting a more durable
-   slot would require invalidating that durability's revision
-   (`Database::synthetic_write`, which needs `&mut` on the database), so salsa
-   refuses rather than risk an unsound `maybe_changed_after` short-circuit.
+2. **`Durability::LOW` only.** `is_reusable::<C>` returns `true` **only** for
+   `Durability::LOW` (and only when the ingredient is not configured immortal —
+   see rule 4). Collecting a more durable slot would require invalidating that
+   durability's revision (`Database::synthetic_write`, which needs `&mut` on the
+   database), so salsa refuses rather than risk an unsound
+   `maybe_changed_after` short-circuit.
 3. **Where a slot's durability comes from.** It is the *minimum* durability of
    the inputs the creating query had read at the moment it interned. With **no
    active query at all**, salsa stamps `Durability::MAX` and
    `Revision::MAX` — an immortal slot that is never even added to the LRU list.
+4. **Immortal ingredients are never collected.** Since salsa 0.28.1 an interned
+   struct declared without a `'db` lifetime must opt into
+   `unsafe(no_lifetime)` + `revisions = usize::MAX`, which sets
+   `Configuration::REVISIONS` to `IMMORTAL` and makes `is_reusable` return
+   `false` for the whole ingredient. Every interned struct in this crate carries
+   `<'db>`, so all of them stay collectable; dropping the lifetime from one of
+   the six per-revision keys would disable the collector for it as surely as a
+   durability bump.
 
 The consequence worth stating plainly: **`lru = N` is not what keeps a typing
 session bounded.** The `lru` caps documented in the crate's "Deep-memo

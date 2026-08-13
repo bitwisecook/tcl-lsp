@@ -151,7 +151,7 @@ edition = "2024"
 # 2021 / 2024). MSRV tracks the toolchain the workspace is built and tested
 # against — the floating `stable` pinned by rust-toolchain.toml — so it bumps
 # whenever stable does. Current stable is 1.97.0, released 2026-07-07.
-# (≥ 1.85 was already required for salsa 0.26 / tcl-lsp-db and the runtime/rust
+# (≥ 1.85 was already required for salsa 0.28 / tcl-lsp-db and the runtime/rust
 # port's is_none_or.)
 #
 # Because CI resolves `stable` at run time, a new release can start failing

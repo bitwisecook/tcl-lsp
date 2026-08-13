@@ -48,7 +48,7 @@ tcl-lsp-db = { path = "../tcl-lsp-db" }
 # Powers the `tcl-lsp.compilerExplorer` workspace command (same pipeline +
 # JSON serialisation the `tcl explore` CLI uses).
 tcl-explorer = { path = "../tcl-explorer" }
-salsa = "0.27"
+salsa = "0.28"
 serde_json = "1"
 tokio = { version = "1", features = ["io-std", "io-util", "rt-multi-thread", "sync", "macros", "time"] }
 # `FutureExt::shared` (progressive diagnostics, #844): the base per-file analysis

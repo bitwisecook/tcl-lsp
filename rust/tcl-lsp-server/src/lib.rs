@@ -4263,7 +4263,7 @@ pub struct Backend {
     /// Default 120, matching
     /// [`tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH`].
     style_line_length: Mutex<u32>,
-    /// Incremental query database (salsa 0.26) — the single memoised store of
+    /// Incremental query database (salsa 0.28) — the single memoised store of
     /// derived facts that is replacing the hand-maintained caches above.  The
     /// `db` handle is the write side (set inputs); reads clone it onto a
     /// worker thread and catch `salsa::Cancelled` when a newer edit supersedes
@@ -5514,6 +5514,15 @@ impl Backend {
     /// reading the current `SourceFile` input.  Returns `None` when the input
     /// is absent or a concurrent edit cancels the read, so the caller can fall
     /// back to a direct computation (behaviour preserved).
+    ///
+    /// Yields the **core** symbol tree, and the caller lifts it into
+    /// `lsp_types` afterwards.  Keeping the projection out of the closure is a
+    /// liveness requirement, not a style choice: everything inside
+    /// `Cancelled::catch` runs while this read handle is open, `set_text` waits
+    /// on open reads while holding the server's db mutex, and a lift is a pure
+    /// allocation walk with no cancellation checkpoint.  Projecting in here
+    /// stalls the next keystroke and — via that mutex — every other request.
+    /// See `docs/design/rust/lsp-performance.md` and issue #829.
     async fn db_document_symbols(
         &self,
         uri: &Uri,
@@ -5536,6 +5545,8 @@ impl Backend {
     /// [`Self::db_document_symbols`]; the BIG-IP dialect has no salsa query
     /// (it folds on the stanza tree, not the Tcl analyser) and so never
     /// calls this.
+    /// Like [`Self::db_document_symbols`], yields the core ranges and leaves the
+    /// lift to the caller, for the same liveness reason.
     async fn db_folding_ranges(
         &self,
         uri: &Uri,
