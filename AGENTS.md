@@ -12,7 +12,7 @@ workspace (`rust/`) plus the native binaries it builds.
 
 ## Repository layout
 
-The product is a Cargo workspace: ~37 crates under `rust/` (the authoritative
+The product is a Cargo workspace: ~45 crates under `rust/` (the authoritative
 list is `[workspace] members` in the top-level `Cargo.toml`), plus editor
 integrations under `editors/` and the Rust WASM runtime under `runtime/rust/`.
 The native binaries are the cargo bins `tcl-lsp-server`, `tcl`, `f5-query`,
@@ -190,8 +190,11 @@ The project uses GNU Make. Key targets:
 | `make ensure-test-deps` | Install the optional host toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.4/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report of what would be installed. |
 | `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
 | `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |
-| `make prep-pr`     | Pre-PR formatting + fast checks: auto-formats code, runs codegen, lint/typecheck, and `test-rust`. Run the heavier suites (`test-ext`, `runtime-rust-test`, `test-emacs`) separately before opening a PR — see "Before opening a PR" below. |
-| `make test`        | **The one-shot test gate** — everything except Emacs: `test-rust` + `test-ext` + `runtime-rust-test` + `zed-query-check` |
+| `make prep-pr`     | The standard local gate: auto-formats code, runs codegen, lint/typecheck, and the smoke tier (`make smoke`). Deep suites run in CI — see "Workflow requirements" below. |
+| `make smoke`       | Fast per-module smoke tier (`cargo nextest run --profile smoke`): the `smoke_*` / `*_smoke.rs` subset, seconds warm, reusing the existing dev build. `make smoke-p P=<crate>` scopes it to one crate. |
+| `make test-exhaustive` | Manual-only tier: every `#[ignore]`d corpus sweep / fuzz gate / privileged test (`--run-ignored ignored-only`). Never run automatically. |
+| `make fuzz`        | tcl-fuzz differential campaign (manual-only; see the fuzz-findings skill). |
+| `make test`        | **The CI-mirror test gate** — everything except Emacs: `test-rust` + `test-ext` + `runtime-rust-test` + `zed-query-check`. Use to reproduce CI locally; not required before a PR. |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
 | `make test-ext`    | VS Code extension integration tests — the single-root suite **and** the multi-root (`test:multi-folder`) suite (xvfb on headless Linux) |
 | `make lint-py`     | `ruff format --check` + `ruff check` over every tracked `.py` (versions pinned in the Makefile) |
@@ -356,102 +359,80 @@ desired state — written and reviewed 2026-08-11** in
 
 ## Workflow requirements
 
-There are **two distinct gates**, in increasing strictness, plus a set of
-heavier test suites to run individually before opening a PR:
+Testing is **tiered**: a seconds-fast local smoke tier, the deep suites in
+CI, and a manual-only exhaustive tier that never runs automatically.
 
-| Gate | Required before | What runs | Enforcement |
-|---|---|---|---|
-| **`make rust-check`** | Rust-only changes (minimum) | Rust `fmt --check` + `clippy` + `xtask-check` (generated-file / docs-index drift gates).  Mirrors GitHub Actions' `pr-gate` job | fast subset — run before `check-all` |
-| **`make check-all`** | every `git push` (minimum) | multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Rust (`cargo fmt --check` + `cargo clippy`), and the remaining Python (`ruff` + `ty` + `pyright` over `f5report`, the Claude skills, and the Sublime plugin) | agent rule: run before every push |
-| **`make test`** (+ `make test-emacs`) | every PR / merge request | `make test` runs the full Rust workspace suite (native lsp_e2e included), the VS Code extension (single- and multi-root), the Rust runtime port, and the Zed query check.  `test-emacs` is separate — it is the only suite `make test` leaves out | agent rule: required before opening a PR |
+| Tier | When it runs | What runs |
+|---|---|---|
+| **smoke** (`make smoke`, `make smoke-p P=<crate>`) | locally, right after every compile; part of `make prep-pr` | the `smoke_*` / `*_smoke.rs` subset — one fast per-module sanity check per crate, seconds warm.  Reuses the dev-profile default-features build you just made (never `--all-features`), so it never forces a recompile |
+| **deep** (CI: `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `test-ext`, `cargo-deny`, `python`) | every PR and every push to `rust`/`main`, automatically | the full workspace suite (native lsp_e2e included), the VM-sim heavies, the VS Code extension, supply-chain audit, Python lint/typecheck.  CI skips work only when its inputs demonstrably didn't change (see "CI redundancy contract" below) |
+| **exhaustive / manual-only** (`make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]`) | only when a human (or a deliberate scheduled job) invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*`/tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns.  NEVER wire these into `prep-pr`, `test`, `check-all`, or CI |
 
-GitHub Actions runs only the fast gate on PRs (the `pr-gate` job, mirrored by
-`make rust-check` + the TS lint in `check-all`).  Everything else is the
-responsibility of the local gates above.  CI is **not** a substitute for
-either gate.
+The two local gates, in the order you run them:
+
+```
+make rust-check     # Rust fmt + clippy + drift gates (mirrors CI's pr-gate)
+make prep-pr        # format + codegen + lint/typecheck + make smoke
+```
+
+`make check-all` (multi-language lint + typecheck) is part of `prep-pr`'s
+check phase in spirit; run it directly when you've touched TypeScript or
+Python and want just the lint/typecheck surface.
 
 ### Before any push
 
-**Lint and typecheck must be clean before you push.**  Two gate
-levels, weakest → strongest:
+**Format, lint, and smoke must be clean before you push.**
 
 ```
-make rust-check     # Rust fmt + clippy + drift gates (mirrors the PR gate)
-make check-all      # multi-language lint + typecheck — the push gate
+make rust-check     # Rust-only changes: the minimum gate
+make prep-pr        # the standard gate: format + codegen + lint/typecheck + smoke
 ```
 
 Failures must be fixed, not skipped — tooling-missing skips must be
-deliberate (`SKIP_CHECK_RUST=1`, ...).
+deliberate (`SKIP_CHECK_RUST=1`, ...).  Commit any formatting changes
+`prep-pr` applies.
 
-**Agent rule — Claude / codex / etc:** `make check-all` is the MINIMUM
-gate before every `git push`.  The PR's `pr-gate` job runs the same Rust
-fmt + clippy + drift checks, so a local pass means CI will pass on the
-first try.  Running `cargo fmt` after a commit isn't enough — re-run the
-full gate.  Every "the PR gate bounced on a trivial clippy lint / format
-drift" failure on this repo's PRs has been a `push` that skipped this step.
+**Agent rule — Claude / codex / etc:** `make prep-pr` (which includes
+`make smoke`) is the gate before every `git push`.  CI's `pr-gate` job runs
+the same fmt + clippy + drift checks, so a local pass means CI passes the
+fast gate on the first try.  Running `cargo fmt` after a commit isn't
+enough — re-run the gate.  Every "the PR gate bounced on a trivial clippy
+lint / format drift" failure on this repo's PRs has been a push that
+skipped this step.
 
-### Before opening a PR
+### Opening a PR: CI carries the deep suites
 
-**Rebase off the branch you are targeting (`rust` for 2.x work, `main` for 1.x
-stable), fix conflicts, then run the gate:**
+Rebase off the branch you are targeting (`rust` for 2.x work, `main` for
+1.x stable), fix conflicts, run `make prep-pr`, and open the PR.  **Do not
+block on running the full suite locally** — CI runs the deep tier
+(`rust-tests` + `rust-tests-heavy` + `lsp-e2e` + `test-ext` + `cargo-deny`
++ `python`) on every PR, in parallel, in a few minutes.  Subscribe to the
+PR's activity and fix forward when a deep suite fails.
 
-```
-make prep-pr        # format + codegen + lint/typecheck + test-rust
-make check-rust     # Rust lint/typecheck
-make test           # every test suite but Emacs (see below)
-make test-emacs     # Emacs eglot — the one suite `make test` does not run
-```
+`make test` (workspace + extension + runtime port + Zed query check) and
+`make test-emacs` remain available for reproducing a CI failure locally or
+for extra confidence on a risky change — they are no longer a precondition
+for opening a PR.  The one gap: **Emacs eglot tests run nowhere in CI**, so
+touch `editors/emacs` only with a local `make test-emacs` run.
 
-- **prep-pr** — format (Prettier) + codegen (`cargo xtask`) + lint + typecheck
-  (tsc) + editor-settings drift check + `test-rust` (`cargo test
-  --workspace --all-features`, including the native lsp_e2e suite
-  `rust/tcl-lsp-server/tests/*_e2e.rs`)
-- **check-rust** — Rust lint/typecheck
-- **test** — `test-rust` (Rust workspace) + `test-ext` (VS Code extension,
-  single-root and multi-root) + `runtime-rust-test` (the standalone
-  `runtime/rust` crate, which is excluded from the workspace, so `test-rust`
-  misses it) + `zed-query-check` (generated Zed highlight queries against the
-  pinned tree-sitter grammar)
-- **test-emacs** — Emacs eglot integration tests
+### CI redundancy contract
 
-Skip variables for missing tooling: `SKIP_TEST_EMACS=1`,
-`SKIP_TEST_RUST=1`.  Use these only when the tool genuinely isn't available
-on your machine — the gate must still cover everything else.
+CI avoids re-testing what demonstrably didn't change, and the rules live in
+`ci.yml`'s `channel` job (read its header comment before touching them):
 
-### Rule for agents
+- a **tag** whose SHA already went green on a `rust`/`main` push within 24 h
+  step-skips the test surface (the release graph still runs);
+- a **merge push** whose tree is byte-identical to its already-green PR head
+  downgrades tests to a cache-warming build (`--no-run`);
+- **docs-only changes** skip the cargo test steps; the `python` and
+  `test-ext` suites run only when their input paths changed;
+- `cargo-deny` never skips (new advisories arrive against unchanged trees);
+- every skip fails safe: API error or ambiguity → run everything.
 
-**Agents MUST NOT open a PR (or instruct the user to open one) until
-`prep-pr` and every heavier suite above have completed successfully
-against the exact worktree being proposed.**  If the worktree has changed
-since the last green run, re-run them before proceeding.  Likewise,
-**agents MUST NOT push** without `make check-all` having completed
-cleanly against the current tree.
-
-These rules are non-negotiable: CI covers only the fast Rust fmt/clippy/drift
-gate, so the local gates are the only thing standing between a regression and
-`main`.
-
-Commit any formatting changes `make prep-pr` applies before creating the
-PR (it auto-formats — re-run the affected suites after any such commits so
-the gate covers the final tree).
-
-### When a PR is created, run the full suite locally
-
-When a PR is opened on this repository — whether by the agent, by the user,
-or by the Claude Code UI on the agent's behalf — the agent MUST kick off
-`prep-pr` and the heavier suites above **on its local machine** against the
-exact tip the PR is built from, without being asked.  This applies to PRs
-the agent didn't open: if the agent learns of a new PR (e.g. via
-`<github-webhook-activity>` subscription, a comment, or the user
-mentioning it), it must immediately re-run them locally if the worktree
-drifted, then act on whatever fails.
-
-**Do NOT add these heavier suites to `.github/workflows/`.**  CI on this
-repo intentionally runs only the fast Rust fmt/clippy/drift gate; the rest
-of the gate is the agent's local responsibility.  Don't wire the heavier
-suites into a GitHub Action, don't trigger them via `workflow_dispatch`,
-and don't ask the user to enable them on the runner — run them on the
-local machine you're already working in.
+Keep these properties when editing CI: skips must be **step-level** (jobs
+still report success so required checks and the release `needs:` graph stay
+intact), verified against **content identity** (tree/SHA, never a label or
+commit message), and bounded in time.
 
 ### Capturing build / test logs
 
@@ -837,10 +818,18 @@ layers — not just the one closest to the symptom.
 - **WASM runtime tests** (`runtime/rust/`): the Rust WASM runtime port carries
   its own leak round-trip + eval suite, gated separately via
   `make runtime-rust-test`.
-- **xfail policy**: an expected-failure / `#[ignore]` marker is only permitted
-  as an intermediate state while a feature is under active development. Before a
-  feature is considered ready for release, all underlying issues must be fixed
-  and the markers removed. Do not ship xfails — fix the root cause instead.
+- **`#[ignore]` policy**: `#[ignore]` has exactly one sanctioned steady-state
+  use — a **permanently** expensive or environment-gated test (a corpus sweep
+  over `tmp/tcl*`/tcllib, a differential-fuzz gate, a test needing root + a
+  live kernel), marked with a reason string saying why and how to run it:
+  `#[ignore = "<reason>; run explicitly with --ignored"]`.  These form the
+  manual-only tier (`make test-exhaustive`) and are **not** debt.
+- **xfail policy**: an expected-failure marker (a test that currently fails
+  pending a fix) is only permitted as an intermediate state while a feature is
+  under active development. Before a feature is considered ready for release,
+  all underlying issues must be fixed and the markers removed. Do not ship
+  xfails — fix the root cause instead, and do not confuse an xfail with the
+  sanctioned manual-only `#[ignore]`s above.
 
 ## Common tasks
 
@@ -848,6 +837,12 @@ layers — not just the one closest to the symptom.
 ```
 cargo fmt            # Rust
 make format          # TypeScript (Prettier)
+```
+
+**Smoke-test after a compile (seconds):**
+```
+make smoke                    # whole workspace
+make smoke-p P=tcl-compiler   # one crate
 ```
 
 **Run just the Rust tests (includes native lsp_e2e):**

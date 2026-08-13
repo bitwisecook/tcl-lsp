@@ -192,6 +192,16 @@ missing_panics_doc = "allow"
 lto = "thin"
 codegen-units = 1
 
+# CI-only server build for the VS Code extension suite: release-grade
+# optimisation without thin LTO / single codegen unit, which cost ~3 minutes
+# of link time per CI run for a binary that only needs to be functionally
+# fast, not shipping-grade.  Shipping binaries (build-server-matrix, local
+# `make rust-server`) stay on the real release profile above.
+[profile.ci]
+inherits = "release"
+lto = false
+codegen-units = 16
+
 # Test builds keep only line tables (panic backtraces still resolve), not full
 # debuginfo — this roughly halves compile+link time and shrinks the nextest
 # archive that CI ships between the build and partitioned-test jobs.

@@ -184,7 +184,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 .PHONY: help
 # Top-level gates
-.PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke
+.PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle tcltest-sweep tcltest-sweep-check
@@ -432,8 +432,21 @@ py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
 	@cd $(ROOT) && uv venv --quiet --allow-existing $(PY_VENV)
 	@# --reinstall-package: the wheel is cached by content, but the source tree
 	@# changes under it, so a plain install can leave a stale f5report behind.
-	@cd $(ROOT) && uv pip install --python $(PY_VENV) --quiet \
-	    --reinstall-package f5report ./rust/bigip-report-gen/python pytest
+	@# The reinstall maturin-compiles the native `_engine` in release mode
+	@# (~4 min), so gate it on a content hash of the package tree: ty/pyright
+	@# read the committed `_engine.pyi` stub, never the compiled module, so the
+	@# venv only needs a rebuild when the Python package itself changes.
+	@cd $(ROOT) && \
+	  stamp="$(PY_VENV)/.f5report-src-hash"; \
+	  files=$$(git ls-files -- rust/bigip-report-gen/python | LC_ALL=C sort); \
+	  hash=$$( { printf '%s\n' "$$files"; printf '%s\n' "$$files" | xargs git hash-object; } | git hash-object --stdin ); \
+	  if [ ! -f "$$stamp" ] || [ "$$(cat "$$stamp")" != "$$hash" ]; then \
+	    uv pip install --python $(PY_VENV) --quiet \
+	        --reinstall-package f5report ./rust/bigip-report-gen/python pytest; \
+	    printf '%s' "$$hash" > "$$stamp"; \
+	  else \
+	    echo "    f5report source unchanged — venv already current"; \
+	  fi
 
 typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
 	@echo "==> Type-checking Python (ty)"
@@ -661,17 +674,91 @@ tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in syn
 	@echo "==> Checking the tcltest parity scoreboard is in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask tcltest-sweep --backend vm --check
 
-# Phase targets for parallel prep-pr execution
+# Phase targets for parallel prep-pr execution.  (`_prep-pr-smoke` is VSIX
+# packaging smoke + standalone-EDA verification — a different thing from the
+# `smoke` test tier below; hence the distinct `_prep-pr-smoke-tier` name.)
 _prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets typecheck-spec-studio-ts lint-spec-studio-ts
 _prep-pr-tests: test-rust
 _prep-pr-smoke: smoke-vsix verify-standalone-eda
+_prep-pr-smoke-tier: smoke
 
 # Rust-side check gate (fmt + clippy + generated-file drift).  Mirrors the
 # pr-gate job in GitHub Actions (ci.yml).
 rust-check: check-rust xtask-check ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
 
-prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
-	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
+# The local pre-push gate: format + codegen + lint/typecheck + the smoke test
+# tier.  Deliberately NOT the full test suite — CI runs the deep suites
+# (rust-tests / rust-tests-heavy / lsp-e2e / test-ext / python) on every PR
+# and push.  `make test` remains available to reproduce CI locally.
+prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck + smoke tier) — deep suites run in CI
+	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-smoke-tier
+
+.PHONY: smoke smoke-p test-exhaustive fuzz
+
+# Whole-workspace smoke tier: the fastest meaningful per-module subset, run
+# locally right after `cargo build`/`cargo check` — seconds warm, NOT a
+# substitute for CI's deep suites.  A test is "smoke" by naming convention: a
+# unit test fn named `smoke_*` (or nested under `mod smoke`), or an
+# integration-test file named `*_smoke.rs` (see .config/nextest.toml's
+# [profile.smoke]).  Reuses whatever build already exists (default features,
+# dev profile) — deliberately NOT --all-features, so it never forces a
+# recompile after a normal `cargo build`.
+smoke: ## Fast per-module smoke tier (seconds; run after compile, before push)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH."; exit 1; \
+	fi; \
+	cd $(ROOT) && \
+	if command -v cargo-nextest >/dev/null 2>&1; then \
+		echo "==> cargo nextest run --profile smoke"; \
+		cargo nextest run --profile smoke --workspace; \
+	else \
+		echo "==> cargo-nextest not found; falling back to 'cargo test smoke'"; \
+		echo "    (install: cargo install cargo-nextest --locked)"; \
+		cargo test --workspace smoke; \
+	fi
+
+# Single-crate smoke: make smoke-p P=tcl-compiler
+smoke-p: ## Smoke tier for one crate: make smoke-p P=<crate-name>
+	@set -eu; \
+	if [ -z "$${P:-}" ]; then \
+		echo "ERROR: usage: make smoke-p P=<crate-name>"; exit 1; \
+	fi; \
+	cd $(ROOT) && \
+	if command -v cargo-nextest >/dev/null 2>&1; then \
+		echo "==> cargo nextest run --profile smoke -p $(P)"; \
+		cargo nextest run --profile smoke -p "$(P)"; \
+	else \
+		echo "==> cargo-nextest not found; falling back to 'cargo test -p $(P) smoke'"; \
+		cargo test -p "$(P)" smoke; \
+	fi
+
+# Manual-only tier: every #[ignore]d corpus sweep, differential-fuzz gate,
+# and privileged/environment-gated test in the workspace (see AGENTS.md's
+# #[ignore] policy).  NEVER wired into prep-pr, test, check-all, or CI.
+# The corpus tests need the tmp/tcl8.x / tcl9.x / tcllib trees fetched
+# (fetch-tcl-source skill / session-start hook); the bpf-tcl privileged tests
+# need root + iproute2/bpftool + a live Linux kernel.
+test-exhaustive: ## Run every #[ignore]d corpus/fuzz/privileged test (slow, manual-only, never in CI)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH."; exit 1; \
+	fi; \
+	cd $(ROOT) && \
+	if command -v cargo-nextest >/dev/null 2>&1; then \
+		echo "==> cargo nextest run --profile exhaustive --run-ignored ignored-only"; \
+		cargo nextest run --profile exhaustive --run-ignored ignored-only --workspace --all-features --no-fail-fast; \
+	else \
+		echo "==> cargo-nextest not found; falling back to 'cargo test -- --ignored'"; \
+		cargo test --workspace --all-features -- --ignored; \
+	fi
+
+# Differential-fuzz campaign entry point.  Campaign shape (engine pair,
+# duration, seed replay) is owned by the fuzz-findings skill / tcl-fuzz's own
+# CLI — this is a documented front door, manual-only by design.
+fuzz: ## Run a tcl-fuzz differential campaign (manual-only; see the fuzz-findings skill)
+	@echo "==> See the 'fuzz-findings' skill for engine pairs, seed replay, and the findings registry."; \
+	cd $(ROOT) && cargo run -p tcl-fuzz --release -- run --iterations "$${ITERATIONS:-1000}"
 
 # The workspace test suite, including the native lsp_e2e suite
 # (rust/tcl-lsp-server/tests/*_e2e.rs).  Set SKIP_TEST_RUST=1 to skip.

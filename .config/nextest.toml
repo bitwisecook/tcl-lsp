@@ -50,3 +50,33 @@ heavy-lsp-e2e = { max-threads = 1 }
 [[profile.default.overrides]]
 filter = 'package(tcl-lsp-server) & (test(/edit_tracking_stress::/) | test(/large_file_/))'
 test-group = 'heavy-lsp-e2e'
+
+# Smoke tier (`make smoke` / `make smoke-p P=<crate>`).
+#
+# The fast, per-module sanity check developers and agents run locally right
+# after `cargo build`/`cargo check` — NOT a replacement for CI's deep suites.
+# A test is "smoke" by naming convention, not by crate: a unit-test fn named
+# `smoke_*` (or nested under `mod smoke`), or an integration-test file named
+# `*_smoke.rs` (tcl-lsp-server's existing convention).  The same convention
+# works under plain `cargo test smoke` for toolchains without nextest.
+#
+# `default-filter` scopes what `--profile smoke` runs with no -E on the
+# command line; a caller's -E still narrows further.
+[profile.smoke]
+default-filter = 'test(/(::|^)smoke/) | binary(/_smoke$/)'
+# A smoke run is a quick green/red signal, not an exhaustive failure report.
+fail-fast = true
+status-level = "fail"
+final-status-level = "flaky"
+
+# Exhaustive / manual-only tier (`make test-exhaustive`).
+#
+# Never runs automatically.  Settings for the #[ignore]d corpus / fuzz /
+# privileged tests (see AGENTS.md's #[ignore] policy) when a human explicitly
+# opts in — this profile does not by itself run ignored tests; `make
+# test-exhaustive` passes --run-ignored ignored-only explicitly.
+[profile.exhaustive]
+fail-fast = false
+# Corpus sweeps carry internal watchdogs up to 10 minutes (e.g. tcl-spectcl's
+# spec_corpus sweep); give nextest's own timeout headroom past them.
+slow-timeout = { period = "60s", terminate-after = 15 }

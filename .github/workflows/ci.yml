@@ -31,23 +31,66 @@ permissions:
   contents: read
 
 jobs:
-  # Channel detector: does this ref belong to the pre-release (odd-minor 2.x,
-  # "rust") line?  Reuses scripts/release/prerelease.sh — the single source of
-  # truth for the odd/even-minor convention — so the test gate, the GitHub
-  # Release, and the Marketplace publish all agree on the channel from the tag
-  # alone.  A pre-release tag (v2.1.x) is cut from `rust` and gated by the cargo
-  # suites (`rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`); the fast
-  # gate (`pr-gate`) and the extension suite (`test-ext`) run as step-skipped
-  # no-ops on those tags so the release graph stays unbroken.  For branches,
-  # PRs, and stable tags this is `false`, so the gates run in full.
+  # Preflight facts.  Every expensive job step-skips on these outputs; the jobs
+  # themselves always run and report success, so required status checks and the
+  # tag-triggered release graph stay unbroken (GitHub's success() propagates a
+  # skipped ancestor through the needs graph, so job-level skips are banned —
+  # step-level only).
+  #
+  #   prerelease     — does this ref belong to the pre-release (odd-minor 2.x,
+  #                    "rust") line?  scripts/release/prerelease.sh is the
+  #                    single source of truth, so the test gate, the GitHub
+  #                    Release, and the Marketplace publish all agree on the
+  #                    channel from the tag alone.
+  #   already_green  — this exact code already passed this workflow, verified
+  #                    against the Actions API.  Fail-safe: any API error, no
+  #                    match, or a match older than 24 h → false → full run.
+  #                    True in exactly two shapes:
+  #                      * a v* tag whose commit has a green push run on
+  #                        rust/main — the release flow (make release-tag) tags
+  #                        an already-green tip, so the tag-time re-test was
+  #                        pure repetition (measured: v2.1.18 re-ran the
+  #                        identical 20-job surface on the same SHA 74 minutes
+  #                        after it went green);
+  #                      * a push to rust/main of a merge commit whose tree is
+  #                        byte-identical to a PR head with a green PR run —
+  #                        what the merge button produces when the PR was up to
+  #                        date with the base.  Tree equality is the guarantee
+  #                        that matters: identical tree ⇒ identical inputs ⇒
+  #                        identical verdict, and a merge that DID pick up new
+  #                        base-branch commits gets a different tree and a full
+  #                        re-test — exactly the case where re-testing has
+  #                        value.
+  #                    The 24 h bound stops the skip compounding into stale
+  #                    territory: the floating `stable` toolchain and the
+  #                    advisory database both move under an unchanged tree, so
+  #                    last week's green must not stand in for today's.
+  #                    cargo-deny ignores this output entirely — the
+  #                    supply-chain audit re-runs at every release point
+  #                    because a new advisory can arrive against an unchanged
+  #                    dependency tree, and it costs under a minute.
+  #   python_changed / ext_changed / docs_only — changed-path facts for this
+  #                    event (fail-safe: detection failure, a >300-file
+  #                    compare, or a tag ref → everything counts as changed),
+  #                    so jobs whose input surface didn't change stop
+  #                    re-testing it on every PR.
   channel:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read # query prior workflow runs for already_green
     outputs:
       prerelease: ${{ steps.detect.outputs.prerelease }}
+      already_green: ${{ steps.green.outputs.already_green }}
+      python_changed: ${{ steps.paths.outputs.python_changed }}
+      ext_changed: ${{ steps.paths.outputs.ext_changed }}
+      docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
+          # Depth 2 so a merge commit's parents resolve for the tree
+          # comparison in the already-green check.
+          fetch-depth: 2
       - name: Detect release channel from the ref
         id: detect
         run: |
@@ -59,6 +102,90 @@ jobs:
           fi
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "channel: $GITHUB_REF -> prerelease=$prerelease"
+
+      - name: Check whether this exact code is already green
+        id: green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          already=false
+          cutoff="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')"
+          api="repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Tag: does this exact SHA have a green push run on rust/main?
+            n="$(gh api "$api?head_sha=$GITHUB_SHA&event=push&status=success&per_page=20" \
+                  --jq "[.workflow_runs[] | select((.head_branch==\"rust\" or .head_branch==\"main\") and .updated_at > \"$cutoff\")] | length" \
+                  2>/dev/null || echo 0)"
+            [ "${n:-0}" -gt 0 ] && already=true
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            # Merge push: does a PR head with the identical tree have a green
+            # PR run?  HEAD^2 only exists on a 2-parent merge commit; squash
+            # and direct pushes fall through to a full run.
+            pr_head="$(git rev-parse -q --verify HEAD^2 || true)"
+            if [ -n "$pr_head" ] &&
+              [ "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$pr_head^{tree}")" ]; then
+              n="$(gh api "$api?head_sha=$pr_head&event=pull_request&status=success&per_page=20" \
+                    --jq "[.workflow_runs[] | select(.updated_at > \"$cutoff\")] | length" \
+                    2>/dev/null || echo 0)"
+              [ "${n:-0}" -gt 0 ] && already=true
+            fi
+          fi
+          echo "already_green=$already" >> "$GITHUB_OUTPUT"
+          echo "already_green=$already (ref=$GITHUB_REF sha=$GITHUB_SHA)"
+
+      - name: Classify changed paths
+        id: paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          ok=true
+          files=""
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            files="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --paginate --jq '.[].filename' 2>/dev/null)" || ok=false
+          elif [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != refs/tags/* &&
+            -n "$BEFORE" && "$BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+            # The compare API caps the file list at 300; a full list means
+            # "could be anything", not "exactly 300 files changed".
+            files="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
+              --jq '.files[].filename' 2>/dev/null)" || ok=false
+            [ "$(printf '%s\n' "$files" | wc -l)" -ge 300 ] && ok=false
+          else
+            ok=false # tags, dispatch, branch creation: everything counts as changed
+          fi
+          [ -z "$files" ] && ok=false
+
+          python_changed=false
+          ext_changed=false
+          docs_only=true
+          if [ "$ok" = "true" ]; then
+            while IFS= read -r f; do
+              case "$f" in
+                *.py | *.pyi | typings/* | rust/bigip-report-gen/python/* | ruff.toml | pyrightconfig.json | Makefile | .github/workflows/ci.yml)
+                  python_changed=true ;;
+              esac
+              case "$f" in
+                editors/vscode/* | rust/* | grammars/* | ai/* | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
+                  ext_changed=true ;;
+              esac
+              case "$f" in
+                docs/* | *.md | .claude/* | .gitignore | LICENSE) ;;
+                *) docs_only=false ;;
+              esac
+            done <<<"$files"
+          else
+            python_changed=true
+            ext_changed=true
+            docs_only=false
+          fi
+          {
+            echo "python_changed=$python_changed"
+            echo "ext_changed=$ext_changed"
+            echo "docs_only=$docs_only"
+          } >>"$GITHUB_OUTPUT"
+          echo "python_changed=$python_changed ext_changed=$ext_changed docs_only=$docs_only"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks: `cargo fmt --check`, `cargo clippy --workspace`, and the
@@ -93,9 +220,12 @@ jobs:
           components: clippy, rustfmt
 
       - name: Run fast CI gate (cargo fmt + clippy + generated-file drift)
-        # Skipped for pre-release (rust-line) tags; job still succeeds so the
-        # release graph stays unbroken.  See the job comment + channel job.
-        if: needs.channel.outputs.prerelease != 'true'
+        # Skipped for pre-release (rust-line) tags and for tags whose SHA is
+        # already green; job still succeeds so the release graph stays
+        # unbroken.  Deliberately NOT skipped on already-green merge pushes:
+        # this job's clippy cache is the base-branch fallback every PR run
+        # restores from, so pushes to rust/main keep it warm.
+        if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         run: |
           cargo fmt --all --check
           cargo clippy --workspace --all-targets -- -D warnings
@@ -119,26 +249,41 @@ jobs:
   # saved — a real slowdown in exchange for release-profile-only coverage,
   # not a speed win, so left alone.
   build-tcl-lsp-server:
+    needs: [channel]
     runs-on: ubuntu-26.04
+    env:
+      # This build exists only so test-ext can RUN the server; skip it when
+      # test-ext's own run step will skip (nothing extension-facing changed,
+      # or the tag's SHA is already green).  Same condition as test-ext's
+      # steps — keep the two in sync.
+      RUN_EXT: ${{ (needs.channel.outputs.ext_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.prerelease != 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
 
       - name: Set up Rust
+        if: env.RUN_EXT == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
           cache-key: build-tcl-lsp-server
 
-      - name: Build tcl-lsp-server (release)
-        run: cargo build -p tcl-lsp-server --release
+      # The `ci` profile (root Cargo.toml) is release-grade opt-level with thin
+      # LTO and codegen-units=1 relaxed — measured, the full `--release`
+      # profile spent ~3 of test-ext's ~6 minutes on the final crate + link
+      # alone, for a binary whose only job is functional extension testing.
+      # Shipping binaries (build-server-matrix) keep the real release profile.
+      - name: Build tcl-lsp-server (ci profile)
+        if: env.RUN_EXT == 'true'
+        run: cargo build -p tcl-lsp-server --profile ci
 
       - name: Upload tcl-lsp-server binary
+        if: env.RUN_EXT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tcl-lsp-server-release
-          path: target/release/tcl-lsp-server
+          path: target/ci/tcl-lsp-server
           if-no-files-found: error
           retention-days: 1
 
@@ -147,14 +292,16 @@ jobs:
   # surfaces, so it reports as its own status check and runs concurrently with
   # them.  Runs on every PR and push, so it can serve as a required check.
   test-ext:
-    # For pre-release (odd-minor 2.x) tags the test STEP is skipped (below)
-    # while the job still succeeds, so the release graph is not transitively
-    # skipped; those tags are gated by the cargo jobs.  build-tcl-lsp-server
-    # has no channel skip of its own (see its comment), so it always builds —
-    # wasted on a pre-release tag, but that's a rare path, not the everyday
-    # PR/push loop this dependency exists to speed up.
+    # Steps are gated, the job is not (see the channel job header): the whole
+    # suite step-skips on pre-release tags, on already-green tags, and when
+    # nothing extension-facing changed (`ext_changed`), while the job still
+    # reports success so the release graph and required checks stay unbroken.
     needs: [channel, build-tcl-lsp-server]
     runs-on: ubuntu-26.04
+    env:
+      # Keep in sync with build-tcl-lsp-server's RUN_EXT — this job consumes
+      # the artifact that job only uploads under the same condition.
+      RUN_EXT: ${{ (needs.channel.outputs.ext_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.prerelease != 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -165,11 +312,13 @@ jobs:
       # `zed-query-check` (generated Zed asset drift), even though the
       # `tcl-lsp-server` binary itself now comes from build-tcl-lsp-server.
       - name: Set up Rust
+        if: env.RUN_EXT == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
 
       - name: Set up Node.js
+        if: env.RUN_EXT == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
@@ -178,6 +327,7 @@ jobs:
       # editors/vscode/package.json. Corepack downloads and activates the
       # pinned npm so `npm ci` runs the same version locally and in CI.
       - name: Enable Corepack (pin npm via packageManager)
+        if: env.RUN_EXT == 'true'
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: |
@@ -198,6 +348,7 @@ jobs:
       # Cache the npm metadata directory keyed on the lockfile so the
       # cache invalidates whenever the resolved dependency tree changes.
       - name: Cache npm registry
+        if: env.RUN_EXT == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
@@ -206,33 +357,37 @@ jobs:
             ${{ runner.os }}-npm-
 
       - name: Install npm dependencies
+        if: env.RUN_EXT == 'true'
         run: cd editors/vscode && npm ci
 
       - name: Lint TypeScript
+        if: env.RUN_EXT == 'true'
         run: cd editors/vscode && npm run lint
 
       - name: Copy canonical AI data
+        if: env.RUN_EXT == 'true'
         run: make copy-canonical
 
       - name: Compile TypeScript
+        if: env.RUN_EXT == 'true'
         run: cd editors/vscode && npx tsc -p ./
 
       # Replaces the `make rust-server` build `make test-ext` would otherwise
       # run inline: build-tcl-lsp-server already built this exact binary, so
       # fetch it instead of compiling a second copy.
       - name: Download tcl-lsp-server binary
+        if: env.RUN_EXT == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: tcl-lsp-server-release
           path: target/release
 
       - name: Make tcl-lsp-server binary executable
+        if: env.RUN_EXT == 'true'
         run: chmod +x target/release/tcl-lsp-server
 
       - name: Run extension tests
-        # Skipped for pre-release (rust-line) tags; the job still succeeds so the
-        # release graph stays unbroken.  See the job comment + channel job.
-        if: needs.channel.outputs.prerelease != 'true'
+        if: env.RUN_EXT == 'true'
         # Pre-set so `make test-ext` honours it and skips its own
         # `make rust-server` build (see the Makefile recipe's comment).
         env:
@@ -270,18 +425,18 @@ jobs:
   # in full.  The crate declares no [features], so dropping it from the
   # `--all-features` workspace run costs no coverage.
   rust-tests:
-    # The single longest pole in the graph: 360s hosted, 155s on the 16-core
-    # self-hosted box.  It is the ONLY job routed there, and that is deliberate.
-    # GitHub-hosted gives 8 concurrent 4-core runners (32 cores aggregate); the
-    # self-hosted box has 16 cores and one runner, so anything sent to it
-    # executes serially.  Measured: routing this job alone puts the critical
-    # path at 239s (bounded by hosted `lsp-e2e`), while adding a second job
-    # pushes it back up to 253s.  Route more work here only after adding a
-    # second runner instance to the VM.
+    # Historically the longest pole (155s on the 16-core self-hosted box when
+    # healthy — a 2026-08 regression to 16 min turned out to be two oversized
+    # `tcl-compiler` per_item tests, since fixed; if this job blows past ~5
+    # min again, suspect a runaway test before suspecting the box or the
+    # cache).  It is the ONLY job routed to the self-hosted runner, and that
+    # is deliberate: the box has one runner instance, so anything sent there
+    # executes serially and queues behind this job.
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
     # stay on GitHub-hosted; everything else (push, dispatch, and PRs from
     # branches in this repo, which only collaborators can create) goes to `tank`.
+    needs: [channel]
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'tank' || 'ubuntu-26.04' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -306,13 +461,27 @@ jobs:
           tool: nextest
 
       # --no-fail-fast: report every failure, not just the first.
+      # Skipped entirely for docs-only changes and already-green tags;
+      # downgraded to a cache-warming build (--no-run) on an already-green
+      # merge push, because PR runs restore this job's cache from the base
+      # branch — see the channel job header for the full contract.
       - name: cargo nextest run (workspace minus VM-sim heavies and lsp-e2e)
-        run: cargo nextest run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --all-features --no-fail-fast
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        env:
+          ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
+        run: |
+          extra=""
+          if [ "$ALREADY_GREEN" = "true" ]; then
+            echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
+            extra="--no-run"
+          fi
+          cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --all-features --no-fail-fast
 
       # nextest does not run doctests; run them for the WHOLE workspace (incl.
       # the crates excluded above — doctests are cheap) so the other jobs need
       # not duplicate them.  Deps are already built, so this is compile + run.
       - name: cargo test --doc
+        if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         run: cargo test --workspace --all-features --doc --no-fail-fast
 
   # The heavy VM-simulation suites, split out to run concurrently with
@@ -321,6 +490,7 @@ jobs:
     # Deliberately hosted.  The self-hosted box has a single runner, so jobs
     # sent there execute serially; measured, moving this job as well pushed the
     # critical path from 239s to 253s.  See `rust-tests` for the full reasoning.
+    needs: [channel]
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -340,8 +510,18 @@ jobs:
         with:
           tool: nextest
 
+      # Same skip/downgrade contract as rust-tests — see the channel job header.
       - name: cargo nextest run (VM-sim heavies)
-        run: cargo nextest run -p tcl-irule-test -p f5-cli --all-features --no-fail-fast
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        env:
+          ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
+        run: |
+          extra=""
+          if [ "$ALREADY_GREEN" = "true" ]; then
+            echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
+            extra="--no-run"
+          fi
+          cargo nextest run $extra -p tcl-irule-test -p f5-cli --all-features --no-fail-fast
 
   # Native-server lsp_e2e suite.  Its own job (hence its own status check)
   # because it is a distinct, heavier surface: it builds the `tcl-lsp-server`
@@ -350,6 +530,7 @@ jobs:
   # suite, so no Python and no uv.  Also covers the crate's `*_smoke.rs` tests.
   lsp-e2e:
     # Deliberately hosted -- see `rust-tests-heavy`.
+    needs: [channel]
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -371,8 +552,18 @@ jobs:
       # `CARGO_BIN_EXE_tcl-lsp-server` (cargo builds it as a test dependency)
       # and talk LSP JSON-RPC to it over stdio.  nextest runs them in one
       # parallel pool (no serial-per-binary penalty).
+      # Same skip/downgrade contract as rust-tests — see the channel job header.
       - name: lsp_e2e against the native Rust server
-        run: cargo nextest run -p tcl-lsp-server --no-fail-fast
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        env:
+          ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
+        run: |
+          extra=""
+          if [ "$ALREADY_GREEN" = "true" ]; then
+            echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
+            extra="--no-run"
+          fi
+          cargo nextest run $extra -p tcl-lsp-server --no-fail-fast
 
   # Supply-chain audit (advisories / licenses / bans / sources) via the
   # committed deny.toml.  Its own job so a denial is attributable independently
@@ -380,6 +571,11 @@ jobs:
   # defaults already match the `make rust-deny` invocation: `command: check`,
   # `arguments: --all-features`, `manifest-path: ./Cargo.toml` — deny.toml and
   # the workspace manifest both live at the repo root.
+  #
+  # Deliberately exempt from the channel job's already_green / changed-path
+  # skips: a new advisory can be published against an unchanged dependency
+  # tree, so "this SHA already passed" does not carry the audit's verdict
+  # forward the way it carries a test verdict.  It costs under a minute.
   cargo-deny:
     runs-on: ubuntu-26.04
     steps:
@@ -403,7 +599,15 @@ jobs:
   # Tool versions are pinned in the Makefile so a new ruff/ty/pyright release
   # cannot change a gate's verdict between a local run and CI.
   python:
+    needs: [channel]
     runs-on: ubuntu-26.04
+    env:
+      # Only 30 .py files exist in the repo (the product is the Rust
+      # workspace); a pure-Rust PR shouldn't pay for ruff + two type checkers
+      # + a maturin build.  Tags run in full unless their SHA is already
+      # green.  Steps skip, the job still reports success — see the channel
+      # job header.
+      RUN_PY: ${{ (needs.channel.outputs.python_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -414,14 +618,33 @@ jobs:
 
       # Needed by maturin to build the native `_engine` extension module.
       - name: Set up Rust
+        if: env.RUN_PY == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
           cache-key: python-engine
 
+      # The venv build maturin-compiles the native `_engine` in release mode
+      # (~4 min); `make py-venv` skips the reinstall when its content stamp
+      # matches, so restoring the venv turns ty + pyright into a ~10 s step.
+      # The system python version is part of the key: a restored venv built
+      # against a different interpreter would fail confusingly, not loudly.
+      - name: Compute venv cache key
+        if: env.RUN_PY == 'true'
+        id: pykey
+        run: echo "pyver=$(python3 -V | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache typecheck venv
+        if: env.RUN_PY == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .venv-typecheck
+          key: ${{ runner.os }}-venv-typecheck-${{ steps.pykey.outputs.pyver }}-${{ hashFiles('rust/bigip-report-gen/python/**') }}
+
       # Pinned installer rather than a floating action, so the uv that resolves
       # the pinned tool versions is itself pinned.
       - name: Install uv
+        if: env.RUN_PY == 'true'
         env:
           UV_VERSION: "0.11.28"
         run: |
@@ -429,15 +652,18 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Verify uv version
+        if: env.RUN_PY == 'true'
         run: |
           actual="$(uv --version | awk '{print $2}')"
           echo "uv $actual"
           [ "$actual" = "0.11.28" ] || { echo "::error::expected uv 0.11.28, got $actual"; exit 1; }
 
       - name: ruff (format --check + check)
+        if: env.RUN_PY == 'true'
         run: make lint-py
 
       - name: ty + pyright
+        if: env.RUN_PY == 'true'
         run: make typecheck-py
 
   # Release: create (or verify) the GitHub Release so each build job
@@ -445,12 +671,13 @@ jobs:
   # build blocks the others.
   create-release:
     if: startsWith(github.ref, 'refs/tags/v')
-    # Gated on the fast gate (pr-gate) AND the whole cargo test surface.  For a
-    # pre-release tag pr-gate runs as a no-op that still reports success (the
-    # heavy step is step-skipped), so this job runs and is effectively gated on
-    # the cargo jobs; for a stable tag pr-gate runs for real and a failure
-    # blocks here.  The cargo jobs have no step-level skip, so they gate every
-    # tag unconditionally.
+    # Gated on the fast gate (pr-gate) AND the whole cargo test surface.  Any
+    # of those jobs may have step-skipped its work when the channel job proved
+    # this exact SHA already went green on rust/main within 24 h (see the
+    # channel job header) — the jobs still report success, so the graph holds,
+    # and the verdict they carry forward is the prior run's real one.  A tag
+    # whose SHA was never tested (or whose green is stale) runs everything
+    # here in full.  cargo-deny always runs regardless.
     needs:
       [channel, pr-gate, rust-tests, rust-tests-heavy, lsp-e2e, cargo-deny, python]
     runs-on: ubuntu-24.04
@@ -525,17 +752,37 @@ jobs:
     needs: [create-release]
     strategy:
       fail-fast: false
+      # One job per target triple (not per OS): the old 3-leg matrix built up
+      # to 12 binaries serially on one runner (4 bins x 3 Linux triples), so
+      # the whole release waited on the slowest leg.  Per-triple legs make the
+      # wall-clock the slowest SINGLE triple's 4 builds, at the cost of extra
+      # (parallel, cheap) runners.  Keep this list and the Makefile's
+      # SERVER_TARGET_MAP in sync (7 triples total).
       matrix:
         include:
           - os: macos-latest
-            id: darwin
-            targets: aarch64-apple-darwin x86_64-apple-darwin
+            id: darwin-arm64
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            id: darwin-x64
+            target: x86_64-apple-darwin
           - os: ubuntu-24.04
-            id: linux
-            targets: x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu
+            id: linux-x64
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04
+            id: linux-arm64
+            target: aarch64-unknown-linux-gnu
+            cross: gcc-aarch64-linux-gnu
+          - os: ubuntu-24.04
+            id: linux-riscv64
+            target: riscv64gc-unknown-linux-gnu
+            cross: gcc-riscv64-linux-gnu
           - os: windows-latest
-            id: windows
-            targets: x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+            id: win32-x64
+            target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            id: win32-arm64
+            target: aarch64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -550,11 +797,11 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install Linux cross-linkers
-        if: matrix.id == 'linux'
+      - name: Install Linux cross-linker
+        if: matrix.cross
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu qemu-user
+          sudo apt-get install -y ${{ matrix.cross }} qemu-user
 
       # Stamp the release version into every user-facing binary. The
       # tcl-version crate prefers this over `git describe`; without it a tag
@@ -566,15 +813,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for t in ${{ matrix.targets }}; do
-            echo "==> $t"
-            rustup target add "$t"
-            cargo build -p tcl-lsp-server --release --target "$t"
-            cargo build -p tcl-mcp --release --target "$t"
-            cargo build -p tcl-cli --release --target "$t"
-            cargo build -p f5-cli --release --target "$t"
-          done
+          t="${{ matrix.target }}"
+          echo "==> $t"
+          rustup target add "$t"
+          cargo build -p tcl-lsp-server --release --target "$t"
+          cargo build -p tcl-mcp --release --target "$t"
+          cargo build -p tcl-cli --release --target "$t"
+          cargo build -p f5-cli --release --target "$t"
 
+      # scripts/test-cross-server.sh tests whatever is already built and skips
+      # absent triples loudly, so each per-triple leg smoke-tests just its own
+      # binary (natively or under QEMU where runnable).
       - name: Smoke-test built binaries
         shell: bash
         run: make server-cross-test
@@ -582,6 +831,8 @@ jobs:
       - name: Upload server binaries
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
+          # Per-triple artifact; downstream consumers merge `server-bins-*`
+          # so the per-triple split is invisible to them.
           name: server-bins-${{ matrix.id }}
           # Common ancestor of all matched files is `target/`, so the artifact
           # stores `<triple>/release/<exe>` — build-vsix restores tcl-lsp-server
