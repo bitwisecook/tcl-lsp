@@ -31,8 +31,16 @@
 //! means. This module reads that result and renders it;
 //! it never looks at the pack text itself, with the single, documented
 //! exception of the hook-body `ctx` scan under
-//! [`shape_cacheability`](fn@shape_cacheability), which inspects body text the
-//! loader deliberately carries verbatim.
+//! [`declaration_conflict`](fn@declaration_conflict), which inspects body text
+//! the loader deliberately carries verbatim.
+//!
+//! Cacheability and that scan are deliberately kept apart. Whether a hook is
+//! cached is decided by its `-inputs` declaration and nothing else, because
+//! that is all the engine consults; the body scan answers the different
+//! question of whether the body keeps the promise the declaration made.
+//! Folding the two together — reporting a tame-looking body as cached, or a
+//! declared-and-cached hook as uncached because its body looks broad —
+//! describes an engine that does not exist.
 //!
 //! Four things are reported:
 //!
@@ -47,8 +55,9 @@
 //!    declaration was dropped and the rest of the pack loaded. An unknown word
 //!    surfaces here and nowhere else, which is what makes this report the way
 //!    to find a typo'd trait or a property this server is too old to know.
-//! 3. **Hooks** — every declared hook with its family, what it hangs off, and
-//!    whether it is **shape-cacheable** (see below).
+//! 3. **Hooks** — every declared hook with its family, what it hangs off,
+//!    whether it is **shape-cacheable** (see below), and whether its body
+//!    contradicts its own declaration.
 //! 4. **Collisions** — commands whose name the shipped registry already
 //!    defines for the target dialect. Shipped wins unless the declaration says
 //!    `-override`, so an unintended collision is a silently dead command.
@@ -66,34 +75,41 @@ use std::collections::BTreeSet;
 
 use serde_json::{Map, Value, json};
 use tcl_registry::CommandRegistry;
+use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::spec::CommandSpec;
 use tcl_spec_studio::draft::{self, Draft, UNRENDERABLE_KEY};
 use tcl_spectcl::{HookDecl, HookFamily, HookOwner, HookSource, PackCommand, load_pack};
 
-/// `ctx` keys that are *part of* the `(command, word-shape)` memo key
-/// `docs/design/spec-packs.md` assumes for its 24.5 ns/call figure.
+/// Every key the hook calling convention puts in `ctx`, exactly as
+/// `tcl_spec_hooks`'s `ctx_value` builds it. A `dict get $ctx` on anything
+/// else reads empty forever.
 ///
-/// `command`, `subcommand`, and `nwords` are components of the key itself;
-/// `kinds` is the word shape. The option-arity family's three extra keys are
-/// all functions of the call's word vector — the option word, its index, and
-/// the index after it — so they are in the shape too.
-const SHAPE_CTX_KEYS: &[&str] = &[
+/// The option-arity trio is present only on an option row's call, but a body
+/// naming one is asking for a key the convention defines, so it is not a typo.
+const CTX_KEYS: &[&str] = &[
     "command",
     "subcommand",
     "nwords",
     "kinds",
+    "tcl-version",
+    "dialect",
+    "in-event-body",
     "option",
     "option-index",
     "option-value-start",
 ];
 
-/// `ctx` keys *outside* the shape key. Reading one is the "declares broader
-/// dependencies" case: fully legal, and uncacheable.
+/// Whether reading `key` leaves a body inside the shape key.
 ///
-/// `tcl-version` and `dialect` vary per profile and `in-event-body` per call
-/// site, and none of the three is a function of the words — so a body that
-/// consults any of them cannot be answered from a word-shape memo.
-const BROADER_CTX_KEYS: &[&str] = &["tcl-version", "dialect", "in-event-body"];
+/// Asked of the engine rather than answered from a list kept here: the same
+/// [`HookInputs`] that decides caching at `allocate` time decides it here, so
+/// the two cannot drift. They had drifted in both directions — this tool
+/// called `tcl-version` and `in-event-body` uncacheable when `ShapeKey`
+/// carries both, and called the option trio cacheable when it carries
+/// neither.
+fn ctx_key_in_shape(key: &str) -> bool {
+    HookInputs::parse(&[key]).shape_only()
+}
 
 /// The MCP `spectcl_check` handler.
 pub fn spectcl_check(args: &Value) -> Value {
@@ -127,7 +143,13 @@ pub fn spectcl_check(args: &Value) -> Value {
         .commands
         .iter()
         .flat_map(|c| c.hooks.iter())
-        .filter(|h| shape_cacheability(h, &CtxScan::of(h)).0 == Some(false))
+        .filter(|h| shape_cacheability(h).0 == Some(false))
+        .count();
+    let conflicts = pack
+        .commands
+        .iter()
+        .flat_map(|c| c.hooks.iter())
+        .filter(|h| declaration_conflict(h, &CtxScan::of(h)).is_some())
         .count();
     let shadowed = collisions
         .iter()
@@ -146,6 +168,7 @@ pub fn spectcl_check(args: &Value) -> Value {
             "notices": pack.notices.len(),
             "hooks": hook_count,
             "uncacheable_hooks": uncacheable,
+            "declaration_conflicts": conflicts,
             "collisions": collisions.len(),
             "shadowed_commands": shadowed,
         },
@@ -256,7 +279,7 @@ fn hook_json(hook: &HookDecl) -> Value {
         HookSource::Derived { keyword } => ("derived", keyword.clone()),
     };
     let scan = CtxScan::of(hook);
-    let (cacheable, reason) = shape_cacheability(hook, &scan);
+    let (cacheable, reason) = shape_cacheability(hook);
     json!({
         "owner": owner_label(&hook.owner),
         "field": hook.field,
@@ -267,6 +290,7 @@ fn hook_json(hook: &HookDecl) -> Value {
         "unknown_ctx_keys": scan.unknown(),
         "shape_cacheable": cacheable,
         "cache_reason": reason,
+        "declaration_conflict": declaration_conflict(hook, &scan),
         "verbs": hook.family.verbs(),
         "silence_means": hook.family.silence(),
         "requires_all_literal": hook.family.requires_all_literal(),
@@ -293,24 +317,24 @@ impl CtxScan {
         }
     }
 
-    /// Keys in neither [`SHAPE_CTX_KEYS`] nor [`BROADER_CTX_KEYS`] — words the
-    /// calling convention does not define, which will read as empty every
-    /// time. Always a pack bug, and invisible without this report because the
-    /// loader carries a body verbatim rather than checking inside it.
+    /// Keys outside [`CTX_KEYS`] — words the calling convention does not
+    /// define, which will read as empty every time. Always a pack bug, and
+    /// invisible without this report because the loader carries a body
+    /// verbatim rather than checking inside it.
     fn unknown(&self) -> Vec<&str> {
         self.keys
             .iter()
             .map(String::as_str)
-            .filter(|k| !SHAPE_CTX_KEYS.contains(k) && !BROADER_CTX_KEYS.contains(k))
+            .filter(|k| !CTX_KEYS.contains(k))
             .collect()
     }
 
     /// The keys read that lie outside the `(command, word-shape)` memo key.
     fn broader(&self) -> Vec<&str> {
-        BROADER_CTX_KEYS
+        self.keys
             .iter()
-            .copied()
-            .filter(|k| self.keys.contains(*k))
+            .map(String::as_str)
+            .filter(|k| CTX_KEYS.contains(k) && !ctx_key_in_shape(k))
             .collect()
     }
 }
@@ -342,20 +366,19 @@ impl CtxScan {
 ///
 /// The scan is textual and therefore may only ever be *pessimistic*: an
 /// unattributed reference downgrades the answer, never upgrades it.
-fn shape_cacheability(hook: &HookDecl, scan: &CtxScan) -> (Option<bool>, String) {
+fn shape_cacheability(hook: &HookDecl) -> (Option<bool>, String) {
     let HookSource::Body { inputs, .. } = &hook.source else {
         return (
             None,
             "no VM body — native and derived hooks run at native cost".to_owned(),
         );
     };
-    // The declaration decides, because the *runtime* decides that way:
-    // `HookInputs::shape_only` is what arms the cache, and a hook that
-    // declared nothing is `unrestricted` and never cached however tame its
-    // body looks. Reporting otherwise told an author their hook was cached
-    // when it was not — a report that disagrees with the engine is worse than
-    // no report. The body scan below can only make this answer *more*
-    // pessimistic, never less.
+    // The declaration decides, and *only* the declaration, because that is
+    // what the runtime does: `allocate` stores `HookInputs::shape_only` into
+    // the slot's cacheable bit and `dispatch` consults nothing else. A body
+    // scan cannot move this answer in either direction without describing an
+    // engine that does not exist — what the scan finds is reported as a
+    // conflict instead, by [`declaration_conflict`].
     if !inputs.shape_only() {
         return (
             Some(false),
@@ -365,38 +388,54 @@ fn shape_cacheability(hook: &HookDecl, scan: &CtxScan) -> (Option<bool>, String)
                 .to_owned(),
         );
     }
-    if hook.family == HookFamily::ConstFoldVersioned {
-        return (
-            Some(false),
-            "`const_fold_versioned` takes `tcl-version` by family, which is not \
-             part of the word shape"
-                .to_owned(),
-        );
+    (
+        Some(true),
+        "declares only inputs the shape key carries, so its answer memoises by \
+         (command, word-shape)"
+            .to_owned(),
+    )
+}
+
+/// Where a body contradicts its own `-inputs` declaration.
+///
+/// A declaration is a promise the engine acts on: it arms the shape cache and
+/// drops the `words` parameter. Nothing checks the body against it — the
+/// loader carries a body verbatim — so a body that reads more than it declared
+/// is served another call's answer whenever the shapes match. That is the one
+/// way a pack can be silently miscompiled, and this report is the only place
+/// it is visible before it happens.
+///
+/// Reading word *content* is not listed here: a shape-only hook is compiled
+/// without the `words` parameter, so the sandbox raises on the first call and
+/// the host quarantines the hook. Loud already.
+///
+/// The scan is textual, so it may only ever be *suspicious*, never certain —
+/// an unattributable `$ctx` is reported as unproven rather than as a fault.
+fn declaration_conflict(hook: &HookDecl, scan: &CtxScan) -> Option<String> {
+    let HookSource::Body { inputs, .. } = &hook.source else {
+        return None;
+    };
+    if !inputs.shape_only() {
+        // Nothing was promised that the body could break: an unrestricted or
+        // words-reading hook may read whatever it likes, and is not cached.
+        return None;
     }
     let broader = scan.broader();
     if !broader.is_empty() {
-        return (
-            Some(false),
-            format!(
-                "reads {} from `ctx`, outside the (command, word-shape) key",
-                broader.join(", ")
-            ),
-        );
+        return Some(format!(
+            "declares only shape inputs but reads {} from `ctx`, which the \
+             shape key does not carry — the cache will serve one call's answer \
+             to another that differs only in {}",
+            broader.join(", "),
+            broader.join(" / ")
+        ));
     }
-    if scan.unattributed {
-        return (
-            Some(false),
-            "uses `$ctx` in a way the check cannot attribute to a literal key, \
-             so its inputs are not provably inside the word shape"
-                .to_owned(),
-        );
-    }
-    (
-        Some(true),
-        "reads only the call's words and shape inputs, so the answer memoises \
-         by (command, word-shape)"
-            .to_owned(),
-    )
+    scan.unattributed.then(|| {
+        "declares only shape inputs and uses `$ctx` in a way this check cannot \
+         attribute to a literal key, so the declaration cannot be confirmed \
+         against the body"
+            .to_owned()
+    })
 }
 
 /// Scan a hook body for `dict get $ctx KEY`.
@@ -564,8 +603,8 @@ speclib mylib 1.0 {
         arg 0 -role VarWrite
         arg 1 -role Body
         return_type String
-        arg_role_resolver {words ctx} {
-            if {[llength $words] >= 2} {
+        arg_role_resolver -inputs {nwords} {ctx} {
+            if {[dict get $ctx nwords] >= 2} {
                 role 1 Body
             }
         }
@@ -593,28 +632,31 @@ speclib mylib 1.0 {
         assert!(!set.contains(&"traits"), "{command}");
     }
 
-    /// The one hook is an `arg_role_resolver` body reading only `words`, so it
-    /// is shape-cacheable under the declared-inputs rule.
+    /// The one hook declares `nwords` and reads it out of `ctx`: every input
+    /// it named is carried by the shape key, so the engine caches it.
     #[test]
-    fn a_words_only_resolver_body_is_shape_cacheable() {
+    fn a_shape_only_resolver_body_is_shape_cacheable() {
         let result = check(VALID, "tcl9.0");
         let hook = &result["commands"][0]["hooks"][0];
         assert_eq!(hook["family"], "arg_role_resolver", "{hook}");
         assert_eq!(hook["owner"], "command");
         assert_eq!(hook["source"], "body");
         assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
+        assert_eq!(hook["declaration_conflict"], Value::Null, "{hook}");
         assert_eq!(hook["verbs"], json!(["role"]));
         assert_eq!(result["summary"]["uncacheable_hooks"], 0);
+        assert_eq!(result["summary"]["declaration_conflicts"], 0);
         assert_eq!(
             strings(&result["commands"][0]["hook_families"]),
             vec!["arg_role_resolver"]
         );
     }
 
-    /// A body reaching outside the word shape is legal and reported as
-    /// uncacheable, with the offending `ctx` key named.
+    /// A body that declares nothing may read anything, and is never cached —
+    /// the safe default, and the reason a pack pays 28 µs per call site until
+    /// it opts in. The keys it reads are still reported.
     #[test]
-    fn a_context_reading_body_is_reported_uncacheable() {
+    fn an_undeclared_body_is_uncacheable_whatever_it_reads() {
         let source = r"
 speclib mylib 1.0 {
     command mylib::guarded {
@@ -635,11 +677,64 @@ speclib mylib 1.0 {
             hook["cache_reason"]
                 .as_str()
                 .unwrap_or_default()
-                .contains("in-event-body"),
+                .contains("-inputs"),
             "{hook}"
         );
+        // Nothing was promised, so nothing is contradicted.
+        assert_eq!(hook["declaration_conflict"], Value::Null, "{hook}");
         assert_eq!(hook["silence_means"], "the call is allowed");
         assert_eq!(result["summary"]["uncacheable_hooks"], 1);
+    }
+
+    /// `in-event-body` and `tcl-version` are *in* the shape key — `ShapeKey`
+    /// carries both — so declaring and reading them is cacheable. This is the
+    /// pair this tool used to call uncacheable while the engine cached them.
+    #[test]
+    fn the_shape_key_extends_past_the_words() {
+        let source = r"
+speclib mylib 1.0 {
+    command mylib::guarded {
+        arity 1
+        context_gate -inputs {in-event-body tcl-version} {ctx} {
+            if {[dict get $ctx in-event-body]} return
+            if {[dict get $ctx tcl-version] eq {8.4}} return
+            reject {mylib::guarded is only valid in an event body}
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        let hook = &result["commands"][0]["hooks"][0];
+        assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
+        assert_eq!(hook["declaration_conflict"], Value::Null, "{hook}");
+        assert_eq!(result["summary"]["uncacheable_hooks"], 0);
+    }
+
+    /// The one silent miscompile a pack can cause: the declaration arms the
+    /// cache, the body reads something the key does not carry, and nothing at
+    /// runtime checks one against the other. `dialect` is outside the key, so
+    /// two documents of different dialects share an answer.
+    #[test]
+    fn a_body_reading_past_its_declaration_is_flagged_as_a_conflict() {
+        let source = r"
+speclib mylib 1.0 {
+    command mylib::guarded {
+        arity 1
+        context_gate -inputs {nwords} {ctx} {
+            if {[dict get $ctx dialect] eq {irules}} return
+            reject {mylib::guarded is iRules-only}
+        }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        let hook = &result["commands"][0]["hooks"][0];
+        // The engine caches it — saying otherwise would describe an engine
+        // that does not exist.
+        assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
+        let conflict = hook["declaration_conflict"].as_str().unwrap_or_default();
+        assert!(conflict.contains("dialect"), "{hook}");
+        assert_eq!(result["summary"]["declaration_conflicts"], 1, "{result}");
     }
 
     /// A `-native` hook has no VM body, so cacheability does not apply to it.
@@ -793,15 +888,17 @@ speclib mylib 1.0 {
         assert!(set.contains(&"return_type"), "{sub}");
     }
 
-    /// `$ctx` the scan cannot attribute to a literal key downgrades the
-    /// answer — the pessimistic direction, never the optimistic one.
+    /// `$ctx` the scan cannot attribute to a literal key leaves a declaration
+    /// unconfirmable. The scan is textual, so it reports the doubt rather than
+    /// claiming a fault — and never touches the cacheability answer, which the
+    /// declaration alone decides.
     #[test]
-    fn an_unattributable_ctx_use_is_conservatively_uncacheable() {
+    fn an_unattributable_ctx_use_leaves_the_declaration_unconfirmed() {
         let source = r"
 speclib mylib 1.0 {
     command mylib::dynamic {
         arity 1
-        arg_role_resolver {words ctx} {
+        arg_role_resolver -inputs {nwords} {ctx} {
             set key command
             if {[dict get $ctx $key] eq {}} return
             role 0 Body
@@ -811,9 +908,9 @@ speclib mylib 1.0 {
 ";
         let result = check(source, "tcl9.0");
         let hook = &result["commands"][0]["hooks"][0];
-        assert_eq!(hook["shape_cacheable"], json!(false), "{hook}");
+        assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
         assert!(
-            hook["cache_reason"]
+            hook["declaration_conflict"]
                 .as_str()
                 .unwrap_or_default()
                 .contains("attribute"),
@@ -830,7 +927,7 @@ speclib mylib 1.0 {
 speclib mylib 1.0 {
     command mylib::typo {
         arity 1
-        arg_role_resolver {words ctx} {
+        arg_role_resolver -inputs {nwords} {ctx} {
             if {[dict get $ctx subcomand] eq {}} return
             role 0 Body
         }
@@ -840,9 +937,11 @@ speclib mylib 1.0 {
         let result = check(source, "tcl9.0");
         let hook = &result["commands"][0]["hooks"][0];
         assert_eq!(hook["unknown_ctx_keys"], json!(["subcomand"]), "{hook}");
-        // Reading an undefined key is a pack bug, not a caching cost: the
-        // read is still a function of nothing outside the word shape.
+        // Reading an undefined key is a pack bug, not a caching cost: an
+        // always-empty read is a function of nothing at all, so it neither
+        // blocks the cache nor contradicts the declaration.
         assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
+        assert_eq!(hook["declaration_conflict"], Value::Null, "{hook}");
     }
 
     /// A source with no `speclib` wrapper loads nothing and says why, rather

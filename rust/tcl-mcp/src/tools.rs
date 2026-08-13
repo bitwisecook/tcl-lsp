@@ -1759,7 +1759,7 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "spectcl_check",
-        description: "Validate a SpecTcl (.tclspec) spec pack: commands parsed with the draft fields each sets, loader notices (dropped/unknown words), declared hooks with their family and shape-cacheability, and collisions with the shipped registry for the target dialect.",
+        description: "Validate a SpecTcl (.tclspec) spec pack: commands parsed with the draft fields each sets, loader notices (dropped/unknown words), declared hooks with their family and shape-cacheability, hooks whose body reads past its own `-inputs` declaration (the one way a pack miscompiles silently), and collisions with the shipped registry for the target dialect.",
         params: &[
             (
                 "source",
