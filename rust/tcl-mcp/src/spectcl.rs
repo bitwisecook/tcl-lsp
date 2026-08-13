@@ -135,7 +135,7 @@ pub fn spectcl_check(args: &Value) -> Value {
     let collisions: Vec<Value> = pack
         .commands
         .iter()
-        .filter_map(|c| collision_json(c, registry, &dialect))
+        .filter_map(|c| collision_json(c, &registry, &dialect))
         .collect();
 
     let hook_count: usize = pack.commands.iter().map(|c| c.hooks.len()).sum();
@@ -522,7 +522,7 @@ fn dict_get_key(body: &str, at: usize, after: usize) -> Option<String> {
 // ── Registry collisions ───────────────────────────────────────────────
 
 /// Resolve a name the way this registry's own dialect rules resolve it.
-fn shipped(registry: &'static CommandRegistry, name: &str) -> Option<&'static CommandSpec> {
+fn shipped<'r>(registry: &'r CommandRegistry, name: &str) -> Option<&'r CommandSpec> {
     match registry.profile() {
         Some(profile) => registry.get_for_dialect(name, profile.availability_mask),
         None => registry.get(name),
@@ -536,11 +536,7 @@ fn shipped(registry: &'static CommandRegistry, name: &str) -> Option<&'static Co
 /// (`docs/design/spec-packs.md`, "Loading and tooling"), so a collision without
 /// `-override` means the pack's command never reaches a query — the failure
 /// worth catching before a user reports "my spec does nothing".
-fn collision_json(
-    cmd: &PackCommand,
-    registry: &'static CommandRegistry,
-    dialect: &str,
-) -> Option<Value> {
+fn collision_json(cmd: &PackCommand, registry: &CommandRegistry, dialect: &str) -> Option<Value> {
     let shipped = shipped(registry, cmd.spec.name)?;
     let (effect, message) = if cmd.overrides_shipped {
         (

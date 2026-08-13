@@ -199,7 +199,8 @@ impl ExplorerResult {
 /// the Rust passes are infallible — they are run as part of building the unit.
 #[must_use]
 pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
-    let registry = registry_for_dialect(dialect);
+    let registry_held = registry_for_dialect(dialect);
+    let registry = &*registry_held;
     // Build for the requested dialect so every dialect-sensitive layer is
     // honoured: Tcl 8.4 / iRules disable `{*}` expansion, iRules enable the
     // `}{` brace-separator, and the iRules word operators (`contains`, …) are

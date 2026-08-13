@@ -81,6 +81,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
@@ -788,8 +789,11 @@ impl<'a> Resolution<'a> {
     /// queries against an unchanged document cost a lookup. An edit is a new
     /// key and therefore a new registry: callers should debounce, which is why
     /// the Test tab re-analyses on a settle timer rather than per keystroke.
+    ///
+    /// An owning handle: an edit supersedes the previous key, and the
+    /// generation behind it is freed once the last reader lets go.
     #[must_use]
-    pub fn registry(&self) -> &'static CommandRegistry {
+    pub fn registry(&self) -> Arc<CommandRegistry> {
         tcl_spectcl::install::registry_with_packs(
             DialectProfile::by_name(self.builtins.dialect()),
             &self.store.pack_set(),

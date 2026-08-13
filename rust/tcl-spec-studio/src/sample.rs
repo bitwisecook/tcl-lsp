@@ -51,6 +51,7 @@
 //! cover the whole sample), only the click-a-word view stops at them.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use serde_json::{Value, json};
 use tcl_compiler::analyser::state::Analyser;
@@ -380,7 +381,7 @@ fn describe(text: &str) -> String {
 /// install into.
 pub struct Bench<'a> {
     merged: &'a Resolution<'a>,
-    registry: &'static CommandRegistry,
+    registry: Arc<CommandRegistry>,
     overlay: u64,
 }
 
@@ -400,8 +401,8 @@ impl<'a> Bench<'a> {
 
     /// The registry an editor would resolve this sample against.
     #[must_use]
-    pub fn registry(&self) -> &'static CommandRegistry {
-        self.registry
+    pub fn registry(&self) -> &CommandRegistry {
+        &self.registry
     }
 
     /// Analyse `sample` and return everything the tab paints: the render
@@ -410,7 +411,7 @@ impl<'a> Bench<'a> {
     pub fn analyse(&self, sample: &str) -> Value {
         let diagnostics = self.diagnostics(sample);
         let mut words = Vec::new();
-        walk(self.registry, sample, 0, 0, &mut words);
+        walk(&self.registry, sample, 0, 0, &mut words);
         words.sort_by_key(|w| (w.start, w.end));
         words.dedup_by_key(|w| (w.start, w.end));
 
@@ -506,7 +507,7 @@ impl<'a> Bench<'a> {
     #[must_use]
     pub fn inspect(&self, sample: &str, offset: usize) -> Option<Value> {
         let mut words = Vec::new();
-        walk(self.registry, sample, 0, 0, &mut words);
+        walk(&self.registry, sample, 0, 0, &mut words);
         // The innermost word wins: a body's own statements are pushed after
         // the body word that holds them, and are strictly narrower.
         let word = words
@@ -586,7 +587,7 @@ impl<'a> Bench<'a> {
 
     /// The head's origin under the collision policy, and the spec the merged
     /// registry actually answers with.
-    fn resolve_head(&self, head: &str) -> (Option<Origin>, Option<&'static CommandSpec>) {
+    fn resolve_head(&self, head: &str) -> (Option<Origin>, Option<&CommandSpec>) {
         (self.merged.origin(head), self.registry.get(head))
     }
 

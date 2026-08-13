@@ -1194,7 +1194,7 @@ fn run_format(
         .inputs
         .iter()
         .map(|entry| {
-            let edits = formatting_with(&entry.source, &config, registry);
+            let edits = formatting_with(&entry.source, &config, &registry);
             edits
                 .into_iter()
                 .next()
@@ -1227,19 +1227,19 @@ fn run_minify(
     let mut symbol_maps: Vec<String> = Vec::new();
     if aggressive {
         for entry in &loaded.inputs {
-            let result = minify_tcl_aggressive(&entry.source, &input.dialect, isolated, registry);
+            let result = minify_tcl_aggressive(&entry.source, &input.dialect, isolated, &registry);
             minified.push(result.source);
             symbol_maps.push(result.symbol_map.format());
         }
     } else if compact {
         for entry in &loaded.inputs {
-            let (text, sm) = minify_tcl_compact(&entry.source, &input.dialect, isolated, registry);
+            let (text, sm) = minify_tcl_compact(&entry.source, &input.dialect, isolated, &registry);
             minified.push(text);
             symbol_maps.push(sm.format());
         }
     } else {
         for entry in &loaded.inputs {
-            minified.push(minify_tcl(&entry.source, &input.dialect, registry));
+            minified.push(minify_tcl(&entry.source, &input.dialect, &registry));
         }
     }
 

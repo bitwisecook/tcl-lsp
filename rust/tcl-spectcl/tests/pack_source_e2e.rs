@@ -132,7 +132,7 @@ fn a_pack_file_folds_a_call_site_in_the_optimiser() {
 
     // The registry the workspace would install — same call the LSP makes.
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
-    assert_eq!(folds(registry), vec!["5".to_string()]);
+    assert_eq!(folds(&registry), vec!["5".to_string()]);
     pack_hooks::clear_host();
 }
 
@@ -144,5 +144,5 @@ fn without_a_host_the_installed_pack_simply_does_not_fold() {
     let packs = pack_set("hostless");
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
     pack_hooks::clear_host();
-    assert!(folds(registry).is_empty());
+    assert!(folds(&registry).is_empty());
 }

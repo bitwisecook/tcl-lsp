@@ -246,7 +246,8 @@ fn serialise_wasm_with_options(
 ) -> Value {
     use tcl_compiler::codegen::wasm::{WasmCodegenPlan, WasmSemanticDecline, compile_wasm};
 
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let mut wasm = compile_wasm(&result.unit, registry, options);
     let wat = wasm.to_wat();
 
@@ -648,7 +649,8 @@ fn shimmer_severity(code: &str) -> &'static str {
 /// differential harness.
 #[must_use]
 pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let mut out: Vec<Value> = Vec::new();
     for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
         out.push(json!({
@@ -712,7 +714,8 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
 /// plus the optimised source string (whose ranges the optimised views
 /// index into).
 fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, String)> {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let optimised = apply_optimisations(&result.source, &optimise(&result.source, registry));
     if optimised == result.source {
         return None;
@@ -1088,7 +1091,8 @@ fn serialise_world_ssa(result: &ExplorerResult) -> Value {
 /// derived, pinned by a Rust unit test.
 #[must_use]
 pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let dialect = Some(result.dialect.as_str());
     let mut all = find_redundancies_for_cu(&result.unit, registry, dialect);
     all.extend(find_partial_redundancies_for_cu(
@@ -1138,7 +1142,8 @@ fn taint_severity(code: &str) -> &'static str {
 /// taint passes via `find_taint_warnings_for_cu`.
 #[must_use]
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let dialect = Some(result.dialect.as_str());
     let out: Vec<Value> = find_taint_warnings_for_cu(&result.unit, registry, dialect)
         .iter()
@@ -1162,7 +1167,8 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
 /// the cached per-dialect registry.
 #[must_use]
 pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let opts: Vec<Value> = optimise(source, registry)
         .iter()
         .map(|o| {
@@ -1185,7 +1191,8 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
 /// execution order.
 #[must_use]
 pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let passes: Vec<Value> = optimise_by_pass(&result.unit, registry, Some(&result.dialect))
         .iter()
         .map(|(pass, opts)| {
@@ -1310,7 +1317,8 @@ fn ssa_value_detail(
 /// SCCP + the type lattice.
 #[must_use]
 pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let funcs: Vec<Value> = result
         .all_snapshots()
         .iter()
@@ -1536,7 +1544,8 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
 /// authoritative dead-store result.
 #[must_use]
 pub fn serialise_liveness(result: &ExplorerResult) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     Value::Array(
         result
             .all_snapshots()
@@ -2061,7 +2070,8 @@ fn serialise_memory_ssa(memory: &MemorySsaFunction) -> Value {
 /// finders. Empty for non-iRules dialects (an empty list on the tcl corpus).
 #[must_use]
 pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let dialect = Some(result.dialect.as_str());
     let cu = &result.unit;
     let mut warnings = find_unnormalised_getter_warnings(cu, registry, dialect);
@@ -2628,7 +2638,8 @@ fn serialise_source_map_units(result: &ExplorerResult) -> Value {
 /// analyses. `dataflow*` counts are omitted — `dataflow` is not implemented,
 /// and such counts only apply when a dataflow graph is present.
 fn serialise_stats(result: &ExplorerResult) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let dialect = Some(result.dialect.as_str());
 
     let unreachable: usize = result
@@ -2740,7 +2751,8 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 // splitting the per-source arms would scatter one contract across helpers.
 #[allow(clippy::too_many_lines)]
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     let dialect = Some(result.dialect.as_str());
     let mut anns: Vec<Ann> = Vec::new();
 

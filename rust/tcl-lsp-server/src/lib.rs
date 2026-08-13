@@ -86,7 +86,6 @@ use tcl_lsp_core::workspace_index as core_workspace_index;
 use tcl_lsp_core::workspace_symbols::{
     self as core_workspace_symbols, WorkspaceSymbolKind as CoreWorkspaceSymbolKind,
 };
-use tcl_lsp_db::TclDb as _;
 use tcl_registry::CommandRegistry;
 use tokio::sync::{Mutex, RwLock, Semaphore};
 use tower_lsp_server::jsonrpc;
@@ -738,7 +737,7 @@ struct RangeConvergenceInputs {
     uri: String,
     /// The coarse token stream already served, to diff the enriched recompute against.
     served: Vec<u32>,
-    registry: &'static CommandRegistry,
+    registry: Arc<CommandRegistry>,
     /// The document text, shared with the request's own coarse tokenisation
     /// rather than cloned for the continuation (#1147): one buffer per request,
     /// not one per tier.
@@ -1025,7 +1024,7 @@ struct DiagToggles {
 #[derive(Clone)]
 struct DiagInputs {
     client: Client,
-    registry: &'static CommandRegistry,
+    registry: Arc<CommandRegistry>,
     disabled: HashSet<String>,
     /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
     /// resolved for this document's folder. Applied as a display-side re-label
@@ -1906,7 +1905,7 @@ async fn compute_project_diags(
 /// worker panic (settle) — matching [`compute_base_analysis`].
 async fn compute_compiler_diags(
     ctx: &SalsaAnalysisCtx<'_>,
-    registry: &'static CommandRegistry,
+    registry: &Arc<CommandRegistry>,
     generic_variable_patterns: Option<&[String]>,
 ) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
     let &SalsaAnalysisCtx {
@@ -1945,14 +1944,14 @@ async fn compute_compiler_diags(
         }
     } else {
         let (c_text, c_dialect) = (text.to_owned(), dialect.to_owned());
-        let c_registry = registry;
+        let c_registry = Arc::clone(registry);
         let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
         ControlFlow::Continue(
             tokio::task::spawn_blocking(move || {
                 with_pack_hooks(|| {
                     Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
                         &c_text,
-                        c_registry,
+                        &c_registry,
                         &c_dialect,
                         c_generic.as_deref(),
                         // The no-salsa-input fallback: this document is not in
@@ -2990,7 +2989,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
 
 /// The non-document-buffer handles the analyser/compiler/publish path needs.
 struct AnalyserPathInputs<'a> {
-    registry: &'static CommandRegistry,
+    registry: Arc<CommandRegistry>,
     extra_commands: &'a HashSet<String>,
     generic_variable_patterns: Option<&'a [String]>,
     non_ascii_mode: NonAsciiMode,
@@ -3062,7 +3061,7 @@ async fn run_diagnostics_analyser_path(
     // call parking a blocking-pool thread on the already-in-flight base read.
     let recovery = RecoveryWidenCtx {
         cache: inputs.recovery_names,
-        registry: inputs.registry,
+        registry: &inputs.registry,
         workspace_index: inputs.workspace_index,
         package_resolver: inputs.package_resolver,
     };
@@ -3160,7 +3159,11 @@ async fn run_deep_diagnostics(
 ) -> bool {
     let (base_result, compiler_result, project_result) = tokio::join!(
         base,
-        compute_compiler_diags(salsa_ctx, inputs.registry, inputs.generic_variable_patterns),
+        compute_compiler_diags(
+            salsa_ctx,
+            &inputs.registry,
+            inputs.generic_variable_patterns
+        ),
         compute_project_diags(salsa_ctx, project),
     );
     let analysis: Arc<AnalysisResult> = match base_result {
@@ -3223,7 +3226,7 @@ async fn run_deep_diagnostics(
                 SourceInheritance::default()
             },
             if needs_settling {
-                settle_cross_file_calls(&index, &analysis, inputs.registry, delivery.uri.as_str())
+                settle_cross_file_calls(&index, &analysis, &inputs.registry, delivery.uri.as_str())
             } else {
                 CrossFileCalls::default()
             },
@@ -3251,7 +3254,7 @@ async fn run_deep_diagnostics(
         &RefinementInputs {
             inheritance: &inheritance,
             package_resolver: inputs.package_resolver,
-            registry: inputs.registry,
+            registry: &inputs.registry,
             workspace_known_names,
             settled_calls,
             cross_file_resolution: inputs.cross_file_resolution,
@@ -3359,7 +3362,7 @@ struct LiftInputs<'a> {
 struct RefinementInputs<'a> {
     inheritance: &'a SourceInheritance,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
-    registry: &'static CommandRegistry,
+    registry: &'a CommandRegistry,
     /// The workspace index's memoised command names — read whenever this
     /// document has a W123 to refine, because
     /// [`refine_workspace_index_w123`]'s always-on math-function tier needs
@@ -6271,12 +6274,12 @@ impl Backend {
     ) -> Option<core_semantic_tokens::SemanticTokens> {
         if is_apl_source(uri, &doc.language_id) {
             let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
-            return Some(core_semantic_tokens::apl_range(&doc.text, range, registry));
+            return Some(core_semantic_tokens::apl_range(&doc.text, range, &registry));
         }
         if Self::is_bigip_dialect(&doc.dialect) {
             let registry = self.registry_for_dialect(IRULES_DIALECT).await;
             return Some(core_semantic_tokens::bigip_conf_range(
-                &doc.text, range, registry,
+                &doc.text, range, &registry,
             ));
         }
         None
@@ -6304,7 +6307,7 @@ impl Backend {
         if is_apl_source(uri, &doc.language_id) {
             // The iApps registry: an APL `[ … ]` bracket expression is iApp Tcl.
             let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
-            let data = core_semantic_tokens::apl_full(&doc.text, registry).data;
+            let data = core_semantic_tokens::apl_full(&doc.text, &registry).data;
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
                 .await;
             return Ok(data);
@@ -6313,7 +6316,7 @@ impl Backend {
             // The iRules registry, not the BIG-IP one: a `ltm rule { … }` body is
             // iRules code embedded in the config, and is walked as such.
             let registry = self.registry_for_dialect(IRULES_DIALECT).await;
-            let data = core_semantic_tokens::bigip_conf_full(&doc.text, registry).data;
+            let data = core_semantic_tokens::bigip_conf_full(&doc.text, &registry).data;
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
                 .await;
             return Ok(data);
@@ -6328,13 +6331,13 @@ impl Backend {
             // salsa path below.
             let data = tokio::task::spawn_blocking(move || {
                 let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
-                    &text, registry, false, &dialect,
+                    &text, &registry, false, &dialect,
                 );
                 let analysis = tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect);
                 core_semantic_tokens::full_with_cu_and_analysis(
                     &text,
                     &dialect,
-                    registry,
+                    &registry,
                     Some(&cu),
                     Some(&analysis),
                 )
@@ -6397,7 +6400,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
         tokio::task::spawn_blocking(move || {
-            core_semantic_tokens::full(&text, &dialect, registry).data
+            core_semantic_tokens::full(&text, &dialect, &registry).data
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -8192,7 +8195,7 @@ impl Backend {
             if let Some(cand) = settle_call_against_workspace(
                 &index,
                 analysis,
-                registry,
+                &registry,
                 uri.as_str(),
                 inv,
                 exports.as_ref(),
@@ -9204,7 +9207,7 @@ impl Backend {
         uri: &Uri,
         doc: &DocumentState,
         analysis: &AnalysisResult,
-        registry: &'static tcl_registry::CommandRegistry,
+        registry: &Arc<tcl_registry::CommandRegistry>,
         pos: Position,
         new_name: &str,
     ) -> jsonrpc::Result<Vec<core_rename::TextEdit>> {
@@ -9214,6 +9217,9 @@ impl Backend {
         let new_name_worker = new_name.to_owned();
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
+        // The worker owns a clone of the handle: it outlives this frame, and
+        // the generation it names must outlive the worker.
+        let registry_worker = Arc::clone(registry);
         tokio::task::spawn_blocking(move || {
             core_rename::rename_in_program(
                 &text,
@@ -9223,7 +9229,7 @@ impl Backend {
                 &new_name_worker,
                 &analysis_for_worker,
                 core_definition::CallResolution {
-                    registry: Some(registry),
+                    registry: Some(&registry_worker),
                     program: Some(core_definition::ProgramExports {
                         uri: &uri_key,
                         oracle: exports.as_ref(),
@@ -10484,7 +10490,7 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let value = tokio::task::spawn_blocking(move || {
             if aggressive {
-                let res = core_minify::minify_tcl_aggressive(&text, &dialect, isolated, registry);
+                let res = core_minify::minify_tcl_aggressive(&text, &dialect, isolated, &registry);
                 serde_json::json!({
                     "source": res.source,
                     "originalLength": res.original_length,
@@ -10494,7 +10500,7 @@ impl Backend {
                 })
             } else if compact {
                 let (minified, symbol_map) =
-                    core_minify::minify_tcl_compact(&text, &dialect, isolated, registry);
+                    core_minify::minify_tcl_compact(&text, &dialect, isolated, &registry);
                 serde_json::json!({
                     "source": minified,
                     "originalLength": text.len(),
@@ -10502,7 +10508,7 @@ impl Backend {
                     "symbolMap": symbol_map.format(),
                 })
             } else {
-                let minified = core_minify::minify_tcl(&text, &dialect, registry);
+                let minified = core_minify::minify_tcl(&text, &dialect, &registry);
                 serde_json::json!({
                     "source": minified,
                     "originalLength": text.len(),
@@ -10552,10 +10558,10 @@ impl Backend {
             tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = Some(dialect.as_str());
             let (source, opts) = if profile == "full" {
-                tcl_compiler::optimiser::optimise_source_multipass(&text, registry, dialect_opt, 5)
+                tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
             } else {
                 let opts =
-                    tcl_compiler::optimiser::optimise_with_dialect(&text, registry, dialect_opt);
+                    tcl_compiler::optimiser::optimise_with_dialect(&text, &registry, dialect_opt);
                 let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
                 (applied, opts)
             };
@@ -11813,7 +11819,7 @@ impl Backend {
         let profile = tcl_dialect::DialectProfile::by_name(&dialect);
         let mut subs: Vec<serde_json::Value> = {
             use tcl_registry::ProfileQueries;
-            profile.resolve_command(registry, &name)
+            profile.resolve_command(&registry, &name)
         }
         .map(|spec| {
             spec.subcommands
@@ -12208,16 +12214,29 @@ impl Backend {
     /// every document, rebuilt when the pack changes and never per edit of the
     /// code that uses it.  With no packs — the overwhelmingly common case —
     /// this is byte for byte the lookup it always was.
-    async fn registry_for_dialect(&self, dialect: &str) -> &'static CommandRegistry {
+    ///
+    /// Returned as an owning handle, and the caller is expected to keep it for
+    /// the length of the request it serves. That is what makes a pack reload
+    /// safe: the superseded generation stays alive and readable for every
+    /// request already walking with it, and is freed once the last of them
+    /// finishes (`tcl_registry::cache`'s memory note). Both arms hand back the
+    /// same underlying instance the process already had — the no-packs arm
+    /// re-enters the same cache the salsa query reads, so this is a change of
+    /// ownership, not of identity.
+    async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
         let packs = self.spec_packs().await;
         if !packs.is_empty() {
             return tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
         }
-        // Routed through the query database so every consumer (the salsa
-        // queries included) reads one registry per dialect.  Clone the db
-        // handle (cheap) so the lookup does not hold the db mutex.
-        let db = self.db.lock().await.clone();
-        db.registry(dialect)
+        // The same per-dialect cache entry the salsa `registry` query returns
+        // — that query is a forwarder to this cache, and both spellings
+        // resolve `dialect` through the same catalogue — asked for as a
+        // handle so this function has one return type.  Reaching the cache
+        // directly also spares the db mutex a lock on a path that only ever
+        // forwarded.
+        tcl_registry::cache::registry_handle_for_profile(tcl_dialect::DialectProfile::by_name(
+            dialect,
+        ))
     }
 
     /// `tclLsp.specPacks` and what discovery made of it, for
@@ -12398,9 +12417,10 @@ impl Backend {
         uri: &Uri,
         text: &str,
         dialect: &str,
-        registry: &'static CommandRegistry,
+        registry: &Arc<CommandRegistry>,
     ) -> tcl_lsp_db::CompilerDiagnostics {
-        let (c_text, c_dialect, c_registry) = (text.to_owned(), dialect.to_owned(), registry);
+        let (c_text, c_dialect, c_registry) =
+            (text.to_owned(), dialect.to_owned(), Arc::clone(registry));
         // URI-scoped (folder/project override aware), matching the push
         // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
         // honours a folder's `diagnostics.genericVariablePatterns` override.
@@ -12412,7 +12432,7 @@ impl Backend {
         tokio::task::spawn_blocking(move || {
             tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &c_text,
-                c_registry,
+                &c_registry,
                 &c_dialect,
                 c_generic.as_deref(),
                 c_evidence.as_deref(),
@@ -12494,7 +12514,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = self
-            .compiler_diagnostics_for(uri, &analysis_text, &dialect, registry)
+            .compiler_diagnostics_for(uri, &analysis_text, &dialect, &registry)
             .await;
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
@@ -12505,7 +12525,7 @@ impl Backend {
         // `textDocument/codeAction`, which lifts its quick-fixes from this
         // exact set (see `published_analyser_diagnostics`).
         let analyser_diags = self
-            .published_analyser_diagnostics(uri, &analysis, &dialect, registry, &disabled)
+            .published_analyser_diagnostics(uri, &analysis, &dialect, &registry, &disabled)
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         tokio::task::spawn_blocking(move || {
@@ -12589,7 +12609,7 @@ impl Backend {
         } else {
             let index = self.workspace_index.read().await;
             let registry = self.registry_for_dialect(inputs.dialect).await;
-            settle_cross_file_calls(&index, analysis, registry, uri.as_str())
+            settle_cross_file_calls(&index, analysis, &registry, uri.as_str())
         };
         let analyser_diags = refine_workspace_w120(
             analyser_diags,
@@ -12653,7 +12673,7 @@ impl Backend {
         uri: &Uri,
         analysis: &AnalysisResult,
         dialect: &str,
-        registry: &'static CommandRegistry,
+        registry: &CommandRegistry,
         disabled: &HashSet<String>,
     ) -> Vec<tcl_compiler::analyser::Diagnostic> {
         // Opt-in project callback arity: direct cross-file calls are settled
@@ -14056,7 +14076,7 @@ impl Backend {
                         &text,
                         &dialect,
                         range,
-                        registry,
+                        &registry,
                         cu.as_deref(),
                         analysis.as_deref(),
                     )
@@ -14985,7 +15005,7 @@ impl LanguageServer for Backend {
         // handler.
         let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::formatting_with(&text, &config, registry)
+            core_formatting::formatting_with(&text, &config, &registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -15057,7 +15077,7 @@ impl LanguageServer for Backend {
             // preserved).
             let registry = self.registry_for_dialect(&doc.dialect).await;
             tokio::task::spawn_blocking(move || {
-                tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, registry)
+                tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry)
             })
             .await
             .map_err(|err| jsonrpc::Error {
@@ -15172,7 +15192,7 @@ impl LanguageServer for Backend {
                 pos.line,
                 pos.character,
                 &analysis,
-                Some(registry),
+                Some(&registry),
                 Some(&*workspace),
                 &doc.dialect,
             )
@@ -15255,7 +15275,7 @@ impl LanguageServer for Backend {
                 pos.character,
                 &dialect,
                 &analysis,
-                registry,
+                &registry,
             )
         })
         .await
@@ -16173,13 +16193,13 @@ impl LanguageServer for Backend {
         let dialect = doc.dialect.clone();
         let serve_text = Arc::clone(&text);
         let serve_dialect = dialect.clone();
-        let serve_registry = registry;
+        let serve_registry = Arc::clone(&registry);
         let core_data = tokio::task::spawn_blocking(move || {
             core_semantic_tokens::range_with_cu_and_analysis(
                 &serve_text,
                 &serve_dialect,
                 core_range,
-                serve_registry,
+                &serve_registry,
                 cached_cu.as_deref(),
                 cached_analysis.as_deref(),
             )
@@ -16522,7 +16542,7 @@ impl LanguageServer for Backend {
                 range,
                 Some(&analysis),
                 core_definition::CallResolution {
-                    registry: Some(registry),
+                    registry: Some(&registry),
                     program: Some(core_definition::ProgramExports {
                         uri: &uri_key,
                         oracle: exports.as_ref(),
@@ -16757,7 +16777,7 @@ impl LanguageServer for Backend {
                 &uri,
                 &analysis,
                 &doc.dialect,
-                registry,
+                &registry,
                 &disabled_codes,
             )
             .await;
@@ -16808,7 +16828,7 @@ impl LanguageServer for Backend {
                 &mut actions,
                 &doc.text,
                 range,
-                registry,
+                &registry,
                 program,
                 &analysis,
                 &context_diags,
@@ -16820,11 +16840,11 @@ impl LanguageServer for Backend {
                 &uri_str,
                 &dialect,
                 &analysis,
-                registry,
+                &registry,
             );
             let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &doc.text,
-                registry,
+                &registry,
                 &dialect,
                 generic_patterns.as_deref(),
                 evidence.as_deref(),
@@ -16907,7 +16927,7 @@ impl LanguageServer for Backend {
         // against them) — see `DocumentState::raw`.
         let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::formatting_with(&text, &config, registry)
+            core_formatting::formatting_with(&text, &config, &registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -16949,7 +16969,7 @@ impl LanguageServer for Backend {
         // a JSON-RPC error.
         let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::range_formatting(&text, range, &config, registry)
+            core_formatting::range_formatting(&text, range, &config, &registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -17139,7 +17159,7 @@ impl LanguageServer for Backend {
             }));
         }
         let edits = self
-            .in_document_rename_edits(&uri, &doc, &analysis, registry, pos, &new_name)
+            .in_document_rename_edits(&uri, &doc, &analysis, &registry, pos, &new_name)
             .await?;
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
@@ -17173,7 +17193,7 @@ impl LanguageServer for Backend {
                     analysis: &analysis,
                     pos,
                     new_name: &new_name,
-                    registry,
+                    registry: &registry,
                 },
                 local_rejected,
                 &mut changes,
@@ -17333,7 +17353,7 @@ impl LanguageServer for Backend {
                 pos.character,
                 &analysis,
                 core_definition::CallResolution {
-                    registry: Some(registry),
+                    registry: Some(&registry),
                     program: Some(core_definition::ProgramExports {
                         uri: &uri_key,
                         oracle: exports.as_ref(),
@@ -17405,7 +17425,7 @@ impl LanguageServer for Backend {
                 pos.line,
                 pos.character,
                 &analysis_worker,
-                Some(registry),
+                Some(&registry),
                 hover_profile,
                 Some(core_definition::ProgramExports {
                     uri: &uri_key,
@@ -19484,7 +19504,7 @@ fn refine_w123_diagnostics(
 fn settle_call_against_workspace<'a>(
     index: &core_workspace_index::WorkspaceIndex,
     analysis: &AnalysisResult,
-    registry: &'static CommandRegistry,
+    registry: &CommandRegistry,
     uri: &str,
     inv: &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     exports: &dyn tcl_lsp_core::namespace_import::NamespaceExportOracle,
@@ -19560,7 +19580,7 @@ struct CrossFileCalls {
 fn settle_cross_file_calls(
     index: &core_workspace_index::WorkspaceIndex,
     analysis: &AnalysisResult,
-    registry: &'static CommandRegistry,
+    registry: &CommandRegistry,
     uri: &str,
 ) -> CrossFileCalls {
     let mut out = CrossFileCalls::default();
@@ -30159,7 +30179,7 @@ mod tests {
         let second = backend.registry_for_dialect("f5-irules").await;
 
         assert!(
-            std::ptr::eq(first, second),
+            Arc::ptr_eq(&first, &second),
             "repeated dialect lookups should return the cached registry",
         );
         assert!(
@@ -33587,7 +33607,7 @@ mod tests {
             .expect("worker did not panic")
             .expect("not cancelled");
         let registry = backend.registry_for_dialect("tcl9.0").await;
-        let coarse = core_semantic_tokens::full(src, "tcl9.0", registry);
+        let coarse = core_semantic_tokens::full(src, "tcl9.0", &registry);
 
         assert!(!served.data.is_empty(), "must never serve an empty stream");
         assert!(

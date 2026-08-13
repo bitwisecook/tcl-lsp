@@ -40,6 +40,8 @@
 //! surprising as a silent drop, and the whole point of the policy is that a
 //! private pack cannot quietly change what the standard library means.
 
+use std::sync::Arc;
+
 use tcl_dialect::DialectProfile;
 use tcl_registry::profile_queries::ProfileQueries;
 use tcl_registry::registry::CommandRegistry;
@@ -50,17 +52,23 @@ use crate::pack::{PackSet, installs_over};
 /// The registry for `profile` with `packs` installed.
 ///
 /// Cached on `(profile, packs.key)`, so the same pack set resolves to the same
-/// `&'static CommandRegistry` no matter how many times, or from how many
-/// threads, it is asked for. An empty set is not a distinct registry — it is
-/// the plain profile registry, which keeps "no packs configured" exactly as
-/// cheap as it was before packs existed.
+/// registry no matter how many times, or from how many threads, it is asked
+/// for. An empty set is not a distinct registry — it is the plain profile
+/// registry, which keeps "no packs configured" exactly as cheap as it was
+/// before packs existed.
+///
+/// Returned as an owning handle. This is the pack-carrying axis, so this is
+/// exactly the registry that must be *retirable*: hold the handle for as long
+/// as you are reading from it and drop it when you are done, and the
+/// generation goes away once a later pack edit has superseded it in the cache
+/// (`tcl_registry::cache`'s memory note).
 #[must_use]
 pub fn registry_with_packs(
     profile: &'static DialectProfile,
     packs: &PackSet,
-) -> &'static CommandRegistry {
+) -> Arc<CommandRegistry> {
     if packs.key == 0 || packs.is_empty() {
-        return tcl_registry::registry_for_profile(profile);
+        return tcl_registry::registry_handle_for_profile(profile);
     }
     tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
         install_into(registry, packs, profile);
@@ -71,7 +79,7 @@ pub fn registry_with_packs(
 /// registry lookup in the server resolves one — so an alias or a typo lands on
 /// the same entry it always would, now with the workspace's packs on top.
 #[must_use]
-pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> &'static CommandRegistry {
+pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> Arc<CommandRegistry> {
     registry_with_packs(DialectProfile::by_name(dialect), packs)
 }
 
@@ -191,9 +199,9 @@ mod tests {
         let a = pack_set(&dir, "a.tclspec", source);
         let b = pack_set(&dir, "a.tclspec", source);
         assert_eq!(a.key, b.key);
-        assert!(std::ptr::eq(
-            registry_for_dialect_with_packs("tcl8.6", &a),
-            registry_for_dialect_with_packs("tcl8.6", &b),
+        assert!(Arc::ptr_eq(
+            &registry_for_dialect_with_packs("tcl8.6", &a),
+            &registry_for_dialect_with_packs("tcl8.6", &b),
         ));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -202,8 +210,9 @@ mod tests {
     fn an_empty_pack_set_is_the_plain_profile_registry() {
         let _cache = cache_guard();
         let empty = PackSet::default();
-        assert!(std::ptr::eq(
-            registry_for_dialect_with_packs("tcl8.6", &empty),
+        let handle = registry_for_dialect_with_packs("tcl8.6", &empty);
+        assert!(std::ptr::eq::<CommandRegistry>(
+            handle.as_ref(),
             tcl_registry::registry_for_dialect("tcl8.6"),
         ));
     }
@@ -226,7 +235,7 @@ mod tests {
             shipped.arity,
             "the shipped spec is untouched"
         );
-        let notices = crate::pack::collision_notices(&polite, registry);
+        let notices = crate::pack::collision_notices(&polite, &registry);
         assert_eq!(notices.len(), 1, "{notices:#?}");
         assert!(notices[0].message.contains("shipped spec wins"));
 
@@ -241,7 +250,7 @@ mod tests {
             99,
             "`-override` replaces it"
         );
-        let notices = crate::pack::collision_notices(&bold, overridden);
+        let notices = crate::pack::collision_notices(&bold, &overridden);
         assert!(notices[0].message.contains("replaces the shipped command"));
         let _ = std::fs::remove_dir_all(&dir);
     }

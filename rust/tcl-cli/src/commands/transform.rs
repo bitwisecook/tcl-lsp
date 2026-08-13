@@ -78,7 +78,7 @@ pub fn run_format(
 
     // `formatting_with` returns a single whole-document edit, or an empty Vec
     // when the source is already canonical.
-    let edits = formatting_with(&source, &config, registry);
+    let edits = formatting_with(&source, &config, &registry);
     let formatted = edits
         .into_iter()
         .next()
@@ -133,7 +133,7 @@ pub fn run_opt(
     // disabled set on every pass (matching `optimise_source_multipass(disabled=…)`).
     let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
         &source,
-        registry,
+        &registry,
         Some(dialect.as_str()),
         profile.max_iterations(),
         &disabled,
@@ -235,14 +235,14 @@ pub fn run_minify(
     let (rendered, map) = match tier {
         MinifyTier::Aggressive => {
             let result =
-                minify_tcl_aggressive_with(&source, &dialect, isolated, registry, abbreviations);
+                minify_tcl_aggressive_with(&source, &dialect, isolated, &registry, abbreviations);
             (result.source, Some(result.symbol_map))
         }
         MinifyTier::Compact => {
-            let (minified, sm) = minify_tcl_compact(&source, &dialect, isolated, registry);
+            let (minified, sm) = minify_tcl_compact(&source, &dialect, isolated, &registry);
             (minified, Some(sm))
         }
-        MinifyTier::Default => (minify_tcl(&source, &dialect, registry), None),
+        MinifyTier::Default => (minify_tcl(&source, &dialect, &registry), None),
     };
 
     write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, &dialect)?;

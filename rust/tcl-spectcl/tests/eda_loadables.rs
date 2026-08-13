@@ -51,7 +51,7 @@ fn shipped() -> &'static PackSet {
     PACKS.get_or_init(|| bundled::load_from(&specs_dir()))
 }
 
-fn registry(dialect: &str) -> &'static CommandRegistry {
+fn registry(dialect: &str) -> std::sync::Arc<CommandRegistry> {
     bundled::registry_for_dialect_from(dialect, shipped())
 }
 

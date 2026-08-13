@@ -138,7 +138,7 @@ fn installing_the_corpus_leaves_every_shipped_command_alone() {
     let plain = tcl_registry::registry_for_dialect("tcl9.1");
     let with_packs = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.1", &set);
 
-    let collisions = pack::collision_notices(&set, with_packs);
+    let collisions = pack::collision_notices(&set, &with_packs);
     assert!(
         !collisions.is_empty(),
         "the ports redeclare shipped commands by construction"

@@ -235,7 +235,7 @@ pub fn active() -> Option<Arc<PackSet>> {
 /// and anything else that renders a pipeline the user expects to match their
 /// diagnostics.
 #[must_use]
-pub fn active_registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
+pub fn active_registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
     match active() {
         Some(packs) => registry_for_dialect_from(dialect, &packs),
         None => registry_for_dialect(dialect),
@@ -247,7 +247,11 @@ pub fn active_registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
 /// Drop-in for [`tcl_registry::registry_for_profile`] in any consumer that
 /// wants the vendor libraries the shipped packs carry — [`packs`] always has
 /// something to install, a directory-backed set or the embedded fallback,
-/// down to the same `&'static`.
+/// down to the same cached instance.
+///
+/// Handed back as an owning handle, like everything on the pack-carrying
+/// axis: hold it while you read it, drop it when done, and a later pack edit
+/// can retire this generation.
 ///
 /// The bundled tier carries *all six* EDA libraries regardless of dialect —
 /// discovery cannot know which shell a document belongs to — and
@@ -255,14 +259,14 @@ pub fn active_registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
 /// profile ships ambient, so a Vivado registry never takes a Cadence
 /// `report_timing`.
 #[must_use]
-pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
+pub fn registry_for_profile(profile: &'static DialectProfile) -> Arc<CommandRegistry> {
     crate::install::registry_with_packs(profile, packs())
 }
 
 /// [`registry_for_profile`] by dialect name — the drop-in for
 /// [`tcl_registry::registry_for_dialect`].
 #[must_use]
-pub fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
+pub fn registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
     registry_for_profile(DialectProfile::by_name(dialect))
 }
 
@@ -273,7 +277,7 @@ pub fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
 /// source checkout — so it never depends on the process's ambient environment
 /// or on where its own binary happens to live.
 #[must_use]
-pub fn registry_for_dialect_from(dialect: &str, all: &PackSet) -> &'static CommandRegistry {
+pub fn registry_for_dialect_from(dialect: &str, all: &PackSet) -> Arc<CommandRegistry> {
     crate::install::registry_with_packs(DialectProfile::by_name(dialect), all)
 }
 

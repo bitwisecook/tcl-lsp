@@ -617,8 +617,8 @@ fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
         tcl_dialect::DialectProfile::by_name(dialect),
         overlay,
     )
-    .unwrap_or_else(|| tcl_registry::registry_for_dialect(dialect));
-    let optimisations = optimise_raw(source, registry, Some(dialect));
+    .unwrap_or_else(|| tcl_registry::registry_handle_for_dialect(dialect));
+    let optimisations = optimise_raw(source, &registry, Some(dialect));
     (result.diagnostics.len(), optimisations.len())
 }
 
@@ -811,7 +811,7 @@ fn run_pack(pack: &PackUnderTest, root: &Path, corpus: &[CorpusFile]) -> PackRep
         }
     }
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs(pack.dialect, &set);
-    let (installed, gated_out, unresolved) = installation_of(&set, profile, registry);
+    let (installed, gated_out, unresolved) = installation_of(&set, profile, &registry);
 
     let (selected, synthesised) = corpus_and_synthesis(&set, corpus, corpus_family(pack.dialect));
     let (diagnostics, optimisations, analysis) =
@@ -1144,7 +1144,7 @@ fn drive_hostile_pack() -> Containment {
     for command in ["hostile::spin", "hostile::burn", "hostile::boom"] {
         let script = format!("proc ::probe {{}} {{\n    set y [{command} abcde]\n}}\n");
         let started = Instant::now();
-        let optimisations = optimise_raw(&script, registry, Some("tcl9.1"))
+        let optimisations = optimise_raw(&script, &registry, Some("tcl9.1"))
             .into_iter()
             .filter(|opt| opt.code.as_str() == "O129")
             .count();

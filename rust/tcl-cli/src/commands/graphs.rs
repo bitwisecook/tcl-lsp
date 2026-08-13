@@ -344,7 +344,7 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(&dialect);
-    let data = graphs::call_graph(&source, registry, &dialect);
+    let data = graphs::call_graph(&source, &registry, &dialect);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -433,7 +433,7 @@ pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(&dialect);
-    let data = graphs::dataflow_graph(&source, registry, &dialect);
+    let data = graphs::dataflow_graph(&source, &registry, &dialect);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 

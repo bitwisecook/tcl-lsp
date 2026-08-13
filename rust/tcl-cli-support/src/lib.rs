@@ -55,9 +55,16 @@ pub use output::{
 /// xilinx-eda-tcl synth_design` reaches its spec only if the CLI parses
 /// `specs/synth_design`'s pack the way the language server does. With no
 /// bundled directory present this is byte-for-byte
-/// [`tcl_registry::registry_for_dialect`], down to the same `&'static`.
+/// [`tcl_registry::registry_for_dialect`], down to the same cached instance.
+///
+/// An owning handle, because the pack-carrying entry it names is refcounted
+/// and retirable. A CLI verb resolves its packs once and runs to exit, so in
+/// practice the handle simply lives as long as the process — but it is the
+/// binding that keeps it alive, not the type.
 #[must_use]
-pub fn registry_for_dialect(dialect: &str) -> &'static tcl_registry::registry::CommandRegistry {
+pub fn registry_for_dialect(
+    dialect: &str,
+) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
     tcl_spectcl::bundled::registry_for_dialect(dialect)
 }
 

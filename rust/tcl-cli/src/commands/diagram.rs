@@ -39,7 +39,7 @@ pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(&dialect);
-    let data = diagram::diagram_data_for_dialect(&source, registry, &dialect);
+    let data = diagram::diagram_data_for_dialect(&source, &registry, &dialect);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 

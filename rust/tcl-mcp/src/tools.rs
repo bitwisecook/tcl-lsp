@@ -106,7 +106,7 @@ fn arg_u32(args: &Value, key: &str) -> u32 {
 /// EDA vendor libraries live in those now (`docs/design/spec-packs.md`) and an
 /// MCP client asking about `synth_design` would otherwise be told it does not
 /// exist.
-fn registry(dialect: &str) -> &'static CommandRegistry {
+fn registry(dialect: &str) -> std::sync::Arc<CommandRegistry> {
     tcl_spectcl::bundled::registry_for_dialect(dialect)
 }
 
@@ -288,7 +288,7 @@ fn split_keep_ends(s: &str) -> Vec<String> {
 fn call_graph(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::call_graph(source, registry(&dialect), &dialect)
+    tcl_lsp_core::graphs::call_graph(source, &registry(&dialect), &dialect)
 }
 
 fn symbol_graph(args: &Value) -> Value {
@@ -299,13 +299,13 @@ fn symbol_graph(args: &Value) -> Value {
 fn dataflow_graph(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::dataflow_graph(source, registry(&dialect), &dialect)
+    tcl_lsp_core::graphs::dataflow_graph(source, &registry(&dialect), &dialect)
 }
 
 fn def_use_chains(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let mut graph = tcl_lsp_core::graphs::def_use_graph(source, registry(&dialect), &dialect);
+    let mut graph = tcl_lsp_core::graphs::def_use_graph(source, &registry(&dialect), &dialect);
     // Optional variable filter.
     let variable = arg_str(args, "variable");
     if !variable.is_empty()
@@ -329,13 +329,13 @@ fn def_use_chains(args: &Value) -> Value {
 fn memory_aliases(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::memory_alias_graph(source, registry(&dialect), &dialect)
+    tcl_lsp_core::graphs::memory_alias_graph(source, &registry(&dialect), &dialect)
 }
 
 fn diagram(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_diagram::diagram_data_for_dialect(source, registry(&dialect), &dialect)
+    tcl_diagram::diagram_data_for_dialect(source, &registry(&dialect), &dialect)
 }
 
 fn detect_dialect(args: &Value) -> Value {
@@ -367,7 +367,7 @@ fn format_source(args: &Value) -> Value {
         config.indent_style = tcl_lsp_core::formatting::IndentStyle::Tabs;
     }
     let formatted =
-        tcl_lsp_core::formatting::engine::format_tcl(source, &config, registry(&dialect));
+        tcl_lsp_core::formatting::engine::format_tcl(source, &config, &registry(&dialect));
     json!({ "formatted": formatted, "changed": formatted != source })
 }
 
@@ -387,7 +387,7 @@ fn optimize(args: &Value) -> Value {
         .collect();
     let (optimised, opts, iterations) = optimise_source_multipass_filtered(
         source,
-        registry(&dialect),
+        &registry(&dialect),
         Some(dialect.as_str()),
         profile.max_iterations(),
         &disabled,
@@ -434,11 +434,11 @@ fn compile_wasm(args: &Value) -> Value {
     let dialect = resolve_dialect(args, source);
     let registry = registry(&dialect);
     let unit = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
-        source, registry, false, &dialect,
+        source, &registry, false, &dialect,
     );
     let mut wasm = tcl_compiler::codegen::wasm::compile_wasm(
         &unit,
-        registry,
+        &registry,
         tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
     );
     let codegen_plan = wasm.plan.as_str();
@@ -477,7 +477,7 @@ fn refactor_at(
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    match f(source, off, registry(&dialect), &idx) {
+    match f(source, off, &registry(&dialect), &idx) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -488,7 +488,7 @@ fn inline_variable(args: &Value) -> Value {
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let analysis = analyse(source, &dialect);
-    match tcl_lsp_core::refactor::inline_variable(source, off, &analysis, registry(&dialect), &idx)
+    match tcl_lsp_core::refactor::inline_variable(source, off, &analysis, &registry(&dialect), &idx)
     {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
@@ -507,7 +507,7 @@ fn brace_expr(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (_idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    match tcl_lsp_core::refactor::brace_expr(source, off, registry(&dialect)) {
+    match tcl_lsp_core::refactor::brace_expr(source, off, &registry(&dialect)) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -684,7 +684,7 @@ fn command_info(args: &Value) -> Value {
     let reg = registry(IRULES_DIALECT);
     let Some(spec) = ({
         use tcl_registry::ProfileQueries;
-        tcl_dialect::DialectProfile::irules().resolve_command(reg, command)
+        tcl_dialect::DialectProfile::irules().resolve_command(&reg, command)
     }) else {
         return json!({ "command": command, "found": false });
     };
@@ -759,7 +759,7 @@ fn hover(args: &Value) -> Value {
         arg_u32(args, "line"),
         arg_u32(args, "character"),
         &analysis,
-        Some(registry(&dialect)),
+        Some(&registry(&dialect)),
     ) {
         Some(h) => json!({ "contents": h.value }),
         None => Value::Null,
@@ -775,7 +775,7 @@ fn complete(args: &Value) -> Value {
         arg_u32(args, "line"),
         arg_u32(args, "character"),
         &analysis,
-        Some(registry(&dialect)),
+        Some(&registry(&dialect)),
         None,
         &dialect,
     );
@@ -856,7 +856,7 @@ fn rename(args: &Value) -> Value {
         arg_u32(args, "character"),
         arg_str(args, "new_name"),
         &analysis,
-        Some(registry(&dialect)),
+        Some(&registry(&dialect)),
     );
     if edits.is_empty() {
         return Value::Null;
@@ -950,7 +950,7 @@ fn extract_datagroup(args: &Value) -> Value {
     let dg_name = arg_str(args, "dg_name");
     let reg = registry(IRULES_DIALECT);
     let Some(r) =
-        tcl_lsp_core::refactor::extract_to_datagroup(source, cursor, dg_name, reg, &line_index)
+        tcl_lsp_core::refactor::extract_to_datagroup(source, cursor, dg_name, &reg, &line_index)
     else {
         return Value::Null;
     };
@@ -1013,23 +1013,23 @@ fn refactor(args: &Value) -> Value {
     }
     push(
         "inline_variable",
-        tcl_lsp_core::refactor::inline_variable(source, start_off, &analysis, reg, &line_index),
+        tcl_lsp_core::refactor::inline_variable(source, start_off, &analysis, &reg, &line_index),
     );
     push(
         "if_to_switch",
-        tcl_lsp_core::refactor::if_to_switch(source, start_off, reg, &line_index),
+        tcl_lsp_core::refactor::if_to_switch(source, start_off, &reg, &line_index),
     );
     push(
         "switch_to_dict",
-        tcl_lsp_core::refactor::switch_to_dict(source, start_off, reg, &line_index),
+        tcl_lsp_core::refactor::switch_to_dict(source, start_off, &reg, &line_index),
     );
     push(
         "brace_expr",
-        tcl_lsp_core::refactor::brace_expr(source, start_off, reg),
+        tcl_lsp_core::refactor::brace_expr(source, start_off, &reg),
     );
     push(
         "extract_datagroup",
-        tcl_lsp_core::refactor::extract_to_datagroup(source, start_off, "", reg, &line_index),
+        tcl_lsp_core::refactor::extract_to_datagroup(source, start_off, "", &reg, &line_index),
     );
     json!({ "total": available.len(), "available": available })
 }

@@ -331,8 +331,8 @@ pub fn run_diff(
 
     let mut results: Vec<(String, bool, Vec<String>)> = Vec::new();
     for layer in &layers {
-        let lp = layer_payload(layer, &left_src, dialect, registry, &left_index)?;
-        let rp = layer_payload(layer, &right_src, dialect, registry, &right_index)?;
+        let lp = layer_payload(layer, &left_src, dialect, &registry, &left_index)?;
+        let rp = layer_payload(layer, &right_src, dialect, &registry, &right_index)?;
         let (equal, lines) = compute_layer_diff(layer, &lp, &rp, &left_name, &right_name);
         results.push(((*layer).to_owned(), equal, lines));
     }
