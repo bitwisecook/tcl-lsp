@@ -864,12 +864,41 @@ impl Vm {
     /// re-derived immediately. The version vocabulary owns the release
     /// predicates used by the VM, so individual command implementations do
     /// not interpret a dialect or version name themselves.
+    /// Install *this* interpreter's numeral grammar before it executes.
+    ///
+    /// The grammar is a property of the interpreter — it emulates exactly one
+    /// release for its whole life, as C settles with a build-time `KILL_OCTAL`.
+    /// The store backing it is thread-local, though, and one thread can hold
+    /// **several** interpreters: a host that builds a 9.0 `Vm` beside a live 8.6
+    /// one would otherwise retune the 8.6 one, so `expr {010}` in it started
+    /// answering 10 instead of 8. Installing at construction alone is not
+    /// enough — that makes the answer depend on which interpreter was built
+    /// last.
+    ///
+    /// Claiming it at every execution entry (`run_module`, `eval_source`,
+    /// `eval_expr`) makes each interpreter's own grammar hold for its own work,
+    /// whatever else shares the thread, and re-entrancy is safe because the
+    /// inner interpreter re-claims on the way in and the outer one re-claims on
+    /// its next entry. Pinned by
+    /// `a_second_interpreter_does_not_change_the_first_ones_grammar`.
+    pub(crate) fn claim_number_grammar(&self) {
+        tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
+    }
+
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
         // The 8.4 `namespace path` tier gate (M10.1) changes resolution
         // outcomes, so the command-resolution memo (M16.4) must not survive a
         // version flip.
         self.bump_cmd_epoch();
         self.runtime_version = version;
+        // Install the release's numeric grammar for this runtime: `0755` is 493
+        // under 8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5 and `0d` / `_`
+        // separators from 9.0. C settles this at build time (`KILL_OCTAL`), so
+        // it is a property of the runtime rather than of each conversion — see
+        // `tcl_syntax::number::set_runtime_syntax`. Embedders call this while
+        // building the interpreter; the VM does not support switching release
+        // mid-execution.
+        tcl_syntax::number::set_runtime_syntax(version.number_syntax());
         self.write_release_globals();
     }
 
@@ -4994,7 +5023,12 @@ impl Vm {
     /// `validate` to the lexer and change its pinned message — so it is left as
     /// follow-up rather than done here.
     pub fn eval_expr(&mut self, src: &str) -> Result<Value, TclError> {
-        let node = parse_expr(src, None);
+        self.claim_number_grammar();
+        // The VM emulates exactly one release, so its expressions are parsed
+        // under that release's grammar rather than the permissive default: a
+        // 8.6 interpreter must reject `1.0_2` and an expression `#` comment,
+        // both of which are valid only from 9.0.
+        let node = parse_expr(src, Some(self.runtime_version.dialect_name()));
         if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
             return Err(self.expr_syntax_error(src));
         }
@@ -5027,7 +5061,13 @@ impl Vm {
     /// never reaches here — the dialect-aware compiler lowers those operators to
     /// their own opcodes.
     fn expr_syntax_error(&mut self, src: &str) -> TclError {
-        let error = tcl_syntax::expr::ExprSyntaxError::diagnose(src, None);
+        // Diagnose under the emulated release too, or the message names the
+        // wrong lexeme: C 8.6 reports `invalid character "_"` for `1.0_2`
+        // (its number lexeme ends at `1.0`) where 9.0 accepts the whole thing.
+        let error = tcl_syntax::expr::ExprSyntaxError::diagnose(
+            src,
+            Some(self.runtime_version.dialect_name()),
+        );
         let message = error.message(src);
         self.seed_parsing_expression_frame(src, &message);
         TclError::with_error_code(message, error.error_code())
@@ -5082,6 +5122,7 @@ impl Vm {
     /// Compile and run a Tcl source string via the injected [`CompileService`]
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
+        self.claim_number_grammar();
         let module = self.compile_cached(src)?;
         let comp = self.run_module(&module);
         // Crossing back out of a nested script is a frame boundary: clear

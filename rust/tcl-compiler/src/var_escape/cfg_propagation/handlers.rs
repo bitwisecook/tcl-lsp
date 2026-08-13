@@ -56,6 +56,7 @@ pub(crate) fn handle_variable_aliases(
     facts: &InvocationFacts,
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> bool {
     let Some(transitions) = facts.state_transitions.declared() else {
         return false;
@@ -92,7 +93,7 @@ pub(crate) fn handle_variable_aliases(
                     state.record_unbounded_upvar();
                     continue;
                 };
-                tcl_registry::frame_effect::FrameLevel::parse(level)
+                tcl_registry::frame_effect::FrameLevel::parse_in(level, registry)
                     .is_none_or(|level| !level.is_current_frame() && !level.is_global_frame())
             }
         };

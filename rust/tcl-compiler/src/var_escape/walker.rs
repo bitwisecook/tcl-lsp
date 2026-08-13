@@ -173,7 +173,7 @@ pub(crate) fn handle_call(
     }
 
     if let Some(facts) = facts.as_deref() {
-        handle_variable_aliases(facts, state);
+        handle_variable_aliases(facts, state, registry);
         handle_introspection(facts, args, state);
         if facts
             .traits
@@ -266,7 +266,7 @@ fn handle_uplevel(
     // C Tcl reads `+0`, `-0`, `#-0`, `0x0`, and `" 0"` as level 0 too, and a
     // sniff that missed them sent a provably-safe body down the pessimistic
     // path.
-    let Some(level) = tcl_registry::frame_effect::FrameLevel::parse(first) else {
+    let Some(level) = tcl_registry::frame_effect::FrameLevel::parse_in(first, registry) else {
         state.record_barrier(Barrier::with_detail(
             BarrierKind::Upvar,
             format!("uplevel {first}"),

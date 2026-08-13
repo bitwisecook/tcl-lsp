@@ -28,6 +28,7 @@
 
 use crate::error::CmdError;
 use crate::prefix::OptionTable;
+use tcl_syntax::number::{self, Number, NumberSyntax, ParseFlags};
 
 /// Canonical class names, in the order Tcl lists them in error messages.
 pub const CLASSES: &[&str] = &[
@@ -73,15 +74,24 @@ pub fn resolve_class(input: &str) -> Result<&'static str, CmdError> {
 }
 
 /// Classify `s` against `class` (canonical), returning `(is_member, fail_index)`.
+///
+/// `numbers` is the numeral grammar of the release being emulated: the numeric
+/// classes inherit every version difference in it, so `string is integer 08` is
+/// false up to 8.6 (invalid octal) and true from 9.0 (plain decimal).
 #[must_use]
-pub fn class_check(class: &str, s: &str, strict: bool) -> (bool, i64) {
+pub fn class_check(class: &str, s: &str, strict: bool, numbers: NumberSyntax) -> (bool, i64) {
     let chars: Vec<char> = s.chars().collect();
-    class_check_chars(class, &chars, strict)
+    class_check_chars(class, &chars, strict, numbers)
 }
 
 /// Returns `(is_member, fail_index)`. `fail_index` is a character offset (or -1
 /// for the "valid list but wrong shape" cases, e.g. an odd-length dict).
-fn class_check_chars(class: &str, chars: &[char], strict: bool) -> (bool, i64) {
+fn class_check_chars(
+    class: &str,
+    chars: &[char],
+    strict: bool,
+    numbers: NumberSyntax,
+) -> (bool, i64) {
     if chars.is_empty() {
         // The empty string is the valid empty list/dict even under `-strict`;
         // for the other classes `-strict` rejects it.
@@ -91,11 +101,18 @@ fn class_check_chars(class: &str, chars: &[char], strict: bool) -> (bool, i64) {
         return (!strict, 0);
     }
     match class {
-        // Only `wideinteger` is bounded to 64 bits; `integer`/`entier` accept
-        // arbitrary-precision values in Tcl 9.
-        "wideinteger" => scan_integer(chars, true),
-        "integer" | "entier" => scan_integer(chars, false),
-        "double" => scan_double(chars),
+        // Which classes are bounded to a wide is release-dependent, and it is
+        // not a numeral-grammar question — pinned on tclsh 8.6.16 / 9.0.4 with
+        // `string is CLASS 99999999999999999999`:
+        //
+        //   class         8.6   9.0
+        //   wideinteger   0     0     always bounded
+        //   integer       0     1     unbounded from 9.0
+        //   entier        1     1     always unbounded
+        "wideinteger" => scan_integer(chars, Width::Wide, numbers),
+        "integer" => scan_integer(chars, integer_class_width(numbers), numbers),
+        "entier" => scan_integer(chars, Width::Unbounded, numbers),
+        "double" => scan_double(chars, numbers),
         "boolean" | "true" | "false" => (check_boolean(chars, class), 0),
         "list" => scan_list(chars).0,
         "dict" => scan_dict(chars),
@@ -144,125 +161,111 @@ fn check_boolean(chars: &[char], class: &str) -> bool {
     }
 }
 
-/// Scan a Tcl integer, returning `(valid, fail_index)`. When `bounded`, a
-/// syntactically valid value that overflows a signed 64-bit integer is rejected
-/// (index -1).
-fn scan_integer(chars: &[char], bounded: bool) -> (bool, i64) {
-    let n = chars.len();
-    let mut i = 0;
-    while i < n && chars[i].is_whitespace() {
-        i += 1;
-    }
-    let neg = i < n && chars[i] == '-';
-    if i < n && (chars[i] == '+' || chars[i] == '-') {
-        i += 1;
-    }
-    let mut radix = 10;
-    if i + 1 < n && chars[i] == '0' {
-        match chars[i + 1].to_ascii_lowercase() {
-            'x' => radix = 16,
-            'o' => radix = 8,
-            'b' => radix = 2,
-            'd' => radix = 10,
-            _ => radix = 0, // plain leading 0 — still decimal, but keep the 0
-        }
-        if radix != 0 {
-            i += 2;
-        } else {
-            radix = 10;
-        }
-    }
-    let digits_start = i;
-    while i < n && is_radix_digit(chars[i], radix) {
-        i += 1;
-    }
-    let digits_end = i;
-    while i < n && chars[i].is_whitespace() {
-        i += 1;
-    }
-    let has_digits = digits_end > digits_start;
-    if !has_digits || i != n {
-        // No number at all ⇒ the failure is at the start; otherwise it is the
-        // first *non-whitespace* character past the digits. Trailing whitespace
-        // is allowed (`"12 "` is a valid integer), so the failure index is `i`
-        // — advanced past that whitespace — not `digits_end`: `"12 x"` fails at
-        // the `x` (index 3), not the interior space (index 2).
-        return (false, if has_digits { ci(i.min(n)) } else { 0 });
-    }
-    if bounded {
-        let digit_str: String = chars[digits_start..digits_end].iter().collect();
-        let fits = match u64::from_str_radix(&digit_str, radix) {
-            Ok(m) if neg => m <= 1u64 << 63,
-            Ok(m) => m < 1u64 << 63,
-            Err(_) => false,
-        };
-        if !fits {
-            return (false, -1);
-        }
-    }
-    (true, -1)
+/// How wide a value the class admits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Width {
+    /// Must fit a signed 64-bit integer (`wideinteger`, and `integer` before 9.0).
+    Wide,
+    /// Any magnitude — the bignum rung is a member (`entier`, `integer` from 9.0).
+    Unbounded,
 }
 
-fn is_radix_digit(c: char, radix: u32) -> bool {
-    match radix {
-        16 => c.is_ascii_hexdigit(),
-        8 => ('0'..='7').contains(&c),
-        2 => c == '0' || c == '1',
-        _ => c.is_ascii_digit(),
+/// Whether the `integer` class is bounded, which changed in 9.0 (see the table
+/// in [`class_check_chars`]). Keyed on the grammar enum because `Tcl90` *is* the
+/// "9.0 and later" variant; the boundedness itself is a class-semantics change,
+/// not a numeral-grammar one.
+fn integer_class_width(numbers: NumberSyntax) -> Width {
+    if numbers.is_tcl9_or_later() {
+        Width::Unbounded
+    } else {
+        Width::Wide
     }
 }
 
-/// Scan a Tcl double (also accepts integers). Only ASCII whitespace surrounds a
-/// number; the fail index is the end of the longest valid floating-point prefix,
-/// or 0 when there is no number.
-fn scan_double(chars: &[char]) -> (bool, i64) {
-    let ascii_ws = |c: char| matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{0b}' | '\u{0c}');
-    let n = chars.len();
-    let mut i = 0;
-    while i < n && ascii_ws(chars[i]) {
+/// The character index of byte offset `off` in `s` — `-failindex` is reported in
+/// characters, while the numeral parser works in bytes.
+fn char_index_of(s: &str, off: usize) -> i64 {
+    ci(s.get(..off).unwrap_or(s).chars().count())
+}
+
+/// Byte offset past any trailing ASCII whitespace starting at `off`.
+///
+/// C tolerates space after the numeral (`"12 "` is a valid integer) and reports
+/// the failure at the first *non*-whitespace byte beyond it, so `"12 x"` fails
+/// at the `x` (index 3), not the interior space.
+fn skip_trailing_ws(s: &str, off: usize) -> usize {
+    let b = s.as_bytes();
+    let mut i = off;
+    while i < b.len() && matches!(b[i], b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
         i += 1;
     }
-    let core_start = i;
-    if i < n && (chars[i] == '+' || chars[i] == '-') {
-        i += 1;
+    i
+}
+
+/// Scan a Tcl integer, returning `(valid, fail_index)`, reading the numeral
+/// under `numbers` — the emulated release's grammar.
+///
+/// Delegates to the toolchain's one numeral parser, which makes this correct
+/// across releases for free: `08` is invalid octal up to 8.6 and decimal 8 from
+/// 9.0, `1_0` and `0d1` exist only from 9.0, `0o`/`0b` only from 8.5.
+///
+/// **`Parsed.end` is C's `-failindex`.** Verified against tclsh for every
+/// failure class: the parser stops exactly where C stops, so the reported index
+/// is simply where the parse ran out, after skipping trailing whitespace.
+///
+/// | input | stops at | `-failindex` |
+/// |---|---|---|
+/// | `08` (≤8.6) | 1 — the octal scan halts on the `8` | 1 |
+/// | `0x` / `0b2` / `0o8` | 1 — the prefix never commits | 1 |
+/// | `1.5` (integer-only) | 1 — the fraction is trailing junk | 1 |
+/// | `12x` | 2 | 2 |
+/// | `12 x` | 2, then the space is skipped | 3 |
+fn scan_integer(chars: &[char], width: Width, numbers: NumberSyntax) -> (bool, i64) {
+    let s: String = chars.iter().collect();
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::for_syntax(numbers)
+    };
+    let Some(parsed) = number::parse(&s, flags) else {
+        return (false, 0);
+    };
+    match parsed.number {
+        // A magnitude past a wide belongs only to the unbounded classes. C
+        // reports -1 rather than an index: the numeral parsed fine, it just
+        // does not fit.
+        Number::Big { .. } if width == Width::Wide => return (false, -1),
+        Number::Int(_) | Number::Big { .. } => {}
+        // `Inf`/`NaN` are doubles, never integers, and C reports index 0 — no
+        // integer began here at all, rather than one that stopped early.
+        Number::Double(_) | Number::Nan { .. } => return (false, 0),
     }
-    let mut has_digits = false;
-    while i < n && chars[i].is_ascii_digit() {
-        i += 1;
-        has_digits = true;
+    let end = skip_trailing_ws(&s, parsed.end);
+    if end == s.len() {
+        (true, -1)
+    } else {
+        (false, char_index_of(&s, end))
     }
-    if i < n && chars[i] == '.' {
-        i += 1;
-        while i < n && chars[i].is_ascii_digit() {
-            i += 1;
-            has_digits = true;
-        }
+}
+
+/// Scan a Tcl double (which also accepts every integer spelling), returning
+/// `(valid, fail_index)` under `numbers`.
+///
+/// The hand-rolled scanner this replaced accepted only a decimal
+/// mantissa/exponent, so `string is double 0x1f` and `0o17` answered false —
+/// wrong on *every* release, since C reads a radix integer as a perfectly good
+/// double. Going through the facility fixes that along with the
+/// release-dependent spellings (`08`, `1_0`).
+fn scan_double(chars: &[char], numbers: NumberSyntax) -> (bool, i64) {
+    let s: String = chars.iter().collect();
+    let Some(parsed) = number::parse(&s, ParseFlags::for_syntax(numbers)) else {
+        return (false, 0);
+    };
+    let end = skip_trailing_ws(&s, parsed.end);
+    if end == s.len() {
+        (true, -1)
+    } else {
+        (false, char_index_of(&s, end))
     }
-    // A valid exponent extends the prefix; an `e` with no following digits ends
-    // it (so `1.0e4e4` stops at the second `e`).
-    if has_digits && i < n && (chars[i] == 'e' || chars[i] == 'E') {
-        let mut j = i + 1;
-        if j < n && (chars[j] == '+' || chars[j] == '-') {
-            j += 1;
-        }
-        if j < n && chars[j].is_ascii_digit() {
-            i = j;
-            while i < n && chars[i].is_ascii_digit() {
-                i += 1;
-            }
-        }
-    }
-    let core_end = i;
-    while i < n && ascii_ws(chars[i]) {
-        i += 1;
-    }
-    if has_digits && i == n {
-        let core: String = chars[core_start..core_end].iter().collect();
-        if core.parse::<f64>().is_ok() {
-            return (true, -1);
-        }
-    }
-    (false, if has_digits { ci(core_end) } else { 0 })
 }
 
 fn is_list_space(c: char) -> bool {
@@ -348,36 +351,173 @@ fn scan_dict(chars: &[char]) -> (bool, i64) {
 
 #[cfg(test)]
 mod tests {
-    use super::class_check;
+    use super::{Width, class_check, integer_class_width, scan_integer};
+    use tcl_syntax::number::NumberSyntax;
+
+    /// The existing expectations were written for 9.x semantics; keep them
+    /// reading that way now the release is explicit.
+    fn check(class: &str, s: &str, strict: bool) -> (bool, i64) {
+        class_check(class, s, strict, NumberSyntax::Tcl90)
+    }
 
     #[test]
     fn char_classes_failindex() {
-        assert_eq!(class_check("alpha", "abc5def", false), (false, 3));
-        assert_eq!(class_check("alnum", "abc1.23", false), (false, 4));
-        assert_eq!(class_check("alpha", "abc", false), (true, -1));
-        assert_eq!(class_check("space", "a b", false), (false, 0));
-        assert_eq!(class_check("lower", "abCd", false), (false, 2));
+        assert_eq!(check("alpha", "abc5def", false), (false, 3));
+        assert_eq!(check("alnum", "abc1.23", false), (false, 4));
+        assert_eq!(check("alpha", "abc", false), (true, -1));
+        assert_eq!(check("space", "a b", false), (false, 0));
+        assert_eq!(check("lower", "abCd", false), (false, 2));
     }
 
     #[test]
     fn empty_and_strict() {
-        assert_eq!(class_check("alpha", "", false), (true, 0));
-        assert_eq!(class_check("alpha", "", true), (false, 0));
+        assert_eq!(check("alpha", "", false), (true, 0));
+        assert_eq!(check("alpha", "", true), (false, 0));
     }
 
     #[test]
     fn integer_failindex() {
-        assert_eq!(class_check("integer", "123abc", false), (false, 3));
-        assert_eq!(class_check("integer", "1.0", false), (false, 1));
-        assert_eq!(class_check("integer", "0o36963", false), (false, 4));
-        assert_eq!(class_check("integer", "123", false), (true, -1));
-        assert_eq!(class_check("integer", "0x1f", false), (true, -1));
+        assert_eq!(check("integer", "123abc", false), (false, 3));
+        assert_eq!(check("integer", "1.0", false), (false, 1));
+        assert_eq!(check("integer", "0o36963", false), (false, 4));
+        assert_eq!(check("integer", "123", false), (true, -1));
+        assert_eq!(check("integer", "0x1f", false), (true, -1));
     }
 
     #[test]
     fn list_and_dict() {
-        assert_eq!(class_check("list", "a b c", false), (true, -1));
-        assert_eq!(class_check("dict", "a 1 b 2", false), (true, -1));
-        assert_eq!(class_check("dict", "a 1 b", false), (false, -1));
+        assert_eq!(check("list", "a b c", false), (true, -1));
+        assert_eq!(check("dict", "a 1 b 2", false), (true, -1));
+        assert_eq!(check("dict", "a 1 b", false), (false, -1));
+    }
+
+    /// The numeric classes inherit every release difference in the numeral
+    /// grammar. Pinned against tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn numeric_classes_follow_the_emulated_release() {
+        // (value, class, 8.6 member, 9.0 member)
+        let matrix = [
+            // Invalid octal up to 8.6; plain decimal from 9.0.
+            ("08", "integer", false, true),
+            ("08", "double", false, true),
+            // `_` separators are 9.0+.
+            ("1_0", "integer", false, true),
+            ("1_0", "double", false, true),
+            // The `0d` prefix is 9.0+.
+            ("0d1", "integer", false, true),
+            // `0o`/`0b` exist from 8.5, so both these releases read them.
+            ("0o17", "integer", true, true),
+            ("0b101", "integer", true, true),
+            // Leading zero is octal up to 8.6 and decimal from 9.0 — a member
+            // either way, only the *value* differs.
+            ("010", "integer", true, true),
+        ];
+        for (v, class, on_86, on_90) in matrix {
+            assert_eq!(
+                class_check(class, v, false, NumberSyntax::Tcl85).0,
+                on_86,
+                "string is {class} {v} on 8.6"
+            );
+            assert_eq!(
+                class_check(class, v, false, NumberSyntax::Tcl90).0,
+                on_90,
+                "string is {class} {v} on 9.0"
+            );
+        }
+    }
+
+    /// A radix integer is a valid `double` on every release. The hand-rolled
+    /// scanner this replaced only understood a decimal mantissa, so it answered
+    /// false here — wrong on 8.6 *and* 9.0, not merely release-blind.
+    #[test]
+    fn a_radix_integer_is_a_double_on_every_release() {
+        // Spelled out per grammar rather than derived: `0x` is universal while
+        // `0o`/`0b` arrive in 8.5, and listing them is clearer than a predicate
+        // — which would also be a hand-rolled prefix test of exactly the kind
+        // `cargo xtask number-drift` exists to reject.
+        for (numbers, values) in [
+            (NumberSyntax::Tcl84, &["0x1f"][..]),
+            (NumberSyntax::Tcl85, &["0x1f", "0b101", "0o17"][..]),
+            (NumberSyntax::Tcl90, &["0x1f", "0b101", "0o17"][..]),
+        ] {
+            for v in values {
+                assert_eq!(
+                    class_check("double", v, false, numbers),
+                    (true, -1),
+                    "string is double {v} under {numbers:?}"
+                );
+            }
+        }
+    }
+
+    /// Which classes are bounded to a wide is a class-semantics change, not a
+    /// grammar one: `integer` became unbounded in 9.0, `entier` always was, and
+    /// `wideinteger` never is. `string is CLASS 99999999999999999999` on tclsh.
+    #[test]
+    fn integer_class_boundedness_follows_the_release() {
+        const BIG: &str = "99999999999999999999";
+        assert!(!class_check("integer", BIG, false, NumberSyntax::Tcl85).0);
+        assert!(class_check("integer", BIG, false, NumberSyntax::Tcl90).0);
+        for numbers in NumberSyntax::ALL.iter().copied() {
+            assert!(
+                class_check("entier", BIG, false, numbers).0,
+                "entier is unbounded under {numbers:?}"
+            );
+            assert!(
+                !class_check("wideinteger", BIG, false, numbers).0,
+                "wideinteger is bounded under {numbers:?}"
+            );
+        }
+        assert_eq!(integer_class_width(NumberSyntax::Tcl85), Width::Wide);
+        assert_eq!(integer_class_width(NumberSyntax::Tcl90), Width::Unbounded);
+    }
+
+    /// `-failindex` is the byte offset the numeral parser stopped at, converted
+    /// to characters. Every row pinned against tclsh.
+    #[test]
+    fn failindex_is_where_the_numeral_parse_stopped() {
+        let chars: Vec<char> = "12 x".chars().collect();
+        assert_eq!(
+            scan_integer(&chars, Width::Unbounded, NumberSyntax::Tcl90),
+            (false, 3),
+            "trailing whitespace is skipped before reporting"
+        );
+        for (v, want) in [("12x", 2), ("1.5", 1), ("0x", 1), ("0b2", 1), ("0o8", 1)] {
+            let c: Vec<char> = v.chars().collect();
+            assert_eq!(
+                scan_integer(&c, Width::Unbounded, NumberSyntax::Tcl90).1,
+                want,
+                "failindex for {v}"
+            );
+        }
+        // Invalid octal before 9.0 stops just past the leading zero.
+        let c: Vec<char> = "08".chars().collect();
+        assert_eq!(scan_integer(&c, Width::Unbounded, NumberSyntax::Tcl85).1, 1);
+        // `Inf`/`NaN` are doubles: no integer began at all, so index 0.
+        for v in ["Inf", "NaN"] {
+            let c: Vec<char> = v.chars().collect();
+            assert_eq!(
+                scan_integer(&c, Width::Unbounded, NumberSyntax::Tcl90),
+                (false, 0),
+                "{v} as an integer"
+            );
+        }
+        // A past-wide magnitude parses but does not fit: -1, not an index.
+        let c: Vec<char> = "99999999999999999999".chars().collect();
+        assert_eq!(
+            scan_integer(&c, Width::Wide, NumberSyntax::Tcl90),
+            (false, -1)
+        );
+    }
+
+    /// Non-ASCII text must not panic the byte→char index conversion.
+    #[test]
+    fn failindex_counts_characters_not_bytes() {
+        let c: Vec<char> = "1é".chars().collect();
+        // The `é` is two bytes but one character: the failure is at index 1.
+        assert_eq!(
+            scan_integer(&c, Width::Unbounded, NumberSyntax::Tcl90),
+            (false, 1)
+        );
     }
 }

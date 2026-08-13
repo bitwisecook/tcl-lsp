@@ -65,6 +65,8 @@ num-traits = "0.2"
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
 # library itself stays off the compiler (CompileService is the runtime seam).
 tcl-compiler = { path = "../tcl-compiler" }
+# `LexerConfig` for the dialect-targeted compile in `cross_version_numerals_e2e`.
+tcl-lexer = { path = "../tcl-lexer" }
 
 [lints]
 workspace = true

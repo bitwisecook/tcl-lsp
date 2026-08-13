@@ -121,7 +121,10 @@ fn mark_name(state: &mut State, name: &str, flag: EscapeFlag) {
     }
 }
 
-fn alias_flag(target: &VariableAliasTarget) -> EscapeFlag {
+fn alias_flag(
+    target: &VariableAliasTarget,
+    registry: &tcl_registry::CommandRegistry,
+) -> EscapeFlag {
     match target {
         VariableAliasTarget::Global { .. } => EscapeFlag::GLOBAL,
         VariableAliasTarget::CurrentNamespace { .. } | VariableAliasTarget::Namespace { .. } => {
@@ -130,7 +133,7 @@ fn alias_flag(target: &VariableAliasTarget) -> EscapeFlag {
         VariableAliasTarget::CallerSelectedFrame { frame, .. } => match frame {
             CallerFrameSelection::Explicit(level)
                 if level.literal().is_some_and(|level| {
-                    tcl_registry::frame_effect::FrameLevel::parse(level)
+                    tcl_registry::frame_effect::FrameLevel::parse_in(level, registry)
                         .is_some_and(tcl_registry::frame_effect::FrameLevel::is_global_frame)
                 }) =>
             {
@@ -180,7 +183,7 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
                 continue;
             };
             if let Some(local) = alias.local.literal() {
-                mark_name(state, local, alias_flag(&alias.target));
+                mark_name(state, local, alias_flag(&alias.target, registry));
             }
         }
     }

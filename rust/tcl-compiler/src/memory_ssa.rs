@@ -460,7 +460,7 @@ fn transition_alias_pairs(
                     frame,
                     CallerFrameSelection::Explicit(level)
                         if literal_subject(level)
-                            .and_then(FrameLevel::parse)
+                            .and_then(|w| FrameLevel::parse_in(w, registry))
                             .is_some_and(FrameLevel::is_global_frame)
                 );
                 if is_global {

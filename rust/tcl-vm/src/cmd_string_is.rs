@@ -80,7 +80,11 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         ));
     }
     let s = rest[i].to_str();
-    let (member, fail) = class_check(class, &s, strict);
+    // The emulated release's numeral grammar: the numeric classes inherit
+    // every version difference in it (`string is integer 08` is false up to
+    // 8.6, true from 9.0).
+    let numbers = vm.runtime_version().number_syntax();
+    let (member, fail) = class_check(class, &s, strict, numbers);
     if !member
         && let Some(var) = fail_var
         && let Err(e) = vm.set_var(&var.to_str(), Value::int(fail))

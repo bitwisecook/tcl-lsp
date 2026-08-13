@@ -421,6 +421,7 @@ name = "bpf-tcl-ir"
 version = "0.1.0"
 dependencies = [
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -4531,6 +4532,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-host-native",
+ "tcl-lexer",
  "tcl-platform",
  "tcl-regex",
  "tcl-registry",

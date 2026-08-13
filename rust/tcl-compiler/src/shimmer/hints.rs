@@ -31,7 +31,7 @@ use std::borrow::Cow;
 use tcl_registry::{CommandRegistry, TclType};
 use tcl_syntax::boolean::parse_boolean_word;
 use tcl_syntax::list::split_list;
-use tcl_syntax::number::{self, ParseFlags};
+use tcl_syntax::number::{self, NumberSyntax, ParseFlags};
 
 use crate::analyses::{ConstValue, LatticeValue};
 
@@ -190,8 +190,9 @@ pub fn is_uncommitted_first_conversion(
     current: TclType,
     expected: TclType,
     const_value: Option<&LatticeValue>,
+    numbers: NumberSyntax,
 ) -> bool {
-    is_pure_intrep(current, const_value) && is_valid_instance_of(expected, const_value)
+    is_pure_intrep(current, const_value) && is_valid_instance_of(expected, const_value, numbers)
 }
 
 /// Whether a value of lattice type `current` (with SCCP constant `const_value`,
@@ -223,12 +224,16 @@ pub fn is_pure_intrep(current: TclType, const_value: Option<&LatticeValue>) -> b
 /// non-constant value is presumed valid only for the permissive [`TclType::List`]
 /// (any string is a list) and keeps its warning for the stricter targets.
 #[must_use]
-pub fn is_valid_instance_of(expected: TclType, const_value: Option<&LatticeValue>) -> bool {
+pub fn is_valid_instance_of(
+    expected: TclType,
+    const_value: Option<&LatticeValue>,
+    numbers: NumberSyntax,
+) -> bool {
     match const_value.and_then(const_string_forms) {
         Some(forms) => forms
             .iter()
-            .all(|s| string_is_valid_instance(Some(s), expected)),
-        None => string_is_valid_instance(None, expected),
+            .all(|s| string_is_valid_instance(Some(s), expected, numbers)),
+        None => string_is_valid_instance(None, expected, numbers),
     }
 }
 
@@ -265,15 +270,15 @@ fn const_value_string(value: &ConstValue) -> Cow<'_, str> {
 /// value is presumed a valid (free) list promotion; the stricter targets — a
 /// [`TclType::Dict`]'s even length and the numeric tower — need the constant to
 /// prove validity, and a value that cannot be proven valid keeps its warning.
-fn string_is_valid_instance(s: Option<&str>, expected: TclType) -> bool {
+fn string_is_valid_instance(s: Option<&str>, expected: TclType, numbers: NumberSyntax) -> bool {
+    let is_number =
+        |s: &str| number::parse_whole_with(s, number::ParseFlags::for_syntax(numbers)).is_some();
     match expected {
         TclType::List => s.is_none_or(|s| split_list(s).is_ok()),
         TclType::Dict => s.is_some_and(|s| split_list(s).is_ok_and(|els| els.len() % 2 == 0)),
-        TclType::Int => s.is_some_and(is_valid_integer),
-        TclType::Double | TclType::Numeric => s.is_some_and(|s| number::parse_whole(s).is_some()),
-        TclType::Boolean => {
-            s.is_some_and(|s| parse_boolean_word(s).is_some() || number::parse_whole(s).is_some())
-        }
+        TclType::Int => s.is_some_and(|s| is_valid_integer(s, numbers)),
+        TclType::Double | TclType::Numeric => s.is_some_and(is_number),
+        TclType::Boolean => s.is_some_and(|s| parse_boolean_word(s).is_some() || is_number(s)),
         TclType::String | TclType::ByteArray | TclType::Object | TclType::Channel => false,
     }
 }
@@ -281,13 +286,13 @@ fn string_is_valid_instance(s: Option<&str>, expected: TclType) -> bool {
 /// Whether `s` is a whole Tcl integer literal (`Tcl_GetWideIntFromObj` /
 /// `TCL_PARSE_INTEGER_ONLY`): decimal, `0x`/`0o`/`0b`/`0d` radix, or a bignum —
 /// but not a fractional/exponent form, which `incr`/index positions reject.
-fn is_valid_integer(s: &str) -> bool {
+fn is_valid_integer(s: &str, numbers: NumberSyntax) -> bool {
     matches!(
         number::parse_whole_with(
             s,
             ParseFlags {
                 integer_only: true,
-                ..ParseFlags::default()
+                ..ParseFlags::for_syntax(numbers)
             },
         ),
         Some(number::Number::Int(_) | number::Number::Big { .. })
@@ -575,7 +580,12 @@ mod tests {
     fn uncommitted_pure_string_valid_list_is_free() {
         for lit in ["10.0 12.0 16.0 24.0", "hello", "", "a b c", "1"] {
             assert!(
-                is_uncommitted_first_conversion(TclType::String, TclType::List, Some(&s(lit))),
+                is_uncommitted_first_conversion(
+                    TclType::String,
+                    TclType::List,
+                    Some(&s(lit)),
+                    NumberSyntax::Tcl90
+                ),
                 "pure string {lit:?} used as a list must be a free conversion"
             );
         }
@@ -587,7 +597,8 @@ mod tests {
         assert!(is_uncommitted_first_conversion(
             TclType::String,
             TclType::Dict,
-            Some(&s("a 1 b 2"))
+            Some(&s("a 1 b 2")),
+            NumberSyntax::Tcl90
         ));
     }
 
@@ -599,7 +610,8 @@ mod tests {
         assert!(is_uncommitted_first_conversion(
             TclType::Int,
             TclType::List,
-            Some(&v)
+            Some(&v),
+            NumberSyntax::Tcl90
         ));
     }
 
@@ -610,7 +622,8 @@ mod tests {
         assert!(is_uncommitted_first_conversion(
             TclType::String,
             TclType::List,
-            None
+            None,
+            NumberSyntax::Tcl90
         ));
     }
 
@@ -622,7 +635,8 @@ mod tests {
         assert!(is_uncommitted_first_conversion(
             TclType::Int,
             TclType::List,
-            Some(&v)
+            Some(&v),
+            NumberSyntax::Tcl90
         ));
     }
 
@@ -634,7 +648,12 @@ mod tests {
     fn committed_container_is_not_free() {
         for current in [TclType::List, TclType::Dict, TclType::ByteArray] {
             assert!(
-                !is_uncommitted_first_conversion(current, TclType::String, Some(&s("1 2 3"))),
+                !is_uncommitted_first_conversion(
+                    current,
+                    TclType::String,
+                    Some(&s("1 2 3")),
+                    NumberSyntax::Tcl90
+                ),
                 "committed {current:?} must not be treated as a free conversion"
             );
         }
@@ -647,18 +666,21 @@ mod tests {
         assert!(!is_uncommitted_first_conversion(
             TclType::String,
             TclType::Int,
-            Some(&s("hello"))
+            Some(&s("hello")),
+            NumberSyntax::Tcl90
         ));
         assert!(!is_uncommitted_first_conversion(
             TclType::String,
             TclType::Numeric,
-            Some(&s("hello"))
+            Some(&s("hello")),
+            NumberSyntax::Tcl90
         ));
         // An odd-length list is not a valid dict.
         assert!(!is_uncommitted_first_conversion(
             TclType::String,
             TclType::Dict,
-            Some(&s("a 1 b"))
+            Some(&s("a 1 b")),
+            NumberSyntax::Tcl90
         ));
     }
 
@@ -669,12 +691,14 @@ mod tests {
         assert!(!is_uncommitted_first_conversion(
             TclType::Int,
             TclType::List,
-            None
+            None,
+            NumberSyntax::Tcl90
         ));
         assert!(!is_uncommitted_first_conversion(
             TclType::Numeric,
             TclType::List,
-            Some(&LatticeValue::Overdefined)
+            Some(&LatticeValue::Overdefined),
+            NumberSyntax::Tcl90
         ));
     }
 
@@ -684,7 +708,8 @@ mod tests {
         assert!(!is_uncommitted_first_conversion(
             TclType::String,
             TclType::List,
-            Some(&s("oops {unbalanced"))
+            Some(&s("oops {unbalanced")),
+            NumberSyntax::Tcl90
         ));
     }
 
@@ -699,7 +724,8 @@ mod tests {
         assert!(!is_uncommitted_first_conversion(
             TclType::String,
             TclType::List,
-            Some(&v)
+            Some(&v),
+            NumberSyntax::Tcl90
         ));
     }
 
@@ -714,11 +740,14 @@ mod tests {
             "1_000",
             "999999999999999999999",
         ] {
-            assert!(is_valid_integer(ok), "{ok:?} should be a valid integer");
+            assert!(
+                is_valid_integer(ok, NumberSyntax::Tcl90),
+                "{ok:?} should be a valid integer"
+            );
         }
         for bad in ["5.0", "hello", "", "1 2", "0x"] {
             assert!(
-                !is_valid_integer(bad),
+                !is_valid_integer(bad, NumberSyntax::Tcl90),
                 "{bad:?} should not be a valid integer"
             );
         }

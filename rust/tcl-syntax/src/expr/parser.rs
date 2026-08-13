@@ -43,7 +43,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use tcl_dialect::DialectProfile;
+use tcl_dialect::{DialectProfile, NumberSyntax};
 use tcl_lexer::{ExprToken, ExprTokenType, tokenise_expr_checked};
 
 use crate::expr::ast::{BinOp, ExprNode, UnaryOp};
@@ -171,14 +171,18 @@ struct PrattParser<'a> {
     pos: usize,
     /// Current recursion depth, bounded by [`MAX_EXPR_DEPTH`].
     depth: usize,
+    /// The release's numeric-literal grammar, used to reject a `Number` token
+    /// the lexer only *delimited* (see [`Self::number_literal`]).
+    numbers: NumberSyntax,
 }
 
 impl<'a> PrattParser<'a> {
-    fn new(tokens: &'a [ExprToken]) -> Self {
+    fn new(tokens: &'a [ExprToken], numbers: NumberSyntax) -> Self {
         Self {
             tokens,
             pos: 0,
             depth: 0,
+            numbers,
         }
     }
 
@@ -287,8 +291,18 @@ impl<'a> PrattParser<'a> {
             return Ok(inner);
         }
 
-        // Number literal
+        // Number literal — but only if it really is a whole number in this
+        // release. The lexer delimits a numeric-looking run without validating
+        // it (it sits below the number parser), so `0o8`, `0x`, `0xg`, and
+        // `0d99` before 9.0 arrive here as `Number` tokens. C rejects exactly
+        // these in `ParseLexeme` — `TclParseNumber` fails to consume the whole
+        // lexeme, so the text is a *bareword* — and reporting it that way is
+        // what produces `invalid bareword "0o8"` instead of silently evaluating
+        // the literal to its own text.
         if tok.kind == ExprTokenType::Number {
+            if !crate::number::is_whole_number(&tok.text, self.numbers) {
+                return Err(ParseError);
+            }
             let tok = self.advance();
             return Ok(ExprNode::Literal {
                 text: tok.text.clone(),
@@ -410,6 +424,21 @@ impl<'a> PrattParser<'a> {
 /// let raw = parse_expr("", None);
 /// assert!(matches!(raw, ExprNode::Raw { .. }));
 /// ```
+/// The numeric grammar to parse with: a named dialect's own, else the grammar
+/// the runtime was built for ([`crate::number::runtime_syntax`]).
+///
+/// The fallback matters. An unnamed dialect resolves to the permissive 9.x
+/// profile, so without this a runtime built for 8.6 would *parse* `0o17` as a
+/// number and then fail to *read* it as one, leaving the literal to evaluate to
+/// its own text — the silent-wrong-answer shape this whole change removes.
+pub(super) fn numbers_for(dialect: Option<&str>, profile: &DialectProfile) -> NumberSyntax {
+    if dialect.is_some() {
+        NumberSyntax::of_profile(Some(profile))
+    } else {
+        crate::number::runtime_syntax()
+    }
+}
+
 #[must_use]
 pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
     // Resolve the dialect string to its interned profile once and thread the
@@ -435,7 +464,7 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
         };
     }
 
-    let mut parser = PrattParser::new(&tokens);
+    let mut parser = PrattParser::new(&tokens, numbers_for(dialect, profile));
     match parser.expression(0) {
         Ok(result) if parser.pos >= tokens.len() => result,
         _ => ExprNode::Raw {

@@ -41,7 +41,7 @@ use std::sync::{Arc, Mutex};
 
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
 use tcl_compiler::lowering::lower_to_ir_traced;
 use tcl_dialect::TclVersion;
 use tcl_lexer::script_is_complete;
@@ -51,7 +51,7 @@ use tcl_vm::{CompileError, CompileService, Value, Vm};
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
 /// (and for the top-level script the driver runs): the real Rust compiler
 /// pipeline (lower → CFG → bytecode). Matches the `eval` / `run_test` examples.
-struct Svc(CommandRegistry);
+struct Svc(CommandRegistry, &'static str);
 
 impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
@@ -59,7 +59,7 @@ impl CompileService for Svc {
         if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir(src, &self.0);
+        let ir = lower_to_ir(src, &self.0, tcl_lexer::LexerConfig::default(), self.1);
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.0))
     }
@@ -171,16 +171,19 @@ fn new_vm(version: Option<TclVersion>) -> Vm {
     let mut vm = Vm::with_output(Box::new(Stdout));
     // Default to the plain-Tcl profile's pinned VM release (dialect-profile
     // model §5.4); `--tcl-version <x.y>` overrides it.
-    vm.set_runtime_version(
-        version
-            .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name("tcl9.0").vm_runtime_version),
-    );
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    let release = version
+        .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name("tcl9.0").vm_runtime_version);
+    vm.set_runtime_version(release);
+    // Codegen targets the same release: the dialect is a *compile* target, not
+    // an execution-time switch, so a numeric literal is resolved for 8.6 while
+    // compiling rather than re-read under 8.6 rules at run time.
+    let dialect = release.dialect_name();
+    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default(), dialect)));
     // Enable the real `thread` package: a Send factory each worker calls to
     // build its own compiler, and a thread-safe shared stdout for `puts`.
     vm.enable_threads(
         Arc::new(|| {
-            Box::new(Svc(CommandRegistry::build_default()))
+            Box::new(Svc(CommandRegistry::build_default(), dialect))
                 as Box<dyn CompileService<Module = tcl_bytecode::ModuleAsm>>
         }),
         Arc::new(Mutex::new(Box::new(Stdout) as Box<dyn Write + Send>)),

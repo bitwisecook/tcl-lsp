@@ -222,6 +222,14 @@ const MULTI_OPS: &[&str] = &[
     "ge",
 ];
 
+/// C's `TclIsBareword` — ASCII letters, digits and `_`. Note it does *not*
+/// include `.`, which is what splits a numeric run holding a decimal point
+/// from one that doesn't at the number/bareword junction (see
+/// [`Inner::number`]).
+fn is_bareword_byte(ch: u8) -> bool {
+    ch.is_ascii_alphanumeric() || ch == b'_'
+}
+
 fn is_single_op(ch: u8) -> bool {
     matches!(
         ch,
@@ -260,6 +268,8 @@ pub fn tokenise_expr_checked(source: &str, dialect: Option<&str>) -> (Vec<ExprTo
     (tokens, lex.unknown)
 }
 
+// Dialect-derived grammar knobs plus one output flag, not a state machine.
+#[allow(clippy::struct_excessive_bools)]
 struct Inner<'s> {
     b: &'s [u8],
     s: &'s str,
@@ -273,6 +283,31 @@ struct Inner<'s> {
     /// `tcl_dialect::LexerGrammar::expr_comments`). When false, `#` stays an
     /// unknown character, which is what C 8.4-8.6 does with it.
     expr_comments: bool,
+    /// Whether `_` may sit inside a *fractional or exponent* digit run — 9.0+
+    /// only, and unlike the integer run this genuinely changes the lexeme
+    /// boundary, so it cannot be left to `tcl-syntax` to sort out.
+    ///
+    /// C's bareword scan takes `[A-Za-z0-9_]` but stops at `.`, which splits
+    /// the two cases (tclsh 8.6.16):
+    ///
+    /// | input | 8.6 | 9.0 |
+    /// |---|---|---|
+    /// | `1_0`, `1e1_0`, `0x1_f` | `invalid bareword` | valid |
+    /// | `1.0_2` | **`invalid character "_"`** | valid |
+    ///
+    /// With no `.`, the whole run is one bareword candidate on every release,
+    /// so the integer run absorbs `_` unconditionally. After a `.` the number
+    /// lexeme *ends* before 9.0 and the `_` is its own invalid lexeme — so
+    /// absorbing it there would report a bareword where C reports a character.
+    digit_separators: bool,
+    /// The release whose `expr` lexeme table this dialect uses, for the
+    /// word-shaped operators (`eq`, `in`, `lt`, …) — the profile's
+    /// `expr_grammar_base`, resolved through
+    /// [`tcl_dialect::is_expr_word_operator`] rather than a list held here,
+    /// because *which* of them exist moves the lexeme boundary and so cannot
+    /// be settled above the lexer. `None` (plain `tcl`, iRules) takes the
+    /// newest grammar, like every other knob on `LexerGrammar`.
+    expr_grammar_base: Option<tcl_dialect::TclVersion>,
     unknown: bool,
 }
 
@@ -285,6 +320,8 @@ impl<'s> Inner<'s> {
             i: 0,
             irules_operators: profile.is_irules(),
             expr_comments: profile.grammar.expr_comments.comments(),
+            digit_separators: profile.grammar.numbers.allows_digit_separators(),
+            expr_grammar_base: profile.expr_grammar_base,
             unknown: false,
         }
     }
@@ -374,7 +411,16 @@ impl<'s> Inner<'s> {
                     end: p(self.i),
                 });
                 self.i += 1;
-            } else if ch.is_ascii_alphabetic() || ch == b'_' {
+            } else if ch.is_ascii_alphabetic() {
+                // A bareword may *contain* `_` but never start with one, on
+                // every release — `ParseLexeme`'s last gate is
+                // `if (!TclIsBareword(*start) || *start == '_')`, which yields
+                // INVALID, not BAREWORD (`tclCompExpr.c:2135` in 9.0.4,
+                // `:2068` in 8.6.16, above the comment "We reject leading
+                // underscores in bareword. No sensible reason why."). So `_x`
+                // is `invalid character "_"`, not `invalid bareword "_x"`,
+                // and the invalid lexeme is one character wide — the `x`
+                // after it is never joined on.
                 out.push(self.ident(&irops));
             } else if ch == b'{' {
                 out.push(self.braced());
@@ -411,11 +457,21 @@ impl<'s> Inner<'s> {
         self.tok(ExprTokenType::Comment, start)
     }
 
+    /// Scan a numeric-looking run. Deliberately *dialect-blind* and greedy over
+    /// a radix prefix's alphanumerics: this only delimits the lexeme, exactly as
+    /// C's `ParseLexeme` scans before deciding. Whether the run is a valid
+    /// number in this release is settled above the lexer (`tcl-syntax` owns the
+    /// number parser and sits above this crate), which reclassifies an invalid
+    /// one as a bareword — so `0o8`, and `0d99` before 9.0, stay a single token
+    /// and are reported whole.
     fn number(&mut self) -> ExprToken {
         let start = self.i;
         if self.b[self.i] == b'0'
             && self.i + 1 < self.b.len()
-            && matches!(self.b[self.i + 1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B')
+            && matches!(
+                self.b[self.i + 1],
+                b'x' | b'X' | b'o' | b'O' | b'b' | b'B' | b'd' | b'D'
+            )
         {
             self.i += 2;
             while self.i < self.b.len()
@@ -425,12 +481,23 @@ impl<'s> Inner<'s> {
             }
             return self.tok(ExprTokenType::Number, start);
         }
-        while self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
+        // `_` rides along inside a digit run: 9.0 allows it as a separator, and
+        // before 9.0 the whole run must still be ONE lexeme so it is reported as
+        // a single bareword rather than a number followed by junk.
+        while self.i < self.b.len() && (self.b[self.i].is_ascii_digit() || self.b[self.i] == b'_') {
             self.i += 1;
         }
+        // The fraction and exponent digit runs take `_` for the same reason the
+        // integer run above does: 9.0 allows a separator anywhere between two
+        // digits, so `1.0_2` and `1e1_0` are single numerals (tclsh 9.0: 1.02
+        // and 10000000000.0). Keeping them digit-only split the lexeme and
+        // degraded valid input to a parse error.
         if self.i < self.b.len() && self.b[self.i] == b'.' {
             self.i += 1;
-            while self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
+            while self.i < self.b.len()
+                && (self.b[self.i].is_ascii_digit()
+                    || (self.digit_separators && self.b[self.i] == b'_'))
+            {
                 self.i += 1;
             }
         }
@@ -440,15 +507,61 @@ impl<'s> Inner<'s> {
             if self.i < self.b.len() && matches!(self.b[self.i], b'+' | b'-') {
                 self.i += 1;
             }
+            // The exponent commits only on a *digit*: `_` must sit between two
+            // digits, so `1e_0` is not an exponent at all (tclsh 9.0 errors).
+            // Once committed, the run takes separators like any other.
             if self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
-                while self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
+                while self.i < self.b.len()
+                    && (self.b[self.i].is_ascii_digit()
+                        || (self.digit_separators && self.b[self.i] == b'_'))
+                {
                     self.i += 1;
                 }
             } else {
                 self.i = save;
             }
         }
+        self.join_trailing_bareword(start);
         self.tok(ExprTokenType::Number, start)
+    }
+
+    /// Extend a numeric run that butts straight against bareword characters
+    /// into the single bareword C would scan there.
+    ///
+    /// `tclCompExpr.c:2080-2126` (9.0.4): when `TclParseNumber` stops on a
+    /// `TclIsBareword` byte, C does *not* emit a number — it usually falls
+    /// through and rescans `[A-Za-z0-9_]*` from the start as one BAREWORD.
+    /// Two exceptions put it back on the number path (`goto number`):
+    ///
+    /// * **The run holds a non-bareword character.** C's
+    ///   `TclHasInternalRep(&tclDoubleType)` walk: a double whose spelling
+    ///   contains something a bareword cannot hold (`.`, an exponent sign)
+    ///   stays a number, so the junk after it is its own lexeme. This is why
+    ///   `1.5abc` names only `abc`, and why 8.6's `1.0_2` is
+    ///   `invalid character "_"` rather than naming the whole run.
+    /// * **A binary word operator follows.** `1eq 2` is `1 eq 2` (tclsh: 0).
+    ///   Release-sensitive, hence [`Self::word_operator_follows`]: under 8.6
+    ///   `lt` is not an operator, so `1lt 2` is `invalid bareword "1lt"`.
+    ///
+    /// Everything else is one bareword — `1_eq`, `1abc`, `12x`, `1e_0`,
+    /// `9_ne`, `1_2_eq` — all tclsh-verified on 8.5, 8.6, 9.0 and 9.1. The
+    /// token stays [`ExprTokenType::Number`]; `tcl-syntax` reclassifies an
+    /// invalid one to a bareword, and it can only name the whole run if the
+    /// lexeme was not split here first.
+    fn join_trailing_bareword(&mut self, start: usize) {
+        let end = self.i;
+        if !self.b.get(end).copied().is_some_and(is_bareword_byte) {
+            return;
+        }
+        if !self.b[start..end].iter().copied().all(is_bareword_byte) {
+            return;
+        }
+        if self.word_operator_follows(end) {
+            return;
+        }
+        while self.i < self.b.len() && is_bareword_byte(self.b[self.i]) {
+            self.i += 1;
+        }
     }
 
     fn variable(&mut self) -> ExprToken {
@@ -673,6 +786,87 @@ impl<'s> Inner<'s> {
         self.tok(ExprTokenType::String, start)
     }
 
+    /// The release-independent half of C's word-operator case: the two
+    /// boundary guards that decide whether `op` at `at` is a standalone
+    /// lexeme rather than part of a neighbouring bareword.
+    ///
+    /// * **Nothing bareword-ish precedes it.** C never checks this explicitly;
+    ///   it falls out of the bareword scan having already consumed `a_eq` /
+    ///   `9_ne` whole. Checking `prev` here reproduces that boundary.
+    /// * **No *letter* follows it.** C's guard is `!isalpha(UCHAR(start[2]))`
+    ///   (`tclCompExpr.c:2014` in 9.0.4) — deliberately not `TclIsBareword`,
+    ///   so a digit or `_` after the operator leaves it an operator and the
+    ///   rest becomes its own lexeme: `1 eq2` is `1 eq 2` (tclsh: 0), and
+    ///   `1 eq_ 2` is `invalid character "_"` on every release 8.4–9.1.
+    fn word_operator_boundary_ok(&self, op: &str, at: usize) -> bool {
+        if at > 0 {
+            let prev = self.b[at - 1];
+            if prev.is_ascii_alphabetic() || prev == b'_' {
+                return false;
+            }
+        }
+        !self
+            .b
+            .get(at + op.len())
+            .is_some_and(u8::is_ascii_alphabetic)
+    }
+
+    /// Whether `op` at `at` is genuinely a binary operator lexeme in this
+    /// release — the faithful `ParseLexeme` answer, boundary guards plus the
+    /// release's own operator table.
+    ///
+    /// Used by [`Self::word_operator_follows`], where the truthful answer is
+    /// what C's `(NODE_TYPE & lexeme) == BINARY` probe needs: `1lt 2` is
+    /// `invalid bareword "1lt"` under 8.6 (no `lt` lexeme to stop the join)
+    /// but `1` `lt` `2` under 9.0.
+    fn word_operator_at(&self, op: &str, at: usize) -> bool {
+        tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base)
+            && self.word_operator_boundary_ok(op, at)
+    }
+
+    /// Whether the main scan should emit `op` at `at` as an operator token.
+    ///
+    /// Deliberately *weaker* than [`Self::word_operator_at`]: the release gate
+    /// is applied only where it actually moves a boundary — when a bareword
+    /// byte (a digit or `_`) follows, so the run would otherwise fuse into one
+    /// bareword. tclsh 8.6 vs 9.0:
+    ///
+    /// | input | 8.6 | 9.0 | gate needed? |
+    /// |---|---|---|---|
+    /// | `1 lt_ 2` | `invalid bareword "lt_"` | `invalid character "_"` | yes |
+    /// | `1 lt2 2` | `invalid bareword "lt2"` | `missing operator` | yes |
+    /// | `1 lt 2`, `$a lt $b` | `invalid bareword "lt"` | `1` | **no** |
+    ///
+    /// In the last row the boundary is the same either way, and the release
+    /// gate is settled *above* the lexer — the parser rejects a `lt` the
+    /// dialect lacks and reports `invalid bareword "lt"`, which is what tclsh
+    /// prints. Emitting the token there keeps that path working, and keeps it
+    /// visible to the analyser: W003 exists precisely to say "this operator is
+    /// Tcl 9.0+ (TIP 461)", and it can only say so about an operator it can
+    /// still see. Suppressing the token here made W003 silent on the very
+    /// dialects it targets.
+    fn word_operator_lexeme_at(&self, op: &str, at: usize) -> bool {
+        self.word_operator_boundary_ok(op, at)
+            && (!self
+                .b
+                .get(at + op.len())
+                .copied()
+                .is_some_and(is_bareword_byte)
+                || tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base))
+    }
+
+    /// Whether any word operator this release has begins at byte `at` — C's
+    /// `ParseLexeme(end, …)` probe at the number/bareword junction, whose
+    /// `(NODE_TYPE & lexeme) == BINARY` test keeps `1eq 2` a number followed
+    /// by an operator instead of one bareword.
+    fn word_operator_follows(&self, at: usize) -> bool {
+        MULTI_OPS.iter().any(|&op| {
+            tcl_dialect::expr_word_operator_since(op).is_some()
+                && self.b[at..].starts_with(op.as_bytes())
+                && self.word_operator_at(op, at)
+        })
+    }
+
     fn multi_op(&mut self) -> Option<ExprToken> {
         for &op in MULTI_OPS {
             // Compare on bytes, not `self.s[self.i..]`: `self.i` is a byte index
@@ -681,19 +875,10 @@ impl<'s> Inner<'s> {
             // slicing at a non-char-boundary panics. Every `MULTI_OPS` entry is
             // ASCII, so a byte-prefix check is exactly equivalent and total.
             if self.b[self.i..].starts_with(op.as_bytes()) {
-                if matches!(op, "eq" | "ne" | "in" | "ni" | "lt" | "le" | "gt" | "ge") {
-                    if self.i > 0 {
-                        let prev = self.b[self.i - 1];
-                        if prev.is_ascii_alphabetic() || prev == b'_' {
-                            continue;
-                        }
-                    }
-                    let after = self.i + op.len();
-                    if after < self.b.len()
-                        && (self.b[after].is_ascii_alphabetic() || self.b[after] == b'_')
-                    {
-                        continue;
-                    }
+                if tcl_dialect::expr_word_operator_since(op).is_some()
+                    && !self.word_operator_lexeme_at(op, self.i)
+                {
+                    continue;
                 }
                 let start = self.i;
                 self.i += op.len();
@@ -1207,5 +1392,143 @@ mod tests {
                 "{dialect} must not lex a comment token"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod separator_boundary_tests {
+    use super::*;
+
+    /// `_` inside a *fraction* changes the lexeme boundary, so unlike the
+    /// integer run it has to follow the release. C's bareword scan takes
+    /// `[A-Za-z0-9_]` and stops at `.`, which is why `1_0` is a bareword on
+    /// 8.6 while `1.0_2` is an `invalid character "_"` there — pinned on
+    /// tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn fraction_separators_follow_the_release() {
+        // 9.0: one numeral.
+        let t = tokenise_expr("1.0_2", Some("tcl9.0"));
+        assert_eq!(t.len(), 1, "9.0 lexes `1.0_2` whole: {t:?}");
+        assert_eq!(t[0].text, "1.0_2");
+
+        // 8.6: the number ends at `1.0`, and `_` is its own (unknown) lexeme.
+        let t = tokenise_expr("1.0_2", Some("tcl8.6"));
+        assert!(t.len() > 1, "8.6 must split `1.0_2`: {t:?}");
+        assert_eq!(t[0].text, "1.0");
+
+        // The exponent behaves the same way.
+        assert_eq!(tokenise_expr("1e1_0", Some("tcl9.0")).len(), 1);
+
+        // The *integer* run absorbs `_` on every release — `1_0` is one
+        // bareword candidate on 8.6 too, which is what C reports.
+        assert_eq!(tokenise_expr("1_0", Some("tcl8.6"))[0].text, "1_0");
+        assert_eq!(tokenise_expr("1_0", Some("tcl9.0"))[0].text, "1_0");
+    }
+
+    /// `_` never starts a lexeme, on any release — `ParseLexeme`'s final gate
+    /// is `if (!TclIsBareword(*start) || *start == '_')`, which yields INVALID
+    /// rather than BAREWORD (9.0.4 `tclCompExpr.c:2136`, 8.6.16 `:2068`,
+    /// 8.5.19 `:1980`; 8.4.20 `tclParseExpr.c:1852` requires `isalpha` to
+    /// start a lexeme at all). Verified on tclsh 8.4.20, 8.5.19, 8.6.16,
+    /// 9.0.4 and 9.1b0: every one reports `_`, `_1`, `_abc`, `1+_2` and
+    /// `$x + _y` as an invalid *character*, never a bareword.
+    #[test]
+    fn underscore_never_starts_a_lexeme() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for src in ["_", "_1", "_abc", "__"] {
+                let (toks, unknown) = tokenise_expr_checked(src, Some(dialect));
+                assert!(
+                    unknown,
+                    "{dialect}: `{src}` must be an invalid character, got {toks:?}"
+                );
+            }
+            // …but `_` *inside* a bareword that starts alphanumeric is fine:
+            // `abc_1` and `a__b` are barewords on every release.
+            assert_eq!(tokenise_expr("abc_1", Some(dialect))[0].text, "abc_1");
+            assert_eq!(tokenise_expr("a__b", Some(dialect))[0].text, "a__b");
+        }
+    }
+
+    /// The word-operator set is release-dependent, and that moves the lexeme
+    /// boundary *where a bareword byte follows the operator*. tclsh-verified:
+    /// `1 lt_ 2` is `invalid bareword "lt_"` on 8.5/8.6 (no `lt` lexeme before
+    /// TIP 461) but `invalid character "_"` on 9.0/9.1, and `1 lt2 2` is
+    /// `invalid bareword "lt2"` on 8.6 against `missing operator` on 9.0.
+    /// `eq` exists throughout, so `eq_` splits on every release.
+    #[test]
+    fn word_operator_availability_moves_the_boundary() {
+        // `lt` is 9.0+: before it, `lt_` / `lt2` are one bareword.
+        for old in ["tcl8.5", "tcl8.6"] {
+            for src in ["1 lt_ 2", "1 lt2 2"] {
+                let t = tokenise_expr(src, Some(old));
+                assert!(
+                    t[2].text.starts_with("lt") && t[2].text.len() > 2,
+                    "{old} must keep `{src}`'s `lt…` whole: {t:?}"
+                );
+            }
+        }
+        for new in ["tcl9.0", "tcl9.1"] {
+            let t = tokenise_expr("1 lt_ 2", Some(new));
+            assert_eq!(t[2].text, "lt", "{new} must split `lt_`: {t:?}");
+        }
+        // `eq` is in every modelled release, so `eq_` splits in all of them.
+        for d in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert_eq!(tokenise_expr("1 eq_ 2", Some(d))[2].text, "eq");
+        }
+        // C guards the trailing side with `isalpha` only, so a digit after the
+        // operator still leaves it an operator: `1 eq2` is `1 eq 2` (tclsh: 0).
+        let t = tokenise_expr("1 eq2", Some("tcl9.0"));
+        assert_eq!(t[2].text, "eq", "a digit must not glue onto `eq`: {t:?}");
+    }
+
+    /// The release gate must NOT fire where it changes nothing about the
+    /// boundary — a word operator followed by whitespace is one lexeme in
+    /// every release, and the version check belongs above the lexer (the
+    /// parser reports `invalid bareword "lt"` under 8.6, which is what tclsh
+    /// prints). W003 reads these tokens to say "this operator is Tcl 9.0+
+    /// (TIP 461)", so suppressing them here silenced the diagnostic on exactly
+    /// the dialects it targets — nine e2e tests caught it.
+    #[test]
+    fn a_standalone_word_operator_stays_visible_to_the_analyser() {
+        for d in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules"] {
+            for (src, op) in [("$a lt $b", "lt"), ("$a in $b", "in"), ("1 ge 2", "ge")] {
+                let t = tokenise_expr(src, Some(d));
+                assert!(
+                    t.iter()
+                        .any(|k| k.kind == ExprTokenType::Operator && k.text == op),
+                    "{d}: `{src}` must still expose `{op}` as an Operator token: {t:?}"
+                );
+            }
+        }
+    }
+
+    /// A numeric run butted against bareword characters is ONE bareword —
+    /// C rescans `[A-Za-z0-9_]*` from the start rather than emitting a number
+    /// (`tclCompExpr.c:2080-2126`). Two exceptions keep it a number: a
+    /// non-bareword character in the run (`1.5abc` names only `abc`), and a
+    /// following binary word operator (`1eq 2` is `1 eq 2`). All tclsh-checked
+    /// on 8.5, 8.6, 9.0 and 9.1.
+    #[test]
+    fn a_number_against_barewords_is_one_bareword() {
+        for d in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for src in ["1_eq", "1abc", "12x", "1e_0", "9_ne", "1_2_eq", "1_abc"] {
+                let t = tokenise_expr(src, Some(d));
+                assert_eq!(t[0].text, src, "{d}: `{src}` must stay one lexeme: {t:?}");
+            }
+            // Exception 1 — the run holds a `.`, which no bareword can.
+            let t = tokenise_expr("1.5abc", Some(d));
+            assert_eq!(
+                t[0].text, "1.5",
+                "{d}: `1.5abc` splits at the double: {t:?}"
+            );
+            // Exception 2 — a binary word operator follows.
+            let t = tokenise_expr("1eq 2", Some(d));
+            assert_eq!(t[0].text, "1", "{d}: `1eq 2` is `1 eq 2`: {t:?}");
+            assert_eq!(t[1].text, "eq");
+        }
+        // Release-sensitive: `lt` is not an operator before 9.0, so `1lt 2`
+        // is one bareword there and a number + operator after.
+        assert_eq!(tokenise_expr("1lt 2", Some("tcl8.6"))[0].text, "1lt");
+        assert_eq!(tokenise_expr("1lt 2", Some("tcl9.0"))[0].text, "1");
     }
 }

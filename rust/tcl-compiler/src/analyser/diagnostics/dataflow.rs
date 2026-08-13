@@ -2036,11 +2036,15 @@ file; this call falls through to the 'unknown' handler."
         } else {
             fu.sccp.executable_blocks.clone()
         };
-        for finding in crate::interval_bounds::find_divide_by_zero(
+        for finding in crate::interval_bounds::find_divide_by_zero_with(
             &fu.cfg,
             &fu.ssa,
             &fu.sccp.values,
             &executable,
+            // The document's own numeral grammar: a divisor literal means what
+            // this dialect says it means (`0755` is 493 up to 8.6, 755 from
+            // 9.0), and this process analyses documents of several dialects.
+            crate::intervals::numbers_for_dialect(Some(self.dialect())),
         ) {
             let span = fu.abs_span(finding.span);
             if span.is_empty() {
@@ -2080,14 +2084,15 @@ file; this call falls through to the 'unknown' handler."
         } else {
             fu.sccp.executable_blocks.iter().copied().collect()
         };
-        let findings = crate::interval_bounds::find_interval_bounds(
+        let findings = crate::interval_bounds::find_interval_bounds_with(
             &fu.cfg,
             &fu.ssa,
             &fu.sccp.values,
             &executable,
-            tcl_dialect::DialectProfile::by_name(self.dialect())
-                .runtime_base
-                .map(tcl_dialect::TclVersion::string_character_model),
+            tcl_dialect::DialectProfile::by_name(self.dialect()).character_model(),
+            // The document's own numeral grammar, alongside the character model
+            // — both dialect-derived facts, both threaded rather than ambient.
+            crate::intervals::numbers_for_dialect(Some(self.dialect())),
         );
         for f in findings {
             if f.span.is_empty() {

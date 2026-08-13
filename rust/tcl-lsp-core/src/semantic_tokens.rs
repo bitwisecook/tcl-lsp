@@ -92,7 +92,7 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
-use tcl_dialect::DialectSet;
+use tcl_dialect::{DialectSet, NumberSyntax};
 use tcl_registry::CommandRegistry;
 use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
 
@@ -4226,6 +4226,12 @@ const MAX_TOKEN_RECURSION: tcl_core_types::RecursionLimit = tcl_core_types::Recu
 struct ScriptCtx<'a> {
     full_source: &'a str,
     dialect: &'a str,
+    /// The dialect's numeric-literal grammar, resolved once from `dialect` so
+    /// the per-word `Number` classification does not re-walk the profile
+    /// catalog for every token.  Decides which radix prefixes exist, whether a
+    /// bare leading zero is octal, and whether `_` digit separators are
+    /// allowed — see [`is_number_literal`].
+    numbers: NumberSyntax,
     registry: &'a CommandRegistry,
     line_index: &'a LineIndex,
     /// The enclosing definition-body grammar, or `None` outside any
@@ -4309,14 +4315,15 @@ struct ScriptCtx<'a> {
 /// Otherwise a regex-mode pattern is sub-tokenised as a regex, and an
 /// exact/glob one is classified as an ordinary literal.
 fn push_case_pattern(
-    line_index: &LineIndex,
-    full_source: &str,
+    ctx: ScriptCtx<'_>,
     pat_tok: Token,
     text: &str,
     spec: &'static tcl_registry::CaseListSpec,
     regexp: bool,
     entries: &mut Vec<Entry>,
 ) {
+    let line_index = ctx.line_index;
+    let full_source = ctx.full_source;
     if spec.keyword_patterns.contains(&text) {
         push_token(
             line_index,
@@ -4337,7 +4344,7 @@ fn push_case_pattern(
                 entries,
             );
         }
-    } else if let Some(kind) = classify_arg_token(pat_tok, full_source) {
+    } else if let Some(kind) = classify_arg_token(pat_tok, full_source, ctx.numbers) {
         push_token(line_index, full_source, pat_tok, kind, 0, entries);
     }
 }
@@ -4404,7 +4411,7 @@ fn collect_case_list(
             let kind = if spec.clause_flags.contains(&text) {
                 Some(TokenKind::Decorator)
             } else {
-                classify_arg_token(ftok, full_source)
+                classify_arg_token(ftok, full_source, ctx.numbers)
             };
             if let Some(kind) = kind {
                 push_token(line_index, full_source, ftok, kind, 0, entries);
@@ -4414,8 +4421,7 @@ fn collect_case_list(
         if let Some(p) = clause.pattern {
             let text = inner.get(p.start..p.end).unwrap_or_default();
             push_case_pattern(
-                line_index,
-                full_source,
+                ctx,
                 as_token(p),
                 text.trim_start_matches('{'),
                 spec,
@@ -4436,7 +4442,7 @@ fn collect_case_list(
                     depth + 1,
                     false,
                 );
-            } else if let Some(kind) = classify_arg_token(btok, full_source) {
+            } else if let Some(kind) = classify_arg_token(btok, full_source, ctx.numbers) {
                 push_token(line_index, full_source, btok, kind, 0, entries);
             }
         }
@@ -4473,7 +4479,7 @@ fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entr
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
         // Not a braced literal (should not happen — the override only fires
         // for `Str` tokens); fall back to a plain classification.
-        if let Some(kind) = classify_arg_token(tok, full_source) {
+        if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
             push_token(line_index, full_source, tok, kind, 0, entries);
         }
         return;
@@ -4512,7 +4518,7 @@ fn collect_lambda_literal(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entr
                 depth + 1,
                 false,
             );
-        } else if let Some(kind) = classify_arg_token(*word_tok, full_source) {
+        } else if let Some(kind) = classify_arg_token(*word_tok, full_source, ctx.numbers) {
             push_token(line_index, full_source, *word_tok, kind, 0, entries);
         }
     }
@@ -4528,7 +4534,7 @@ fn collect_loop_var_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
-        if let Some(kind) = classify_arg_token(tok, full_source) {
+        if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
             push_token(line_index, full_source, tok, kind, 0, entries);
         }
         return;
@@ -4585,7 +4591,7 @@ fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) 
                 MOD_DECLARATION,
                 entries,
             );
-        } else if let Some(kind) = classify_arg_token(tok, full_source) {
+        } else if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
             push_token(line_index, full_source, tok, kind, 0, entries);
         }
         return;
@@ -4597,7 +4603,7 @@ fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) 
             let elem_abs = cstart + el.value.start;
             if braced {
                 // `{name ?default...?}` — the first word is the parameter name.
-                emit_param_default_pair(full_source, line_index, elem_abs, elem, entries);
+                emit_param_default_pair(ctx, elem_abs, elem, entries);
             } else if is_plain_var_name(elem) {
                 push_span_entries(
                     full_source,
@@ -4620,13 +4626,9 @@ fn collect_param_list(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) 
 /// Emit the name + default words of a `{name ?default...?}` parameter pair:
 /// the leading word as a `Parameter` declaration, each following word by its
 /// literal classification (number / string).
-fn emit_param_default_pair(
-    source: &str,
-    line_index: &LineIndex,
-    abs: usize,
-    text: &str,
-    entries: &mut Vec<Entry>,
-) {
+fn emit_param_default_pair(ctx: ScriptCtx<'_>, abs: usize, text: &str, entries: &mut Vec<Entry>) {
+    let source = ctx.full_source;
+    let line_index = ctx.line_index;
     let mut scan = 0usize;
     let mut first = true;
     while let Ok(Some(el)) = tcl_syntax::list::find_element(text, scan) {
@@ -4634,7 +4636,7 @@ fn emit_param_default_pair(
             let word_abs = abs + el.value.start;
             let (kind, mods) = if first {
                 (TokenKind::Parameter, MOD_DECLARATION)
-            } else if is_number_literal(word) {
+            } else if is_number_literal(word, ctx.numbers) {
                 (TokenKind::Number, 0)
             } else {
                 (TokenKind::String, 0)
@@ -5132,7 +5134,7 @@ fn deferred_role_arg_starts(
 /// sub-tokenising format overrides (sprintf / clock / binary / regsub) when
 /// the specialised sub-lexer declined to emit anything.
 fn classify_and_push_if(cond: bool, ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
-    if cond && let Some(kind) = classify_arg_token(tok, ctx.full_source) {
+    if cond && let Some(kind) = classify_arg_token(tok, ctx.full_source, ctx.numbers) {
         push_token(ctx.line_index, ctx.full_source, tok, kind, 0, entries);
     }
 }
@@ -5234,7 +5236,7 @@ fn emit_arg_token(
                     depth + 1,
                     false,
                 );
-            } else if let Some(kind) = classify_arg_token(*tok, full_source) {
+            } else if let Some(kind) = classify_arg_token(*tok, full_source, ctx.numbers) {
                 push_token(line_index, full_source, *tok, kind, 0, entries);
             }
         }
@@ -5296,7 +5298,7 @@ fn emit_default_arg_token(
                 deferred_role,
             );
         }
-    } else if let Some(kind) = classify_arg_token(tok, full_source) {
+    } else if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
         // String / bareword args with backslash escapes split
         // into literal `String` runs + `Escape` sub-tokens.
         if kind == TokenKind::String && push_escape_subtokens(line_index, full_source, tok, entries)
@@ -5316,7 +5318,7 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
     let full_source = ctx.full_source;
     let line_index = ctx.line_index;
     let Some((cstart, inner)) = subspec_content(full_source, tok) else {
-        if let Some(kind) = classify_arg_token(tok, full_source) {
+        if let Some(kind) = classify_arg_token(tok, full_source, ctx.numbers) {
             push_token(line_index, full_source, tok, kind, 0, entries);
         }
         return;
@@ -5991,6 +5993,9 @@ fn collect_entries(
     let ctx = ScriptCtx {
         full_source: source,
         dialect,
+        numbers: tcl_dialect::DialectProfile::by_name(dialect)
+            .grammar
+            .numbers,
         registry,
         line_index: &line_index,
         oo_grammar: None,
@@ -6139,8 +6144,10 @@ fn push_escape_subtokens(
     true
 }
 
-/// Classify a non-head token by its lexer-assigned kind.
-fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
+/// Classify a non-head token by its lexer-assigned kind.  `numbers` is the
+/// document dialect's numeric-literal grammar, which decides whether a bareword
+/// reads as a number (`0o17` is a number from 8.5, a bareword before it).
+fn classify_arg_token(tok: Token, source: &str, numbers: NumberSyntax) -> Option<TokenKind> {
     let span = tok.span;
     let len = (span.end() - span.start()) as usize;
     if len == 0 {
@@ -6166,7 +6173,7 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
             let text = source
                 .get(start..(start + len).min(source.len()))
                 .unwrap_or("");
-            if is_number_literal(text) {
+            if is_number_literal(text, numbers) {
                 Some(TokenKind::Number)
             } else if text.contains("::") && tok.content_offset == 0 {
                 // Only a *bare* word can be a namespace reference.  A quoted or
@@ -6186,31 +6193,19 @@ fn classify_arg_token(tok: Token, source: &str) -> Option<TokenKind> {
     }
 }
 
-/// `true` when `text` is a Tcl number literal — integer
-/// (optionally signed, hex `0x...` or binary `0b...`) or
-/// floating-point.
-fn is_number_literal(text: &str) -> bool {
-    if text.is_empty() {
-        return false;
-    }
-    let trimmed = text.trim_start_matches(['+', '-']);
-    if trimmed.is_empty() {
-        return false;
-    }
-    if let Some(rest) = trimmed
-        .strip_prefix("0x")
-        .or_else(|| trimmed.strip_prefix("0X"))
-    {
-        return !rest.is_empty() && rest.chars().all(|c| c.is_ascii_hexdigit() || c == '_');
-    }
-    if let Some(rest) = trimmed
-        .strip_prefix("0b")
-        .or_else(|| trimmed.strip_prefix("0B"))
-    {
-        return !rest.is_empty() && rest.chars().all(|c| matches!(c, '0' | '1' | '_'));
-    }
-    // Integer or float.  Use Rust's parsers for simplicity.
-    text.parse::<i64>().is_ok() || text.parse::<f64>().is_ok()
+/// `true` when the whole of `text` is a Tcl number literal under `numbers` —
+/// the release's numeric-literal grammar, which decides which radix prefixes
+/// exist (`0x` always, `0o`/`0b` from 8.5, `0d` from 9.0), whether a bare
+/// leading zero is octal (up to 8.6) or decimal (9.0+), and whether `_` digit
+/// separators are allowed (9.0+).
+///
+/// This is the same question C's `ParseLexeme` asks before classifying a word
+/// as a `NUMBER`, so it routes through the one shared numeral facility rather
+/// than a private recogniser: a hand-rolled copy here painted `0o17` as a
+/// bareword, accepted `0x_` and `--5`, and applied 9.0's `_` separators to
+/// every release.
+fn is_number_literal(text: &str, numbers: NumberSyntax) -> bool {
+    tcl_syntax::number::is_whole_number(text, numbers)
 }
 
 /// Scan `source` for `#` comment lines and push each one as
@@ -9689,14 +9684,88 @@ mod tests {
 
     #[test]
     fn is_number_literal_recognises_integers_and_floats() {
-        assert!(is_number_literal("42"));
-        assert!(is_number_literal("-7"));
-        assert!(is_number_literal("3.14"));
-        assert!(is_number_literal("0xff"));
-        assert!(is_number_literal("0b1010"));
-        assert!(!is_number_literal("abc"));
-        assert!(!is_number_literal(""));
-        assert!(!is_number_literal("1.2.3"));
+        let n = NumberSyntax::Tcl90;
+        assert!(is_number_literal("42", n));
+        assert!(is_number_literal("-7", n));
+        assert!(is_number_literal("3.14", n));
+        assert!(is_number_literal("0xff", n));
+        assert!(is_number_literal("0b1010", n));
+        assert!(!is_number_literal("abc", n));
+        assert!(!is_number_literal("", n));
+        assert!(!is_number_literal("1.2.3", n));
+    }
+
+    /// The radix prefixes appear in the release that added them, so the
+    /// `Number` classification follows the document's dialect rather than
+    /// hardcoding 9.0: `0o`/`0b` from 8.5, `0d` from 9.0.  The old private
+    /// recogniser knew neither `0o` nor `0d` at all.
+    #[test]
+    fn is_number_literal_gates_radix_prefixes_on_the_release() {
+        for syntax in [NumberSyntax::Tcl85, NumberSyntax::Tcl90] {
+            assert!(is_number_literal("0o17", syntax), "{syntax:?}");
+        }
+        assert!(!is_number_literal("0o17", NumberSyntax::Tcl84));
+        assert!(is_number_literal("0d99", NumberSyntax::Tcl90));
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert!(!is_number_literal("0d99", syntax), "{syntax:?}");
+        }
+        // `_` digit separators are 9.0+ (the old recogniser applied them to
+        // every release inside a radix prefix, and to none outside one).
+        assert!(is_number_literal("1_000", NumberSyntax::Tcl90));
+        assert!(is_number_literal("0xff_ff", NumberSyntax::Tcl90));
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert!(!is_number_literal("1_000", syntax), "{syntax:?}");
+            assert!(!is_number_literal("0xff_ff", syntax), "{syntax:?}");
+        }
+    }
+
+    /// Shapes the old private recogniser mis-accepted: a body of nothing but
+    /// separators, a doubled sign (it stripped signs with
+    /// `trim_start_matches`), and radix-invalid digits.
+    #[test]
+    fn is_number_literal_rejects_malformed_numerals() {
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            for bad in ["0x_", "0x", "--5", "+-5", "0b2", "0o8", "0xZZZ"] {
+                assert!(!is_number_literal(bad, syntax), "{bad} under {syntax:?}");
+            }
+        }
+    }
+
+    /// A bare leading zero is octal up to 8.6 and decimal from 9.0, so `08` is
+    /// a bad octal numeral (a bareword) before 9.0 and plain decimal after.
+    #[test]
+    fn is_number_literal_follows_the_leading_zero_rule() {
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            assert!(is_number_literal("0755", syntax), "{syntax:?}");
+        }
+        assert!(!is_number_literal("08", NumberSyntax::Tcl85));
+        assert!(is_number_literal("08", NumberSyntax::Tcl90));
+    }
+
+    /// End-to-end: an `0o17` argument paints as a `Number` under an 8.6
+    /// document and not under an 8.4 one, where `0o` is not a prefix at all and
+    /// the word is an ordinary bareword.
+    #[test]
+    fn number_tokens_follow_the_document_dialect() {
+        let registry = reg();
+        let modern = kinds("puts 0o17\n", "tcl8.6", &registry);
+        let old = kinds("puts 0o17\n", "tcl8.4", &registry);
+        assert!(
+            modern.contains(&(TokenKind::Number as u32)),
+            "0o17 is a number from 8.5: {modern:?}"
+        );
+        assert!(
+            !old.contains(&(TokenKind::Number as u32)),
+            "0o17 is not a number under 8.4: {old:?}"
+        );
     }
 
     #[test]

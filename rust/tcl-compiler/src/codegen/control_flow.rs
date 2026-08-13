@@ -892,13 +892,18 @@ impl CodegenCtx<'_> {
                     .iter()
                     .find(|(n, _)| *n == val)
                     .map(|(_, c)| *c)
-                    .or_else(|| val.parse::<i32>().ok());
+                    .or_else(|| {
+                        self.parse_int_operand(val)
+                            .and_then(|v| i32::try_from(v).ok())
+                    });
                 if code.is_none() {
                     break;
                 }
                 i += 2;
             } else if flag == "-level" && i + 1 < args.len() {
-                level = args[i + 1].0.parse::<i32>().ok();
+                level = self
+                    .parse_int_operand(&args[i + 1].0)
+                    .and_then(|v| i32::try_from(v).ok());
                 if level.is_none() {
                     break;
                 }

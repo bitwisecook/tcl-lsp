@@ -43,8 +43,9 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use tcl_dialect::DialectSet;
+use tcl_dialect::{DialectSet, NumberSyntax};
 use tcl_registry::{CommandRegistry, ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -68,60 +69,79 @@ fn looks_like_float(s: &str) -> bool {
     s.contains('.') && s.parse::<f64>().is_ok()
 }
 
-/// The integer-tower shape of a Tcl integer literal: decimal, or a `0x`/`0X`
-/// hex or `0b`/`0B` binary form (each optionally signed) — [`TypeShape::Int`]
-/// when the value fits a wide (`i64`), [`TypeShape::Bignum`] beyond it
-/// (`9223372036854775808`, `0xFFFFFFFFFFFFFFFF` — promotion is by magnitude,
-/// never wrapping; oracle corpus in type-tracking.md). `None` when the text
-/// is not an integer literal of these spellings — `0o` octal deliberately
-/// stays out (the set-statement classifier keeps it `String`, its canonical
-/// stringified intrep differing from the source text).
+/// The numeric-literal grammar of `registry`'s dialect profile.
+///
+/// The registry the lattice pipeline runs under is the dialect-selected one
+/// (`registry_for_dialect`), so its profile is where the numeral grammar comes
+/// from — the same source [`crate::tcl_expr_eval::FoldPolicy::from_registry`]
+/// reads. A hand-assembled registry with no profile (unit tests, dialect-free
+/// helpers) falls back to `Tcl90`, matching
+/// [`crate::codegen::CodegenCtx::numbers`].
+///
+/// Explicit, never `tcl_syntax::number`'s thread-local ambient: the LSP types
+/// documents of several dialects in one process, and ambient state would let one
+/// document's grammar decide another's literals.
 #[must_use]
-fn int_literal_shape(s: &str) -> Option<TypeShape> {
-    if s.parse::<i64>().is_ok() {
-        return Some(TypeShape::Int);
-    }
-    let (negative, body) = match s.strip_prefix(['+', '-']) {
-        Some(rest) => (s.starts_with('-'), rest),
-        None => (false, s),
-    };
-    let radix_body = |prefix_lower: &str, prefix_upper: &str| {
-        body.strip_prefix(prefix_lower)
-            .or_else(|| body.strip_prefix(prefix_upper))
-    };
-    let (digits, radix, valid): (&str, u32, fn(u8) -> bool) =
-        if let Some(h) = radix_body("0x", "0X") {
-            (h, 16, |c: u8| c.is_ascii_hexdigit())
-        } else if let Some(b) = radix_body("0b", "0B") {
-            (b, 2, |c: u8| matches!(c, b'0' | b'1'))
-        } else if !body.is_empty() && body.bytes().all(|c| c.is_ascii_digit()) {
-            // All-digit decimal that failed the i64 parse above: beyond a
-            // wide — the bignum rung.
-            return Some(TypeShape::Bignum);
-        } else {
-            return None;
-        };
-    if digits.is_empty() || !digits.bytes().all(valid) {
-        return None;
-    }
-    // A radix literal that fits i64 (sign applied) is a wide; a wider
-    // magnitude is a bignum.
-    let signed = if negative {
-        format!("-{digits}")
-    } else {
-        digits.to_owned()
-    };
-    Some(if i64::from_str_radix(&signed, radix).is_ok() {
-        TypeShape::Int
-    } else {
-        TypeShape::Bignum
-    })
+fn numbers_of(registry: &CommandRegistry) -> NumberSyntax {
+    registry.numbers()
 }
 
-/// Classify a literal string as its Tcl intrep type (set-statement context).
-fn literal_type(text: &str) -> TypeLattice {
+/// The integer-tower shape of a Tcl integer literal under `numbers` —
+/// [`TypeShape::Int`] when the value fits a wide (`i64`), [`TypeShape::Bignum`]
+/// beyond it (`9223372036854775808`, `0xFFFFFFFFFFFFFFFF` — promotion is by
+/// magnitude, never wrapping; oracle corpus in type-tracking.md). `None` when
+/// the text is not, in its entirety, an integer numeral of the target release.
+///
+/// The grammar is the shared one ([`tcl_syntax::number`]), so which spellings
+/// exist follows the release: `0x` always, `0o`/`0b` from 8.5, `0d` and `_`
+/// separators from 9.0, and a bare leading zero is octal up to 8.6 but decimal
+/// from 9.0. A prefix the release lacks is not a prefix (`0o17` is a bareword
+/// under 8.4), and radix-invalid digits (`0o8`, `0xZZ`) are never a numeral.
+/// `integer_only` mirrors `TCL_PARSE_INTEGER_ONLY`: a fractional part is
+/// trailing junk, so `1.5` yields `None` here and is classified as a double by
+/// the caller.
+#[must_use]
+fn int_literal_shape(s: &str, numbers: NumberSyntax) -> Option<TypeShape> {
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::for_syntax(numbers)
+    };
+    match parse_whole_with(s, flags)? {
+        Number::Int(_) => Some(TypeShape::Int),
+        Number::Big { .. } => Some(TypeShape::Bignum),
+        Number::Double(_) | Number::Nan { .. } => None,
+    }
+}
+
+/// Whether `s` carries the `0o`/`0O` octal prefix — the one integer spelling
+/// the **set-statement** classifier deliberately holds back as `String` while
+/// the expr classifier calls it an `Int`.
+///
+/// The divergence is intentional and pinned by tests (`0o17` is `String` after
+/// `set x 0o17`, `Int` inside `expr {0o17}`): a `set` stores a pure string whose
+/// canonical stringified intrep (`15`) differs from the source text, whereas the
+/// expr lexer tokenises the word as a number outright. Only the *spelling* is
+/// held back here; whether that spelling is a numeral at all is still the
+/// release's business (under 8.4 there is no `0o` prefix, so such a word is a
+/// bareword and would be `String` anyway).
+#[must_use]
+fn has_octal_prefix(s: &str) -> bool {
+    let body = s.strip_prefix(['+', '-']).unwrap_or(s);
+    // number-drift-ok: this recognises the `0o` *spelling* to apply the
+    // intrep divergence above, not to parse a numeral — the value and its
+    // validity still come from `int_literal_shape`'s dialect-aware parse. A
+    // release that lacks the prefix classifies such a word `String` either way,
+    // so the answer does not depend on the grammar.
+    body.starts_with("0o") || body.starts_with("0O")
+}
+
+/// Classify a literal string as its Tcl intrep type (set-statement context),
+/// reading numerals under `numbers` — the target release's grammar.
+fn literal_type(text: &str, numbers: NumberSyntax) -> TypeLattice {
     let s = text.trim();
-    if let Some(shape) = int_literal_shape(s) {
+    if !has_octal_prefix(s)
+        && let Some(shape) = int_literal_shape(s, numbers)
+    {
         return TypeLattice::of_shape(shape);
     }
     if looks_like_float(s) {
@@ -135,42 +155,33 @@ fn literal_type(text: &str) -> TypeLattice {
     TypeLattice::of(TclType::String)
 }
 
-/// Classify a literal's type in **expr context**.
+/// Classify a literal's type in **expr context**, reading numerals under
+/// `numbers`.
 ///
-/// The expr parser tokenises every integer spelling — decimal, hex
-/// (`0xff`), octal (`0o15`), and binary (`0b1010`) — as an integer
-/// (`Tcl_GetInt` accepts them), so they all map to `Int`. This is the key
-/// divergence from the set-statement [`literal_type`], where `0o…` stays
-/// `String` (its canonical stringified intrep differs from the source
-/// text). An unrecognised literal degrades to `Numeric` — an `expr`
-/// always yields a number — rather than to `String`.
-fn expr_literal_type(text: &str) -> TypeLattice {
+/// The expr parser tokenises every integer spelling the release has — decimal,
+/// hex (`0xff`), octal (`0o15`), binary (`0b1010`), `0d` decimal and
+/// `_`-separated forms in 9.0 — as an integer (`Tcl_GetInt` accepts them), so
+/// they all map to `Int`. This is the key divergence from the set-statement
+/// [`literal_type`], where a `0o…` spelling stays `String` (its canonical
+/// stringified intrep differs from the source text). A literal that is not a
+/// number of this release degrades to `Numeric` — an `expr` always yields a
+/// number — rather than to `String`.
+fn expr_literal_type(text: &str, numbers: NumberSyntax) -> TypeLattice {
     let s = text.trim();
-    let low = s.to_ascii_lowercase();
     // Boolean first (full spellings — see `literal_type`).
     if tcl_syntax::boolean::is_boolean_full_word(s) {
         return TypeLattice::of(TclType::Boolean);
     }
-    // Every integer-form spelling tokenises to an integer in expr context;
-    // the tower rung (wide vs bignum) follows the magnitude. `0o` octal —
-    // absent from the set-statement classifier — is an integer here, so it
-    // routes through the shared number grammar.
-    if let Some(shape) = int_literal_shape(s) {
-        return TypeLattice::of_shape(shape);
+    // One pass of the shared grammar covers the whole numeric tower: the
+    // integer rungs (wide / bignum), doubles, and `Inf`/`NaN`. Anything the
+    // release does not read as a number at all — `08` under the 8.x octal
+    // rule, `0d99` before 9.0 — is `Numeric`, not a wrongly-narrowed `Double`.
+    match parse_whole_with(s, ParseFlags::for_syntax(numbers)) {
+        Some(Number::Int(_)) => TypeLattice::of(TclType::Int),
+        Some(Number::Big { .. }) => TypeLattice::of_shape(TypeShape::Bignum),
+        Some(Number::Double(_) | Number::Nan { .. }) => TypeLattice::of(TclType::Double),
+        None => TypeLattice::of(TclType::Numeric),
     }
-    if low.starts_with("0o") {
-        return match tcl_syntax::number::parse_whole(s) {
-            Some(tcl_syntax::number::Number::Int(_)) => TypeLattice::of(TclType::Int),
-            Some(tcl_syntax::number::Number::Big { .. }) => {
-                TypeLattice::of_shape(TypeShape::Bignum)
-            }
-            _ => TypeLattice::of(TclType::Numeric),
-        };
-    }
-    if s.parse::<f64>().is_ok() {
-        return TypeLattice::of(TclType::Double);
-    }
-    TypeLattice::of(TclType::Numeric)
 }
 
 /// The enclosing namespace of a (possibly qualified) function name —
@@ -295,6 +306,7 @@ fn infer_expr_type(
     node: &ExprNode,
     var_types: &HashMap<String, TypeLattice>,
     depth: u32,
+    numbers: NumberSyntax,
 ) -> TypeLattice {
     // Native-stack safety net (issue #996): `ExprNode` operator trees are
     // walked with one native frame per nesting level. Past the cap, give up
@@ -305,7 +317,7 @@ fn infer_expr_type(
         return TypeLattice::overdefined();
     }
     match node {
-        ExprNode::Literal { text, .. } => expr_literal_type(text),
+        ExprNode::Literal { text, .. } => expr_literal_type(text, numbers),
 
         ExprNode::String { .. } => TypeLattice::of(TclType::String),
 
@@ -362,8 +374,8 @@ fn infer_expr_type(
                 // operand types, but only when both are `Known`;
                 // otherwise Numeric.
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::Pow => {
-                    let lt = infer_expr_type(left, var_types, depth + 1);
-                    let rt = infer_expr_type(right, var_types, depth + 1);
+                    let lt = infer_expr_type(left, var_types, depth + 1, numbers);
+                    let rt = infer_expr_type(right, var_types, depth + 1, numbers);
                     if lt.kind() == TypeKind::Known && rt.kind() == TypeKind::Known {
                         arithmetic_result(&lt, &rt)
                     } else {
@@ -379,7 +391,7 @@ fn infer_expr_type(
             // logical NOT yields `Boolean`.'
             // `UnaryOpKind` BITWISE arm (`~` was grouped with
             // the identity ops and leaked the operand's `Double`).
-            UnaryOp::Neg | UnaryOp::Pos => infer_expr_type(operand, var_types, depth + 1),
+            UnaryOp::Neg | UnaryOp::Pos => infer_expr_type(operand, var_types, depth + 1, numbers),
             UnaryOp::BitNot => TypeLattice::of(TclType::Int),
             UnaryOp::Not | UnaryOp::WordNot => TypeLattice::of(TclType::Boolean),
         },
@@ -389,15 +401,17 @@ fn infer_expr_type(
             false_branch,
             ..
         } => {
-            let tt = infer_expr_type(true_branch, var_types, depth + 1);
-            let ft = infer_expr_type(false_branch, var_types, depth + 1);
+            let tt = infer_expr_type(true_branch, var_types, depth + 1, numbers);
+            let ft = infer_expr_type(false_branch, var_types, depth + 1, numbers);
             type_join(&tt, &ft)
         }
 
         // Math-function calls resolve through the expr-function table
         // — `sqrt($x)` is Double, `int(...)` is Int, etc.,
         // where they previously degraded to overdefined.
-        ExprNode::Call { function, args, .. } => expr_call_type(function, args, var_types, depth),
+        ExprNode::Call { function, args, .. } => {
+            expr_call_type(function, args, var_types, depth, numbers)
+        }
 
         // Command substitutions and raw/unrecognised expression text
         // need the registry (or runtime context) to resolve. Without it
@@ -433,13 +447,14 @@ fn expr_call_type(
     args: &[ExprNode],
     var_types: &HashMap<String, TypeLattice>,
     depth: u32,
+    numbers: NumberSyntax,
 ) -> TypeLattice {
     // `depth` is the level of the enclosing `Call` node; its args are one
     // level deeper (issue #996 — `infer_expr_type` guards the cap itself).
     // Identity: `abs` preserves the operand type (Int fallback).
     if function == "abs" {
         return match args.first() {
-            Some(a) => infer_expr_type(a, var_types, depth + 1),
+            Some(a) => infer_expr_type(a, var_types, depth + 1, numbers),
             None => TypeLattice::of(TclType::Int),
         };
     }
@@ -448,9 +463,9 @@ fn expr_call_type(
         let mut it = args.iter();
         return match it.next() {
             Some(first) => {
-                let mut acc = infer_expr_type(first, var_types, depth + 1);
+                let mut acc = infer_expr_type(first, var_types, depth + 1, numbers);
                 for a in it {
-                    acc = type_join(&acc, &infer_expr_type(a, var_types, depth + 1));
+                    acc = type_join(&acc, &infer_expr_type(a, var_types, depth + 1, numbers));
                 }
                 acc
             }
@@ -521,6 +536,10 @@ struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
     known_classes: &'a HashSet<String, S>,
     namespace: &'a str,
     ssa: &'a SsaFunction,
+    /// The target release's numeric-literal grammar, derived once from the
+    /// dialect-selected registry in [`propagate_types`] and threaded to every
+    /// literal classifier — see [`numbers_of`].
+    numbers: NumberSyntax,
 }
 
 impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
@@ -959,7 +978,7 @@ fn value_word_type<S: std::hash::BuildHasher>(
     if value.contains('$') || value.contains('[') {
         return TypeLattice::of(TclType::String);
     }
-    literal_type(value)
+    literal_type(value, ctx.numbers)
 }
 
 /// How one statement types the variable(s) it defines.
@@ -979,7 +998,9 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
 ) -> DefTyping {
     match stmt {
-        Statement::AssignConst { value, .. } => DefTyping::Uniform(literal_type(value)),
+        Statement::AssignConst { value, .. } => {
+            DefTyping::Uniform(literal_type(value, ctx.numbers))
+        }
 
         Statement::AssignExpr { expr, .. } => {
             // Build a name→TypeLattice map for variables used in the expression.
@@ -994,7 +1015,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                     Some((ctx.ssa.var_name(sym).to_owned(), t.clone()))
                 })
                 .collect();
-            DefTyping::Uniform(infer_expr_type(expr, &var_types, 0))
+            DefTyping::Uniform(infer_expr_type(expr, &var_types, 0, ctx.numbers))
         }
 
         Statement::AssignValue { value, .. } => DefTyping::Uniform(value_word_type(ctx, value)),
@@ -1318,6 +1339,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         values: &sccp.values,
         escaping: &escaping,
         has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
+        numbers: numbers_of(registry),
     };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
@@ -1417,6 +1439,8 @@ struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     /// `trace_facts.traced_variables`).
     escaping: &'a HashSet<String>,
     has_dynamic_variable_trace: bool,
+    /// The target release's numeric-literal grammar — see [`numbers_of`].
+    numbers: NumberSyntax,
 }
 
 /// Evaluate each statement's defs for one block, forcing every def of a name
@@ -1463,6 +1487,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     known_classes: ctx.known_classes,
                     namespace: ctx.namespace,
                     ssa: ctx.ssa,
+                    numbers: ctx.numbers,
                 };
                 evaluate_type_def(stmt, &word_ctx)
             }
@@ -1567,6 +1592,9 @@ pub(crate) fn infer_function_return_type<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
 ) -> TypeLattice {
     let namespace = function_namespace(&cfg.name);
+    // The registry is the dialect-selected one, so it carries the numeral
+    // grammar the return literals must be read under (see [`numbers_of`]).
+    let numbers = numbers_of(registry);
     // Collapse the versioned type map to a name-keyed map by joining
     // every version of each name — the over-approximation noted above.
     let mut var_types: HashMap<String, TypeLattice> = HashMap::new();
@@ -1585,9 +1613,16 @@ pub(crate) fn infer_function_return_type<S: std::hash::BuildHasher>(
         let t = match &block.terminator {
             Some(Terminator::Return { value, expr, .. }) => {
                 if let Some(expr) = expr {
-                    infer_expr_type(expr, &var_types, 0)
+                    infer_expr_type(expr, &var_types, 0, numbers)
                 } else if let Some(value) = value {
-                    infer_return_value_type(value, &var_types, registry, known_classes, &namespace)
+                    infer_return_value_type(
+                        value,
+                        &var_types,
+                        registry,
+                        known_classes,
+                        &namespace,
+                        numbers,
+                    )
                 } else {
                     // Bare `return` yields the empty string.
                     TypeLattice::of(TclType::String)
@@ -1616,6 +1651,7 @@ fn infer_return_value_type<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     known_classes: &HashSet<String, S>,
     namespace: &str,
+    numbers: NumberSyntax,
 ) -> TypeLattice {
     let stripped = value.trim();
     // Pure variable reference: inherit the source type.
@@ -1638,7 +1674,7 @@ fn infer_return_value_type<S: std::hash::BuildHasher>(
     if value.contains('$') || value.contains('[') {
         return TypeLattice::of(TclType::String);
     }
-    literal_type(value)
+    literal_type(value, numbers)
 }
 
 #[cfg(test)]
@@ -1676,6 +1712,7 @@ mod tests {
             known_classes: &known_classes,
             namespace: "::",
             ssa,
+            numbers: numbers_of(registry),
         };
         match evaluate_type_def(stmt, &ctx) {
             DefTyping::Uniform(t) => t,
@@ -1945,21 +1982,21 @@ mod tests {
 
     #[test]
     fn float_literal_infers_double() {
-        let t = literal_type("3.14");
+        let t = literal_type("3.14", NumberSyntax::Tcl90);
         assert_eq!(t, TypeLattice::of(TclType::Double));
     }
 
     #[test]
     fn bool_literal_infers_boolean() {
-        let t = literal_type("true");
+        let t = literal_type("true", NumberSyntax::Tcl90);
         assert_eq!(t, TypeLattice::of(TclType::Boolean));
-        let t2 = literal_type("false");
+        let t2 = literal_type("false", NumberSyntax::Tcl90);
         assert_eq!(t2, TypeLattice::of(TclType::Boolean));
     }
 
     #[test]
     fn string_literal_infers_string() {
-        let t = literal_type("hello");
+        let t = literal_type("hello", NumberSyntax::Tcl90);
         assert_eq!(t, TypeLattice::of(TclType::String));
     }
 
@@ -1969,14 +2006,124 @@ mod tests {
         // one clean parse, not per-iteration shimmer).
         for lit in ["0x80", "0X1f", "-0xFF", "0b1010", "0B1", "+0x0"] {
             assert_eq!(
-                literal_type(lit),
+                literal_type(lit, NumberSyntax::Tcl90),
                 TypeLattice::of(TclType::Int),
                 "{lit} should be INT"
             );
         }
         // Octal `0o…` and non-integer hex stay STRING (set-statement classifier).
-        assert_eq!(literal_type("0o17"), TypeLattice::of(TclType::String));
-        assert_eq!(literal_type("0xZZ"), TypeLattice::of(TclType::String));
+        assert_eq!(
+            literal_type("0o17", NumberSyntax::Tcl90),
+            TypeLattice::of(TclType::String)
+        );
+        assert_eq!(
+            literal_type("0xZZ", NumberSyntax::Tcl90),
+            TypeLattice::of(TclType::String)
+        );
+    }
+
+    /// The literal classifiers read numerals under the *target release's*
+    /// grammar, and the set/expr divergence on `0o…` survives it.
+    ///
+    /// The matrix (from the C release sources): `0x` in every release; `0o`/`0b`
+    /// from 8.5; `0d` and `_` separators from 9.0; a bare leading zero is octal
+    /// up to 8.6 and decimal from 9.0. A spelling the release does not have is
+    /// not a numeral — a bareword in expr context (`Numeric`, since an `expr`
+    /// still yields a number) and a plain `String` after `set`.
+    #[test]
+    fn literal_classifiers_follow_the_release_numeral_matrix() {
+        use NumberSyntax::{Tcl84, Tcl85, Tcl90};
+        let set_type = |lit: &str, n| literal_type(lit, n).tcl_type();
+        let expr_type = |lit: &str, n| expr_literal_type(lit, n).tcl_type();
+
+        // `0o17`: the deliberate divergence. From 8.5 it is an `Int` in expr
+        // context but stays `String` after `set` (its canonical intrep, `15`,
+        // differs from the source text). Under 8.4 there is no `0o` prefix at
+        // all, so it is a bareword either way.
+        for syntax in [Tcl85, Tcl90] {
+            assert_eq!(
+                set_type("0o17", syntax),
+                Some(TclType::String),
+                "{syntax:?}"
+            );
+            assert_eq!(expr_type("0o17", syntax), Some(TclType::Int), "{syntax:?}");
+        }
+        assert_eq!(set_type("0o17", Tcl84), Some(TclType::String));
+        assert_eq!(expr_type("0o17", Tcl84), Some(TclType::Numeric));
+
+        // `0d99` — the 9.0-only decimal prefix.
+        assert_eq!(set_type("0d99", Tcl90), Some(TclType::Int));
+        assert_eq!(expr_type("0d99", Tcl90), Some(TclType::Int));
+        for syntax in [Tcl84, Tcl85] {
+            assert_eq!(
+                set_type("0d99", syntax),
+                Some(TclType::String),
+                "{syntax:?}"
+            );
+            assert_eq!(
+                expr_type("0d99", syntax),
+                Some(TclType::Numeric),
+                "{syntax:?}"
+            );
+        }
+
+        // `1_000` — 9.0-only digit separators.
+        assert_eq!(set_type("1_000", Tcl90), Some(TclType::Int));
+        assert_eq!(expr_type("1_000", Tcl90), Some(TclType::Int));
+        for syntax in [Tcl84, Tcl85] {
+            assert_eq!(
+                set_type("1_000", syntax),
+                Some(TclType::String),
+                "{syntax:?}"
+            );
+            assert_eq!(
+                expr_type("1_000", syntax),
+                Some(TclType::Numeric),
+                "{syntax:?}"
+            );
+        }
+
+        // `0b101` — 8.5 onward.
+        assert_eq!(set_type("0b101", Tcl84), Some(TclType::String));
+        assert_eq!(expr_type("0b101", Tcl84), Some(TclType::Numeric));
+        for syntax in [Tcl85, Tcl90] {
+            assert_eq!(set_type("0b101", syntax), Some(TclType::Int), "{syntax:?}");
+            assert_eq!(expr_type("0b101", syntax), Some(TclType::Int), "{syntax:?}");
+        }
+
+        // A radix-invalid digit is never a numeral, in any release.
+        for syntax in [Tcl84, Tcl85, Tcl90] {
+            for bad in ["0o8", "0xZZ"] {
+                assert_eq!(
+                    set_type(bad, syntax),
+                    Some(TclType::String),
+                    "{bad} under {syntax:?}"
+                );
+                assert_eq!(
+                    expr_type(bad, syntax),
+                    Some(TclType::Numeric),
+                    "{bad} under {syntax:?}"
+                );
+            }
+        }
+
+        // A bare leading zero is an integer in every release (only its *value*
+        // differs: 493 up to 8.6, 755 from 9.0 — see `intervals`), while `08`
+        // is a broken octal up to 8.6 and plain decimal 8 from 9.0.
+        for syntax in [Tcl84, Tcl85, Tcl90] {
+            assert_eq!(set_type("0755", syntax), Some(TclType::Int), "{syntax:?}");
+            assert_eq!(expr_type("0755", syntax), Some(TclType::Int), "{syntax:?}");
+        }
+        for syntax in [Tcl84, Tcl85] {
+            assert_eq!(set_type("08", syntax), Some(TclType::String), "{syntax:?}");
+            assert_eq!(
+                expr_type("08", syntax),
+                Some(TclType::Numeric),
+                "{syntax:?}"
+            );
+        }
+        assert_eq!(set_type("08", Tcl90), Some(TclType::Int));
+        assert_eq!(expr_type("08", Tcl90), Some(TclType::Int));
     }
 
     #[test]
@@ -2165,16 +2312,23 @@ mod tests {
     // expr type-inference precision
 
     /// Infer the type of a standalone expression string (no SSA
-    /// context — variable refs stay `Unknown`).
+    /// context — variable refs stay `Unknown`), under the Tcl 9.0 numeral
+    /// grammar.
     fn infer_str(src: &str) -> TypeLattice {
         infer_str_dialect(src, None)
     }
 
     /// As [`infer_str`] but parses under `dialect` (the iRules string
-    /// predicates only tokenise as operators in the iRules dialect).
+    /// predicates only tokenise as operators in the iRules dialect) and reads
+    /// numerals under that dialect's grammar.
     fn infer_str_dialect(src: &str, dialect: Option<&str>) -> TypeLattice {
         let node = crate::parse_expr(src, dialect);
-        infer_expr_type(&node, &HashMap::new(), 0)
+        infer_expr_type(
+            &node,
+            &HashMap::new(),
+            0,
+            crate::intervals::numbers_for_dialect(dialect),
+        )
     }
 
     #[test]
@@ -2243,7 +2397,7 @@ mod tests {
                 end: 1,
             };
         }
-        let _ = infer_expr_type(&node, &HashMap::new(), 0);
+        let _ = infer_expr_type(&node, &HashMap::new(), 0, NumberSyntax::Tcl90);
     }
 
     /// Companion to `deeply_nested_expr_type_inference_survives`: moderate
@@ -2307,10 +2461,16 @@ mod tests {
         assert_eq!(infer_str("42").tcl_type(), Some(TclType::Int));
         assert_eq!(infer_str("3.14").tcl_type(), Some(TclType::Double));
         // The set-statement classifier still keeps octal as String.
-        assert_eq!(literal_type("0o17"), TypeLattice::of(TclType::String));
+        assert_eq!(
+            literal_type("0o17", NumberSyntax::Tcl90),
+            TypeLattice::of(TclType::String)
+        );
         // An unrecognised literal degrades to Numeric in expr context
         // (the set-statement classifier would say String).
-        assert_eq!(expr_literal_type("nope").tcl_type(), Some(TclType::Numeric));
+        assert_eq!(
+            expr_literal_type("nope", NumberSyntax::Tcl90).tcl_type(),
+            Some(TclType::Numeric)
+        );
     }
 
     #[test]
@@ -2756,16 +2916,19 @@ mod tests {
     #[test]
     fn bignum_literal_classifies_on_the_tower() {
         assert_eq!(
-            literal_type("18446744073709551616").single_shape(),
+            literal_type("18446744073709551616", NumberSyntax::Tcl90).single_shape(),
             Some(&TypeShape::Bignum)
         );
         assert_eq!(
-            literal_type("0xFFFFFFFFFFFFFFFF").single_shape(),
+            literal_type("0xFFFFFFFFFFFFFFFF", NumberSyntax::Tcl90).single_shape(),
             Some(&TypeShape::Bignum)
         );
-        assert_eq!(literal_type("5").single_shape(), Some(&TypeShape::Int));
         assert_eq!(
-            literal_type("-9223372036854775808").single_shape(),
+            literal_type("5", NumberSyntax::Tcl90).single_shape(),
+            Some(&TypeShape::Int)
+        );
+        assert_eq!(
+            literal_type("-9223372036854775808", NumberSyntax::Tcl90).single_shape(),
             Some(&TypeShape::Int),
             "i64::MIN still fits a wide"
         );

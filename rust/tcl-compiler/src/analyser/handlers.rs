@@ -4643,7 +4643,18 @@ impl Analyser {
         }
         let pair_start = usize::from(args.len() % 2 == 1);
         let level = if pair_start == 1 {
-            FrameLevel::parse(&args[0]).unwrap_or(FrameLevel::Dynamic)
+            // The level word's grammar is the analysed release's (`uplevel 010`
+            // is 8 frames up on 8.6 and 10 on 9.0). With no registry loaded
+            // there is no release to name, so `parse` abstains with `Dynamic`
+            // wherever the releases disagree — the direction every consumer of
+            // this level already treats conservatively.
+            self.registry
+                .as_ref()
+                .map_or_else(
+                    || FrameLevel::parse(&args[0]),
+                    |r| FrameLevel::parse_in(&args[0], r),
+                )
+                .unwrap_or(FrameLevel::Dynamic)
         } else {
             FrameLevel::DEFAULT
         };

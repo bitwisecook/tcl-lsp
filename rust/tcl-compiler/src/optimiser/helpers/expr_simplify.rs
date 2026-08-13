@@ -166,7 +166,7 @@ fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     };
     match node {
         ExprNode::Literal { .. } => true,
-        ExprNode::String { text, .. } => is_numeric_string(text),
+        ExprNode::String { text, .. } => is_numeric_string_in_every_release(text),
         ExprNode::Var { name, .. } => ctx.numeric.contains(name.as_str()),
         _ => false,
     }
@@ -206,14 +206,36 @@ fn strip_literal_delims(text: &str) -> &str {
 /// and must classify as one here, or two callers (the O120 eq/ne string-
 /// compare promotion gate and the O100/O101 constant-substitution binder)
 /// wrongly treat it as "provably not a number".
-fn is_numeric_string(text: &str) -> bool {
-    use tcl_syntax::number::Number;
+/// [`is_numeric_string`] under one release's grammar, or — with `numbers`
+/// [`None`] — under whichever grammar this process was built for.
+fn is_numeric_string_under(text: &str, numbers: Option<tcl_syntax::number::NumberSyntax>) -> bool {
+    use tcl_syntax::number::{Number, ParseFlags};
     let t = strip_literal_delims(text);
+    let flags = numbers.map_or_else(ParseFlags::default, ParseFlags::for_syntax);
     !t.is_empty()
         && matches!(
-            tcl_syntax::number::parse_whole(t),
+            tcl_syntax::number::parse_whole_with(t, flags),
             Some(Number::Int(_) | Number::Big { .. } | Number::Double(_) | Number::Nan { .. })
         )
+}
+
+/// Whether `text` is a number under **every** release — the sound reading of
+/// "provably numeric" for an optimiser gate that has no target in hand.
+///
+/// A release-dependent spelling is not *provable*: `08` is a number from 9.0 and
+/// an invalid octal before it, so a rewrite that requires a numeric operand must
+/// not fire on it. Requiring unanimity keeps the gate correct whichever release
+/// the program is eventually built for.
+fn is_numeric_string_in_every_release(text: &str) -> bool {
+    tcl_syntax::number::NumberSyntax::every(|n| is_numeric_string_under(text, Some(n)))
+}
+
+/// Whether `text` is a number under **any** release — the sound reading for a
+/// gate that *refuses* an optimisation because a value "could still be a
+/// number". Here the permissive direction is the safe one: a spelling numeric on
+/// even one release must block the rewrite.
+fn is_numeric_string_in_any_release(text: &str) -> bool {
+    tcl_syntax::number::NumberSyntax::any(|n| is_numeric_string_under(text, Some(n)))
 }
 
 /// Whether the (delimiter-stripped) text of an `expr` literal parses as a Tcl
@@ -221,11 +243,19 @@ fn is_numeric_string(text: &str) -> bool {
 /// an integer). A float literal (`1.5`) is not. Uses the shared number grammar
 /// so it agrees with the const-folder.
 fn is_integer_string(text: &str) -> bool {
-    use tcl_syntax::number::Number;
-    matches!(
-        tcl_syntax::number::parse_whole(strip_literal_delims(text)),
-        Some(Number::Int(_) | Number::Big { .. })
-    )
+    use tcl_syntax::number::{Number, ParseFlags};
+    // Unanimous across releases, for the same reason as
+    // [`is_numeric_string_in_every_release`]: this gates rewrites that need a
+    // genuine integer operand, and a release-dependent spelling is not proof.
+    tcl_syntax::number::NumberSyntax::every(|n| {
+        matches!(
+            tcl_syntax::number::parse_whole_with(
+                strip_literal_delims(text),
+                ParseFlags::for_syntax(n),
+            ),
+            Some(Number::Int(_) | Number::Big { .. })
+        )
+    })
 }
 
 // Landed: try_fold_expr (O101 — fold constant expression)
@@ -297,7 +327,16 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
     }
     let mut env = Env::new();
     for (name, value) in constants {
-        if braced || is_numeric_string(value) {
+        // A dialect is in hand here (it drove `parse_expr` above), so bind under
+        // the release actually being compiled for rather than the ambient.
+        if braced
+            || is_numeric_string_under(
+                value,
+                Some(tcl_dialect::NumberSyntax::of_profile(Some(
+                    tcl_dialect::DialectProfile::by_opt_name(dialect),
+                ))),
+            )
+        {
             env.insert(name.clone(), EnvValue::Str(value.clone()));
         }
     }
@@ -433,7 +472,7 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
 /// [`is_numeric_string`] — the same Tcl-number grammar, not a locally
 /// re-implemented Rust-`str::parse` approximation.
 fn is_numeric_literal(text: &str) -> bool {
-    is_numeric_string(text)
+    is_numeric_string_in_every_release(text)
 }
 
 // instcombine / strength-reduce / strlen / streq
@@ -1398,7 +1437,9 @@ fn node_provably_non_numeric(node: &ExprNode) -> bool {
 /// Kept separate from [`is_numeric_string`] (used by the arithmetic-identity
 /// gate, where a boolean word is *not* a valid arithmetic operand).
 fn is_numeric_or_boolean_string(text: &str) -> bool {
-    if is_numeric_string(text) {
+    // The permissive direction: this gate refuses a promotion when the value
+    // could still be a number on some release.
+    if is_numeric_string_in_any_release(text) {
         return true;
     }
     let stripped = text
@@ -1858,24 +1899,55 @@ mod tests {
     #[test]
     fn numeric_string_literal_is_provably_numeric() {
         // An SCCP-inlined numeric constant arrives as a string literal.
-        assert!(is_numeric_string("42"));
-        assert!(is_numeric_string("\"3.5\""));
-        assert!(!is_numeric_string("\"abc\""));
-        assert!(!is_numeric_string(""));
+        assert!(is_numeric_string_in_every_release("42"));
+        assert!(is_numeric_string_in_every_release("\"3.5\""));
+        assert!(!is_numeric_string_in_every_release("\"abc\""));
+        assert!(!is_numeric_string_in_every_release(""));
     }
 
+    /// The gate reads through the shared Tcl grammar, not Rust's — `0x1a` is a
+    /// number here where `str::parse::<i64>/<f64>` rejects it outright.
+    ///
+    /// It asks the *provable* question, though, so only spellings every release
+    /// agrees on qualify. `0x1a` is hex in all of them; `0o17`/`0b101` arrive in
+    /// 8.5 and `1_000` in 9.0, so none of those three is provably a number
+    /// without a target in hand — and this predicate gates rewrites that need a
+    /// genuine numeric operand. The permissive question has its own predicate,
+    /// [`is_numeric_string_in_any_release`], asserted below.
     #[test]
     fn is_numeric_string_recognises_non_decimal_tcl_numbers() {
-        // TP: hex/octal/binary/underscore-separated forms are real Tcl
-        // numbers (tclsh: 0x1a==26, 0o17==15, 0b101==5, 1_000==1000) — the
-        // shared `tcl_syntax::number` grammar accepts them even though
-        // Rust's own `str::parse::<i64>/<f64>` rejects all four.
-        for text in ["0x1a", "0o17", "0b101", "1_000", "\"0x1a\""] {
-            assert!(is_numeric_string(text), "{text:?} should be numeric");
+        // Universal in every release — and rejected by Rust's own parsers.
+        for text in ["0x1a", "\"0x1a\""] {
+            assert!(
+                is_numeric_string_in_every_release(text),
+                "{text:?} should be provably numeric"
+            );
         }
-        // TN control: still rejects genuine non-numbers.
-        assert!(!is_numeric_string("hello"));
-        assert!(!is_numeric_string("0xzz"));
+        // Real Tcl numbers, but only from 8.5 / 9.0 — not provable without a
+        // target, and each *is* numeric under the release that has it.
+        for (text, first) in [
+            ("0o17", tcl_syntax::number::NumberSyntax::Tcl85),
+            ("0b101", tcl_syntax::number::NumberSyntax::Tcl85),
+            ("1_000", tcl_syntax::number::NumberSyntax::Tcl90),
+        ] {
+            assert!(
+                !is_numeric_string_in_every_release(text),
+                "{text:?} is not provable across releases"
+            );
+            assert!(
+                is_numeric_string_under(text, Some(first)),
+                "{text:?} is numeric under {first:?}"
+            );
+            assert!(
+                is_numeric_string_in_any_release(text),
+                "{text:?} is numeric on some release, so it blocks a promotion"
+            );
+        }
+        // TN control: still rejects genuine non-numbers, both ways.
+        for text in ["hello", "0xzz"] {
+            assert!(!is_numeric_string_in_every_release(text), "{text:?}");
+            assert!(!is_numeric_string_in_any_release(text), "{text:?}");
+        }
     }
 
     #[test]
@@ -1893,7 +1965,7 @@ mod tests {
         // is a genuine Tcl number (tclsh: `expr {"0x1a" == 26}` -> 1, a
         // numeric compare), so treating it as "provably non-numeric" would
         // silently turn a numeric comparison into a string comparison.
-        // Before the fix, `is_numeric_string("0x1a")` was false, so
+        // Before the fix, `is_numeric_string_in_every_release("0x1a")` was false, so
         // `node_provably_non_numeric` wrongly returned true for this
         // literal and the eq/ne promotion fired.
         let (out, changed) = try_eq_ne_string_compare_simplify_expr("\"0x1a\" == $y");

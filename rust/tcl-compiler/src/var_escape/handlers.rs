@@ -49,7 +49,11 @@ pub fn has_expand_word(tokens: Option<&CommandTokens>) -> bool {
 
 /// Apply every variable-cell alias declared by the registry invocation.
 /// Returns whether at least one alias transition was present.
-pub fn handle_variable_aliases(facts: &InvocationFacts, state: &mut EscapeState) -> bool {
+pub fn handle_variable_aliases(
+    facts: &InvocationFacts,
+    state: &mut EscapeState,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
     let Some(transitions) = facts.state_transitions.declared() else {
         return false;
     };
@@ -84,7 +88,7 @@ pub fn handle_variable_aliases(facts: &InvocationFacts, state: &mut EscapeState)
                     state.record_unbounded_upvar();
                     continue;
                 };
-                tcl_registry::frame_effect::FrameLevel::parse(level)
+                tcl_registry::frame_effect::FrameLevel::parse_in(level, registry)
                     .is_none_or(|level| !level.is_current_frame() && !level.is_global_frame())
             }
         };

@@ -31,12 +31,17 @@ authors.workspace = true
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
+# The toolchain's one number facility: DSL integer literals are read through it
+# so the eBPF backend agrees with the compiler and VM about what a numeral means
+# under the target dialect. Also drives the operator-completeness test in
+# `lower.rs` (iterating `ALL_BIN_OPS`/`ALL_UNARY_OPS`) — issue #983's plan.
+tcl-syntax = { path = "../tcl-syntax" }
 
 [dev-dependencies]
-# Only for the operator-completeness test in `lower.rs`: iterating
-# `ALL_BIN_OPS`/`ALL_UNARY_OPS` to prove every variant either lowers or hits
-# `BpfDiag::OutOfSubset`, never silently mishandled — issue #983's plan.
-tcl-syntax = { path = "../tcl-syntax" }
+# Naming dialect profiles directly in tests: the lowerer itself only ever
+# reaches a profile through `CommandRegistry::profile()`, so it needs no
+# compile-time path to this crate.
+tcl-dialect = { path = "../tcl-dialect" }
 
 [lints]
 workspace = true

@@ -30,9 +30,9 @@
 //! axis.
 
 use crate::dialect_set::DialectSet;
-use crate::grammar::{BracedVarStyle, ExprCommentStyle, LexerGrammar};
+use crate::grammar::{BracedVarStyle, ExprCommentStyle, LexerGrammar, NumberSyntax};
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-use crate::version::{TclVersion, Ternary};
+use crate::version::{StringCharacterModel, TclVersion, Ternary};
 
 /// Library pins for the 8.4/8.5-era plain Tcl profiles: Tk tracks the
 /// embedded base (`wish` 8.5 ships Tk 8.5), Itcl ships the 3.x line.
@@ -78,6 +78,7 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
+    numbers: NumberSyntax::Tcl84,
 };
 
 /// The 8.5/8.6-family lexing grammar (plain 8.5/8.6, iApps, tmsh, Expect,
@@ -89,6 +90,7 @@ const GRAMMAR_TCL8X: LexerGrammar = LexerGrammar {
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
+    numbers: NumberSyntax::Tcl85,
 };
 
 /// The modern 9.x grammar (also the permissive default): `{*}` expansion,
@@ -99,6 +101,7 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     braced_var: BracedVarStyle::Tcl9Nesting,
     script_skips_leading_bom: true,
     expr_comments: ExprCommentStyle::Hash,
+    numbers: NumberSyntax::Tcl90,
 };
 
 /// The iRules lexing grammar: a Tcl 8.4 base (no `{*}`, no `expr` comments)
@@ -109,6 +112,7 @@ const GRAMMAR_IRULES: LexerGrammar = LexerGrammar {
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
+    numbers: NumberSyntax::Tcl84,
 };
 
 /// One resolved dialect. `'static`, interned in [`DialectProfile::all`],
@@ -865,6 +869,30 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
 };
 
 impl DialectProfile {
+    /// The release this profile's *runtime* behaviour follows, if it names one.
+    ///
+    /// A thin name over [`Self::runtime_base`], but the name is the point: it
+    /// is the sanctioned way to get from a profile to a [`TclVersion`], so the
+    /// step reads the same everywhere and a future rule (a vendor bit that
+    /// overrides the base, say) has one place to land.
+    #[must_use]
+    pub fn runtime_version(&self) -> Option<TclVersion> {
+        self.runtime_base
+    }
+
+    /// The string/character model of the release this profile runs.
+    ///
+    /// Collapses a three-step composition — profile → `runtime_base` →
+    /// [`TclVersion::string_character_model`] — that had four independent
+    /// copies across the compiler, the analyser and the explorer, reached
+    /// through three different spellings of "get the profile". Each copy was
+    /// free to differ in what it did with a profile that names no release.
+    #[must_use]
+    pub fn character_model(&self) -> Option<StringCharacterModel> {
+        self.runtime_version()
+            .map(TclVersion::string_character_model)
+    }
+
     /// The full catalog of canonical dialect profiles, in sorted-name order
     /// (the [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) order). Excludes the
     /// [`Self::plain_tcl`] fallback — it is a resolution sink, not a
@@ -1033,7 +1061,7 @@ impl DialectProfile {
 mod tests {
     use super::DialectProfile;
     use crate::dialect_set::{DialectSet, KNOWN_DIALECTS};
-    use crate::grammar::{BracedVarStyle, ExprCommentStyle};
+    use crate::grammar::{BracedVarStyle, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
     use crate::version::{TclVersion, Ternary};
 
@@ -1583,6 +1611,20 @@ mod tests {
                 ExprCommentStyle::None
             };
             assert_eq!(p.grammar.expr_comments, expected_comments, "{}", p.name);
+            // Numeric-literal grammar: `tclStrToD.c` does not exist at
+            // core-8-4-20 (8.4 scans integers strtoul-style, knowing only `0x`
+            // and leading-zero octal); core-8-5-19 / core-8-6-16 add the
+            // `ZERO_B`/`ZERO_O` states but no `ZERO_D` and keep
+            // `#undef KILL_OCTAL`; 9.0.4 adds `ZERO_D` plus `_` separators and
+            // drops leading-zero octal (`changes.md`). So the gates are exactly
+            // `>= V8_5` for `0b`/`0o` and `>= V9_0` for `0d` / `_` / decimal
+            // leading zero.
+            let expected_numbers = match p.runtime_base {
+                Some(TclVersion::V8_4) => NumberSyntax::Tcl84,
+                Some(TclVersion::V8_5 | TclVersion::V8_6) => NumberSyntax::Tcl85,
+                _ => NumberSyntax::Tcl90,
+            };
+            assert_eq!(p.grammar.numbers, expected_numbers, "{}", p.name);
         }
     }
 

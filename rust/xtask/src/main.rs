@@ -40,6 +40,8 @@
 //!   `DiagCode` catalogue (`--check` to verify instead of write).
 //! - `gen-editor-catalogs` — generate the Zed/VS Code command & iRules-event
 //!   catalog JSON from the registry (`--check` to verify instead of write).
+//! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
+//!   the one numeral parser (`tcl_syntax::number`).
 
 #![forbid(unsafe_code)]
 
@@ -61,6 +63,7 @@ mod gen_tmlanguage_keywords;
 mod gen_vscode_package;
 mod gen_zed_queries;
 mod kcs_index_links;
+mod number_drift;
 mod registry_oracle;
 mod resolution_drift;
 mod tcltest_sweep;
@@ -190,6 +193,15 @@ enum Command {
         check: bool,
     },
 
+    /// Flag hand-rolled Tcl radix-prefix recognition outside the one numeral
+    /// parser (`tcl_syntax::number`) — the numeric-grammar drift class.
+    NumberDrift {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Flag namespace-blind `.name ==` scans over `all_procs`/`all_classes`
     /// outside the shared resolution contract (the M1 drift class).
     ResolutionDrift {
@@ -275,6 +287,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenJetbrainsCatalog { check } => gen_jetbrains::run(check),
         Command::GenAiDiagnostics { check } => gen_ai::run(check),
         Command::WorkflowSync { check } => workflow_sync::run(check),
+        Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::RegistryOracle {
             irules_root,

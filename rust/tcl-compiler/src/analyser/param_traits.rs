@@ -955,7 +955,7 @@ fn upvar_level_and_pairs<'a>(
     let level = if taken == 0 {
         FrameLevel::DEFAULT
     } else {
-        FrameLevel::parse(&args[0]).unwrap_or(FrameLevel::Dynamic)
+        FrameLevel::parse_in(&args[0], registry).unwrap_or(FrameLevel::Dynamic)
     };
     (level, args.get(taken..).unwrap_or(&[]))
 }

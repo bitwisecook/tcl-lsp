@@ -24,7 +24,8 @@
 //!   are tagged with (the availability atom).
 //! - [`TclVersion`] — the ordered Tcl release enum behaviour/const-fold
 //!   semantics key off.
-//! - [`LexerGrammar`] / [`BracedVarStyle`] / [`ExprCommentStyle`] — the
+//! - [`LexerGrammar`] / [`BracedVarStyle`] / [`ExprCommentStyle`] /
+//!   [`NumberSyntax`] — the
 //!   dialect-derived lexing grammar knobs.
 //! - [`DialectProfile`] — one interned profile per canonical dialect,
 //!   resolved once at ingest and threaded everywhere.
@@ -48,7 +49,10 @@ mod profile;
 mod version;
 
 pub use dialect_set::{DialectSet, KNOWN_DIALECTS, available_dialects};
-pub use grammar::{BracedVarStyle, ExprCommentStyle, LexerGrammar};
+pub use grammar::{
+    BracedVarStyle, EXPR_WORD_OPERATORS, ExprCommentStyle, LexerGrammar, NumberSyntax,
+    expr_word_operator_since, is_expr_word_operator,
+};
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::DialectProfile;
 pub use version::{
