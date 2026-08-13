@@ -64,6 +64,7 @@ export const STRUCTURAL_KINDS = new Set([
   "subSubCommands",
   "subCommands",
   "hover",
+  "objectClass",
 ]);
 
 /** Everything an editor needs from the surrounding app. */
@@ -1056,6 +1057,110 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
             const fresh = ctx.newSubcommand();
             fresh.name = "new";
             set([...list, fresh]);
+          },
+        }),
+      );
+      return wrap;
+    },
+
+    objectClass: (_kind, value, set) => {
+      const declared = value !== null;
+      const wrap = el("div", {});
+      wrap.appendChild(
+        checkbox(
+          declared,
+          (on) =>
+            set(
+              on
+                ? {
+                    class_name: "",
+                    instance_methods: [],
+                    superclasses: [],
+                    allow_unknown_methods: false,
+                  }
+                : null,
+            ),
+          "declared",
+        ),
+      );
+      if (!declared) return wrap;
+
+      const cls = asRecord(value);
+      const patch = (next: Record<string, Json>): void => {
+        set({ ...clone(cls), ...next });
+      };
+      const field = (label: string, hint: string, control: Child): HTMLElement =>
+        el("div", { class: "field" }, [
+          el("div", { class: "lbl" }, [el("span", { class: "name", text: label })]),
+          control,
+          el("span", { class: "hint", text: hint }),
+        ]);
+
+      wrap.appendChild(
+        field(
+          "Class name",
+          "Fully qualified, and for a TclOO class equal to this factory command's own name — that is how the registry resolves it.",
+          textInput(asString(cls.class_name), (text) => patch({ class_name: text }), {
+            placeholder: "::ticklecharts::chart",
+          }),
+        ),
+      );
+      wrap.appendChild(
+        field(
+          "Superclasses",
+          "Direct superclass names, each itself a class command. A method not found here is resolved through these.",
+          editors.textList({ tag: "textList" }, asStringList(cls.superclasses), (names) =>
+            patch({ superclasses: names }),
+          ),
+        ),
+      );
+      wrap.appendChild(
+        checkbox(
+          asBool(cls.allow_unknown_methods),
+          (on) => patch({ allow_unknown_methods: on }),
+          "accept unrecognised instance methods (the class has an `unknown` handler or builds methods at runtime)",
+        ),
+      );
+
+      // Instance methods are `&[SubCommand]`, so they take the subcommand form
+      // unchanged — the same shape the DSL reuses for its `method` rows.
+      const methods = asArray(cls.instance_methods);
+      methods.forEach((method, i) => {
+        const draft = asRecord(method);
+        const body = el("div", { class: "body" });
+        const details = el("details", { class: "group" }, [
+          el("summary", {}, [
+            document.createTextNode(asString(draft.name) || "(unnamed)"),
+            el("span", { class: "n", text: "method" }),
+          ]),
+          body,
+        ]);
+        body.appendChild(
+          el("div", { style: "display:flex;justify-content:flex-end" }, [
+            el("button", {
+              type: "button",
+              class: "ghost",
+              text: "Remove this method",
+              onclick: () => {
+                const next = methods.slice();
+                next.splice(i, 1);
+                patch({ instance_methods: next });
+              },
+            }),
+          ]),
+        );
+        ctx.buildSubcommandForm(body, draft, () => patch({ instance_methods: methods.slice() }));
+        wrap.appendChild(details);
+      });
+      wrap.appendChild(
+        el("button", {
+          type: "button",
+          class: "ghost",
+          text: "+ method",
+          onclick: () => {
+            const fresh = ctx.newSubcommand();
+            fresh.name = "new";
+            patch({ instance_methods: [...methods, fresh] });
           },
         }),
       );
