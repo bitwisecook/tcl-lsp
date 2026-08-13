@@ -34,9 +34,11 @@
 //! output), so the policy stays local on purpose.
 //!
 //! `parse_index` delegates to the shared [`tcl_cmd_core::index`] grammar (the
-//! same parser the runtime uses), so the optimiser folds exactly the index
-//! forms Tcl resolves at run time. `clamp_range` is the post-resolution range
-//! clamp shared with the `string` subcommand folds.
+//! same parser the runtime uses), so the optimiser folds the index forms Tcl
+//! resolves at run time — but only where every release agrees on the answer,
+//! since these callbacks carry no release and an index word inherits the
+//! numeral grammar's version differences. `clamp_range` is the post-resolution
+//! range clamp shared with the `string` subcommand folds.
 
 const fn is_list_ws(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
@@ -146,12 +148,32 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
 ///
 /// Delegates to the shared [`tcl_cmd_core::index`] grammar — the *same* parser
 /// the runtime's `lindex` / `lrange` / `string index` use — so the optimiser
-/// folds exactly the forms Tcl resolves at run time: `end`, `end±N`, the
-/// arithmetic operands (`1+1`, `0-1`, `end--1`), and every integer radix
-/// (`0x2`, `0o7`, `0b101`). Previously this was a narrower local copy that only
-/// accepted `end`, `end-N`, `end+N`, and a plain decimal integer.
+/// folds the forms Tcl resolves at run time: `end`, `end±N`, the arithmetic
+/// operands (`1+1`, `0-1`, `end--1`), and every integer radix (`0x2`, `0o7`,
+/// `0b101`).
+///
+/// An index word is read by `Tcl_GetIntForIndex`, so it inherits every version
+/// difference in the numeral grammar — `lindex $l 010` is index 8 up to 8.6 and
+/// 10 from 9.0. These folds are registered as plain
+/// [`ConstFoldFn`](crate::hooks::ConstFoldFn)s, which carry no release, so this
+/// resolves under **every** grammar and folds only when they agree.
+///
+/// Declining is free: an unfolded `lindex` is evaluated at run time by an
+/// interpreter that does know its release. Folding under one release's grammar
+/// would instead bake a wrong constant into a program built for another — the
+/// one outcome a const-folder must never produce. (When these folds migrate to
+/// [`VersionedConstFoldFn`](crate::hooks::VersionedConstFoldFn), the release can
+/// be named and `index::resolve_opt_with` used directly.)
 pub(crate) fn parse_index(s: &str, length: usize) -> Option<i64> {
-    tcl_cmd_core::index::resolve_opt(s, length)
+    let mut answers = tcl_dialect::NumberSyntax::ALL
+        .iter()
+        .map(|&numbers| tcl_cmd_core::index::resolve_opt_with(s, length, numbers));
+    let first = answers.next()?;
+    if answers.all(|a| a == first) {
+        first
+    } else {
+        None
+    }
 }
 
 /// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
@@ -546,5 +568,36 @@ mod tests {
         );
         // Odd dict → no fold.
         assert_eq!(fold_dict_size(&["a 1 b"]), None);
+    }
+
+    /// A plain `ConstFoldFn` carries no release, so an index whose value depends
+    /// on the release must not fold. Declining costs an optimisation; folding
+    /// under the wrong grammar would bake a wrong constant into the program.
+    #[test]
+    fn index_folds_decline_when_the_releases_disagree() {
+        // `010` is index 8 up to 8.6 and 10 from 9.0 — no single answer.
+        assert_eq!(parse_index("010", 12), None);
+        assert_eq!(parse_index("end-010", 12), None);
+        // `1_0` and `0d1` are 9.0-only spellings: valid there, `bad index` before.
+        assert_eq!(parse_index("1_0", 12), None);
+        assert_eq!(parse_index("0d1", 12), None);
+        // Unanimous spellings still fold.
+        assert_eq!(parse_index("1", 12), Some(1));
+        assert_eq!(parse_index("0x1", 12), Some(1));
+        assert_eq!(parse_index("007", 12), Some(7));
+        assert_eq!(parse_index("end", 12), Some(11));
+        assert_eq!(parse_index("end-2", 12), Some(9));
+        // Still nothing at all for a genuinely bad spec.
+        assert_eq!(parse_index("nope", 12), None);
+    }
+
+    /// The user-visible consequence: `lindex` folds a unanimous index and leaves
+    /// a release-dependent one for the interpreter, which does know its release.
+    #[test]
+    fn lindex_folds_only_unanimous_indices() {
+        assert_eq!(fold_lindex(&["a b c d e f g h i j k l", "1"]).as_deref(), Some("b"));
+        assert_eq!(fold_lindex(&["a b c d e f g h i j k l", "010"]), None);
+        assert_eq!(fold_lrange(&["a b c d", "1", "2"]).as_deref(), Some("b c"));
+        assert_eq!(fold_lrange(&["a b c d", "1", "010"]), None);
     }
 }

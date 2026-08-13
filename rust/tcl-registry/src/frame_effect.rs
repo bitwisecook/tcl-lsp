@@ -175,6 +175,18 @@ impl FrameLevel {
         Self::parse_under(word, numbers)
     }
 
+    /// [`Self::parse_for`] with the release taken from `registry`'s loaded
+    /// dialect profile — the ordinary way a consumer inside the compiler names
+    /// the release it is analysing for.
+    ///
+    /// A registry with no profile loaded falls back to [`Self::parse`]'s
+    /// abstaining behaviour, which is the same answer that consumer would have
+    /// got before it had a release to name.
+    #[must_use]
+    pub fn parse_in(word: &str, registry: &crate::registry::CommandRegistry) -> Option<Self> {
+        Self::parse_for(word, registry.profile().and_then(|p| p.runtime_base))
+    }
+
     /// [`Self::parse_for`] with the numeral grammar already chosen.
     fn parse_under(word: &str, numbers: NumberSyntax) -> Option<Self> {
         match word.strip_prefix('#') {

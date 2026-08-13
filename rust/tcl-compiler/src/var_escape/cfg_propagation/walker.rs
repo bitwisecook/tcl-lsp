@@ -163,7 +163,7 @@ fn handle_call(
     }
 
     if let Some(facts) = facts.as_deref() {
-        handle_variable_aliases(facts, state, defs);
+        handle_variable_aliases(facts, state, defs, registry);
         handle_introspection(facts, args, state, defs);
         if facts
             .traits
@@ -266,7 +266,7 @@ fn handle_uplevel(
     let first = &args[0];
     // Registry level-word grammar, not a local digit sniff — see the twin in
     // `crate::var_escape::walker::handle_uplevel`.
-    let Some(level) = tcl_registry::frame_effect::FrameLevel::parse(first) else {
+    let Some(level) = tcl_registry::frame_effect::FrameLevel::parse_in(first, registry) else {
         state.mark_pessimistic();
         return;
     };

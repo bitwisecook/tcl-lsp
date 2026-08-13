@@ -390,13 +390,17 @@ fn is_var_name(name: &str) -> bool {
 
 /// Resolve a frame-crossing command's level word and its remaining
 /// arguments through the registry's [`FrameEffectSpec`].
-fn resolve_frame_args(spec: FrameEffectSpec, args: &[String]) -> (FrameLevel, &[String]) {
+fn resolve_frame_args<'a>(
+    spec: FrameEffectSpec,
+    args: &'a [String],
+    registry: &tcl_registry::CommandRegistry,
+) -> (FrameLevel, &'a [String]) {
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let taken = spec.level_word_len(&refs);
     let level = if taken == 0 {
         FrameLevel::DEFAULT
     } else {
-        FrameLevel::parse(&args[0]).unwrap_or(FrameLevel::Dynamic)
+        FrameLevel::parse_in(&args[0], registry).unwrap_or(FrameLevel::Dynamic)
     };
     (level, &args[taken..])
 }
@@ -508,7 +512,7 @@ fn walk_stmt(
                 return;
             };
             match spec.layout {
-                FrameArgLayout::AliasPairs => record_upvar_call(spec, args, params, info),
+                FrameArgLayout::AliasPairs => record_upvar_call(spec, args, params, info, registry),
                 FrameArgLayout::ScriptInSelectedFrame => {
                     record_uplevel_call(spec, args, params, registry, info);
                 }
@@ -609,8 +613,9 @@ fn record_upvar_call(
     args: &[String],
     params: &[String],
     info: &mut UpvarInfo,
+    registry: &CommandRegistry,
 ) {
-    let (level, rest) = resolve_frame_args(spec, args);
+    let (level, rest) = resolve_frame_args(spec, args, registry);
     if !level.is_caller_frame() {
         // A level this summary cannot place at the direct caller. `#0` and
         // `0` genuinely miss the caller's frame (the global frame is
@@ -707,7 +712,7 @@ fn record_uplevel_call(
     registry: &CommandRegistry,
     info: &mut UpvarInfo,
 ) {
-    let (level, rest) = resolve_frame_args(spec, args);
+    let (level, rest) = resolve_frame_args(spec, args, registry);
     if !level.is_caller_frame() {
         // Same reasoning as `record_upvar_call`: `uplevel 0` stays in the
         // callee's own frame and `uplevel #0` runs in the global one, so
