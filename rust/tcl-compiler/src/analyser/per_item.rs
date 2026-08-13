@@ -2107,27 +2107,42 @@ mod tests {
         assert_eq!(got, want, "per_item != analyse for:\n{src}");
     }
 
+    /// One `analyse_per_item` run, reported as *both* the gate it tripped and
+    /// the result it produced.
+    ///
+    /// The gate and the result come from the same pass deliberately.  Asking
+    /// for them separately — `gate()` for one, a second `analyse_per_item` for
+    /// the other — analysed every fixture twice for no extra coverage: the two
+    /// runs are the same pure function of `(src, dialect)`, so the second can
+    /// only ever agree with the first.  On the oversized-body fixtures below
+    /// that redundancy was minutes per test.
+    fn gate_and_result(src: &str, dialect: &str) -> (Option<PerItemFallback>, AnalysisResult) {
+        let mut a = Analyser::new();
+        let got = a.analyse_per_item(src, dialect);
+        (a.per_item_fallback, got)
+    }
+
     /// Which gate (if any) `analyse_per_item` tripped for `src`.
     fn gate(src: &str, dialect: &str) -> Option<PerItemFallback> {
-        let mut a = Analyser::new();
-        let _ = a.analyse_per_item(src, dialect);
-        a.per_item_fallback
+        gate_and_result(src, dialect).0
     }
 
     /// Assert that `src` reaches the incremental fast path — i.e. no gate
     /// fired.  Also asserts byte-identity with the whole-file walk, so a
     /// widened gate can never buy speed with a wrong answer.
     fn fast_path(src: &str) {
-        assert_eq!(gate(src, "tcl8.6"), None, "expected fast path for:\n{src}");
-        eq(src);
+        let (gate, got) = gate_and_result(src, "tcl8.6");
+        assert_eq!(gate, None, "expected fast path for:\n{src}");
+        let want = Analyser::new().analyse(src, "tcl8.6");
+        assert_eq!(got, want, "per_item != analyse for:\n{src}");
     }
 
     /// Assert that `src` hands off to a full walk with `reason`, and that the
     /// handed-off result still matches the whole-file walk exactly.
     fn falls_back(src: &str, dialect: &str, reason: PerItemFallback) {
-        assert_eq!(gate(src, dialect), Some(reason), "gate for:\n{src}");
+        let (gate, got) = gate_and_result(src, dialect);
+        assert_eq!(gate, Some(reason), "gate for:\n{src}");
         let want = Analyser::new().analyse(src, dialect);
-        let got = Analyser::new().analyse_per_item(src, dialect);
         assert_eq!(got, want, "per_item != analyse for:\n{src}");
     }
 
@@ -2317,8 +2332,14 @@ mod tests {
 
     #[test]
     fn oversized_body_hands_off_to_the_whole_file_walk() {
-        let huge = "    set x 1\n".repeat(OVERSIZED_BODY_BYTES / 10 + 16);
-        let src = format!("proc generated {{}} {{\n{huge}}}\n");
+        // The guard measures body *bytes* (`db.body_text.len()`), not command
+        // count, so the fixture only has to be large — it does not also have to
+        // be 26,000 separate commands.  Two real commands keep the body a body,
+        // and one long comment carries it past the threshold: same gate, same
+        // fallback, but the whole-file walk the fallback pays for then costs
+        // seconds instead of minutes at `opt-level = 0`.
+        let filler = "x".repeat(OVERSIZED_BODY_BYTES);
+        let src = format!("proc generated {{}} {{\n    set x 1\n    set y 2\n    # {filler}\n}}\n");
         assert!(
             src.len() > OVERSIZED_BODY_BYTES,
             "fixture must be oversized"
@@ -2341,10 +2362,27 @@ mod tests {
         // The guard is per body, not per document: a document made of many
         // ordinary procs is exactly the case per-body memoisation pays off
         // for, however large the file gets.
+        //
+        // As above, the threshold is byte-based, so each body reaches its size
+        // with a comment rather than with 80 more commands — what this test
+        // pins is that 400 under-threshold bodies summing to over the threshold
+        // keep the fast path, not how many commands each one holds.
+        // Each body reaches its size with a comment rather than with 80 more
+        // commands, and the document clears the threshold with 100 bodies
+        // rather than 400.  Isolated-body analysis carries a large *per body*
+        // constant — that cliff is the whole reason the guard above exists — so
+        // body count, not body content, is what this fixture used to spend its
+        // minutes on.  What the test pins is unchanged: every body is under the
+        // per-body guard, their sum is over it, and the fast path still holds.
         use std::fmt::Write as _;
-        let body = "    set x 1\n".repeat(80);
+        let pad = "y".repeat(3000);
+        let body = format!("    set x 1\n    set y 2\n    # {pad}\n");
+        assert!(
+            body.len() < OVERSIZED_BODY_BYTES,
+            "each body must stay under the per-body guard"
+        );
         let mut src = String::new();
-        for i in 0..400 {
+        for i in 0..100 {
             let _ = write!(src, "proc p{i} {{}} {{\n{body}}}\n");
         }
         assert!(src.len() > OVERSIZED_BODY_BYTES, "fixture must be large");

@@ -86,7 +86,7 @@
 //! fail the suite rather than wedge it.
 
 use std::cell::Cell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -241,6 +241,26 @@ struct CorpusFile {
     path: PathBuf,
     text: String,
     family: &'static str,
+    /// Every maximal identifier run in `text`, built once when the file is
+    /// read.
+    ///
+    /// [`mentions`] asks whether a command name occurs with no identifier
+    /// character on either side — i.e. whether it *is* one of these runs — so
+    /// the set answers it with a hash lookup.  Scanning `text` afresh per
+    /// candidate name instead made the pack loop quadratic in the corpus: every
+    /// one of the ~20 packs re-scanned all ~400 files once per command it
+    /// declares, which is gigabytes of `match_indices` for a question that does
+    /// not depend on the pack at all.
+    tokens: HashSet<String>,
+}
+
+/// Every maximal run of identifier characters in `text` — the token alphabet
+/// [`mentions`] defines its word boundaries against.
+fn identifier_tokens(text: &str) -> HashSet<String> {
+    text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == ':'))
+        .filter(|tok| !tok.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 /// Directories the corpus walk never descends into.
@@ -281,7 +301,13 @@ fn walk_corpus(dir: &Path, into: &mut Vec<CorpusFile>) {
             continue;
         }
         if let Ok(text) = std::fs::read_to_string(&path) {
-            into.push(CorpusFile { path, text, family });
+            let tokens = identifier_tokens(&text);
+            into.push(CorpusFile {
+                path,
+                text,
+                family,
+                tokens,
+            });
         }
     }
 }
@@ -298,23 +324,20 @@ fn corpus(root: &Path) -> (Vec<CorpusFile>, bool) {
     (files, tmp_present)
 }
 
-/// Does `text` call `name` as a command word — i.e. does the name occur with
+/// Does `file` call `name` as a command word — i.e. does the name occur with
 /// no identifier character on either side?
 ///
 /// A plain `contains` would match `if` inside `notify`, which would hand every
 /// pack the entire corpus and make the "relevant corpus" column meaningless.
-fn mentions(text: &str, name: &str) -> bool {
+fn mentions(file: &CorpusFile, name: &str) -> bool {
     if name.is_empty() {
         return false;
     }
-    let bytes = text.as_bytes();
-    // `::` is part of a command name, so `struct::tree` must not be found
-    // inside `struct::treeql`; `_` and alphanumerics are the rest of a name.
-    let boundary = |byte: u8| !(byte.is_ascii_alphanumeric() || byte == b'_' || byte == b':');
-    text.match_indices(name).any(|(start, matched)| {
-        let end = start + matched.len();
-        (start == 0 || boundary(bytes[start - 1])) && (end == bytes.len() || boundary(bytes[end]))
-    })
+    // A name bounded by non-identifier characters on both sides *is* a maximal
+    // identifier run, so membership in the file's precomputed token set is the
+    // same question — `::` included, so `struct::tree` still does not match
+    // inside `struct::treeql`.
+    file.tokens.contains(name)
 }
 
 // ---------------------------------------------------------------------------
@@ -731,7 +754,7 @@ fn corpus_and_synthesis<'c>(
         let hits: Vec<&str> = names
             .iter()
             .copied()
-            .filter(|name| mentions(&file.text, name))
+            .filter(|name| mentions(file, name))
             .collect();
         if hits.is_empty() {
             continue;
