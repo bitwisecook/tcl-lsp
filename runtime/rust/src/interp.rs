@@ -99,32 +99,36 @@ impl Code {
     }
 }
 
-/// Parse a completion-code integer the way `TclGetIntFromObj` does: an optional
-/// sign and a `0x`/`0o`/`0b`/`0d` radix prefix (else decimal), accepting the full
-/// signed **and** unsigned 32-bit range (`-2147483648 ..= 4294967295`) and
-/// reducing it to an `int` (so `0xFFFFFFFF` → `-1`, `2147483648` → `-2147483648`),
-/// matching C. Shared by `return -code` and `try on`.
+/// Parse a completion-code integer the way `TclGetIntFromObj` does: the emulated
+/// release's integer grammar (an optional sign, the radix prefixes that release
+/// has, and octal-by-leading-zero up to 8.6), accepting the full signed **and**
+/// unsigned 32-bit range (`-2147483648 ..= 4294967295`) and reducing it to an
+/// `int` (so `0xFFFFFFFF` → `-1`, `2147483648` → `-2147483648`), matching C.
+/// Shared by `return -code` and `try on`.
+///
+/// The grammar comes from the one number facility
+/// ([`tcl_syntax::number::parse_whole_with`]) under `TCL_PARSE_INTEGER_ONLY`, so
+/// this cannot drift from what `expr`/`incr`/`format` accept: `return -code 0d5`
+/// is an error before 9.0, `0o17` before 8.5, and `-code 010` is 8 up to 8.6 but
+/// 10 from 9.0. A magnitude beyond a wide (a `Big`), a float, or a NaN is not an
+/// `int` — `Tcl_GetIntFromObj` rejects all three.
 #[must_use]
 pub(crate) fn parse_completion_int(b: &[u8]) -> Option<i32> {
+    use tcl_syntax::number::{Number, ParseFlags};
+
     let s = core::str::from_utf8(b).ok()?.trim();
-    let (neg, rest) = match s.as_bytes().first() {
-        Some(b'-') => (true, &s[1..]),
-        Some(b'+') => (false, &s[1..]),
-        _ => (false, s),
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::default()
     };
-    let (radix, digits) = match rest.as_bytes() {
-        [b'0', b'x' | b'X', ..] => (16, &rest[2..]),
-        [b'0', b'o' | b'O', ..] => (8, &rest[2..]),
-        [b'0', b'b' | b'B', ..] => (2, &rest[2..]),
-        [b'0', b'd' | b'D', ..] => (10, &rest[2..]),
-        _ => (10, rest),
+    // The facility consumes the sign itself, so hand it the signed text whole —
+    // stripping one here and letting it read another would accept `--5`.
+    let value = match tcl_syntax::number::parse_whole_with(s, flags)? {
+        // Parsed wide so `i32::MIN` and the unsigned half are both reachable;
+        // the range check below is what makes this an `int`.
+        Number::Int(v) => v,
+        Number::Big { .. } | Number::Double(_) | Number::Nan { .. } => return None,
     };
-    if digits.is_empty() {
-        return None;
-    }
-    // Parse the magnitude wide so `i32::MIN` and the unsigned half are reachable.
-    let mag = i64::from_str_radix(digits, radix).ok()?;
-    let value = if neg { -mag } else { mag };
     if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
         return None;
     }
@@ -981,6 +985,28 @@ fn parse_limit_int(bytes: &[u8]) -> Result<i64, Vec<u8>> {
     Err(m)
 }
 
+/// The release a fresh [`Interp`] emulates until an embedder pins another with
+/// [`Interp::set_runtime_version`] — the same default as `tcl_vm::Vm` and as
+/// `tcl_syntax::number`'s ambient grammar, so an interpreter nobody configures
+/// reads numerals exactly as the release it reports.
+const DEFAULT_RUNTIME_VERSION: tcl_dialect::TclVersion = tcl_dialect::TclVersion::V9_0;
+
+/// Install `version`'s numeric-literal grammar as this thread's ambient one, so
+/// every numeral this runtime reads (`expr`, `format`, `dict`, `incr`, the
+/// bignum tower — all of which parse through `tcl_syntax::number::parse_whole`
+/// with `ParseFlags::default()`) follows the emulated release: `0755` is 493
+/// under 8.4/8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5, and `0d` plus `_`
+/// digit separators from 9.0.
+///
+/// C settles this at build time (`#define`/`#undef KILL_OCTAL` in
+/// `tclStrToD.c`), so it is a property of the runtime rather than of each
+/// conversion — hence ambient state rather than an argument threaded through
+/// every `Tcl_GetIntFromObj`-shaped call. Called from [`Interp::new`] and
+/// [`Interp::set_runtime_version`], i.e. everywhere a release is established.
+fn install_number_syntax(version: tcl_dialect::TclVersion) {
+    tcl_syntax::number::set_runtime_syntax(version.number_syntax());
+}
+
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
     /// result, and the predefined variables that C installs in
@@ -1055,8 +1081,13 @@ impl Interp {
             #[cfg(have_tommath)]
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
-            runtime_version: Cell::new(tcl_dialect::TclVersion::V9_0),
+            runtime_version: Cell::new(DEFAULT_RUNTIME_VERSION),
         }));
+        // The numeric grammar is thread-ambient and may have been left on
+        // another release by an interpreter built earlier on this thread, so a
+        // fresh interp installs its own rather than inheriting whatever is
+        // there (`set_runtime_version` re-installs when an embedder repins).
+        install_number_syntax(DEFAULT_RUNTIME_VERSION);
         builtins::install(&mut interp);
         // C sets `tcl_version`/`tcl_patchLevel` in `Tcl_CreateInterp`
         // (9.0.4 `generic/tclBasic.c:1346-1347`), **not** in `Tcl_Init` — so
@@ -1095,14 +1126,22 @@ impl Interp {
     /// tree-walking runtime: every release-dependent *semantic* is derived
     /// from this one value rather than being set independently, so the two
     /// engines cannot drift apart by having one of them updated and not the
-    /// other (issue #1328). Today that is the namespace-scope variable
-    /// fallback (TIP 278) plus the release-reporting globals.
+    /// other (issue #1328). Today that is the numeric-literal grammar (see
+    /// [`install_number_syntax`]), the namespace-scope variable fallback
+    /// (TIP 278), and the release-reporting globals.
     ///
     /// The fallback is a property of the **namespace table**, which every
     /// interpreter owns privately, so a child (`interp create`) and a safe
     /// interpreter each resolve against their own global namespace — setting
     /// it here never reaches across an interpreter boundary.
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
+        // Ahead of the unchanged-version short-circuit: the numeric grammar is
+        // *thread*-ambient, not per-interp, so "this interp already emulates
+        // `version`" does not imply the thread's grammar is this interp's. A
+        // second interpreter constructed on a thread where an earlier one
+        // installed 8.4 must re-install its own release even when its version
+        // field needs no change.
+        install_number_syntax(version);
         if self.runtime_version() == version {
             return;
         }
@@ -7033,6 +7072,18 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
+    /// Evaluate `src`, requiring success, and return the result bytes.
+    fn ok(i: &mut Interp, src: &[u8]) -> Vec<u8> {
+        assert_eq!(
+            i.eval_str(src),
+            Code::Ok,
+            "eval {:?} -> {:?}",
+            String::from_utf8_lossy(src),
+            String::from_utf8_lossy(&i.result_bytes())
+        );
+        i.result_bytes()
+    }
+
     #[test]
     fn command_guard_checks_identity_and_exact_lifecycle() {
         leak_free(|i| {
@@ -7664,4 +7715,204 @@ mod tests {
             assert_eq!(i.result_bytes(), b"unmatched open quote in list");
         });
     }
+
+    /// Selecting the release selects the *numeral grammar* the whole runtime
+    /// reads with, because every numeral goes through one facility
+    /// (`tcl_syntax::number`) whose ambient dialect `set_runtime_version`
+    /// installs. Tcl 9.0 defines `KILL_OCTAL` in `tclStrToD.c`, so a bare
+    /// leading zero is decimal there (`0755` == 755) while 8.4/8.6 read it as
+    /// octal (`0755` == 493); `0b`/`0o` only exist from 8.5 and `0d` from 9.0.
+    /// Exercised through `expr`, which reads operands with
+    /// `ParseFlags::default()` — i.e. exactly the ambient this installs.
+    #[cfg(have_tommath)]
+    #[test]
+    fn expr_numerals_follow_the_release_selected_number_grammar() {
+        use tcl_dialect::TclVersion;
+
+        // TP: octal-by-leading-zero holds up to 8.6 …
+        for version in [TclVersion::V8_4, TclVersion::V8_6] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(ok(i, b"expr {0755}"), b"493", "{version:?}");
+                assert_eq!(ok(i, b"expr {010 + 1}"), b"9", "{version:?}");
+                // TN: without a leading zero the release cannot matter.
+                assert_eq!(ok(i, b"expr {755}"), b"755", "{version:?}");
+                // A leading-zero run before `.`/`e` stays a decimal float in
+                // every release (C backtracks out of its octal state).
+                assert_eq!(ok(i, b"expr {07.5}"), b"7.5", "{version:?}");
+            });
+        }
+
+        // FN: 9.0 must not keep reading it as octal — the direction of this
+        // change is easy to invert, so pin both sides.
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(ok(i, b"expr {0755}"), b"755");
+            assert_eq!(ok(i, b"expr {010 + 1}"), b"11");
+            assert_eq!(ok(i, b"expr {755}"), b"755");
+            assert_eq!(ok(i, b"expr {07.5}"), b"7.5");
+        });
+
+        // FP: a prefix its release does not have is not a numeral at all, so
+        // the word is a bareword rather than a silently-different number.
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"expr {0o17}"), Code::Error);
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(ok(i, b"expr {0o17}"), b"15");
+            assert_eq!(i.eval_str(b"expr {1_0}"), Code::Error);
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(ok(i, b"expr {0o17}"), b"15");
+            assert_eq!(ok(i, b"expr {1_0}"), b"10");
+        });
+    }
+
+    /// A fresh interpreter installs *its own* grammar rather than inheriting
+    /// whatever an earlier interpreter left in the thread-ambient slot — the
+    /// unchanged-version short-circuit in `set_runtime_version` would otherwise
+    /// leave a default-release interp reading numerals as 8.6.
+    #[cfg(have_tommath)]
+    #[test]
+    fn a_fresh_interp_reinstalls_the_number_grammar_after_an_8_6_interp() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(ok(i, b"expr {0755}"), b"493");
+        });
+        // Same thread, ambient left at 8.6 by the interp above.
+        leak_free(|i| {
+            assert_eq!(i.runtime_version(), DEFAULT_RUNTIME_VERSION);
+            assert_eq!(ok(i, b"expr {0755}"), b"755");
+            // …and re-pinning the release it already reports still installs it.
+            i.set_runtime_version(DEFAULT_RUNTIME_VERSION);
+            assert_eq!(ok(i, b"expr {0755}"), b"755");
+        });
+    }
+
+    /// `return -code` / `try on` read their integer through the same one
+    /// facility, so the spellings they accept track the emulated release
+    /// (C reads it with `Tcl_GetIntFromObj`, whose grammar is the release's).
+    /// The ambient is thread-local, so each dialect is installed explicitly
+    /// here rather than inherited from another test.
+    #[test]
+    fn completion_code_integers_follow_the_release_selected_number_grammar() {
+        use tcl_syntax::number::{set_runtime_syntax, NumberSyntax};
+
+        // Release-independent: decimal, hex, the full signed *and* unsigned
+        // 32-bit window, and its reduction to an `int`.
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            set_runtime_syntax(syntax);
+            assert_eq!(parse_completion_int(b"42"), Some(42), "{syntax:?}");
+            assert_eq!(parse_completion_int(b"+42"), Some(42), "{syntax:?}");
+            assert_eq!(parse_completion_int(b"-7"), Some(-7), "{syntax:?}");
+            assert_eq!(parse_completion_int(b" 7 "), Some(7), "{syntax:?}");
+            assert_eq!(parse_completion_int(b"0x1f"), Some(31), "{syntax:?}");
+            assert_eq!(
+                parse_completion_int(b"-2147483648"),
+                Some(i32::MIN),
+                "{syntax:?}"
+            );
+            // The unsigned half is reachable and wraps to an `int`.
+            assert_eq!(parse_completion_int(b"0xFFFFFFFF"), Some(-1), "{syntax:?}");
+            assert_eq!(
+                parse_completion_int(b"2147483648"),
+                Some(i32::MIN),
+                "{syntax:?}"
+            );
+            // Outside the window, a bare prefix, junk, a float, and a magnitude
+            // past a wide are all rejected.
+            assert_eq!(parse_completion_int(b"4294967296"), None, "{syntax:?}");
+            assert_eq!(parse_completion_int(b"-2147483649"), None, "{syntax:?}");
+            assert_eq!(parse_completion_int(b"0x"), None, "{syntax:?}");
+            assert_eq!(parse_completion_int(b""), None, "{syntax:?}");
+            assert_eq!(parse_completion_int(b"abc"), None, "{syntax:?}");
+            assert_eq!(parse_completion_int(b"1.5"), None, "{syntax:?}");
+            assert_eq!(parse_completion_int(b"12x"), None, "{syntax:?}");
+            assert_eq!(
+                parse_completion_int(b"99999999999999999999"),
+                None,
+                "{syntax:?}"
+            );
+            // One sign only — the facility consumes it, so `--5` is not 5.
+            assert_eq!(parse_completion_int(b"--5"), None, "{syntax:?}");
+        }
+
+        // Octal-by-leading-zero up to 8.6, decimal from 9.0.
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            set_runtime_syntax(syntax);
+            assert_eq!(parse_completion_int(b"010"), Some(8), "{syntax:?}");
+            assert_eq!(parse_completion_int(b"-010"), Some(-8), "{syntax:?}");
+            // An invalid octal digit stops the scan, so the whole word is not a
+            // number (C's "bad octal" report).
+            assert_eq!(parse_completion_int(b"08"), None, "{syntax:?}");
+        }
+        set_runtime_syntax(NumberSyntax::Tcl90);
+        assert_eq!(parse_completion_int(b"010"), Some(10));
+        assert_eq!(parse_completion_int(b"-010"), Some(-10));
+        assert_eq!(parse_completion_int(b"08"), Some(8));
+
+        // `0o`/`0b` arrive in 8.5, `0d` and `_` separators in 9.0 — an
+        // unavailable prefix is not a prefix, so the word is not an integer.
+        set_runtime_syntax(NumberSyntax::Tcl84);
+        assert_eq!(parse_completion_int(b"0o17"), None);
+        assert_eq!(parse_completion_int(b"0b101"), None);
+        assert_eq!(parse_completion_int(b"0d99"), None);
+        assert_eq!(parse_completion_int(b"1_0"), None);
+        set_runtime_syntax(NumberSyntax::Tcl85);
+        assert_eq!(parse_completion_int(b"0o17"), Some(15));
+        assert_eq!(parse_completion_int(b"0b101"), Some(5));
+        assert_eq!(parse_completion_int(b"0d99"), None);
+        assert_eq!(parse_completion_int(b"1_0"), None);
+        set_runtime_syntax(NumberSyntax::Tcl90);
+        assert_eq!(parse_completion_int(b"0o17"), Some(15));
+        assert_eq!(parse_completion_int(b"0b101"), Some(5));
+        assert_eq!(parse_completion_int(b"0d99"), Some(99));
+        assert_eq!(parse_completion_int(b"1_0"), Some(10));
+    }
+
+    /// The same release gate reached through the script surface: `return -level
+    /// 0 -code 010` completes with code 8 up to 8.6 and 10 from 9.0.
+    #[test]
+    fn return_code_word_reads_its_integer_in_the_emulated_release() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(ok(i, b"catch {return -level 0 -code 010}"), b"8");
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(ok(i, b"catch {return -level 0 -code 010}"), b"10");
+        });
+    }
+    /// An empty operand (and a whitespace-only or sign-only one) must report a
+    /// Tcl error on **every** release rather than abort the process. Regression:
+    /// the shared parser's octal-by-leading-zero branch read its first byte
+    /// unguarded, so with a pre-9.0 grammar installed — which is exactly what
+    /// `set_runtime_version` now does — `expr {$empty + 1}` panicked in
+    /// `tcl_syntax::number::parse` instead of failing the expression.
+    #[cfg(have_tommath)]
+    #[test]
+    fn an_empty_numeral_errors_instead_of_panicking_on_every_release() {
+        use tcl_dialect::TclVersion;
+
+        for version in [TclVersion::V8_4, TclVersion::V8_6, TclVersion::V9_0] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(i.eval_str(b"set x {}; expr {$x + 1}"), Code::Error, "{version:?}");
+                assert_eq!(i.eval_str(b"set x { }; expr {$x + 1}"), Code::Error, "{version:?}");
+                assert_eq!(i.eval_str(b"set x -; expr {$x + 1}"), Code::Error, "{version:?}");
+            });
+        }
+    }
+
 }
