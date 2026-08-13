@@ -25,13 +25,7 @@ you tell a genuine hang apart from a run that was simply slow?
 
 ## Answer
 
-This was issue #1293: the watchdog used to be a single flat wall-clock
-budget (`180_000`ms from launch to process exit) with no idea whether the
-suite was still working. Once the suite's own honest runtime grew past that
-budget (846 tests, ~190s), a fully green run raced its own successful exit
-and lost.
-
-The watchdog (`editors/vscode/src/test/runnerWatchdog.ts`) now bounds
+The watchdog (`editors/vscode/src/test/runnerWatchdog.ts`) bounds
 **lack of progress**, not elapsed time. It reads the heartbeat file the
 extension host writes every 2s
 (`.vscode-test/mocha-heartbeat.json`, or
@@ -74,5 +68,4 @@ backstop for a run that never stalls but also never finishes.
 - [a VS Code test timed out draining `didOpen`](kcs-issue-vscode-test-timed-out-on-didopen.md)
   — a different, per-test wait timeout with its own three-way verdict.
 - [a feature-toggle test samples the provider once and is flaky](kcs-issue-vscode-test-feature-toggle-sampled-once.md)
-  — the companion fix (issue #1295) for a single-sample "after" read racing
-  an unobserved config transition.
+  — a single-sample "after" read racing an unobserved config transition.

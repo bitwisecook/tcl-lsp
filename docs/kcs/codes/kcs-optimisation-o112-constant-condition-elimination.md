@@ -1,7 +1,7 @@
 # KCS: O112 — Eliminate constant-condition compound statements
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

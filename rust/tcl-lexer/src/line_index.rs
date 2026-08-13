@@ -27,7 +27,7 @@
 //! `Lexer::new(...)` so the source is scanned for newlines only once.
 //!
 //! Matches the contracts documented in
-//! `docs/kcs/kcs-core-lsp-shared-utility-contracts.md`: O(log n) offset
+//! `docs/design/contracts/shared-utility-contracts-rust.md`: O(log n) offset
 //! lookup via binary search on a sorted start-offset array.
 //!
 //! [`Lexer`]: crate::lexer::Lexer

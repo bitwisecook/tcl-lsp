@@ -1,7 +1,7 @@
 # KCS: W304 — Can a missing option terminator cause option injection?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ Add `--` before user-supplied arguments to prevent option injection.
 
 ## How to suppress
 
-Add `# noqa: W304` at the end of the offending line.
+Add `# noqa: W304` on the line **above** the offending command.
 
 ## Related
 

@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_commands_e2e.py`.
-//!
 //! Workspace `executeCommand` handlers, end-to-end against the packaged server.
 //! These drive the real `workspace/executeCommand` dispatch the editors' command
 //! palette entries invoke. Each declared parameter is bound positionally, so the
@@ -451,9 +449,9 @@ fn minify_compact_round_trip() {
         "{}",
         source(&result)
     );
-    // Python's `"addNumbers" in symbolMap` is a key check for a dict and a
-    // substring check for a string; the native server reports `symbolMap` as a
-    // formatted string, so honour both shapes.
+    // The minified source must still map back to the original name. The server
+    // may report `symbolMap` as an object or as a formatted string, so accept a
+    // key on the object and a substring in the string.
     let symbol_map = result.get("symbolMap").cloned().unwrap_or(Value::Null);
     let maps_back = match &symbol_map {
         Value::Object(_) => symbol_map.get("addNumbers").is_some(),

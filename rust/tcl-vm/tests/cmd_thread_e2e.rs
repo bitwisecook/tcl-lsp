@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end tests for the VM's shared-nothing `thread` package
-//! (`RUST_ISSUE_008`, phase 3).
+//! End-to-end tests for the VM's shared-nothing `thread` package.
 //!
 //! The reference tclsh 9.0.4 is a **non-threaded** build (no `Thread` package,
 //! `tcl_platform(threaded)` unset), so there is no oracle for this subsystem —

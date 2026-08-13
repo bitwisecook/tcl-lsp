@@ -44,10 +44,10 @@ editing it — its diagnostics stay visible there, so analysis of files you
 are working on is never dimmed.
 
 Changes take effect immediately: no window reload, and no edit to the
-file. This never changes what the [Tcl Language Server](../GLOSSARY.md#lsp)
-computes. The server keeps analysing every open file; the setting only
-decides whether VS Code paints the result while the file is being viewed
-as a diff, so no report is lost.
+file. This never changes what the Tcl Language Server computes. The
+server keeps analysing every open file; the setting only decides
+whether VS Code paints the result while the file is being viewed as a
+diff, so no report is lost.
 
 The setting is deliberately **not** under `tclLsp.diagnostics.*` — that
 section is reserved for per-code on/off toggles (for example

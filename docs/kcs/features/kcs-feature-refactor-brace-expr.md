@@ -53,19 +53,10 @@ Unbraced `expr` arguments are a well-known Tcl anti-pattern: they cause double s
 
 The refactoring extracts the raw source text of the quoted argument, strips the quotes, and re-wraps in braces.
 
-## File-path anchors
-
-- `tooling/refactoring/_brace_expr.py`
-- `server/features/code_actions.py`
-
 ## Failure modes
 
 - Expression already braced (returns `None` — nothing to do).
 - Expression contains unbalanced braces inside the string (rare but possible).
-
-## Test anchors
-
-- `tests/test_refactoring.py::TestBraceExpr`
 
 ## Samples
 

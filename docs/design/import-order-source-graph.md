@@ -5,14 +5,13 @@ The load order shared by the whole wildcard-import gating family (#1104 item
 [`contracts/command-resolution.md`](contracts/command-resolution.md)'s import
 section).
 
-**Status: implemented, both halves.** `tcl_lsp_core::source_graph::RunOrder`
-is the relation §6 calls for; `WorkspaceIndex::run_order` builds it once per
-`generation()` from the host's resolver
-(`WorkspaceIndex::set_source_resolver`) **and** from
-`WorkspaceIndex::package_run_edges`, and both wildcard-import tiers rank their
-events with it through the two shared decision functions. Sections 1–5 below
-record the facts and the reasoning the design rests on; §6 is the shape that
-was built and §7 is the `package require` half (issue #1279) that reuses it.
+`tcl_lsp_core::source_graph::RunOrder` is the relation §6 describes.
+`WorkspaceIndex::run_order` builds it once per `generation()` from the
+host's resolver (`WorkspaceIndex::set_source_resolver`) **and** from
+`WorkspaceIndex::package_run_edges`, and both wildcard-import tiers rank
+their events with it through the two shared decision functions. Sections
+1–5 record the facts and reasoning the design rests on, §6 is the relation
+itself, and §7 is the `package require` half that reuses it.
 
 ## 1. The abstention, and what lifted it
 
@@ -137,13 +136,13 @@ lexical `.`/`..` folding, no filesystem access).
 
 ## 4. Which abstentions it lifts
 
-| Issue | Abstention | Status |
-|---|---|---|
-| #1104 item 3 | foreign `namespace export` patterns always count; foreign `-clear`s never revoke | **lifted** — `RunOrder::has_run`, all three §3.2 cases |
-| #1116 item 6 | two imports of one name in different files never conflict | **lifted** — `RunOrder::cmp_run` in `WildcardImportIndex::conflicting_alias_at` |
-| #1116 (finding 1 note) | `source lib.tcl ; namespace forget ::lib::p` — install counts, forget revokes nothing | **lifted** — §3.2 cases 2 and 3 together |
-| #1116 item 1 | in-document `-force` shadow with the export in another file | *not* lifted by ordering — it is an *observability* question, answered by the workspace tier's whole-program export view, which has to be threaded through `resolve_called_proc` |
-| #1116 item 4 | import-error control flow (a failed import aborts the rest of its script) | *not* lifted — a different model (intra-script abort), though it shares the "what has run" vocabulary |
+| Abstention | Resolved by |
+|---|---|
+| foreign `namespace export` patterns always count; foreign `-clear`s never revoke | `RunOrder::has_run`, all three §3.2 cases |
+| two imports of one name in different files never conflict | `RunOrder::cmp_run` in `WildcardImportIndex::conflicting_alias_at` |
+| `source lib.tcl ; namespace forget ::lib::p` — install counts, forget revokes nothing | §3.2 cases 2 and 3 together |
+| in-document `-force` shadow with the export in another file | **Not ordering.** This is an *observability* question, answered by the workspace tier's whole-program export view, which has to be threaded through `resolve_called_proc`. |
+| import-error control flow (a failed import aborts the rest of its script) | **Not ordering.** A different model — intra-script abort — though it shares the "what has run" vocabulary. |
 
 Note the two negatives. A load order says *when* a statement ran; it does not
 say whether a statement exists in a file nobody indexed, and it does not model

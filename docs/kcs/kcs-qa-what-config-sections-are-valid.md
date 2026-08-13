@@ -139,8 +139,8 @@ Controls the formatter. The most commonly tuned keys are:
 - `docstring_style` — `preceding`, `body`, or `none`.
 - `docstring_tag_style` — `doxygen`, `plain`, or `none`.
 
-The complete list, with defaults and ranges, lives in
-`tooling/formatter/config.py`.
+The complete list, with defaults and ranges, is in the
+[configuration contract](../design/contracts/xdg-config.md).
 
 ### `[style]`
 

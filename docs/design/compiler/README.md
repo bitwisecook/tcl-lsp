@@ -14,6 +14,9 @@ User-facing compiler troubleshooting and how-tos live in
   contract for the shared semantic IR, value/cell/world SSA, registry
   boundaries, exact completion and trace flow, target-family lowering, and
   current backend contracts.
+- [semantic-aot-optimisation.md](semantic-aot-optimisation.md) — default-off
+  contract for guarded semantic AOT passes, mixed plans, materialisation,
+  native numeric lowering, and Tcl's dynamic dispatch surfaces.
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md) — stage
   map and fact hand-off boundaries.
 - [compiler-systems-overview.md](compiler-systems-overview.md) —
@@ -22,27 +25,12 @@ User-facing compiler troubleshooting and how-tos live in
   (SSA, dominators, SCCP, semi-pruned SSA, interval abstract interpretation,
   GVN, slot allocation, worklist dataflow), their **verified** original
   references, and how each is adapted for Tcl's dynamism.
-- [phases-3-5-6-design.md](phases-3-5-6-design.md) — status and deferral
-  rationale for the parser/compiler algorithmic-improvement programme.
-- [semi-pruned-ssa-deferred.md](semi-pruned-ssa-deferred.md) — investigation
-  and deferral of semi-pruned SSA (vs the current minimal-SSA phi placement).
-- [review-findings-deferred.md](review-findings-deferred.md) — verified-real
-  external code-review findings that remain deferred, with root cause and fix
-  approach.
-- [review-findings-tracker.md](review-findings-tracker.md) — five-wave
-  per-finding ledger (Docs 1-5) tracking status (✅ FIXED / 🔄 PARTIAL /
-  ❌ NOT-A-BUG) and cross-linking each closure to its FP.md entry.
-- [post-stage2-followups.md](post-stage2-followups.md) — architectural
-  follow-ups that unblock the 4 PARTIAL closures (VAR-as-cmd type inference;
-  TclOO method-body lowering to per-method FunctionUnits).
-- [FP.md](FP.md) — false-positive / true-positive determination catalog: for
-  each precision decision (shipped or open), a trimmed real-corpus reproducer,
-  a line-by-line walkthrough of why it's FP/TP/not-a-bug, the SSA / SCCP /
-  bounds evidence, and a paired must-fire + must-stay-silent regression test.
-- [fp-audit-todo.md](fp-audit-todo.md) — living checklist of the full
-  diagnostic / optimisation / shimmer code inventory: which codes have been
-  swept against the corpus for false positives and which remain, plus the
-  resolved fixes and confirmed-true-positive outcomes.
+- [precision-limitations.md](precision-limitations.md) — where the compiler is
+  deliberately, or knowingly, less precise than it could be: what is imprecise,
+  why it matters, and where the code is.
+- [fp-sweep.md](fp-sweep.md) — the `cargo xtask fp-sweep` false-positive audit
+  harness: what it runs, why it is dialect-aware, how firings are grouped, and
+  where the paired regression tests live.
 - [command-oracle-audits.md](command-oracle-audits.md) — per-command Tcl
   oracle queue, evidence availability, and registry verdicts.
 
@@ -51,7 +39,7 @@ User-facing compiler troubleshooting and how-tos live in
 - [lexing-segmentation.md](lexing-segmentation.md) — token and command
   segmentation.
 - [green-token-tree.md](green-token-tree.md) — lossless token tree, error
-  nodes, and incremental reparse (issue #477; phases 1–5 shipped).
+  nodes, and incremental reparse.
 - [syntax-tree.md](syntax-tree.md) — the canonical red-green concrete syntax
   tree (lossless, position-independent); the segmenter's byte-identical
   backing and the foundation the formatter, minifier, AOT lowering, and
@@ -70,11 +58,9 @@ User-facing compiler troubleshooting and how-tos live in
   end-to-end source to bytecode walkthrough.
 - [control-flow-patterns.md](control-flow-patterns.md) — if, while,
   for, foreach, and proc compilation.
-- [error-recovery.md](error-recovery.md) — virtual token injection for
-  malformed input.
-- [error-recovery-rust-port.md](error-recovery-rust-port.md) — validated design
-  for an incremental green-tree recovery engine (structural-state index +
-  ArgRole routing) for the Rust port.
+- [error-recovery.md](error-recovery.md) — ghost delimiter injection for
+  malformed input: the recovery loop, the E20x heuristics, the structural-state
+  index that vetoes inert insertion points, and the `ArgRole` router.
 
 ## Analysis
 
@@ -89,9 +75,6 @@ User-facing compiler troubleshooting and how-tos live in
   and consumer contracts.
 - [memory-ssa.md](memory-ssa.md) — memory-SSA, alias detection, and
   versioned memory operations.
-- [phase8-place-migration.md](phase8-place-migration.md) — versioned-Place
-  memory-SSA and the coordinated consumer migration (array-element / dict-path
-  precision).
 - [dataflow-graph.md](dataflow-graph.md) — data-flow graph extraction,
   serialisation, and consumer contracts.
 - [rendered-value-properties.md](rendered-value-properties.md) — string
@@ -101,9 +84,6 @@ User-facing compiler troubleshooting and how-tos live in
   character-string semantics).
 - [taint-analysis.md](taint-analysis.md) — sources, sinks, colours, and
   propagation.
-- [byte-array-corruption.md](byte-array-corruption.md) — S110: the
-  byte-array damage taxonomy (intrinsic vs round-trip) and why byte
-  provenance is a dedicated dataflow, not a type-lattice state.
 - [var-escape-analysis.md](var-escape-analysis.md) — which Tcl vars stay
   on WASM locals vs spill to the runtime frame.
 - [interprocedural-analysis.md](interprocedural-analysis.md) —
@@ -123,8 +103,6 @@ User-facing compiler troubleshooting and how-tos live in
 
 - [command-registry.md](command-registry.md) — command metadata, specs,
   arity, and taint hints.
-- [command-oracle-audits.md](command-oracle-audits.md) — release-gated Tcl
-  command oracle findings and registry-first corrections.
 - [data-structure-reference.md](data-structure-reference.md) — pipeline
   types at each stage.
 - [connection-scope.md](connection-scope.md) — cross-event variable
@@ -142,6 +120,8 @@ User-facing compiler troubleshooting and how-tos live in
 - [wasm-codegen.md](wasm-codegen.md) — shared semantic-to-WASM boundary,
   executable-IR generic argv transport, typed semantic declines, the single
   Rust emitter, and the shared runtime ABI.
+- [wasm-extensions.md](wasm-extensions.md) — current embedded-script boundary
+  and the explicitly future package-driven extension design.
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl layering, typed core and BPF-IR,
   current `rbpf` codegen ABI, event/framework capabilities, verified design
   issues, real-world use cases, and the production-kernel roadmap.
@@ -200,8 +180,6 @@ User-facing compiler troubleshooting and how-tos live in
   and suppression policy boundary.
 - [async-diagnostics-tiering.md](async-diagnostics-tiering.md) —
   fast/deep tiering and cancellation expectations.
-- [phase4-lsp-consumers.md](phase4-lsp-consumers.md) — LSP feature
-  consumers of shared compiler facts.
 
 ## Codegen boundary
 
@@ -211,11 +189,19 @@ User-facing compiler troubleshooting and how-tos live in
   and ownership boundaries.
 - [wasm-runtime-primitives.md](wasm-runtime-primitives.md) — Rust
   runtime ABI at the compiler-to-interpreter boundary.
+- [wasm-extensions.md](wasm-extensions.md) — the `wasm_stdlib` Cargo feature
+  and how the Rust runtime embeds optional Tcl scripts.
+- [wasm-target-surfaces.md](wasm-target-surfaces.md) — WASI vs in-browser
+  WASM: the capability matrix, browser-target build/wiring gaps, the
+  proposed host-import surface, and measured module sizes.
+- [aot-command-priority.md](aot-command-priority.md) — real-corpus census
+  (issue #1181) ranking which Tcl commands the AOT WASM compiler should
+  emit directly next, with a breadth-weighted tiering and what is already
+  covered versus what cannot be direct.
 
 ## Related KCS how-tos
 
 - [How do I add a compiler pass?](../../kcs/kcs-howto-add-compiler-pass.md)
-- [How do I debug an IR/CFG/SSA diagnostic?](../../kcs/kcs-howto-ir-cfg-ssa-diagnostics.md)
-- [Stale compiler cache issue](../../kcs/kcs-issue-stale-compiler-cache.md)
-- [Range drift issue](../../kcs/kcs-issue-range-drift.md)
-- [Duplicate diagnostics issue](../../kcs/kcs-issue-duplicate-diagnostics.md)
+- [How do I add a command-registry package?](../../kcs/kcs-howto-add-command-registry-package.md)
+- [How does array-element SSA typing work?](../../kcs/kcs-howto-array-element-ssa-typing.md)
+- [How do I suppress a diagnostic?](../../kcs/kcs-howto-suppress-diagnostics.md)

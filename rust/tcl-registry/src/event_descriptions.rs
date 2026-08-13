@@ -18,13 +18,10 @@
 
 //! Per-event description prose for iRules events.
 //!
-//! Generated from the Python registry's `EVENT_DESCRIPTIONS`
-//! (`compiler/registry/namespace_data.py`) by
-//! `scripts/registry-audit/gen_event_descriptions.py`. Drives the
-//! `description:` line of `f5 irule event-info`.
+//! Drives the `description:` line of `f5 irule event-info`.
 
 /// `(event_name, description)` for every iRules event that carries
-/// descriptive prose, in Python dict (insertion) order.
+/// descriptive prose, in insertion order.
 pub(crate) const EVENT_DESCRIPTIONS: &[(&str, &str)] = &[
     (
         "RULE_INIT",

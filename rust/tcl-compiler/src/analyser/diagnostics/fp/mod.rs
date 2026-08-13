@@ -18,17 +18,18 @@
 
 //! FP precision catalogue → Rust regression tests.
 //!
-//! Mirrors `docs/design/compiler/FP.md` (the false-positive / true-positive
-//! catalogue), giving the analyser a standalone precision net. Each
-//! test pins a *must-stay-silent* (FP) arm and, where the catalogue has one, a
-//! *must-fire* (TP) control.
+//! These modules **are** the false-positive / true-positive catalogue: every
+//! entry lives here as its reproducer, giving the analyser a standalone
+//! precision net. Each test pins a *must-stay-silent* (FP) arm and, where the
+//! entry has one, a *must-fire* (TP) control. The method for running a sweep —
+//! how new entries are found — is `docs/design/compiler/fp-sweep.md`.
 //!
-//! Reproducers are copied verbatim from the FP.md catalogue entries. Where the
-//! analyser legitimately diverges from the catalogue verdict — a different
-//! structure, or a feature not yet implemented — the test captures the *actual*
-//! behaviour and the divergence is called out in a comment (and, when it is a
-//! genuine residual false positive, marked `#[ignore]` with the FP id so it is
-//! tracked, not silently green). See `docs/design/rust/fp-rust-port-plan.md`.
+//! Where the analyser legitimately diverges from a catalogue entry's expected
+//! verdict — a different structure, or a feature not yet implemented — the
+//! test captures the *actual* behaviour and the divergence is called out in a
+//! comment (and, when it is a genuine residual false positive, marked
+//! `#[ignore]` with the FP id so it is tracked, not silently green). See
+//! `docs/design/compiler/precision-limitations.md`.
 
 use crate::analyser::Analyser;
 use crate::compilation_unit::CompilationUnit;

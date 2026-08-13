@@ -118,6 +118,41 @@ pub enum LoweringHookId {
     ArrayFor,
 }
 
+impl LoweringHookId {
+    /// Stable compiler and Explorer spelling for this structural identity.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Expr => "expr",
+            Self::Return => "return",
+            Self::Set => "set",
+            Self::Incr => "incr",
+            Self::AppendOrLappend => "append-or-lappend",
+            Self::Unset => "unset",
+            Self::Global => "global",
+            Self::Variable => "variable",
+            Self::Upvar => "upvar",
+            Self::Proc => "proc",
+            Self::When => "when",
+            Self::NamespaceEval => "namespace-eval",
+            Self::If => "if",
+            Self::Switch => "switch",
+            Self::For => "for",
+            Self::While => "while",
+            Self::Foreach => "foreach",
+            Self::Lmap => "lmap",
+            Self::ForeachLine => "foreach-line",
+            Self::Catch => "catch",
+            Self::Try => "try",
+            Self::Dict => "dict",
+            Self::Eval => "eval",
+            Self::Uplevel => "uplevel",
+            Self::Apply => "apply",
+            Self::ArrayFor => "array-for",
+        }
+    }
+}
+
 /// Typed identifier for a `TclVM` bytecode codegen specialisation.
 ///
 /// Identifies which command shape gets a hand-written

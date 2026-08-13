@@ -1249,8 +1249,9 @@ impl CfgBuilder {
                 }
                 self.lower_script(body, current)
             }
-            // `return -options …` / `return {*}…args` lower to an IRBarrier,
-            // but still unconditionally exit the proc in analysis builds.
+            // `return -options …` / `return {*}…args` lower to a
+            // Statement::Barrier, but still unconditionally exit the proc
+            // in analysis builds.
             Statement::Barrier { reason, span, .. }
                 if self.faithful_exceptions
                     && matches!(

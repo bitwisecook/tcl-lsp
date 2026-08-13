@@ -1,7 +1,7 @@
 # KCS: T100 — Why does the analyser warn about tainted data in a code-execution sink?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -102,7 +102,7 @@ offered for a `subst` sink.
 
 ## How to suppress
 
-Add `# noqa: T100` at the end of the offending line.
+Add `# noqa: T100` on the line **above** the offending command.
 
 ## Related
 

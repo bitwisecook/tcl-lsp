@@ -67,8 +67,3 @@ set a 1
 - Marker typo (`cursor` text missing) -> no parsed cursor; scene fallback cursor is used.
 - Marker left in output content -> parser regression in `parseScreenshotSample`.
 - Scene still uses inline source -> sample edits do not affect captures.
-
-## File-path anchors
-
-- `editors/vscode/src/screenshotDemo.ts`
-- `samples/for_screenshots/`

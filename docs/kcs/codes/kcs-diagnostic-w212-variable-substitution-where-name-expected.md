@@ -1,7 +1,7 @@
 # KCS: W212 — Why does the analyser warn about a variable substitution where a name is expected?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -50,7 +50,7 @@ If you genuinely need to set a variable by computed name, use `upvar 0 $varname 
 
 ## How to suppress
 
-Add `# noqa: W212` at the end of the offending line.
+Add `# noqa: W212` on the line **above** the offending command.
 
 ## Related
 

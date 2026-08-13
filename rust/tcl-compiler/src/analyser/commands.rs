@@ -555,8 +555,8 @@ impl Analyser {
     /// apply {…} value]`, no role at that position) is never treated as a
     /// call; only a position the registry already marks as later
     /// invoked/sourced is. See
-    /// `docs/kcs/kcs-issue-apply-lambda-body-not-highlighted-via-list-quoting.md`
-    /// decision rule 4 for why that highlighting-only precision is
+    /// `docs/design/compiler/command-registry.md`
+    /// for why that highlighting-only precision is
     /// deliberately widened here rather than reused unchanged: a missed
     /// W129 (false negative) is the worse failure mode for a security
     /// diagnostic, unlike a spurious highlight.

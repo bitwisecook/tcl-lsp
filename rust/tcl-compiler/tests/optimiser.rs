@@ -1025,7 +1025,7 @@ fn multi_set_packing_o119() {
     let t9 = "set a 1\nset b 2\nset c 3\nputs \"$a $b $c\"";
     assert!(!opt_fires(t9, "tcl9.0", "O119"));
 
-    // Too few consecutive sets ⇒ no packing (holds in Rust too).
+    // Too few consecutive sets ⇒ no packing.
     let few = "set a 1\nset b 2\nputs \"$a $b\"";
     assert!(!opt_fires(few, TCL, "O119"));
 
@@ -1103,7 +1103,7 @@ fn end_offset_rewrites_o128() {
 #[test]
 fn end_offset_o128_must_not_fire() {
     // The robustness guard: each unsafe pattern must NOT rewrite. All confirmed
-    // unchanged in Rust (no O128). Several are paired in the firing test above
+    // unchanged (no O128). Several are paired in the firing test above
     // with their safe counterpart.
     let neg = [
         "set x [lindex $L [expr {[llength $M] - 1}]]", // mismatched var
@@ -1239,7 +1239,7 @@ fn tail_call_loop_conversion_o122() {
     assert!(fo.contains("tailcall factorial") || fo.contains("while {1}"));
     assert!(opt_fires(fac, TCL, "O121") || opt_fires(fac, TCL, "O122"));
 
-    // The bare self-call `loop` body DOES take the O122 loop conversion in Rust.
+    // The bare self-call `loop` body DOES take the O122 loop conversion.
     let bare = "proc loop {items} {\n    if {[llength $items] == 0} {\n        return\n    }\n    puts [lindex $items 0]\n    loop [lrange $items 1 end]\n}\n";
     let bo = optimised(bare, TCL);
     assert!(bo.contains("while {1}"));

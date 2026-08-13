@@ -1,7 +1,7 @@
 # KCS: W121 — Why does the analyser flag a non-contiguous subnet mask?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ Use a valid contiguous subnet mask.
 
 ## How to suppress
 
-Add `# noqa: W121` at the end of the offending line.
+Add `# noqa: W121` on the line **above** the offending command.
 
 ## Related
 

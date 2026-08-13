@@ -1,7 +1,7 @@
 # KCS: IRULE2001 — Why does the analyser flag `matchclass` as deprecated?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ class match -- $data equals $class
 
 ## How to suppress
 
-Add `# noqa: IRULE2001` at the end of the offending line.
+Add `# noqa: IRULE2001` on the line **above** the offending command.
 
 ## Related
 

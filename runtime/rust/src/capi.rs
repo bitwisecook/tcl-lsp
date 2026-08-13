@@ -21,10 +21,10 @@
 //! These are the runtime side of `c-extension-abi.md` §4.3 (direct C-ABI
 //! imports): each is exported with the C ABI so an extension's WASM imports it
 //! from the runtime. The ownership/error category of every function here is
-//! fixed by `c-api-ownership-contract.md` and enforced by
-//! `scripts/check_c_api_ownership.py`. T1.1 ships the obj-lifecycle +
-//! result/eval-core slice needed for the refcount round-trip; the rest of the
-//! 81-function surface fills in across Track 1 / Track 2.
+//! fixed by `c-api-ownership-contract.md`, which nothing currently enforces
+//! mechanically — a new export must be given its row by hand. The
+//! obj-lifecycle and result/eval-core slice is exported; the rest of the
+//! 81-function surface is not yet.
 
 #![allow(non_snake_case)]
 

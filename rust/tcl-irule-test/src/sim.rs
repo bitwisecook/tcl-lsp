@@ -20,8 +20,11 @@
 //! bytecode VM, load iRule source(s), fire a request, and read back the
 //! pool/node decision, captured logs, and decision log.
 //!
-//! This is the config-agnostic core shared by the `f5 explain-flow --simulate`
-//! path and the `tcl_lsp_py.simulate_irule` facade. It is **runtime-ready**: it
+//! This is the config-agnostic core behind the `f5 explain-flow --simulate`
+//! path: it exposes [`SimRequest`] (the captured request to drive),
+//! [`SimOutcome`] (the pool/node decision, captured logs, decision log, and
+//! any failure reason), and [`simulate_irule`] to run one against the other —
+//! all three re-exported from the crate root. It is **runtime-ready**: it
 //! drives [`tcl-vm`](tcl_vm) in-process (no `tclsh`), so it lights up as the VM
 //! grows the command surface the orchestrator needs (`HTTP::*`, `pool`/`node`,
 //! `LB::*`, `when` dispatch, `class match`, …). Until then every VM /
@@ -267,7 +270,7 @@ mod tests {
     #[test]
     fn decision_list_split_handles_braces() {
         // Braced elements group, nested braces stay whole (Tcl list grammar
-        // via `tcl_syntax::list`, not the old ad-hoc splitter).
+        // via `tcl_syntax::list`).
         assert_eq!(
             parse_decisions("{lb pool {web pool}} {http respond {301 moved}}"),
             vec![
@@ -283,14 +286,14 @@ mod tests {
 
     #[test]
     fn log_entry_split_follows_tcl_list_semantics() {
-        // Quoted elements group as one element (the old splitter broke
-        // `"hello world"` at the space)…
+        // Quoted elements group as one element (`"hello world"` is not split
+        // at the space)…
         assert_eq!(
             parse_log_entries("{info local0. \"hello world\"}"),
             vec!["info | local0. | hello world"]
         );
-        // …and backslash escapes decode per Tcl (`\t` is a tab; the old
-        // splitter dropped the backslash and kept a literal `t`).
+        // …and backslash escapes decode per Tcl (`\t` is a tab, not a
+        // literal `t`).
         assert_eq!(parse_log_entries(r"{warn a\tb}"), vec!["warn | a\tb"]);
         // FP guard: braces still group and separate elements stay separate.
         assert_eq!(parse_log_entries("{err {b c} d}"), vec!["err | b c | d"]);

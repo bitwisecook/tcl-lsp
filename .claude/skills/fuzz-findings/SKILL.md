@@ -133,7 +133,7 @@ with `invalid command name`) before trusting a campaign's findings.
 
 ## Categories
 
-A finding's category is the [`Verdict`](../../rust/tcl-fuzz/src/harness.rs) that
+A finding's category is the [`Verdict`](../../../rust/tcl-fuzz/src/harness.rs) that
 produced it:
 
 | Category | Meaning |

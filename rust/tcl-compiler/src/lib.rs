@@ -80,9 +80,6 @@
 //!   green layer ([`parsing::syntax::green`])
 //!   is the lossless representation the segmenter / lowering / formatter
 //!   / tooling are meant to share.
-//!
-//! The crate has no `pyo3` dependency and no Python-binding concerns —
-//! those belong in the `tcl-lsp-rust` binding crate.
 
 #![deny(missing_docs)]
 
@@ -97,6 +94,7 @@ pub mod cfg_builder;
 pub mod cfg_layout;
 pub mod codegen;
 pub mod command_binding;
+pub mod common_aot_plan;
 pub mod compilation_unit;
 pub mod compiler_checks;
 pub mod completion;
@@ -134,6 +132,8 @@ pub mod loops;
 pub mod lowering;
 pub mod lowering_hooks;
 pub mod memory_ssa;
+pub mod mixed_region_plan;
+pub mod native_integer_proof;
 pub mod object_types;
 // Name normalisation moved to the shared `tcl-syntax` crate; re-export so
 // `crate::naming::*` keeps resolving across the compiler.
@@ -152,6 +152,7 @@ pub mod sccp;
 pub mod script_arg;
 pub mod segmenter;
 pub mod semantic_analysis;
+pub mod semantic_optimisation;
 pub mod shimmer;
 pub mod side_effects;
 pub mod signature_scan;
@@ -186,7 +187,7 @@ pub use expr_parser::parse_expr;
 pub use ir::{Module, Procedure, Script, Statement};
 pub use tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, format_tcl_value};
 
-/// Crate version string, useful for migration diagnostics.
+/// Crate version string.
 ///
 /// ```
 /// assert!(!tcl_compiler::VERSION.is_empty());

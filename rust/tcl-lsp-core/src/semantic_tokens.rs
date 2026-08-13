@@ -211,8 +211,8 @@ enum TokenKind {
     /// An object name known to be a VLAN or trunk.
     Vlan = 46,
     /// A BIG-IP network interface name (`1.1`, `mgmt`).  Named `bigipInterface`
-    /// in the legend, **not** `interface`: the retired Python legend reused the
-    /// standard LSP `interface` type for this, which shadows its real meaning.
+    /// in the legend, **not** `interface`: reusing the standard LSP `interface`
+    /// type for this would shadow its real meaning.
     BigipInterface = 47,
     /// An IPv4 literal, with optional CIDR suffix.
     IpAddress = 48,
@@ -3369,10 +3369,9 @@ fn insert_case_list_override(
     // The clause-list shape is registry data (`CommandSpec::case_list`), so this
     // walker names no command: `switch … {pat body …}` and Expect's
     // `expect {?-flags? pat body …}` are the same construct, and Expect's
-    // `expect_before` / `expect_after` / … come along for free.  Previously this
-    // was `if seg.texts[0] != "switch" { return }` — the hardcode AGENTS.md
-    // calls migration debt — and Expect's clause bodies were never recursed,
-    // so an entire `expect {…}` block rendered as flat per-line `string` tokens.
+    // `expect_before` / `expect_after` / … come along for free.  Naming
+    // `switch` here instead would leave every Expect clause body unrecursed,
+    // rendering an entire `expect {…}` block as flat per-line `string` tokens.
     let Some(spec) = registry.get(&seg.texts[0]).and_then(|s| s.case_list) else {
         return;
     };

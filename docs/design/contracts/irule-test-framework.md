@@ -1,39 +1,53 @@
-# KCS: iRule Event Orchestrator test framework
+# iRule Event Orchestrator test framework
 
-## Symptom
+How iRule logic — pool selection, header manipulation, data group lookups,
+persistence, logging, and connection control — is exercised without a BIG-IP
+device. Read it before changing the simulation, its mocks, or the Rust harness
+that drives them.
 
-Need to test iRule logic (pool selection, header manipulation, data
-group lookups, persistence, logging, connection control) without a
-BIG-IP device.
+The simulation itself is Tcl: an orchestrator, a TMM shim, protocol state
+layers, and command mocks, shipped under `rust/tcl-irule-test/tcl/`. A test
+script is plain Tcl and runs under any `tclsh`.
 
-## Operational context
-
-`tooling/irule_test/` provides a complete TMM simulation: event
-orchestration, protocol state machines, command mocks, assertion DSL,
-and optional Python bridge.  Tests run with just `tclsh` (no Python
-needed for pure-Tcl usage) or via `tkinter.Tcl()` / subprocess from
-Python.
+`rust/tcl-irule-test` is the Rust side: it embeds those Tcl assets, stands the
+orchestrator up **in-process on the bytecode VM** (no `tclsh` subprocess),
+loads an iRule, fires events, and reads back the pool/node decisions, captured
+logs, and assertion results.
 
 ## Architecture
 
 ```
-User test script (Tcl or Python)
+test script (Tcl)  |  LiveSession (Rust, drives tcl-vm in-process)
     -> orchestrator.tcl  (event ordering, flow chains, assertions)
     -> itest_core.tcl    (iRule loader, event firer)
-    -> command_mocks.tcl (93 hand-written + 1473 auto-generated stubs)
-    -> state_layers.tcl  (10 protocol state namespaces)
+    -> command_mocks.tcl (hand-written mocks)
+    -> _mock_stubs.tcl   (generic stub action table for registry-only commands)
+    -> state_layers.tcl  (protocol state namespaces)
     -> tmm_shim.tcl      (disabled commands, info override)
-    -> expr_ops.tcl      (contains/starts_with/ends_with/etc.)
-    -> profiler.tcl      (optional, off by default: emits rule-profiler
-                          occurrence logs for profile-guided optimisation)
+    -> expr_ops.tcl      (contains/starts_with/ends_with/…)
+    -> compat84.tcl      (8.4 compatibility shims)
+    -> profiler.tcl      (optional, off by default)
 ```
+
+The Rust modules are:
+
+| Module | Role |
+|---|---|
+| `embedded.rs` | the Tcl assets, materialised so `[file dirname [info script]]` sibling lookups resolve |
+| `live.rs` | `LiveSession` — bootstrap, compile, fire, read back; sources `FRAMEWORK_FILES` in the same order `runner.tcl` does |
+| `session.rs` | `SessionPlan` — assembles the bootstrap script |
+| `sim.rs` | `simulate_irule` — the config-agnostic entry point behind `f5 explain-flow --simulate` |
+| `topology.rs` | turn a parsed BIG-IP config into the `::orch::` setup commands for a virtual server |
 
 ## Decision rules / contracts
 
-1. **Single source of truth**: Python registries are authoritative.
-   Tcl data files (`_event_data.tcl`, `_registry_data.tcl`,
-   `_mock_stubs.tcl`) are generated from Python and must never be
-   edited by hand.  Staleness tests enforce this.
+1. **The command registry is the single source of truth.** The three data
+   files (`_event_data.tcl`, `_registry_data.tcl`, `_mock_stubs.tcl`) are
+   generated from it and must never be edited by hand. `_mock_stubs.tcl` is a
+   single data table consumed by one generic `::itest::cmd::_stub` proc rather
+   than ~1500 individual stub procs, because defining that many proc bodies
+   cost seconds of compilation on every fresh session; the decision log is
+   identical either way.
 
 2. **Decision log over state inspection**: Tests assert on the
    decision log (`{category action args}` triples) rather than raw
@@ -54,14 +68,9 @@ User test script (Tcl or Python)
    `toplevel` -> `::itest::cmd::cmd_toplevel`
    Hyphens/dots in names become underscores.
 
-6. **Codegen pipeline**: Three scripts generate three Tcl files:
-   - `codegen_event_data.py` -> `_event_data.tcl`
-   - `codegen_registry_data.py` -> `_registry_data.tcl`
-   - `codegen_mock_stubs.py` -> `_mock_stubs.tcl`
-
-7. **Fluent assertion DSL**: `::orch::assert_that subject verb value`
-   in Tcl; `result.assert_pool()` / `result.assert_decision()` in
-   Python.  Both share pass/fail counters.
+6. **Fluent assertion DSL**: `::orch::assert_that subject verb value`.
+   Assertions share one pass/fail counter set, which `::orch::summary` and
+   `::orch::done` read.
 
 8. **Keep-alive lifecycle**: `run_http_request` fires full event
    chain (CLIENT_ACCEPTED -> HTTP_REQUEST -> ...).
@@ -72,9 +81,12 @@ User test script (Tcl or Python)
    connections.  `RULE_INIT` fires once.  `reset_all` clears them;
    `reset_connection_state` does not.
 
-10. **Two Python backends**: `_InProcessBackend` (tkinter.Tcl, preferred)
-    and `_SubprocessBackend` (tclsh + runner.tcl JSON protocol).
-    Backend auto-selection: tkinter first, subprocess fallback.
+10. **In-process execution.** `LiveSession` compiles and runs the
+    orchestrator on `tcl-vm` directly, so a caller needs no external
+    interpreter. Every VM or orchestrator failure is captured into the
+    outcome rather than panicking, so a caller (for example
+    `f5 explain-flow --simulate`) can still render its static analysis when
+    the simulation cannot complete.
 
 11. **Byte-accurate `*::payload`**: payloads are wire bytes, so the
     `*::payload` mocks treat them as byte arrays — `length`, the
@@ -95,35 +107,30 @@ User test script (Tcl or Python)
 ## File-path anchors
 
 ### Framework core (Tcl)
-- `tooling/irule_test/tcl/orchestrator.tcl` — event orchestrator, flow chains, assertion DSL
-- `tooling/irule_test/tcl/command_mocks.tcl` — hand-written command mocks (73 procs)
-- `tooling/irule_test/tcl/state_layers.tcl` — 10 protocol state namespaces
-- `tooling/irule_test/tcl/itest_core.tcl` — iRule loader and event firer
-- `tooling/irule_test/tcl/tmm_shim.tcl` — TMM environment simulation
-- `tooling/irule_test/tcl/expr_ops.tcl` — TMM expression operators
-- `tooling/irule_test/tcl/runner.tcl` — JSON protocol for subprocess bridge
-- `tooling/irule_test/tcl/scf_loader.tcl` — SCF/bigip.conf parser
-- `tooling/irule_test/tcl/example_test.tcl` — 4-scenario example test
+- `rust/tcl-irule-test/tcl/orchestrator.tcl` — event orchestrator, flow chains, assertion DSL, `_fakecmp_hash`
+- `rust/tcl-irule-test/tcl/command_mocks.tcl` — hand-written command mocks
+- `rust/tcl-irule-test/tcl/state_layers.tcl` — protocol state namespaces
+- `rust/tcl-irule-test/tcl/itest_core.tcl` — iRule loader and event firer
+- `rust/tcl-irule-test/tcl/tmm_shim.tcl` — TMM environment simulation
+- `rust/tcl-irule-test/tcl/expr_ops.tcl` — TMM expression operators
+- `rust/tcl-irule-test/tcl/compat84.tcl` — 8.4 compatibility shims
+- `rust/tcl-irule-test/tcl/runner.tcl` — the standalone runner's source order
+- `rust/tcl-irule-test/tcl/scf_loader.tcl` — SCF / `bigip.conf` parser
+- `rust/tcl-irule-test/tcl/example_test.tcl`, `example_multi_tmm_test.tcl`, `binary_payload_test.tcl` — worked examples
 
 ### Generated data (Tcl)
-- `tooling/irule_test/tcl/_event_data.tcl` — MASTER_ORDER, FLOW_CHAINS
-- `tooling/irule_test/tcl/_registry_data.tcl` — disabled commands, operators, command list
-- `tooling/irule_test/tcl/_mock_stubs.tcl` — 1188 auto-generated stub mocks
+- `rust/tcl-irule-test/tcl/_event_data.tcl` — `MASTER_ORDER`, `FLOW_CHAINS`
+- `rust/tcl-irule-test/tcl/_registry_data.tcl` — disabled commands, operators, command list
+- `rust/tcl-irule-test/tcl/_mock_stubs.tcl` — the generic stub action table
 
-### Python bridge
-- `tooling/irule_test/bridge.py` — IruleTestSession, RequestResult, backends
-- `tooling/irule_test/topology.py` — SCF -> Tcl setup generator
-- `tooling/irule_test/codegen_event_data.py` — generates _event_data.tcl
-- `tooling/irule_test/codegen_registry_data.py` — generates _registry_data.tcl
-- `tooling/irule_test/codegen_mock_stubs.py` — generates _mock_stubs.tcl
+### Rust driver
+- `rust/tcl-irule-test/src/{embedded,live,session,sim,topology}.rs`
 
-### AI integration
-- `ai/claude/tcl_ai.py` — `cmd_generate_test` CLI subcommand
-- `ai/mcp/tcl_mcp_server.py` — `generate_irule_test` MCP tool
-- `editors/vscode/src/chat/commands/test.ts` — VS Code `/test` chat command
-
-### Tests
-- `tests/test_irule_test_framework.py` — 177 tests (54 require tkinter)
+### AI and editor integration
+- `rust/tcl-mcp/src/irule_gen.rs` — the `generate_irule_test` MCP tool
+- `rust/tcl-mcp/src/fakecmp.rs` — `fakecmp_which_tmm` / `fakecmp_suggest_sources`, kept byte-for-byte in sync with the Tcl `_fakecmp_hash` (agreement is tested)
+- `editors/vscode/src/chat/commands/test.ts` — the VS Code `/test` chat command
+- The `generate-test` skill drives test generation from an iRule.
 
 ## Example: minimal test (Tcl)
 
@@ -147,17 +154,6 @@ User test script (Tcl or Python)
 ::orch::assert_that decision lb pool_select was_not_called
 
 ::orch::summary
-```
-
-## Example: Python integration
-
-```python
-async with IruleTestSession(backend="inprocess") as session:
-    await session.start()
-    await session.load_irule(irule_source)
-    result = await session.run_http_request(host="api.example.com")
-    result.assert_pool("api_pool")
-    result.assert_no_decision("connection", "reject")
 ```
 
 ## Test runner: structured test cases
@@ -382,8 +378,6 @@ can plan multi-TMM test distributions before generating Tcl code.
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| `Missing generated file` error | Codegen not run | `python -m tooling.irule_test.codegen_event_data` (or `_registry_data` / `_mock_stubs`) |
-| `_mock_stubs.tcl is stale` test failure | New commands added to registry | Regenerate with `python -m tooling.irule_test.codegen_mock_stubs` |
-| `tkinter.Tcl() not available` | Python built without `_tkinter` | Use `backend="subprocess"` or install tkinter |
-| iRule command returns empty string | Using stub mock | Write a hand-written mock in `command_mocks.tcl` |
+| `Missing generated file` error | A generated data file is absent | Restore `_event_data.tcl` / `_registry_data.tcl` / `_mock_stubs.tcl` from the tree — they are checked in |
+| iRule command returns an empty string | It is being served by the generic stub | Write a hand-written mock in `command_mocks.tcl` |
 | Event not firing | Profile not configured | Check `::orch::configure -profiles {...}` |

@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn incr_with_brace_expansion_falls_back_to_call() {
         // {*} expansion hides the real arg count — must not take
-        // the specialised IRIncr path.
+        // the specialised Statement::Incr path.
         let m = lower_to_ir("incr {*}$args", &reg());
         assert!(matches!(
             &m.top_level.statements[0],

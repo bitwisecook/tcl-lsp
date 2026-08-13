@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_navigation_e2e.py`.
-//!
 //! Type-definition and declaration navigation, end-to-end.
 
 use crate::common::helpers::*;

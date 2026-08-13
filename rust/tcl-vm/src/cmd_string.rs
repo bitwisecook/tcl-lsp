@@ -26,7 +26,6 @@ use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("string", cmd_string);
     vm.register("append", cmd_append);
     // The compiler lowers `string <sub>` to a direct `::tcl::string::<sub>`
     // invocation (the ensemble-rewrite path); register those as forwarders onto
@@ -69,6 +68,9 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::string::trimright", |vm, a| {
         string_op(vm, "trimright", a)
     });
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let spec = registry.get("string").expect("core string spec");
+    vm.register_spec_builtin(spec, cmd_string);
 }
 
 /// Dispatch a `::tcl::string::<sub>` forwarder by prepending the subcommand and

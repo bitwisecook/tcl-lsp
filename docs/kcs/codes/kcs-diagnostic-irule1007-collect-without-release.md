@@ -1,7 +1,7 @@
 # KCS: IRULE1007 — Why does the analyser flag a collect call without a matching release?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -51,7 +51,7 @@ releases through dynamically constructed commands.
 
 ## How to suppress
 
-Add `# noqa: IRULE1007` at the end of the offending line.
+Add `# noqa: IRULE1007` on the line **above** the offending command.
 
 ## Related
 

@@ -1,28 +1,23 @@
-# TclOO object-type tracking — design & staged plan
+# TclOO object-type tracking
 
-Status: **active**. This note records the target architecture for tracking a
-`TclOO` receiver's class (`$obj method …`, `[dict get $d $k] method …`, `my
-method …`) and the staged path from today's provenance passes to it. It is
-informed by a review of how modern OO / dynamic-language compilers do this
-(sources at the end).
+The architecture for tracking a `TclOO` receiver's class — `$obj method …`,
+`[dict get $d $k] method …`, `my method …` — and how it relates to the
+provenance passes that feed it. The approach is grounded in how modern OO
+and dynamic-language compilers solve the same problem; sources at the
+end.
 
 ## The problem
 
-Tcl is dynamically typed; an object is a command handle, dispatch is
-`$obj method args`. To colour / complete / diagnose a method we need the
-receiver's class(es). Today (issue #797 and its follow-ups) we resolve this with
-a set of **provenance passes** feeding a highlight-only resolver:
+Tcl is dynamically typed; an object is a command handle, and dispatch is
+`$obj method args`. To colour, complete, or diagnose a method call, we need
+the receiver's class or classes.
 
-- SSA type lattice: scalar `OBJECT(class)` and container `List/Dict<OBJECT(class)>`
-  (`type_infer`).
-- Doc-level union maps: `object_handle_classes`, `object_collection_classes`,
-  interprocedural param/return, `my`-self, loop-var, cross-file `project_class_index`.
-
-This works well for highlighting (see the `tcloo_dispatch_pattern_fixture`
-golden test) but the interprocedural/field flow is an **unsound doc-level
-union** (any var *named* `x` that is ever an object is treated as one
-everywhere). That is fine for colour, wrong for diagnostics, and doesn't
-compose. This note is the principled replacement.
+The resolver that ships today is fed by a set of **provenance passes** and
+is deliberately highlight-only, because its interprocedural and field flow
+is an unsound document-level union. The [current
+implementation](#the-current-implementation) section below says exactly
+what exists; the [Lattice](#lattice) section says what a sound
+replacement looks like.
 
 ## What the field does (and what to borrow)
 
@@ -75,86 +70,84 @@ Generalise the receiver type from a single class to a **class-set**:
   A 3-element type set frequently collapses to a 1-element provider set — that
   is the devirtualisation, and it is more precise than reasoning on types.
 
-## Staged plan
+## The current implementation
 
-Each stage is independently landable, tested, and measured against the
-committed fixture (`tcloo_dispatch_pattern_fixture`) + the corpus resolution-rate
-experiment (`experiments/tcloo_dispatch`).
+Two layers exist today, and they answer different questions.
 
-- **Stage 0 — lattice class-set.** `OBJECT(class)` → `OBJECT(class-set)` in
-  `TypeLattice`; union join + cardinality widening + escape-to-`⊤`. The current
-  single-class element becomes the singleton case; replaces the unsound
-  doc-union collapse with a sound widening join.
-- **Stage 1 — CHA∩RTA.** A workspace "instantiated classes" query; resolve on
-  the provider set intersected with instantiated reachability. First real
-  precision result; inherently incremental (coarse global input behind a
-  firewall).
-- **Stage 2 — intra-body flow-typing.** SSA-based narrowing on guards
-  (`info object class`, `isa`), φ-joins do the merges. Powers hover / completion
-  / semantic tokens with no interprocedural cost.
-- **Stage 3 — VTA graph.** Type-propagation graph over SSA + params/returns +
-  `(class, member)` fields + per-site container elements; seed from `new`;
-  SCC-collapse + topo solve. The principled replacement for the doc-level union.
-- **Stage 4 — incremental firewall.** Per-method **summary** query
-  `(receiver+param class-sets) → (return, written-field class-sets)`, keyed on
-  the body; workspace propagation composes summaries + class index +
-  instantiated-set. rust-analyzer's ItemTree/body split; class index durable,
-  bodies volatile.
-- **Stage 5 — stubs & abstention.** Signature stubs for `oo::` builtins & common
-  libs so boundary flow doesn't hit `⊤` at every call; everywhere unprovable,
-  abstain to `⊤` and emit no receiver-dependent highlight/diagnostic.
+**The shipping layer** is the set of provenance passes plus the
+highlight-only resolver:
 
-Highlight-first means: prefer silence over a wrong narrowing at every stage.
+- The SSA type lattice carries scalar `OBJECT(class)` and container
+  `List/Dict<OBJECT(class)>` (`rust/tcl-compiler/src/type_infer.rs`).
+- `rust/tcl-compiler/src/object_types.rs` owns the document-level union maps
+  — `object_handle_classes`, `object_collection_classes` — plus
+  `propagate_object_flow`, a VTA-lite name-keyed union-join fixpoint over
+  assignment (aliasing), proc-return, proc-parameter, and
+  constructor-parameter edges. It is sound and it resolves the
+  dependency-injection shape: object → constructor → instance variable →
+  dispatch.
+- `project_class_index` supplies the cross-file class view.
+- `definer_class_name` recognises the snit and itcl definer shapes, so
+  `enclosing_class` is threaded into their bodies and the self-call
+  resolver accepts `$self` / `$this` heads. Named-constructor typing
+  (`set o [foo create x]`), `install NAME using TYPE` component typing (a
+  source scan, since snit bodies are not lowered), and the bare-word
+  constructor (`set c [Type inst]`, gated on `Type` being a known
+  snit-family class whose first argument is not a typemethod) all resolve
+  through the same path.
 
-## Evidence: what the corpus actually needs (`tcloo_diag`)
+The document-level union is an **unsound over-approximation**: any variable
+*named* `x` that is ever an object is treated as one everywhere. That is
+acceptable for colour, wrong for diagnostics, and does not compose. It is
+why the shipping layer drives highlighting, hover, and completion but not
+receiver-dependent diagnostics.
 
-Stage 3's first increment landed as a **VTA-lite fixpoint**
-(`object_types::propagate_object_flow`): a name-keyed union-join propagation
-graph over assignment (aliasing), proc-return, proc-parameter, and
-constructor-parameter edges. It is sound and resolves the dependency-injection
-shape (object → constructor → instance variable → dispatch), but the
-`tcloo_diag` provenance experiment showed it does **not** move the corpus
-resolution rate — because the corpus bottleneck is elsewhere. Categorising the
-8241 unresolved `$var` receivers:
+**The prototype layer** is `rust/tcl-compiler/src/analyser/class_lattice.rs`
+— the class-set lattice plus a precomputed per-class MRO graph, described
+above. It is explicitly not wired into any diagnostic; nothing under
+`analyser/diagnostics/` calls into it. It exists to measure whether
+splitting the problem into an MRO graph plus a binding lattice over the
+existing SSA beats the current heuristic on real code at an acceptable
+⊤-collapse rate. See `experiments/mro_eval/RESULTS.md`.
 
-- **71% "unbound"** — dominated by **snit** (`$self` = 1035, `my…` components,
-  `$hull`, `options(...)`) and **Tk widget paths** (`$win.c`), not `TclOO`.
-- ~12% within-CU `TclOO` edges (alias / method-return / proc-return /
-  collection) — the slice this and prior stages address.
+Everything else in the model above — CHA∩RTA over a workspace
+instantiated-classes query, SSA guard narrowing on `info object class` /
+`isa`, per-method summaries behind an incremental firewall, signature
+stubs for `oo::` builtins — is design, not code.
+
+## Evidence: where the remaining gap is (`tcloo_diag`)
+
+The `tcloo_diag` provenance experiment categorised 8241 unresolved `$var`
+receivers across the corpus, and the result is the reason the VTA-lite
+fixpoint did not move the resolution rate: **the bottleneck is not
+TclOO.**
+
+- **71% "unbound"** — dominated by **snit** (`$self` = 1035, `my…`
+  components, `$hull`, `options(...)`) and **Tk widget paths** (`$win.c`),
+  not `TclOO`.
+- ~12% within-CU `TclOO` edges (alias, method-return, proc-return,
+  collection) — the slice the shipping layer addresses.
 - ~11% `cmd-return` — mostly non-object commands that should *abstain*.
 
-So the measured priority order (highest corpus impact first) is:
+Landing the snit self-dispatch and constructor slices moved the corpus
+resolution rate from 6.8% local / 8.1% project to **14.0% local / 16.4%
+project** (see `experiments/tcloo_dispatch/RESULTS.md`), which is what
+confirms the histogram rather than the type theory should drive the order
+of work here. Tk widget paths — the other half of the "unbound" mass — are
+handled by their own model; see
+[`tk-widget-instance-typing.md`](tk-widget-instance-typing.md).
 
-1. **snit dialect model** — `$self` → enclosing snit type (the snit analogue of
-   `TclOO`'s `my`, already handled), components via `install`/`delegate`,
-   `$hull`. This is the data-driven dispatch model of Stage/Phase 3 and the
-   single biggest lever (~1500+ receivers). **`$self` / `$this` self-dispatch has
-   landed** (snit + itcl): `definer_class_name` recognises the snit/itcl definer
-   shape so `enclosing_class` is threaded into their bodies, and the self-call
-   resolver accepts `$self` / `$this` heads. Measured effect: overall dispatch
-   resolution ~doubled (local 6.8%→13.6%, project 8.1%→14.8%; see
-   `experiments/tcloo_dispatch/RESULTS.md`). **Named-constructor typing
-   (`set o [foo create x]`) has also landed** — the signature scan records snit
-   types as classes so the receiver types `OBJECT(class)`. **`install NAME using
-   TYPE` component typing has landed too** (a source scan, since snit bodies are
-   not lowered; the component class is usually cross-file, so it resolves in
-   project mode — +131 sites there), as has the **bare-word constructor**
-   (`set c [Type inst]`), gated on `Type` being a known snit-family class whose
-   first arg is not a typemethod (sound: a `Type info …` call is not mistaken for
-   construction) — +64 project sites. Together the snit slices lifted the corpus
-   rate from 6.8%/8.1% to **14.0% local / 16.4% project**. Remaining snit slices:
-   `$hull` (usually a Tk widget), bareword named-object commands.
-2. **Cross-file object provenance** — a workspace union of the handle /
-   collection maps, mirroring `project_class_index`, for the cross-file half of
-   `param` / `unbound`.
-3. **Method return-type summaries** — `set x [$typed m]` / `[my m]` where `m`
-   returns an object (Stage 3/4 interprocedural summaries).
-4. **Signature stubs & explicit abstention** (Stage 5) — deflate the
+The categories still open, in corpus-impact order:
+
+1. **Remaining snit slices** — `$hull` (usually a Tk widget) and bareword
+   named-object commands.
+2. **Cross-file object provenance** — a workspace union of the handle and
+   collection maps, mirroring `project_class_index`, for the cross-file
+   half of `param` / `unbound`.
+3. **Method return-type summaries** — `set x [$typed m]` / `[my m]` where
+   `m` returns an object.
+4. **Signature stubs and explicit abstention** — deflating the
    `cmd-return` denominator so the rate reflects *typable* receivers.
-
-The lesson for the staged plan: the stages are individually correct, but their
-*ordering* should follow the provenance histogram — snit and cross-file first.
-See `experiments/tcloo_diag/RESULTS.md`.
 
 ## Sources
 

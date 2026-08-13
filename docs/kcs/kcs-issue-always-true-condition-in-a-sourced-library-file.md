@@ -51,8 +51,9 @@ sees `helper dev` and does not fold. If you see the hint anyway, one of these
 is usually why:
 
 1. **The calling file is not in the workspace.** Open the folder that
-   contains both files (**File → Open Folder**), not just the single file.
-   Verify with **Tcl: Show Workspace Index** that the calling file is listed.
+   contains both files (**File > Open Folder**), not just the single file.
+   Opening a single file gives the server no project to enumerate callers
+   from.
 2. **The calling file is outside the workspace entirely** — a vendored
    script, or a separate project that `package require`s this one. The
    server cannot enumerate callers it has never been shown. Add a

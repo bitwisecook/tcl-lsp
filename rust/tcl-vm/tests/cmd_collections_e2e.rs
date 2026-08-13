@@ -1243,7 +1243,7 @@ fn list_builtins_arity_errors() {
 }
 
 // ===========================================================================
-// lmap — inline collecting loop (RUST_ISSUE_008 piece 2)
+// lmap — inline collecting loop
 // ===========================================================================
 
 /// A straight-line `lmap` body lowers to the inline collecting loop: it strips

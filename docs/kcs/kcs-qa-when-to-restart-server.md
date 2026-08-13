@@ -28,13 +28,13 @@ There are three situations where a restart is the right thing to do:
    [LSP features are missing in VS Code](kcs-issue-lsp-features-are-missing.md)
    for how to read the startup log.
 2. **You changed a tcl-lsp setting that is read only at startup.** A few
-   settings — the Python interpreter path, the server path, and the log
-   level — are read once when the extension activates. After you change
-   any of these in **Settings**, restart the server to pick them up.
-3. **You installed a new version of the extension, the zipapp, or the
-   development checkout.** VS Code will usually prompt you to reload the
-   window in this case, but if you updated the server path by hand you
-   may need to restart manually.
+   settings — the native server binary path and the log level — are read
+   once when the extension activates. After you change any of these in
+   **Settings**, restart the server to pick them up.
+3. **You installed a new version of the extension, or rebuilt the server
+   binary in a development checkout.** VS Code will usually prompt you to
+   reload the window in this case, but if you updated the server path by
+   hand you may need to restart manually.
 
 To restart the server in VS Code, run **Tcl: Restart Language Server**
 from the Command Palette (`Ctrl+Shift+P` on Linux and Windows,

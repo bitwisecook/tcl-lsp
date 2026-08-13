@@ -1,7 +1,7 @@
 # KCS: IRULE3101 — Why does the analyser warn about a URI path without a leading slash?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ HTTP::uri "/newpath"
 
 ## How to suppress
 
-Add `# noqa: IRULE3101` at the end of the offending line.
+Add `# noqa: IRULE3101` on the line **above** the offending command.
 
 ## Related
 

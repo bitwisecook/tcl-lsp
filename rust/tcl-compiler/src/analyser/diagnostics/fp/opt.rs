@@ -18,10 +18,8 @@
 
 //! OPT family — optimisation / codegen quick-fix false-positive catalogue.
 //!
-//! Mirrors `tests/test_fp_opt.py` and the §OPT entries in
-//! `docs/design/compiler/FP.md`. Covers codes O106, O109, O110, O114, O116,
-//! O120, O126 (and related analyser codes W211/W220 where they overlap with the
-//! optimiser surface).
+//! Covers codes O106, O109, O110, O114, O116, O120, O126 (and related analyser
+//! codes W211/W220 where they overlap with the optimiser surface).
 
 use crate::compilation_unit::CompilationUnit;
 use crate::compiler_checks::run_all_checks;

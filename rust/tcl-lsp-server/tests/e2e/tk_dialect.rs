@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Native port of `tests/lsp_e2e/test_tk_dialect_e2e.py`.
-//!
 //! Tk command availability, end-to-end over LSP. Tk widget/window commands
 //! (`button`, `pack`, `wm`, the `ttk::` forms, …) are gated two ways, verified
 //! here through completion:
@@ -28,10 +26,8 @@
 //! 2. **Dialect** — never offered in the restricted embedded dialects
 //!    (F5 iRules / iApps), even with a stray `package require Tk`.
 //!
-//! Tk load-gating is a native-server feature, so the pytest suite skips unless
-//! `TCL_LSP_SERVER_KIND=rust`; this native port always exercises the Rust
-//! server. The Tk-availability gating is driven by `# tcl-dialect:` directives
-//! in ordinary `tcl`-language documents (not a `tk` language id).
+//! The Tk-availability gating is driven by `# tcl-dialect:` directives in
+//! ordinary `tcl`-language documents, not by a separate `tk` language id.
 
 use std::fmt::Write as _;
 

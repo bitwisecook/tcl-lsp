@@ -67,14 +67,6 @@ The diff compares the *node* (an IR statement, a CFG block, a bytecode instructi
 
 The `tcl-explorer` CLI and TUI render the same offset-free diff via `--opt diff` (for example `tcl-explorer script.tcl --show ir --opt diff`). The web panel does this for the IR/CFG diff and the bytecode "Show optimiser diff" view.
 
-## File-path anchors
-
-- `editors/vscode/src/compilerExplorer.ts`
-- `editors/vscode/src/compilerExplorerHtml.ts` (inlines `explorer-core.js` + the Rust → WASM module; in-webview `compile()` with host fallback)
-- `editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/CompilerExplorerToolWindowFactory.kt` (JCEF panel; the bundled HTML compiles in-page, LSP path kept as fallback)
-- `rust/tcl-explorer/` (pipeline + serialiser), `rust/tcl-explorer-wasm/` (the `wasm-bindgen` cdylib), `rust/tcl-cli/src/commands/explore.rs` + `src/tui.rs` (CLI verb + ratatui TUI)
-- `rust/tcl-cli/src/commands/gui.rs` + `rust/tcl-cli/gui/` (the `tcl explore --serve` GUI bundle embedded at build time, incl. `worker.js` and `explorer-core.js`)
-
 ## Failure modes
 
 - Web GUI / editor panels fail to compile if the Rust → WASM module is missing or fails to instantiate; the editor panels then fall back to host-brokered compilation via the LSP server.

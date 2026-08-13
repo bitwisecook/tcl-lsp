@@ -31,11 +31,6 @@ MCP, all-editors
 
 The dialect controls which commands are available in completions and hover, which diagnostic rules apply, and which event metadata is loaded. iRules dialects enable iRules-specific commands (HTTP::, IP::, etc.) and event handlers.
 
-## File-path anchors
-
-- `compiler/registry/runtime.py`
-- `editors/vscode/src/extension.ts`
-
 ## Failure modes
 
 - Wrong dialect produces false-positive diagnostics.

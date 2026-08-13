@@ -1,12 +1,8 @@
-# KCS: Expression parsing — Pratt parser and braced vs unbraced expressions
+# Expression parsing — Pratt parser and braced vs unbraced expressions
 
-## Symptom
-
-A contributor needs to understand how `expr` bodies are parsed into AST trees,
-why braced expressions enable static analysis while unbraced ones do not, or
-needs to add support for new operators (e.g. iRules extensions).
-
-## Context
+How `expr` bodies are parsed into AST trees, why braced expressions can be
+analysed statically while unbraced ones cannot, and where to add a new
+operator such as an iRules extension.
 
 The Pratt parser in `rust/tcl-syntax/src/expr/parser.rs` uses binding powers
 to handle operator precedence without recursive-descent ambiguity.  Braced
@@ -17,8 +13,6 @@ expressions fall back to `ExprNode::Raw` and cannot be statically analysed
 Source: `rust/tcl-syntax/src/expr/parser.rs` (Pratt parser),
 `rust/tcl-syntax/src/expr/ast.rs` (AST), `rust/tcl-lexer/src/expr_lexer.rs`
 (`irules_ops()` — iRules word-operator lexing)
-
-## Content
 
 ### Braced vs unbraced expressions
 

@@ -21,11 +21,11 @@
 //! `type_definition::type_definition`, `implementation::implementation`, and
 //! `type_hierarchy::prepare`.
 //!
-//! There is no single upstream pytest source — these tests are derived from
-//! each provider's public API (see `src/{definition,declaration,
-//! type_definition,implementation,type_hierarchy}.rs`) and from Tcl's own
-//! name- and class-resolution semantics, with every Tcl-semantic fact pinned
-//! to real C-Tcl (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
+//! These tests are derived from each provider's public API (see
+//! `src/{definition,declaration,type_definition,implementation,
+//! type_hierarchy}.rs`) and from Tcl's own name- and class-resolution
+//! semantics, with every Tcl-semantic fact pinned to real C-Tcl
+//! (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
 //! C-Tcl proof model
 //! -----------------

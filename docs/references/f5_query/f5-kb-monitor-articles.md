@@ -68,14 +68,14 @@ the device-correct behaviour these articles describe:
 
 | Article | Honoured by | How |
 |---|---|---|
-| K2167 (CR/LF translation) | `url_get`, `url_head`, `url_options` | Python's `urllib` performs the same `\r\n` byte handling natively. |
+| K2167 (CR/LF translation) | `url_get`, `url_head`, `url_options` | Intended: the `ureq` HTTP client (Rust) would perform the same `\r\n` byte handling natively. **Currently moot** — the live HTTP request path for these builtins is not yet implemented; every call returns a "not yet implemented" error regardless of target (see `builtins.md#url_get`). |
 | K3451 (5,120-byte ceiling) | the audit recipes in `kcs-howto-reproduce-http-monitor-with-query.md` | Truncate `body[0:5120]` before testing `recv`. |
-| K3224 (version mismatch / redirect) | `url_get` follows redirects by default; pin to `--no-follow-redirects` (future) for monitor parity. | Use `url_head` or check `.status` against 3xx. |
-| K12531 (umbrella triage) | every probe builtin's `reason` field | The structured `reason.kind` mirrors the failure taxonomy K12531 walks through. |
+| K3224 (version mismatch / redirect) | intended for `url_get` (follow redirects by default) once implemented. | Use `url_head` or check `.status` against 3xx once `url_get` is live; today, `tls_handshake` is the only live-network probe of this family. |
+| K12531 (umbrella triage) | `tls_handshake`'s structured `reason.kind`, `ping` / `portping` / `dns`'s plain `error` string | Mirrors the failure taxonomy K12531 walks through. |
 
 ## Related `f5 query` documentation
 
 - [Comprehensive DSL grammar reference](dsl.md)
-- [Full builtins reference (auto-generated)](builtins.md)
+- [Full builtins reference](builtins.md)
 - [How-to: reproduce an HTTP monitor with `f5 query`](../../kcs/kcs-howto-reproduce-http-monitor-with-query.md)
 - [How-to: audit BIG-IP server certs with `f5 query`](../../kcs/kcs-howto-audit-server-certs-with-query.md)

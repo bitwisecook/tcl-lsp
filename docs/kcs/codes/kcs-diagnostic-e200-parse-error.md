@@ -1,7 +1,7 @@
 # KCS: E200 — Why does the analyser report a general parse error?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -41,7 +41,7 @@ Close the brace, bracket, or quote so the parser can process the rest of the fil
 
 ## How to suppress
 
-Add `# noqa: E200` at the end of the offending line.
+Add `# noqa: E200` on the line **above** the offending command.
 
 ## Related
 

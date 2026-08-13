@@ -1,8 +1,11 @@
-# Family-B contract & command routing — outcomes
+# The Family-B contract and command routing
 
-Records what the Family-B runtime contract looks like on both runtimes, which
-command families were lifted to shared cores, the bugs that lifting surfaced,
-and — importantly — the boundaries where a command **cannot** be a shared body.
+The Family-B runtime contract is the seam that lets one command body serve
+both runtimes — the bytecode VM (`tcl-vm`) and the tree-walking interpreter
+(`runtime/rust`). This document describes the contract, which command
+families are lifted to shared cores in `tcl-cmd-core`, what deliberately
+stays in each per-runtime adapter, and the gaps the contract does not yet
+close.
 
 ## 1. The contract (`tcl-runtime-api`)
 
@@ -221,10 +224,9 @@ Shared in `tcl-cmd-core`:
 - `binary::{hex,base64,uu}_{encode,decode}` + `format`/`scan` — value-model-free
   `&[u8]` codecs and the pack/unpack grammars. Each adapter bridges its value to
   bytes (the runtime's raw `obj_bytes`, the VM's byte-array `U+00xx` convention),
-  so the codec between is identical. This is the **byte-oriented** family the plan
-  scoped to Track B; sharing it lifted the VM from `binary`'s integer-only subset
-  to the full code set (floats, 64-bit/big-endian ints, `encode`/`decode`) and
-  gave it `binary`'s `errorCode`s. `scan`'s variable assignment stays in the
+  so the codec between is identical. This is the **byte-oriented** family: the
+  shared core owns the full code set (floats, 64-bit and big-endian ints,
+  `encode`/`decode`) and the `errorCode`s. `scan`'s variable assignment stays in the
   adapter (the unpack core returns the values; the adapter sets the vars).
 
 - `lseq::{decode, generate}` — the `lseq` arithmetic-sequence generator (the
@@ -274,40 +276,6 @@ value, the adapter does a **single store** (so the write trace fires once — th
 common, user-visible case) and owns the const check and the no-argument read
 forms.
 
-**Routing repeatedly surfaced real VM bugs** (the runtime was correct; the shared
-core unified both to the correct behaviour):
-
-| Command | VM bug fixed by routing |
-|---------|-------------------------|
-| `info level` | non-integer arg reported `bad level` instead of `expected integer but got "x"` |
-| `info exists` | scalar-only check missed arrays (`info exists ::env` → 0) — also fixed `VarStore::exists` |
-| `namespace tail`/`qualifiers` | naive `rsplit("::")` mishandled colon runs (`tail foo:::` → `:`) |
-| `info complete` | counted `[]` inside `{braces}` (`info complete {[}` → 0) |
-| `incr` (overflow) | `i64` `wrapping_add` silently wrapped past `i64::MAX`; now errors `integer value too large to represent` (the VM has no bignum) |
-| `incr` (error order) | a non-integer increment was reported before a non-integer current value; now current-first, matching C's `TclIncrObj` and the runtime |
-| `append` (no-value unset) | the VM created an empty variable; now errors `can't read "x": no such variable` (tclsh) |
-| `append`/`lappend` (in-place trace) | the runtime's in-place path skipped the store and so fired **no** write trace; now always stores → the trace fires once |
-| `lappend` (no-value validate) | the runtime returned a malformed value unchanged; now validates it as a list and errors (`unmatched open brace in list`, tclsh) |
-| `binary` (subcommands) | the VM lacked `encode`/`decode` and most `format`/`scan` codes (no floats/64-bit), and its bad-subcommand error said "must be format or scan"; routing gave it the full set + the tclsh message. The runtime's `base64` decode also gained its missing `TCL BINARY DECODE INVALID` errorCode. |
-| `lsort` (VM modes) | `-dictionary` fell back to a byte compare, `-integer`/`-real` both used a `double` compare, and `-nocase` was absent; routing the shared `sort` core gave the VM the correct modes (numeric dictionary order, exact integer vs real, case folding, and mode-aware `-unique`). |
-| `mathop` (VM) | the VM had no `::tcl::mathop::*` at all; sharing the fold/chain core over `ExprOps` added the full operator set (verified against tclsh). |
-| `lseq` (VM) | the VM had no `lseq` at all; sharing the decode-key + precision-matched generation over `ValueOps` (with an `eval_expr` edge for expression-valued args) added every form — ranges, `by`/`count`/`to`/`..`, double precision (`lseq 0 0.5 by 0.1` → `0.0 0.1 0.2 0.3 0.4 0.5`), expression arguments — verified against tclsh 9.0. |
-| `regexp`/`regsub` (VM) | the VM's `regex`-crate version lacked `-indices`/`-start`, used **byte** offsets (wrong for non-ASCII), **set match vars to empty on a failed match** (tclsh leaves them untouched), reported `couldn't compile…` (tclsh: `cannot compile…`), and had a wrong/short bad-option message. Routing the shared plumbing over the `RegexEngine` seam fixed all of these while keeping the crate engine — verified against tclsh 9.0. |
-| `string wordstart`/`wordend` (VM) | the VM errored "not yet implemented"; sharing the word-boundary scan added both. |
-| `dict filter` (VM + runtime) | the VM had no `dict filter` at all (unknown-subcommand error); sharing `key`/`value` added them (plus a small script adapter). On the runtime, the shared core fixed the error order — a bad filterType is now reported before the dict is parsed (tclsh). |
-| `lsearch` (VM) | the VM had only a `-exact`/`-glob` stub (it silently ignored every other option); sharing the full `lsearch` core gave it the entire option set — `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the numeric/dictionary types, `-start`/`-stride`/`-index`/`-subindices` — verified against tclsh 9.0. |
-| `lsort` (VM) | the VM's `lsort` had the comparison modes but silently ignored `-index`/`-stride`/`-indices`/`-command`; sharing the full `lsort` core gave it all of them (incl. the `-command` comparator over `vm.dispatch`) — verified against tclsh 9.0. |
-| `array unset` (VM) | `array unset a` with no pattern iterated-and-unset each element (leaving an empty array) instead of removing the whole array variable; routing the shared `array` core over `VarStore::unset` fixed it (tclsh: the array no longer exists). |
-| `namespace children`/`parent` (VM) | `namespace children` ignored its `?pattern?` argument (returned all children), and `parent`/`children` on a non-existent namespace returned a computed/empty result; routing the shared core over the `Namespaces` nav rungs gave `children` the (target-qualified) glob filter and made both error `namespace "X" not found` (tclsh). |
-| `info commands`/`procs` (VM) | the VM listed *all* command-map keys flat, so `info commands` at global leaked namespaced names (`foo::bar`) and `info commands ::ns::*` matched nothing (the leading `::` never matched an unrooted key); routing the namespace-aware core fixed both (global scope excludes namespaced names; qualified patterns list + re-qualify the target namespace) — verified against tclsh 9.0. |
-| `info procs` (runtime) | inside a namespace, `info procs` merged the global namespace's procs (old `visible_proc_names`); C's `InfoProcsCmd` lists the current namespace only (`info commands` is the one that merges global). The shared core's global-merge asymmetry fixed it. |
-| `trace` (VM) | the VM did **no** op-list validation (`trace add variable v bogus cmd` was silently accepted) and reported the wrong trace-type error (`bad type "X": must be command, execution, or variable`). Sharing the `trace::parse_ops`/`bad_type_error` catalogue gave it the per-type op validation and C's `bad option "X": must be execution, command, or variable` — verified vs tclsh 9.0. |
-| `switch` (VM) | the VM's `switch` only did exact/glob: `-regexp` fell back to exact (no engine), `default` matched in **any** position (not just last), and `-matchvar`/`-indexvar` were absent. Sharing the selection core gave it real regexp matching (via the `regex` crate engine), the correct final-pattern-only `default`, and the TIP #75 side-channel — verified vs tclsh 9.0. |
-| `info vars`/`globals` (VM) | the VM aliased `info vars` to `info locals` (both listed the frame's non-link locals), so `info vars` in a proc **dropped its `upvar`/`global`/`variable` links** and ignored namespace scope; and `info globals` listed *all* global-frame keys, leaking namespaced variables (`foo::v`). Routing the shared cores over `vars_in` + the frame rungs gave `info vars` its links + namespace-scope behaviour and `info globals` the global-only filter — verified against tclsh 9.0. |
-
-That is the payoff of the seam: one body (or one seam), enforced-identical
-semantics, latent divergences caught.
-
 ## 3. What stays in the per-runtime adapter (the value/state split)
 
 There is no longer a command family that *cannot* be shared at all — `incr`,
@@ -342,30 +310,28 @@ byte-exact `as_bytes`/`new_bytes` rung (the runtime overrides them to its real
 bytes; the VM uses the UTF-8 string-rep default — sound because a UTF-8-only
 value only ever appends valid UTF-8). `lappend` is byte-exact for free: it
 manipulates list *element values*, never their string rep. This is the
-`ValueOps` "byte rung" the plan anticipated for `binary` (Track B), delivered
-early by `append`.
+`ValueOps` byte rung, which `binary` also builds on.
 
-## 4. Known contract gaps (no consumer yet — recorded, not fixed)
+## 4. Known contract gaps
 
 - The array-element methods (`get_elem`/`set_elem`/`unset_elem`/`exists_elem`)
   honour the active frame on both runtimes; the **non-active-frame** element path
   (`*_from`/`*_at`) is still scalar-only on the VM and ignored by the runtime
   (the element accessors take `FrameId` but use the active frame). No current
   consumer needs cross-frame element access.
-- The enumeration surface is now **complete** for the shared listing subcommands:
+- The enumeration surface is complete for the shared listing subcommands:
   `VarStore::array_keys` (array elements), `Namespaces::commands_in`/`procs_in`/
   `vars_in` (a namespace's commands/procs/variables), and the active-frame
   `Frames::var_names`/`in_proc` (frame locals + links). These back `info
-  commands`/`procs`/`vars`/`locals`/`globals` and `array names`. The only listing
-  left per-adapter is `info consts` (TIP 677, runtime-only — the VM has no
-  `const`). The VM's namespace variables turned out to be stored (flat, in the
-  global frame keyed by qualified name), so the rungs read them directly — no
-  variable-storage rework was needed.
+  commands`/`procs`/`vars`/`locals`/`globals` and `array names`. The one
+  listing left per-adapter is `info consts` (TIP 677, runtime-only — the VM
+  has no `const`). The VM stores namespace variables flat, in the global
+  frame keyed by qualified name, so the rungs read them directly.
 - `append`/`lappend` fire the write trace **once** over the whole operation, not
   per value (C's `append` fires per value). The user-visible common case — a
   write trace that runs on a mutating append — is covered; the exact count is
   not. The matching read-trace on the no-argument read forms is likewise not
-  fired (the runtime's `var_get` doesn't). Recorded as an accepted simplification.
+  fired (the runtime's `var_get` does not). This is an accepted simplification.
 - `regexp`/`regsub` engine divergence is deliberate (the shared layer is the
   *plumbing*, not the engine): (a) the VM's `regex` crate is not full ARE, so
   ARE-only syntax (`\m`/`\M`/`[[:<:]]`, some back-reference forms) compiles on the
@@ -374,22 +340,4 @@ early by `append`.
   **truly-empty** pattern at end-of-string diverges (`regsub -all {} abc X` →
   `XaXbXcX` vs tclsh's `XaXbXc`) — a pre-existing low-level quirk, not introduced
   by the share; (c) `regexp -about` and `regsub -command` are `not yet supported`
-  on both (the latter invokes a proc — Family-B). Recorded, not fixed.
-
-## 5. Recommended next steps (each its own decision)
-
-1. ✅ *Done* — `VarStore` array-element methods; the `ValueOps::int_add`
-   arithmetic seam (`incr` shared); `Namespaces::name`/`command_name`
-   (`namespace current`/`which` shared); the `/`-based byte `path` core (`file`
-   path-ops shared); the **byte-exact `ValueOps` rung** (`as_bytes`/`new_bytes` +
-   `try_append_bytes_in_place`) and the **list in-place seam**
-   (`try_list_append_in_place`) — `append`/`lappend` shared, in-place growth
-   preserved, byte-exact.
-2. The **`binary` family** can now build on the `as_bytes`/`new_bytes` rung — the
-   biggest single dedup left (Track B).
-3. `lset`/`linsert`-into-var can reuse the `try_list_append_in_place` pattern
-   (a list in-place *replace* seam) if those are to share.
-4. ✅ *Done* — the listing-enumeration surface: `Namespaces::commands_in`/
-   `procs_in`/`vars_in` and the active-frame `Frames::var_names`/`in_proc`, backing
-   `info commands`/`procs`/`vars`/`locals`/`globals`. Only `info consts` (TIP 677)
-   stays per-adapter (the VM has no `const`).
+  on both (the latter invokes a proc — Family-B).

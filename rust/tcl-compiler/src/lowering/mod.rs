@@ -526,7 +526,7 @@ fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
 /// *subcommand* — flow through the same path a bare `eval` does.
 ///
 /// Returns `true` when the body contains a nested dynamic-shape
-/// barrier (the caller should fall back to `IRBarrier`); `false`
+/// barrier (the caller should fall back to [`Statement::Barrier`]); `false`
 /// when the body is safe to relax.
 fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool {
     use tcl_lexer::TokenType;
@@ -571,7 +571,7 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
             // (`uplevel 1` — a wrong-#args error) or an evaluator whose
             // code argument is a command *prefix* rather than a script
             // (`coroprobe` / `coroinject`).  Poison so the outer hook
-            // falls back to IRBarrier and the runtime decides.
+            // falls back to Statement::Barrier and the runtime decides.
             return true;
         };
         // `SCRIPT_CONCATENATES_ARGS`: the trailing words concatenate into
@@ -1271,8 +1271,8 @@ impl<'r> Lowerer<'r> {
             // handler.  The hook stamp lives on the `when` spec
             // in `tcl-registry/src/commands/irules/when.rs`,
             // which `load_dialect(DialectSet::IRULES)` brings
-            // into the registry.  Production callers (LSP
-            // server / Python bindings) load the active dialect
+            // into the registry.  Production callers (the LSP
+            // server) load the active dialect
             // before lowering; tests that lower iRule code call
             // `registry.load_irules()` explicitly (see
             // `irules_checks::tests::registry`).  Callers that
@@ -1469,7 +1469,7 @@ impl<'r> Lowerer<'r> {
             };
 
         // Phase 4: lower the body (materialised, static, or empty
-        // for dynamic-with-resolved-name), register the IRProcedure,
+        // for dynamic-with-resolved-name), register the Procedure,
         // and emit the runtime `proc` Call.
         let params = parse_param_names(&args[1]);
         let qualified = qualify_proc_name(namespace, proc_name);
@@ -1495,10 +1495,10 @@ impl<'r> Lowerer<'r> {
         } else if body_is_dynamic {
             // Dynamic body, no materialisation possible — but the
             // proc name resolved via the const-map (otherwise we'd
-            // have bailed above).  Leave the IRProcedure body empty
+            // have bailed above).  Leave the Procedure body empty
             // so static analysis doesn't try to compile the literal
             // ``$body`` source text as a script.  The runtime
-            // ``proc`` IRCall below carries the actual body bytes.
+            // ``proc`` Statement::Call below carries the actual body bytes.
             Script::default()
         } else if let Some(cache) = self
             .body_cache
@@ -1921,7 +1921,7 @@ impl<'r> Lowerer<'r> {
         // produces IR that runs a compiled inner barrier with a
         // still-dynamic shape — we'd lose the runtime barrier without
         // gaining static knowledge.  Reject and fall back to the
-        // default IRBarrier dispatch.
+        // default Statement::Barrier dispatch.
         if body_tok.kind == TokenType::Str {
             let body_text = &args[0];
             if body_has_dynamic_barrier(body_text, self.registry) {
@@ -2234,7 +2234,8 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Default lowering: generic `IRCall` with registry-based arg roles.
+    /// Default lowering: generic [`Statement::Call`] with registry-based
+    /// arg roles.
     fn lower_default(&self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let cmd_name = seg.name();
         let args = seg.args();
@@ -3041,7 +3042,7 @@ pub fn lower_proc_body_isolated(
 ///
 /// The isolated lowering runs against a fresh [`Lowerer`] with an empty
 /// const-map frame, so it drops every *cross-item* side effect `lower_body`
-/// performs while lowering a body — registering a nested `IRProcedure`, tracking
+/// performs while lowering a body — registering a nested [`Procedure`], tracking
 /// `namespace import`/`export`, recording command aliases, and `TclOO` / `when`
 /// definitions. A body qualifies exactly when it carries none of those
 /// constructs, so its lowering is a pure function of `(body_text, namespace,
@@ -4147,7 +4148,7 @@ mod tests {
     #[test]
     fn proc_definition() {
         let m = lower_to_ir("proc greet {name} {puts $name}", &reg());
-        // proc emits an IRCall + registers a procedure.
+        // proc emits a Statement::Call + registers a procedure.
         assert!(m.procedures.contains_key("::greet"));
         let p = &m.procedures["::greet"];
         assert_eq!(p.params, vec!["name"]);
@@ -4747,9 +4748,9 @@ mod tests {
     #[test]
     fn foreach_line_lowers_to_foreach_statement() {
         // `foreachLine var filename body` lowers
-        // to a single-iterator IRForeach so variables assigned
+        // to a single-iterator Statement::Foreach so variables assigned
         // inside the body propagate to the enclosing scope.  The
-        // generic stdlib-proc path would route through IRBarrier and
+        // generic stdlib-proc path would route through Statement::Barrier and
         // lose that lattice information.
         let m = lower_to_ir(
             "foreachLine line /etc/hosts { set count [expr {$count + 1}] }",
@@ -4807,7 +4808,7 @@ mod tests {
     #[test]
     fn proc_var_body_const_map_materialised() {
         // A bare `$body` body word whose value
-        // is in the const-map materialises into the IRProcedure body
+        // is in the const-map materialises into the Procedure body
         // (matching the `proc $name {x} $body` shape).
         let m = lower_to_ir(
             "proc factory {} { set name {Greeter}\n set body {return hi}\n proc $name {} $body }",
@@ -4842,7 +4843,7 @@ mod tests {
     #[test]
     fn proc_dynamic_params_routes_through_barrier() {
         // A dynamic params word — there's no static arg-list to
-        // build a real IRProcedure from, so the whole proc shape
+        // build a real Procedure from, so the whole proc shape
         // bails to a Barrier.  Even when the name resolves via the
         // const-map.
         let m = lower_to_ir(
@@ -5654,8 +5655,8 @@ mod tests {
     fn registry_dispatch_when_lowers_via_lower_when_with_irules_loaded() {
         // The iRules `when` spec carries `LoweringHookId::When`
         // and only enters the registry after
-        // `load_dialect(IRULES)`.  Production callers (LSP
-        // server, Python bindings) always pair `build_default()`
+        // `load_dialect(IRULES)`.  Production callers (the LSP
+        // server) always pair `build_default()`
         // with the active dialect; this test mirrors that.
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();

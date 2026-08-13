@@ -1,7 +1,6 @@
-# KCS: Shared-utility contracts (Rust workspace)
+# Shared-utility contracts (Rust workspace)
 
-## Symptom
-
+The low-level logic every crate must share rather than reimplement, and why.
 Behaviour drifts between the Rust crates because equivalent low-level
 logic (namespace-name splitting, number parsing, unique-prefix option
 matching, canonical error texts, backslash decoding, list codec) is
@@ -195,7 +194,9 @@ helper without reading the rationale:
 ## Test anchors
 
 - `rust/tcl-syntax/src/naming.rs` — `qualifier_segments_cases`,
-  doctests; `tests/command_resolution_conformance.rs` (tclsh-pinned).
+  doctests; `rust/tcl-syntax/tests/command_resolution_conformance.rs`
+  (tclsh-pinned; `tcl-compiler` and `tcl-vm` each carry a same-named suite
+  for their own layer).
 - `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`.
 - `rust/tcl-cmd-core/src/prefix.rs` — C-parity unit tests (empty-key,
   empty-entry, exact-mode wording).
@@ -211,6 +212,7 @@ helper without reading the rationale:
 ## Discoverability
 
 - [KCS index](../README.md)
-- [core-lsp-shared-utility.md](core-lsp-shared-utility.md)
+- [project-layout.md](project-layout.md) — the crate boundaries these
+  ownership rules sit inside.
 - [family-b-routing.md](../family-b-routing.md) — the runtime seam this
   crate layering serves.

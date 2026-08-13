@@ -1,7 +1,7 @@
 # KCS: W118 — Why does the analyser flag mixed line endings?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -38,7 +38,7 @@ Normalise the file to use a single line-ending style. Most editors and version-c
 
 ## How to suppress
 
-Add `# noqa: W118` at the end of the offending line.
+Add `# noqa: W118` on the line **above** the offending command.
 
 ## Related
 

@@ -1,21 +1,26 @@
-# TCLVM opcode status — C Tcl 9.0 instruction coverage
+# VM opcode coverage — the C Tcl 9.0 instruction set
 
-> **Goal:** the bytecode VM (`rust/tcl-vm`) executes the **same opcode set** as
-> the C Tcl 9.0 bytecode engine (`tmp/tcl9.0.4/generic/tclExecute.c`,
-> `tclCompile.c` `InstructionDesc`). This is the binary-compatibility checklist:
-> all 191 C Tcl 9.0 instructions, ticked off as the VM implements them. Match
-> C Tcl semantics exactly (operands, stack effect, error behaviour).
+Binary compatibility means the bytecode VM (`rust/tcl-vm`) executes the **same
+opcode set** as the C Tcl 9.0 bytecode engine
+(`tmp/tcl9.0.4/generic/tclExecute.c`, `tclCompile.c`'s `InstructionDesc`), with
+matching operands, stack effect, and error behaviour. This is the inventory of
+where each of the 191 instructions currently stands.
+
+Coverage: **191 executed · 0 enum-only · 0 absent · 191 total**. It is
+maintained by hand — adding an opcode means updating its row and the count in
+the same change. The rows are checked against the `Op` enum in
+`rust/tcl-bytecode/src/lib.rs` and the dispatch arms in
+`rust/tcl-vm/src/exec.rs`.
 
 ## Legend
 
-- `[x]` — executed by `tcl-vm` (`exec.rs`); a trailing `(note N)` marks a
-  documented partial or deliberate divergence, listed under **Notes** below.
-- `[~]` — present in the `tcl-bytecode` `Op` enum (the codegen can emit it) but
-  **not yet executed** by the VM.
-- `[ ]` — **not yet in** the `Op` enum (needs adding to `tcl-bytecode` first,
-  matching the C Tcl mnemonic/operands).
-Status (auto-countable): **191 executed · 0 enum-only · 0 missing · 191 total**.
-Keep this in sync when adding opcodes — update the row and the count.
+- `[x]` — executed by `tcl-vm` (`exec.rs` has a dispatch arm for it); a
+  trailing `(note N)` marks a documented partial or deliberate divergence,
+  listed under **Notes** below.
+- `[~]` — present in the `tcl-bytecode` `Op` enum, so codegen can emit it, but
+  **not executed** by the VM.
+- `[ ]` — **not in** the `Op` enum; it has to be added to `tcl-bytecode` first,
+  matching the C Tcl mnemonic and operands.
 
 The coverage was last rebuilt from source (not incremented) against Tcl 9.0.4:
 `tclInstructionTable[]` ordering, operand widths, and per-instruction semantics

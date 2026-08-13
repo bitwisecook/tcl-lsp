@@ -204,8 +204,8 @@ fn lower_when_decl(
 
     // Accept exactly `when EVENT { body }` or `when EVENT priority N { body }`
     // — nothing else. A malformed header must never be silently normalised
-    // (`when XDP priority nope { … }` used to become
-    // priority 500 with no diagnostic).
+    // (`when XDP priority nope { … }` must not become priority 500 with no
+    // diagnostic).
     let priority = match args.len() {
         2 => DEFAULT_PRIORITY,
         4 => {

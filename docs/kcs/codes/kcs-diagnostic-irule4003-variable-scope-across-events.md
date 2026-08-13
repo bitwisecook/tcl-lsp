@@ -1,7 +1,7 @@
 # KCS: IRULE4003 — Why does the analyser warn about variable scoping across events?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -43,7 +43,7 @@ when HTTP_RESPONSE { log local0. [table lookup [IP::client_addr]] }
 
 ## How to suppress
 
-Add `# noqa: IRULE4003` at the end of the offending line.
+Add `# noqa: IRULE4003` on the line **above** the offending command.
 
 ## Related
 

@@ -310,7 +310,7 @@ fn extract_prefix_head(
         }
         // `tok.span.start()` sits *on* the opening `{`, not the first
         // content byte (the "inner-end" word-token convention — see
-        // `docs/kcs/kcs-issue-highlight-drops-closing-delimiter.md`); the
+        // `docs/design/contracts/lexing.md`); the
         // content itself starts `content_offset` bytes later, which is
         // where `text`'s own byte 0 (and thus `head_el`'s offsets) align.
         let content_start = tok.span.start() + u32::from(tok.content_offset);

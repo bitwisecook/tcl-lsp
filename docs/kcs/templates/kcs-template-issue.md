@@ -35,10 +35,17 @@ same order as "Applies to".>
 3. <Third action.>
 4. <How to tell that the problem is fixed — the success signal.>
 
-If the steps above do not fix the problem, collect the output channel log
-and open an issue.
+<Close with a fallback only when there is a real one, and name the exact
+place the reader collects evidence. In VS Code that is the **Tcl
+Language Server** output channel; check the label the editor you are
+writing for actually shows before you name it. Delete this paragraph if
+the steps above are the whole answer.>
 
 ## Related
+
+<!-- An Issue note is filed at `docs/kcs/`, one level above this
+     template, so re-spell these two links as `README.md` and
+     `../GLOSSARY.md` when you save the note. -->
 
 - [KCS index](../README.md)
 - [Glossary](../../GLOSSARY.md)

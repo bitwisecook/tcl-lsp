@@ -3,10 +3,15 @@
 > **Audience:** Developer / Maintainer
 > **Type:** Reference
 
-**This page is generated from the builtin registry in
-`dialects/f5/query/builtins.py`.  Edit that registry, not this file.**
-The generator lives at `scripts/dev/gen_query_builtins_doc.py`;
-a CI check asserts the on-disk file is up to date.
+**This page is hand-maintained.** The registry of record is the Rust
+crate [`rust/tcl-bigip-query/`](../../../rust/tcl-bigip-query/):
+plain and stream builtins are registered across
+[`src/builtins/mod.rs`](../../../rust/tcl-bigip-query/src/builtins/mod.rs)
+and its submodules, special-form builtins (`select`, `map`, the `paths` /
+`getpath` family, …) in `src/special.rs`, and the network-probe builtins
+in `src/probes.rs`. When a builtin's signature, arity, or behaviour
+changes there, update this file by hand to match — there is no generator
+and no CI check keeping the two in sync.
 
 This is the **canonical per-function reference** for every builtin the
 `f5 query` DSL exposes.  For grammar, value-model, edit-pipeline, and
@@ -902,7 +907,8 @@ Item whose *body* value is smallest under jq's cross-type ordering.
 evaluates *body* with ``.`` re-bound, and returns the item whose
 derived key is the smallest under jq's cross-type ordering.
 
-On ties, returns the first such item (Python's ``min`` is stable).
+On ties, returns the first such item — only a strictly smaller key
+replaces the running best, so ties favour the earlier occurrence.
 Empty input returns ``null``.
 
 Related: ``min``, ``max_by``, ``sort_by``, ``first``.
@@ -1116,7 +1122,8 @@ types in the same list raise — sort what comes back from a
 projection (always one type) rather than mixed object/scalar
 streams.
 
-Stable (Python's ``sorted`` is).  Use the list-literal collection
+Stable (backed by Rust's ``sort_by``, which is a stable sort).  Use
+the list-literal collection
 idiom ``[.X[].name] | sort`` to gather a stream from ``[]`` before
 sorting — bare ``... | sort`` after a stream would sort each item
 individually, not the stream as a whole.
@@ -1149,7 +1156,8 @@ The body is unevaluated AST and is re-run per item, so it may be a
 field projection (``sort_by(.name)``), a builtin call
 (``sort_by(partition(.))``), or an arithmetic expression.
 
-Stable: ties keep input order (Python's ``sorted`` is stable).
+Stable: ties keep input order (backed by Rust's ``sort_by``, which
+is a stable sort).
 
 Related: ``sort``, ``unique_by``, ``min_by``, ``max_by``,
 ``group_by``.
@@ -1202,8 +1210,8 @@ cross-type ordering (``null < bool < number < string < array <
 object``).
 
 Unhashable items (rare — usually nested lists) collate through the
-same :func:`_sort_key` the ``sort`` builtin uses, so the result is
-deterministic across runs and Python interpreter versions.
+same ``sort_cmp`` comparator the ``sort`` builtin uses, so the result
+is deterministic across runs.
 
 For grouping with a key function use ``unique_by(f)`` instead,
 which keeps one representative per equivalence class.
@@ -1233,7 +1241,7 @@ items of the input, where two items are considered equal when
 sorted by the same key.
 
 Equivalent to ``[sort_by(body)] | <dedupe-by-key>``.  One
-representative per equivalence class survives — Python's ``sorted``
+representative per equivalence class survives — the underlying sort
 is stable, so the representative is the **first** input occurrence
 of each key.
 
@@ -1405,10 +1413,10 @@ Named-group regex match — returns an object of capture names → captured text
 Matches jq's ``capture``: runs *pattern* against *value* and
 returns an object mapping each **named** capture group to its
 matched text.  Use ``(?P<name>...)`` syntax for named groups (jq
-uses ``(?<name>...)``; both forms are accepted by Python's ``re``
-when ``(?P<name>...)`` is used, and ``capture`` rewrites jq-style
-``(?<name>...)`` to the Python spelling so jq snippets paste
-through).
+uses ``(?<name>...)``; the Rust ``regex`` crate wants
+``(?P<name>...)``, and ``capture`` rewrites jq-style
+``(?<name>...)`` to the ``regex``-crate spelling so jq snippets
+paste through).
 
 Returns an empty object when the pattern has no named groups but
 matches; raises ``BuiltinError`` when the pattern doesn't match
@@ -1573,9 +1581,9 @@ Parse a JSON-encoded string into a value (jq's ``fromjson``).
 **Details**
 
 Matches jq's ``fromjson``: parses *value* as JSON and returns
-the resulting Python value.  Numbers become int / float, strings
-quote, booleans pass through, ``null`` becomes Python ``None``,
-arrays become lists, objects become dicts.
+the resulting DSL value.  Numbers become int / float, strings
+stay strings, booleans pass through, ``null`` becomes the DSL's
+``Null``, arrays become lists, objects become dicts.
 
 Raises ``BuiltinError`` on malformed input.
 
@@ -1766,9 +1774,9 @@ Regex-match a string; returns true when the pattern matches anywhere.
 
 **Details**
 
-Tests whether *pattern* (a Python regex) matches anywhere in
-*value* (semantically ``re.search``, not ``re.match``).  Use
-``^`` / ``$`` to anchor.
+Tests whether *pattern* (a Rust ``regex``-crate pattern) matches
+anywhere in *value* (an unanchored search, not a match pinned to the
+start of the string).  Use ``^`` / ``$`` to anchor.
 
 **jq users note.**  This DSL's ``match`` is a *boolean
 predicate* — it corresponds to jq's ``test(pattern)`` builtin,
@@ -1779,8 +1787,8 @@ capture groups, use ``sub`` / ``gsub`` with a replacement
 template instead.
 
 An invalid regex raises ``BuiltinError`` with the underlying
-``re.error`` reason — the pattern comes from the query author,
-so a typo should fail loudly.
+``regex``-crate parse-error reason — the pattern comes from the
+query author, so a typo should fail loudly.
 
 **Trust boundary.** ``match`` / ``sub`` / ``gsub`` and the
 ``[~"pattern"]`` regex subscript route their patterns through a
@@ -1789,7 +1797,7 @@ catastrophic-backtracking shapes (``(a+)+`` etc.).  Local CLI
 use is trusted (the query author is the operator); the same
 guard makes it safe to expose the DSL through MCP / chat /
 editor command surfaces where the pattern can come from
-untrusted input.  See ``_safe_regex_compile`` for the exact
+untrusted input.  See ``safe_regex_compile`` for the exact
 shape filter.
 
 For pure prefix/suffix or substring tests, prefer ``startswith``
@@ -1857,8 +1865,9 @@ match of *pattern* and returns them as a list.
   is a list of capture values (matching jq's array-per-match
   shape; the full match is **not** included).
 
-Empty matches at advancing positions are skipped to avoid infinite
-loops — Python's ``finditer`` already does this.
+Empty matches at advancing positions are handled correctly and don't
+loop forever — the Rust ``regex`` crate's ``find_iter`` /
+``captures_iter`` already guarantee this.
 
 Related: ``match`` / ``test`` (predicate), ``capture`` (named
 groups), ``splits``.
@@ -1884,9 +1893,9 @@ POSIX-shell-quote a string or list of strings — jq's ``@sh``.
 Matches jq's ``@sh``: returns a representation safe to interpolate
 into a POSIX shell command.  **Every** value is wrapped in single
 quotes (with embedded ``'`` escaped as ``'\''``) — jq parity, and
-cheaper to reason about than Python's ``shlex.quote`` which leaves
-"obviously safe" tokens unquoted.  Lists become space-separated
-single-quoted fields.
+cheaper to reason about than a quoter that leaves "obviously safe"
+tokens unquoted (fewer cases to get wrong).  Lists become
+space-separated single-quoted fields.
 
 Related: ``uri``, ``base64``, ``join``.
 
@@ -1908,7 +1917,7 @@ Split a string on a separator.  Returns a list.
 **Details**
 
 Splits *value* on every occurrence of *separator*, returning a
-Python list of substrings.  The separator is not a regex — use
+list of substrings.  The separator is not a regex — use
 a literal string.
 
 Common pattern: project a single string field, split it, and
@@ -1992,8 +2001,11 @@ Replace the first regex match in a string.
 **Details**
 
 Replaces the **first** occurrence of *pattern* in *value* with
-*replacement* and returns the new string.  *pattern* is a Python
-regex; *replacement* may use ``\1`` / ``\g<name>`` backrefs.
+*replacement* and returns the new string.  *pattern* is a Rust
+``regex``-crate pattern; *replacement* may use ``\1`` / ``\g<name>``
+backrefs — Python ``re``-style syntax, hand-expanded rather than the
+``regex`` crate's native ``$name`` templating, kept for compatibility
+with existing queries.
 
 Optional *flags* string takes the same letters as ``test`` /
 ``scan`` / ``capture`` / ``splits``: ``i`` for case-insensitive,
@@ -2191,10 +2203,10 @@ Uppercase a string.
 
 **Details**
 
-Returns *value* with every ASCII letter converted to uppercase.
+Returns *value* with every letter converted to uppercase.
 Accepts :class:`PathRef`; the result is a plain string (the path
-is normalised).  Use locale-aware casing helpers in Python if
-you need them — this wrapper just calls ``str.upper``.
+is normalised).  This is not locale-aware casing (e.g. Turkish
+dotless i) — this wrapper just calls Rust's ``str::to_uppercase``.
 
 Related: ``downcase``.
 
@@ -2287,8 +2299,8 @@ Inverse cosine in radians. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``acos``: thin wrapper over Python's
-``math.acos``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``acos``: a direct call to Rust's
+``f64::acos``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2309,8 +2321,8 @@ Inverse hyperbolic cosine. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``acosh``: thin wrapper over Python's
-``math.acosh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``acosh``: a direct call to Rust's
+``f64::acosh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2331,8 +2343,8 @@ Inverse sine in radians. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``asin``: thin wrapper over Python's
-``math.asin``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``asin``: a direct call to Rust's
+``f64::asin``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2353,8 +2365,8 @@ Inverse hyperbolic sine. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``asinh``: thin wrapper over Python's
-``math.asinh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``asinh``: a direct call to Rust's
+``f64::asinh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2375,8 +2387,8 @@ Inverse tangent in radians. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``atan``: thin wrapper over Python's
-``math.atan``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``atan``: a direct call to Rust's
+``f64::atan``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2418,8 +2430,8 @@ Inverse hyperbolic tangent. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``atanh``: thin wrapper over Python's
-``math.atanh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``atanh``: a direct call to Rust's
+``f64::atanh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2505,8 +2517,8 @@ Cosine of a radian angle. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``cos``: thin wrapper over Python's
-``math.cos``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``cos``: a direct call to Rust's
+``f64::cos``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2527,8 +2539,8 @@ Hyperbolic cosine. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``cosh``: thin wrapper over Python's
-``math.cosh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``cosh``: a direct call to Rust's
+``f64::cosh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -2629,7 +2641,7 @@ exp2(10)                                 # -> 1024.0
 
 **Details**
 
-Matches jq's ``expm1``: thin wrapper over Python's ``math.expm1``.
+Matches jq's ``expm1``: a direct call to the ``libm`` crate's ``expm1``.
 Avoids the loss of precision that ``exp(x) - 1`` suffers when
 ``x`` is small.
 
@@ -2714,9 +2726,10 @@ Fused multiply-add — ``x * y + z`` in one rounding.
 
 **Details**
 
-Matches jq's ``fma``: returns ``x*y + z``.  Python doesn't expose
-hardware FMA in older versions; this implementation computes the
-naive expression, which agrees with FMA to within one ULP.
+Matches jq's ``fma``: returns ``x*y + z``.  This implementation
+computes the naive expression (rather than a true single-rounding
+hardware FMA, e.g. Rust's ``f64::mul_add``), which agrees with FMA
+to within one ULP.
 
 Related: ``pow``, ``hypot``.
 
@@ -2803,8 +2816,8 @@ Matches jq's ``frexp``: returns ``[mantissa, exponent]`` such
 that ``value == mantissa * 2**exponent`` and ``0.5 <= |mantissa|
 < 1`` (or both parts zero when ``value`` is zero).
 
-jq returns a 2-element array; this DSL returns a Python list of
-the same shape.
+jq returns a 2-element array; this DSL returns a list of the same
+shape.
 
 Related: ``ldexp``, ``modf``, ``logb``.
 
@@ -2845,8 +2858,8 @@ gamma(5)                                 # -> 24.0  (4!)
 
 **Details**
 
-Matches jq's ``hypot``: the Euclidean distance.  Uses Python's
-``math.hypot``, which avoids overflow for large operands.
+Matches jq's ``hypot``: the Euclidean distance.  Uses Rust's
+``f64::hypot``, which avoids overflow for large operands.
 
 Related: ``sqrt``, ``pow``.
 
@@ -3132,7 +3145,7 @@ log10(1000)                              # -> 3.0
 
 **Details**
 
-Matches jq's ``log1p``: thin wrapper over Python's ``math.log1p``.
+Matches jq's ``log1p``: a direct call to the ``libm`` crate's ``log1p``.
 Avoids the loss of precision that ``log(1 + x)`` suffers when
 ``x`` is small.
 
@@ -3244,10 +3257,11 @@ Round to nearest integer using current rounding mode (banker's).
 
 **Details**
 
-Matches jq's ``nearbyint``: same result as ``rint`` (Python's
-``round`` uses banker's rounding).  C distinguishes them by
-whether they raise the inexact flag; Python doesn't expose
-that, so the two are aliases here.
+Matches jq's ``nearbyint``: same result as ``rint`` — both round
+ties to even (banker's rounding), matching the IEEE 754 default
+rounding mode.  C distinguishes them by whether they raise the
+inexact flag; this DSL has no concept of floating-point exception
+flags, so the two are aliases here.
 
 Related: ``rint``, ``round``, ``trunc``.
 
@@ -3400,8 +3414,8 @@ Sine of a radian angle. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``sin``: thin wrapper over Python's
-``math.sin``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``sin``: a direct call to Rust's
+``f64::sin``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -3422,8 +3436,8 @@ Hyperbolic sine. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``sinh``: thin wrapper over Python's
-``math.sinh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``sinh``: a direct call to Rust's
+``f64::sinh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -3466,8 +3480,8 @@ Tangent of a radian angle. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``tan``: thin wrapper over Python's
-``math.tan``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``tan``: a direct call to Rust's
+``f64::tan``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -3488,8 +3502,8 @@ Hyperbolic tangent. Matches jq's namesake C-math function.
 
 **Details**
 
-Matches jq's ``tanh``: thin wrapper over Python's
-``math.tanh``.  Domain errors (``acos(2)`` etc.)
+Matches jq's ``tanh``: a direct call to Rust's
+``f64::tanh``.  Domain errors (``acos(2)`` etc.)
 raise ``BuiltinError`` rather than returning NaN so the
 failure shows in query output.
 
@@ -4328,15 +4342,15 @@ Resolve a hostname to its IP addresses (A + AAAA records).
 
 **Details**
 
-Performs a forward DNS lookup of *name* via the system
-resolver (``socket.getaddrinfo``).  Returns the sorted list
-of unique IP addresses or an empty list when resolution
-fails.
+Performs a forward DNS lookup of *name* via the system resolver
+(Rust's ``ToSocketAddrs``, which mirrors ``getaddrinfo``).  Returns
+the sorted list of unique IP addresses or an empty list when
+resolution fails.
 
-Results are memoised for the lifetime of the Python process
-so repeated lookups inside one query don't hammer DNS.
-Lookups are time-bounded by the resolver's default timeout
-(typically 5s).
+Each call performs a fresh lookup — results are **not** memoised, so
+a query that calls ``dns()`` on the same name repeatedly makes that
+many resolver round-trips.  Lookups are time-bounded by the
+resolver's default timeout (typically 5s).
 
 Pair with ``rev_dns`` for round-trip checks
 (``dns("host.example.com") | map(rev_dns(.))``).
@@ -4542,10 +4556,12 @@ Looks *name* up in the response's headers; the match is
 case-insensitive (``Content-Type`` finds ``content-type``).
 Returns ``null`` when the header isn't present.
 
-Note: HTTP allows multiple headers with the same name to
-repeat (e.g. ``Set-Cookie``).  The underlying urllib path
-collapses repeats into a single comma-separated string,
-matching the wire-format convention.
+Note: HTTP allows multiple headers with the same name to repeat
+(e.g. ``Set-Cookie``).  How repeats are represented in the
+``headers`` object depends on the response producer — see
+``url_get``'s **Not currently implemented** note; this builtin
+itself does a single lowercase-key lookup and does no merging of
+its own.
 
 **Examples**
 
@@ -5093,9 +5109,9 @@ True when *value* is a multicast IP (``224.0.0.0/4`` / ``ff00::/8``).
 
 **Details**
 
-Classifies through Python's ``ipaddress``: IPv4 ``224.0.0.0/4``
-and IPv6 ``ff00::/8``.  Returns ``false`` for FQDNs, unicast
-IPs, and unparseable input.
+Classifies via bitwise range checks on the parsed address: IPv4
+``224.0.0.0/4`` and IPv6 ``ff00::/8``.  Returns ``false`` for FQDNs,
+unicast IPs, and unparseable input.
 
 Related: ``is_link_local``, ``is_reserved``, ``is_public``.
 
@@ -5115,7 +5131,7 @@ True when *value* is an RFC-1918 / RFC-4193 private IP.
 
 **Details**
 
-Classifies through Python's ``ipaddress`` stdlib —
+Classifies via bitwise range checks on the parsed address —
 ``10.0.0.0/8``, ``172.16.0.0/12``, ``192.168.0.0/16`` for IPv4;
 ``fc00::/7`` for IPv6 ULAs; plus a handful of other "non-global"
 ranges per the IANA registries.
@@ -5778,11 +5794,16 @@ HTTP GET request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``GET`` to *url* via urllib.
-Returns ``{status: int | null, headers: object, body: string,
-error: string | null}``.  Default timeout 5s.
+**Not currently implemented.**  The live HTTP request path is not
+wired up (deterministic golden-testing constraints); every call
+returns ``{status: null, headers: {}, body: "", body_json: null,
+peer_cert: null, error: "live HTTP probe is not yet implemented …"}``
+regardless of *url* or reachability.  The ``ureq`` dependency is in
+place for when this lands.  The deterministic probe surface
+(``x509_parse``, ``x509_eq``, ``dns``) is unaffected.
 
-Optional second argument is a dict of request headers.
+Optional second argument is a dict of request headers (accepted but,
+per the above, not yet sent anywhere).
 
 Related: ``url_get``, ``url_head``, ``url_post``,
 ``url_options``.
@@ -5804,11 +5825,12 @@ HTTP HEAD request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``HEAD`` to *url* via urllib.
-Returns ``{status: int | null, headers: object, body: string,
-error: string | null}``.  Default timeout 5s.
+**Not currently implemented.**  Same caveat as ``url_get``: every
+call returns the same "not yet implemented" error shape regardless
+of *url*.
 
-Optional second argument is a dict of request headers.
+Optional second argument is a dict of request headers (accepted but
+not yet sent anywhere).
 
 Related: ``url_get``, ``url_head``, ``url_post``,
 ``url_options``.
@@ -5830,11 +5852,12 @@ HTTP OPTIONS request.  Requires --enable-probes.
 
 **Details**
 
-Issues an HTTP ``OPTIONS`` to *url* via urllib.
-Returns ``{status: int | null, headers: object, body: string,
-error: string | null}``.  Default timeout 5s.
+**Not currently implemented.**  Same caveat as ``url_get``: every
+call returns the same "not yet implemented" error shape regardless
+of *url*.
 
-Optional second argument is a dict of request headers.
+Optional second argument is a dict of request headers (accepted but
+not yet sent anywhere).
 
 Related: ``url_get``, ``url_head``, ``url_post``,
 ``url_options``.
@@ -5852,15 +5875,17 @@ HTTP POST request.  Requires --enable-probes.
 
 **Signatures**
 
-- `url_post(url: string[, headers: object]) -> object`
+- `url_post(url: string[, body: string[, headers: object]]) -> object`
 
 **Details**
 
-Issues an HTTP ``POST`` to *url* via urllib.
-Returns ``{status: int | null, headers: object, body: string,
-error: string | null}``.  Default timeout 5s.
+**Not currently implemented.**  Same caveat as ``url_get``: every
+call returns the same "not yet implemented" error shape regardless
+of *url*.
 
-Optional second argument is a dict of request headers.
+Unlike ``url_get`` / ``url_head`` / ``url_options``, the optional
+second argument is the request *body* (a string) and the optional
+third argument is a dict of request headers.
 
 Related: ``url_get``, ``url_head``, ``url_post``,
 ``url_options``.
@@ -5869,7 +5894,7 @@ Related: ``url_get``, ``url_head``, ``url_post``,
 
 ```
 url_post("https://example.com/")
-url_post("https://api.example/v1", {"Authorization": "Bearer X"})
+url_post("https://api.example/v1", "{\"a\":1}", {"Authorization": "Bearer X"})
 ```
 
 ### `with_folder`
@@ -7013,8 +7038,8 @@ the slot at *path* set to *new_value*.  Missing intermediate
 containers are auto-created based on the next key type: a string
 key creates a dict, an integer key creates a list.
 
-Returns a fresh Python value — this is a functional update, not
-an in-place mutation.  For BIG-IP edit-pipeline writes, use the
+Returns a fresh value — this is a functional update, not an
+in-place mutation.  For BIG-IP edit-pipeline writes, use the
 ``=`` / ``|=`` assignment operators instead.
 
 Related: ``getpath``, ``del``, ``delpaths``.
@@ -7256,4 +7281,5 @@ with_entries(select(.value | type == "string"))    # keep only string fields
 
 ---
 
-*Generated by `scripts/dev/gen_query_builtins_doc.py`.*
+*Hand-maintained against the registry in
+`rust/tcl-bigip-query/src/builtins/` (see the file header).*

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Coroutines for the bytecode VM (`RUST_ISSUE_008`).
+//! Coroutines for the bytecode VM.
 //!
 //! The tree-walking runtime backs `coroutine`/`yield` with **one OS thread per
 //! coroutine** (a parked native stack is the continuation) because it has no

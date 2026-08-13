@@ -23,14 +23,6 @@ rules for the KCS/documentation split live in
   pipeline traces for progressively complex Tcl scripts.
 - [code-importing-examples.md](code-importing-examples.md) — reference
   patterns for Tcl code importing (package require, sourcing).
-- [incremental-analysis-worker.md](incremental-analysis-worker.md) — the
-  persistent per-document analysis worker model: bounded pool + per-uri
-  single-writer lock for incremental edits, process pool + serialized
-  warm-start seed for the cold build.
-- [tcloo-mro-lattice.md](tcloo-mro-lattice.md) — the (measured-negative)
-  `TclOO` object→class dispatch lattice experiment: why intraprocedural class
-  resolution collapses to ⊤ on real corpora, and what the shipping
-  MRO/CHA + provenance model does instead.
 - [tcloo-object-typing.md](tcloo-object-typing.md) — the shipping `TclOO`
   object-handle typing model: how `set v [Class new]` provenance is harvested
   so `$v method …` dispatch resolves to the object's class.
@@ -43,41 +35,33 @@ rules for the KCS/documentation split live in
   `DialectProfile` model: one profile per dialect owning both command/feature
   availability and runtime/behaviour semantics (octal, expr/lexer grammar,
   versioned libraries keyed by base/BIG-IP/tool version), replacing
-  per-consumer `DialectSet` arithmetic across the whole stack. Carries the
-  complete consumer inventory and a milestone/stage delivery plan.
+  per-consumer `DialectSet` arithmetic across the whole stack.
 - [eda-library-packages.md](eda-library-packages.md) — the migration from the
   5 EDA vendor-bit dialects (`XILINX`/`SYNOPSYS`/`CADENCE`/`QUARTUS`/`MENTOR`)
   to a base-Tcl-version dialect plus `required_package`-gated per-tool command
   libraries (a shared `sdc` pack + per-tool vendor packages). Carries the
   21-package taxonomy, the `is_available` package-loaded gate, detection
-  hardening, base-version reconciliation, and a phased, differential-guarded,
-  behaviour-preserving execution plan.
-
-> Past project-tracking documents (perf reports, phase trackers,
-> migration plans) are kept in [`../archive/`](../archive/) and are
-> not part of the current design surface.
+  hardening, and base-version reconciliation.
 
 ## Name resolution
 
-The workspace-scoped, C-Tcl-faithful command / variable / class
-name-resolution effort (issue #923): the audits behind it, the
-version-sensitive semantics, and the staged fix plan being executed on this
-surface.
+How the stack answers "which command / variable / class / expr function does
+this name denote?" — the model, and the C ground truth it is held to. The
+rule itself, its single Rust home, and its conformance gates live in
+[contracts/command-resolution.md](contracts/command-resolution.md).
 
-- [name-resolution-fix-plan.md](name-resolution-fix-plan.md) — the master
-  execution plan: the staged milestones (M1–M16) for correct, workspace-scoped,
-  dialect-aware resolution, with per-stage status.
-- [resolution-soundness-945.md](resolution-soundness-945.md) — the issue #945
-  follow-up contract: flow-sensitive constant-dispatch value provenance,
-  one-to-many source views, the typed TclOO method table + C-faithful dispatch
-  chains, the interpreter-domain model (safe visibility, temporal identity),
-  and probe command references.
-- [name-resolution-centralization.md](name-resolution-centralization.md) — the
-  audit + proposal to consolidate the ad-hoc target-selection sites onto one
-  C-Tcl command-resolution routine so every LSP provider agrees.
-- [cross-file-command-resolution-lattice.md](cross-file-command-resolution-lattice.md)
-  — the proposal for the cross-file resolution lattice: settling a call to its
-  defining proc/class across the workspace index, sound by abstention.
+- [name-resolution.md](name-resolution.md) — the model: the one-resolver
+  invariant and its drift gate, written-name colon runs and W314
+  addressability, the document / workspace / autoload tiers, source-site
+  namespace seeding, the import-alias-rename link graph, command names held
+  as data (flow-sensitive constant provenance, dispatch tables, probe roles),
+  the variable `VAR_LINK` model, `TclOO` one-hop class resolution and
+  C-faithful dispatch chains, interpreter domains, expr functions, and the
+  catalogue of deliberate abstentions.
+- [name-resolution-c-conformance.md](name-resolution-c-conformance.md) — the
+  ground truth: the algorithm for all four name kinds as extracted from the C
+  sources, and the 8.4 → 9.1 matrix, each fact pinned to a stable C-Tcl
+  permalink (`tclNamesp.c` / `tclVar.c` / `tclOOCall.c` / `tclCompExpr.c`).
 - [import-order-source-graph.md](import-order-source-graph.md) — the load
   order derived from the `source` **and `package require`** graphs
   (`tcl_lsp_core::source_graph::RunOrder`): the relation both wildcard-import
@@ -85,23 +69,6 @@ surface.
   where it deliberately still abstains, and — §7 — the one-sided edge a
   `package require` contributes, its three abstentions, and its measured reach
   on tcllib.
-- [name-resolution-tcl-version-and-c-source.md](name-resolution-tcl-version-and-c-source.md)
-  — the version-sensitive resolution semantics (8.4→9.1), each fact pinned to a
-  stable C-Tcl source permalink (`tclNamesp.c` / `tclVar.c`).
-- [tricky-name-resolution-surfaces.md](tricky-name-resolution-surfaces.md) — the
-  navigation-link audit of the hard cases: aliases, renames, imports, forwards,
-  ensembles, per-object methods, and command-names-held-as-data.
-- [colon-names-and-addressability.md](colon-names-and-addressability.md) — the
-  written-name colon-run rule vs the constructed-key discipline (issue #934):
-  `proc :`, `proc {}`, `namespace eval :`, which definitions have no absolute
-  spelling, and the W314 diagnostic that flags them.
-- [issue-923-differential-audit/STATUS.md](issue-923-differential-audit/STATUS.md)
-  — status and handoff for the issue #923 differential-audit campaign: mined
-  tricky patterns from tcllib/tk/georgtree/nico-robert corpora, verified
-  against real `tclsh` oracles, fixed and tested. Tracks what's fixed, what's
-  triaged-but-open, the shared resolution mechanisms added, and everything
-  needed to resume (raw findings data + the exact orchestration scripts, in
-  the same directory).
 
 ## F5 BIG-IP CLI
 
@@ -113,45 +80,28 @@ surface.
   invariants, edit-plan apply order, builtin registration,
   extension points.  User-facing reference (grammar, every
   builtin, sample configs, F5 KB cross-references) lives at
-  [`docs/references/f5_query/`](../references/f5_query/); the
-  alphabetical builtin catalogue there is generated from the
-  registry by
-  `scripts/dev/gen_query_builtins_doc.py`
-  and asserted up-to-date by CI.
+  [`docs/references/f5_query/`](../references/f5_query/), whose
+  alphabetical builtin catalogue is hand-maintained against the
+  registry in `rust/tcl-bigip-query/src/builtins/`.
 - [bigip-registry-architecture.md](bigip-registry-architecture.md) —
   registry contract for object kinds, value specs (parse / project
   / render / references), source-range fidelity, and the pilot
   migration table that opts properties into the typed dispatch.
-- [bigip-list-operator-audit.md](bigip-list-operator-audit.md) —
-  every list-valued property without ``list_operators``, classified
-  by emission style (real list / sub-block / uncertain), backing
-  the curated override layer in
-  ``dialects/f5/bigip/registry/specs/_base.py``.
-- [f5-query-renderer-contract.md](f5-query-renderer-contract.md) —
-  decorator-based renderer plugin registry that powers
-  ``f5 q --render NAME``: ``RendererSpec`` shape, source-text
-  recovery via ``RENDER_SOURCES`` contextvar, error-mapping rules,
-  and CLI / Python API wiring.
+- [f5-query-renderer-contract.md](f5-query-renderer-contract.md) — the
+  compile-time renderer, builtin, and input-format catalogues behind
+  `f5 q --render NAME`: the `RendererSpec` / `BuiltinSpec` /
+  `InputFormatSpec` contracts, error mapping, and how to add one.
 
 ## tclpkg package manager
 
 - [tclpkg-architecture.md](tclpkg-architecture.md) — architecture overview,
   contracts, file-path anchors, test anchors.
+- [contracts/tclpkg-contracts.md](contracts/tclpkg-contracts.md) — the
+  manifest, lockfile, resolver, cache, and venv contracts for `rust/tcl-pkg`,
+  plus the stated gap where the LSP integration does not exist.
 - [tclpkg-security.md](tclpkg-security.md) — sandboxing (the `tcl-sandbox`
   crate), operator hooks, and the layered, admin-lockable policy for the Rust
   package manager, with the supply-chain threat model that drives it.
-- [contracts/tclpkg-manifest.md](contracts/tclpkg-manifest.md) — manifest
-  directives, safe-mode whitelist, validation rules.
-- [contracts/tclpkg-lockfile.md](contracts/tclpkg-lockfile.md) — canonical
-  JSON, determinism contract, schema versioning.
-- [contracts/tclpkg-resolver.md](contracts/tclpkg-resolver.md) — MVS
-  algorithm, replace/exclude semantics.
-- [contracts/tclpkg-cache.md](contracts/tclpkg-cache.md) — CAS layout,
-  hash canonicalisation, integrity verification.
-- [contracts/tclpkg-venv.md](contracts/tclpkg-venv.md) — virtual
-  environment layout, activation scripts, tclsh wrapper.
-- [contracts/tclpkg-lsp.md](contracts/tclpkg-lsp.md) — project root
-  detection, W130–W134 diagnostics, code actions.
 - [contracts/explorer-compiler-coverage.md](contracts/explorer-compiler-coverage.md)
   — coverage contract for durable Rust compiler artefacts in Explorer.
 
@@ -166,6 +116,11 @@ The target-independent implementation contract is
 the common semantic IR and analyses consumed by the LSP, TclVM, WASM, eBPF, and
 future native or accelerator target families.
 
+Guarded native specialisation follows the separate default-off
+[semantic AOT optimisation contract](compiler/semantic-aot-optimisation.md),
+including live runtime identity, trace, materialisation, numeric, TclOO,
+namespace, interpreter, and dialect obligations.
+
 The proof that completes its world/effect half is
 [compiler/dispatch-stability-proof.md](compiler/dispatch-stability-proof.md) —
 the world-state contents/absence lattice, the typed per-site dispatch-stability
@@ -176,8 +131,7 @@ proof, and the entry contract that together gate stable-call CSE (`O105`).
 - [runtime/namespace-tree.md](runtime/namespace-tree.md) — design for
   the Rust runtime's namespace tree (root, child links, per-ns
   command/variable/path tables) modelled on Tcl 9's `Namespace`
-  struct, with the migration plan from FQN-string fallbacks to a real
-  namespace tree in `runtime/rust/src/namespace.rs` (proc lookup lives
+  struct, as built in `runtime/rust/src/namespace.rs` (proc lookup lives
   in `cmd_proc.rs` / `interp.rs`).
 - [runtime/rename-alias.md](runtime/rename-alias.md) — layout + flow
   for `rename` and single-interp `interp alias`, layered on top of the
@@ -203,10 +157,6 @@ proof, and the entry contract that together gate stable-call CSE (`O105`).
   ownership categories for every WASM-exported runtime function
   (callee-takes / caller-keeps / borrow), the linter that
   enforces them, and the decision rules for new exports.
-- [runtime/leak-sweep-trap-triage.md](runtime/leak-sweep-trap-triage.md) —
-  triage clusters for the 29 trapping tcltest files in the leak-
-  sweep baseline, suggested order of attack, and the structured
-  ``trap_origin`` enrichment that would unblock deeper analysis.
 - [runtime/trace-implementation.md](runtime/trace-implementation.md) —
   current ``trace add variable`` no-op gap, the design sketch
   (per-Var TraceList + fire hooks on every mutator), and an
@@ -232,53 +182,22 @@ proof, and the entry contract that together gate stable-call CSE (`O105`).
 - [runtime/tclvm-opcode-status.md](runtime/tclvm-opcode-status.md) —
   C Tcl 9.0 bytecode instruction coverage for the TCLVM.
 
-## Rust runtime port
+## The Rust workspace
 
-The Python pipeline's port to a native Rust workspace — current state,
-where it is headed, and whether the gap is bridgeable. The companion
-chunk-by-chunk dispatch story lives in
-[`docs/rust-rewrite.md`](../rust-rewrite.md).
+How the native workspace is laid out, the rules a change to it is measured
+against, and how it stays fast under an editor's keystroke load.
 
-- [rust/current-architecture.md](rust/current-architecture.md) — snapshot
-  of the Rust workspace as it stands today: crate layout and data flow
-  through the native pipeline.
+- [rust/engineering-guide.md](rust/engineering-guide.md) — the rules every
+  change under `rust/` is held to: the two non-negotiable principles (C Tcl
+  9.0.4 as the reference standard; time-to-first-tokens), the ratified
+  library and data-structure choices, crate layering, and what good code
+  looks like here.
+- [rust/current-architecture.md](rust/current-architecture.md) — the crate
+  graph as it stands: who owns what, the dependency direction that must not
+  be violated, and the runtime shape of the native LSP server.
 - [rust/target-architecture.md](rust/target-architecture.md) — the target
   design (zero-copy, single-parse, incremental-reuse, MVCC) and how the
   competing goals are reconciled.
-- [rust/feasibility.md](rust/feasibility.md) — feasibility analysis:
-  whether the target is reachable from the current architecture across
-  all six design goals.
-- [rust/review-findings.md](rust/review-findings.md) — workspace review
-  findings on correctness, performance, and memory, including the
-  ``unsafe``-forbidden discipline and where it costs.
-- [rust/workspace-deep-review-2026-06-22.md](rust/workspace-deep-review-2026-06-22.md)
-  — full subsystem deep review (every crate: architecture, layout,
-  algorithms, code quality), with the recursion, regex, and optimiser-
-  miscompile themes and five CLI-reproduced defects.
-- [rust/lsp-server-deep-review-2026-06-22.md](rust/lsp-server-deep-review-2026-06-22.md)
-  — companion deep review of the native LSP server stack
-  (``tcl-lsp-server`` / ``-core`` / ``-db`` / ``-py``), 18 findings.
-- [rust/python-rust-parity-audit-2026-06-22.md](rust/python-rust-parity-audit-2026-06-22.md)
-  — Python→Rust parity audit (registry, diagnostics, optimisations,
-  passes/features): one missing command (``ledit``), four Rust-only
-  optimiser miscompiles, an unwired inliner, and the deleted parity-check
-  tooling.
-- [rust/srv-incremental-review-2026-06-23.md](rust/srv-incremental-review-2026-06-23.md)
-  — deep review of the SRV-INCREMENTAL work (#692): per-edit incremental salsa
-  pipeline (incremental `LineIndex`, per-function check memo, interprocedural
-  taint summary memo) + opt-in cross-file W123/arity diagnostics. Verdict: lands
-  clean (no correctness regression; off-by-default airtight; corpus differentials
-  + 38 gates green), with three actionable findings — a `project_command_arities`
-  firewall perf-leak, an open→open push-staleness gap, and god-code growth — plus
-  the doc's own missing random-edit checks fuzzer.
-- [rust/compiler-pipeline-parity.md](rust/compiler-pipeline-parity.md) —
-  deep parity audit of the Rust rewrite's lexer, CST, IR/lowering, CFG/SSA,
-  analyses, optimiser, and bytecode codegen against the Python source of
-  truth, with a per-code coverage table and a prioritised gap register.
-- [runtime/runtime-execution-gaps.md](runtime/runtime-execution-gaps.md) — the
-  consolidated index for the runtime & execution port scope (RT-WASM / RT-VM /
-  `runtime/rust`) and the tiered VM/runtime delivery plan; the single entry
-  point separate from the tooling/LSP/compiler/analysis gaps.
 - [runtime/rust-vm-tier-parity.md](runtime/rust-vm-tier-parity.md) — the
   Rust bytecode VM's Tier 1/2/3 tcltest parity scoreboard versus C Tcl 9.
 - [runtime/rust-regex-port.md](runtime/rust-regex-port.md) — the
@@ -295,30 +214,20 @@ chunk-by-chunk dispatch story lives in
   the guardrails that pin it.
 - [rust/lsp-performance.md](rust/lsp-performance.md) — native LSP
   performance: results, optimisations, and how to measure.
-- [rust/s110-byte-array-corruption-port.md](rust/s110-byte-array-corruption-port.md)
-  — FE-TYPESHIM port spec for the S110 byte-array-corruption shimmer
-  (Python #656): algorithm, Rust integration points, and verification contract.
-- [rust/python-rust-port-gaps.md](rust/python-rust-port-gaps.md) — consolidated
-  audit of every feature not yet completely ported from Python to Rust
-  (front-end / analyser / server / API / tooling scope).
-- [rust/scripts-retirement-triage.md](rust/scripts-retirement-triage.md) —
-  per-`scripts/` triage for Python retirement: retire-with-Python vs survivor
-  vs runtime-scope, and the `scripts`→`xtask` decisions.
-- [rust/fp-rust-port-plan.md](rust/fp-rust-port-plan.md) — plan for porting the
-  false-positive / ground-truth precision catalogue to Rust.
-- [rust/fp-rust-port-status.md](rust/fp-rust-port-status.md) — live worklist of
-  the remaining FP-precision Rust-vs-Python divergences.
-- [rust/analyser-verification-2026-06-30.md](rust/analyser-verification-2026-06-30.md)
-  — analyser verification snapshot (2026-06-30).
-- [rust/python-parity-scrub.md](rust/python-parity-scrub.md) — Python-parity
-  scrub pass findings.
-- [rust/cleanup-status.md](rust/cleanup-status.md) — workspace cleanup status.
 
 ## Optional WASM extensions
 
 - [compiler/wasm-extensions.md](compiler/wasm-extensions.md) —
   current `wasm_stdlib` embedding boundary and the explicitly dated,
   not-yet-implemented package-driven extension design.
+- [compiler/wasm-target-surfaces.md](compiler/wasm-target-surfaces.md) —
+  WASI vs in-browser WASM: per-command-family capability matrix, the
+  browser-target build/wiring gaps, the proposed host-import surface, and
+  measured module sizes (raw, `wasm-opt`, gzip).
+- [compiler/aot-command-priority.md](compiler/aot-command-priority.md) —
+  real-corpus census (issue #1181) ranking which Tcl commands the AOT
+  WASM compiler should emit directly next, with a breadth-weighted
+  tiering and what is already covered versus what cannot be direct.
 
 - [compiler/byte-array-corruption.md](compiler/byte-array-corruption.md)
   — the `S110` byte-array corruption diagnostic: binary data forced
@@ -345,11 +254,6 @@ are its rules, and what are the failure modes". One contract per file.
   namespace byte-ops / prefix matcher + `OptionTable` wrapper / error
   catalogue, `tcl-compiler` text similarity, `tcl-core-types`
   vocabulary), the no-re-derivation rule, and the documented exceptions.
-- [core-lsp-shared-utility.md](contracts/core-lsp-shared-utility.md) — the
-  single home for logic that otherwise drifts between features/passes
-  (offset mapping, proc lookup, package ranking, event context,
-  word-shape parsing) and the rules that keep it from being
-  reimplemented.
 - [formatter-engine.md](contracts/formatter-engine.md) — formatter
   idempotency and rewrite contracts.
 - [project-layout.md](contracts/project-layout.md) — repository layout
@@ -455,16 +359,18 @@ Distilled from the trickiest scars in the WASM runtime history
   `::tcl::mathfunc`; the binding lattice that gates compile-time
   resolution (the command-layer parallel of the variable-frame model).
 
-## Knowledge base coverage
+## Differential audits
 
-- [kcs-completeness-plan.md](kcs-completeness-plan.md) — audit of the
-  current KCS coverage (features and top-level notes) and the plan to
-  close the gaps toward completeness.
+- [issue-923-differential-audit/README.md](issue-923-differential-audit/README.md)
+  — the three-way differential method (mine a corpus, reduce to a minimal
+  repro, compare a real `tclsh` oracle against the LSP), the oracle-environment
+  recipe, and the eight-corpus inventory, alongside the raw findings data and
+  the orchestration scripts that produced them.
 
 ## Templates
 
 Templates for new design docs live at
-[templates/](templates/):
+[templates/](templates/README.md):
 
 - [template-contract.md](templates/template-contract.md) — ownership,
   contracts, and integration boundaries.

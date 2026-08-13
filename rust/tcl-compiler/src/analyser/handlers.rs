@@ -12127,8 +12127,8 @@ mod tests {
     /// site that asks "which namespace is current here?" now answers with
     /// [`Analyser::command_resolution_namespace`], so a definition made inside
     /// a qualified-name proc's body homes to that proc's *defining* namespace.
-    /// These are cases (A)–(D) from `docs/design/tricky-name-resolution-surfaces.md`
-    /// §1.8, each with the real interpreter's answer as the expectation.
+    /// These are cases (A)–(D) from `docs/design/name-resolution.md`
+    /// §3.5, each with the real interpreter's answer as the expectation.
     #[test]
     fn definitions_inside_a_qualified_name_proc_home_to_its_defining_namespace_923_idx85() {
         // (A) The already-correct lexical control.

@@ -3985,8 +3985,8 @@ mod tests {
         assert_eq!(items[0].filter_text.as_deref(), Some("gret"));
     }
 
-    // Dialect-profile availability (dialect-profile-model.md, Milestone 4):
-    // the §5.1 available_subcommands gap and the §5.2 option semantics in
+    // Dialect-profile availability (dialect-profile-model.md): the §5.1
+    // available_subcommands gap and the §5.2 option semantics in
     // completion.
 
     #[test]

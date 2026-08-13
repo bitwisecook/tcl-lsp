@@ -71,37 +71,72 @@ where
     String::from_utf8(body).expect("UTF-8 LSP body")
 }
 
-async fn read_until_id<R>(reader: &mut BufReader<R>, id: &str, max: usize) -> Option<String>
-where
-    R: tokio::io::AsyncRead + Unpin,
-{
-    for _ in 0..max {
-        match tokio::time::timeout(Duration::from_secs(2), read_frame(reader)).await {
-            Ok(body) if body.contains(id) => return Some(body),
-            Ok(_) => {}
-            Err(_) => break,
-        }
-    }
-    None
-}
+/// Hang guards, never synchronisation. Every wait below ends on the signal it
+/// is actually waiting for; the clock is only consulted when the server has
+/// stopped talking altogether. Deliberately generous — a CI runner short of
+/// CPU must not be mistaken for a wedged server.
+const RESPONSE_BACKSTOP: Duration = Duration::from_secs(30);
+const ANALYSIS_BACKSTOP: Duration = Duration::from_secs(30);
 
-async fn collect_frames<R>(reader: &mut BufReader<R>, window: Duration) -> Vec<String>
+/// The response frame carrying `id`, skipping the notifications ahead of it.
+///
+/// JSON-RPC promises exactly one response per request, so that response *is*
+/// the terminal signal and the only thing worth waiting on. How many frames
+/// precede it — a `publishDiagnostics` per open document, log messages,
+/// refresh requests — is a function of how fast the server happens to be
+/// running, so a frame budget is a bet on the server's timing rather than a
+/// synchronisation, and a machine short of CPU loses that bet: the reply is
+/// still coming, but the budget is already spent. The backstop below only
+/// stops a genuinely wedged server from hanging the suite.
+async fn read_until_id<R>(reader: &mut BufReader<R>, id: &str) -> Option<String>
 where
     R: tokio::io::AsyncRead + Unpin,
 {
-    let mut frames = Vec::new();
-    let deadline = tokio::time::Instant::now() + window;
+    let deadline = tokio::time::Instant::now() + RESPONSE_BACKSTOP;
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
-            break;
+            return None;
         }
         match tokio::time::timeout(remaining, read_frame(reader)).await {
-            Ok(body) => frames.push(body),
-            Err(_) => break,
+            Ok(body) if body.contains(id) => return Some(body),
+            Ok(_) => {}
+            Err(_) => return None,
         }
     }
-    frames
+}
+
+/// Wait until the server has published diagnostics for every URI in `uris` —
+/// its signal that each `didOpen` has been analysed and indexed.
+///
+/// This is the barrier a request that depends on an open document needs, and
+/// it replaces a fixed settle window. Opening a document always draws exactly
+/// one publish for it — `deliver_diagnostics` publishes unconditionally for a
+/// push-only client, empty diagnostic set included — so waiting for that
+/// publish ends as soon as the work is actually done, where a sleep either
+/// wastes the difference or, on a slow machine, expires before the server has
+/// finished and hands the next request a document it has not seen.
+async fn await_analysed<R>(reader: &mut BufReader<R>, uris: &[&str]) -> bool
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let deadline = tokio::time::Instant::now() + ANALYSIS_BACKSTOP;
+    let mut pending: Vec<&str> = uris.to_vec();
+    while !pending.is_empty() {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return false;
+        }
+        match tokio::time::timeout(remaining, read_frame(reader)).await {
+            Ok(body) => {
+                if body.contains("publishDiagnostics") {
+                    pending.retain(|uri| !body.contains(uri));
+                }
+            }
+            Err(_) => return false,
+        }
+    }
+    true
 }
 
 /// Spawn a server, initialize a push-only client, return the reader + writer.
@@ -125,7 +160,7 @@ async fn start_session() -> (
         .write_all(frame(init).as_bytes())
         .await
         .unwrap();
-    let _ = read_until_id(&mut reader, "\"id\":1", 5).await;
+    let _ = read_until_id(&mut reader, "\"id\":1").await;
     let initialized = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
     client_write
         .write_all(frame(initialized).as_bytes())
@@ -156,16 +191,31 @@ async fn did_close(writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>, u
     writer.write_all(frame(&msg).as_bytes()).await.unwrap();
 }
 
-/// The published diagnostics frame for `uri` (or empty string if none seen).
+/// The next `publishDiagnostics` frame for `uri`.
+///
+/// Waits for the publish instead of collecting whatever turns up inside a
+/// fixed window. The publish is the server's terminal signal for the work it
+/// was just asked to do, so waiting for it is exact; a window is a bet on how
+/// long that work takes, and losing the bet is silent — the caller is handed
+/// an empty string and every `!diags.contains(CODE)` assertion passes as
+/// though the server had cleanly reported nothing. Returns empty only if the
+/// backstop expires, which means the server really did stop publishing.
 async fn published_codes(
     reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
     uri: &str,
 ) -> String {
-    let frames = collect_frames(reader, Duration::from_millis(1200)).await;
-    frames
-        .into_iter()
-        .rfind(|f| f.contains("publishDiagnostics") && f.contains(uri))
-        .unwrap_or_default()
+    let deadline = tokio::time::Instant::now() + ANALYSIS_BACKSTOP;
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return String::new();
+        }
+        match tokio::time::timeout(remaining, read_frame(reader)).await {
+            Ok(body) if body.contains("publishDiagnostics") && body.contains(uri) => return body,
+            Ok(_) => {}
+            Err(_) => return String::new(),
+        }
+    }
 }
 
 #[tokio::test]
@@ -320,10 +370,13 @@ async fn method_param_definition_resolves_to_name_e2e() {
     .await;
     // Give diagnostics a moment, then request definition of `$arg1` (line 2,
     // char 15 — inside the `$arg1` usage).
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///oo.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
     let req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///oo.tcl"},"position":{"line":2,"character":15}}}"#;
     writer.write_all(frame(req).as_bytes()).await.unwrap();
-    let resp = read_until_id(&mut reader, "\"id\":2", 8)
+    let resp = read_until_id(&mut reader, "\"id\":2")
         .await
         .expect("definition response");
     // The declaration is the parameter name on line 1 (the `method m {arg1 …}`
@@ -372,7 +425,10 @@ async fn proc_param_definition_resolves_to_name_for_every_param_e2e() {
         "proc reduce {f z xs} {\n    puts $z\n    return $xs\n}\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///reduce.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
 
     // `$z` usage is on line 1 (`    puts $z`); the 'z' byte (after `$`) is
     // at character 10. 'z' is declared on line 0 at character 15 (`proc
@@ -381,7 +437,7 @@ async fn proc_param_definition_resolves_to_name_for_every_param_e2e() {
     // character 5, "reduce").
     let req_z = r#"{"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///reduce.tcl"},"position":{"line":1,"character":10}}}"#;
     writer.write_all(frame(req_z).as_bytes()).await.unwrap();
-    let resp_z = read_until_id(&mut reader, "\"id\":3", 8)
+    let resp_z = read_until_id(&mut reader, "\"id\":3")
         .await
         .expect("definition response for z");
     assert!(
@@ -399,7 +455,7 @@ async fn proc_param_definition_resolves_to_name_for_every_param_e2e() {
     // is at character 12. 'xs' is declared on line 0 at character 17.
     let req_xs = r#"{"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///reduce.tcl"},"position":{"line":2,"character":12}}}"#;
     writer.write_all(frame(req_xs).as_bytes()).await.unwrap();
-    let resp_xs = read_until_id(&mut reader, "\"id\":4", 8)
+    let resp_xs = read_until_id(&mut reader, "\"id\":4")
         .await
         .expect("definition response for xs");
     assert!(
@@ -433,11 +489,14 @@ async fn method_param_definition_resolves_to_name_for_second_param_e2e() {
         "oo::class create C {\n    method m {arg1 arg2} {\n        puts $arg2\n    }\n}\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///oo2.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
     // `$arg2` usage is on line 2, character 14 (after `$`).
     let req = r#"{"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///oo2.tcl"},"position":{"line":2,"character":14}}}"#;
     writer.write_all(frame(req).as_bytes()).await.unwrap();
-    let resp = read_until_id(&mut reader, "\"id\":5", 8)
+    let resp = read_until_id(&mut reader, "\"id\":5")
         .await
         .expect("definition response");
     // `arg2` is declared on line 1 (`    method m {arg1 arg2} {`) — the
@@ -481,13 +540,20 @@ async fn nested_shadow_of_builtin_does_not_leak_across_files_e2e() {
         "set final_check restored\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(
+            &mut reader,
+            &["file:///shadow_lib.tcl", "file:///shadow_main.tcl"]
+        )
+        .await,
+        "server never published diagnostics for the opened document(s)",
+    );
 
     // `set` in shadow_main.tcl never runs anywhere near `describe` — it is
     // unambiguously the builtin.
     let def_req = r#"{"jsonrpc":"2.0","id":7,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///shadow_main.tcl"},"position":{"line":0,"character":0}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":7", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":7")
         .await
         .expect("definition response");
     assert!(
@@ -498,7 +564,7 @@ async fn nested_shadow_of_builtin_does_not_leak_across_files_e2e() {
 
     let hover_req = r#"{"jsonrpc":"2.0","id":8,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///shadow_main.tcl"},"position":{"line":0,"character":0}}}"#;
     writer.write_all(frame(hover_req).as_bytes()).await.unwrap();
-    let hover_resp = read_until_id(&mut reader, "\"id\":8", 8)
+    let hover_resp = read_until_id(&mut reader, "\"id\":8")
         .await
         .expect("hover response");
     assert!(
@@ -576,11 +642,14 @@ async fn dynamic_oo_define_targets_never_corrupt_the_document_symbol_tree_e2e() 
          proc addBar {} {\n    set class ::B\n    oo::define $class method bar {} { return bar }\n}\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///dynclass.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
 
     let sym_req = r#"{"jsonrpc":"2.0","id":12,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"file:///dynclass.tcl"}}}"#;
     writer.write_all(frame(sym_req).as_bytes()).await.unwrap();
-    let sym_resp = read_until_id(&mut reader, "\"id\":12", 8)
+    let sym_resp = read_until_id(&mut reader, "\"id\":12")
         .await
         .expect("documentSymbol response");
     let parsed: serde_json::Value =
@@ -612,13 +681,16 @@ async fn dynamic_namespace_eval_targets_never_cross_resolve_e2e() {
          proc setupB {} {\n    set name connB\n    namespace eval $name {\n        proc helper {} { return B }\n        helper\n    }\n}\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///dynns.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
 
     // The `helper` call on line 10 (`        helper`), inside setupB's own
     // dynamic namespace body.
     let def_req = r#"{"jsonrpc":"2.0","id":13,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///dynns.tcl"},"position":{"line":10,"character":10}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":13", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":13")
         .await
         .expect("definition response");
     // setupB's own `helper` is declared on line 9, not setupA's on line 3.
@@ -662,13 +734,16 @@ async fn interp_handle_eval_isolates_from_a_sibling_interpreter_e2e() {
          sandboxB eval {\n    proc helper {} { return B }\n    helper\n}\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///twointerp.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
 
     // The `helper` call on line 5 (`    helper`), inside sandboxB's own
     // script.
     let def_req = r#"{"jsonrpc":"2.0","id":11,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///twointerp.tcl"},"position":{"line":5,"character":5}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":11", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":11")
         .await
         .expect("definition response");
     // sandboxB's own `helper` is declared on line 4, not sandboxA's on
@@ -708,12 +783,15 @@ async fn qualified_namespace_var_definition_resolves_from_anywhere_in_the_file_e
         "namespace eval ::simple {\n    variable v \"hello\"\n}\nputs $::simple::v\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///qualvar.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
 
     // Cursor on `v` inside `$::simple::v` (line 3, char 16).
     let def_req = r#"{"jsonrpc":"2.0","id":9,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///qualvar.tcl"},"position":{"line":3,"character":16}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":9", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":9")
         .await
         .expect("definition response");
     // `v` is declared on line 1 (`    variable v "hello"`), character 13.
@@ -725,7 +803,7 @@ async fn qualified_namespace_var_definition_resolves_from_anywhere_in_the_file_e
 
     let hover_req = r#"{"jsonrpc":"2.0","id":10,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///qualvar.tcl"},"position":{"line":3,"character":16}}}"#;
     writer.write_all(frame(hover_req).as_bytes()).await.unwrap();
-    let hover_resp = read_until_id(&mut reader, "\"id\":10", 8)
+    let hover_resp = read_until_id(&mut reader, "\"id\":10")
         .await
         .expect("hover response");
     assert!(
@@ -757,11 +835,14 @@ async fn apply_lambda_param_definition_resolves_to_name_for_second_param_e2e() {
         "apply {{a b} {return $b}} 1 2\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///apply.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
     // `$b` usage is at line 0, character 22 (after `$`, inside the lambda body).
     let req = r#"{"jsonrpc":"2.0","id":6,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///apply.tcl"},"position":{"line":0,"character":22}}}"#;
     writer.write_all(frame(req).as_bytes()).await.unwrap();
-    let resp = read_until_id(&mut reader, "\"id\":6", 8)
+    let resp = read_until_id(&mut reader, "\"id\":6")
         .await
         .expect("definition response");
     // `b` is declared at character 10 (`apply {{a b} ...`, 0-based).
@@ -792,12 +873,15 @@ async fn dynamic_but_resolvable_rename_definition_follows_the_move_e2e() {
         "proc ::foo_impl {} { return \"impl body\" }\nset old ::foo_impl\nrename $old ::foo\nputs [::foo]\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///rename.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
     // `::foo` in `puts [::foo]` (line 3, char 7) — reached only through a
     // dynamic-but-constant-foldable `rename $old ::foo`.
     let req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///rename.tcl"},"position":{"line":3,"character":7}}}"#;
     writer.write_all(frame(req).as_bytes()).await.unwrap();
-    let resp = read_until_id(&mut reader, "\"id\":2", 8)
+    let resp = read_until_id(&mut reader, "\"id\":2")
         .await
         .expect("definition response");
     assert!(
@@ -829,10 +913,13 @@ async fn genuinely_dynamic_rename_still_abstains_from_definition_e2e() {
         "proc ::foo_impl {} { return \"impl body\" }\nset old [gets stdin]\nrename $old ::foo\nputs [::foo]\n",
     )
     .await;
-    let _ = collect_frames(&mut reader, Duration::from_millis(400)).await;
+    assert!(
+        await_analysed(&mut reader, &["file:///rename_dynamic.tcl"]).await,
+        "server never published diagnostics for the opened document(s)",
+    );
     let req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///rename_dynamic.tcl"},"position":{"line":3,"character":7}}}"#;
     writer.write_all(frame(req).as_bytes()).await.unwrap();
-    let resp = read_until_id(&mut reader, "\"id\":2", 8)
+    let resp = read_until_id(&mut reader, "\"id\":2")
         .await
         .expect("definition response");
     assert!(
@@ -905,7 +992,7 @@ async fn class_member_bareword_call_requires_link_e2e() {
     // line 2, char 28 lands on the `f` of `foo`.
     let def_req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///link.tcl"},"position":{"line":2,"character":28}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":2", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":2")
         .await
         .expect("definition response");
     assert!(
@@ -914,7 +1001,7 @@ async fn class_member_bareword_call_requires_link_e2e() {
     );
     let hover_req = r#"{"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///link.tcl"},"position":{"line":2,"character":28}}}"#;
     writer.write_all(frame(hover_req).as_bytes()).await.unwrap();
-    let hover_resp = read_until_id(&mut reader, "\"id\":3", 8)
+    let hover_resp = read_until_id(&mut reader, "\"id\":3")
         .await
         .expect("hover response");
     assert!(
@@ -933,7 +1020,7 @@ async fn class_member_bareword_call_requires_link_e2e() {
     // text itself is unchanged).
     let def_req2 = r#"{"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///link2.tcl"},"position":{"line":3,"character":28}}}"#;
     writer.write_all(frame(def_req2).as_bytes()).await.unwrap();
-    let def_resp2 = read_until_id(&mut reader, "\"id\":4", 8)
+    let def_resp2 = read_until_id(&mut reader, "\"id\":4")
         .await
         .expect("definition response");
     assert!(
@@ -945,7 +1032,7 @@ async fn class_member_bareword_call_requires_link_e2e() {
         .write_all(frame(hover_req2).as_bytes())
         .await
         .unwrap();
-    let hover_resp2 = read_until_id(&mut reader, "\"id\":5", 8)
+    let hover_resp2 = read_until_id(&mut reader, "\"id\":5")
         .await
         .expect("hover response");
     assert!(
@@ -988,7 +1075,7 @@ async fn dynamic_interp_handle_alias_definition_follows_the_tracked_binding_e2e(
     // `greet` inside `interp eval $s { greet }` (line 4, character 17).
     let def_req = r#"{"jsonrpc":"2.0","id":7,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///dyninterp.tcl"},"position":{"line":4,"character":17}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":7", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":7")
         .await
         .expect("definition response");
     assert!(
@@ -1032,7 +1119,7 @@ async fn classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e() {
     // ooutil-style classmethod propagation through the superclass MRO.
     let def_req = r#"{"jsonrpc":"2.0","id":8,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///activerecord.tcl"},"position":{"line":6,"character":6}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":8", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":8")
         .await
         .expect("definition response");
     assert!(
@@ -1044,7 +1131,7 @@ async fn classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e() {
     // declaring class's own call.
     let def_req2 = r#"{"jsonrpc":"2.0","id":9,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///activerecord.tcl"},"position":{"line":7,"character":13}}}"#;
     writer.write_all(frame(def_req2).as_bytes()).await.unwrap();
-    let def_resp2 = read_until_id(&mut reader, "\"id\":9", 8)
+    let def_resp2 = read_until_id(&mut reader, "\"id\":9")
         .await
         .expect("definition response");
     assert!(
@@ -1087,7 +1174,7 @@ async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
     // declaration.
     let def_req = r#"{"jsonrpc":"2.0","id":10,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///widget.tcl"},"position":{"line":9,"character":7}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":10", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":10")
         .await
         .expect("definition response");
     assert!(
@@ -1099,7 +1186,7 @@ async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
     // resolve — a plain `self method` is not inherited.
     let def_req2 = r#"{"jsonrpc":"2.0","id":11,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///widget.tcl"},"position":{"line":10,"character":7}}}"#;
     writer.write_all(frame(def_req2).as_bytes()).await.unwrap();
-    let def_resp2 = read_until_id(&mut reader, "\"id\":11", 8)
+    let def_resp2 = read_until_id(&mut reader, "\"id\":11")
         .await
         .expect("definition response");
     assert!(
@@ -1141,7 +1228,7 @@ async fn apply_namespace_override_resolves_bareword_to_the_lambdas_own_namespace
     // `cleanup` inside the apply body (line 6, character 11).
     let def_req = r#"{"jsonrpc":"2.0","id":12,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///apply_ns.tcl"},"position":{"line":6,"character":11}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
-    let def_resp = read_until_id(&mut reader, "\"id\":12", 8)
+    let def_resp = read_until_id(&mut reader, "\"id\":12")
         .await
         .expect("definition response");
     assert!(

@@ -150,10 +150,10 @@ impl CfgBuilder {
         let mut dispatch = block_name.to_owned();
 
         for clause in clauses {
-            // When the branch condition contains a
-            // command substitution, append a synthetic `<cond>` IRCall
-            // statement so the emitter can wrap the ExprCommand with
-            // its own startCommand boundary.
+            // When the branch condition contains a command substitution,
+            // append a synthetic `<cond>` Statement::Call so the emitter
+            // can wrap the ExprNode::Command with its own startCommand
+            // boundary.
             if expr_has_command(&clause.condition) {
                 // A `catch`/`regexp`/`scan` substitution — or a call to a
                 // known upvar / global-writing user proc (issue #923 idx

@@ -20,10 +20,10 @@
 //! providers (`references::references`, `rename::rename`,
 //! `rename::prepare_rename`, plus `is_safe_symbol_name`).
 //!
-//! There is no single upstream pytest source — these tests are derived from
-//! the providers' public API (see `src/references.rs` / `src/rename.rs`) and
-//! from Tcl name-resolution semantics, with the Tcl-semantic facts pinned to
-//! real C-Tcl (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
+//! These tests are derived from the providers' public API (see
+//! `src/references.rs` / `src/rename.rs`) and from Tcl name-resolution
+//! semantics, with the Tcl-semantic facts pinned to real C-Tcl
+//! (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
 //! C-Tcl proof model
 //! -----------------
@@ -657,9 +657,9 @@ fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
 }
 
 // ---------------------------------------------------------------------------
-// references — classes in nested namespaces (parity with the proc fixes
-// above; classes previously had no namespace gate at all, so a bare
-// class-name match cross-attributed across namespaces unconditionally)
+// references — classes in nested namespaces (parity with the proc cases
+// above): a bare class-name match must be gated by namespace, never
+// cross-attributed across namespaces unconditionally
 // ---------------------------------------------------------------------------
 
 #[test]

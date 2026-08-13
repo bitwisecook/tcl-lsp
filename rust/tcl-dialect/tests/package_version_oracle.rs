@@ -63,8 +63,8 @@ fn rows(corpus: &str) -> impl Iterator<Item = Vec<&str>> {
         .map(|l| l.split('\t').collect())
 }
 
-/// Every `package vcompare V1 V2` row: the port's ordering must equal the
-/// interpreter's `-1` / `0` / `1`.
+/// Every `package vcompare V1 V2` row: `compare_versions`'s ordering must
+/// equal the interpreter's `-1` / `0` / `1`.
 ///
 /// This is the per-pair oracle for the comparison rule itself — `vcompare`
 /// *is* Tcl's version comparator, so agreeing with it on the whole grid is
@@ -104,8 +104,8 @@ fn compare_versions_matches_the_interpreter_over_the_pinned_corpus() {
 /// resolver relies on: antisymmetric, and consistent under transitivity.
 ///
 /// A selection loop that keeps a running maximum is only correct if the
-/// comparator is an ordering; this checks the port's own algebra rather than
-/// a single interpreter answer.
+/// comparator is an ordering; this checks `compare_versions`'s own algebra
+/// rather than a single interpreter answer.
 #[test]
 fn compare_versions_is_a_consistent_ordering() {
     let versions: Vec<&str> = {
@@ -177,7 +177,7 @@ fn version_satisfies_matches_the_interpreter_over_the_pinned_corpus() {
 }
 
 /// Ill-formed versions and requirements: real Tcl raises
-/// `expected version number but got "…"`, and the port — which has no error
+/// `expected version number but got "…"`, and this crate — which has no error
 /// channel — answers `false`.  Pinned so the mapping is a decision, not an
 /// accident, and so a future parser change cannot start *accepting* junk.
 #[test]

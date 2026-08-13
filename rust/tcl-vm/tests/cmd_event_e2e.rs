@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end event-loop tests for the bytecode VM (`RUST_ISSUE_008`, Phase 2).
+//! End-to-end event-loop tests for the bytecode VM.
 //!
 //! Every expectation is the output of the same script under a locally-built
 //! **tclsh 9.0.4** (the truth oracle). The loop (`after`/`vwait`/`update`) is

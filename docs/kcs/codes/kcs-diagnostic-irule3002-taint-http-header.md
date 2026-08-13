@@ -1,7 +1,7 @@
 # KCS: IRULE3002 — Why does the analyser warn about tainted data in an HTTP header?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -44,7 +44,7 @@ Validate the value or strip control characters before setting the header.
 
 ## How to suppress
 
-Add `# noqa: IRULE3002` at the end of the offending line.
+Add `# noqa: IRULE3002` on the line **above** the offending command.
 
 ## Related
 

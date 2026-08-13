@@ -36,11 +36,6 @@ Or ask a free-form Tcl question without a slash command.
 
 Uses the same analysis engine as `@irule` but with general Tcl system prompts and dialect settings. The agentic loop validates and iterates until diagnostics are clean.
 
-## File-path anchors
-
-- `editors/vscode/src/chat/tclParticipant.ts`
-- `editors/vscode/src/chat/commands/`
-
 ## Failure modes
 
 - AI features disabled (`tclLsp.ai.enabled` is false).

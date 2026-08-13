@@ -17,7 +17,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! RBS family — read-before-set / unused param / unused var (W210/W213/W214).
-//! Pairs to `tests/test_fp_rbs.py` and the §RBS entries in `docs/design/compiler/FP.md`.
 
 use super::{D, codes, fires};
 
@@ -1495,7 +1494,7 @@ fn fp_rbs_19_while_and_for_may_run_silent() {
 }
 
 // ---------------------------------------------------------------------------
-// call-by-name DYNAMIC_NAME_LOCAL trait tests (inline in test_fp_rbs.py)
+// call-by-name DYNAMIC_NAME_LOCAL trait tests
 // ---------------------------------------------------------------------------
 
 #[test]

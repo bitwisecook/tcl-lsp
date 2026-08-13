@@ -31,13 +31,12 @@
 
 use tcl_cmd_core::prefix::Resolution;
 
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `append` + the `string` ensemble.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"append", append);
-    interp.register_builtin(b"string", string_cmd);
     // `::tcl::string::insert`/`::tcl::string::reverse` are the real commands the
     // `string insert`/`string reverse` ensemble entries map to; some tests (and
     // the byte-compiler) invoke them directly.
@@ -45,6 +44,11 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"::tcl::string::reverse", tcl_string_reverse);
     // `tcl::prefix` — prefix matching against a table (`tclIndexObj.c`).
     interp.register_builtin(b"::tcl::prefix", tcl_prefix);
+    let registry = tcl_registry::CommandRegistry::build_default();
+    interp.register_spec_builtin(
+        registry.get("string").expect("core string spec"),
+        string_cmd,
+    );
 }
 
 // -- append ----------------------------------------------------------------
@@ -471,9 +475,10 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let mut exact = false;
     let mut message: Vec<u8> = b"option".to_vec();
-    let mut error_opts: Option<Vec<u8>> = None; // Some(opts) ⇒ -error given
-    // Options precede the trailing `table string`; `-error`/`-message` need a
-    // value that must not intrude into those last two arguments.
+    // Some(opts) ⇒ -error given. Options precede the trailing `table string`;
+    // `-error`/`-message` need a value that must not intrude into those last two
+    // arguments.
+    let mut error_opts: Option<Vec<u8>> = None;
     let opt_end = argv.len() - 2;
     let mut i = 2;
     while i < opt_end {

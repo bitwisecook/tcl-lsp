@@ -1,7 +1,7 @@
 # KCS: O115 — Remove redundant nested expr
 
 > **Audience:** User
-> **Type:** Functionality
+> **Type:** Optimisation
 
 ## Applies to
 

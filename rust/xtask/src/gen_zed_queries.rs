@@ -102,8 +102,8 @@ const GRAMMAR_LITERAL_OPERATOR_TOKENS: &[&str] = &[
 ];
 
 /// The profile's registry: `build_default` plus its on-demand command
-/// packs, stamped with the profile so mask queries apply its subtractive
-/// rules (§9 — the iRules disable list and operator-head exclusion).
+/// packs, stamped with the profile so mask queries apply its profile-level
+/// exclusion (§9 — the operator-head exclusion).
 fn registry_for(profile: &'static DialectProfile) -> &'static CommandRegistry {
     tcl_registry::registry_for_profile(profile)
 }
@@ -121,21 +121,22 @@ fn targets() -> Vec<Target> {
             profile: DialectProfile::plain_tcl(),
         },
         Target {
-            // iRules are SUBTRACTIVE (dialect-profile-model.md §9): a Tcl
-            // 8.4 base with a long list of disabled commands plus the F5
+            // iRules availability is fully explicit
+            // (dialect-profile-model.md §9): a Tcl 8.4 base plus the F5
             // command surface — NOT the full Tcl-version union.  The
             // profile's grammar_union is deliberately the bare `IRULES`
-            // bit (the shipped highlight fix): a command is projected iff
-            // `spec_visible` holds under `IRULES` — i.e. it is
-            // dialect-agnostic (`None`, e.g. `set`/`if`/`const`, which is
-            // deliberately kept valid in iRules) or carries the `IRULES`
-            // bit (the F5 surface), *minus* the profile's subtractive
-            // rules: the disable list (`exec`, `file`, `socket`, …) and
-            // the math-operator heads (`Traits::OPERATOR_COMMAND` —
-            // operators live only inside `expr` in iRules).  Post-8.4
-            // commands gate to `TCL85_PLUS` / `TCL86_PLUS` / `TCL90_PLUS`
-            // (e.g. `dict`, `lassign`, `zipfs`), so they are excluded by
-            // the mask itself — iRules is the Tcl 8.4 base, not 8.5+.
+            // bit: a command is projected iff `spec_visible` holds under
+            // `IRULES` — i.e. it is dialect-agnostic (`None`, e.g.
+            // `set`/`if`/`const`, which is deliberately kept valid in
+            // iRules) or carries the `IRULES` bit (the F5 surface),
+            // *minus* the math-operator heads
+            // (`Traits::OPERATOR_COMMAND` — operators live only inside
+            // `expr` in iRules).  A sandbox-banned command such as `exec`
+            // simply never carries the `IRULES` bit, so there is no
+            // disable list to subtract.  Post-8.4 commands gate to
+            // `TCL85_PLUS` / `TCL86_PLUS` / `TCL90_PLUS` (e.g. `dict`,
+            // `lassign`, `zipfs`), so they are excluded by the mask
+            // itself — iRules is the Tcl 8.4 base, not 8.5+.
             dir: "irules",
             profile: DialectProfile::by_name("f5-irules"),
         },

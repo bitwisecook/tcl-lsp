@@ -1,7 +1,7 @@
 # KCS: W240 — Why does the analyser warn that my loop never executes?
 
 > **Audience:** User
-> **Type:** Issue
+> **Type:** Diagnostic
 
 ## Applies to
 
@@ -43,7 +43,7 @@ while {$running} { puts "still going" }
 
 ## How to suppress
 
-Add `# noqa: W240` at the end of the offending line.
+Add `# noqa: W240` on the line **above** the offending command.
 
 ## Related
 

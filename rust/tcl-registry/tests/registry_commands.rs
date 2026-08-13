@@ -29,8 +29,8 @@
 //!
 //! NOTE on dialect detection: the dialect-detection function
 //! (`detect_dialect_from_source`) does NOT live in the `tcl-registry` crate —
-//! in the Rust workspace it is implemented in `tcl-compiler` /
-//! `tcl-lsp-core`, which are out of scope for this crate's tests. The
+//! it is implemented in `tcl-compiler` / `tcl-lsp-core`, which are out of
+//! scope for this crate's tests. The
 //! dialect-name surface that *is* in `tcl-registry` (`KNOWN_DIALECTS`,
 //! `available_dialects()`, `DialectSet::parse`, `DialectSet::is_irules_dialect`)
 //! is covered below instead.
@@ -75,19 +75,17 @@ fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, DialectSet) {
     )
 }
 
-/// Whether `cmd` is present in `dialect` (the Rust equivalent of
-/// `REGISTRY.get(cmd, dialect) is not None`).
+/// Whether `cmd` resolves in `dialect`.
 fn present_in(dialect: &str, cmd: &str) -> bool {
     let (reg, ds) = reg_and_set(dialect);
     reg.get_for_dialect(cmd, ds).is_some()
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestRegistryStructure
+// Registry structure
 // ===========================================================================
 
-/// `test_socket_is_registered_with_switches` — socket carries `-server` and
-/// `-myaddr`.
+/// `socket` carries `-server` and `-myaddr`.
 ///
 /// tclsh (8.6 & 9.0): `socket -server` is a real switch — `catch {socket
 /// -server} m` reports `no argument given for -server option` (i.e. `-server`
@@ -103,8 +101,7 @@ fn socket_is_registered_with_switches() {
     assert!(switches.contains(&"-myaddr"), "switches={switches:?}");
 }
 
-/// `test_irules_http_commands_are_dialect_scoped` — `HTTP::header` exists in
-/// f5-irules but NOT in tcl8.6.
+/// `HTTP::header` exists in f5-irules but NOT in tcl8.6.
 ///
 /// f5-dialect: `HTTP::header` is not in core tclsh (`info commands
 /// HTTP::header` is empty on 8.6 & 9.0); its dialect-scoping is registry
@@ -119,8 +116,7 @@ fn irules_http_commands_are_dialect_scoped() {
     );
 }
 
-/// `test_http_header_subcommand_values_are_registered` — `insert` and
-/// `replace` are valid first-argument values of `HTTP::header`.
+/// `insert` and `replace` are valid first-argument values of `HTTP::header`.
 ///
 /// These keywords are registered as the command's subcommands (rather than as
 /// first-argument values).
@@ -135,8 +131,7 @@ fn http_header_subcommand_values_are_registered() {
     assert!(spec.subcommand("replace").is_some());
 }
 
-/// `test_socket_server_option_has_hover_snippet` — the `-server` option is
-/// present and documented.
+/// The `-server` option is present and documented.
 ///
 /// The option's hover summary ("server mode") is registry-internal
 /// hover prose, recorded on `OptionSpec` as `detail`. We assert the
@@ -160,8 +155,7 @@ fn socket_server_option_is_documented() {
     );
 }
 
-/// `test_registry_covers_all_tcl_core_signature_commands` — every core Tcl
-/// command resolves in each `tclN` dialect.
+/// Every core Tcl command resolves in each `tclN` dialect.
 ///
 /// tclsh (8.6 & 9.0): each name below is in `info commands` (verified in the
 /// sibling `registry.rs`). `const` is 9.0-only, so it is excluded from
@@ -215,8 +209,7 @@ fn registry_covers_core_commands_in_every_tcl_dialect() {
     }
 }
 
-/// `test_generated_doc_snippet_present_for_non_overridden_command` — `parray`
-/// has hover with a documentation source.
+/// `parray` has hover with a documentation source.
 ///
 /// registry-metadata: hover source attribution is registry data (`parray` is a
 /// real Tcl library proc, but the doc string is ours).
@@ -230,9 +223,8 @@ fn parray_has_hover_with_source() {
     assert!(!hover.source.is_empty(), "parray hover has a source");
 }
 
-/// `test_generated_irules_doc_snippet_present_for_non_overridden_command` +
-/// `test_curated_irules_override_wins_over_generated_data` — iRules specs
-/// carry a clouddocs.f5.com hover source.
+/// iRules specs carry a clouddocs.f5.com hover source, and a curated override
+/// wins over generated data.
 ///
 /// f5-dialect: `ACCESS::acl` / `HTTP::header` are not real Tcl; the doc URLs are
 /// registry metadata. Rather than parsing the URL host to avoid a
@@ -259,8 +251,7 @@ fn irules_specs_carry_clouddocs_source() {
     );
 }
 
-/// `test_registry_validation_metadata_is_available` — socket's arity is
-/// "at least 2, unlimited"; `ACCESS::acl` is unlimited.
+/// `socket`'s arity is "at least 2, unlimited"; `ACCESS::acl` is unlimited.
 ///
 /// tclsh: `socket` needs at minimum a host and a port (2 args) and accepts
 /// more with options. f5-dialect: `ACCESS::acl` arity is registry data.
@@ -281,11 +272,9 @@ fn validation_metadata_is_available() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestControlFlowAndStartCmdTraits
+// Control-flow and needs-start-cmd traits
 // ===========================================================================
 
-/// `test_control_flow_includes_if_for_while` + `test_control_flow_excludes_non_control`.
-///
 /// registry-metadata: the `CONTROL_FLOW` trait is our classification. (`if`,
 /// `for`, `while`, `foreach` and `set`, `puts` are all real tclsh commands —
 /// verified in `registry.rs` — but "is control flow" is registry data.)
@@ -310,9 +299,6 @@ fn control_flow_trait_membership() {
     );
 }
 
-/// `test_needs_start_cmd_includes_expr_break_continue` +
-/// `test_needs_start_cmd_excludes_non_matching`.
-///
 /// registry-metadata: `NEEDS_START_CMD` is our classification.
 #[test]
 fn needs_start_cmd_trait_membership() {
@@ -497,8 +483,7 @@ fn fire_and_forget_teardown_membership() {
 // Commands-for-event / command legality (iRules event ⇄ command cross-product)
 // ===========================================================================
 
-/// `test_http_request_includes_http_header` + `test_legality_is_legal_for_known_event`
-/// — `HTTP::header` is valid/legal in `HTTP_REQUEST`.
+/// `HTTP::header` is valid/legal in `HTTP_REQUEST`.
 ///
 /// f5-dialect: events and the HTTP profile model are F5 concepts, not tclsh.
 #[test]
@@ -516,8 +501,7 @@ fn http_header_legal_in_http_request() {
     ));
 }
 
-/// `test_out_of_event_for_rule_init` + `test_legality_not_legal_in_rule_init`
-/// — `HTTP::header` requires an HTTP profile, which `RULE_INIT` lacks.
+/// `HTTP::header` requires an HTTP profile, which `RULE_INIT` lacks.
 ///
 /// f5-dialect.
 #[test]
@@ -530,9 +514,8 @@ fn http_header_not_legal_in_rule_init() {
     assert!(!valid.contains(&"HTTP::header"));
 }
 
-/// `test_unknown_event_demotes_event_requires_commands` /
-/// `test_unknown_event_keeps_neutral_commands` — an unknown event is illegal
-/// for every command and yields an empty valid set.
+/// An unknown event is illegal for every command and yields an empty valid
+/// set.
 ///
 /// f5-dialect.
 #[test]
@@ -552,8 +535,8 @@ fn unknown_event_is_illegal_for_all() {
     );
 }
 
-/// `test_http2_commands_are_legal_in_http_events` — HTTP2 family is legal in
-/// `HTTP_REQUEST` and in the message-routing events.
+/// The HTTP2 family is legal in `HTTP_REQUEST` and in the message-routing
+/// events.
 ///
 /// f5-dialect.
 #[test]
@@ -603,9 +586,9 @@ fn legality_matches_valid_command_listing() {
     }
 }
 
-/// `test_excluded_events_respected` — a command's `excluded_events` make it
-/// illegal in those events even when the profile requirements would otherwise
-/// pass. `irules_events_for_command` is the inverse listing and excludes them.
+/// A command's `excluded_events` make it illegal in those events even when the
+/// profile requirements would otherwise pass. `irules_events_for_command` is
+/// the inverse listing and excludes them.
 ///
 /// f5-dialect.
 #[test]
@@ -630,10 +613,9 @@ fn excluded_events_are_respected() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestRegistryInfoHelpers (event_info)
+// Registry info helpers (event_info)
 // ===========================================================================
 
-/// `test_lookup_event_info_known_event` + `_dual_transport_is_serialised` —
 /// `event_info` resolves a known event with a side label, ≥1 valid command,
 /// and serialises a dual transport as `tcp/udp`.
 ///
@@ -664,8 +646,7 @@ fn event_info_for_known_events() {
     assert_eq!(ca.transport.as_deref(), Some("tcp/udp"));
 }
 
-/// `test_lookup_event_info_unknown_event` — an unknown event is `known=false`,
-/// empty valid commands, side `"unknown"`.
+/// An unknown event is `known=false`, empty valid commands, side `"unknown"`.
 ///
 /// f5-dialect.
 #[test]
@@ -682,10 +663,10 @@ fn event_info_for_unknown_event() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestFormKindAndResolveForm
+// Form kind and form resolution
 // ===========================================================================
 
-/// `test_form_kind_enum_values` — the `FormKind` variants exist.
+/// The `FormKind` variants exist.
 ///
 /// registry-metadata.
 #[test]
@@ -697,9 +678,8 @@ fn form_kind_variants_exist() {
     assert_ne!(FormKind::Default, FormKind::Setter);
 }
 
-/// `test_resolve_form_http_uri_getter` / `_setter` — `HTTP::uri` with no args
-/// is a pure getter; with one arg it is a mutating setter. The Rust
-/// `resolve_call` picks the matching form by arity.
+/// `HTTP::uri` with no args is a pure getter; with one arg it is a mutating
+/// setter. `resolve_call` picks the matching form by arity.
 ///
 /// f5-dialect: `HTTP::uri` is not real Tcl. The getter→read / setter→write
 /// classification is registry side-effect metadata.
@@ -717,10 +697,10 @@ fn http_uri_getter_setter_forms() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestSubCommandResolveForm
+// Subcommand form resolution
 // ===========================================================================
 
-/// `test_http_header_lws_no_forms` — `HTTP::header lws` takes zero args.
+/// `HTTP::header lws` takes zero args.
 ///
 /// f5-dialect: arity is registry metadata.
 #[test]
@@ -733,9 +713,8 @@ fn http_header_lws_subcommand_is_nullary() {
     assert_eq!(lws.arity, Arity::exact(0));
 }
 
-/// `test_subcommand_without_forms_returns_none` (value subcommand) +
-/// `TestSubCommandResolveForm` shape — `HTTP::header value` takes exactly one
-/// arg (the header name).
+/// `HTTP::header value` takes exactly one arg (the header name), and resolves
+/// to no forms.
 ///
 /// f5-dialect.
 #[test]
@@ -749,11 +728,11 @@ fn http_header_value_subcommand_takes_one_arg() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestClosedValueArgs
+// Closed value arguments
 // ===========================================================================
 
-/// `test_http_version_value_arg_is_closed` — `HTTP::version` arg 0 is a closed
-/// value set of exactly the HTTP/1.x version strings.
+/// `HTTP::version` arg 0 is a closed value set of exactly the HTTP/1.x version
+/// strings.
 ///
 /// f5-dialect: `HTTP::version` is not real Tcl. The allowed-version set is
 /// registry metadata. (HTTP itself only ever speaks 0.9/1.0/1.1 over the
@@ -774,8 +753,7 @@ fn http_version_arg0_is_closed_value_set() {
     assert_eq!(allowed, expected);
 }
 
-/// `test_unmarked_command_has_no_closed_args` — `set` declares no closed-value
-/// argument indices.
+/// `set` declares no closed-value argument indices.
 ///
 /// tclsh: `set` accepts any value; the absence of a closed set is correct.
 #[test]
@@ -834,10 +812,10 @@ fn dict_iteration_subcommands_declare_cfg_rewrite_names() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestBodyKind / namespace export
+// Body kind / namespace export
 // ===========================================================================
 
-/// `test_proc_body_is_structural` — `proc`'s body argument is structural.
+/// `proc`'s body argument is structural.
 ///
 /// registry-metadata: `BodyKind` classification. (`proc name args body` is real
 /// Tcl, but "the body runs in its own frame" is our SSA-facing annotation.)
@@ -888,8 +866,8 @@ fn namespace_export_and_import_consume_one_leading_option_word() {
     }
 }
 
-/// `test_exported_short_name_resolves_via_registry_property` — `tcltest::test`
-/// declares it is namespace-exported (so the bare `test` can resolve to it).
+/// `tcltest::test` declares it is namespace-exported (so the bare `test` can
+/// resolve to it).
 ///
 /// registry-metadata.
 #[test]
@@ -899,8 +877,7 @@ fn tcltest_test_is_namespace_exported() {
     assert!(spec.is_namespace_exported);
 }
 
-/// `test_when_body_is_structural` — iRules `when` body runs in the dispatcher's
-/// frame, not the caller's.
+/// The iRules `when` body runs in the dispatcher's frame, not the caller's.
 ///
 /// `when` declares its event name (argument 0) as a navigable definition, so
 /// the document-symbol / workspace-symbol providers list event handlers the
@@ -931,11 +908,10 @@ fn when_body_is_structural() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestIrulesNestingScriptBody (side switches)
+// iRules nesting script bodies (side switches)
 // ===========================================================================
 
-/// `test_peer_script_is_inline_body` / `..._is_side_switch` — `clientside`,
-/// `serverside`, `peer` are side-switches.
+/// `clientside`, `serverside`, `peer` are side-switches.
 ///
 /// f5-dialect: side switches are an iRules concept.
 #[test]
@@ -1023,8 +999,8 @@ fn irules_collection_and_side_switch_facts_are_registry_driven() {
     );
 }
 
-/// `test_clientside_serverside_arity_is_zero_or_one` /
-/// `peer` requires its script — arity bounds.
+/// `clientside` / `serverside` take zero or one argument; `peer` requires its
+/// script — arity bounds.
 ///
 /// f5-dialect: arity is registry metadata.
 #[test]
@@ -1043,11 +1019,11 @@ fn side_switch_arities() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: dialect-differentiated side effects
+// Dialect-differentiated side effects
 // ===========================================================================
 
-/// `test_close_hints_differ_by_dialect` — `close` is a file-I/O op in plain
-/// Tcl and a connection-control op in iRules (two specs under one name).
+/// `close` is a file-I/O op in plain Tcl and a connection-control op in iRules
+/// (two specs under one name).
 ///
 /// tclsh: `close` closes a channel. f5-dialect: the iRules `close` overlay
 /// (connection control) is F5-specific. The dialect-specific *classification*
@@ -1081,11 +1057,11 @@ fn close_side_effects_differ_by_dialect() {
 }
 
 // ===========================================================================
-// test_command_registry.py :: TestLazyDialectLoading
+// Lazy dialect loading
 // ===========================================================================
 
-/// `test_dialect_specs_not_in_default_registry` — a freshly built default
-/// registry has core commands but not iRules / non-Tk dialect commands.
+/// A freshly built default registry has core commands but not iRules / non-Tk
+/// dialect commands.
 ///
 /// Tk is folded into the base registry by design (a `.tcl` may `package
 /// require Tk`), so `button` IS present — a deliberate design choice here:
@@ -1143,7 +1119,6 @@ fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
     }
 }
 
-/// `test_get_auto_loads_dialect` / `test_command_names_auto_loads_dialect` —
 /// `load_dialect` makes iRules commands resolvable and listed.
 ///
 /// f5-dialect.
@@ -1157,7 +1132,6 @@ fn load_dialect_makes_irules_commands_visible() {
     assert!(names.contains("HTTP::header"));
 }
 
-/// `test_load_dialect_specs_returns_*` / `test_load_unknown_dialect_is_noop` —
 /// `load_dialect` is idempotent.
 ///
 /// f5-dialect / registry behaviour.
@@ -1175,11 +1149,10 @@ fn load_dialect_is_idempotent() {
 }
 
 // ===========================================================================
-// test_dialect_profiles.py  (SIGNATURES membership per dialect)
+// Signature membership per dialect
 // ===========================================================================
 
-/// `test_tcl84_removes_newer_commands` — `dict`/`try`/`tailcall` are absent in
-/// 8.4.
+/// `dict`/`try`/`tailcall` are absent in 8.4.
 ///
 /// tclsh: `dict` (8.5), `try`/`tailcall` (8.6) — all post-date 8.4. We can't
 /// run tclsh8.4 here (not installed), but these introduction versions are
@@ -1195,7 +1168,7 @@ fn tcl84_excludes_newer_commands() {
     );
 }
 
-/// `test_tcl85_keeps_dict_but_not_try` — `dict` present in 8.5, `try` absent.
+/// `dict` present in 8.5, `try` absent.
 ///
 /// tclsh: `dict` exists in 8.5+ (present in both 8.6 & 9.0 subcommand probes);
 /// `try` is 8.6+.
@@ -1206,8 +1179,7 @@ fn tcl85_has_dict_not_try() {
     assert!(reg.get_for_dialect("try", ds).is_none());
 }
 
-/// `test_tcl86_includes_tcloo_commands` + `test_tcl85_excludes_tcloo_commands`
-/// — `TclOO` (`oo::class`, `oo::define`) is 8.6+.
+/// `TclOO` (`oo::class`, `oo::define`) is 8.6+.
 ///
 /// tclsh: `oo::class` is present on 8.6 (`info commands oo::class` non-empty);
 /// `TclOO` landed in 8.6.
@@ -1222,11 +1194,8 @@ fn tcloo_is_tcl86_plus() {
     assert!(r85.get_for_dialect("oo::define", d85).is_none());
 }
 
-/// `test_f5_profile_adds_when_and_http_commands` +
-/// `test_f5_irules_generated_commands_are_present` +
-/// `test_f5_irules_includes_deprecated_and_disabled_commands` — the iRules
-/// profile pulls in `when`, the HTTP family, the seeded AAA catalog, the
-/// `class`/`table` generated commands, and deprecated profile commands.
+/// The iRules profile pulls in `when`, the HTTP family, the seeded AAA catalog,
+/// the `class`/`table` generated commands, and deprecated profile commands.
 ///
 /// f5-dialect: none of these are real tclsh commands.
 #[test]
@@ -1251,8 +1220,8 @@ fn f5_irules_profile_membership() {
     }
 }
 
-/// `test_f5_irules_keeps_base_proc_signature` — `proc` keeps its core arity
-/// (exactly 3) and body role even under the iRules profile.
+/// `proc` keeps its core arity (exactly 3) and body role even under the iRules
+/// profile.
 ///
 /// tclsh: `proc name args body` is exactly 3 args. registry-metadata: the
 /// body role.
@@ -1264,8 +1233,7 @@ fn f5_irules_keeps_base_proc_signature() {
     assert_eq!(proc.arg_role_at(2), Some(ArgRole::Body));
 }
 
-/// `test_f5_irules_target_family_signatures_are_concrete` — curated iRules
-/// commands have concrete arity and subcommands.
+/// Curated iRules commands have concrete arity and subcommands.
 ///
 /// f5-dialect.
 #[test]
@@ -1290,8 +1258,8 @@ fn f5_irules_curated_signatures_are_concrete() {
     );
 }
 
-/// `test_f5_iapps_profile_adds_iapp_utility_commands` — the f5-iapps profile
-/// has `iapp::template` / `iapp::conf` but NOT the iRules catalog.
+/// The f5-iapps profile has `iapp::template` / `iapp::conf` but NOT the iRules
+/// catalog.
 ///
 /// f5-dialect.
 #[test]
@@ -1306,9 +1274,8 @@ fn f5_iapps_profile_membership() {
     );
 }
 
-/// `test_expect_profile_adds_expect_commands` + `_includes_base_tcl` +
-/// `_does_not_include_irules` — the expect profile adds `spawn`/`expect`/… on
-/// top of base Tcl and excludes iRules.
+/// The expect profile adds `spawn`/`expect`/… on top of base Tcl and excludes
+/// iRules.
 ///
 /// expect is a real Tcl extension; `spawn`/`expect`/`send`/`interact` are its
 /// commands (not in bare tclsh, but part of the `expect` interpreter). The
@@ -1331,8 +1298,7 @@ fn expect_profile_membership() {
     assert!(reg.get_for_dialect("HTTP::header", ds).is_none());
 }
 
-/// `test_when_marks_body_argument` + `_marks_last_argument_body_in_extended_form`
-/// — `when EVENT … { body }` marks the trailing body argument.
+/// `when EVENT … { body }` marks the trailing body argument.
 ///
 /// f5-dialect + registry-metadata (the BODY role).
 #[test]
@@ -1350,9 +1316,7 @@ fn when_marks_trailing_body_argument() {
     assert_eq!(extended, vec![3]);
 }
 
-/// `test_oo_class_create_marks_definition_body` +
-/// `test_oo_define_method_marks_method_body` + `_script_form_marks_body` — the
-/// `TclOO` definition bodies resolve to the BODY role.
+/// The `TclOO` definition bodies resolve to the BODY role.
 ///
 /// registry-metadata: arg-role classification. (`TclOO` is real 8.6 Tcl.)
 #[test]
@@ -1383,8 +1347,8 @@ fn tcloo_definition_bodies_marked_body() {
     assert!(script.contains(&1), "script body: {script:?}");
 }
 
-/// `test_proc_keeps_base_signature` BODY role (proc helper) — `proc helper x {
-/// body }` marks the body argument.
+/// The BODY role on a proc helper — `proc helper x { body }` marks the body
+/// argument.
 ///
 /// registry-metadata.
 #[test]
@@ -1484,7 +1448,7 @@ fn dialect_parse_roundtrip() {
 // ===========================================================================
 // C-Tcl ground-truth: subcommand sets of string / dict / info match tclsh.
 //
-// These are direct tclsh facts. The Rust registry must register at least the
+// These are direct tclsh facts. The registry must register at least the
 // subcommands common to tclsh8.6 AND tclsh9.0 (the version-specific extras —
 // 8.6's `string bytelength`, 9.0's `string insert` / `dict getdef` /
 // `info cmdtype` — are registry-superset entries and are not required here).

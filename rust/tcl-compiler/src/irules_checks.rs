@@ -2650,8 +2650,8 @@ mod tests {
 
     #[test]
     fn irule4004_registry_only_per_request_event_fires() {
-        // TP: ASM_REQUEST_DONE was absent from the old compiler-local list.
-        // The registry's per-request classification is now the sole oracle.
+        // TP: the registry's per-request classification is the sole oracle —
+        // a compiler-local event list would not carry ASM_REQUEST_DONE.
         let ws = hoist_warnings(r#"when ASM_REQUEST_DONE { set svc "foo" }"#);
         assert!(
             ws.iter().any(|w| w.code == DiagCode::Irule4004),

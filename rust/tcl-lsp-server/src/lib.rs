@@ -5873,8 +5873,8 @@ impl Backend {
             // iApp sublanguage, so it analyses as `f5-iapps` rather than
             // falling through to the default Tcl dialect.
             "tcl-iapp" | "f5-iapps" | "tcl-apl" => "f5-iapps",
-            // First-class since Milestone 6 (D8/D7): tmsh scripts and the
-            // bpf framework dialect analyse under their own profiles.
+            // First-class profiles (D8/D7): tmsh scripts and the bpf
+            // framework dialect analyse under their own profiles.
             "tcl-tmsh" | "f5-tmsh" => "f5-tmsh",
             "tcl-bpf" | "bpf" => "bpf",
             "tcl-expect" | "expect" => "expect",

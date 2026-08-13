@@ -122,12 +122,12 @@ impl Analyser {
     /// `catch BODY` invocation omits the optional `RESULTVAR`
     /// argument, silently swallowing any error the body raises.
     ///
-    /// W302 is emitted for `IRCatch` (not `IRBarrier`) — the lowerer
-    /// falls back to `IRBarrier` when the body argument is multi-token
-    /// (e.g. ``catch $body``), so this emit gates on ``arg_single[0]``
-    /// to suppress that case.  The diagnostic anchors at just the
-    /// ``catch`` command token — the narrowest span that identifies
-    /// the issue.
+    /// W302 is emitted for `Statement::Catch` (not `Statement::Barrier`)
+    /// — the lowerer falls back to `Statement::Barrier` when the body
+    /// argument is multi-token (e.g. ``catch $body``), so this emit gates
+    /// on ``arg_single[0]`` to suppress that case.  The diagnostic
+    /// anchors at just the ``catch`` command token — the narrowest span
+    /// that identifies the issue.
     ///
     /// The attached quick-fixes carry their **own** span, which is *not*
     /// the diagnostic's: they insert at the point past the last supplied
@@ -146,8 +146,8 @@ impl Analyser {
         arg_single: &[bool],
     ) {
         // Only fires when a result variable is absent.  Empty args
-        // is a malformed catch (IRBarrier path,
-        // no W302).  ≥2 args means a result variable is present.
+        // is a malformed catch (Statement::Barrier path, no W302).
+        // ≥2 args means a result variable is present.
         if args.len() != 1 {
             return;
         }

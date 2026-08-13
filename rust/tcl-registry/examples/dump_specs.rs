@@ -579,9 +579,9 @@ fn main() {
             .unwrap_or_default();
         let body_kind = format!("{:?}", spec.body_kind);
 
-        // event_requires (GAP-3a): the Rust CommandSpec now carries an
-        // `event_requires` field; emit it in the shared normalised schema
-        // so the audit's event_* dimensions compare like-for-like.
+        // event_requires: `CommandSpec` carries an `event_requires` field;
+        // emit it in the shared normalised schema so the audit's event_*
+        // dimensions compare like-for-like.
         let (event_profiles, event_also_in, event_requires_any) = match &spec.event_requires {
             None => (Vec::new(), Vec::new(), false),
             Some(er) => {

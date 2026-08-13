@@ -1,6 +1,6 @@
 # KCS: How do I <task>?
 
-> **Audience:** <pick one: User, Contributor, or Maintainer — prefer one audience; use multiple only when the note is explicitly broadly applicable>
+> **Audience:** <pick exactly one: User, Contributor, or Maintainer. If the note needs two, it is two notes — see rule 2 in [`../STYLE.md`](../STYLE.md).>
 > **Type:** How-To
 
 ## Applies to
@@ -36,6 +36,10 @@ per editor or tool, use a sub-heading for each one in the same order as
 on disk, a test that now passes.>
 
 ## Related
+
+<!-- A How-To note is filed at `docs/kcs/`, one level above this
+     template, so re-spell these two links as `README.md` and
+     `../GLOSSARY.md` when you save the note. -->
 
 - [KCS index](../README.md)
 - [Glossary](../../GLOSSARY.md)

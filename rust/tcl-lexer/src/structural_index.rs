@@ -16,24 +16,28 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **Experiment — structural-state recovery index (script bracket
-//! dimension).**
+//! **Structural-state recovery index (script bracket dimension).**
 //!
-//! This module is the Rust prototype that validates the design in
-//! `docs/design/compiler/error-recovery-rust-port.md` (synced from
-//! main). It is the de-risking experiment the doc calls for: capture a
-//! **structural-state index** in one scan, then answer *"does inserting
-//! a closer at offset O balance the outermost open delimiter?"* from the
-//! index alone — **no re-lex** — and prove the answer matches a real
-//! re-scan.
+//! This module implements the structural-state index designed in
+//! `docs/design/compiler/error-recovery.md`: capture the index in one
+//! scan, then answer *"does inserting a closer at offset O balance the
+//! outermost open delimiter?"* from the index alone — **no re-lex** —
+//! with the answer proven to match a real re-scan.
 //!
 //! Scope: all three structural-index dimensions the doc names — the
 //! script **`[`/`]` (bracket)** and **`{`/`}` (brace)** sublanguages
 //! ([`BracketIndex`], [`BraceIndex`]) and the expr **`(`/`)` (paren)**
-//! sublanguage ([`ExprParenIndex`]). It is deliberately *not wired into
-//! production* — like the earlier prototypes (kept only in git history),
-//! it instruments the model and adds no production value yet; the
-//! incremental green-tree engine will build the productionised index.
+//! sublanguage ([`ExprParenIndex`]).
+//!
+//! Two of those dimensions are live in production. [`BracketIndex`] is
+//! built by the analyser's E201 path
+//! (`tcl-compiler/src/analyser/syntax_checks.rs::detect_e201`), whose
+//! [`BracketIndex::is_inert`] check vetoes any proposed `]` insertion
+//! that would land in a literal span; [`BracketIndex`] and
+//! [`BraceIndex`] also back the compiler explorer's `structuralIndex`
+//! view (`tcl-explorer/src/serialise.rs`). [`ExprParenIndex`] is
+//! currently exercised only by this crate's tests. The incremental
+//! green-tree engine will build on the same index.
 //!
 //! The **expr paren** dimension is built directly from the expr lexer's
 //! token stream (`$arr(idx)` is one `Variable`; strings / command subs
@@ -74,7 +78,7 @@
 //! Plus the inert leaves shared by both: backslash-escape pairs and
 //! `${…}` variable-name braces.
 //!
-//! ## The two corrections the prototypes forced (carried here)
+//! ## Two corrections the scanner must get right
 //!
 //! 1. **An extra closer closes nothing** — the running level clamps at
 //!    0 (a `]` with nothing open is literal, not a negative level).
@@ -83,7 +87,7 @@
 //!    falls out naturally (the open `[` stays open and a later inserted
 //!    `]` closes *it*).
 //!
-//! ## Rust validation results (this module's `#[cfg(test)]` harness)
+//! ## Validation (this module's `#[cfg(test)]` harness)
 //!
 //! The harness fuzzes thousands of deterministic snippets and verifies:
 //!
@@ -100,7 +104,7 @@
 //! * **The two corrections** (extra-closer-clamp, opaque-to-EOF) and the
 //!   **scalar-index-diverges** demonstration.
 //!
-//! ### Findings the experiment surfaced (recorded for the port)
+//! ### Documented divergences
 //!
 //! 1. **`info complete` ≠ tokenisation on "extra characters after a
 //!    close-brace/quote".** C Tcl 9.0.3 reports `{b}[` as *complete* (the
@@ -115,8 +119,7 @@
 //!    top-level word-based), split a `\\` pair, or be swallowed by a
 //!    following quote. It *is* exact for the realistic single-`]` case.
 //!    The productionised forward-walk must re-derive tail context after a
-//!    hypothetical close — the doc's "command-sub interiors need care",
-//!    confirmed and bounded in Rust.
+//!    hypothetical close — the doc's "command-sub interiors need care".
 
 use tcl_core_types::RecursionLimit;
 
@@ -1850,7 +1853,7 @@ while {1} {
 
     #[test]
     fn ctcl9_extra_chars_after_word_is_a_documented_divergence() {
-        // **Finding (recorded in error-recovery-rust-port.md):** C Tcl
+        // **Finding (recorded in error-recovery.md):** C Tcl
         // 9.0.3 treats a `[` (or `{` / `"`) *immediately* after a closing
         // brace / quote word, with no separator, as "extra characters
         // after close-brace" — a terminal parse error it reports as

@@ -109,7 +109,7 @@ fn only_effect(cse: &CommandSideEffects) -> &SideEffect {
 }
 
 // ===========================================================================
-// test_side_effects.py
+// Side-effect classification
 // ===========================================================================
 
 // --- TestEnums -------------------------------------------------------------
@@ -792,7 +792,7 @@ fn hinted_tcl_commands_return_structured_effects() {
 }
 
 // ===========================================================================
-// test_command_binding.py
+// Command binding
 // ===========================================================================
 
 /// Build a `CompilationUnit` for the binding tests with the `tcl9.0` dialect.
