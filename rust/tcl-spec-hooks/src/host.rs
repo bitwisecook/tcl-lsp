@@ -49,7 +49,14 @@ impl Default for HostConfig {
             // below anything a user would notice as a hang: the budget exists
             // to bound a runaway, not to tune a fast hook.
             budget: Budget::of_commands(100_000)
-                .with_wall_clock(std::time::Duration::from_millis(250)),
+                .with_wall_clock(std::time::Duration::from_millis(250))
+                // 16 MiB: orders of magnitude above anything a spec hook has
+                // any business building (the measured bodies produce a role
+                // list or a folded literal), and far below the point where the
+                // allocation itself is the problem. It exists to turn an OOM
+                // abort — which takes the server, not the hook — into an
+                // ordinary budget refusal the host can report and quarantine.
+                .with_max_value_bytes(16 * 1024 * 1024),
             server_version: env!("CARGO_PKG_VERSION").to_owned(),
         }
     }
@@ -214,11 +221,10 @@ impl<E: Engine> HookHost<E> {
         if let Some(failure) = setup_failure {
             return declined(format!("the pack's sandbox could not be built: {failure}"));
         }
-        let parameters: Vec<&str> = program
-            .parameters
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
+        // Derived from the declaration, not the conventional list: a hook
+        // that did not declare `words` is not given them (see
+        // `HookProgram::effective_parameters`).
+        let parameters: Vec<&str> = program.effective_parameters();
         let label = program.label();
         let unit = CompileUnit {
             name: &label,
@@ -353,7 +359,7 @@ fn ctx_value(program: &HookProgram, call: &HookCall<'_>) -> Value {
         ),
         (
             Value::string("dialect"),
-            call.version.map_or(Value::Empty, dialect_of),
+            call.dialect.map_or(Value::Empty, Value::string),
         ),
         (
             Value::string("in-event-body"),
@@ -371,14 +377,11 @@ fn ctx_value(program: &HookProgram, call: &HookCall<'_>) -> Value {
     Value::dict(entries)
 }
 
-/// The dialect word for a release. The registry hands the hook boundary a
-/// `TclVersion`, so this is the one spelling a body can be given; a hook that
-/// needs the *workspace's* dialect name (`f5-irules`) declares `dialect` and
-/// is uncacheable, and is a design gap worth widening the call for rather than
-/// guessing here.
-fn dialect_of(version: TclVersion) -> Value {
-    Value::string(format!("tcl{}", version.version_string()))
-}
+// The `dialect` ctx key now comes from `HookCall::dialect`, which the registry
+// fills from the ambient `DialectScope` the analyser enters. It used to be
+// derived from the call's `TclVersion` — which could only ever spell a
+// release, so an iRules document told a hook `tcl9.0` and no hook could
+// distinguish a dialect from a version.
 
 impl<E: Engine> PackHookHost for HookHost<E> {
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
@@ -406,7 +409,14 @@ impl<E: Engine> PackHookHost for HookHost<E> {
             if hook.program.family.requires_all_literal() && !call.all_literal() {
                 return HookAnswer::Abstain;
             }
-            let arguments = [words_value(call), ctx_value(&hook.program, call)];
+            // Matches `effective_parameters`: a hook that declared inputs
+            // without `words` is compiled without that parameter, so passing
+            // the value would be an arity error on every call.
+            let arguments: Vec<Value> = if hook.program.inputs.binds_words() {
+                vec![words_value(call), ctx_value(&hook.program, call)]
+            } else {
+                vec![ctx_value(&hook.program, call)]
+            };
             sink.clear();
             let invoked =
                 catch_unwind(AssertUnwindSafe(|| engine.invoke(&hook.handle, &arguments)));

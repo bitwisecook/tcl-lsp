@@ -204,6 +204,7 @@ impl TclVmEngine {
                 Err(EngineError::BudgetExceeded(BudgetKind::Commands))
             }
             "time limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::WallClock)),
+            "value size limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::ValueSize)),
             _ => Err(EngineError::Script {
                 message,
                 code: None,
@@ -291,6 +292,7 @@ impl Engine for TclVmEngine {
         self.budget = budget;
         self.vm.set_command_limit(budget.commands);
         self.vm.set_wall_clock_budget(budget.wall_clock);
+        self.vm.set_value_size_limit(budget.max_value_bytes);
         Ok(())
     }
 
@@ -415,6 +417,47 @@ mod tests {
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect_err("the budget stops it");
         assert_eq!(error, EngineError::BudgetExceeded(BudgetKind::Commands));
+    }
+
+    /// The third budget, and the reason it exists: one `string repeat` spends
+    /// a single command and no measurable time while asking the allocator for
+    /// as much as it likes. With only the other two armed this reaches OOM —
+    /// which kills the process rather than the hook, so the host can neither
+    /// report nor quarantine it. Here it is an ordinary, catchable refusal.
+    #[test]
+    fn the_value_size_budget_stops_an_allocation_the_other_two_cannot_see() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .set_budget(
+                Budget::of_commands(1_000_000)
+                    .with_wall_clock(Duration::from_secs(5))
+                    .with_max_value_bytes(1024),
+            )
+            .expect("the VM enforces all three");
+        let handle = engine
+            .compile(unit("string repeat aaaaaaaa 1000000"))
+            .expect("compiles");
+        let error = engine
+            .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+            .expect_err("the value-size budget stops it");
+        assert_eq!(error, EngineError::BudgetExceeded(BudgetKind::ValueSize));
+    }
+
+    /// The same call under the cap still works: the budget bounds a runaway,
+    /// it does not ban the command.
+    #[test]
+    fn a_value_within_the_size_budget_is_built_normally() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .set_budget(Budget::of_commands(1_000).with_max_value_bytes(1024))
+            .expect("the VM enforces it");
+        let handle = engine
+            .compile(unit("string repeat ab 8"))
+            .expect("compiles");
+        let value = engine
+            .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+            .expect("well within the cap");
+        assert_eq!(value.as_str(), Some("abababababababab"));
     }
 
     /// A loop the compiler inlines dispatches nothing, so the command budget

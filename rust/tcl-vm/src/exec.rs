@@ -2464,8 +2464,15 @@ impl Vm {
                 let count = pop(f);
                 let s = pop(f).to_str();
                 let n = count.as_int().unwrap_or(0).max(0);
-                f.stack
-                    .push(Value::string(s.repeat(usize::try_from(n).unwrap_or(0))));
+                let times = usize::try_from(n).unwrap_or(0);
+                // Charged before the allocation, not after: this is the one
+                // opcode that can ask for gigabytes while the `commands` and
+                // `time` budgets are still nearly full.
+                let wanted = (s.len() as u64).saturating_mul(times as u64);
+                if let Some(refusal) = self.charge_allocation(wanted) {
+                    return Tick::Return(refusal);
+                }
+                f.stack.push(Value::string(s.repeat(times)));
             }
             Op::STR_TRIM | Op::STR_TRIM_LEFT | Op::STR_TRIM_RIGHT => {
                 let chars = pop(f).to_str();

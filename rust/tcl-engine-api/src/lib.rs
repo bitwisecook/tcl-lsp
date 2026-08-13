@@ -108,6 +108,14 @@ pub struct Budget {
     pub commands: Option<u64>,
     /// Maximum wall-clock time one invocation may take.
     pub wall_clock: Option<Duration>,
+    /// Maximum byte length of any single value the body may build.
+    ///
+    /// Separate from [`Self::commands`] because neither of the other two can
+    /// bound it: one opcode can allocate without dispatching a command or
+    /// spending measurable time, so an unbounded body reaches OOM with both
+    /// budgets nearly untouched. An OOM is the one failure the host cannot
+    /// convert into an abstention — it ends the process, not the hook.
+    pub max_value_bytes: Option<u64>,
 }
 
 impl Budget {
@@ -117,6 +125,16 @@ impl Budget {
         Self {
             commands: Some(commands),
             wall_clock: None,
+            max_value_bytes: None,
+        }
+    }
+
+    /// This budget with a value-size cap added.
+    #[must_use]
+    pub const fn with_max_value_bytes(self, bytes: u64) -> Self {
+        Self {
+            max_value_bytes: Some(bytes),
+            ..self
         }
     }
 
@@ -137,6 +155,8 @@ pub enum BudgetKind {
     Commands,
     /// The wall clock.
     WallClock,
+    /// The size of a single allocated value.
+    ValueSize,
 }
 
 /// Everything that can go wrong at the interface.
@@ -175,6 +195,7 @@ impl std::fmt::Display for EngineError {
             },
             Self::BudgetExceeded(BudgetKind::Commands) => write!(f, "command budget exceeded"),
             Self::BudgetExceeded(BudgetKind::WallClock) => write!(f, "wall-clock budget exceeded"),
+            Self::BudgetExceeded(BudgetKind::ValueSize) => write!(f, "value-size budget exceeded"),
             Self::Crashed(payload) => write!(f, "engine crashed: {payload}"),
             Self::Unsupported(what) => write!(f, "unsupported by this engine: {what}"),
         }

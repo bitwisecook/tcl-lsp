@@ -369,6 +369,7 @@ fn manifest_dirs(root: &Path) -> Vec<PathBuf> {
             continue;
         };
         let mut has_manifest = false;
+        let mut children: Vec<PathBuf> = Vec::new();
         for entry in entries.flatten() {
             let Ok(kind) = entry.file_type() else {
                 continue;
@@ -376,7 +377,7 @@ fn manifest_dirs(root: &Path) -> Vec<PathBuf> {
             let path = entry.path();
             if kind.is_dir() {
                 if !is_skipped_dir(&path) {
-                    stack.push(path);
+                    children.push(path);
                 }
             } else if kind.is_file()
                 && path
@@ -387,6 +388,21 @@ fn manifest_dirs(root: &Path) -> Vec<PathBuf> {
                 has_manifest = true;
             }
         }
+        // Sort each directory's children, and push them reversed so the stack
+        // pops in ascending path order.
+        //
+        // `read_dir` yields entries in filesystem order, which differs between
+        // filesystems and even between runs on the same one. That is harmless
+        // while every directory is visited, but [`MANIFEST_SCAN_DIR_CAP`] stops
+        // the walk partway on a large tree — and *which* directories were
+        // visited by then is then filesystem order too. Two runs over one
+        // monorepo could load different packs, which is the worst shape a
+        // truncation can take. Ordering the frontier makes the visited prefix a
+        // function of the tree alone, so a capped scan is at least the *same*
+        // partial scan every time. Sorting the result afterwards cannot do
+        // this: by then the subset is already chosen.
+        children.sort();
+        stack.extend(children.into_iter().rev());
         if has_manifest {
             dirs.push(current);
         }

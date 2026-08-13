@@ -284,6 +284,25 @@ impl HookInputs {
         Self::declared(inputs)
     }
 
+    /// Whether the hook's body is given the `words` parameter at all.
+    ///
+    /// **This is what makes `-inputs` a declaration rather than a hint.** The
+    /// shape cache keys on the words' *shape* — count and kinds — and not
+    /// their content, so a hook that reads content while claiming not to would
+    /// be served another call's answer whenever the shapes matched. Binding
+    /// `words` only when it was declared turns that silent miscompile into a
+    /// loud "no such variable" from the sandbox on the hook's first call, which
+    /// the host reports and quarantines like any other hook failure.
+    ///
+    /// An undeclared (unrestricted) hook still gets `words`: it made no claim,
+    /// and it is never cached.
+    #[must_use]
+    pub fn binds_words(&self) -> bool {
+        self.declared
+            .as_ref()
+            .is_none_or(|inputs| inputs.iter().any(|input| matches!(input, HookInput::Words)))
+    }
+
     /// **The cacheability rule.** A hook is shape-cacheable when it declared
     /// its inputs and none of them is the words' content: everything else it
     /// may read is either fixed for the slot (`command`, `subcommand`) or part
@@ -292,6 +311,9 @@ impl HookInputs {
     /// `dialect` and `option` are *not* in the key, so declaring either is
     /// uncacheable today; widening the key is the change to make if a pack
     /// needs it.
+    ///
+    /// [`Self::binds_words`] is what keeps this honest: a hook that is
+    /// shape-cacheable by this rule is not handed the words at all.
     #[must_use]
     pub fn shape_only(&self) -> bool {
         self.declared.as_ref().is_some_and(|inputs| {
@@ -390,6 +412,13 @@ pub struct HookCall<'w> {
     pub in_event_body: bool,
     /// The option-arity family's extra keys.
     pub option: Option<OptionCallCtx<'w>>,
+    /// `dialect` — the profile name the call is being analysed under
+    /// (`f5-irules`, `tcl9.0`, …), or [`None`] when nothing set one.
+    ///
+    /// **Not** derived from `version`: a dialect is not a release. Deriving it
+    /// was the bug — an iRules document reported `tcl9.0`, so a hook could
+    /// never tell the two apart.
+    pub dialect: Option<&'static str>,
 }
 
 impl HookCall<'_> {
@@ -503,6 +532,48 @@ thread_local! {
 
     /// The shape-keyed answer cache, and its counters.
     static SHAPE_CACHE: RefCell<ShapeCache> = RefCell::new(ShapeCache::default());
+
+    /// The dialect whose registry this thread is currently analysing against,
+    /// as [`DialectProfile::name`] spells it (`f5-irules`, `tcl9.0`, …).
+    ///
+    /// Ambient rather than a parameter because the registry's hook thunks are
+    /// plain `fn` pointers with signatures fixed by the spec fields they back
+    /// — there is no seam to pass it through. It is per-thread, and scoped by
+    /// [`DialectScope`], because one worker analyses documents of different
+    /// dialects one after another.
+    static DIALECT: RefCell<Option<&'static str>> = const { RefCell::new(None) };
+}
+
+/// Sets this thread's ambient dialect for as long as it is held, restoring
+/// whatever was there before on drop.
+///
+/// A guard rather than a setter so an early return, a `?`, or a panic in the
+/// analysis it wraps cannot leave the next document on this worker reading a
+/// stale dialect.
+#[derive(Debug)]
+pub struct DialectScope(Option<&'static str>);
+
+impl DialectScope {
+    /// Enter a scope in which pack hooks see `dialect`.
+    #[must_use]
+    pub fn enter(dialect: Option<&'static str>) -> Self {
+        let previous = DIALECT.with(|slot| slot.replace(dialect));
+        Self(previous)
+    }
+}
+
+impl Drop for DialectScope {
+    fn drop(&mut self) {
+        DIALECT.with(|slot| {
+            *slot.borrow_mut() = self.0;
+        });
+    }
+}
+
+/// This thread's ambient dialect, if one is in scope.
+#[must_use]
+pub fn current_dialect() -> Option<&'static str> {
+    DIALECT.with(|slot| *slot.borrow())
 }
 
 /// `true` while any thread has a host installed — the one check an
@@ -712,6 +783,7 @@ fn call_of<'w>(words: &'w [HookWord<'w>], version: Option<TclVersion>) -> HookCa
         version,
         in_event_body: false,
         option: None,
+        dialect: current_dialect(),
     }
 }
 
@@ -799,6 +871,7 @@ fn context_gate_thunk<const N: u16>(args: &[&str], in_event_body: bool) -> Optio
         version: None,
         in_event_body,
         option: None,
+        dialect: current_dialect(),
     };
     match dispatch(
         HookSlot {
@@ -854,6 +927,7 @@ fn option_arity_thunk<const N: u16>(args: &[&str], start: usize) -> OptionValueO
         version: None,
         in_event_body: false,
         option: Some(option),
+        dialect: current_dialect(),
     };
     match dispatch(
         HookSlot {

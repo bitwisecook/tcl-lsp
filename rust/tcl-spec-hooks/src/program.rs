@@ -113,6 +113,26 @@ impl HookProgram {
         self
     }
 
+    /// The parameters the body is actually compiled with.
+    ///
+    /// [`Self::parameters`] is the conventional `words ctx`, but a hook that
+    /// declared its inputs and did **not** name `words` must not be handed
+    /// them: the shape cache keys on word *shape*, so such a hook reading word
+    /// content would silently receive another call's answer. Dropping the
+    /// parameter turns that into a "no such variable" from the sandbox the
+    /// first time the body reads `$words`, which the host reports and
+    /// quarantines like any other hook failure — a loud wrong instead of a
+    /// quiet one.
+    #[must_use]
+    pub fn effective_parameters(&self) -> Vec<&str> {
+        let binds_words = self.inputs.binds_words();
+        self.parameters
+            .iter()
+            .map(String::as_str)
+            .filter(|name| binds_words || *name != "words")
+            .collect()
+    }
+
     /// The same hook, bound to a slot the caller already allocated.
     #[must_use]
     pub fn with_slot(mut self, slot: HookSlot) -> Self {

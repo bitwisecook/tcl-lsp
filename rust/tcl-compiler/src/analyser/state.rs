@@ -1598,6 +1598,14 @@ impl Analyser {
         // emitters) can re-slice it.
         self.source = source.to_string();
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        // Tell pack hooks which dialect they are running under, for the
+        // length of this walk. A hook's `ctx.dialect` used to be derived from
+        // the call's `TclVersion`, which can only spell a release — so an
+        // iRules document reported `tcl9.0` and no hook could tell a dialect
+        // from a version. The guard restores the previous value on the way
+        // out, since one worker analyses documents of different dialects in
+        // turn.
+        let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, dialect);

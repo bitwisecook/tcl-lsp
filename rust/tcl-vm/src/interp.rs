@@ -774,6 +774,12 @@ pub(crate) struct LimitSet {
     time_granularity: i64,
     /// Combined seconds + milliseconds, normalised; `None` when unset.
     time_value: Option<(i64, i64)>,
+    /// Ceiling on the byte length of a single value the interp will build,
+    /// `None` when unset. Not an `interp limit` type — C Tcl has no such
+    /// limit — but the one bound the `commands` and `time` limits cannot
+    /// express: a single opcode may allocate without dispatching a command or
+    /// spending measurable time.
+    value_bytes: Option<u64>,
 }
 
 impl Default for LimitSet {
@@ -785,6 +791,7 @@ impl Default for LimitSet {
             time_command: Value::string(""),
             time_granularity: 10,
             time_value: None,
+            value_bytes: None,
         }
     }
 }
@@ -1985,6 +1992,33 @@ impl Vm {
         let limit = self.limits.cmd_value?;
         let limit = u64::try_from(limit).unwrap_or(0);
         (self.commands_run > limit).then(|| err("command count limit exceeded"))
+    }
+
+    /// Refuse a single allocation of `bytes` when it would exceed the armed
+    /// value-size limit, returning the `value size limit exceeded` completion.
+    ///
+    /// The `commands` and `time` limits cannot bound this. `string repeat`
+    /// builds its result in one opcode: it dispatches one command and returns
+    /// in microseconds, so both budgets are still nearly full while the
+    /// process has already asked the allocator for gigabytes. Left unbounded
+    /// that is an OOM abort — the one failure the sandbox cannot contain and
+    /// report, because it takes the whole server with it rather than the hook.
+    ///
+    /// Checked *before* allocating, so the refusal costs nothing and the
+    /// memory is never requested.
+    pub(crate) fn charge_allocation(&self, bytes: u64) -> Option<Completion<Value>> {
+        let limit = self.limits.value_bytes?;
+        (bytes > limit).then(|| err("value size limit exceeded"))
+    }
+
+    /// The value-size limit, if one is armed.
+    pub(crate) fn value_size_limit_value(&self) -> Option<u64> {
+        self.limits.value_bytes
+    }
+
+    /// Arm (or disarm) the value-size limit.
+    pub(crate) fn set_value_size_limit_value(&mut self, limit: Option<u64>) {
+        self.limits.value_bytes = limit;
     }
 
     /// The `commands` limit value, if one is armed.

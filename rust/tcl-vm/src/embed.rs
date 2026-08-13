@@ -199,6 +199,26 @@ impl Vm {
         self.set_command_limit_value(value);
     }
 
+    /// Arm the value-size limit: any single value the body builds may be at
+    /// most `bytes` long, and an attempt to exceed it fails with `value size
+    /// limit exceeded`. `None` disarms it.
+    ///
+    /// The `commands` and `time` limits cannot express this. One `string
+    /// repeat` opcode dispatches a single command and returns in microseconds
+    /// while asking the allocator for an arbitrary amount, so both budgets are
+    /// still nearly full when the process dies of OOM — the one sandbox
+    /// failure that cannot be contained and reported, because it takes the
+    /// server down with the hook.
+    pub fn set_value_size_limit(&mut self, bytes: Option<u64>) {
+        self.set_value_size_limit_value(bytes);
+    }
+
+    /// The armed value-size limit, if any.
+    #[must_use]
+    pub fn value_size_limit(&self) -> Option<u64> {
+        self.value_size_limit_value()
+    }
+
     /// The armed `commands` limit, if any.
     #[must_use]
     pub fn command_limit(&self) -> Option<u64> {
