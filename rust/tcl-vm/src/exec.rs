@@ -3626,7 +3626,9 @@ impl Vm {
                     return Tick::Return(err(format!("strclass: bad class id {class_id}")));
                 };
                 let s = pop(f).to_str();
-                let (member, _fail) = tcl_cmd_core::string_is::class_check(class, &s, false);
+                let numbers = self.runtime_version().number_syntax();
+                let (member, _fail) =
+                    tcl_cmd_core::string_is::class_check(class, &s, false, numbers);
                 f.stack.push(Value::bool(member));
             }
             // `numericType` — pops a value, pushes its numeric-tower code (C Tcl
