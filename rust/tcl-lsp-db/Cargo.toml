@@ -31,7 +31,7 @@ workspace = true
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
-salsa = "0.27"
+salsa = "0.28"
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
@@ -42,4 +42,4 @@ rayon = "1"
 # `salsa_unstable` exposes `<dyn salsa::Database>::memory_usage()` — per-ingredient
 # slot counts and memo sizes. Used by the `edit_memory` example to attribute
 # per-edit growth to a specific interned key / tracked query (issue #1035).
-salsa = { version = "0.27", features = ["salsa_unstable"] }
+salsa = { version = "0.28", features = ["salsa_unstable"] }

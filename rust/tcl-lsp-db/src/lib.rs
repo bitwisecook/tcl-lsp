@@ -33,6 +33,35 @@
 //! rather than modelled as a salsa input — reading an immutable value inside a
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
 //!
+//! # Return modes (`returns(clone)` / `returns(copy)` / `returns(ref)`)
+//!
+//! Salsa 0.28 returns *references into the memo table* by default, so a query
+//! declared `-> Arc<T>` hands back `&'db Arc<T>` unless told otherwise.  The
+//! choice per query is driven by one constraint: the server runs each read on a
+//! **cloned, short-lived snapshot** inside `salsa::Cancelled::catch` on a
+//! blocking worker, so a `&'db` borrow cannot outlive that closure.  Whatever
+//! leaves the closure must be owned.
+//!
+//! - **`returns(clone)` — the `Arc<T>` queries (the overwhelming majority).**
+//!   The clone is the refcount bump the "share via `Arc`" priority above
+//!   already assumed, and the `Arc` is what the caller moves out.
+//! - **`returns(copy)` — scalar getters** on the input/interned structs
+//!   (`bool` / `u64` / `NonAsciiMode` / a nested interned handle).  A `&bool`
+//!   getter is strictly worse; the copy is free.
+//! - **`returns(ref)` — the bare-value queries whose consumer converts rather
+//!   than moves.** [`document_symbols`] and [`folding_ranges`] return a plain
+//!   `Vec<_>` that the server immediately projects into the `lsp-types` wire
+//!   shape.  Under `returns(clone)` that path pays for the projection *and* a
+//!   full duplicate of the memoised value first — for the symbol tree, every
+//!   `String` in it twice.  Borrowing and projecting **inside** the worker
+//!   closure keeps the borrow contained and drops the intermediate copy
+//!   entirely.
+//!
+//! [`semantic_tokens`] and [`semantic_tokens_project`] deliberately stay on
+//! `returns(clone)`: their payload is a flat `Vec<u32>` that the handler hands
+//! to the JSON-RPC layer *by value*, so `returns(ref)` would only relocate the
+//! same single copy from salsa to the call site, not remove it.
+//!
 //! # Deep-memo eviction (`lru = N`)
 //!
 //! Salsa has no input-deletion API and re-setting an input frees nothing:
@@ -347,6 +376,7 @@ pub struct SourceFile {
     /// Monotonic revision of workspace sidecar stubs. The server advances this
     /// input for every `<dialect>.tcl.stubs` create/change/delete, so Salsa
     /// invalidates analyses that read an external declaration bundle.
+    #[returns(copy)]
     pub sidecar_stubs_epoch: u64,
 }
 
@@ -382,6 +412,7 @@ impl SourceFile {
 pub struct AnalyserConfig {
     #[returns(ref)]
     pub disabled_diagnostics: Vec<String>,
+    #[returns(copy)]
     pub non_ascii_mode: NonAsciiMode,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
     /// known by the unknown-command (W123) check.
@@ -405,6 +436,7 @@ pub struct AnalyserConfig {
     /// vendor libraries ship as bundled loadables
     /// (`docs/design/spec-packs.md`), so this number is what decides whether
     /// `synth_design` is a known command.
+    #[returns(copy)]
     pub spec_pack_key: u64,
 }
 
@@ -426,7 +458,7 @@ pub struct AnalyserConfig {
 /// the file has no cross-file view — which is every gate and fuzzer input,
 /// since [`SourceFile::new`] leaves the field `None`. Production reads only
 /// the incremental query.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn file_analysis(
     db: &dyn salsa::Database,
     file: SourceFile,
@@ -459,7 +491,7 @@ pub fn file_analysis(
 /// fallback (item detection is config-independent, hence no `AnalyserConfig`;
 /// the one cross-file input it does read, `SourceFile::workspace_class_factories`,
 /// is a property of the *file*, so the query key is unchanged).
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
     // `structure_only` skips diagnostic emission (the dominant analyse cost)
     // while building the identical declaration/scope structure — a cheap,
@@ -484,7 +516,7 @@ pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
 /// Item signatures — the cross-item-relevant headers, with bodies stripped
 /// (`item_sig*` in the design graph). A body-only edit leaves these equal, so
 /// [`file_decls`] and the future cross-item passes early-cutoff.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn item_sigs(db: &dyn salsa::Database, file: SourceFile) -> Arc<Vec<ItemSig>> {
     Arc::new(item_tree(db, file).sigs())
 }
@@ -492,7 +524,7 @@ pub fn item_sigs(db: &dyn salsa::Database, file: SourceFile) -> Arc<Vec<ItemSig>
 /// Aggregate declaration sets (`file_decls ← item_sig*`): the set of declared
 /// procs / classes / aliases / ensembles + the namespace tree the cross-item
 /// passes (W123 / arity) read read-only.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn file_decls(db: &dyn salsa::Database, file: SourceFile) -> Arc<FileDecls> {
     Arc::new(FileDecls::from_sigs(item_sigs(db, file).iter()))
 }
@@ -532,7 +564,7 @@ pub struct Project {
 /// files: a keystroke that does not alter a signature wakes nobody project-wide.
 /// Proven by `project_proc_names_firewall` (a body edit re-runs zero
 /// `project_proc_names`; a decl change re-runs exactly one).
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTreeSet<String>> {
     let mut names: BTreeSet<String> = BTreeSet::new();
     for &file in project.files(db) {
@@ -570,7 +602,7 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
 /// in one round that writes nothing and invalidates nothing. The host caps the
 /// loop regardless rather than assuming convergence — see
 /// `sync_workspace_class_factories` in `tcl-lsp-server`.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn file_class_factories(
     db: &dyn salsa::Database,
     file: SourceFile,
@@ -586,7 +618,7 @@ pub fn file_class_factories(
 /// a metaclass declaration either exists in the project or it does not.
 /// Later entries win on a duplicate qualified name, which cannot be told
 /// apart from the earlier one by anything the index knows.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_class_factories(
     db: &dyn salsa::Database,
     project: Project,
@@ -612,7 +644,7 @@ pub fn project_class_factories(
 /// Signature-level, like [`file_decls`]: a body edit that does not add or
 /// remove a `source` leaves this equal, so it backdates and no cross-file
 /// query re-runs.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn file_link_targets(db: &dyn TclDb, file: SourceFile) -> Arc<BTreeSet<String>> {
     let Some(path) = file.path(db).as_deref() else {
         return Arc::new(BTreeSet::new());
@@ -697,7 +729,7 @@ impl DispatchComponents {
 /// Depends only on signature-level facts ([`file_link_targets`],
 /// [`file_decls`]), so it sits behind the same firewall as the rest of the
 /// cross-file layer.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<DispatchComponents> {
     let files = project.files(db);
     // Index files by path so `source` targets can be matched to project files.
@@ -752,7 +784,7 @@ pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<Disp
 /// change in one component recomputes the project decomposition, but every
 /// file outside that component gets back an equal set and backdates, leaving
 /// [`file_call_site_evidence`] untouched.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn file_dispatch_reach(
     db: &dyn TclDb,
     file: SourceFile,
@@ -783,7 +815,7 @@ pub fn file_dispatch_reach(
 /// arguments produces an equal `CallSiteEvidence` and backdates, so
 /// [`project_call_site_evidence`] (and every compilation unit downstream of
 /// it) is left alone.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn file_call_site_evidence(
     db: &dyn TclDb,
     file: SourceFile,
@@ -830,7 +862,7 @@ pub fn file_call_site_evidence(
 /// One table serves every file: a unit's own call sites are already in it, and
 /// merging is monotone, so handing a file the whole project's view is exactly
 /// what it would have collected had the project been one source text.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_call_site_evidence(db: &dyn TclDb, project: Project) -> Arc<CallSiteEvidence> {
     let mut merged = CallSiteEvidence::default();
     for &file in project.files(db) {
@@ -847,7 +879,7 @@ pub fn project_call_site_evidence(db: &dyn TclDb, project: Project) -> Arc<CallS
 /// precise: editing a call site in `main.tcl` changes only the evidence of the
 /// file that *defines* the callee, so only that file's compilation unit is
 /// rebuilt.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn file_external_call_sites(
     db: &dyn TclDb,
     file: SourceFile,
@@ -918,7 +950,7 @@ fn proc_arity(
 ///
 /// Depends only on each file's `item_sigs` (the signature firewall), so a body
 /// edit anywhere recomputes nothing here.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_command_arities(
     db: &dyn TclDb,
     project: Project,
@@ -987,7 +1019,7 @@ pub struct CommandTail<'db> {
 /// signature still re-checks exactly its callers (correct fan-out); changing a
 /// proc nobody in file B calls wakes nobody in B.  Proven by
 /// `project_diagnostics_per_symbol_cutoff`.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn command_arity<'db>(
     db: &'db dyn TclDb,
     project: Project,
@@ -1238,7 +1270,7 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
 /// [`AnalysisResult::unresolved_command_sites`], which the analyser records even
 /// when W123 is disabled, so a wrong-arg cross-file call still reports `E002`/`E003`
 /// (matching local arity) regardless of the user's W123 setting.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_diagnostics(
     db: &dyn TclDb,
     file: SourceFile,
@@ -1300,7 +1332,7 @@ pub fn project_diagnostics(
 /// server settles their existence and arity once, against the workspace index,
 /// for both settings of `crossFileResolution`. This query preserves the
 /// project-wide callback check, whose command metadata is not a direct call.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_callback_diagnostics(
     db: &dyn TclDb,
     file: SourceFile,
@@ -1363,10 +1395,12 @@ pub struct ItemBodyKey<'db> {
     pub params: Vec<ParamDef>,
     /// `true` for a `TclOO` method body (isolated in a `Method` scope with
     /// instance variables pre-bound); `false` for a `proc`.
+    #[returns(copy)]
     pub is_method: bool,
     /// Mirrors `Scope::oo_global_resolution`: `true` for a TclOO method
     /// body (bare commands resolve globally — object-namespace semantics),
     /// `false` for procs and snit / itcl members.
+    #[returns(copy)]
     pub oo_global_resolution: bool,
     /// Class instance variables pre-bound in a method body (empty for procs).
     #[returns(ref)]
@@ -1432,6 +1466,7 @@ pub struct ItemBodyKey<'db> {
     pub dialect: String,
     #[returns(ref)]
     pub disabled: Vec<String>,
+    #[returns(copy)]
     pub non_ascii: NonAsciiMode,
 }
 
@@ -1439,7 +1474,7 @@ pub struct ItemBodyKey<'db> {
 /// changes only that body's [`ItemBodyKey`], so salsa reuses every other body's
 /// result; an edit that merely *shifts* a body leaves its key unchanged.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc<BodyFragment> {
     // The isolated analysis works at offset 0 and ignores `body_tok` / scope
     // path (the aggregator supplies the real position when grafting), so a
@@ -1519,6 +1554,7 @@ pub struct FnLatticeKey<'db> {
     pub qname: String,
     #[returns(ref)]
     pub params: Vec<String>,
+    #[returns(copy)]
     pub context: CfgContext<'db>,
     #[returns(ref)]
     pub dialect: String,
@@ -1547,6 +1583,7 @@ pub struct FnLatticeKey<'db> {
     /// a variable-trace install/remove call targets a non-literal name
     /// anywhere in the module. Folded into the key alongside
     /// `traced_variables`.
+    #[returns(copy)]
     pub has_dynamic_variable_trace: bool,
 }
 
@@ -1565,7 +1602,7 @@ pub struct FnLatticeKey<'db> {
 /// (`with_interprocedural`).  Uses `db.registry` — byte-identical to the
 /// registry both diagnostics consumers build (`build_default` + `load_dialect`).
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<FunctionUnit> {
     let context = key.context(db);
     let upvar: HashMap<String, UpvarInfo> = context.upvar_ctx(db).iter().cloned().collect();
@@ -1642,7 +1679,9 @@ pub struct ProcBodyKey<'db> {
     pub dialect: String,
     /// The two dialect-varying [`tcl_lexer::LexerConfig`] fields (see
     /// [`LexerCfgKey`]); the rest are the invariant defaults both consumers use.
+    #[returns(copy)]
     pub expand_syntax: bool,
+    #[returns(copy)]
     pub irules_brace_separator: bool,
 }
 
@@ -1653,7 +1692,7 @@ pub struct ProcBodyKey<'db> {
 /// body the whole-file lowering produces for that procedure, normalised to
 /// offset 0 — for the context-free files the caller gates on.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
     let registry = db.registry(key.dialect(db));
     let config = tcl_lexer::LexerConfig {
@@ -1948,7 +1987,7 @@ fn taint_summary_key<'db>(
 /// to [`CompilationUnit::with_interprocedural`]'s per-procedure re-run, guarded
 /// by the `compiler_check` corpus differential + the taint-cascade edit tests.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn taint_cascade<'db>(
     db: &'db dyn TclDb,
     lattice_key: FnLatticeKey<'db>,
@@ -2123,7 +2162,7 @@ fn summary_deps_key<'db>(
 /// the whole-module build computes.  A body edit re-keys only the edited
 /// procedure and the callers that reach it; everything else is a cache hit.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn proc_summary_cascade<'db>(
     db: &'db dyn TclDb,
     lattice_key: FnLatticeKey<'db>,
@@ -2189,7 +2228,7 @@ pub fn proc_summary_cascade<'db>(
 /// caller adds the procedure's `body_offset`.  A body edit re-runs only the
 /// edited procedure's checks; every other proc is a cache hit.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
     let dialect = key.dialect(db);
@@ -2269,7 +2308,7 @@ fn rebase_check(mut d: CompilerCheck, body_offset: u32) -> CompilerCheck {
 /// Byte-identical to a bare `run_all_checks`, guarded by the `compiler_check`
 /// corpus differential + the debug fixpoint guard.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn proc_taint_solve<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
@@ -2602,7 +2641,7 @@ fn opt_deps_key<'db>(
 /// assembled set.  A body edit re-runs only the edited proc; an unrelated proc's
 /// edit is a cache hit unless this proc reads its summary (a resolved direct call).
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn function_optimisations<'db>(
     db: &'db dyn TclDb,
     key: FnLatticeKey<'db>,
@@ -2900,7 +2939,9 @@ fn top_level_only_unit(
 /// [`compilation_unit`] — built once per edit instead of twice.
 #[salsa::interned]
 pub struct LexerCfgKey<'db> {
+    #[returns(copy)]
     pub expand_syntax: bool,
+    #[returns(copy)]
     pub irules_brace_separator: bool,
 }
 
@@ -2931,7 +2972,7 @@ fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<
 /// builds its own (status quo).  Byte-identical to a direct
 /// `memoised_compilation_unit` call.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 512)]
+#[salsa::tracked(lru = 512, returns(clone))]
 pub fn compilation_unit<'db>(
     db: &'db dyn TclDb,
     file: SourceFile,
@@ -2963,7 +3004,7 @@ pub fn compilation_unit<'db>(
 /// `analyse`) — proven by the `per_item_corpus` gate over the shared
 /// `analyse_per_item_with` orchestration.
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 64)]
+#[salsa::tracked(lru = 64, returns(clone))]
 pub fn file_analysis_incremental(
     db: &dyn TclDb,
     file: SourceFile,
@@ -3069,7 +3110,7 @@ fn compiler_diagnostics_from_unit(
 /// never cross-pollute.  Byte-identical to the former direct
 /// `lift_compiler_diagnostics` build.
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 64)]
+#[salsa::tracked(lru = 64, returns(clone))]
 pub fn compiler_check_diagnostics(
     db: &dyn TclDb,
     file: SourceFile,
@@ -3140,7 +3181,10 @@ pub fn compiler_check_diagnostics_uncached(
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the
 /// tracked [`file_analysis_incremental`] so the outline shares the per-item
 /// memoised analysis with the push-diagnostics path in the same edit.
-#[salsa::tracked]
+// `returns(ref)`: the server projects this straight into `lsp_types` inside the
+// worker closure, so borrowing avoids duplicating the whole `String`-bearing
+// symbol tree first. See the crate docs' "Return modes".
+#[salsa::tracked(returns(ref))]
 pub fn document_symbols(
     db: &dyn TclDb,
     file: SourceFile,
@@ -3156,7 +3200,7 @@ pub fn document_symbols(
 /// server-side accessors) share the same memoised build as the diagnostics
 /// path.
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
-#[salsa::tracked(lru = 64)]
+#[salsa::tracked(lru = 64, returns(clone))]
 pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<CompilationUnit> {
     let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(file.dialect(db)));
     compilation_unit(db, file, cfg_key)
@@ -3187,7 +3231,10 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 /// lands after diagnostics have already analysed this revision is a cache
 /// hit, and a cold request is preemptible by the next edit instead of running
 /// an uninterruptible pass to completion.
-#[salsa::tracked]
+// Stays on `returns(clone)`, unlike the other bare-value queries: the payload is
+// a flat `Vec<u32>` the handler returns to the JSON-RPC layer by value, so
+// `returns(ref)` would relocate that one copy rather than remove it.
+#[salsa::tracked(returns(clone))]
 pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig) -> SemanticTokens {
     let registry = db.registry(file.dialect(db));
     let cu = document_compilation_unit(db, file);
@@ -3249,7 +3296,7 @@ pub struct FileTokenFacts {
 /// reach the class and role facts.  That is what lets both aggregates drop
 /// their `AnalyserConfig` key — one index per project rather than one per
 /// distinct per-folder config.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts> {
     let mut analyser = Analyser::new()
         .structure_only()
@@ -3276,7 +3323,7 @@ pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts>
 /// edit backdates at the per-file firewall, so this does not even re-aggregate.
 /// On a class-signature change the merged index changes and the affected tokens
 /// recompute — the correct cross-file invalidation.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarchy> {
     // `project.files(db)` is an unordered `Vec` with no stable identity, so a
     // "first definition wins" merge would make the winner for a duplicate
@@ -3320,7 +3367,7 @@ pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarc
 /// [`project_class_index`].
 ///
 /// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameArgRoles> {
     let per_file: Vec<Arc<FileTokenFacts>> = project
         .files(db)
@@ -3343,7 +3390,7 @@ pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameAr
 /// than depending on `project.files`' unordered enumeration.
 ///
 /// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn project_named_instance_index(
     db: &dyn TclDb,
     project: Project,
@@ -3380,7 +3427,8 @@ pub fn project_named_instance_index(
 /// compilation unit and the three project indexes — is config-independent, so
 /// keying on one would only fragment the memo across per-folder configs that
 /// cannot change the answer.
-#[salsa::tracked]
+// `returns(clone)` for the same reason as [`semantic_tokens`].
+#[salsa::tracked(returns(clone))]
 pub fn semantic_tokens_project(
     db: &dyn TclDb,
     file: SourceFile,
@@ -3405,7 +3453,9 @@ pub fn semantic_tokens_project(
 }
 
 /// Folding ranges — wraps `folding::folding_ranges`; reads the durable registry.
-#[salsa::tracked]
+// `returns(ref)`: projected into `lsp_types` inside the worker closure, like
+// [`document_symbols`]. See the crate docs' "Return modes".
+#[salsa::tracked(returns(ref))]
 pub fn folding_ranges(db: &dyn TclDb, file: SourceFile) -> Vec<FoldingRange> {
     let registry = db.registry(file.dialect(db));
     tcl_lsp_core::folding::folding_ranges(file.text(db), file.dialect(db), registry)
@@ -3597,7 +3647,7 @@ mod tests {
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = document_symbols(&db, file, cfg(&db));
         let expected = tcl_lsp_core::document_symbols::document_symbols(SRC, "tcl");
-        assert_eq!(got, expected);
+        assert_eq!(*got, expected);
     }
 
     #[test]
@@ -4299,7 +4349,7 @@ mod tests {
         let got = folding_ranges(&db, file);
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::folding::folding_ranges(SRC, "tcl", reg);
-        assert_eq!(got, expected);
+        assert_eq!(*got, expected);
     }
 
     /// Folding served through salsa is memoised: a repeat request for the

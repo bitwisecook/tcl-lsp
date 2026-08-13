@@ -25,7 +25,7 @@
 //! a body's worth of `Arc` payload in its memo table — the exact shape of an
 //! unbounded interning leak.
 //!
-//! It is bounded only because salsa 0.27 **garbage-collects interned slots**: a
+//! It is bounded only because salsa 0.28 **garbage-collects interned slots**: a
 //! cold intern walks the shard's LRU tail and reuses any slot untouched for
 //! `DEFAULT_REVISIONS` (3) revisions, replacing the fields and clearing the
 //! slot's memo table — which is what releases the retained payload. A slot is

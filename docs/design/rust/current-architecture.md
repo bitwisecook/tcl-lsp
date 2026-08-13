@@ -88,7 +88,7 @@ and the workspace lints `unsafe_code = "forbid"`.
 The native server holds no hand-maintained analysis caches. Its runtime state
 is a salsa query database plus a document store.
 
-- **`tcl-lsp-db` (salsa 0.27) query database.** `Backend` holds an
+- **`tcl-lsp-db` (salsa 0.28) query database.** `Backend` holds an
   `Arc<Mutex<TclDatabase>>`. Inputs are the per-URI `SourceFile { text, dialect,
   path, … }`, the shared `AnalyserConfig`, and the `Project` (the workspace's
   file set). Tracked queries wrap the pure providers: `file_analysis` /
