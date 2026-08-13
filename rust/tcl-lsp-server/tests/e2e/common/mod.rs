@@ -567,6 +567,19 @@ impl Lsp {
     /// drive `initialize` itself — e.g. with a deliberately malformed folder
     /// URI.
     pub fn spawn(config: Value) -> Self {
+        Self::spawn_with_env(config, &[])
+    }
+
+    /// [`Lsp::spawn`] with extra environment variables set on the server
+    /// process.
+    ///
+    /// For the server's *test seams* — the `TCL_LSP_TEST_*` knobs that exist
+    /// so an e2e test can force an interleaving it cannot otherwise provoke
+    /// (`TCL_LSP_TEST_STARTUP_RELOAD_HOLD_MS`). It has to be the child's
+    /// environment rather than this process's: the server is a separate
+    /// binary, and `std::env::set_var` here would leak into every other test
+    /// sharing the runner process.
+    pub fn spawn_with_env(config: Value, env: &[(&str, &str)]) -> Self {
         let bin = env!("CARGO_BIN_EXE_tcl-lsp-server");
 
         // Isolate the server from the developer machine's config/cache so a
@@ -579,7 +592,11 @@ impl Lsp {
         std::fs::create_dir_all(xdg_root.join("config")).expect("mk xdg config");
         std::fs::create_dir_all(xdg_root.join("cache")).expect("mk xdg cache");
 
-        let mut child = Command::new(bin)
+        let mut command = Command::new(bin);
+        for (key, value) in env {
+            command.env(key, value);
+        }
+        let mut child = command
             .env("XDG_CONFIG_HOME", xdg_root.join("config"))
             .env("XDG_CACHE_HOME", xdg_root.join("cache"))
             .stdin(Stdio::piped())
@@ -684,7 +701,21 @@ impl Lsp {
     /// reason [`Lsp::with_config`] does — a test that opens a document before
     /// its settings have landed is testing the defaults.
     pub fn with_config_at_root(config: Value, root: &std::path::Path) -> Self {
-        let mut lsp = Self::spawn(config);
+        Self::with_config_at_root_env(config, root, &[])
+    }
+
+    /// [`Lsp::with_config_at_root`] with extra environment variables on the
+    /// server process — see [`Lsp::spawn_with_env`].
+    ///
+    /// Settling the config here does **not** settle the startup *pack* reload:
+    /// the server pulls and applies its configuration before it starts
+    /// loading packs, so a test that means to race that load still can.
+    pub fn with_config_at_root_env(
+        config: Value,
+        root: &std::path::Path,
+        env: &[(&str, &str)],
+    ) -> Self {
+        let mut lsp = Self::spawn_with_env(config, env);
         lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
         let requested = lsp.shared.tcllsp_config.lock().unwrap().clone();
         lsp.settle_config(&requested);

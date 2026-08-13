@@ -3903,6 +3903,40 @@ async fn publish_diagnostics_result(
     true
 }
 
+/// Which event asked for a `SpecTcl` pack reload.
+///
+/// The reload itself is identical for all three — the trigger exists so the
+/// **startup** one can be told apart from the others, which is what
+/// [`STARTUP_RELOAD_HOLD_ENV`] needs: only the startup reload honours the
+/// test-only hold that forces the two-reload interleaving this module is
+/// careful about.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ReloadTrigger {
+    /// The one `initialized` starts, which parses the bundled EDA loadables
+    /// and is by far the slowest.
+    Startup,
+    /// A `.tclspec` appeared, changed, or was deleted.
+    WatchedFile,
+    /// `tclLsp.specPacks` may have moved, so the discovery inputs did.
+    Config,
+}
+
+/// The workspace's published pack set, stamped with the reload generation that
+/// published it.
+///
+/// The stamp is what makes publish order a function of **when the disk was
+/// read** rather than of who finished last: a reload takes its sequence number
+/// before it looks at the filesystem, so a snapshot taken earlier carries a
+/// smaller number no matter how long it then spends parsing. See
+/// [`Backend::spec_pack_reload_seq`].
+#[derive(Default)]
+struct PublishedPackSet {
+    /// The sequence number of the reload that published `packs`; `0` before
+    /// anything has been published.
+    seq: u64,
+    packs: Arc<tcl_spectcl::PackSet>,
+}
+
 /// LSP server backend.
 ///
 /// Holds the LSP `Client` for outbound notifications, a document
@@ -4131,7 +4165,30 @@ pub struct Backend {
     /// a reader clones the handle and releases the lock immediately — a pack
     /// set is read on every `registry_for_dialect` call, which is every
     /// request.
-    spec_packs: Arc<Mutex<Arc<tcl_spectcl::PackSet>>>,
+    ///
+    /// Carries the generation that published it ([`PublishedPackSet`]) so a
+    /// reload can tell whether its own snapshot is newer than what is already
+    /// out there.
+    spec_packs: Arc<Mutex<PublishedPackSet>>,
+    /// Monotonic reload generation, handed out at the top of every
+    /// [`Backend::reload_spec_packs`] — *before* discovery, so the number
+    /// orders reloads by **when they read the disk**, not by when they
+    /// finished.
+    ///
+    /// A reload publishes only if its number is greater than the one stamped
+    /// on the current set, so a snapshot taken before a write can never
+    /// overwrite one taken after it, however long its load took.
+    ///
+    /// This is **armour, not the fix**. With `spec_pack_reload` held across
+    /// discover → load → publish, reloads cannot overlap at all and this
+    /// comparison can never fail; it exists so the ordering invariant — newest
+    /// snapshot wins — survives on its own if that mutex is ever narrowed or
+    /// removed by someone who reads the serialisation as mere throughput
+    /// insurance. `fetch_add` on a single atomic is totally ordered even under
+    /// `Relaxed`, so the numbers stay unique and monotonic without the mutex;
+    /// the compare-and-publish itself is atomic because it happens under the
+    /// `spec_packs` lock.
+    spec_pack_reload_seq: std::sync::atomic::AtomicU64,
     /// Held across a whole pack reload — discovery, load, and publish.
     ///
     /// Two reloads can be in flight at once: `initialized` starts one, and a
@@ -5041,8 +5098,9 @@ impl Backend {
             package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
-            spec_packs: Arc::new(Mutex::new(Arc::new(tcl_spectcl::PackSet::default()))),
+            spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
+            spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
@@ -6954,6 +7012,7 @@ impl Backend {
             spec_pack_paths: _,
             spec_packs: _,
             spec_pack_reload: _,
+            spec_pack_reload_seq: _,
             bigip_version: _,
             generic_variable_patterns: _,
             formatting_settings: _,
@@ -11354,7 +11413,7 @@ impl Backend {
         // against — moves with it.  The reload is content-keyed, so a settings
         // burst that does not touch `specPacks` costs one discovery walk and
         // nothing else.
-        self.reload_spec_packs().await;
+        self.reload_spec_packs(ReloadTrigger::Config).await;
         // The re-pull may have flipped `features.diagnostics`,
         // `optimiser.enabled`, or the disabled-diagnostics set — none of which
         // changes a document's dialect (the dialect the re-pull *does* resolve
@@ -12273,7 +12332,7 @@ impl Backend {
     /// The workspace's loaded `SpecTcl` packs.  Clones the `Arc` and drops the
     /// lock, so no request path holds it across an await.
     async fn spec_packs(&self) -> Arc<tcl_spectcl::PackSet> {
-        Arc::clone(&*self.spec_packs.lock().await)
+        Arc::clone(&self.spec_packs.lock().await.packs)
     }
 
     /// Run the analyser on `text` and push the resulting
@@ -12918,11 +12977,22 @@ impl Backend {
     /// set's content hash makes "the watcher fired but the bytes are the same"
     /// (a save with no edit, a `touch`, a branch switch that restores a file)
     /// free.
-    async fn reload_spec_packs(&self) -> bool {
+    ///
+    /// `trigger` says which event asked, and is used for exactly one thing:
+    /// the startup reload honours [`STARTUP_RELOAD_HOLD_ENV`], the test-only
+    /// hold that lets the e2e suite force the two-reload interleaving.
+    async fn reload_spec_packs(&self, trigger: ReloadTrigger) -> bool {
         // One reload at a time — see `spec_pack_reload`. The guard spans
         // discovery *and* the publish below, because it is the gap between
         // them that lets a slower reload overwrite a newer one's result.
         let _reload = self.spec_pack_reload.lock().await;
+        // Taken here, under the guard and *before* discovery: the number has
+        // to order reloads by when they read the disk. See
+        // `spec_pack_reload_seq`.
+        let seq = self
+            .spec_pack_reload_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
         let options = self.spec_pack_discovery().await;
         // Before loading: the watch set follows the *configuration*, so it has
         // to be refreshed even when the discovered files turn out unchanged.
@@ -12930,7 +13000,17 @@ impl Backend {
         // Discovery and loading are blocking filesystem + parse work; keeping
         // them off the LSP event loop is the same courtesy every other scan
         // here extends.
-        let loaded = tokio::task::spawn_blocking(move || {
+        // The test hold and its "snapshot taken" signal — absent in every real
+        // session, because [`startup_reload_hold`] is zero unless the e2e
+        // suite asked for it. See [`STARTUP_RELOAD_HOLD_ENV`].
+        let (hold, held_tx, held_rx) = match trigger {
+            ReloadTrigger::Startup if !startup_reload_hold().is_zero() => {
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                (startup_reload_hold(), Some(tx), Some(rx))
+            }
+            _ => (std::time::Duration::ZERO, None, None),
+        };
+        let load = tokio::task::spawn_blocking(move || {
             let files = tcl_spectcl::discover(&options);
             // `load_discovered`, not `pack::load`: a bare `tcl-lsp-server`
             // release binary (Zed, the standalone-editor instructions) has no
@@ -12938,9 +13018,36 @@ impl Backend {
             // and the shipped EDA loadables have to come from the embedded
             // copy. A plain load would leave every EDA command unknown in
             // exactly those clients.
-            tcl_spectcl::bundled::load_discovered(&files)
-        })
-        .await;
+            let loaded = tcl_spectcl::bundled::load_discovered(&files);
+            // The test seam, and the only place it can go: the snapshot is
+            // taken, the publish has not happened, so the world is free to
+            // change underneath a view that is already stale. The signal goes
+            // out first so the test knows the snapshot it has to invalidate
+            // exists; then the thread sits on it.
+            if let Some(tx) = held_tx {
+                let _ = tx.send(());
+                std::thread::sleep(hold);
+            }
+            loaded
+        });
+        if let Some(rx) = held_rx
+            && rx.await.is_ok()
+        {
+            // Announced on the client's log channel because that is the one
+            // ordering signal an e2e client can actually wait on: it means
+            // "this reload's view of the disk is now fixed", which is the
+            // instant the test has to write its pack file at.
+            self.client
+                .log_message(
+                    MessageType::INFO,
+                    format!(
+                        "{STARTUP_RELOAD_HELD_LOG} for {}ms ({STARTUP_RELOAD_HOLD_ENV})",
+                        hold.as_millis()
+                    ),
+                )
+                .await;
+        }
+        let loaded = load.await;
         let Ok(loaded) = loaded else {
             // A panic in the loader must not take the session with it: the
             // workspace keeps whatever pack set it already had.
@@ -12955,7 +13062,11 @@ impl Backend {
 
         let changed = {
             let mut guard = self.spec_packs.lock().await;
-            let changed = guard.key != loaded.key;
+            // Newest snapshot wins, decided by when the disk was read. With
+            // `spec_pack_reload` held this is always true — see
+            // `spec_pack_reload_seq` for why it is checked anyway.
+            let newest = seq > guard.seq;
+            let changed = newest && guard.packs.key != loaded.key;
             if changed {
                 // Publish the hook plan *before* the new pack set becomes
                 // visible, and under the same lock: slots are allocated once,
@@ -12973,7 +13084,10 @@ impl Backend {
                 // registry and so reported a pack's (and every EDA) command
                 // unknown on the very line whose diagnostic resolved it.
                 tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded)));
-                *guard = loaded;
+                // The stamp moves with the content: it records which snapshot
+                // the *current* set came from, so a reload that read the disk
+                // earlier than that can never take its place.
+                *guard = PublishedPackSet { seq, packs: loaded };
             }
             changed
         };
@@ -14332,7 +14446,7 @@ impl LanguageServer for Backend {
         // flashing W123 until a reload catches up.  `pull_and_apply_config`
         // above has already applied `tclLsp.specPacks`, so discovery sees the
         // configured paths on this first pass.
-        self.reload_spec_packs().await;
+        self.reload_spec_packs(ReloadTrigger::Startup).await;
         // Type-hierarchy support is advertised statically by the
         // `inject_type_hierarchy_provider` service layer (see `main.rs`) — a
         // dynamic `client/registerCapability` here would both duplicate it and
@@ -14811,7 +14925,7 @@ impl LanguageServer for Backend {
         // re-analyse every open document — a command that just became known,
         // or just stopped being known, changes what W123 and hover say about
         // code nobody touched.
-        if spec_pack_changed && self.reload_spec_packs().await {
+        if spec_pack_changed && self.reload_spec_packs(ReloadTrigger::WatchedFile).await {
             self.reschedule_all_open_documents().await;
         }
         // Partition the (deduplicated) event set so the disk-backed work below
@@ -14951,7 +15065,7 @@ impl LanguageServer for Backend {
             self.scan_workspace_folders().await;
             // `tclLsp.specPacks` is part of what was just re-applied, so the
             // pack set may point somewhere else now.
-            self.reload_spec_packs().await;
+            self.reload_spec_packs(ReloadTrigger::Config).await;
             self.reschedule_all_open_documents().await;
             // Closed files that carry a badge follow the same reconfigured
             // disabled-code / master-switch state (#865).
@@ -17888,6 +18002,43 @@ fn default_optimiser_profile() -> tcl_compiler::optimiser::profiles::Optimisatio
         tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE,
         |s| tcl_compiler::optimiser::profiles::OptimisationProfile::parse(&s),
     )
+}
+
+/// Env var holding the **startup** pack reload's already-taken filesystem
+/// snapshot for this many milliseconds before it is published.
+///
+/// It exists solely so the e2e suite can force the interleaving that
+/// [`Backend::spec_pack_reload`] and [`Backend::spec_pack_reload_seq`] exist to
+/// survive: a pack file that appears *after* the startup reload has read the
+/// disk but *before* it publishes. Real sessions never set it, and unset (or
+/// unparseable, or `0`) is a no-op — the hold is read once, and a zero hold
+/// costs nothing but the comparison.
+///
+/// Only the startup reload honours it ([`ReloadTrigger::Startup`]); holding a
+/// watched-file or config reload would delay the very snapshot the test needs
+/// to land first, which is the opposite of the point.
+const STARTUP_RELOAD_HOLD_ENV: &str = "TCL_LSP_TEST_STARTUP_RELOAD_HOLD_MS";
+
+/// Logged (once, and only under [`STARTUP_RELOAD_HOLD_ENV`]) the moment the
+/// held startup reload has finished reading the disk.
+///
+/// The e2e test waits on this before writing its pack file: without a signal
+/// it would be guessing whether the snapshot it means to invalidate had been
+/// taken yet, and a guess that lands early produces a startup snapshot that
+/// already contains the pack — a race that proves nothing.
+const STARTUP_RELOAD_HELD_LOG: &str = "SpecTcl: startup reload holding its snapshot";
+
+/// How long the startup pack reload sits on its snapshot, from
+/// [`STARTUP_RELOAD_HOLD_ENV`]. Read once per process; zero unless a test
+/// asked for it.
+fn startup_reload_hold() -> std::time::Duration {
+    static HOLD: std::sync::OnceLock<std::time::Duration> = std::sync::OnceLock::new();
+    *HOLD.get_or_init(|| {
+        std::env::var(STARTUP_RELOAD_HOLD_ENV)
+            .ok()
+            .and_then(|raw| raw.trim().parse::<u64>().ok())
+            .map_or(std::time::Duration::ZERO, std::time::Duration::from_millis)
+    })
 }
 
 /// Map a `tclLsp.style.nonAscii` setting string to a [`NonAsciiMode`].
@@ -25925,8 +26076,9 @@ mod tests {
             package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
-            spec_packs: Arc::new(Mutex::new(Arc::new(tcl_spectcl::PackSet::default()))),
+            spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
+            spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
