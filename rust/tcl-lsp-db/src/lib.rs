@@ -2648,6 +2648,10 @@ pub fn function_optimisations<'db>(
     ir_procs.insert(qname.clone(), proc);
     let ir_module = tcl_compiler::ir::Module {
         source: body_source.clone(),
+        // Synthesised for a proc-body re-analysis, not a real compile, so no
+        // release is being targeted — numeral-grammar consumers fall back to
+        // their own default.
+        dialect: None,
         top_level: tcl_compiler::ir::Script::new(),
         procedures: ir_procs,
         methods: HashMap::new(),
@@ -2858,6 +2862,7 @@ fn top_level_only_unit(
         source: cu.source.clone(),
         ir_module: tcl_compiler::ir::Module {
             source: cu.source.clone(),
+            dialect: cu.ir_module.dialect.clone(),
             top_level: cu.ir_module.top_level.clone(),
             procedures: HashMap::new(),
             methods: HashMap::new(),
