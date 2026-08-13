@@ -73,6 +73,7 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset;
+use tcl_dialect::NumberSyntax;
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -139,7 +140,17 @@ pub fn inline_proc_in_program(
     let title = format!("Inline proc '{}'", proc_def.name);
     let (call_start, call_end) = command_span_offsets(source, &call);
 
-    match plan_inline(source, &call, proc_def, registry) {
+    // The numeric-literal grammar of the dialect this document was analysed
+    // under — whether a substituted value reads as a number in an `expr`
+    // operand is release-dependent (`0o17` from 8.5, `0d99` and `1_000` from
+    // 9.0).  `AnalysisResult::dialect` carries the name the host passed to
+    // `Analyser::analyse`; an empty (default-constructed) one resolves to the
+    // permissive `plain_tcl` profile, i.e. modern rules.
+    let numbers = tcl_dialect::DialectProfile::by_name(&analysis.dialect)
+        .grammar
+        .numbers;
+
+    match plan_inline(source, &call, proc_def, registry, numbers) {
         Ok(new_text) => Some(Refactoring {
             title,
             edits: vec![RefactorEdit {
@@ -167,6 +178,7 @@ fn plan_inline(
     call: &tcl_compiler::segmenter::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
     registry: &CommandRegistry,
+    numbers: NumberSyntax,
 ) -> Result<String, String> {
     if proc_def.params_computed {
         return Err(
@@ -179,7 +191,7 @@ fn plan_inline(
     reject_frame_sensitive_body(&body, registry)?;
     reject_body_variable_writes(&body, registry)?;
     reject_args_reference(&body, proc_def)?;
-    substitute_bindings(&body, &bindings, registry)
+    substitute_bindings(&body, &bindings, registry, numbers)
 }
 
 /// One command's worth of proc body, re-segmented so its argument roles and
@@ -464,6 +476,7 @@ fn substitute_bindings(
     body: &BodyCommand,
     bindings: &[Binding],
     registry: &CommandRegistry,
+    numbers: NumberSyntax,
 ) -> Result<String, String> {
     let references = variable_references(&body.text);
     let expr_ranges = expr_argument_ranges(&body.command, registry);
@@ -500,7 +513,7 @@ fn substitute_bindings(
             if expr_ranges
                 .iter()
                 .any(|(from, to)| *start >= *from && *end <= *to)
-                && !is_expr_literal(&binding.value)
+                && !is_expr_literal(&binding.value, numbers)
             {
                 return Err(format!(
                     "'{}' is used as an expression operand and is bound to `{}`, \
@@ -603,28 +616,20 @@ fn is_plain_word(value: &str) -> bool {
         })
 }
 
-/// `true` when `value` is a numeric literal `expr` reads as itself.
+/// `true` when the whole of `value` is a numeric literal `expr` reads as
+/// itself, under `numbers` — the numeric-literal grammar of the dialect the
+/// document was analysed under.
 ///
 /// `expr` treats a bare non-numeric word as a function name (or an error), so
 /// only a value `expr` parses as a number can replace a variable reference in
-/// an expression operand.  Integer, real, and the `0x` / `0o` / `0b` radix
-/// prefixes are accepted, matching what `expr` itself parses.
-fn is_expr_literal(value: &str) -> bool {
-    let unsigned = value.strip_prefix(['-', '+']).unwrap_or(value);
-    if unsigned.is_empty() {
-        return false;
-    }
-    let radix = unsigned
-        .strip_prefix("0x")
-        .or_else(|| unsigned.strip_prefix("0X"))
-        .or_else(|| unsigned.strip_prefix("0o"))
-        .or_else(|| unsigned.strip_prefix("0O"))
-        .or_else(|| unsigned.strip_prefix("0b"))
-        .or_else(|| unsigned.strip_prefix("0B"));
-    if let Some(digits) = radix {
-        return !digits.is_empty() && digits.chars().all(|c| c.is_ascii_alphanumeric());
-    }
-    unsigned.parse::<f64>().is_ok()
+/// an expression operand.  The test is therefore exactly the one C's
+/// `ParseLexeme` makes before classifying an `expr` lexeme as a `NUMBER`, and
+/// runs through the one shared numeral facility: a private recogniser here
+/// accepted any alphanumeric run after a radix prefix, so `0xZZZ`, `0b999`, and
+/// `0o8` all passed as numbers and the refactor spliced them into an `expr`
+/// operand — turning a working script into a runtime error.
+fn is_expr_literal(value: &str, numbers: NumberSyntax) -> bool {
+    tcl_syntax::number::is_whole_number(value, numbers)
 }
 
 #[cfg(test)]
@@ -632,22 +637,33 @@ mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
-    /// Run the transform at the first occurrence of `needle` in `src`.
-    fn at(src: &str, needle: &str) -> Option<Refactoring> {
+    /// Run the transform at the first occurrence of `needle` in `src`, with the
+    /// document analysed under `dialect`.
+    fn at_dialect(src: &str, needle: &str, dialect: &str) -> Option<Refactoring> {
         let registry = super::super::test_registry();
         let mut analyser = Analyser::new();
-        let analysis = analyser.analyse(src, "tcl9.0").clone();
+        let analysis = analyser.analyse(src, dialect).clone();
         let cursor = u32::try_from(src.find(needle).expect("needle in source")).unwrap() + 1;
         inline_proc(src, cursor, &analysis, &registry)
     }
 
-    /// The rewritten document, or the refusal reason.
-    fn outcome(src: &str, needle: &str) -> Result<String, String> {
-        let refactoring = at(src, needle).expect("a call to inline");
+    /// Run the transform at the first occurrence of `needle` in `src`.
+    fn at(src: &str, needle: &str) -> Option<Refactoring> {
+        at_dialect(src, needle, "tcl9.0")
+    }
+
+    /// The rewritten document, or the refusal reason, under `dialect`.
+    fn outcome_for(src: &str, needle: &str, dialect: &str) -> Result<String, String> {
+        let refactoring = at_dialect(src, needle, dialect).expect("a call to inline");
         match &refactoring.disabled {
             Some(reason) => Err(reason.clone()),
             None => Ok(refactoring.apply(src)),
         }
+    }
+
+    /// The rewritten document, or the refusal reason.
+    fn outcome(src: &str, needle: &str) -> Result<String, String> {
+        outcome_for(src, needle, "tcl9.0")
     }
 
     // -- TP: binding is performed and the result is correct ---------------
@@ -836,12 +852,73 @@ mod tests {
 
     #[test]
     fn expr_literal_accepts_what_expr_parses_as_a_number() {
+        let n = NumberSyntax::Tcl90;
         for value in ["0", "42", "-7", "+7", "1.5", "1e3", "0xff", "0b1010"] {
-            assert!(is_expr_literal(value), "{value} is a number");
+            assert!(is_expr_literal(value, n), "{value} is a number");
         }
         for value in ["abc", "", "-", "1a2"] {
-            assert!(!is_expr_literal(value), "{value} is not a number");
+            assert!(!is_expr_literal(value, n), "{value} is not a number");
         }
+    }
+
+    /// The bug the shared numeral facility fixes: the old recogniser accepted
+    /// any *alphanumeric* run after a radix prefix, so `0xZZZ` / `0b999` /
+    /// `0o8` passed as numbers.  Splicing one of those into an `expr` operand
+    /// turns a working script into a runtime error — `expr` reads a
+    /// non-numeric bareword as a function name.
+    #[test]
+    fn expr_literal_rejects_radix_invalid_digits() {
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            for value in ["0xZZZ", "0b999", "0o8", "0b2", "0x", "0x_", "--5", "+-5"] {
+                assert!(
+                    !is_expr_literal(value, syntax),
+                    "{value} is not a number under {syntax:?}"
+                );
+            }
+        }
+    }
+
+    /// A radix prefix only exists from the release that added it: `0o`/`0b`
+    /// from 8.5, `0d` from 9.0, `_` digit separators from 9.0.  Before that the
+    /// word is a bareword, which `expr` would read as a function name.
+    #[test]
+    fn expr_literal_gates_radix_prefixes_on_the_release() {
+        for syntax in [NumberSyntax::Tcl85, NumberSyntax::Tcl90] {
+            assert!(is_expr_literal("0o17", syntax), "{syntax:?}");
+        }
+        assert!(!is_expr_literal("0o17", NumberSyntax::Tcl84));
+        assert!(is_expr_literal("0d99", NumberSyntax::Tcl90));
+        assert!(is_expr_literal("1_000", NumberSyntax::Tcl90));
+        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+            assert!(!is_expr_literal("0d99", syntax), "{syntax:?}");
+            assert!(!is_expr_literal("1_000", syntax), "{syntax:?}");
+        }
+    }
+
+    /// End-to-end: the dialect the document was analysed under decides whether
+    /// an `0o17` argument may be substituted into an `expr` operand.
+    #[test]
+    fn fp_refuses_a_radix_prefix_the_target_release_lacks() {
+        let src = "proc double {x} {\n    expr {$x * 2}\n}\ndouble 0o17\n";
+        assert_eq!(
+            outcome_for(src, "double 0o17", "tcl8.5").unwrap(),
+            "proc double {x} {\n    expr {$x * 2}\n}\nexpr {0o17 * 2}\n"
+        );
+        let reason = outcome_for(src, "double 0o17", "tcl8.4").unwrap_err();
+        assert!(reason.contains("not a number"), "{reason}");
+    }
+
+    /// The bug end-to-end: `0xZZZ` is not a number in any release, so the
+    /// refactor must refuse rather than emit `expr {0xZZZ * 2}`.
+    #[test]
+    fn fp_refuses_radix_invalid_digits_in_an_expr_operand() {
+        let src = "proc double {x} {\n    expr {$x * 2}\n}\ndouble 0xZZZ\n";
+        let reason = outcome(src, "double 0xZZZ").unwrap_err();
+        assert!(reason.contains("not a number"), "{reason}");
     }
 
     #[test]
