@@ -343,10 +343,26 @@ impl CtxScan {
 /// The scan is textual and therefore may only ever be *pessimistic*: an
 /// unattributed reference downgrades the answer, never upgrades it.
 fn shape_cacheability(hook: &HookDecl, scan: &CtxScan) -> (Option<bool>, String) {
-    if !matches!(hook.source, HookSource::Body { .. }) {
+    let HookSource::Body { inputs, .. } = &hook.source else {
         return (
             None,
             "no VM body — native and derived hooks run at native cost".to_owned(),
+        );
+    };
+    // The declaration decides, because the *runtime* decides that way:
+    // `HookInputs::shape_only` is what arms the cache, and a hook that
+    // declared nothing is `unrestricted` and never cached however tame its
+    // body looks. Reporting otherwise told an author their hook was cached
+    // when it was not — a report that disagrees with the engine is worse than
+    // no report. The body scan below can only make this answer *more*
+    // pessimistic, never less.
+    if !inputs.shape_only() {
+        return (
+            Some(false),
+            "declares no `-inputs`, or declares one outside the (command, \
+             word-shape) key, so the runtime never caches it — the default, \
+             and always correct"
+                .to_owned(),
         );
     }
     if hook.family == HookFamily::ConstFoldVersioned {

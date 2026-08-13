@@ -519,6 +519,53 @@ pub fn allocate(family: HookFamily, inputs: &HookInputs) -> Option<HookSlot> {
     })
 }
 
+/// The slot for the hook `identity` names, minting one only the first time
+/// that identity is seen and **rebinding** it on every later load.
+///
+/// # Why identity and not content
+///
+/// Slots are process-global and never freed — a slot's index is baked into a
+/// leaked `CommandSpec` as a function pointer, so nothing can be handed back.
+/// Allocating per distinct pack *content* therefore made every edit of a pack
+/// spend another slot out of the 64 a family has: a long editing session on
+/// one pack silently ran the family dry, and from then on new hooks installed
+/// nothing at all until the process restarted. Because the exhaustion is
+/// silent and only shows up as a command losing its hook, it is close to
+/// undiagnosable from the outside.
+///
+/// Keying on *which hook this is* — pack, command, owner, family — instead
+/// bounds the budget by how many distinct hooks a workspace declares, which is
+/// what the 64 was always meant to bound. Re-editing one hook a thousand times
+/// costs the one slot it started with, and the newest body is simply what that
+/// slot now runs; every registry generation still points at the same slot, and
+/// the stale ones were stale regardless.
+pub fn allocate_stable(
+    family: HookFamily,
+    identity: &str,
+    inputs: &HookInputs,
+) -> Option<HookSlot> {
+    static BY_IDENTITY: LazyLock<Mutex<HashMap<(HookFamily, String), HookSlot>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+
+    let key = (family, identity.to_owned());
+    let mut table = match BY_IDENTITY.lock() {
+        Ok(table) => table,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if let Some(&slot) = table.get(&key) {
+        // Rebind: the body behind this identity may have changed, and with it
+        // whether it is shape-cacheable.
+        CACHEABLE[family.index()][usize::from(slot.index)]
+            .store(inputs.shape_only(), Ordering::Relaxed);
+        // A slot's cached answers describe the *old* body.
+        clear_cache();
+        return Some(slot);
+    }
+    let slot = allocate(family, inputs)?;
+    table.insert(key, slot);
+    Some(slot)
+}
+
 /// Whether this slot's declared inputs make it shape-cacheable.
 #[must_use]
 pub fn is_cacheable(slot: HookSlot) -> bool {

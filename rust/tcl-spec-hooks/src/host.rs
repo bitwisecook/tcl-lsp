@@ -23,7 +23,6 @@ use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
-use tcl_dialect::TclVersion;
 use tcl_engine_api::{Budget, BudgetKind, CompileUnit, Engine, EngineError, Value};
 use tcl_registry::invocation_words::InvocationWordKind;
 use tcl_registry::pack_hooks::{self, HookAnswer, HookCall, HookFamily, HookSlot, PackHookHost};

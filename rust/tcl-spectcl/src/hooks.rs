@@ -193,7 +193,17 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
         // keeps its declarative facts, which is the documented degradation and
         // is cheaper than an abstaining call per query.
         programs.programs.retain_mut(|program| {
-            match pack_hooks::allocate(program.family, &program.inputs) {
+            // Keyed on the hook's identity — pack, command, owner, family —
+            // not on the pack's content, so re-editing a pack rebinds the
+            // slots it already holds instead of spending fresh ones out of the
+            // 64 a family has. See `pack_hooks::allocate_stable`.
+            let identity = format!(
+                "{}\u{0}{}\u{0}{}",
+                pack.name,
+                program.command,
+                program.owner.subcommand().unwrap_or("")
+            );
+            match pack_hooks::allocate_stable(program.family, &identity, &program.inputs) {
                 Some(slot) => {
                     program.slot = Some(slot);
                     true
