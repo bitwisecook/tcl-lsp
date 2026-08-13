@@ -1,0 +1,873 @@
+# tcl-lsp — bundled SpecTcl loadable: the AMD/Xilinx Vivado tool commands.
+#
+# This pack IS the source of truth for these commands. The Rust modules that
+# used to hold them (rust/tcl-registry/src/commands/eda_xilinx/) were deleted when
+# the EDA vendor libraries migrated to bundled `.tclspec` loadables, per
+# docs/design/spec-packs.md ("the EDA vendor libraries ship as bundled
+# `.tclspec` loadables … so the loader path is exercised in production from day
+# one rather than reserved for private packs"). Every command was proved
+# field-for-field equal to its compiled spec by the SpecTcl round-trip gate
+# before the modules were removed.
+#
+# Discovery: the **bundled** tier — `specs/` beside the server executable, or
+# wherever $TCL_LSP_SPEC_PACK_DIR points (rust/tcl-spectcl/src/discovery.rs).
+# Edit this file to change the specs; there is no generator to re-run.
+# Syntax: docs/design/spec-dsl-examples/README.md. The initial text was written
+# by the spec studio's SpecTcl renderer (rust/tcl-spec-studio/src/render_spectcl.rs)
+# from the registry modules, which reported no unwritable field on any command
+# here; this file is hand-maintained from now on.
+
+speclib eda_xilinx 1.0 {
+
+command apply_bd_automation {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {apply_bd_automation -rule rule_name ?-config config?}
+
+    hover {
+        summary {Apply block design automation rules.}
+        synopsis {apply_bd_automation -rule rule_name ?-config config?}
+        source {F5}
+    }
+}
+
+command close_hw_manager {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {close_hw_manager}
+
+    hover {
+        summary {Close the hardware manager.}
+        synopsis {close_hw_manager}
+        source {F5}
+    }
+}
+
+command close_project {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {close_project ?-quiet?}
+
+    hover {
+        summary {Close the current project.}
+        synopsis {close_project ?-quiet?}
+        source {F5}
+    }
+}
+
+command close_sim {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {close_sim ?-force?}
+
+    hover {
+        summary {Close the current simulation.}
+        synopsis {close_sim ?-force?}
+        source {F5}
+    }
+}
+
+command config_ip_cache {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {config_ip_cache ?-import_from_project? ?-clear_output_repo? ?-cache_location dir?}
+
+    hover {
+        summary {Configure the IP cache settings.}
+        synopsis {config_ip_cache ?-import_from_project? ?-clear_output_repo? ?-cache_location dir?}
+        source {F5}
+    }
+}
+
+command connect_bd_intf_net {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {connect_bd_intf_net ?-intf_net net_name? intf_pin_list}
+
+    hover {
+        summary {Connect block design interface nets.}
+        synopsis {connect_bd_intf_net ?-intf_net net_name? intf_pin_list}
+        source {F5}
+    }
+}
+
+command connect_bd_net {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {connect_bd_net ?-net net_name? pin_list}
+
+    hover {
+        summary {Connect block design nets.}
+        synopsis {connect_bd_net ?-net net_name? pin_list}
+        source {F5}
+    }
+}
+
+command connect_hw_server {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {connect_hw_server ?-url url? ?-allow_non_jtag?}
+
+    hover {
+        summary {Connect to a hardware server.}
+        synopsis {connect_hw_server ?-url url? ?-allow_non_jtag?}
+        source {F5}
+    }
+}
+
+command create_bd_cell {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {create_bd_cell -type ip -vlnv vlnv cell_name}
+
+    hover {
+        summary {Create a block design cell (IP instance).}
+        synopsis {create_bd_cell -type ip -vlnv vlnv cell_name}
+        source {F5}
+    }
+}
+
+command create_bd_design {
+    dialects tcl8.5
+    arity 1
+    required_package vivado
+
+    form Default {create_bd_design ?-dir dir? design_name}
+
+    hover {
+        summary {Create a block design.}
+        synopsis {create_bd_design ?-dir dir? design_name}
+        source {F5}
+    }
+}
+
+command create_bd_intf_port {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {create_bd_intf_port -mode mode -vlnv vlnv port_name}
+
+    hover {
+        summary {Create a block design interface port.}
+        synopsis {create_bd_intf_port -mode mode -vlnv vlnv port_name}
+        source {F5}
+    }
+}
+
+command create_bd_port {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {create_bd_port -dir direction ?-type type? port_name}
+
+    hover {
+        summary {Create a block design external port.}
+        synopsis {create_bd_port -dir direction ?-type type? port_name}
+        source {F5}
+    }
+}
+
+command create_ip {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {create_ip -name name -vendor vendor -library library -version version ?-module_name mod_name? ?-dir dir?}
+
+    hover {
+        summary {Create an IP core instance.}
+        synopsis {create_ip -name name -vendor vendor -library library -version version ?-module_name mod_name? ?-dir dir?}
+        source {F5}
+    }
+}
+
+command create_project {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {create_project ?-force? ?-part part? ?-in_memory? project_name ?project_dir?}
+
+    hover {
+        summary {Create a new Vivado project.}
+        synopsis {create_project ?-force? ?-part part? ?-in_memory? project_name ?project_dir?}
+        source {F5}
+    }
+}
+
+command create_run {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {create_run -flow flow ?-strategy strategy? ?-constrset constrset? ?-parent_run parent? run_name}
+
+    hover {
+        summary {Create a new run.}
+        synopsis {create_run -flow flow ?-strategy strategy? ?-constrset constrset? ?-parent_run parent? run_name}
+        source {F5}
+    }
+}
+
+command current_project {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {current_project ?project_name?}
+
+    hover {
+        summary {Get or set the current project.}
+        synopsis {current_project ?project_name?}
+        source {F5}
+    }
+}
+
+command generate_target {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {generate_target target_type ?-force? objects}
+
+    hover {
+        summary {Generate IP output products.}
+        synopsis {generate_target target_type ?-force? objects}
+        source {F5}
+    }
+}
+
+command get_ips {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {get_ips ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+
+    hover {
+        summary {Get IP core instances.}
+        synopsis {get_ips ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_projects {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {get_projects ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+
+    hover {
+        summary {Get all open projects.}
+        synopsis {get_projects ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+        source {F5}
+    }
+}
+
+command get_property {
+    dialects tcl8.5
+    arity 2
+    required_package vivado
+
+    form Default {get_property property_name object}
+
+    hover {
+        summary {Get a property from a Vivado design object.}
+        synopsis {get_property property_name object}
+        source {F5}
+    }
+}
+
+command get_runs {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {get_runs ?-regexp? ?-filter expr? ?patterns?}
+
+    hover {
+        summary {Get run objects.}
+        synopsis {get_runs ?-regexp? ?-filter expr? ?patterns?}
+        source {F5}
+    }
+}
+
+command import_ip {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {import_ip ?-srcset srcset? file_list}
+
+    hover {
+        summary {Import an IP core into the project.}
+        synopsis {import_ip ?-srcset srcset? file_list}
+        source {F5}
+    }
+}
+
+command ipx::add_bus_interface {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {ipx::add_bus_interface -abstraction_type_vlnv vlnv -bus_type_vlnv vlnv interface_name component}
+
+    hover {
+        summary {Add a bus interface to a packaged IP.}
+        synopsis {ipx::add_bus_interface -abstraction_type_vlnv vlnv -bus_type_vlnv vlnv interface_name component}
+        source {F5}
+    }
+}
+
+command ipx::package_project {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {ipx::package_project ?-root_dir dir? ?-import_files? ?-force?}
+
+    hover {
+        summary {Package a project as an IP core.}
+        synopsis {ipx::package_project ?-root_dir dir? ?-import_files? ?-force?}
+        source {F5}
+    }
+}
+
+command launch_runs {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {launch_runs ?-jobs n? ?-scripts_only? ?-to_step step? run_list}
+
+    hover {
+        summary {Launch synthesis or implementation runs.}
+        synopsis {launch_runs ?-jobs n? ?-scripts_only? ?-to_step step? run_list}
+        source {F5}
+    }
+}
+
+command launch_simulation {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {launch_simulation ?-mode mode? ?-scripts_only? ?-simset simset?}
+
+    hover {
+        summary {Launch a simulation.}
+        synopsis {launch_simulation ?-mode mode? ?-scripts_only? ?-simset simset?}
+        source {F5}
+    }
+}
+
+command open_bd_design {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {open_bd_design ?-name name? file_name}
+
+    hover {
+        summary {Open a block design.}
+        synopsis {open_bd_design ?-name name? file_name}
+        source {F5}
+    }
+}
+
+command open_checkpoint {
+    dialects tcl8.5
+    arity 1
+    required_package vivado
+
+    form Default {open_checkpoint file_name}
+
+    hover {
+        summary {Open a design checkpoint for editing.}
+        synopsis {open_checkpoint file_name}
+        source {F5}
+    }
+}
+
+command open_hw_manager {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {open_hw_manager}
+
+    hover {
+        summary {Open the hardware manager.}
+        synopsis {open_hw_manager}
+        source {F5}
+    }
+}
+
+command open_hw_target {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {open_hw_target ?target_name?}
+
+    hover {
+        summary {Open a hardware target (JTAG chain).}
+        synopsis {open_hw_target ?target_name?}
+        source {F5}
+    }
+}
+
+command open_project {
+    dialects tcl8.5
+    arity 1
+    required_package vivado
+
+    form Default {open_project ?-read_only? ?-quiet? project_file}
+
+    hover {
+        summary {Open an existing Vivado project.}
+        synopsis {open_project ?-read_only? ?-quiet? project_file}
+        source {F5}
+    }
+}
+
+command open_run {
+    dialects tcl8.5
+    arity 1..3
+    required_package vivado
+
+    form Default {open_run ?-name name? run_name}
+
+    hover {
+        summary {Open a completed run in memory.}
+        synopsis {open_run ?-name name? run_name}
+        source {F5}
+    }
+}
+
+command opt_design {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {opt_design ?-directive directive? ?-retarget? ?-propconst? ?-sweep? ?-bram_power_opt? ?-remap?}
+
+    hover {
+        summary {Run logic optimization after synthesis.}
+        synopsis {opt_design ?-directive directive? ?-retarget? ?-propconst? ?-sweep? ?-bram_power_opt? ?-remap?}
+        source {F5}
+    }
+}
+
+command phys_opt_design {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {phys_opt_design ?-directive directive? ?-fanout_opt? ?-placement_opt? ?-rewire? ?-critical_cell_opt? ?-dsp_register_opt? ?-bram_register_opt? ?-hold_fix?}
+
+    hover {
+        summary {Run physical optimization after placement.}
+        synopsis {phys_opt_design ?-directive directive? ?-fanout_opt? ?-placement_opt? ?-rewire? ?-critical_cell_opt?}
+        source {F5}
+    }
+}
+
+command place_design {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {place_design ?-directive directive? ?-no_timing_driven? ?-unplace?}
+
+    hover {
+        summary {Run placement.}
+        synopsis {place_design ?-directive directive? ?-no_timing_driven? ?-unplace?}
+        source {F5}
+    }
+}
+
+command program_hw_devices {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {program_hw_devices ?device_list?}
+
+    hover {
+        summary {Program FPGA devices.}
+        synopsis {program_hw_devices ?device_list?}
+        source {F5}
+    }
+}
+
+command read_checkpoint {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {read_checkpoint ?-cell cell? file_name}
+
+    hover {
+        summary {Read a design checkpoint (.dcp).}
+        synopsis {read_checkpoint ?-cell cell? file_name}
+        source {F5}
+    }
+}
+
+command read_edif {
+    dialects tcl8.5
+    arity 1
+    required_package vivado
+
+    form Default {read_edif file_name}
+
+    hover {
+        summary {Read an EDIF netlist file.}
+        synopsis {read_edif file_name}
+        source {F5}
+    }
+}
+
+command read_ip {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {read_ip ?-quiet? file_list}
+
+    hover {
+        summary {Read IP core files (.xci).}
+        synopsis {read_ip ?-quiet? file_list}
+        source {F5}
+    }
+}
+
+command read_verilog {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {read_verilog ?-sv? ?-library lib? file_list}
+
+    hover {
+        summary {Add Verilog source files to the project.}
+        synopsis {read_verilog ?-sv? ?-library lib? file_list}
+        source {F5}
+    }
+}
+
+command read_vhdl {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {read_vhdl ?-library lib? ?-vhdl2008? file_list}
+
+    hover {
+        summary {Add VHDL source files to the project.}
+        synopsis {read_vhdl ?-library lib? ?-vhdl2008? file_list}
+        source {F5}
+    }
+}
+
+command read_xdc {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {read_xdc ?-unmanaged? ?-ref ref_name? ?-cells cell? file_list}
+
+    hover {
+        summary {Read XDC timing constraint files.}
+        synopsis {read_xdc ?-unmanaged? ?-ref ref_name? ?-cells cell? file_list}
+        source {F5}
+    }
+}
+
+command report_clock_networks {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_clock_networks ?-file file? ?-name name?}
+
+    hover {
+        summary {Report clock network topology.}
+        synopsis {report_clock_networks ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command report_clock_utilization {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_clock_utilization ?-file file? ?-name name?}
+
+    hover {
+        summary {Report clock resource utilization.}
+        synopsis {report_clock_utilization ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command report_design_analysis {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_design_analysis ?-timing? ?-logic_level_distribution? ?-file file? ?-name name?}
+
+    hover {
+        summary {Report design analysis metrics.}
+        synopsis {report_design_analysis ?-timing? ?-logic_level_distribution? ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command report_drc {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_drc ?-ruledecks ruledeck_list? ?-file file? ?-name name?}
+
+    hover {
+        summary {Run and report design rule checks.}
+        synopsis {report_drc ?-ruledecks ruledeck_list? ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command report_io {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_io ?-file file? ?-name name?}
+
+    hover {
+        summary {Report I/O port assignments.}
+        synopsis {report_io ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command report_methodology {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_methodology ?-file file? ?-name name?}
+
+    hover {
+        summary {Run and report methodology checks.}
+        synopsis {report_methodology ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command report_power {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_power ?-file file? ?-name name? ?-advisory?}
+
+    hover {
+        summary {Report power consumption.}
+        synopsis {report_power ?-file file? ?-name name? ?-advisory?}
+        source {F5}
+    }
+}
+
+command report_route_status {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_route_status ?-file file? ?-name name?}
+
+    hover {
+        summary {Report routing status.}
+        synopsis {report_route_status ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command report_timing {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_timing ?-from from? ?-to to? ?-through through? ?-delay_type type? ?-max_paths n? ?-nworst n? ?-sort_by attr? ?-file file? ?-name name?}
+
+    hover {
+        summary {Report timing paths.}
+        synopsis {report_timing ?-from from? ?-to to? ?-through through? ?-delay_type type? ?-max_paths n? ?-nworst n?}
+        source {F5}
+    }
+}
+
+command report_timing_summary {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_timing_summary ?-delay_type type? ?-max_paths n? ?-check_timing_verbose? ?-file file? ?-name name?}
+
+    hover {
+        summary {Report comprehensive timing summary.}
+        synopsis {report_timing_summary ?-delay_type type? ?-max_paths n? ?-check_timing_verbose? ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command report_utilization {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {report_utilization ?-hierarchical? ?-hierarchical_depth n? ?-file file? ?-name name?}
+
+    hover {
+        summary {Report device utilization.}
+        synopsis {report_utilization ?-hierarchical? ?-hierarchical_depth n? ?-file file? ?-name name?}
+        source {F5}
+    }
+}
+
+command reset_run {
+    dialects tcl8.5
+    arity 1
+    required_package vivado
+
+    form Default {reset_run run_name}
+
+    hover {
+        summary {Reset a run to its initial state.}
+        synopsis {reset_run run_name}
+        source {F5}
+    }
+}
+
+command route_design {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {route_design ?-directive directive? ?-nets net_list? ?-unroute? ?-preserve?}
+
+    hover {
+        summary {Run routing.}
+        synopsis {route_design ?-directive directive? ?-nets net_list? ?-unroute? ?-preserve?}
+        source {F5}
+    }
+}
+
+command save_bd_design {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {save_bd_design}
+
+    hover {
+        summary {Save the current block design.}
+        synopsis {save_bd_design}
+        source {F5}
+    }
+}
+
+command save_project_as {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {save_project_as ?-force? project_name ?project_dir?}
+
+    hover {
+        summary {Save the project with a new name.}
+        synopsis {save_project_as ?-force? project_name ?project_dir?}
+        source {F5}
+    }
+}
+
+command set_property {
+    dialects tcl8.5
+    arity 3..
+    required_package vivado
+
+    form Default {set_property property_name value objects}
+
+    hover {
+        summary {Set a property on a Vivado design object.}
+        synopsis {set_property property_name value objects}
+        source {F5}
+    }
+}
+
+command synth_design {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {synth_design ?-top top_module? ?-part part? ?-flatten_hierarchy value? ?-fanout_limit n? ?-retiming? ?-directive directive? ?-mode mode?}
+
+    hover {
+        summary {Run synthesis.}
+        synopsis {synth_design ?-top top_module? ?-part part? ?-flatten_hierarchy value? ?-fanout_limit n? ?-retiming?}
+        source {F5}
+    }
+}
+
+command upgrade_ip {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {upgrade_ip ?-srcset srcset? ?-quiet? ?objects?}
+
+    hover {
+        summary {Upgrade IP cores to a newer version.}
+        synopsis {upgrade_ip ?-srcset srcset? ?-quiet? ?objects?}
+        source {F5}
+    }
+}
+
+command validate_bd_design {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {validate_bd_design ?-force?}
+
+    hover {
+        summary {Validate the block design.}
+        synopsis {validate_bd_design ?-force?}
+        source {F5}
+    }
+}
+
+command wait_on_run {
+    dialects tcl8.5
+    arity 1
+    required_package vivado
+
+    form Default {wait_on_run ?-timeout minutes? run_name}
+
+    hover {
+        summary {Wait for a run to complete.}
+        synopsis {wait_on_run ?-timeout minutes? run_name}
+        source {F5}
+    }
+}
+
+command write_bitstream {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {write_bitstream ?-force? ?-bin_file? ?-no_partial_bitfile? ?-cell cell? file_name}
+
+    hover {
+        summary {Generate a bitstream file.}
+        synopsis {write_bitstream ?-force? ?-bin_file? ?-no_partial_bitfile? ?-cell cell? file_name}
+        source {F5}
+    }
+}
+
+command write_checkpoint {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {write_checkpoint ?-force? ?-cell cell? file_name}
+
+    hover {
+        summary {Save a design checkpoint (.dcp).}
+        synopsis {write_checkpoint ?-force? ?-cell cell? file_name}
+        source {F5}
+    }
+}
+
+}

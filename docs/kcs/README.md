@@ -199,6 +199,14 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — declare third-party Tcl commands (sqlite `eval`, vendor builtins,
   factory-created instance commands) so the call graph, arity checker,
   and trait inferencer understand them.
+- [kcs-howto-create-command-specs-without-rust.md](kcs-howto-create-command-specs-without-rust.md)
+  — describe your own package's commands as a SpecTcl pack or in the
+  Command Spec Studio, and propose them for the shipped registry
+  without writing any Rust.
+- [kcs-howto-write-a-tclspec-pack.md](kcs-howto-write-a-tclspec-pack.md)
+  — the SpecTcl pack quickstart: the minimal `.tclspec` shape, the
+  three discovery tiers, validation, and what runtime loading does
+  today versus what is landing.
 - [kcs-howto-add-command-registry-package.md](kcs-howto-add-command-registry-package.md)
   — add first-class registry support for a Tcl package (sqlite3,
   tcllib, etc.) so the shipped distribution recognises its commands
@@ -250,6 +258,19 @@ symptom with several possible causes worth telling apart. See rule 13 in
 The `help` subcommand, the MCP `help` tool, and the VS Code `/help`
 chat command all read these files at runtime to build their feature
 catalogues.
+
+## Compiler fact contracts
+
+Notes about a change to a **compiler fact** — something an analyser pass,
+diagnostic, or downstream tool reads from the compiler and used to be able
+to assume was fixed for the life of the process, and no longer can — live
+under [`compiler/`](compiler/README.md).
+
+- [kcs-qa-is-the-command-registry-fixed-at-compile-time.md](compiler/kcs-qa-is-the-command-registry-fixed-at-compile-time.md)
+  — why the command registry the analyser consults is no longer fixed at
+  compile time now that SpecTcl packs can load at runtime, and what that
+  means for W002/W123 and any consumer that memoises "is this command
+  known".
 
 ## Diagnostics and optimisations (per-code pages)
 

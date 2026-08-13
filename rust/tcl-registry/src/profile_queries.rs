@@ -51,6 +51,18 @@ pub trait ProfileQueries {
     /// queries agree with mask queries on any registry.
     fn is_available(&self, spec: &CommandSpec) -> bool;
 
+    /// Whether a [`CommandSpec::required_package`](crate::CommandSpec::required_package)
+    /// gate is satisfied under this profile — the package third of
+    /// [`Self::is_available`], on its own.
+    ///
+    /// Separated out because the *sourcing* of a command can depend on it
+    /// before any availability question is asked: the EDA vendor libraries
+    /// ship as bundled `SpecTcl` loadables (`docs/design/spec-packs.md`), and
+    /// every vendor's pack is discovered for every profile, so the installer
+    /// needs this answer to keep a Cadence `report_timing` out of the Vivado
+    /// profile's registry rather than letting it shadow the Vivado one.
+    fn package_available(&self, required: Option<&'static str>) -> bool;
+
     /// Resolve `name` to its command spec under this profile — the single
     /// availability primitive the diagnostics (W123/W002), completion,
     /// and the CLI snapshot share. Mask query + disable filter.
@@ -210,6 +222,10 @@ impl ProfileQueries for DialectProfile {
         spec.supports_dialect(self.availability_mask)
             && (self.operators_as_commands || !spec.traits.contains(Traits::OPERATOR_COMMAND))
             && package_available(self, spec.required_package)
+    }
+
+    fn package_available(&self, required: Option<&'static str>) -> bool {
+        package_available(self, required)
     }
 
     fn resolve_command<'r>(

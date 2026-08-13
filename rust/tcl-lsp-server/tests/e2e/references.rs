@@ -26,7 +26,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::common::helpers::*;
-use crate::common::{Lsp, scaled_timeout, unique_uri};
+use crate::common::{Lsp, unique_uri};
 use std::time::Duration;
 
 // -- TestProcReferences --------------------------------------------------
@@ -1037,14 +1037,15 @@ fn find_references_reaches_an_unopened_tcltest_file_923_idx27() {
     let uri = format!("file://{}", lib.to_string_lossy());
     lsp.open_ready(&uri, &std::fs::read_to_string(&lib).expect("read"));
 
-    // The workspace index is built asynchronously; poll until the `.test`
-    // call site appears, or the budget runs out.
-    let deadline = std::time::Instant::now() + scaled_timeout(Duration::from_secs(20));
-    let mut refs = locations(&lsp.references(&uri, 0, 6, true));
-    while std::time::Instant::now() < deadline && !refs.iter().any(|l| l.uri.ends_with("a.test")) {
-        std::thread::sleep(Duration::from_millis(150));
-        refs = locations(&lsp.references(&uri, 0, 6, true));
-    }
+    // The workspace index is built asynchronously; poll (via
+    // `Lsp::await_query_settled`) until the `.test` call site appears, or the
+    // budget runs out.
+    let result = lsp.await_query_settled(
+        Duration::from_secs(20),
+        |lsp| lsp.references(&uri, 0, 6, true),
+        |result| locations(result).iter().any(|l| l.uri.ends_with("a.test")),
+    );
+    let refs = locations(&result);
     assert!(
         refs.iter().any(|l| l.uri.ends_with("a.test")),
         "the bare `greet` call in the un-opened .test file must be a reference: \

@@ -599,6 +599,9 @@ fn registry_definer_set_equals_former_hardcoded_list() {
                 spec.definition_body.is_some_and(|g| match g.family {
                     DefinerFamily::TclOo => spec.traits.contains(Traits::IS_OO_METACLASS),
                     DefinerFamily::Snit | DefinerFamily::Itcl => true,
+                    // SpecTcl bodies declare commands, they do not create
+                    // classes — the scanner deliberately claims none of them.
+                    DefinerFamily::SpecTcl => false,
                 })
             })
         })

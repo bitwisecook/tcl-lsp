@@ -1,0 +1,52 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "tcl-spectcl"
+publish.workspace = true
+description = "SpecTcl runtime pack support — the .tclspec loader, pack discovery, the compiled-pack cache, and registry insertion"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-core-types = { path = "../tcl-core-types" }
+tcl-dialect = { path = "../tcl-dialect" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-spec-hooks = { path = "../tcl-spec-hooks" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
+tcl-userdirs = { path = "../tcl-userdirs" }
+rustc-hash = { workspace = true }
+xxhash-rust = { workspace = true }
+
+# The corpus-validation harness (`tests/spec_corpus.rs`) drives the hook host
+# with the shipped engine behind a counting/panic-injecting wrapper, so it
+# needs the engine interface and the tclvm implementation directly. Neither is
+# a library dependency: `hooks.rs` reaches the engine only through
+# `tcl_spec_hooks::tclvm_host`, and that stays the one place naming an engine.
+[dev-dependencies]
+tcl-engine-api = { path = "../tcl-engine-api" }
+tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
+
+[lints]
+workspace = true

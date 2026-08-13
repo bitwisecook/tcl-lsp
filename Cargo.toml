@@ -55,16 +55,21 @@ members = [
     "rust/tcl-lexer",
     "rust/tcl-syntax",
     "rust/tcl-platform",
+    "rust/tcl-userdirs",
     "rust/tcl-host-native",
     "rust/tcl-cmd-core",
     "rust/tcl-bytecode",
     "rust/tcl-runtime-api",
     "rust/tcl-registry",
+    "rust/tcl-spectcl",
     "rust/tcl-regex",
     "rust/tcl-compiler",
     "rust/tcl-diagram",
     "rust/tcl-vm",
     "rust/tcl-vm-cli",
+    "rust/tcl-engine-api",
+    "rust/tcl-engine-tclvm",
+    "rust/tcl-spec-hooks",
     "rust/bpf-tcl-ir",
     "rust/bpf-tcl-codegen",
     "rust/bpf-tcl",
@@ -164,6 +169,14 @@ authors = ["tcl-lsp contributors"]
 # tcl-registry, and tcl-lsp-core to avoid the default SipHash cost. See
 # PR #693 / AQ §D1 (O10).
 rustc-hash = "2"
+
+# xxHash (XXH3) — the "xxhash-class" non-cryptographic digest the SpecTcl
+# compiled-pack cache keys on (docs/design/spec-packs.md). Zero dependencies,
+# no_std; chosen over the already-present FxHash because this digest keys
+# *file contents* on disk, where FxHash's short-key-tuned quality is not
+# good enough, and over the already-present sha2 because the whole point of
+# the cache is to beat a 4ms parse.
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

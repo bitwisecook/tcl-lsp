@@ -33,10 +33,6 @@ The skeleton generator uses the event registry to know which events exist, their
 
 - Missing events after registry updates.
 
-## Test anchors
-
-- `editors/vscode/src/test/iruleSkeleton.test.ts`
-
 ## Screenshots
 
 - `23-irule-skeleton` — event picker for skeleton generation

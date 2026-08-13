@@ -44,11 +44,23 @@ the package's distribution shape:
 | Bundled with the Tcl core | `tcl/` |
 | Standard library package (Tk, http, msgcat, …) | `stdlib/` |
 | tcllib package | `tcllib/` |
-| Dialect-specific (iRules, iApps, EDA vendors, Expect, itcl) | `irules/`, `iapps/`, `eda_*/`, `expect/`, `itcl/` |
+| Dialect-specific (iRules, iApps, Expect, itcl) | `irules/`, `iapps/`, `expect/`, `itcl/` |
+| An EDA vendor shell | **not this guide** — see below |
 | Standalone C extension (sqlite3, tdom, …) | `stdlib/` |
 
 `sqlite3` is a standalone C extension that needs `package require
 sqlite3`, so it belongs under `stdlib/`.
+
+**The EDA vendor libraries are not Rust modules.** `sdc_base` and the five
+vendor packs are bundled `SpecTcl` loadables — `specs/*.tclspec`, shipped
+beside the server executable and read by the pack loader
+([spec-packs.md](../design/spec-packs.md)). Adding or editing an EDA command
+means editing the `.tclspec` file: the syntax is
+[kcs-howto-write-a-tclspec-pack.md](kcs-howto-write-a-tclspec-pack.md),
+`tcl spec check` validates a pack, and
+`rust/tcl-spectcl/tests/eda_loadables.rs` is the gate. None of the steps
+below — no module, no `mod` line, no collector entry, no codegen refresh —
+applies to them.
 
 ### 2. Add one module per command
 
@@ -144,4 +156,9 @@ fail if they are stale.
   — the lighter-weight, per-project alternative when registry inclusion
   isn't warranted.
 - [Command registry design doc](../design/compiler/command-registry.md)
+- [Command spec studio](../design/contracts/command-spec-studio.md)
+  — fill in a form instead of an editor buffer; renders the finished
+  registry module or `.tclspec` for you.
+- [How to write a `.tclspec` pack](kcs-howto-write-a-tclspec-pack.md)
+  — the loadable route, and the only one for the EDA vendor libraries.
 - [KCS index](README.md)

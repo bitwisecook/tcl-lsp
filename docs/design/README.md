@@ -296,6 +296,21 @@ are its rules, and what are the failure modes". One contract per file.
 - [command-spec-studio.md](contracts/command-spec-studio.md) — the spec
   studio's schema / draft / renderer layering, the invariants that keep it
   in step with `CommandSpec`, and the rules its rendered `.rs` must satisfy.
+- [spec-packs.md](spec-packs.md) — **proposal**: a Tcl-DSL command
+  database for private libraries, statically parsed by our own
+  toolchain, with the vocabulary-tolerance policy that avoids
+  per-release rebuilds (issue #1363).
+- [spec-dsl-examples/tricky-surfaces.md](spec-dsl-examples/tricky-surfaces.md)
+  — the DSL's acceptance rubric: the tricky Tcl surfaces (operator
+  aliasing, TclOO corners, real-world options, paired tails, hooks)
+  each ticked against a ported example during review.
+- [spec-dsl-examples/external/README.md](spec-dsl-examples/external/README.md)
+  — the external-library census (ticklecharts, apave, SpiceGenTcl,
+  uncovered tcllib): per-library command-shape findings and the
+  frequency-ranked DSL requirements with their gap catalogue.
+- [spec-dsl-examples/external/corpus-expansion.md](spec-dsl-examples/external/corpus-expansion.md)
+  — the wider corpus hunt behind the #1181 additions, plus sixteen
+  hook-pattern exemplars quoted from cloned sources.
 - [proc-arg-traits.md](contracts/proc-arg-traits.md) — proc argument
   trait inference.
 - [variable-case-mismatch-suggestions.md](contracts/variable-case-mismatch-suggestions.md)
@@ -361,6 +376,10 @@ Distilled from the trickiest scars in the WASM runtime history
 
 ## Differential audits
 
+- [kcs-codes-drift-audit-2026-08-12.md](kcs-codes-drift-audit-2026-08-12.md)
+  — source-verified audit of the per-code diagnostic pages: missing
+  pages, behaviour contradictions, and the `safe_on_uninit` wiring gap
+  it surfaced.
 - [issue-923-differential-audit/README.md](issue-923-differential-audit/README.md)
   — the three-way differential method (mine a corpus, reduce to a minimal
   repro, compare a real `tclsh` oracle against the LSP), the oracle-environment

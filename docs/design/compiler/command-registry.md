@@ -16,80 +16,108 @@ Expect) are loaded lazily on first access for that dialect.  Registry
 metadata drives IR lowering, SCCP, GVN, taint, side-effects,
 diagnostics, and code completion.
 
+## Context
+
+Every Tcl command is a `CommandSpec` value returned by a `spec()` function in
+its own module under `rust/tcl-registry/src/commands/<pack>/`. Each pack
+module exposes a `<pack>_command_specs() -> Vec<CommandSpec>` collector, and
+`CommandRegistry` merges those into a by-name lookup table. Core packs (Tcl,
+stdlib, tcllib, argparse, ticklecharts, itcl, and Tk) are built in by
+`CommandRegistry::build_default`; the remaining dialect packs (iRules, iApps,
+tmsh, Expect, BPF) load on demand through `load_dialect`. The EDA shells are
+**not** Rust modules at all — `sdc_base` and the five vendor packs ship as
+bundled `.tclspec` loadables under `specs/` and reach a registry only through
+the `tcl-spectcl` loader (see [`../spec-packs.md`](../spec-packs.md)).
+Registry metadata drives IR lowering, SCCP, GVN, taint, side-effects,
+diagnostics, and code completion.
+
 Source: `rust/tcl-registry/src/spec.rs` (`CommandSpec`, `SubCommand`),
-`rust/tcl-registry/src/registry.rs` (`CommandRegistry`, `build_default`,
-`load_dialect`), `rust/tcl-registry/src/traits.rs` (`Trait`, `Traits`),
-`rust/tcl-registry/src/commands/` (per-command `spec()` modules),
-`rust/tcl-registry/src/taint.rs`
+`rust/tcl-registry/src/registry.rs` (`CommandRegistry`),
+`rust/tcl-registry/src/cache.rs` (`registry_for_dialect`),
+plus the per-fact modules beside them (`arg_role.rs`, `traits.rs`,
+`taint.rs`, `hooks.rs`, `lifecycle.rs`, `side_effects.rs`).
+
+## Content
 
 ### Architecture
 
 ```
-commands/<dialect>/<name>.rs (per command)
+commands/<pack>/<command>.rs :: spec() -> CommandSpec
     |
-    +-> pub fn spec() -> CommandSpec
-            |
-            +-> forms: &'static [FormSpec]
-            |     +- kind, synopsis, dialects
-            |
-            +-> subcommands: &'static [SubCommand]
-            |     +- name, arity, traits, return_type, options, taint_transform,
-            |        codegen_hook, lowering_hook, analyser_hook, ...
-            |
-            +-> arity: Arity (overall arity)
-            |
-            +-> traits: Traits (bitset over Trait -- PURE, CSE_CANDIDATE, ...)
-            |
-            +-> arg_roles: &'static [(u8, ArgRole)]
-            |
-            +-> taint_source / taint_*_sink_* / setter_constraints
-            |
-            +-> dialects, event_requires, deprecated_replacement, ...
+    +-> traits: Traits                       (one u128 bitset over Trait)
+    |
+    +-> arity: Arity                         (overall argument-count bounds)
+    |
+    +-> forms: &'static [FormSpec]
+    |     +- kind, synopsis, arity, options, pure, mutator, side_effects
+    |
+    +-> subcommands: &'static [SubCommand]
+    |     +- arity, traits, return_type, options, taint_transform,
+    |        codegen_hook, lowering_hook, analyser_hook, ...
+    |
+    +-> arg_roles: &'static [(u8, ArgRole)]  (+ arg_role_resolver, repeated_args)
+    |
+    +-> taint_source / taint_transform / taint_*_sink* / setter_constraints
+    |
+    +-> dialects, lifecycle, event_requires, deprecated_replacement, ...
 ```
+
+Two structural points are worth stating up front, because they change how a
+spec is read as well as written:
+
+- **Behaviour is one bitflag set, not a field per fact.** Every behavioural
+  flag lives in `traits: Traits`, a `u128` bitset over the `Trait` enum
+  (`rust/tcl-registry/src/traits.rs`), set as a union
+  (`Traits::PURE | Traits::CSE_CANDIDATE`). A bit that is not named is unset,
+  and `CommandRegistry` exposes membership queries over the set rather than
+  one accessor per flag.
+- **Arity is a field.** `CommandSpec::arity` carries the overall constraint
+  directly.
 
 ### Defining a command
 
-Each dialect (`commands/tcl/`, `commands/irules/`, `commands/iapps/`,
-`commands/tk/`) is a module directory: one file per command, each
-exposing `pub fn spec() -> CommandSpec`, plus a `mod.rs` whose
-`<dialect>_command_specs() -> Vec<CommandSpec>` lists every `spec()` call
-in a `vec![]`.  There is no registration decorator and no per-command
-type — a command exists in a dialect because its `spec()` appears in that
-dialect's vector.
-
-Most fields come from a base constant via struct-update syntax
-(`..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT` below), so a spec
-literal names only what differs from the base.
+A command is a module holding a `spec()` function that returns a
+`CommandSpec`, with `..CommandSpec::DEFAULT` supplying every field the
+command does not declare:
 
 ```rust
-use crate::hooks::InlineCodegenHookId;
-use crate::prelude::*;
-
-const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
-    synopsis: "lindex list ?index ...?",
-    dialects: None,
-}];
-
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        name: "lindex",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
-        const_fold: Some(crate::const_fold::fold_lindex),
-        traits: Traits::FRAMELESS_RUNTIME
-            | Traits::NOT_PROC_FACTORY
-            | Traits::BYTE_COMPILED
-            | Traits::PURE
-            | Traits::CSE_CANDIDATE,
-        arity: Arity::at_least(1),
+        name: "puts",
+        dialects: Some(DialectSet::ALL_TCL),
+        traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::TAINT_SINK,
+        arity: Arity::new(1, 2),
+        arg_role_resolver: Some(puts_arg_roles),
         return_type: Some(TclType::String),
-        return_elements: Some(ReturnElements::ElementOf { container_arg: 0 }),
-        inline_codegen_hook: Some(InlineCodegenHookId::Lindex),
-        forms: FORMS,
-        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+            dialects: None,
+        }],
+        options: const {
+            &[OptionSpec {
+                name: "-nonewline",
+                value: OptionValue::flag(),
+                detail: "Suppress the newline puts normally appends after string.",
+                dialects: None,
+                aliases: &[],
+                lifecycle: Lifecycle::UNSPECIFIED,
+                min_abbrev: None,
+            }]
+        },
+        ..CommandSpec::DEFAULT
     }
 }
 ```
+
+Registration is a declaration, not a decorator: add `mod puts_;` to the
+pack's `mod.rs` and `puts_::spec(),` to the list its `<pack>_command_specs()`
+collector returns. (The trailing underscore avoids clashing with a Rust
+keyword or a std name.) The registry keys duplicates by name and picks per
+dialect, so one command may have several specs — see the note on
+`best_visible` under the TclOO helpers below.
 
 ### CommandSpec field reference
 
@@ -102,6 +130,7 @@ pub fn spec() -> CommandSpec {
 | `required_package` | `Option<&'static str>` | `None` | Only show in completions when this package has been `package require`d |
 | `tcllib_package` | `Option<&'static str>` | `None` | Tcllib package that provides this command (per-document activation) |
 | `warn_missing_import` | `bool` | `true` | Whether W120 fires when used without `package require`.  `false` for Tk commands (auto-loaded by `wish`) |
+| `is_namespace_exported` | `bool` | `false` | Whether the source namespace exports the bare name, so `namespace import` can bring it in |
 | `lifecycle` | `Lifecycle` | `UNSPECIFIED` | Introducing / deprecating / **retiring** releases on the owning package's version axis.  See [Lifecycle](#lifecycle----one-contract-for-every-versioned-entity) |
 
 #### Documentation
@@ -110,7 +139,7 @@ pub fn spec() -> CommandSpec {
 |-------|------|---------|---------|
 | `hover` | `Option<HoverSnippet>` | `None` | Man-page summary, synopsis, snippet, and examples for hover/signature help |
 | `forms` | `&'static [FormSpec]` | `&[]` | Invocation forms (getter vs setter variants).  See FormSpec section |
-| `arity` | `Arity` | `Arity::any()` | Overall arity constraint.  Drives W101 (wrong number of arguments) |
+| `arity` | `Arity` | `Arity::any()` | Overall arity constraint, counted after the command name.  Drives W101 (wrong number of arguments) |
 
 #### Subcommands
 
@@ -118,19 +147,19 @@ pub fn spec() -> CommandSpec {
 |-------|------|---------|---------|
 | `subcommands` | `&'static [SubCommand]` | `&[]` | Ensemble subcommand table, keyed by each entry's own `name`.  See SubCommand section |
 | `allow_unknown_subcommands` | `bool` | `false` | Suppress W001 (unknown subcommand) for unrecognised subcommands (e.g. user-defined `oo::class` methods) |
+| `prefix_matching` | `PrefixMatching` | `Enabled` | Whether this spec's keyword tables honour unique-prefix abbreviation (`Tcl_GetIndexFromObj`) or only exact spellings (`TCL_INDEX_STRICT`) |
+| `implementation_namespace` | `Option<&'static str>` | `None` | Namespace the ensemble's subcommands are also individually callable under |
 | `default_form_first_word` | `Option<DefaultFormFirstWord>` | `None` | Value shape a non-subcommand first word may take to select the command's *default* form (`after 200 ...` — an integer first word is a delay, not an unknown subcommand). Matched via the canonical `tcl-syntax` number parser, so every Tcl integer spelling works |
 
 #### Compiler traits
 
-Behavioural flags live in the single `traits: Traits` field, a `u128`
-bitset over the `Trait` enum (`rust/tcl-registry/src/traits.rs`).  A spec
-literal sets them by `|`-ing named constants
-(`traits: Traits::PURE | Traits::CSE_CANDIDATE`); a bit that is not named
-is unset.  `CommandRegistry` exposes membership queries over the set
-rather than one accessor per flag.
+These are **bits of the `traits` field**, not fields of their own. A spec sets
+them as a union: `traits: Traits::HAS_LOOP_BODY | Traits::NEVER_INLINE_BODY`.
+`rust/tcl-registry/src/traits.rs` is the authoritative list; the table below
+covers the compiler-facing ones.
 
-| Trait | Purpose |
-|-------|---------|
+| Trait bit | Purpose |
+|-----------|---------|
 | `CREATES_DYNAMIC_BARRIER` | Lowered to `IRBarrier` -- blocks optimisations across this call |
 | `HAS_LOOP_BODY` | Command has a loop body (affects dead-code analysis) |
 | `NEVER_INLINE_BODY` | Body arguments must not be inlined by the optimiser |
@@ -140,12 +169,19 @@ rather than one accessor per flag.
 | `CREATES_SCOPE_ALIAS` | Creates a scope alias (upvar-like binding) |
 | `STRUCTURALLY_CHECKED_ARITY` | Registry `arity` is a descriptive floor only; a `clause_shape_check` hook owns real arity + shape validation, so the generic E002/E003 floor/ceiling check steps aside (`if`) |
 
+Traits compose across levels: a `SubCommand` carries its own `traits`, and
+consumers read the union of the command's and the resolved subcommand's bits.
+
 #### Purity and optimisation
 
-| Field | Type | Default | Purpose |
+`pure` and `cse_candidate` are likewise `traits` bits (`Traits::PURE`,
+`Traits::CSE_CANDIDATE`), not fields; the remaining optimisation facts are
+typed descriptor fields.
+
+| Field / trait | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `traits: Traits::PURE` | `Traits` bit | *(unset)* | No side effects -- safe for SCCP to propagate through |
-| `traits: Traits::CSE_CANDIDATE` | `Traits` bit | *(unset)* | Result can be cached by GVN (common subexpression elimination) |
+| `Traits::PURE` | trait bit | unset | No side effects -- safe for SCCP to propagate through |
+| `Traits::CSE_CANDIDATE` | trait bit | unset | Result can be cached by GVN (common subexpression elimination) |
 | `result_stability` | `Option<ResultStability>` | `None` | Separates argument-only, versioned-world, volatile, and unknown results. Purity alone never proves replay returns the same value. |
 | `world_effects` | `Option<WorldEffectDescriptor>` | `None` | Typed reads, writes, callbacks, and clobbers of mutable Tcl-world domains. |
 | `state_transitions` | `Option<StateTransitionDescriptor>` | `None` | Known binding, namespace, interpreter, trace, and variable-cell identity changes; dynamic operands widen their typed domain. |
@@ -163,16 +199,20 @@ execution trace is absent.
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `arg_roles` | `&'static [(u8, ArgRole)]` | `&[]` | Static arg roles, as `(index, role)` pairs: `BODY`, `EXPR`, `VAR_NAME`, `VAR_READ`, `PATTERN`, etc. |
+| `arg_roles` | `&'static [(u8, ArgRole)]` | `&[]` | Static arg roles: `Body`, `Expr`, `VarWrite`, `VarRead`, `Pattern`, etc. |
 | `arg_role_resolver` | `Option<ArgRoleResolver>` | `None` | Dynamic arg-role resolution for variable-layout commands (if, try, switch) |
-| `arg_presentation` | `&[(u8, ArgPresentation)]` | `&[]` | Formatter layout override per argument index -- see [ArgPresentation](#argpresentation----how-a-formatter-lays-an-argument-out) |
-| `repeated_args` | `&[RepeatedArgLayout]` | `&[]` | Roles that recur at a fixed stride over the argument tail (`global a b c`, `foreach v l ... body`) |
+| `arg_presentation` | `&'static [(u8, ArgPresentation)]` | `&[]` | Formatter layout override per argument index -- see [ArgPresentation](#argpresentation----how-a-formatter-lays-an-argument-out) |
+| `repeated_args` | `&'static [RepeatedArgLayout]` | `&[]` | Roles that recur at a fixed stride over the argument tail (`global a b c`, `foreach v l ... body`) |
+| `command_prefixes` | `&'static [(u8, AppendedArity)]` | `&[]` | Static `ArgRole::CommandPrefix` positions with the arity appended to the callback |
+| `command_prefix_resolver` | `Option<CommandPrefixResolver>` | `None` | Dynamic command-prefix positions (`trace add …`, `interp alias`) |
 | `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
-| `option_constraints` | `&[OptionConstraint]` | `&[]` | Relationships between otherwise valid leading options, including dialect gates. Drives generic W147 without naming the command. |
+| `frame_effect` | `Option<FrameEffectSpec>` | `None` | How the command crosses stack frames: the level word, the frame-selected variable arguments, and caller-frame scripts |
+| `option_constraints` | `&'static [OptionConstraint]` | `&[]` | Relationships between otherwise valid leading options, including dialect gates. Drives generic W147 without naming the command. |
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
-| `arg_types` | `&'static [(u8, ArgTypeHint)]` | `&[]` | Per-argument type expectations as `(index, hint)` pairs (e.g. `TclType::Int`, `TclType::List`).  Drives shimmer detection |
+| `arg_types` | `&'static [(u8, ArgTypeHint)]` | `&[]` | Per-argument type expectations (e.g. `Int`, `List`).  Drives shimmer detection |
 | `return_type` | `Option<TclType>` | `None` | Return type of the command |
 | `completion` | `Option<CompletionDescriptor>` | `None` | Tcl *completion-code* semantics: which return codes (`CompletionCodeDomain::Exact` / `Any`) the call can complete with, and its result / return-options payload obligations.  A resolved subcommand or invocation form may supply a more specific descriptor; `None` stays conservative |
+| `body_kind` | `BodyKind` | `Plain` | Whether body arguments run in the caller's frame or a separate definition context |
 
 #### Variable assignment
 
@@ -180,9 +220,9 @@ execution trace is absent.
 |-------|------|---------|---------|
 | `assigns_variable_at` | `Option<u8>` | `None` | Arg index of the variable this command writes to (e.g. 0 for `set varName value`) |
 | `var_write_typing` | `VarWriteTyping` | `ReturnValue` | How the type-inference pass types the variable(s) this command *writes*, distinct from `return_type` (which types the value it *returns*).  See below |
-| `safe_on_uninit` | `Option<DialectSet>` | `None` | Whether the command safely creates an uninitialised variable.  `None` = not safe (W210 fires).  `Some(DialectSet::empty())` = safe in all dialects.  A non-empty set = safe only in those dialects.  Use a version-floor constant such as `DialectSet::TCL85_PLUS` for version-gated behaviour (`incr` is safe in 8.5+ but errors in 8.4 and iRules) |
+| `safe_on_uninit` | `Option<DialectSet>` | `None` | Whether the command safely creates an uninitialised variable.  `None` = not safe (W210 fires); `Some(_)` = safe.  **The dialect set is currently inert**: every consumer tests only `is_some()`, so a version-gated spelling such as `Some(DialectSet::TCL85_PLUS)` does not actually restrict anything (`incr` is safe in 8.5+ but errors in 8.4 and iRules — the set does not yet express that).  The field's doc comment defines `Some(empty)` as "safe in all dialects", while shipped specs spell the all-dialects case `Some(DialectSet::ALL_TCL)`; both reach the same consumers.  Wiring the set through is an open gap |
 | `inferred_storage_type` | `Option<StorageType>` | `None` | Inferred type for the target variable: `Dict`, `List`, or `Array` |
-| `traits: Traits::DEFINES_PROCEDURE` | `Traits` bit | *(unset)* | Command defines a procedure (proc, method, etc.).  Narrower is `command_table_effect: Some(CommandTableEffect::DefinesProcedure)`, which marks only the `proc`-shaped form |
+| `Traits::DEFINES_PROCEDURE` | trait bit | unset | Command defines a procedure (proc, method, etc.) |
 | `defines_command_at` | `Option<u8>` | `None` | Argument index (0-based, after the command name) whose *literal* value becomes a callable command name once the call runs — `coroutine NAME cmd ?arg …?` binds `NAME` (`TclNRCoroutineObjCmd`, `tclBasic.c`).  Lighter than `creates_instance_at` (no `object_class` method dispatch); consumed generically by the analyser so later calls to the name don't draw W123.  The subcommand-level twin lives on `SubCommand` (`interp create ?-safe? ?--? ?name?`, index relative to the word after the subcommand); an option flag (leading `-`) or dynamic word at the index is never recorded, and a missing name is auto-generated at run time |
 
 ##### `var_write_typing` — return type vs written-variable type
@@ -229,79 +269,87 @@ still types `left` from `return_type`.
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `traits: Traits::UNSAFE` | `Traits` bit | *(unset)* | Command is dangerous in iRules (IRULE2003) |
-| `traits: Traits::TAINT_SINK` | `Traits` bit | *(unset)* | Command is a taint sink (T100) |
-| `traits: Traits::PASSWORD_OPTION` | `Traits` bit | *(unset)* | Command has a password option |
+| `unsafe_command` | `bool` | `false` | Command is dangerous in iRules (IRULE2003) |
+| `Traits::TAINT_SINK` | trait bit | unset | Command is a taint sink (T100) |
+| `Traits::TAINT_SOURCE` | trait bit | unset | Command's result is attacker-influenced |
+| `taint_source` | `Option<TaintColour>` | `None` | Colour bits the return value carries when the command is a source |
 | `taint_output_sink` | `Option<&'static str>` | `None` | Output sink diagnostic code (e.g. `"IRULE3001"` for XSS) |
-| `taint_output_sink_subcommands` | `&'static [&'static str]` | `&[]` | Restricts `taint_output_sink` to invocations whose first argument is one of these subcommands (`HTTP::header insert\|replace`).  Empty = applies to every invocation |
+| `taint_output_sink_subcommands` | `&'static [&'static str]` | `&[]` | Subcommands that are output sinks. Empty = every invocation |
 | `taint_log_sink` | `Option<&'static str>` | `None` | Log injection sink diagnostic code |
 | `taint_network_sink_args` | `Option<&'static [u8]>` | `None` | Arg indices that are network sinks |
-| `taint_code_sink_args` | `Option<&'static [u8]>` | `None` | Arg indices carrying the code-execution hazard.  `None` = every argument reaches evaluation (the `eval` / `uplevel` / `subst` / `exec` "whole tail is one script" shape) |
-| `taint_interp_eval_subcommands` | `&'static [&'static str]` | `&[]` | Subcommands that evaluate code in another interpreter (`interp eval`, `interp invokehidden`) — T105.  Empty = none |
-| `taint_source` | `Option<TaintColour>` | `None` | Colour this command's result carries as an origin of untrusted data.  `None` = not a source; the registry indexes every spec's value dialect-agnostically at build time |
+| `taint_code_sink_args` | `Option<&'static [u8]>` | `None` | Arg indices where a tainted value reaches eval-style evaluation |
+| `taint_interp_eval_subcommands` | `&'static [&'static str]` | `&[]` | Subcommands that eval untrusted input |
 | `taint_transform` | `Option<TaintColour>` | `None` | Colour bits added to tainted output |
 | `taint_double_encode_colour` | `Option<TaintColour>` | `None` | Colour for double-encoding detection |
 | `taint_sink_safe_colour` | `Option<TaintColour>` | `None` | Colour that suppresses T100 for this sink |
-| `taint_sink_gate` | `Option<fn(&[&str]) -> bool>` | `None` | Predicate over the call's arguments; a `false` result suppresses sink classification for that call (`subst -nocommands` disables the only hazard T100 warns about) |
-| `setter_constraints` | `&'static [SetterConstraint]` | `&[]` | Setter-form argument constraints (IRULE3101).  Empty = none |
+| `taint_sink_gate` | `Option<fn(&[&str]) -> bool>` | `None` | Predicate over the call's own flags deciding whether the sink applies |
 | `credential_options` | `&'static [&'static str]` | `&[]` | Option flags that carry secrets (e.g. `-password`) |
 | `sensitive_headers` | `&'static [&'static str]` | `&[]` | Header names whose values are secrets |
-
-W304 ("missing option terminator") has no dedicated flag: it is driven by
-an `OptionSpec` named `"--"` in `options` (or on a subcommand), plus
-`reserved_trailing_words`, resolved by
-`CommandRegistry::resolve_option_terminator`.
+| `Traits::PASSWORD_OPTION` | trait bit | unset | Command has a password option |
+| `setter_constraints` | `&'static [SetterConstraint]` | `&[]` | Required argument prefixes on setter forms (IRULE3101) |
 
 #### Side effects
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `side_effects` | `&'static [SideEffect]` | `&[]` | Static effect hints overriding heuristic classification.  Each `SideEffect` declares target (variable, channel, etc.), reads/writes, and connection side |
+| `side_effects` | `&'static [SideEffect]` | `&[]` | Static effect declarations overriding heuristic classification.  Each `SideEffect` declares target (`Variable`, `ChannelIo`, etc.), reads/writes, connection side, and an optional dialect gate |
+
+The coarser, target-neutral companions to this field — `world_effects`,
+`state_transitions`, and `dispatch_dependencies` — are listed under
+[Purity and optimisation](#purity-and-optimisation) above, since the
+optimiser is what reads them.
 
 #### Deprecation and diagnostics
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
 | `deprecated_replacement` | `Option<&'static str>` | `None` | Replacement command name for deprecation warnings |
-| `deprecated_replacement_drop_in` | `bool` | `false` | Whether `deprecated_replacement` is a drop-in rename, so a quick fix may mechanically swap the command head (`client_addr` → `IP::client_addr`).  `false` for replacements that restructure arguments, change surrounding syntax, or are prose — those stay message-only |
-| `analyser_hook` | `Option<AnalyserHookId>` | `None` | Typed ID selecting a per-command handler in the analyser's central dispatch (`tcl_compiler::analyser`); command-specific diagnostics beyond arity |
-| `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | See [Argument semantics](#argument-semantics) |
+| `deprecated_replacement_drop_in` | `bool` | `false` | Whether the replacement accepts the deprecated argument list unchanged, so the quick fix can rewrite calls automatically |
+| `Lifecycle::deprecation_fix` | `Option<DeprecationFixHook>` | `None` | Registry-owned edit plan or contextual callback behind the deprecation code action.  Carried on `lifecycle`, not as a top-level field |
 
 #### Execution and compilation hooks
 
-Hooks are typed IDs, not function pointers into a consumer crate: the
-registry names the hook and the consumer owns the dispatch table
-(`rust/tcl-registry/src/hooks.rs`).
+Each is a **typed ID** the consumer dispatches on, not a function pointer into
+a per-command handler: the compiler holds the implementation and the registry
+only names which one applies. `rust/tcl-registry/src/hooks.rs` declares them.
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `codegen_hook` | `Option<CodegenHookId>` | `None` | Bytecode specialisation hook |
-| `inline_codegen_hook` | `Option<InlineCodegenHookId>` | `None` | Inline (value-position `[cmd …]` / catch-body) bytecode specialisation hook — dispatched by `tcl_compiler::codegen::{cmd_subst,control_flow}` |
-| `lowering_hook` | `Option<LoweringHookId>` | `None` | IR lowering hook |
-| `const_fold` | `Option<ConstFoldFn>` | `None` | Constant-folding function for literal arguments |
-| `const_fold_versioned` | `Option<VersionedConstFoldFn>` | `None` | Constant folding whose result depends on the target Tcl version |
+| `lowering_hook` | `Option<LoweringHookId>` | `None` | IR lowering specialisation |
+| `codegen_hook` | `Option<CodegenHookId>` | `None` | Bytecode specialisation for the `TclVM` emitter |
+| `inline_codegen_hook` | `Option<InlineCodegenHookId>` | `None` | Inline (value-position `[cmd …]` / catch-body) bytecode specialisation hook, dispatched by `tcl_compiler::codegen::{cmd_subst,control_flow}` |
+| `analyser_hook` | `Option<AnalyserHookId>` | `None` | Per-command handler family in the analyser's central dispatch |
+| `semantic_operation` | `Option<SemanticOperationId>` | `None` | Target-neutral operation identity selected before backend dispatch |
+| `bpf_op` | `Option<&'static BpfOpSpec>` | `None` | Typed BPF-Tcl lowering descriptor |
+| `const_fold` | `Option<ConstFoldFn>` | `None` | Compile-time folder returning the command's constant result |
+| `const_fold_versioned` | `Option<VersionedConstFoldFn>` | `None` | Tcl-version-aware folder; takes priority over the plain folder |
+| `context_gate` | `Option<ContextGate>` | `None` | Validity gate keyed on lexical or dispatch context rather than argument shape |
 
 #### Cross-cutting
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `traits: Traits::DIAGRAM_ACTION` | `Traits` bit | *(unset)* | Include in diagram extraction |
+| `Traits::DIAGRAM_ACTION` | trait bit | unset | Include in diagram extraction |
 | `xc_translatable` | `Option<bool>` | `None` | XC translatability.  `None` = follow default rules |
+| `xc_operation` | `Option<&'static str>` | `None` | The XC operation the command maps to when translatable |
 | `format_string_type` | `Option<FormatType>` | `None` | Format string metadata (e.g. `format`, `scan`) |
 | `pattern_type` | `Option<PatternType>` | `None` | Pattern metadata (e.g. glob, regex) |
-| `defines_symbol` | `Option<SymbolDef>` | `None` | Command binds a navigable definition *name* the outline lists (`tcltest::test` → test case, `tcltest::testConstraint` → constraint, `tcltest::customMatch` → match mode).  `SymbolDef` carries the name argument index, an optional description-argument index, an optional `requires_arg` (record only when that argument is present — so a `testConstraint NAME value` setter defines but the `testConstraint NAME` getter does not), and the outline category (`DefinedSymbolKind`: `Test` / `Constraint` / `Matcher`).  Every symbol consumer (document + workspace symbols) reads it generically — no command-name check.  Distinct from `Traits::DEFINES_PROCEDURE` / `definition_body`, which carry the richer proc / class records |
+| `byte_array_effect` | `ByteArrayEffect` | `None` | How the command transforms a byte-array operand (S110) |
+| `defines_symbol` | `Option<SymbolDef>` | `None` | Command binds a navigable definition *name* the outline lists (`tcltest::test` → test case, `tcltest::testConstraint` → constraint, `tcltest::customMatch` → match mode).  `SymbolDef` carries the name argument index, an optional description-argument index, an optional `requires_arg` (record only when that argument is present — so a `testConstraint NAME value` setter defines but the `testConstraint NAME` getter does not), and the outline category (`DefinedSymbolKind`: `Test` / `Constraint` / `Matcher`).  Every symbol consumer (document + workspace symbols) reads it generically — no command-name check.  Distinct from `traits.DEFINES_PROCEDURE` / `definition_body`, which carry the richer proc / class records |
 
 ### SubCommand field reference
 
 SubCommand shares many fields with CommandSpec but at the subcommand level.
 Only fields unique to SubCommand or with different semantics are listed;
 shared fields (`arg_roles`, `return_type`, `var_write_typing`, `arg_types`,
-`side_effects`, `taint_transform`, `safe_on_uninit`, etc.) have the same
-meaning as on CommandSpec.  `SubCommand` carries its own `traits: Traits`
-set, plus plain `pure: bool` and `mutator: bool` fields that `CommandSpec`
-folds into trait bits.  A subcommand's
-`var_write_typing` overrides its parent's when the call resolves to that
-subcommand (`binary scan` destructures where the bare `binary` does not).
+`traits`, `side_effects`, `taint_transform`, `safe_on_uninit`, etc.) have the
+same meaning as on CommandSpec.  A subcommand's `var_write_typing` overrides
+its parent's when the call resolves to that subcommand (`binary scan`
+destructures where the bare `binary` does not).
+
+`pure` and `mutator` are the one place these two levels differ in shape: on
+`SubCommand` they are real `bool` fields, while the command level expresses
+purity through `Traits::PURE`.
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
@@ -309,15 +357,19 @@ subcommand (`binary scan` destructures where the bare `binary` does not).
 | `arity` | `Arity` | *(required)* | Arg count after the subcommand word |
 | `detail` | `&'static str` | `""` | Short description for completion items |
 | `synopsis` | `&'static str` | `""` | Usage synopsis for completion/hover |
+| `pure` | `bool` | `false` | Side-effect free |
+| `mutator` | `bool` | `false` | Mutates state |
 | `dialects` | `Option<DialectSet>` | `None` | Override parent's dialect set.  `None` = inherit |
 | `lifecycle` | `Lifecycle` | `UNSPECIFIED` | Introducing / deprecating / **retiring** releases of this subcommand on the owning package's version axis. Retirement is exclusive (`retired: 10.0.0` ⇒ gone *in* 10.0.0). On iRules commands this is compared with the existing `tclLsp.bigipVersion` / `--bigip-version` keyed BIG-IP floor. See `tcl_registry::lifecycle` |
-| `versioned_arg_values` | `&'static [VersionedArgValue]` | `&[]` | Owning-package release ranges for individual literal values declared in `arg_values`, indexed after the subcommand word (for example, the `mcp` mode of `persist add`) |
+| `versioned_arg_values` | `&[VersionedArgValue]` | `&[]` | Owning-package release ranges for individual literal values declared in `arg_values`, indexed after the subcommand word (for example, the `mcp` mode of `persist add`) |
 | `destructive` | `bool` | `false` | Destructive operation (e.g. `file delete`) |
+| `returns_path` | `bool` | `false` | Result is a filesystem path (`file join`, `file dirname`) |
+| `is_unescape` | `bool` | `false` | Performs unescaping or decoding — undoes sanitisation in taint terms |
 | `credential_arg` | `Option<u8>` | `None` | Arg index that carries a secret |
 | `taint_output_sink` | `Option<&'static str>` | `None` | Per-subcommand output sink diagnostic code |
 | `xc_operation` | `Option<&'static str>` | `None` | XC translation operation |
-| `subcommand_forms` | `&'static [SubCommandForm]` | `&[]` | Per-subcommand getter/setter forms |
-| `sub_subcommands` | `&'static [SubSubCommand]` | `&[]` | A third dispatch level, for ensembles whose subcommand itself dispatches on a further keyword |
+| `subcommand_forms` | `&'static [SubCommandForm]` | `&[]` | Per-form arity, roles, options, and hooks matched after the subcommand word |
+| `sub_subcommands` | `&'static [SubSubCommand]` | `&[]` | Operations selected by the word after this subcommand (`info object <op>`) |
 | `defines_command_at` | `Option<u8>` | `None` | Subcommand-level twin of the command-level `defines_command_at` (index 0-based, *after* the subcommand word) — `interp create ?-safe? ?--? ?name?` binds `name` as the child interpreter's command |
 
 ### ObjectClassSpec -- object-method dispatch
@@ -355,65 +407,87 @@ The class's `new` / `create` constructor returns an object handle of
   method call; its `-option value` pairs fall through to the generic option
   highlighting.
 
-### FormSpec -- invocation forms
+### Invocation forms -- two levels, two jobs
 
-A command can have multiple forms (getter vs setter).  Two distinct types
-carry them.  `FormSpec` (`rust/tcl-registry/src/hover.rs`), reached via
-`CommandSpec.forms`, is the thin documentation descriptor consumed by
-hover and completion:
+A command that reads one way and writes another is described at two
+different depths, and the two are not interchangeable.
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `kind` | `FormKind` | `Default`, `Getter`, or `Setter` |
-| `synopsis` | `&'static str` | Usage line for hover/completion |
-| `dialects` | `Option<DialectSet>` | Where this form exists.  `None` = inherit |
+**`FormSpec`** (`hover.rs`, on `CommandSpec::forms` and `SubCommand::forms`)
+is *documentation*: it names a form so completion and hover can show the
+right synopsis line for it.
 
-`CommandForm` (`rust/tcl-registry/src/forms.rs`), reached via
-`CommandSpec.command_forms` — and `SubCommandForm` via
-`SubCommand.subcommand_forms` — is the behavioural descriptor that drives
-compiler routing:
+| Field | Purpose |
+|-------|---------|
+| `kind` | `FormKind::Default`, `Getter`, or `Setter` |
+| `synopsis` | The usage line for this form |
+| `dialects` | Dialect gate for the form. `None` = inherit |
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `name` | `&'static str` | Form display name (`"default"`, `"with-amount"`, …) |
-| `arity` | `Arity` | Per-form arg count, after the command name |
-| `arg_roles` | `&'static [(u8, ArgRole)]` | Per-form argument roles |
-| `options` | `&'static [OptionSpec]` | Valid switch options |
-| `option_constraints` | `&'static [OptionConstraint]` | Relationships between otherwise valid options |
-| `dialects` | `Option<DialectSet>` | Where this form exists |
-| `result_stability`, `world_effects`, `state_transitions`, `dispatch_dependencies`, `representation_effect` | `Option<…>` | Per-form overrides of the command-level descriptors |
-| `lowering_hook`, `codegen_hook` | `Option<…Id>` | Per-form hook routing |
+**`CommandForm`** (`forms.rs`, on `CommandSpec::command_forms`, with
+`SubCommandForm` its subcommand-level twin) is *behaviour*: a named form with
+its own arity, roles, options, hooks, and effect descriptors, for a command
+whose forms genuinely differ in what they do rather than only in how they are
+written.
 
-`pick_form` in `rust/tcl-registry/src/registry.rs` matches a call's
-argument count and dialect against the form list; the chosen form is
-reported as the `form` field of the resolved invocation.
+| Field | Purpose |
+|-------|---------|
+| `name` | The form's identifier |
+| `arity`, `arg_roles` | Per-form argument count and roles |
+| `options`, `option_constraints` | Per-form switches and their relationships |
+| `semantic_operation`, `lowering_hook`, `codegen_hook` | Per-form dispatch |
+| `result_stability`, `world_effects`, `state_transitions`, `dispatch_dependencies`, `representation_effect` | Per-form optimiser facts |
+| `literal_argument_validator`, `completion` | Per-form validation and completion contract |
+| `dialects` | Dialect gate for the form |
+
+How a matched form, subcommand, and command combine into one answer is set
+out in [resolution order across the three
+levels](#resolution-order-across-the-three-levels) below.
 
 ### Arity
 
-`Arity` (`rust/tcl-registry/src/arity.rs`) is a `min`/`max` pair over
-`u16`, constructed with `Arity::exact(n)`, `Arity::at_least(min)`,
-`Arity::new(min, max)`, or `Arity::any()` (the `CommandSpec::DEFAULT`
-value).
+```rust
+pub struct Arity {
+    pub min: u16,
+    pub max: u16,             // Arity::UNLIMITED (u16::MAX) = unbounded
+    pub step: u16,            // 0 = no parity constraint; S = min, min+S, min+2S, …
+    pub also_exact: Option<u16>,  // one extra exact count, exempt from `step`
+}
+```
+
+`Arity::new(min, max)` covers the common case; `Arity::stepped` takes all
+three bounds for a command whose argument tail comes in groups (`array set`'s
+`name value` pairs), and `with_also_exact` adds the single exception a
+stepped command sometimes allows.
 
 The arity checker emits `W101` (wrong number of arguments) when an
-invocation falls outside bounds.  Each `SubCommand` has its own arity.
+invocation falls outside bounds.  Each `SubCommand` has its own arity,
+counted after the subcommand word.
 
 ### ArgRole -- argument semantics
 
 | Role | Meaning |
 |------|---------|
-| `BODY` | Tcl script body -- recursively lowered into IR |
-| `EXPR` | Expression -- parsed into ExprNode AST |
-| `VAR_NAME` | Variable written by the command (SSA def) |
-| `VAR_READ` | Variable read without modification |
-| `PARAM_LIST` | Procedure parameter list |
-| `PATTERN` | Pattern or regex argument |
-| `SUBCOMMAND` | The subcommand word |
-| `OPTION_TERMINATOR` | The `--` terminator |
-| `CHANNEL` | Channel identifier |
-| `INDEX` | List/string index expression |
-| `COMMAND_PREFIX` | A callback command reference (`lsort -command cb`) whose first word is invoked at runtime with further arguments appended; recognises a literal bareword, a braced `{cmd extra}` multi-word prefix, and a `[list cmd extra]`-quoted prefix (gated on the `BUILDS_COMMAND_PREFIX` trait, below) -- distinct from `BODY` since the word is a reference, not code |
-| `LAMBDA_LITERAL` | A `{argList body ?namespace?}` anonymous-lambda literal (`apply`'s argument shape) -- a *list*, not a script directly; element 0 is a parameter list, element 1 is the body to recurse into |
+| `Body` | Tcl script body -- recursively lowered into IR |
+| `Expr` | Expression -- parsed into the expression AST |
+| `VarWrite` | Variable written by the command (SSA def) |
+| `VarRead` | Variable read without modification |
+| `LoopVarList` | Loop variable *list* (`foreach` / `lmap`) -- several names in one word |
+| `ParamList` | Procedure parameter list |
+| `Name` | Symbolic name (proc, namespace, class) |
+| `Pattern` | Pattern or regex argument |
+| `Option` | Option flag word |
+| `Value` | Generic value -- the default |
+| `Subcommand` | The subcommand word |
+| `OptionTerminator` | The `--` terminator |
+| `FormatString` / `ScanFormat` | Conversion template, written in the language `format_string_type` names |
+| `Channel` | Channel identifier |
+| `Index` | List/string index expression |
+| `Keyword` | Fixed keyword word (`in`, `from`, `to`, `if`'s `then`/`else`) |
+| `CommandName` / `CommandNameProbe` | Names a command that must exist / need not exist yet |
+| `NamespaceName` | Names a namespace (`namespace children ::ns`) |
+| `Boolean` / `NumericOrBoolean` | Consumed as a boolean, or as a number or boolean |
+| `Result` | Becomes the command's own result (`return $w`) |
+| `CommandPrefix` | A callback command reference (`lsort -command cb`) whose first word is invoked at runtime with further arguments appended; recognises a literal bareword, a braced `{cmd extra}` multi-word prefix, and a `[list cmd extra]`-quoted prefix (gated on the `BUILDS_COMMAND_PREFIX` trait, below) -- distinct from `Body` since the word is a reference, not code |
+| `LambdaLiteral` | A `{argList body ?namespace?}` anonymous-lambda literal (`apply`'s argument shape) -- a *list*, not a script directly; element 0 is a parameter list, element 1 is the body to recurse into |
 
 Command-prefix callback arity is a registry contract, not an analyser guess.
 `AppendedArity` can be `Exactly(n)`, a finite non-contiguous `OneOf` set,
@@ -946,14 +1020,15 @@ bodies run.
 Three mechanisms assign roles to command arguments. They are evaluated in
 priority order — the first that provides a mapping wins:
 
-1. **`arg_role_resolver`** (dynamic callback) — inspects the actual argument
-   list at analysis time and returns a `Vec<(u8, ArgRole)>`. Used for
-   variable-arity commands where roles depend on argument count or content.
-   Examples: `set` returns `VAR_WRITE` for arg 0 when two arguments are
-   present but `VAR_READ` when only one is present; `if` maps body and
-   expression positions by scanning for `elseif`/`else` keywords.
-2. **`arg_roles`** (static slice of `(index, role)` pairs) — a fixed
-   mapping on the spec. Sufficient when every invocation has the same layout.
+1. **`arg_role_resolver`** (dynamic callback,
+   `fn(args: &[&str]) -> Vec<(u8, ArgRole)>`) — inspects the actual argument
+   list at analysis time. Used for variable-arity commands where roles depend
+   on argument count or content. Examples: `set` returns `VarWrite` for arg 0
+   when two arguments are present but `VarRead` when only one is present; `if`
+   maps body and expression positions by scanning for `elseif`/`else`
+   keywords.
+2. **`arg_roles`** (static table) — a fixed `&'static [(u8, ArgRole)]` on the
+   spec. Sufficient when every invocation has the same layout.
 3. **`assigns_variable_at`** (legacy shorthand) — marks a single argument
    index as a variable write. Overridden when a dynamic resolver exists.
 
@@ -968,19 +1043,18 @@ are tokenised as a base command with a subcommand argument. Different
 analysis layers handle these at different levels:
 
 - The **registry** uses `SubCommand` entries on the parent `CommandSpec`.
-  The parent's `arg_role_resolver` inspects the subcommand word to assign
-  roles to the remaining arguments.
-- **Variable scoping** (`rust/tcl-compiler/src/var_scoping.rs`) has explicit
-  handlers for compound forms like `namespace upvar`, `dict set`,
-  `dict update`, and `dict with`.
-- **Lowering hooks** (`rust/tcl-compiler/src/lowering_hooks.rs` and
-  `rust/tcl-compiler/src/lowering/hooks/`) have per-command hooks that
-  understand subcommand structure.
+  The parent's `arg_role_resolver`, or the subcommand's own `arg_roles` and
+  `repeated_args`, assign roles to the remaining arguments.
+- The **analyser** dispatches on `analyser_hook`, whose `AnalyserHookId`
+  values include the compound forms directly (`DictFor`, `DictUpdate`,
+  `DictWith`, `NamespaceUpvar`, `InterpAlias`, …), so scope handling for a
+  compound command is selected by ID rather than by name.
+- The **lowering** and **codegen** layers dispatch on `lowering_hook` /
+  `codegen_hook` in the same way.
 
-When verifying whether a compound command is handled, search all three
-layers — the feature module closest to the symptom (e.g.
-`rust/tcl-lsp-core/src/definition.rs`) may intentionally delegate to a deeper
-module.
+When verifying whether a compound command is handled, check which hook IDs
+its spec carries before looking in a consumer: an unhandled compound form is
+usually a missing subcommand entry or an unset hook ID, not a missing branch.
 
 ### OptionSpec and option terminators
 
@@ -1108,35 +1182,23 @@ impossible ordering.
 
 ### ArgValue -- completions
 
-`ArgValue { value, detail, min_tcl, code }`
-(`rust/tcl-registry/src/hover.rs`) provides completion text and hover
-documentation for specific argument positions.  It hangs off
-`CommandSpec.arg_values` / `SubCommand.arg_values`, both
-`&'static [(u8, &'static [ArgValue])]` — a per-argument-index slice of
-legal literal values.
+An `ArgValue` provides completion text and hover documentation for a literal
+value at a specific argument position. They hang off `arg_values`, a
+`&'static [(u8, &'static [ArgValue])]` keyed by argument index; listing an
+index under `closed_value_args` additionally makes the declared set
+exhaustive, so a value outside it is reported (W127).
 
 ### HoverSnippet -- documentation
 
-`HoverSnippet { summary, synopsis, snippet, source, examples, return_value }`
--- appears on `CommandSpec.hover` and `SubCommand.hover`.
+`HoverSnippet` carries `summary`, `synopsis`, `snippet`, `source`,
+`examples`, and `return_value`, and appears on `CommandSpec::hover`,
+`SubCommand::hover`, and an `ArgValue`'s own hover.
 
 ### ArgTypeHint -- type expectations
 
-`ArgTypeHint { expected, shimmers, transparent_from }` -- declares what Tcl
-internal representation a command expects at an argument index.  Used by
-type inference and shimmer detection; `transparent_from` lists intreps the
-command accepts without a shimmer.
-
-### CompletionDescriptor -- completion codes
-
-`CompletionDescriptor { codes, payloads }`
-(`rust/tcl-registry/src/completion.rs`) describes a call's Tcl
-*completion-code* semantics, not editor completion items: `codes` is a
-`CompletionCodeDomain` (an exact set of `Code` values, or `Any`), and
-`payloads` records whether the call produces, forwards, or may do either
-with its result and return-options payloads.  `CommandSpec.completion`
-carries the command-level descriptor; `SubCommand` and `CommandForm`
-carry overrides.
+`ArgTypeHint` declares what Tcl internal representation a command expects at
+an argument position, and whether reaching it would shimmer the value.  Used
+by type inference and shimmer detection.
 
 ### safe_on_uninit -- variable initialisation safety
 
@@ -1145,90 +1207,99 @@ Some commands safely create an uninitialised variable rather than erroring:
 the variable as `0` (8.5+ only), and `dict set`/`dict append`/`dict lappend`/
 `dict incr` create an empty dict.
 
-The field is set on `CommandSpec` (for top-level commands) or
-`SubCommand` (for ensemble subcommands like `dict set`).  Its type is
+This fact is set on `CommandSpec` (for top-level commands) or `SubCommand`
+(for ensemble subcommands like `dict set`).  The value is an
 `Option<DialectSet>`:
 
 | Value | Meaning |
 |-------|---------|
 | `None` | Not safe -- W210 fires if variable is read before set |
-| `Some(DialectSet::empty())` | Safe in **all** dialects |
-| `Some(DialectSet::ALL_TCL)`, `Some(DialectSet::TCL85_PLUS)`, … | Safe only in the dialects the set contains |
+| `Some(DialectSet::ALL_TCL)` | Safe in every Tcl dialect (`append`, `lappend`, `dict set`) |
+| `Some(DialectSet::TCL85_PLUS)` | Safe only from 8.5 onwards (`incr`, which errors in 8.4 and iRules) |
+| `Some(…)` any other set | Safe only in exactly those dialects |
 
-For version-dependent behaviour, name a version-floor constant from
-`DialectSet` (`rust/tcl-dialect/src/dialect_set.rs`):
+The version-gated sets are `DialectSet` constants
+(`rust/tcl-dialect/src/dialect_set.rs`), so a derived dialect inherits the
+right answer from the bits it contains rather than from a name comparison.
 
-```rust
-// incr: safe in Tcl 8.5+ but errors in 8.4 and iRules (Tcl 8.4.6)
-safe_on_uninit: Some(DialectSet::TCL85_PLUS),
-```
+**Current state (verified 2026-08-12):** the field is declared and stamped
+on the specs (`append`, `lappend`, `incr`, `catch`, the `dict` writers),
+but no production consumer reads it — every lowering site constructs
+`safe_on_uninit: false` on the statement, and the analyser's
+`use_site_safe_initialises` can therefore only fire on `Statement::Incr`.
+What actually keeps W210 quiet for these commands today is their
+`ArgRole::VarWrite` declaration, which records the write as a def. Wiring
+the field through lowering (registry lookup → statement flag) is an open
+gap from the port; the spec-side data is already correct for it.
 
-`DialectSet::TCL85_PLUS` is a composite constant unioning the `TCL85`,
-`TCL86`, `TCL90`, and `TCL91` bits, so a spec never spells out dialect
-names.  `DialectSet::expr_grammar_base_version` holds the separate
-per-dialect runtime-Tcl-version table (iRules → 8.4, iApps and tmsh →
-8.5, EDA vendors → 8.4/8.5/8.6) used where *version-dependent behaviour*,
-rather than command-surface gating, is at stake.
+### Dialect loading
 
-**Data flow:**
+`CommandRegistry::build_default` builds the always-present surface: the
+`tcl`, `stdlib`, `tcllib`, `argparse`, `ticklecharts`, and `itcl` packs, plus
+`tk` (folded in because a script may `package require Tk` at run time, so Tk
+commands must be recognised under every Tcl dialect; the `TK` bit is marked
+loaded so a later `load_dialect` call is a no-op rather than a double
+insert).
 
-```
-Registry spec (safe_on_uninit: Option<DialectSet>)
-    |
-    +-> Lowering stamps the IR statement's `safe_on_uninit: bool`
-    |     (`IRStatement::Call`, `IRStatement::Incr` -- tcl-compiler/src/ir.rs)
-    |
-    +-> Analyser reads that flag
-          (tcl-compiler/src/analyser/diagnostics/dataflow.rs)
-          +-> Suppresses W210 when the flag is set and the call defines the var
-```
+The remaining packs load on demand:
 
-No command names or dialect names appear in the compiler or analyser --
-all knowledge lives in the registry specs and `dialects.rs`.
+1. **`load_dialect(DialectSet)`** matches the dialect bit to its pack
+   collector — `BPF`, `IRULES`, `IAPPS`, `TMSH` (the `tmsh::` subset of the
+   iApps pack), `TK`, and `EXPECT`. It is idempotent: `loaded_dialects`
+   records what is already in, and an unrecognised bit loads nothing.
+2. **`tcl_spectcl::bundled::registry_for_dialect(name)`** handles the EDA
+   shells, which are modelled as a base Tcl version plus
+   `required_package`-gated libraries rather than a dialect bit — and whose
+   libraries are **bundled `.tclspec` loadables**, not compiled-in Rust
+   (`docs/design/spec-packs.md`). It installs the shared `sdc_base` library
+   plus the vendor's own pack, filtered to the packages the profile ships
+   ambient. Any consumer that may be handed an EDA dialect name goes through
+   this door rather than the one below; the CLI, the MCP server, and the LSP
+   server all do.
+3. **`registry_for_dialect(name)`** (`cache.rs`) is the compiled-in half: it
+   resolves the name to a `DialectProfile` and returns a cached, fully-loaded
+   `&'static CommandRegistry` for it. Every dialect but the five EDA shells is
+   complete from here.
 
-### Lazy dialect loading
-
-`CommandRegistry::build_default()` loads the always-known command
-universe: Tcl core, stdlib, tcllib, argparse, ticklecharts, itcl, and Tk
-(Tk is folded in because a `.tcl` script may `package require Tk` at run
-time, and the diagnostics treat its commands as recognised under every
-Tcl dialect).  Other dialect packs are loaded on demand:
-
-1. **Trigger** -- a caller invokes `load_dialect(dialect)` (or a
-   convenience wrapper such as `load_irules` / `load_bpf`) before querying
-   for that dialect.
-2. **Loader dispatch** -- `load_dialect` matches the `DialectSet` bit to
-   the dialect module's `<dialect>_command_specs()` function.  EDA shells
-   have no dialect bit: they are modelled as a base Tcl version plus
-   `required_package`-gated libraries, so `load_eda_packs(profile_name)`
-   loads the shared `sdc_base` library plus the vendor's packs by profile
-   name.
-3. **Merge** -- each returned spec goes through `insert`, which merges it
-   into the `by_name` table.
-4. **Bookkeeping** -- the loaded bit is added to `loaded_dialects`, making
-   `load_dialect` idempotent.
+Because each profile's registry is built once and cached, there is no
+invalidation protocol to observe — a consumer holds an immutable registry
+for the dialect it asked about.
 
 ### How registry feeds the compiler
 
 | Stage | Registry fields used |
 |-------|---------------------|
-| IR lowering | `arg_roles` (BODY, EXPR, VAR_NAME), `safe_on_uninit`, `lowering_hook` |
+| IR lowering | `arg_roles` (`Body`, `Expr`, `VarWrite`), `safe_on_uninit`, `lowering_hook` |
 | CFG | `Traits::CREATES_DYNAMIC_BARRIER` -> `IRBarrier` |
 | SSA/SCCP | resolved value, effect, transition, alias, and completion facts |
 | GVN | `Traits::PURE`, `Traits::CSE_CANDIDATE`, `result_stability`, effects, closed transitions, and a site proof covering `dispatch_dependencies` |
 | Codegen | `codegen_hook` / `inline_codegen_hook` -> specialised bytecode |
-| Taint | `taint_source`, the `taint_*_sink*` fields, `taint_transform`, `setter_constraints` |
-| Side effects | `side_effects`; `pure` / `mutator` on subcommands |
+| Taint | `taint_source`, the `taint_*_sink*` fields, `taint_transform` |
+| Side effects | `side_effects`, plus `pure` / `mutator` on forms and subcommands |
 | Diagnostics | arity and clause shape; literal validators; option constraints; lifecycle/version gates; representation effects; event and safety contracts |
 | Code actions | registry-owned lifecycle and literal-validation edit plans; the generic analyser contributes only source spans and LSP conversion |
 | Completions | `arg_values`, `versioned_arg_values`, `options` |
 
-### Purity resolution order
+### Resolution order across the three levels
 
-1. `SubCommand.pure` / `SubCommand.mutator` (most specific)
-2. `CommandSpec`'s `Traits::PURE`
+`tcl_registry::resolved_invocation` resolves a call once, against the
+command, the matched subcommand, and the matched `CommandForm`, and hands
+consumers a single `InvocationSemantics`. Two different rules apply, and
+mixing them up is a real source of bugs:
 
-The more specific level wins for the matched invocation.
+- **Most-specific-wins**, for the optional descriptor facts: the form's value
+  if set, else the subcommand's, else the command's. This covers
+  `completion`, `result_stability`, `representation_effect`, and
+  `lowering_hook`, among others. Arity likewise takes the form's, else the
+  subcommand's, else the command's.
+- **Union**, for traits: the command's `traits` **or** the subcommand's, so a
+  subcommand can only ever add behaviour, never mask its parent's. A
+  subcommand's `pure: true` folds in as `Traits::PURE` at this step, which is
+  how the two spellings of purity meet.
+
+Purity is therefore additive rather than overriding: marking a subcommand
+pure does not make a call to an impure parent pure, and there is no
+form-level purity flag to override either.
 
 ## Known limitations
 
@@ -1239,7 +1310,7 @@ The more specific level wins for the matched invocation.
 an exact string match against `by_name` — a plain by-name lookup keyed on
 the spelling baked into the static `CommandSpec`. Every piece of
 registry-driven behaviour reached through that lookup (`arg_roles` /
-`arg_role_resolver`, `taint_*`, `side_effect_hints`, `safe_on_uninit`,
+`arg_role_resolver`, `taint_*`, `side_effects`, `safe_on_uninit`,
 `lowering`, `object_class`, `definition_body`, …) is therefore only found
 when the call site's literal head text matches the spec's registered name.
 
@@ -1401,27 +1472,78 @@ is what that looks like from the outside.
 ## Decision rule
 
 - To add a new command: add a module under
-  `rust/tcl-registry/src/commands/<dialect>/`, declare it in that
-  dialect's `mod.rs`, give it a `pub fn spec() -> CommandSpec`, and add
-  `<name>::spec()` to the dialect's `<dialect>_command_specs()` vector.
-  For a new dialect pack, add a `DialectSet` bit and an arm in
-  `CommandRegistry::load_dialect` (`registry.rs`).
-- To add taint tracking: set the `taint_*` fields (and
-  `Traits::TAINT_SOURCE` / `Traits::TAINT_SINK`) on the `CommandSpec` or
-  `SubCommand`.
-- To add special lowering: set `lowering_hook` on the `CommandSpec`,
-  `SubCommand`, or `CommandForm`.
-- If arity validation fails to fire, check that `arity` is set on the spec
-  and that subcommand arities are correct.
-- Purity flows from command -> subcommand; the most specific level wins.
+  `rust/tcl-registry/src/commands/<pack>/` whose `spec()` returns a
+  `CommandSpec` ending in `..CommandSpec::DEFAULT`, then declare it (`mod
+  foo_;`) and list `foo_::spec(),` in the pack's `<pack>_command_specs()`
+  collector.  For a new dialect pack, add its collector to
+  `CommandRegistry::load_dialect`.  An EDA/vendor *library* is not a Rust
+  module: add or edit its `.tclspec` under `specs/` instead — those packs are
+  the source of truth for their commands and there is no generator to re-run
+  (see [`../spec-packs.md`](../spec-packs.md)).
+- To add taint tracking: set `taint_source` / `taint_transform` / the
+  `taint_*_sink*` fields on the spec, and the `TAINT_SOURCE` / `TAINT_SINK`
+  trait bits that go with them.
+- To add special lowering: set `lowering_hook` on the `CommandSpec` or
+  `SubCommand` to the matching `LoweringHookId`.
+- If arity validation fails to fire, check that `arity` is set and subcommand
+  arities are correct — and that `Traits::STRUCTURALLY_CHECKED_ARITY` is not
+  set, since it stands the generic check down in favour of
+  `clause_shape_check`.
+- Purity flows from command -> subcommand -> form; the most specific level wins.
 - To mark a command as safe on uninitialised variables: set `safe_on_uninit`
-  on the `CommandSpec` or `SubCommand`.  Use `Some(DialectSet::empty())`
-  for all dialects, or a version-floor constant such as
-  `Some(DialectSet::TCL85_PLUS)` for version-gated behaviour.  Never
-  hardcode dialect names in the compiler or analyser.
-- When adding a new dialect, add it to
-  `DialectSet::expr_grammar_base_version` (`rust/tcl-dialect/src/dialect_set.rs`)
-  so version-dependent behaviour resolves correctly.
+  on the `CommandSpec` or `SubCommand`.  Use `Some(DialectSet::ALL_TCL)` for
+  every dialect, or a version-gated constant such as
+  `Some(DialectSet::TCL85_PLUS)`.  Never hardcode dialect names in the
+  compiler or analyser.
+- Prefer a new `CommandSpec` field or a typed hook ID over teaching a
+  consumer a command name; the registry is the source of truth, and a
+  consumer that matches on a name is the thing this design exists to avoid.
+
+## The reference manual
+
+[`docs/references/command-spec/`](../../references/command-spec/README.md)
+is the library-author-facing manual over this contract: every field in
+Tcl terms (generated from the Spec Studio schema, so it cannot drift),
+plus the impact tables mapping fields to the diagnostics, optimisations,
+and editor features they drive.
+
+## Authoring a spec without Rust
+
+The primary non-Rust authoring format is **SpecTcl**: a `.tclspec` file,
+written in a Tcl dialect built for exactly this, that declares the same
+facts this page describes as `speclib` / `command` / `option` / `arg`
+statements instead of a `CommandSpec` literal. It is its own compiled-in
+command pack (`rust/tcl-registry/src/commands/spectcl/`), so a `.tclspec`
+file gets full editor support — highlighting, completion, and diagnostics
+for a misspelled trait or role — with no extra tooling. The frozen syntax
+is [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md); the
+architecture, discovery tiers, and crash-containment guarantee are
+[`spec-packs.md`](../spec-packs.md).
+
+Two pieces of that design are implemented and two are still landing.
+Implemented: the `.tclspec` dialect and its self-spec pack (editor
+support), the parser (`tcl-spectcl::load_pack`), and its validation report,
+exposed today as the `spectcl_check` MCP tool — it loads a pack for real
+and reports which fields each declaration set, every dropped or
+misspelled word, every declared hook, and any collision with a shipped
+name. Landing: the three-tier discovery, pack merge, and compiled-pack
+cache exist as a library (`tcl-spectcl::discovery` / `pack` / `cache`) but
+are not yet wired into the running language server or exposed as an editor
+setting, so a pack dropped in a workspace or config directory does not yet
+change what the editor shows; a `tcl spec check` CLI equivalent and the
+Spec Studio's DSL tab are likewise designed, not shipped.
+
+The [Command Spec Studio](../contracts/command-spec-studio.md) is the other
+non-Rust route today: a browser front-end over this registry that browses
+the live command surface, edits every field described above, and renders
+the result back out as a drop-in `.rs` module or a stub. Each field carries
+a plain-language explanation written for Tcl developers, and a Reference
+tab searches the whole vocabulary — every field, trait, argument role, and
+taint colour.
+
+See the KCS how-tos: [creating a command spec without knowing
+Rust](../../kcs/kcs-howto-create-command-specs-without-rust.md) and [writing
+a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md).
 
 ## Related docs
 

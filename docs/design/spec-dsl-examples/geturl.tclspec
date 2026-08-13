@@ -1,0 +1,60 @@
+# Port of rust/tcl-registry/src/commands/tcllib/uri__geturl.rs
+# and rust/tcl-registry/src/commands/stdlib/http__geturl.rs
+#
+# The tcllib `uri::geturl` is thin — package gating, hover, side effects — so
+# its stdlib sibling `http::geturl` is ported alongside it: same shape, plus
+# the SSRF network-sink argument list and the credential-bearing option, which
+# is what makes an http-like spec worth writing.
+#
+# Exercises: tcllib_package vs required_package, multi-row side effects, a
+# tri-state index list (taint_network_sink_args), credential_options.
+
+speclib tcl 1.0 {
+
+command uri::geturl {
+    # No dialect gate: availability is decided by the package, not the Tcl
+    # release.  (An absent `dialects` means every dialect — it is NOT the
+    # same as an empty set.)
+    arity 1..
+
+    tcllib_package   uri
+    required_package uri
+
+    side_effect FileIo    -reads
+    side_effect NetworkIo -reads
+
+    form Default {uri::geturl url ?options...?}
+
+    hover {
+        summary  {Fetch the contents of a URI.}
+        synopsis {uri::geturl url ?options...?}
+        source   {tcllib uri package}
+        returns  {The fetched content.}
+    }
+}
+
+command http::geturl {
+    # Bundled with every standard Tcl release; F5 iRules removes the whole
+    # http package from its TMM sandbox, which is modelled by a bare `all-tcl`
+    # that never intersects the bare iRules mask — not by a disable list.
+    dialects all-tcl
+    arity 1..
+
+    required_package http
+
+    # url (arg 0) is a network-address argument — an SSRF sink (T104).
+    taint_network_sink_args {0}
+    # -headers can carry credentials (W310).
+    credential_options {-headers}
+
+    side_effect NetworkIo -reads -writes
+
+    hover {
+        summary  {Retrieve a URL — the primary command for the http package.}
+        synopsis {http::geturl url ?options?}
+        description {Retrieves the resource at *url* and returns a token that can be passed to the other ``http::`` commands.  Options include ``-query``, ``-headers``, ``-handler``, ``-command``, ``-timeout``, ``-type``, ``-method``, ``-keepalive`` and more.}
+        source   {Tcl stdlib http package}
+    }
+}
+
+}

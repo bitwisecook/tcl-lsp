@@ -1757,3 +1757,93 @@ fn tcl86_leading_bom_stays_part_of_the_first_command_token() {
         "8.x keeps the mark in the command name: {toks:?}",
     );
 }
+
+// ---------------------------------------------------------------------------
+// SpecTcl — a `.tclspec` command pack. Every statement word below is
+// registry data (the `spectcl` pack plus the `SPECTCL_*` definition-body
+// grammars in `tcl_registry::definer`); this walk contains no SpecTcl code
+// at all, which is the whole point of `spec-packs.md`'s "authoring a pack
+// gets highlighting … from the same machinery it configures".
+// ---------------------------------------------------------------------------
+
+/// The nesting chain, painted: a `speclib` body's `command` word is a member
+/// keyword, that command's body's `arity` / `arg` words are keywords too, and
+/// a `hover` block's `summary` is a keyword one level deeper still — each
+/// resolved from a *different* grammar.
+#[test]
+fn spectcl_pack_body_words_are_keywords_at_every_level() {
+    let src = "speclib mylib 1.0 {\n\
+               \x20   command with_var {\n\
+               \x20       arity 2\n\
+               \x20       arg 0 -role VarWrite\n\
+               \x20       hover {\n\
+               \x20           summary {Run a script with a caller variable bound.}\n\
+               \x20       }\n\
+               \x20   }\n\
+               }\n";
+    for word in ["command", "arity", "arg", "hover", "summary"] {
+        assert_eq!(
+            kind_of_word(src, "spectcl", word).as_deref(),
+            Some("keyword"),
+            "`{word}` must be a SpecTcl statement keyword: {:?}",
+            decode(src, "spectcl"),
+        );
+    }
+    // The declared command's own name is a member name, not a bare string.
+    assert_ne!(
+        kind_of_word(src, "spectcl", "with_var").as_deref(),
+        Some("string"),
+        "a declared command name must not paint as a plain string: {:?}",
+        decode(src, "spectcl"),
+    );
+}
+
+/// The same words outside a pack are *not* keywords — the vocabulary is
+/// context-sensitive, exactly as `method` is inside a snit body and nowhere
+/// else. `arity` here is an ordinary (unknown) command word.
+#[test]
+fn spectcl_statement_words_are_context_sensitive() {
+    let outside = "arity 2\nsummary {hello}\n";
+    for word in ["arity", "summary"] {
+        assert_ne!(
+            kind_of_word(outside, "tcl8.6", word).as_deref(),
+            Some("keyword"),
+            "`{word}` must mean nothing outside a pack: {:?}",
+            decode(outside, "tcl8.6"),
+        );
+    }
+}
+
+/// A hook body is ordinary Tcl: the statement carries no grammar, so the walk
+/// drops out of declaration context and recurses the script — `if` and `set`
+/// resolve as the real commands they are, and the parameter list declares
+/// parameters.
+#[test]
+fn spectcl_hook_bodies_recurse_as_tcl() {
+    let src = "speclib mylib 1.0 {\n\
+               \x20   command mylib::len {\n\
+               \x20       const_fold {words ctx} {\n\
+               \x20           if {![string is ascii [lindex $words 0]]} return\n\
+               \x20           fold [string length [lindex $words 0]]\n\
+               \x20       }\n\
+               \x20   }\n\
+               }\n";
+    assert_eq!(
+        kind_of_word(src, "spectcl", "const_fold").as_deref(),
+        Some("keyword"),
+        "the hook statement itself is a keyword: {:?}",
+        decode(src, "spectcl"),
+    );
+    assert_eq!(
+        kind_of_word(src, "spectcl", "if").as_deref(),
+        Some("keyword"),
+        "a hook body is real Tcl and must be recursed: {:?}",
+        decode(src, "spectcl"),
+    );
+    assert_eq!(
+        kind_of_word(src, "spectcl", "words").as_deref(),
+        Some("parameter"),
+        "the hook signature declares parameters: {:?}",
+        decode(src, "spectcl"),
+    );
+}

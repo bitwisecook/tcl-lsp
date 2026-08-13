@@ -29,7 +29,7 @@
 //! A handful of spec fields hold a function pointer (`arg_role_resolver`,
 //! `const_fold`, `taint_sink_gate`, …) or a reference to a **named** `&'static`
 //! descriptor the registry shares between commands (`definition_body`,
-//! `case_list`, `object_class`, `body_scope`, `frame_effect`, `bpf_op`,
+//! `case_list`, `body_scope`, `frame_effect`, `bpf_op`,
 //! `event_requires`, `command_forms`, and the semantic/effect descriptors).
 //! Rust can tell that such a field is set, but not recover the *expression* —
 //! the constant's path — that set it.
@@ -43,6 +43,9 @@
 //! back out as full struct literals (every field spelled, never a defaulting
 //! constructor), so drafting and re-rendering a command that sets one loses
 //! nothing. [`crate::coverage`] is what keeps those literals complete.
+//! `object_class` is the same case one level deeper — a class name, a flag,
+//! superclass names, and a method table that *is* `&[SubCommand]` — so it is
+//! seeded as a JSON object whose methods are ordinary subcommand drafts.
 
 use serde_json::{Map, Value, json};
 use tcl_dialect::DialectSet;
@@ -63,8 +66,8 @@ use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::representation::RepresentationEffect;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
-    BytePayloadSpec, CommandSpec, OoContextFact, OptionConstraint, SubCommand, SubSubCommand,
-    VersionedArgValue,
+    BytePayloadSpec, CommandSpec, ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand,
+    SubSubCommand, VersionedArgValue,
 };
 use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::{SetterConstraint, TaintColour};
@@ -411,6 +414,39 @@ fn manufacturer_method(method: &ManufacturerMethod) -> Value {
         "names_instance_at": method.names_instance_at,
         "definition_body_at": method.definition_body_at,
         "constructor_args_from": method.constructor_args_from,
+    })
+}
+
+/// Seed the `object_class` value from a live [`ObjectClassSpec`].
+///
+/// The four fields are plain data — a class name, a method table that *is*
+/// `&[SubCommand]`, superclass names, and a flag — so the draft holds the
+/// descriptor itself rather than an [`Unrecovered`] note. Each instance method
+/// is drafted with the same [`subcommand_body`] the command's own subcommands
+/// use, which is what lets the `SpecTcl` renderer write `method NAME { … }`
+/// rows in the `subcommand` body grammar the DSL reuses for them.
+fn object_class(class: Option<&'static ObjectClassSpec>, lost: &mut Unrecovered) -> Value {
+    let Some(class) = class else {
+        return Value::Null;
+    };
+    let methods: Vec<Value> = class
+        .instance_methods
+        .iter()
+        .map(|method| {
+            let mut method_lost = Unrecovered::default();
+            let mut body = subcommand_body(method, &mut method_lost);
+            for key in &method_lost.0 {
+                lost.note(key);
+            }
+            body.insert(UNRENDERABLE_KEY.to_owned(), method_lost.into_value());
+            Value::Object(body)
+        })
+        .collect();
+    json!({
+        "class_name": class.class_name,
+        "instance_methods": Value::Array(methods),
+        "superclasses": str_list(class.superclasses),
+        "allow_unknown_methods": class.allow_unknown_methods,
     })
 }
 
@@ -1389,10 +1425,7 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "self_receiver_words".into(),
         str_list(spec.self_receiver_words),
     );
-    d.insert(
-        "object_class".into(),
-        lost.expr("object_class", spec.object_class.is_some()),
-    );
+    d.insert("object_class".into(), object_class(spec.object_class, lost));
     d.insert(
         "defines_symbol".into(),
         spec.defines_symbol

@@ -50,7 +50,11 @@ use tcl_compiler::codegen::format::{format_function_asm, instruction_operand_tex
 use tcl_compiler::codegen::{FunctionAsm, ModuleAsm, Op, Operand, codegen_module};
 use tcl_compiler::ir::Module;
 use tcl_lexer::LineIndex;
-use tcl_registry::registry_for_dialect;
+// The pack-carrying registry, not the plain one: since the EDA vendor
+// libraries became `.tclspec` loadables they exist nowhere else, so an
+// explorer on the plain registry reports every `synth_design` unknown while
+// the diagnostic on the same line resolves it.
+use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 
 use crate::ExplorerResult;
 use crate::formatters::range_dict;
@@ -60,7 +64,8 @@ use crate::formatters::range_dict;
 /// per-entry `sourceRange` from the IR.
 #[must_use]
 pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    let registry = registry_for_dialect(&result.dialect);
+    let registry_held = registry_for_dialect(&result.dialect);
+    let registry = &*registry_held;
     // Codegen lowers the plain (analysis-only-transform-free) CFG so the emitted
     // bytecode is byte-identical to the unannotated source: the analysis CFG
     // (`unit.cfg_module`) carries `faithful_exceptions` transforms (tailcall /

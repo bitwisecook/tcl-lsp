@@ -471,7 +471,9 @@ impl Analyser {
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
-        self.registry = Some(tcl_registry::cache::registry_for_profile(self.profile));
+        self.registry = Some(tcl_registry::cache::registry_handle_for_profile(
+            self.profile,
+        ));
         self.line_offsets = Some(super::state::compute_line_offsets(source));
         // Same recovery known-command universe as `Analyser::analyse` — see
         // `recovery_known_commands` — so per-item analysis matches the
@@ -479,7 +481,7 @@ impl Analyser {
         // test gates this).
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
-            self.registry.expect("registry just stashed"),
+            self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
         );
         let known: HashSet<&str> = self.recovery_known_commands.iter().collect();
@@ -576,11 +578,11 @@ impl Analyser {
         // unrelated rename appearing elsewhere. The oracle itself is
         // computed at most once (it lowers the whole file).
         let mut deferred = deferred;
-        if let Some(registry) = self.registry {
+        if let Some(registry) = self.registry.clone() {
             let mut trust: Option<std::sync::Arc<crate::command_binding::CommandTrustSnapshot>> =
                 None;
             for db in &mut deferred {
-                if crate::const_subst::body_has_fold_candidate(&db.body_text, registry) {
+                if crate::const_subst::body_has_fold_candidate(&db.body_text, &registry) {
                     if trust.is_none() {
                         trust = self
                             .whole_file_command_trust()
@@ -1281,7 +1283,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // representable (and never occurs), so clamp to `u32::MAX`.
     let body_len = u32::try_from(db.body_text.len()).unwrap_or(u32::MAX);
     let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, body_len));
-    a.registry = Some(tcl_registry::cache::registry_for_profile(a.profile));
+    a.registry = Some(tcl_registry::cache::registry_handle_for_profile(a.profile));
     a.line_offsets = Some(super::state::compute_line_offsets(&a.source));
     // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
     // global scope, so the graft can replay them on the shell's real globals.

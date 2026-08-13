@@ -1079,11 +1079,20 @@ pub fn witness_object_class_spec(spec: &ObjectClassSpec) {
 }
 
 /// Where the studio surfaces each [`ObjectClassSpec`] field.
+///
+/// Unlike the other `&'static` descriptors, this one is plain data all the way
+/// down — a name, a flag, a list of superclass names, and a method table that
+/// *is* `&[SubCommand]` — so the studio models it field by field inside the
+/// `object_class` editor rather than as one opaque Rust expression, and the
+/// `SpecTcl` renderer writes the whole thing back out.
 pub const OBJECT_CLASS_SPEC: &[Field] = &[
-    f("class_name", Surface::Excluded(NAMED_CONSTANT)),
-    f("instance_methods", Surface::Excluded(NAMED_CONSTANT)),
-    f("superclasses", Surface::Excluded(NAMED_CONSTANT)),
-    f("allow_unknown_methods", Surface::Excluded(NAMED_CONSTANT)),
+    f("class_name", Surface::Key("class_name")),
+    f("instance_methods", Surface::Key("instance_methods")),
+    f("superclasses", Surface::Key("superclasses")),
+    f(
+        "allow_unknown_methods",
+        Surface::Key("allow_unknown_methods"),
+    ),
 ];
 
 /// Compile-time witness for [`CASE_LIST_SPEC`].
@@ -1365,11 +1374,21 @@ mod tests {
             allow_unknown_methods: false,
         });
         witness_case_list_spec(&CaseListSpec::SWITCH);
+        // `ObjectClassSpec` is deliberately NOT in this list: its four fields
+        // are plain data the draft carries and the `SpecTcl` renderer writes,
+        // so they are `Surface::Key`s inside the `object_class` editor rather
+        // than exclusions.
+        for field in OBJECT_CLASS_SPEC {
+            assert!(
+                matches!(field.surface, Surface::Key(_)),
+                "ObjectClassSpec::{} is modelled as data, not excluded",
+                field.name
+            );
+        }
         for (what, table) in [
             ("DefinitionBodyGrammar", DEFINITION_BODY_GRAMMAR),
             ("MemberBodyCommand", MEMBER_BODY_COMMAND),
             ("BuiltinObjectMethod", BUILTIN_OBJECT_METHOD),
-            ("ObjectClassSpec", OBJECT_CLASS_SPEC),
             ("CaseListSpec", CASE_LIST_SPEC),
         ] {
             for field in table {
@@ -1388,6 +1407,11 @@ mod tests {
                 "`{key}` must stay an editable field even though its descriptor is a constant"
             );
         }
+        assert_eq!(
+            schema::command_field("object_class").map(|field| field.kind),
+            Some(schema::FieldKind::ObjectClass),
+            "`object_class` is modelled as data, not as a Rust expression"
+        );
     }
 
     // -- the plain-data descriptors really round-trip ------------------------

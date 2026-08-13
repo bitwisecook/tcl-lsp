@@ -46,6 +46,7 @@ fn main() {
         Vec::new(),
         None,
         None,
+        0,
     );
     let memo = compiler_check_diagnostics(&db, file, cfg);
     let reg = db.registry(&dialect);

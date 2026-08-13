@@ -1,0 +1,169 @@
+# Port of rust/tcl-registry/src/commands/tcl/oo_class.rs
+#
+# Exercises: a definition-body grammar referenced by name, manufacturer-method
+# rows, an argument-role resolver DERIVED from those rows instead of written
+# as code, subcommand-level world-effect and state-transition descriptors, a
+# non-closed argument-value table, and allow_unknown_subcommands.
+
+speclib tcl 1.0 {
+
+# The three class-manufacturing methods class.n documents — completion/hover
+# data only, deliberately NOT a closed value set: oo::class is itself an
+# ordinary TclOO object, so it also answers to every oo::object method and to
+# anything grafted on later with oo::objdefine.
+values class-methods {
+    value create -detail {Create a new instance named name, passing the optional definition script to oo::define. Returns the fully qualified object name.}
+    value new    -detail {Create a new instance with an automatically generated unique name. Not exported on oo::class itself — new classes should be made with create.}
+    value createWithNamespace -detail {Non-exported: like create, but the instance's internal namespace is explicitly named nsName instead of being auto-generated.}
+}
+
+# Shared by all three manufacturing subcommands.  A definition body runs while
+# the new class is visible, but any non-OK completion rolls the class,
+# command, and private namespace back before it escapes from the factory.
+descriptor world_effects class-factory-effects {
+    composition Extend
+    callback -kinds {SCRIPT} -reentrancy CurrentInterpreter
+    dynamic_fallback ConservativeUnknownInvocation
+}
+
+command oo::class {
+    dialects tcl8.6+
+    traits {NOT_PROC_FACTORY IS_OO_METACLASS LANGUAGE_KEYWORD DEFINES_PROCEDURE}
+    arity 1..
+    return_type String
+
+    # Bodies of create / new / createWithNamespace run in a TclOO definition
+    # context, not the caller's frame.
+    body_kind Structural
+
+    # The class body's member grammar (method, constructor, variable, …) is a
+    # shared named descriptor: `definition_body` is reference-only in the DSL
+    # (see README, "What a pack cannot author").
+    definition_body tcloo
+
+    # C Tcl 9.0.4 and 8.6 expose only `create` on ::oo::class itself; `new`
+    # and `createWithNamespace` are present but private.
+    manufacturer create              -names-instance-at 1 -definition-body-at 2 -constructor-args-from 2
+    manufacturer new    -unexported                       -definition-body-at 1 -constructor-args-from 1
+    manufacturer createWithNamespace -unexported -names-instance-at 1 -definition-body-at 3 -constructor-args-from 3
+
+    # Replaces oo_class_arg_roles(): "if word 0 is a declared manufacturer
+    # keyword with a definition body, that index is a Body".  The rows above
+    # already say where each body is, so the resolver is derived rather than
+    # written — every IS_OO_METACLASS command shares this one line.
+    arg_role_resolver from-manufacturers
+
+    arg 0 -values-from class-methods
+
+    allow_unknown_subcommands
+
+    side_effect InterpState -writes
+
+    form Default {oo::class method ?arg ...?}
+
+    hover {
+        summary {class of all classes}
+        synopsis {oo::class method ?arg ...?}
+        synopsis {oo::class create name ?definition?}
+        synopsis {oo::class new ?definition?}
+        synopsis {oo::class createWithNamespace name nsName ?definition?}
+        description {Classes are objects that manufacture other objects according to a pattern stored in the factory object (the class): create makes an instance with an explicit name, new makes one with an automatically generated unique name. oo::class is the class of all classes — every class, including oo::class itself, is an instance of oo::class, and oo::class is a subclass of oo::object, so every class is also an object. oo::class hides its own new method on itself, so a brand-new class should always be made with create; a class made that way still exports a normal, working new of its own for creating instances. The constructor takes a single optional argument, passed on to oo::define together with the new class's name, so a class body can be supplied directly at creation time. There is no explicit destructor: destroying a class also destroys all its subclasses, instances, and any objects it has been mixed into. The non-exported createWithNamespace method behaves like create but additionally lets the caller name the instance's internal namespace explicitly.}
+        source {Tcl man page class.n}
+        example {oo::class create fruit {
+    method eat {} {
+        puts "yummy!"
+    }
+}
+oo::class create banana {
+    superclass fruit
+    constructor {} {
+        my variable peeled
+        set peeled 0
+    }
+    method peel {} {
+        my variable peeled
+        set peeled 1
+        puts "skin now off"
+    }
+    method edible? {} {
+        my variable peeled
+        return $peeled
+    }
+    method eat {} {
+        if {![my edible?]} {
+            my peel
+        }
+        next
+    }
+}
+set b [banana new]
+$b eat    ;# prints "skin now off" and "yummy!"
+fruit destroy
+$b eat    ;# error "unknown command"}
+        returns {The fully qualified name of the newly created class for create, new, and createWithNamespace; otherwise whatever the invoked method returns.}
+    }
+
+    subcommand create {
+        arity 1..2
+        detail   {Create a named class, optionally evaluating a definition body.}
+        synopsis {oo::class create name ?definition?}
+        arg 0 -role Name
+        arg 1 -role Body
+        body_kind Structural
+        return_type String
+        defines_command_at 0
+        world_effects class-factory-effects
+        state_transitions {
+            composition    Extend
+            argument_shape Positional
+            # Emits CommandBinding::Define{name, Object} for a literal,
+            # non-empty name plus ObjectDispatch::Create{Named(name), Fresh,
+            # Class}.  Not authorable as data in v1 — see README.
+            resolver -native oo::class::create
+            widen  -operands {Indices 1} -domains {CommandBindings Namespaces ObjectDispatch}
+            covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}
+            commit OnOkOnly
+        }
+    }
+
+    subcommand new {
+        arity 0..1
+        detail   {Create an automatically named class, optionally evaluating a definition body.}
+        synopsis {oo::class new ?definition?}
+        arg 0 -role Body
+        body_kind Structural
+        return_type String
+        world_effects class-factory-effects
+        state_transitions {
+            composition    Extend
+            argument_shape Independent
+            resolver -native oo::class::new
+            covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}
+            commit OnOkOnly
+        }
+    }
+
+    subcommand createWithNamespace {
+        arity 2..3
+        detail   {Create a named class with an explicitly named private namespace.}
+        synopsis {oo::class createWithNamespace name nsName ?definition?}
+        arg 0 -role Name
+        arg 1 -role Name
+        arg 2 -role Body
+        body_kind Structural
+        return_type String
+        defines_command_at 0
+        world_effects class-factory-effects
+        state_transitions {
+            composition    Extend
+            argument_shape Positional
+            resolver -native oo::class::createWithNamespace
+            widen  -operands {Indices 1} -domains {CommandBindings Namespaces ObjectDispatch}
+            widen  -operands {Indices 2} -domains {Namespaces VariableCells ObjectDispatch}
+            covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}
+            commit OnOkOnly
+        }
+    }
+}
+
+}

@@ -220,7 +220,7 @@ fn unwrap_wrapper_member<'a>(
 /// or more (or fewer) than one pair — a multi-list `foreach` has no single
 /// variable a member's name word could unambiguously mean.
 fn loop_installer_pair(
-    spec: &'static tcl_registry::CommandSpec,
+    spec: &tcl_registry::CommandSpec,
     post_head: usize,
 ) -> Option<(usize, usize, usize)> {
     if !spec.traits.contains(tcl_registry::Traits::LOOP_LIST_HEADER) {
@@ -361,6 +361,7 @@ impl Analyser {
     pub(super) fn command_dialect_disabled(&self, cmd_name: &str) -> bool {
         use tcl_registry::ProfileQueries;
         self.registry
+            .as_deref()
             .and_then(|r| r.get(cmd_name))
             .is_some_and(|spec| !self.profile.is_available(spec))
     }
@@ -623,7 +624,7 @@ impl Analyser {
         let Some(keyword) = cmd.texts.first().map(String::as_str) else {
             return;
         };
-        let Some(spec) = self.registry.and_then(|r| r.get(keyword)) else {
+        let Some(spec) = self.registry.as_deref().and_then(|r| r.get(keyword)) else {
             return;
         };
         // Post-head argument count (`texts` still carries the keyword at 0).
@@ -1099,7 +1100,9 @@ impl Analyser {
                 // 8.6 with no `ooutil`) therefore records no aliases here.
                 if cmd.is_partial
                     || !cmd.texts.first().is_some_and(|head| {
-                        self.registry.is_some_and(|r| r.binds_method_alias(head))
+                        self.registry
+                            .as_deref()
+                            .is_some_and(|r| r.binds_method_alias(head))
                     })
                 {
                     continue;

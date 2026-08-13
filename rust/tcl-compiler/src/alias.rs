@@ -40,11 +40,34 @@ use crate::naming::{is_dynamic_word, normalise_qualified_name};
 /// Alias store: qualified name → (target command, prepended args).
 pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
 
+/// Do `args` begin with the `alias` subcommand word the two destructuring
+/// helpers below model?
+///
+/// [`CommandTableEffect::CreatesAliases`] describes `interp alias`'s **word
+/// grammar**, and the shipped registry stamps it exactly there — on `interp`'s
+/// `alias` subcommand, so the word is guaranteed and this was a
+/// `debug_assert`. A `SpecTcl` pack can stamp the same effect at *command*
+/// level on something that only builds an alias internally (`struct::tree` and
+/// `struct::graph` in the tcllib draft under
+/// `docs/design/spec-dsl-examples/external/` do exactly that), and such a call
+/// carries none of `interp alias`'s words. Reading them as if it did would
+/// invent an alias out of the command's own arguments — and, before this
+/// guard, aborted a debug build outright. Registry data must not be able to do
+/// either, so the shape check is a *fact*, not an assertion: a call that is not
+/// `interp alias`-shaped states no alias.
+///
+/// [`CommandTableEffect::CreatesAliases`]: tcl_registry::CommandTableEffect::CreatesAliases
+#[must_use]
+pub fn is_interp_alias_shape(args: &[String]) -> bool {
+    args.first().map(String::as_str) == Some("alias")
+}
+
 /// Detect `interp alias {} name {} target ?args?`.
 ///
-/// `args` are the words after the `interp` head (`args[0]` is the
-/// `alias` subcommand word the caller's
-/// [`CommandTableEffect::CreatesAliases`] dispatch already resolved).
+/// `args` are the words after the `interp` head, so `args[0]` is the
+/// `alias` subcommand word — checked here rather than assumed, because
+/// [`CommandTableEffect::CreatesAliases`] can also reach this from a pack
+/// command with a different grammar ([`is_interp_alias_shape`]).
 ///
 /// Returns `(qualified_alias_name, target_cmd, prepended_args)` or
 /// `None` if this is not a current-interpreter alias definition.
@@ -54,11 +77,9 @@ pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
 /// [`CommandTableEffect::CreatesAliases`]: tcl_registry::CommandTableEffect::CreatesAliases
 #[must_use]
 pub fn detect_interp_alias(args: &[String]) -> Option<(String, String, Vec<String>)> {
-    debug_assert_eq!(
-        args.first().map(String::as_str),
-        Some("alias"),
-        "caller dispatches on CommandTableEffect::CreatesAliases"
-    );
+    if !is_interp_alias_shape(args) {
+        return None;
+    }
     if args.len() < 5 {
         return None;
     }
@@ -109,11 +130,9 @@ pub fn detect_interp_alias(args: &[String]) -> Option<(String, String, Vec<Strin
 /// isn't a current-interpreter deletion.
 #[must_use]
 pub fn detect_interp_alias_delete(args: &[String]) -> Option<String> {
-    debug_assert_eq!(
-        args.first().map(String::as_str),
-        Some("alias"),
-        "caller dispatches on CommandTableEffect::CreatesAliases"
-    );
+    if !is_interp_alias_shape(args) {
+        return None;
+    }
     if args.len() != 4 {
         return None;
     }
@@ -360,6 +379,31 @@ mod tests {
             "foo".into(),
         ];
         assert!(detect_interp_alias_delete(&args).is_none());
+    }
+
+    /// A `SpecTcl` pack may stamp `CommandTableEffect::CreatesAliases` on a
+    /// command whose words are nothing like `interp alias` — the tcllib draft
+    /// does it on `struct::tree` and `struct::graph`, which build their handle
+    /// through `interp alias` internally. Both detectors must read that as "no
+    /// alias stated" rather than inventing one out of the command's own
+    /// arguments; before the shape guard the first of them aborted a debug
+    /// build outright (`tcl-spectcl/tests/spec_corpus.rs` caught it).
+    #[test]
+    fn a_call_that_is_not_interp_alias_shaped_states_no_alias() {
+        let args: Vec<String> = vec!["myTree".into(), "{}".into(), "x".into(), "{}".into()];
+        assert!(!is_interp_alias_shape(&args));
+        assert!(detect_interp_alias(&args).is_none());
+        assert!(detect_interp_alias_delete(&args).is_none());
+
+        let creation: Vec<String> = vec![
+            "myGraph".into(),
+            "{}".into(),
+            "g".into(),
+            "{}".into(),
+            "puts".into(),
+        ];
+        assert!(detect_interp_alias(&creation).is_none());
+        assert!(detect_interp_alias_delete(&creation).is_none());
     }
 
     #[test]

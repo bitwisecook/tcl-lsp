@@ -74,19 +74,19 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let registry = registry_for_dialect(&dialect);
     let source = maybe_optimise(
         &combine_sources(&documents),
-        registry,
+        &registry,
         &dialect,
         optimise_on,
     );
 
     let ir = lower_to_ir_for_bytecode_with_dialect(
         &source,
-        registry,
+        &registry,
         tcl_lexer::LexerConfig::for_dialect(&dialect),
         &dialect,
     );
     let cfg = build_cfg_codegen(&ir, false);
-    let module = codegen_module(&cfg, &ir, registry);
+    let module = codegen_module(&cfg, &ir, &registry);
     let disassembly = format_module_asm(&module);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
@@ -103,8 +103,8 @@ pub fn run_compwasm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> 
     let registry = registry_for_dialect(&dialect);
     let source = combine_sources(&documents);
 
-    let unit = CompilationUnit::build_for_dialect(&source, registry, false, &dialect);
-    let mut wasm = compile_wasm(&unit, registry, WasmCompileOptions::hosted());
+    let unit = CompilationUnit::build_for_dialect(&source, &registry, false, &dialect);
+    let mut wasm = compile_wasm(&unit, &registry, WasmCompileOptions::hosted());
     let bytes = wasm.to_bytes();
 
     // Unlike the other verbs, `compwasm` defaults to a file, not stdout: a bare

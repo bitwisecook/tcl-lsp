@@ -213,10 +213,16 @@ jobs:
           cp -r rust/tcl-cli/gui/. site/compiler-explorer/
           rm -f site/compiler-explorer/.gitignore
 
-          # Command-registry spec studio → /spec-studio/ (single self-contained
-          # file built above).
+          # Command-registry spec studio → /spec-studio/. Copy the whole dist
+          # directory, not `index.html` by name: the studio is one
+          # self-contained file today, but the single-file constraint has been
+          # relaxed, so a build that emits a separate .wasm/.js (Monaco, a
+          # split bundle) must deploy whole rather than silently losing every
+          # file but the entry point. Same treatment as the explorer above.
           mkdir -p site/spec-studio
-          cp rust/tcl-spec-studio-wasm/dist/index.html site/spec-studio/index.html
+          cp -r rust/tcl-spec-studio-wasm/dist/. site/spec-studio/
+          test -f site/spec-studio/index.html \
+            || { echo "spec-studio: dist produced no index.html"; exit 1; }
 
           # Root landing page linking both apps (the shared Pages root).
           cat > site/index.html <<'HTML'

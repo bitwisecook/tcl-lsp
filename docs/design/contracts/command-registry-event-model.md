@@ -9,8 +9,14 @@ wrong drifts through every consumer at once.
 
 Specs are organised as per-dialect packs under
 `rust/tcl-registry/src/commands/`: `tcl`, `stdlib`, `tcllib`, `tk`, `itcl`,
-`expect`, `irules`, `iapps`, `bpf`, `sdc_base`, the five EDA vendor packs,
-`ticklecharts`, and `argparse`.
+`expect`, `irules`, `iapps`, `bpf`, `ticklecharts`, and `argparse`.
+
+`sdc_base` and the five EDA vendor libraries are **not** among them: they ship
+as bundled `.tclspec` loadables under `specs/`, loaded by `tcl-spectcl` and
+layered into the per-profile registry at workspace scope
+([spec-packs.md](../spec-packs.md), [eda-library-packages.md](../eda-library-packages.md)).
+The contracts below apply to a loaded pack's specs exactly as they do to a
+compiled-in one — the loader builds the same `CommandSpec`.
 
 ## Decision rules / contracts
 

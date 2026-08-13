@@ -38,5 +38,12 @@ bitflags = "2"
 sha2 = "0.11"
 rustc-hash = { workspace = true }
 
+[dev-dependencies]
+# A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
+# permits: the EDA vendor libraries are bundled `.tclspec` loadables now, so
+# the tests that used to sweep them out of `load_eda_packs` have to load them
+# through the pack loader like everything else does.
+tcl-spectcl = { path = "../tcl-spectcl" }
+
 [lints]
 workspace = true

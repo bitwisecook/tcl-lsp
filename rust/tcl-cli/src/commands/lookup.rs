@@ -68,13 +68,15 @@ pub fn run_command_info(
     // that exists in the data but is unavailable under `dialect` — banned
     // in iRules, version-gated above the profile's base — reports
     // not-found for that dialect.
-    let resolved_name: Option<String> = if profile.resolve_command(registry, query).is_some() {
+    let resolved_name: Option<String> = if profile.resolve_command(&registry, query).is_some() {
         Some(query.to_owned())
     } else {
         let lowered = query.to_lowercase();
         registry
             .command_names()
-            .find(|c| c.to_lowercase() == lowered && profile.resolve_command(registry, c).is_some())
+            .find(|c| {
+                c.to_lowercase() == lowered && profile.resolve_command(&registry, c).is_some()
+            })
             .map(str::to_owned)
     };
 
@@ -99,7 +101,7 @@ pub fn run_command_info(
     };
 
     let spec = profile
-        .resolve_command(registry, &resolved_name)
+        .resolve_command(&registry, &resolved_name)
         .expect("resolved command spec");
     let summary = spec
         .hover

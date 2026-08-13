@@ -287,8 +287,11 @@ fn dispatch_definer(
                 true
             }
             // `oo::define` / `oo::objdefine` share the `TclOO` grammar but
-            // extend an existing class rather than create one.
-            DefinerFamily::TclOo => false,
+            // extend an existing class rather than create one — and a
+            // `.tclspec` declaration body manufactures nothing at all: it
+            // describes commands rather than creating them. Neither records a
+            // definition here; the ordinary scan continues past both.
+            DefinerFamily::TclOo | DefinerFamily::SpecTcl => false,
             // snit types/widgets create instances via `Name create obj` /
             // `Name %AUTO%` / a widget's `Name .path`, so record them as
             // classes to type those constructors' receivers (same shape as

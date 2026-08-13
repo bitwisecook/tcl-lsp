@@ -40,7 +40,7 @@ and drop it somewhere on PATH.
 ```lua
 vim.filetype.add({
   extension = {
-    tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl',
+    tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', tclspec = 'tcl',
     irul = 'tcl', irule = 'tcl', iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl',
     apl = 'tcl-apl', exp = 'tcl',
   },

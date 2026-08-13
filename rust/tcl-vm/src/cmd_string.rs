@@ -150,6 +150,22 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => return err(e),
     };
+    // `string repeat` is the one subcommand that can allocate without bound in
+    // a single command, so it is charged against the value-size limit before
+    // the core builds anything. Guarded here rather than in `tcl-cmd-core`
+    // because the limit belongs to the interp, and guarded *in addition to*
+    // `Op::STR_REPEAT` because the compiled opcode and this command funnel are
+    // two paths to the same allocation — the same reason `charge_command`
+    // guards both dispatch funnels.
+    if canon == "repeat"
+        && let [s, count] = rest
+    {
+        let n = count.as_int().unwrap_or(0).max(0);
+        let wanted = (s.to_str().len() as u64).saturating_mul(u64::try_from(n).unwrap_or(0));
+        if let Some(refusal) = vm.charge_allocation(wanted) {
+            return refusal;
+        }
+    }
     // Portable subcommands now live in the shared command core (`tcl-cmd-core`);
     // the VM is a thin adapter that maps `Result<Value, CmdError>` onto its
     // `Completion`. Subcommands not yet in the core fall through to the legacy arms.

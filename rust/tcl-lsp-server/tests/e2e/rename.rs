@@ -821,7 +821,7 @@ fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
 /// reconciliation still converges on the new one.
 #[test]
 fn did_rename_files_retires_the_old_path_and_keeps_source_rehoming() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     let root = std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-rename-sourced-{}-{}",
@@ -844,25 +844,27 @@ fn did_rename_files_retires_the_old_path_and_keeps_source_rehoming() {
 
     // The call on line 3 is a `references`/`definition` entry point — one of the
     // ~ten request paths that reconcile source-site views on the way in.
-    let definition_uris = |lsp: &mut Lsp| -> Vec<String> {
-        locations(&lsp.definition(&main_uri, 3, 6))
-            .into_iter()
-            .map(|loc| loc.uri)
-            .collect()
-    };
+    // `sourced_old.tcl` (and, later, `sourced_new.tcl`) is written straight to
+    // disk and never opened — only `rename_main.tcl` is — so this settles the
+    // same background-workspace-scan race `Lsp::await_query_settled` documents,
+    // through the shared helper rather than an ad-hoc loop.
     let settle = |lsp: &mut Lsp, want: &str, what: &str| {
-        let deadline = Instant::now() + Duration::from_secs(30);
-        loop {
-            let got = definition_uris(lsp);
-            if got == vec![want.to_owned()] {
-                return;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "{what}: expected the qualified call to resolve to {want}, got {got:?}"
-            );
-            std::thread::sleep(Duration::from_millis(100));
-        }
+        let result = lsp.await_query_settled(
+            Duration::from_secs(30),
+            |lsp| lsp.definition(&main_uri, 3, 6),
+            |result| {
+                locations(result)
+                    .into_iter()
+                    .map(|loc| loc.uri)
+                    .collect::<Vec<_>>()
+                    == vec![want.to_owned()]
+            },
+        );
+        let got: Vec<String> = locations(&result).into_iter().map(|loc| loc.uri).collect();
+        assert!(
+            got == vec![want.to_owned()],
+            "{what}: expected the qualified call to resolve to {want}, got {got:?}"
+        );
     };
     settle(
         &mut lsp,

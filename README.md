@@ -1385,6 +1385,7 @@ output.
 | `tcl-validate` | Categorised Tcl validation report |
 | `tcl-optimise` | Apply Tcl optimiser suggestions |
 | `tk-create` | Generate Tk GUI code with proper widget hierarchy |
+| `spec-author` | Build command specs for a private Tcl library from compiler-inferred evidence |
 
 ```sh
 # Example: fix all issues in an iRule

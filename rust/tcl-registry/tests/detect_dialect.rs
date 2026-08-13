@@ -206,3 +206,73 @@ fn version_guard_in_braced_data_ignored() {
         Some("tcl9.0")
     );
 }
+
+// ---------------------------------------------------------------------------
+// SpecTcl — `.tclspec` command packs (`docs/design/spec-packs.md`).
+// ---------------------------------------------------------------------------
+
+/// The extension is the registration `spec-packs.md` calls for: "the editor
+/// extensions and the LSP register it as Tcl in the `SpecTcl` dialect, so a
+/// pack file gets the full editor experience with no configuration."
+#[test]
+fn tclspec_extension_selects_the_spectcl_dialect() {
+    use tcl_registry::dialects::{detect_dialect, dialect_from_extension};
+
+    assert_eq!(dialect_from_extension("mylib.tclspec"), Some("spectcl"));
+    // Case-folded and path-qualified, like every other extension rule.
+    assert_eq!(
+        dialect_from_extension("/pkg/.tcl-lsp/MyLib.TclSpec"),
+        Some("spectcl")
+    );
+    // …and it reaches the shared detector, which is what the LSP and the CLI
+    // both resolve a document through.
+    assert_eq!(
+        detect_dialect("command foo { arity 1 }\n", Some("mylib.tclspec"), "tcl9.0"),
+        "spectcl"
+    );
+}
+
+/// `speclib` is the DSL's one loader directive and its only possible
+/// top-level word, so it is also a content signature — which is what
+/// recognises a pack saved under a `.tcl` name, the case the extension tier
+/// cannot reach.
+#[test]
+fn the_speclib_directive_is_a_content_signature() {
+    use tcl_registry::dialects::detect_dialect;
+
+    let pack = "speclib mylib 1.0 {\n    command with_var { arity 2 }\n}\n";
+    assert_eq!(detect_dialect(pack, Some("mylib.tcl"), "tcl9.0"), "spectcl");
+    // A comment merely mentioning it does not flip the dialect: full-line
+    // comments are stripped before the signature scan.
+    assert_eq!(
+        detect_dialect("# see speclib for the format\nset x 1\n", None, "tcl9.0"),
+        "tcl9.0"
+    );
+    // An explicit directive still outranks it, as does an explicit shebang.
+    assert_eq!(
+        detect_dialect(
+            &format!("# tcl-dialect: tcl8.6\n{pack}"),
+            Some("mylib.tclspec"),
+            "tcl9.0"
+        ),
+        "tcl8.6"
+    );
+}
+
+/// `spectcl` is a first-class catalogue dialect: it names a profile, parses
+/// to its own bit, and round-trips through the canonical-name inverse.
+#[test]
+fn spectcl_is_a_catalogued_dialect() {
+    use tcl_dialect::{DialectProfile, DialectSet, KNOWN_DIALECTS};
+
+    assert!(KNOWN_DIALECTS.contains(&"spectcl"));
+    assert_eq!(DialectSet::parse("spectcl"), Some(DialectSet::SPECTCL));
+    assert_eq!(DialectSet::SPECTCL.canonical_name(), Some("spectcl"));
+    let profile = DialectProfile::by_name("spectcl");
+    assert_eq!(profile.name, "spectcl");
+    assert_eq!(profile.base_layers, &[DialectSet::SPECTCL]);
+    // The editor / MCP spellings canonicalise to it.
+    for alias in ["tclspec", "tcl-spec"] {
+        assert_eq!(DialectProfile::by_name(alias).name, "spectcl");
+    }
+}

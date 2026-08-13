@@ -31,6 +31,7 @@
 //! `docs/design/common-runtime-emitter-architecture.md`.
 
 pub mod debug;
+pub mod embed;
 pub mod error;
 pub mod host_native;
 pub mod value;
@@ -70,7 +71,9 @@ mod interp;
 mod subst;
 
 pub use cmd_thread::{CompileFactory, ThreadedOutput};
+pub use command::NativeCommand;
 pub use debug::{DebugAction, DebugFrame, DebugHook, DebugSnapshot, DebugVar};
+pub use embed::FunctionHandle;
 pub use error::TclError;
 pub use interp::Vm;
 pub use value::Value;

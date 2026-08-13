@@ -812,6 +812,18 @@ pub enum DefinerFamily {
     Snit,
     /// [incr Tcl] `itcl::class` (and the bare `class` alias).
     Itcl,
+    /// `SpecTcl` — the `.tclspec` spec-pack DSL's own declaration bodies
+    /// (`speclib … { … }`, `command … { … }`, `hover { … }`, …).
+    ///
+    /// Not a class system: no instances are manufactured and nothing is
+    /// dispatched, so every "object" field of the grammar is empty for it.
+    /// It shares [`DefinitionBodyGrammar`] because it needs exactly the same
+    /// thing the class definers need — a *context-sensitive* member
+    /// vocabulary with per-member argument roles — and gets folding,
+    /// semantic tokens, and body recursion from the same generic consumers.
+    /// Consumers that manufacture instances (the signature scanner, the OO
+    /// analyser) must treat this family as claiming nothing.
+    SpecTcl,
 }
 
 /// The grammar of a definer command's definition body: its recognised member
@@ -1169,7 +1181,11 @@ impl DefinitionBodyGrammar {
     pub fn member_default_exported(&self, name: &str) -> bool {
         match self.family {
             DefinerFamily::TclOo => name.starts_with(|c: char| c.is_ascii_lowercase()),
-            DefinerFamily::Snit | DefinerFamily::Itcl => true,
+            // SpecTcl declares no members that are ever *dispatched*, so the
+            // question is vacuous for it; answering `true` keeps the visible
+            // set equal to the declared set, which is the only reading of
+            // "exported" a declaration-only family has.
+            DefinerFamily::Snit | DefinerFamily::Itcl | DefinerFamily::SpecTcl => true,
         }
     }
 }
@@ -1824,6 +1840,402 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     // them), so they live in `builtin_object_methods`.
     property_accessor_methods: &[],
 };
+
+// ---------------------------------------------------------------------------
+// SpecTcl — the `.tclspec` spec-pack DSL's own declaration bodies.
+//
+// `speclib NAME VERSION { … }` is a definition body in exactly the sense the
+// class definers are: its top-level words are declaration keywords, not
+// commands, and they mean nothing outside it.  The DSL nests, so each block
+// statement is *also* a definer whose own body has its own member vocabulary
+// (`command … { … }` → the per-command keys, `hover { … }` → the six hover
+// keys, …).  Nesting needs no new machinery: each block statement carries a
+// `CommandSpec` whose `definition_body` is the inner grammar, and the shared
+// walker's "an outer definer switches grammars" rule does the rest.
+//
+// The frozen syntax is `docs/design/spec-dsl-examples/README.md`; the member
+// vocabulary below is its coverage matrix, one member per property word.
+//
+// Every field a class system uses to manufacture and dispatch instances is
+// empty here — a spec pack creates no objects — so consumers keyed on those
+// fields see nothing, and `DefinerFamily::SpecTcl` is the one-word way for a
+// consumer that must not treat this as a class system to say so.
+// ---------------------------------------------------------------------------
+
+/// A `SpecTcl` block statement that names something and then takes a block:
+/// `command NAME { … }`, `values NAME { … }`, `subcommand NAME { … }`.
+const SPECTCL_NAMED_BLOCK_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name), (1, ArgRole::Body)];
+/// `hook NAME {params} { … }` — a shared hook body declared pack-wide, and
+/// the same shape as a `proc`: name, parameter list, body.
+const SPECTCL_NAMED_HOOK_ROLES: &[(u8, ArgRole)] = &[
+    (0, ArgRole::Name),
+    (1, ArgRole::ParamList),
+    (2, ArgRole::Body),
+];
+/// A hook *property* statement — `const_fold {words ctx} { … }`.  The
+/// `-native ID` spelling of the same statement carries no parameter list or
+/// body; a walker only ever applies the `ParamList` / `Body` roles to a
+/// braced word, so the reference form is left alone by construction.
+const SPECTCL_HOOK_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::ParamList), (1, ArgRole::Body)];
+/// `descriptor KEY NAME { … }` — the schema key it is a descriptor *for*,
+/// the name it is declared under, then the block.
+const SPECTCL_DESCRIPTOR_ROLES: &[(u8, ArgRole)] = &[
+    (0, ArgRole::Keyword),
+    (1, ArgRole::Name),
+    (2, ArgRole::Body),
+];
+
+/// `command NAME ?-override? { … }` — the one pack-level statement with an
+/// optional word between its name and its block.  `-override` claims a name
+/// a shipped spec already has (the load-policy section of the syntax memo),
+/// and inserting it shifts the block one place right, which is exactly what
+/// [`OptionalMemberArgument`] models.
+const SPECTCL_OVERRIDE_ARGUMENT: OptionalMemberArgument = OptionalMemberArgument {
+    position: 1,
+    values: &[MemberOptionValue {
+        value: "-override",
+        role: ArgRole::Option,
+        dialects: None,
+        declared_visibility: None,
+    }],
+};
+
+/// The five pack-level statements of a `speclib` body.
+const SPECTCL_PACK_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::flat("command", SPECTCL_NAMED_BLOCK_ROLES)
+        .optional_argument(SPECTCL_OVERRIDE_ARGUMENT),
+    MemberSpec::flat("values", SPECTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("hook", SPECTCL_NAMED_HOOK_ROLES),
+    MemberSpec::flat("descriptor", SPECTCL_DESCRIPTOR_ROLES),
+    // `default KEY VALUE…` sets one pack-wide availability/identity key; it
+    // declares no name of its own and holds no script.
+    MemberSpec::keyword_only("default"),
+];
+
+/// The declaration keys of a `command` / `subcommand` body.
+///
+/// One member per DSL property word of the syntax memo's coverage matrix.
+/// The two tables (`CommandSpec` and `SubCommand`) are unioned into one
+/// grammar rather than split: they overlap on all but a handful of words,
+/// and a `subcommand` block is lexically identical to a `command` block, so
+/// splitting would buy nothing a loader does not already have to check.
+const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
+    // --- nested blocks (each also a `CommandSpec` carrying the inner
+    //     grammar, so recursing into one switches vocabulary) --------------
+    MemberSpec::flat("subcommand", SPECTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("hover", BODY0_ROLES),
+    // `values NAME { … }` is deliberately absent: the memo makes the shared
+    // value table a *pack-level* declaration, referenced from here by
+    // `arg -values-from NAME` / `option -values-from NAME`.
+    MemberSpec::flat("case_list", BODY0_ROLES),
+    MemberSpec::flat("clause_grammar", BODY0_ROLES),
+    MemberSpec::flat("event_requires", BODY0_ROLES),
+    MemberSpec::flat("world_effects", BODY0_ROLES),
+    MemberSpec::flat("state_transitions", BODY0_ROLES),
+    MemberSpec::flat("definition_body", BODY0_ROLES),
+    MemberSpec::flat("body_scope", BODY0_ROLES),
+    // `object_class NAME ?-superclass {…}? ?-allow-unknown? { … }` is
+    // deliberately NOT a member row. Its block's index is a function of two
+    // optional flags of *different widths*, which `OptionalMemberArgument`
+    // (one optional word, one position) cannot express — and a member layout
+    // that guessed index 1 would paint `-superclass`'s braced class list as a
+    // definition block. It is instead a plain registered statement carrying
+    // an `arg_role_resolver`, which reads the whole call; the word still
+    // paints as a keyword (`Traits::LANGUAGE_KEYWORD`) and its block still
+    // switches grammars (`CommandSpec::definition_body`), so nothing is lost
+    // but the wrong answer.
+    // --- hook bodies: a proc-shaped `{words ctx} { … }` pair -------------
+    MemberSpec::flat("arg_role_resolver", SPECTCL_HOOK_ROLES),
+    MemberSpec::flat("command_prefix_resolver", SPECTCL_HOOK_ROLES),
+    MemberSpec::flat("const_fold", SPECTCL_HOOK_ROLES),
+    MemberSpec::flat("const_fold_versioned", SPECTCL_HOOK_ROLES),
+    MemberSpec::flat("taint_sink_gate", SPECTCL_HOOK_ROLES),
+    MemberSpec::flat("context_gate", SPECTCL_HOOK_ROLES),
+    MemberSpec::flat("literal_argument_validator", SPECTCL_HOOK_ROLES),
+    MemberSpec::flat("clause_shape_check", SPECTCL_HOOK_ROLES),
+    // --- row statements (the singular-row rule: a field holding a list of
+    //     rows gets a singular statement, never a nested block) -----------
+    MemberSpec::keyword_only("arg"),
+    MemberSpec::keyword_only("option"),
+    MemberSpec::keyword_only("option_conflict"),
+    MemberSpec::keyword_only("form"),
+    MemberSpec::keyword_only("side_effect"),
+    MemberSpec::keyword_only("repeat"),
+    MemberSpec::keyword_only("manufacturer"),
+    MemberSpec::keyword_only("setter_constraint"),
+    MemberSpec::keyword_only("sub_subcommand"),
+    MemberSpec::keyword_only("oo_context_fact"),
+    MemberSpec::keyword_only("versioned_arg_value"),
+    MemberSpec::keyword_only("event_requirement_form"),
+    MemberSpec::keyword_only("defines_symbol"),
+    MemberSpec::keyword_only("binds_handle"),
+    MemberSpec::keyword_only("frame_effect"),
+    MemberSpec::keyword_only("byte_array_payload"),
+    MemberSpec::keyword_only("deprecation_fix"),
+    MemberSpec::keyword_only("event_handler_priority"),
+    // --- scalar property words -------------------------------------------
+    MemberSpec::keyword_only("traits"),
+    MemberSpec::keyword_only("dialects"),
+    MemberSpec::keyword_only("arity"),
+    MemberSpec::keyword_only("detail"),
+    MemberSpec::keyword_only("synopsis"),
+    MemberSpec::keyword_only("return_type"),
+    MemberSpec::keyword_only("var_write_typing"),
+    MemberSpec::keyword_only("return_elements"),
+    MemberSpec::keyword_only("var_elements_effect"),
+    MemberSpec::keyword_only("representation_effect"),
+    MemberSpec::keyword_only("allow_unknown_subcommands"),
+    MemberSpec::keyword_only("prefix_matching"),
+    MemberSpec::keyword_only("default_form_first_word"),
+    MemberSpec::keyword_only("semantic_operation"),
+    MemberSpec::keyword_only("assigns_variable_at"),
+    MemberSpec::keyword_only("safe_on_uninit"),
+    MemberSpec::keyword_only("lowering_hook"),
+    MemberSpec::keyword_only("codegen_hook"),
+    MemberSpec::keyword_only("inline_codegen_hook"),
+    MemberSpec::keyword_only("analyser_hook"),
+    MemberSpec::keyword_only("bpf_op"),
+    MemberSpec::keyword_only("data_collection"),
+    MemberSpec::keyword_only("command_table_effect"),
+    MemberSpec::keyword_only("result_stability"),
+    MemberSpec::keyword_only("inferred_storage_type"),
+    MemberSpec::keyword_only("required_package"),
+    MemberSpec::keyword_only("excluded_events"),
+    MemberSpec::keyword_only("unsafe_command"),
+    MemberSpec::keyword_only("side_switch_target"),
+    MemberSpec::keyword_only("reserved_trailing_words"),
+    MemberSpec::keyword_only("body_kind"),
+    MemberSpec::keyword_only("body_arg_implicit_args"),
+    MemberSpec::keyword_only("taint_output_sink"),
+    MemberSpec::keyword_only("taint_output_sink_subcommands"),
+    MemberSpec::keyword_only("taint_log_sink"),
+    MemberSpec::keyword_only("taint_network_sink_args"),
+    MemberSpec::keyword_only("taint_code_sink_args"),
+    MemberSpec::keyword_only("taint_interp_eval_subcommands"),
+    MemberSpec::keyword_only("taint_source"),
+    MemberSpec::keyword_only("taint_transform"),
+    MemberSpec::keyword_only("taint_double_encode_colour"),
+    MemberSpec::keyword_only("taint_sink_safe_colour"),
+    MemberSpec::keyword_only("credential_options"),
+    MemberSpec::keyword_only("credential_arg"),
+    MemberSpec::keyword_only("sensitive_headers"),
+    MemberSpec::keyword_only("pattern_type"),
+    MemberSpec::keyword_only("format_string_type"),
+    MemberSpec::keyword_only("tcllib_package"),
+    MemberSpec::keyword_only("introduced_version"),
+    MemberSpec::keyword_only("deprecated_version"),
+    MemberSpec::keyword_only("retired_version"),
+    MemberSpec::keyword_only("warn_missing_import"),
+    MemberSpec::keyword_only("is_namespace_exported"),
+    MemberSpec::keyword_only("xc_translatable"),
+    MemberSpec::keyword_only("xc_operation"),
+    MemberSpec::keyword_only("deprecated_replacement"),
+    MemberSpec::keyword_only("deprecated_replacement_drop_in"),
+    MemberSpec::keyword_only("byte_array_effect"),
+    MemberSpec::keyword_only("self_receiver_words"),
+    MemberSpec::keyword_only("creates_instance_at"),
+    MemberSpec::keyword_only("defines_command_at"),
+    MemberSpec::keyword_only("implementation_namespace"),
+    // --- `SubCommand`-only keys ------------------------------------------
+    MemberSpec::keyword_only("pure"),
+    MemberSpec::keyword_only("mutator"),
+    MemberSpec::keyword_only("min_abbrev"),
+    MemberSpec::keyword_only("loop_list_header"),
+    MemberSpec::keyword_only("creates_scope_alias"),
+    MemberSpec::keyword_only("arg_values_accept_prefix"),
+    MemberSpec::keyword_only("destructive"),
+    MemberSpec::keyword_only("returns_path"),
+    MemberSpec::keyword_only("is_unescape"),
+    MemberSpec::keyword_only("cfg_rewrite_name"),
+    MemberSpec::keyword_only("max_leading_option_words"),
+];
+
+/// The six documentation keys of a `hover { … }` block.  `synopsis` and
+/// `example` are repeatable and keep their order; `description` / `example`
+/// / `returns` are the three keys the memo deliberately renames from their
+/// Rust field names (`snippet` / `examples` / `return_value`).
+const SPECTCL_HOVER_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("summary"),
+    MemberSpec::keyword_only("synopsis"),
+    MemberSpec::keyword_only("description"),
+    MemberSpec::keyword_only("source"),
+    MemberSpec::keyword_only("example"),
+    MemberSpec::keyword_only("returns"),
+];
+
+/// A row whose first word is the thing it declares (`value V …`).
+const SPECTCL_NAME0_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name)];
+
+/// The one repeatable row of a `values NAME { … }` table:
+/// `value V ?-detail {…}? ?-min-tcl VER? ?-code N?`.
+const SPECTCL_VALUES_MEMBERS: &[MemberSpec] = &[MemberSpec::flat("value", SPECTCL_NAME0_ROLES)];
+
+/// The three clause rows of a `clause_grammar { … }` block.  `head` /
+/// `repeated` / `tail` each carry a braced *slot list*, which is a role
+/// vocabulary rather than a script, so no member declares a `Body`.
+const SPECTCL_CLAUSE_GRAMMAR_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("head"),
+    MemberSpec::keyword_only("repeated"),
+    MemberSpec::keyword_only("tail"),
+];
+
+/// The thirteen plain-data fields of a `case_list { … }` block.
+const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("subject_args"),
+    MemberSpec::keyword_only("exact_option"),
+    MemberSpec::keyword_only("glob_option"),
+    MemberSpec::keyword_only("regex_option"),
+    MemberSpec::keyword_only("nocase_option"),
+    MemberSpec::keyword_only("end_options_option"),
+    MemberSpec::keyword_only("fallthrough_body"),
+    MemberSpec::keyword_only("value_options_require_regex"),
+    MemberSpec::keyword_only("clause_flags"),
+    MemberSpec::keyword_only("clause_regex_flag"),
+    MemberSpec::keyword_only("clause_value_flags"),
+    MemberSpec::keyword_only("keyword_patterns"),
+];
+
+/// The eight scalars of an `event_requires { … }` block.
+const SPECTCL_EVENT_REQUIRES_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("client_side"),
+    MemberSpec::keyword_only("server_side"),
+    MemberSpec::keyword_only("transport"),
+    MemberSpec::keyword_only("profiles"),
+    MemberSpec::keyword_only("also_in"),
+    MemberSpec::keyword_only("init_only"),
+    MemberSpec::keyword_only("flow"),
+    MemberSpec::keyword_only("capability"),
+];
+
+/// The rows of a `world_effects { … }` block.  `resolver` is reference-only
+/// (`-native ID`, `none`, or a derivation keyword) — the memo excludes an
+/// authored resolver, but the *word* is still part of the block's grammar.
+const SPECTCL_WORLD_EFFECTS_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("composition"),
+    MemberSpec::keyword_only("access"),
+    MemberSpec::keyword_only("callback"),
+    MemberSpec::keyword_only("resolver"),
+    MemberSpec::keyword_only("dynamic_fallback"),
+];
+
+/// The rows of a `state_transitions { … }` block.
+const SPECTCL_STATE_TRANSITIONS_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("composition"),
+    MemberSpec::keyword_only("argument_shape"),
+    MemberSpec::keyword_only("resolver"),
+    MemberSpec::keyword_only("widen"),
+    MemberSpec::keyword_only("covers"),
+    MemberSpec::keyword_only("commit"),
+];
+
+/// The rows of a `definition_body { … }` block — `DefinitionBodyGrammar`'s
+/// own fields, which is what makes the DSL able to describe *this* module's
+/// data structure in itself.
+const SPECTCL_DEFINITION_BODY_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("family"),
+    MemberSpec::keyword_only("member"),
+    MemberSpec::keyword_only("member_option"),
+    MemberSpec::keyword_only("implicit_vars"),
+    MemberSpec::keyword_only("member_body_namespace_path"),
+    MemberSpec::keyword_only("builtin_type_methods"),
+    MemberSpec::keyword_only("builtin_object_method"),
+    MemberSpec::keyword_only("builtin_terminating_methods"),
+    MemberSpec::keyword_only("member_body_command"),
+    MemberSpec::keyword_only("bare_word_construction"),
+    MemberSpec::keyword_only("dynamic_method_dispatch"),
+    MemberSpec::keyword_only("manufacturer"),
+    MemberSpec::keyword_only("unknown_dispatch_method"),
+    MemberSpec::keyword_only("property_accessor_methods"),
+];
+
+/// The rows of a `body_scope { … }` block.  Its `command NAME { … }` is a
+/// *scoped-command* row, not a pack-level command declaration — the same
+/// context rule that makes `method` a member row inside `object_class` —
+/// which is why it lives in this grammar with its own roles rather than
+/// being borrowed from the pack grammar.
+const SPECTCL_BODY_SCOPE_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("name"),
+    MemberSpec::keyword_only("include_sibling_definitions"),
+    MemberSpec::keyword_only("allow_unknown_commands"),
+    MemberSpec::flat("command", SPECTCL_NAMED_BLOCK_ROLES),
+];
+
+/// The rows of an `object_class NAME { … }` block: `method NAME { … }`
+/// bodies, which reuse the `subcommand` body grammar unchanged.
+const SPECTCL_OBJECT_CLASS_MEMBERS: &[MemberSpec] =
+    &[MemberSpec::flat("method", SPECTCL_NAMED_BLOCK_ROLES)];
+
+/// Build one `SpecTcl` grammar from its member table.  Every field a class
+/// system uses is empty: a spec pack manufactures nothing, dispatches
+/// nothing, and injects no commands or variables into its blocks.
+const fn spectcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGrammar {
+    DefinitionBodyGrammar {
+        family: DefinerFamily::SpecTcl,
+        members,
+        implicit_vars: &[],
+        member_body_namespace_path: &[],
+        builtin_type_methods: &[],
+        builtin_object_methods: &[],
+        builtin_terminating_methods: &[],
+        member_body_commands: &[],
+        bare_word_construction: false,
+        bare_word_construction_hint: None,
+        dynamic_method_dispatch: false,
+        manufacturers: &[],
+        unknown_dispatch_method: None,
+        property_accessor_methods: &[],
+    }
+}
+
+/// The body of `speclib NAME VERSION { … }` — the pack itself.
+pub const SPECTCL_PACK_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_PACK_MEMBERS);
+/// The body of `command NAME { … }` and of `subcommand NAME { … }`.
+pub const SPECTCL_COMMAND_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_COMMAND_MEMBERS);
+/// The body of `hover { … }`.
+pub const SPECTCL_HOVER_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_HOVER_MEMBERS);
+/// The body of `values NAME { … }`.
+pub const SPECTCL_VALUES_GRAMMAR: DefinitionBodyGrammar = spectcl_grammar(SPECTCL_VALUES_MEMBERS);
+/// The body of `clause_grammar { … }`.
+pub const SPECTCL_CLAUSE_GRAMMAR_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_CLAUSE_GRAMMAR_MEMBERS);
+/// The body of `case_list { … }`.
+pub const SPECTCL_CASE_LIST_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_CASE_LIST_MEMBERS);
+/// The body of `event_requires { … }`.
+pub const SPECTCL_EVENT_REQUIRES_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_EVENT_REQUIRES_MEMBERS);
+/// The body of `world_effects { … }`.
+pub const SPECTCL_WORLD_EFFECTS_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_WORLD_EFFECTS_MEMBERS);
+/// The body of `state_transitions { … }`.
+pub const SPECTCL_STATE_TRANSITIONS_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_STATE_TRANSITIONS_MEMBERS);
+/// The body of `definition_body { … }`.
+pub const SPECTCL_DEFINITION_BODY_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_DEFINITION_BODY_MEMBERS);
+/// The body of `body_scope { … }`.
+pub const SPECTCL_BODY_SCOPE_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_BODY_SCOPE_MEMBERS);
+/// The body of `object_class NAME { … }`.
+pub const SPECTCL_OBJECT_CLASS_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_OBJECT_CLASS_MEMBERS);
+
+/// Every `SpecTcl` grammar, so a sweep can assert the family's invariants
+/// without enumerating the constants by hand.
+pub const SPECTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
+    &SPECTCL_PACK_GRAMMAR,
+    &SPECTCL_COMMAND_GRAMMAR,
+    &SPECTCL_HOVER_GRAMMAR,
+    &SPECTCL_VALUES_GRAMMAR,
+    &SPECTCL_CLAUSE_GRAMMAR_GRAMMAR,
+    &SPECTCL_CASE_LIST_GRAMMAR,
+    &SPECTCL_EVENT_REQUIRES_GRAMMAR,
+    &SPECTCL_WORLD_EFFECTS_GRAMMAR,
+    &SPECTCL_STATE_TRANSITIONS_GRAMMAR,
+    &SPECTCL_DEFINITION_BODY_GRAMMAR,
+    &SPECTCL_BODY_SCOPE_GRAMMAR,
+    &SPECTCL_OBJECT_CLASS_GRAMMAR,
+];
 
 #[cfg(test)]
 mod tests {

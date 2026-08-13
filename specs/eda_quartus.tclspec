@@ -1,0 +1,654 @@
+# tcl-lsp — bundled SpecTcl loadable: the Intel/Altera Quartus tool commands.
+#
+# This pack IS the source of truth for these commands. The Rust modules that
+# used to hold them (rust/tcl-registry/src/commands/eda_quartus/) were deleted when
+# the EDA vendor libraries migrated to bundled `.tclspec` loadables, per
+# docs/design/spec-packs.md ("the EDA vendor libraries ship as bundled
+# `.tclspec` loadables … so the loader path is exercised in production from day
+# one rather than reserved for private packs"). Every command was proved
+# field-for-field equal to its compiled spec by the SpecTcl round-trip gate
+# before the modules were removed.
+#
+# Discovery: the **bundled** tier — `specs/` beside the server executable, or
+# wherever $TCL_LSP_SPEC_PACK_DIR points (rust/tcl-spectcl/src/discovery.rs).
+# Edit this file to change the specs; there is no generator to re-run.
+# Syntax: docs/design/spec-dsl-examples/README.md. The initial text was written
+# by the spec studio's SpecTcl renderer (rust/tcl-spec-studio/src/render_spectcl.rs)
+# from the registry modules, which reported no unwritable field on any command
+# here; this file is hand-maintained from now on.
+
+speclib eda_quartus 1.0 {
+
+command check_timing {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {check_timing ?-file file?}
+
+    hover {
+        summary {Check for timing analysis issues.}
+        synopsis {check_timing ?-file file?}
+        source {F5}
+    }
+}
+
+command close_device {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {close_device}
+
+    hover {
+        summary {Close the active JTAG device.}
+        synopsis {close_device}
+        source {F5}
+    }
+}
+
+command create_timing_netlist {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {create_timing_netlist ?-model model? ?-post_map | -post_fit?}
+
+    hover {
+        summary {Create a timing netlist for analysis.}
+        synopsis {create_timing_netlist ?-model model? ?-post_map | -post_fit?}
+        source {F5}
+    }
+}
+
+command delete_timing_netlist {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {delete_timing_netlist}
+
+    hover {
+        summary {Delete the current timing netlist.}
+        synopsis {delete_timing_netlist}
+        source {F5}
+    }
+}
+
+command derive_clocks {
+    dialects tcl8.5
+    required_package quartus-sdc-ext
+
+    form Default {derive_clocks ?-period period?}
+
+    hover {
+        summary {Automatically derive clocks from the design.}
+        synopsis {derive_clocks ?-period period?}
+        source {F5}
+    }
+}
+
+command derive_pll_clocks {
+    dialects tcl8.5
+    required_package quartus-sdc-ext
+
+    form Default {derive_pll_clocks ?-create_base_clocks? ?-use_net_name?}
+
+    hover {
+        summary {Automatically derive PLL output clocks.}
+        synopsis {derive_pll_clocks ?-create_base_clocks? ?-use_net_name?}
+        source {F5}
+    }
+}
+
+command device_lock {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {device_lock ?-timeout seconds?}
+
+    hover {
+        summary {Lock a JTAG device for exclusive access.}
+        synopsis {device_lock ?-timeout seconds?}
+        source {F5}
+    }
+}
+
+command device_unlock {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {device_unlock}
+
+    hover {
+        summary {Unlock a previously locked JTAG device.}
+        synopsis {device_unlock}
+        source {F5}
+    }
+}
+
+command execute_flow {
+    dialects tcl8.5
+    required_package quartus-flow
+
+    form Default {execute_flow -compile | -analysis_and_synthesis | -fitter | -assembler | -timing_analyzer | -eda_netlist_writer | -signaltap | -export_database}
+
+    hover {
+        summary {Execute a Quartus compilation flow.}
+        synopsis {execute_flow -compile | -analysis_and_synthesis | -fitter | -assembler | -timing_analyzer | -eda_net}
+        source {F5}
+    }
+}
+
+command execute_module {
+    dialects tcl8.5
+    required_package quartus-flow
+
+    form Default {execute_module -tool tool_name ?-args arg_list?}
+
+    hover {
+        summary {Execute a specific Quartus module.}
+        synopsis {execute_module -tool tool_name ?-args arg_list?}
+        source {F5}
+    }
+}
+
+command export_assignments {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {export_assignments}
+
+    hover {
+        summary {Export assignments to the .qsf file.}
+        synopsis {export_assignments}
+        source {F5}
+    }
+}
+
+command get_all_assignments {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
+
+    hover {
+        summary {Get all assignments matching criteria.}
+        synopsis {get_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
+        source {F5}
+    }
+}
+
+command get_global_assignment {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_global_assignment -name name ?-section_id id?}
+
+    hover {
+        summary {Get a global project assignment value.}
+        synopsis {get_global_assignment -name name ?-section_id id?}
+        source {F5}
+    }
+}
+
+command get_instance_assignment {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id?}
+
+    hover {
+        summary {Get an instance assignment value.}
+        synopsis {get_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id?}
+        source {F5}
+    }
+}
+
+command get_io_assignment {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_io_assignment -name name -to pin_name}
+
+    hover {
+        summary {Get an I/O assignment value.}
+        synopsis {get_io_assignment -name name -to pin_name}
+        source {F5}
+    }
+}
+
+command get_name_info {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_name_info -info info_type name_id}
+
+    hover {
+        summary {Get detailed information about a named signal.}
+        synopsis {get_name_info -info info_type name_id}
+        source {F5}
+    }
+}
+
+command get_names {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_names ?-filter filter? ?-node_type type? ?-observable_type type?}
+
+    hover {
+        summary {Get signal names from the design.}
+        synopsis {get_names ?-filter filter? ?-node_type type? ?-observable_type type?}
+        source {F5}
+    }
+}
+
+command get_number_of_columns {
+    dialects tcl8.5
+    required_package quartus-report
+
+    form Default {get_number_of_columns -name panel_name}
+
+    hover {
+        summary {Get the number of columns in a report panel.}
+        synopsis {get_number_of_columns -name panel_name}
+        source {F5}
+    }
+}
+
+command get_number_of_rows {
+    dialects tcl8.5
+    required_package quartus-report
+
+    form Default {get_number_of_rows -name panel_name}
+
+    hover {
+        summary {Get the number of rows in a report panel.}
+        synopsis {get_number_of_rows -name panel_name}
+        source {F5}
+    }
+}
+
+command get_part_info {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {get_part_info -family | -speed_grade | -package | -pin_count | -available_pin_count part_name}
+
+    hover {
+        summary {Get information about a specific FPGA part.}
+        synopsis {get_part_info -family | -speed_grade | -package | -pin_count | -available_pin_count part_name}
+        source {F5}
+    }
+}
+
+command get_part_list {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {get_part_list ?-family family? ?-speed_grade speed_grade?}
+
+    hover {
+        summary {Get a list of available FPGA parts.}
+        synopsis {get_part_list ?-family family? ?-speed_grade speed_grade?}
+        source {F5}
+    }
+}
+
+command get_report_panel_data {
+    dialects tcl8.5
+    required_package quartus-report
+
+    form Default {get_report_panel_data -name panel_name -row row -col col}
+
+    hover {
+        summary {Get data from a specific report panel cell.}
+        synopsis {get_report_panel_data -name panel_name -row row -col col}
+        source {F5}
+    }
+}
+
+command get_report_panel_id {
+    dialects tcl8.5
+    arity 1
+    required_package quartus-report
+
+    form Default {get_report_panel_id panel_name}
+
+    hover {
+        summary {Get the ID of a report panel.}
+        synopsis {get_report_panel_id panel_name}
+        source {F5}
+    }
+}
+
+command get_report_panel_row_index {
+    dialects tcl8.5
+    required_package quartus-report
+
+    form Default {get_report_panel_row_index -name panel_name row_name}
+
+    hover {
+        summary {Get the row index of matching data.}
+        synopsis {get_report_panel_row_index -name panel_name row_name}
+        source {F5}
+    }
+}
+
+command load_package {
+    dialects tcl8.5
+    arity 1
+    required_package quartus-misc
+
+    form Default {load_package package_name}
+
+    hover {
+        summary {Load a Quartus Tcl package.}
+        synopsis {load_package package_name}
+        source {F5}
+    }
+}
+
+command load_report {
+    dialects tcl8.5
+    required_package quartus-report
+
+    form Default {load_report ?revision_name?}
+
+    hover {
+        summary {Load a compilation report into memory.}
+        synopsis {load_report ?revision_name?}
+        source {F5}
+    }
+}
+
+command make_connection {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {make_connection -from source -to destination}
+
+    hover {
+        summary {Make a connection in an ECO change.}
+        synopsis {make_connection -from source -to destination}
+        source {F5}
+    }
+}
+
+command open_device {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {open_device ?-hardware_name name? ?-device_name name?}
+
+    hover {
+        summary {Open a device on the JTAG chain.}
+        synopsis {open_device ?-hardware_name name? ?-device_name name?}
+        source {F5}
+    }
+}
+
+command project_close {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {project_close ?-dont_export_assignments?}
+
+    hover {
+        summary {Close the current Quartus project.}
+        synopsis {project_close ?-dont_export_assignments?}
+        source {F5}
+    }
+}
+
+command project_exists {
+    dialects tcl8.5
+    arity 1
+    required_package quartus-project
+
+    form Default {project_exists project_name}
+
+    hover {
+        summary {Check whether a Quartus project exists.}
+        synopsis {project_exists project_name}
+        source {F5}
+    }
+}
+
+command project_new {
+    dialects tcl8.5
+    arity 1..
+    required_package quartus-project
+
+    form Default {project_new ?-overwrite? ?-revision rev? ?-part part? ?-family family? project_name}
+
+    hover {
+        summary {Create a new Quartus project.}
+        synopsis {project_new ?-overwrite? ?-revision rev? ?-part part? ?-family family? project_name}
+        source {F5}
+    }
+}
+
+command project_open {
+    dialects tcl8.5
+    arity 1..
+    required_package quartus-project
+
+    form Default {project_open ?-revision rev? ?-current_revision? ?-force? project_name}
+
+    hover {
+        summary {Open an existing Quartus project.}
+        synopsis {project_open ?-revision rev? ?-current_revision? ?-force? project_name}
+        source {F5}
+    }
+}
+
+command read_sdc {
+    dialects tcl8.5
+    arity 1..
+    required_package quartus-sta
+
+    form Default {read_sdc ?-echo? file_name}
+
+    hover {
+        summary {Read SDC constraint file for TimeQuest.}
+        synopsis {read_sdc ?-echo? file_name}
+        source {F5}
+    }
+}
+
+command remove_all_assignments {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {remove_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
+
+    hover {
+        summary {Remove all assignments matching criteria.}
+        synopsis {remove_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
+        source {F5}
+    }
+}
+
+command remove_connection {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {remove_connection -from source -to destination}
+
+    hover {
+        summary {Remove a connection in an ECO change.}
+        synopsis {remove_connection -from source -to destination}
+        source {F5}
+    }
+}
+
+command rename_node {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {rename_node -from old_name -to new_name}
+
+    hover {
+        summary {Rename a node in an ECO change.}
+        synopsis {rename_node -from old_name -to new_name}
+        source {F5}
+    }
+}
+
+command report_clock_fmax_summary {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {report_clock_fmax_summary ?-file file? ?-panel_name name?}
+
+    hover {
+        summary {Report maximum clock frequency summary.}
+        synopsis {report_clock_fmax_summary ?-file file? ?-panel_name name?}
+        source {F5}
+    }
+}
+
+command report_datasheet {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {report_datasheet ?-file file? ?-panel_name name?}
+
+    hover {
+        summary {Report I/O timing datasheet.}
+        synopsis {report_datasheet ?-file file? ?-panel_name name?}
+        source {F5}
+    }
+}
+
+command report_min_pulse_width {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {report_min_pulse_width ?-nworst n? ?-file file?}
+
+    hover {
+        summary {Report minimum pulse width violations.}
+        synopsis {report_min_pulse_width ?-nworst n? ?-file file?}
+        source {F5}
+    }
+}
+
+command report_timing {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {report_timing ?-from from_list? ?-to to_list? ?-through through_list? ?-setup | -hold? ?-npaths n? ?-detail detail? ?-panel_name name? ?-file file?}
+
+    hover {
+        summary {Report timing paths.}
+        synopsis {report_timing ?-from from_list? ?-to to_list? ?-through through_list? ?-setup | -hold? ?-npaths n? ?}
+        source {F5}
+    }
+}
+
+command report_ucp {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {report_ucp ?-file file? ?-panel_name name?}
+
+    hover {
+        summary {Report unconstrained paths.}
+        synopsis {report_ucp ?-file file? ?-panel_name name?}
+        source {F5}
+    }
+}
+
+command save_report {
+    dialects tcl8.5
+    required_package quartus-report
+
+    form Default {save_report}
+
+    hover {
+        summary {Save the compilation report.}
+        synopsis {save_report}
+        source {F5}
+    }
+}
+
+command set_global_assignment {
+    dialects tcl8.5
+    arity 1..
+    required_package quartus-project
+
+    form Default {set_global_assignment -name name value ?-section_id id?}
+
+    hover {
+        summary {Set a global project assignment.}
+        synopsis {set_global_assignment -name name value ?-section_id id?}
+        source {F5}
+    }
+}
+
+command set_instance_assignment {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {set_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? value}
+
+    hover {
+        summary {Set an assignment on a specific instance.}
+        synopsis {set_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? value}
+        source {F5}
+    }
+}
+
+command set_io_assignment {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {set_io_assignment -name name -to pin_name value}
+
+    hover {
+        summary {Set an I/O assignment.}
+        synopsis {set_io_assignment -name name -to pin_name value}
+        source {F5}
+    }
+}
+
+command set_location_assignment {
+    dialects tcl8.5
+    arity 1..
+    required_package quartus-project
+
+    form Default {set_location_assignment -to pin_name location}
+
+    hover {
+        summary {Set a location assignment for a pin.}
+        synopsis {set_location_assignment -to pin_name location}
+        source {F5}
+    }
+}
+
+command set_parameter {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {set_parameter -name name -to instance value}
+
+    hover {
+        summary {Set a parameter on a design entity.}
+        synopsis {set_parameter -name name -to instance value}
+        source {F5}
+    }
+}
+
+command update_timing_netlist {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {update_timing_netlist}
+
+    hover {
+        summary {Update the timing netlist after changes.}
+        synopsis {update_timing_netlist}
+        source {F5}
+    }
+}
+
+}

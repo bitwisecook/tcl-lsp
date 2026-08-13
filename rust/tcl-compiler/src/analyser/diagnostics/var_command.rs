@@ -456,9 +456,9 @@ impl Analyser {
         // properties (`oo::configurable`'s `configure`); no member table or
         // MRO provider entry carries one (issue #1362).
         if !found
-            && class_names
-                .iter()
-                .any(|cls| hierarchy.is_property_accessor(self.registry, cls, method_name))
+            && class_names.iter().any(|cls| {
+                hierarchy.is_property_accessor(self.registry.as_deref(), cls, method_name)
+            })
         {
             found = true;
         }
@@ -518,7 +518,7 @@ impl Analyser {
         let mut candidates: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for cls in class_names {
             if let Some(h) = hierarchy {
-                candidates.extend(h.known_methods(self.registry, cls));
+                candidates.extend(h.known_methods(self.registry.as_deref(), cls));
             }
             if let Some(cd) = self.result.all_classes.get(*cls) {
                 candidates.extend(cd.methods.keys().cloned());
@@ -604,10 +604,9 @@ impl Analyser {
             return None;
         }
         let all_tcloo = class_names.iter().all(|cls| {
-            self.result
-                .all_classes
-                .get(cls)
-                .is_some_and(|cd| super::validity::is_tcloo_metaclass(self.registry, &cd.metaclass))
+            self.result.all_classes.get(cls).is_some_and(|cd| {
+                super::validity::is_tcloo_metaclass(self.registry.as_deref(), &cd.metaclass)
+            })
         });
         if !all_tcloo {
             return None;
@@ -645,10 +644,9 @@ impl Analyser {
             return None;
         }
         let class_qn = self.canonicalise_class_name(class_name?);
-        let is_tcloo =
-            self.result.all_classes.get(&class_qn).is_some_and(|cd| {
-                super::validity::is_tcloo_metaclass(self.registry, &cd.metaclass)
-            });
+        let is_tcloo = self.result.all_classes.get(&class_qn).is_some_and(|cd| {
+            super::validity::is_tcloo_metaclass(self.registry.as_deref(), &cd.metaclass)
+        });
         if !is_tcloo {
             return None;
         }
@@ -726,7 +724,7 @@ impl Analyser {
             // self-dispatch keyword comes from the registry (which resolves
             // the `::`-qualified spelling itself), not a name literal
             // (issue #1050).
-            if self.registry.is_some_and(|r| {
+            if self.registry.as_deref().is_some_and(|r| {
                 r.method_dispatch_keyword(target)
                     == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
             }) {
@@ -757,7 +755,7 @@ impl Analyser {
                 break;
             }
             if !bare.contains("::")
-                && let Some(sig) = self.registry.and_then(|r| r.get(bare))
+                && let Some(sig) = self.registry.as_deref().and_then(|r| r.get(bare))
             {
                 arity = Some(sig.arity);
                 break;
@@ -1516,6 +1514,10 @@ impl Analyser {
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
     ) {
         let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
+        // The walk below takes `&mut self`, so this analysis's own registry
+        // is held as a handle rather than re-borrowed from `self` per site.
+        let attached = self.registry.clone();
+        let attached = attached.as_deref();
         for site in &cmd_sites {
             if self.is_namespaced_ensemble_dispatch(site) {
                 continue;
@@ -1553,8 +1555,7 @@ impl Analyser {
             // object handle by default. Both kinds come from the registry;
             // `next`/`nextto` are deliberately *not* included — they return
             // the next implementation's result, not a handle.
-            if self
-                .registry
+            if attached
                 .and_then(|r| r.method_dispatch_keyword(head))
                 .is_some_and(|kind| {
                     matches!(
@@ -1585,8 +1586,7 @@ impl Analyser {
                 // the outer method word is validated against the enclosing
                 // class (W308) instead of falling through as an opaque
                 // object handle of unresolvable class (issue #1324).
-                if self
-                    .registry
+                if attached
                     .is_some_and(|r| r.is_self_receiver_call(head, arg_strs.first().copied()))
                     && let Some(diag) = self.w308_for_self_receiver(site, hierarchy)
                 {
@@ -1947,6 +1947,7 @@ impl Analyser {
             };
             let direct = self
                 .registry
+                .as_deref()
                 .and_then(|registry| registry.get(&cd.metaclass));
             if direct.is_some_and(|spec| {
                 spec.traits
@@ -1958,6 +1959,7 @@ impl Analyser {
                 .and_then(|meta| meta.factory.as_ref())
                 .and_then(|factory| {
                     self.registry
+                        .as_deref()
                         .and_then(|registry| registry.get(&factory.root_metaclass))
                 })
                 .is_some_and(|spec| {
@@ -2183,7 +2185,9 @@ impl Analyser {
         // A method the class system generates from declared properties —
         // written by no `method` body, so neither the member tables nor the
         // MRO above can see it (issue #1362).
-        if hierarchy.is_some_and(|h| h.is_property_accessor(self.registry, class_name, method)) {
+        if hierarchy
+            .is_some_and(|h| h.is_property_accessor(self.registry.as_deref(), class_name, method))
+        {
             return true;
         }
         if let Some(fallback) = self
