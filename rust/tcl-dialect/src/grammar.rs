@@ -112,6 +112,71 @@ pub struct LexerGrammar {
     /// development cycle, and since 8.7 is not a version this crate models,
     /// `>= V9_0` is the exact gate for the supported set.
     pub expr_comments: ExprCommentStyle,
+    /// Which numeric literal forms the release accepts — see [`NumberSyntax`].
+    pub numbers: NumberSyntax,
+}
+
+/// The numeric-literal grammar of a Tcl release: which radix prefixes exist,
+/// whether a bare leading `0` means octal, and whether `_` digit separators are
+/// allowed.
+///
+/// These rules changed twice across the supported range, so a version-blind
+/// number parser silently mis-reads real scripts: `0755` is 493 under 8.6 and
+/// 755 under 9.0, and `0o17` is a *bareword* under 8.4 where it is 15 under 8.5.
+/// Each variant below is evidenced from the release's own `generic/` sources.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum NumberSyntax {
+    /// Tcl 8.4: `0x` hex and octal-by-leading-zero only.
+    ///
+    /// 8.4 predates `TclParseNumber` — it has no `tclStrToD.c` at all and
+    /// parses integers with `strtoul`-style base-0 scanning, which knows `0x`
+    /// and leading-zero octal and nothing else. So `0b101` / `0o17` / `0d5`
+    /// are not numbers here; they lex as barewords.
+    Tcl84,
+    /// Tcl 8.5 and 8.6: adds the `0b` / `0o` prefixes; leading zero is still
+    /// octal.
+    ///
+    /// `tclStrToD.c` at `core-8-5-19` and `core-8-6-16` has the `ZERO_B` and
+    /// `ZERO_O` states but **no** `ZERO_D`, and carries `#undef KILL_OCTAL`
+    /// (whose comment reads "Define `KILL_OCTAL` to suppress interpretation of
+    /// numbers with leading zero as octal") — so leading-zero octal is active.
+    /// Neither release mentions `'_'` anywhere in that file.
+    Tcl85,
+    /// Tcl 9.0 and later: adds the `0d` prefix and `_` digit separators, and
+    /// leading zero is **decimal**.
+    ///
+    /// `tclStrToD.c` at 9.0.4 gains the `ZERO_D` state and seven `'_'` sites,
+    /// and `changes.md` records "`0NNN` format is no longer octal
+    /// interpretation. Use `0oNNN`." (`doc/expr.n` lists all four prefixes.)
+    #[default]
+    Tcl90,
+}
+
+impl NumberSyntax {
+    /// Whether a bare leading `0` introduces an octal integer (`0755` == 493),
+    /// as it does up to 8.6. False from 9.0, where it is plain decimal.
+    #[must_use]
+    pub fn leading_zero_is_octal(self) -> bool {
+        matches!(self, Self::Tcl84 | Self::Tcl85)
+    }
+
+    /// Whether the `0b` (binary) and `0o` (octal) prefixes exist — 8.5 onward.
+    #[must_use]
+    pub fn has_binary_octal_prefix(self) -> bool {
+        !matches!(self, Self::Tcl84)
+    }
+
+    /// Whether the explicit `0d` (decimal) prefix exists — 9.0 onward.
+    #[must_use]
+    pub fn has_decimal_prefix(self) -> bool {
+        matches!(self, Self::Tcl90)
+    }
+
+    /// Whether `_` may separate digits (`1__000`, `0xff__ff`) — 9.0 onward.
+    #[must_use]
+    pub fn allows_digit_separators(self) -> bool {
+        matches!(self, Self::Tcl90)
+    }
 }
 
 impl Default for LexerGrammar {
@@ -124,6 +189,7 @@ impl Default for LexerGrammar {
             braced_var: BracedVarStyle::Tcl9Nesting,
             script_skips_leading_bom: true,
             expr_comments: ExprCommentStyle::Hash,
+            numbers: NumberSyntax::Tcl90,
         }
     }
 }
