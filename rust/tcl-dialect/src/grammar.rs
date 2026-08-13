@@ -23,6 +23,75 @@
 //! definition of the per-dialect grammar surface instead of keeping parallel
 //! string-keyed tables.
 
+/// The word-shaped `expr` operators, each paired with the oldest release whose
+/// `expr` **lexeme table** contains it.
+///
+/// | operator | since | evidence |
+/// |---|---|---|
+/// | `eq`, `ne` | 8.4 | `tcl8.4.20/generic/tclParseExpr.c:141`, `tclCompExpr.c:133` |
+/// | `in`, `ni` | 8.5 | TIP 201; `tcl8.5.19/generic/tclCompExpr.c:315` |
+/// | `lt`, `le`, `gt`, `ge` | 9.0 | TIP 461; `tcl9.0.4/generic/tclCompExpr.c:306` |
+///
+/// This lives below the lexer because it is a *lexeme-boundary* fact, not only
+/// a parser one. `ParseLexeme` recognises a word operator only in a release
+/// that has it; before that the same spelling is swept up by the bareword scan
+/// (`[A-Za-z0-9_]*`), which moves the token boundary rather than merely
+/// rejecting the operator later. tclsh-verified:
+///
+/// | input | 8.6 | 9.0 |
+/// |---|---|---|
+/// | `1 lt_ 2` | `invalid bareword "lt_"` | `invalid character "_"` |
+/// | `1 eq_ 2` | `invalid character "_"` | `invalid character "_"` |
+///
+/// `eq` exists in both, so the `_` is its own lexeme in both; `lt` does not
+/// exist before 9.0, so `lt_` is one bareword there. A lexer that hard-codes
+/// the operator set cannot tell these apart — hence
+/// [`is_expr_word_operator`], the single source both the lexer and
+/// `tcl-syntax`'s `OperatorSpec::expr_grammar_min_version` resolve through.
+///
+/// The iRules word operators (`contains`, `starts_with`, …) are gated by
+/// dialect *identity* rather than a version threshold, so they are not here —
+/// see `DialectProfile::is_irules`.
+pub const EXPR_WORD_OPERATORS: &[(&str, crate::TclVersion)] = &[
+    ("eq", crate::TclVersion::V8_4),
+    ("ne", crate::TclVersion::V8_4),
+    ("in", crate::TclVersion::V8_5),
+    ("ni", crate::TclVersion::V8_5),
+    ("lt", crate::TclVersion::V9_0),
+    ("le", crate::TclVersion::V9_0),
+    ("gt", crate::TclVersion::V9_0),
+    ("ge", crate::TclVersion::V9_0),
+];
+
+/// The oldest release whose `expr` grammar has the word-shaped operator
+/// `spelling`, or `None` when `spelling` is not a word operator at all.
+///
+/// See [`EXPR_WORD_OPERATORS`] for the table and its evidence.
+#[must_use]
+pub fn expr_word_operator_since(spelling: &str) -> Option<crate::TclVersion> {
+    EXPR_WORD_OPERATORS
+        .iter()
+        .find_map(|&(s, since)| (s == spelling).then_some(since))
+}
+
+/// Whether `spelling` is a word-shaped `expr` operator under the
+/// `expr_grammar_base` of some dialect — `DialectProfile::expr_grammar_base`,
+/// the field that already exists to gate exactly these two TIPs.
+///
+/// A `None` base (an unversioned dialect: plain `tcl`, iRules) takes the
+/// **newest** grammar, so every word operator is present. That is the same
+/// default the rest of [`LexerGrammar`] uses — [`BracedVarStyle::Tcl9Nesting`],
+/// [`NumberSyntax::Tcl90`] and [`ExprCommentStyle::Hash`] are all the newest
+/// release's rule — and it is the answer a lexeme boundary needs: the operator
+/// set only ever *grows*, so assuming the newest keeps `lt` splittable, where
+/// assuming the oldest would fuse `lt_` into a bareword for a dialect that has
+/// no reason to.
+#[must_use]
+pub fn is_expr_word_operator(spelling: &str, expr_grammar_base: Option<crate::TclVersion>) -> bool {
+    expr_word_operator_since(spelling)
+        .is_some_and(|since| expr_grammar_base.is_none_or(|base| base >= since))
+}
+
 /// The dialect's `${…}` variable-name delimiting rule — Tcl 9.0 changed it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum BracedVarStyle {

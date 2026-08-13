@@ -49,7 +49,10 @@ mod profile;
 mod version;
 
 pub use dialect_set::{DialectSet, KNOWN_DIALECTS, available_dialects};
-pub use grammar::{BracedVarStyle, ExprCommentStyle, LexerGrammar, NumberSyntax};
+pub use grammar::{
+    BracedVarStyle, EXPR_WORD_OPERATORS, ExprCommentStyle, LexerGrammar, NumberSyntax,
+    expr_word_operator_since, is_expr_word_operator,
+};
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::DialectProfile;
 pub use version::{

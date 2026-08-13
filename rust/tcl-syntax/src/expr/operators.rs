@@ -872,4 +872,53 @@ mod tests {
             );
         }
     }
+
+    /// Drift guard for [`tcl_dialect::EXPR_WORD_OPERATORS`], which the *lexer*
+    /// reads to decide whether a word-shaped spelling is an operator lexeme at
+    /// all in a given release. Two tables, two layers, one fact — and they
+    /// disagreeing is not a cosmetic problem: the lexer's copy moves the
+    /// lexeme *boundary*, so a drift there silently changes what C reports
+    /// (`1 lt_ 2` is `invalid bareword "lt_"` under 8.6 and
+    /// `invalid character "_"` under 9.0).
+    ///
+    /// `expr_grammar_min_version` uses `None` for "in the base grammar of
+    /// every release we model", which for the oldest modelled release (8.4)
+    /// is the same statement as `EXPR_WORD_OPERATORS`' explicit `V8_4`.
+    #[test]
+    fn the_dialect_word_operator_table_matches_the_operator_specs() {
+        for &(spelling, since) in tcl_dialect::EXPR_WORD_OPERATORS {
+            let spec = ALL_BIN_OPS
+                .iter()
+                .map(|op| op.spec())
+                .find(|s| s.spelling == spelling)
+                .unwrap_or_else(|| panic!("{spelling}: no BinOp has this spelling"));
+            let expected = (since != tcl_dialect::TclVersion::V8_4).then_some(since);
+            assert_eq!(
+                spec.expr_grammar_min_version, expected,
+                "{spelling}: tcl-dialect says {since:?}, OperatorSpec says {:?}",
+                spec.expr_grammar_min_version
+            );
+        }
+    }
+
+    /// The other direction: every version-gated *word* operator in the specs
+    /// must appear in the lexer's table. Without this, adding a word operator
+    /// with a version gate to `OperatorSpec` alone would leave the lexer
+    /// treating it as a bareword in every release.
+    #[test]
+    fn every_version_gated_word_operator_is_in_the_dialect_table() {
+        for op in ALL_BIN_OPS {
+            let spec = op.spec();
+            if spec.expr_grammar_min_version.is_none()
+                || !spec.spelling.as_bytes()[0].is_ascii_alphabetic()
+            {
+                continue;
+            }
+            assert!(
+                tcl_dialect::expr_word_operator_since(spec.spelling).is_some(),
+                "{}: version-gated word operator missing from tcl_dialect::EXPR_WORD_OPERATORS",
+                spec.spelling
+            );
+        }
+    }
 }

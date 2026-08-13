@@ -139,6 +139,52 @@ Consequences that are *not* obvious, and are pinned by tests:
   needs a call chain deeper than the largest value under test, or a divergence
   hides as a shared error.
 
+### The release also moves the lexeme *boundary*
+
+The grammar decides what a numeral **means**; it also decides where a numeral
+**ends**, and that is a separate fact that has to be settled in the lexer —
+once a boundary is drawn, no later pass can redraw it. C draws it in
+`ParseLexeme` (`generic/tclCompExpr.c`; 8.4 in `tclParseExpr.c`), and three
+rules there are release-sensitive or easy to get subtly wrong. All of the
+below is pinned against tclsh 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0.
+
+**1. `_` never starts a lexeme — on any release.** The last gate in
+`ParseLexeme` is `if (!TclIsBareword(*start) || *start == '_')`, yielding
+`INVALID`, not `BAREWORD`; 8.4 gets there differently (it requires `isalpha`
+to start a lexeme at all) and agrees. So `_x` is `invalid character "_"`,
+never `invalid bareword "_x"`, while `abc_1` and `a__b` are ordinary
+barewords. The C source is blunt about why: *"We reject leading underscores in
+bareword. No sensible reason why."*
+
+**2. Which word operators exist moves the boundary.** `eq`/`ne` are 8.4+,
+`in`/`ni` are 8.5+ (TIP 201), `lt`/`le`/`gt`/`ge` are 9.0+ (TIP 461). A
+spelling the release does not have is not a lexeme, so the bareword scan
+swallows it whole:
+
+| input | 8.6 | 9.0 |
+|---|---|---|
+| `1 lt_ 2` | `invalid bareword "lt_"` | `invalid character "_"` |
+| `1 eq_ 2` | `invalid character "_"` | `invalid character "_"` |
+
+This is why the operator set lives in `tcl_dialect::EXPR_WORD_OPERATORS`,
+below the lexer, rather than in `tcl-syntax` alone — and why a drift guard
+ties it to `OperatorSpec::expr_grammar_min_version`. Note C guards only the
+*trailing* side of a word operator, with `isalpha` and not `TclIsBareword`:
+`1 eq2` really is `1 eq 2`.
+
+**3. A number against barewords is one bareword.** When `TclParseNumber`
+stops on a `TclIsBareword` byte, C rescans `[A-Za-z0-9_]*` from the start as a
+single `BAREWORD` — `1_eq`, `1abc`, `12x`, `1e_0`, `9_ne` all report whole.
+Two exceptions put it back on the number path: a non-bareword character in the
+run (so `1.5abc` names only `abc`, and 8.6's `1.0_2` is `invalid character
+"_"` — the `.` is what splits these from `1_0`, which is one bareword), and a
+following binary word operator (`1eq 2` is `1 eq 2`).
+
+The through-line: **abstain toward keeping the lexeme whole.** An unversioned
+dialect takes the newest grammar, like every other `LexerGrammar` knob — the
+operator set only ever grows, and inventing a split for a release that has no
+such operator reports a boundary that exists nowhere.
+
 ### One facility, dialect-parameterised
 
 `rust/tcl-syntax/src/number.rs` is the **only** numeral parser in the workspace.

@@ -5064,8 +5064,10 @@ impl Vm {
         // Diagnose under the emulated release too, or the message names the
         // wrong lexeme: C 8.6 reports `invalid character "_"` for `1.0_2`
         // (its number lexeme ends at `1.0`) where 9.0 accepts the whole thing.
-        let error =
-            tcl_syntax::expr::ExprSyntaxError::diagnose(src, Some(self.runtime_version.dialect_name()));
+        let error = tcl_syntax::expr::ExprSyntaxError::diagnose(
+            src,
+            Some(self.runtime_version.dialect_name()),
+        );
         let message = error.message(src);
         self.seed_parsing_expression_frame(src, &message);
         TclError::with_error_code(message, error.error_code())
