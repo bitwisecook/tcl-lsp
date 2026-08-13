@@ -411,11 +411,21 @@ impl<'s> Inner<'s> {
         self.tok(ExprTokenType::Comment, start)
     }
 
+    /// Scan a numeric-looking run. Deliberately *dialect-blind* and greedy over
+    /// a radix prefix's alphanumerics: this only delimits the lexeme, exactly as
+    /// C's `ParseLexeme` scans before deciding. Whether the run is a valid
+    /// number in this release is settled above the lexer (`tcl-syntax` owns the
+    /// number parser and sits above this crate), which reclassifies an invalid
+    /// one as a bareword — so `0o8`, and `0d99` before 9.0, stay a single token
+    /// and are reported whole.
     fn number(&mut self) -> ExprToken {
         let start = self.i;
         if self.b[self.i] == b'0'
             && self.i + 1 < self.b.len()
-            && matches!(self.b[self.i + 1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B')
+            && matches!(
+                self.b[self.i + 1],
+                b'x' | b'X' | b'o' | b'O' | b'b' | b'B' | b'd' | b'D'
+            )
         {
             self.i += 2;
             while self.i < self.b.len()

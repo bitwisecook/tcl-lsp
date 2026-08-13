@@ -1747,3 +1747,68 @@ fn mathop_namespace_import() {
     assert!(ok, "script should complete: {result}");
     assert_eq!(result, "60");
 }
+
+// -- radix-invalid numerals are barewords, not their own text (found by the
+//    differential fuzzer's malformed-expression campaigns) --
+
+/// A numeral whose digits are invalid for its radix is not a number: C's
+/// `ParseLexeme` fails to consume it with `TclParseNumber` and classifies the
+/// text as a bareword (`tclCompExpr.c:716-780`). It used to evaluate to its own
+/// source text — `expr {0o8}` returned the string `0o8`.
+#[test]
+fn radix_invalid_numerals_are_barewords() {
+    for (bad, radix) in [("0o8", "octal"), ("0o9", "octal"), ("0b2", "binary")] {
+        let (ok, result, _) = run(&format!("expr {{{bad}}}"));
+        assert!(!ok, "`expr {{{bad}}}` must error, got: {result}");
+        assert!(
+            result.starts_with(&format!("invalid bareword \"{bad}\"")),
+            "{bad}: {result}"
+        );
+        // C guesses the radix in the postscript (`tclCompExpr.c:788-807`).
+        assert!(
+            result.ends_with(&format!("(invalid {radix} number?)")),
+            "{bad} should carry the {radix} hint: {result}"
+        );
+    }
+}
+
+/// A bare prefix or a bad *hex* digit is still a bareword, but C has no `case
+/// 'x'` in its hint switch, so these get no parenthesised guess.
+#[test]
+fn bad_hex_numerals_are_barewords_without_a_hint() {
+    for bad in ["0x", "0xg"] {
+        let (ok, result, _) = run(&format!("expr {{{bad}}}"));
+        assert!(!ok, "`expr {{{bad}}}` must error, got: {result}");
+        assert!(
+            result.starts_with(&format!("invalid bareword \"{bad}\"")),
+            "{bad}: {result}"
+        );
+        assert!(
+            !result.contains("number?)"),
+            "{bad} must get no hint: {result}"
+        );
+    }
+}
+
+/// The valid numerals in every radix keep working — including `0d`, which the
+/// expression lexer did not recognise at all before, and a leading-zero integer,
+/// which is decimal under the 9.0 default.
+#[test]
+fn valid_numerals_in_every_radix_still_evaluate() {
+    for (src, want) in [
+        ("0x1f", "31"),
+        ("0o17", "15"),
+        ("0b101", "5"),
+        ("0d99", "99"),
+        ("0", "0"),
+        ("007", "7"),
+        ("08", "8"),
+        ("0755", "755"),
+        ("1.5e3", "1500.0"),
+        ("0x7fffffffffffffff + 1", "9223372036854775808"),
+    ] {
+        let (ok, result, _) = run(&format!("expr {{{src}}}"));
+        assert!(ok, "`expr {{{src}}}` should evaluate, got error: {result}");
+        assert_eq!(result, want, "expr {{{src}}}");
+    }
+}

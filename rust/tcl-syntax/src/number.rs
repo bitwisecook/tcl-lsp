@@ -341,6 +341,17 @@ fn digit_val(c: u8, radix: u32) -> Option<u32> {
     (v < radix).then_some(v)
 }
 
+/// Whether `text` is *entirely* a number under `syntax` — the test C's
+/// `ParseLexeme` makes by calling `TclParseNumber` and requiring it to consume
+/// the whole lexeme before classifying the text as `NUMBER`. A numeral whose
+/// digits are invalid for its radix (`0o8`), whose prefix does not exist in this
+/// release (`0d99` before 9.0), or which is a bare prefix (`0x`) fails here and
+/// is a bareword instead.
+#[must_use]
+pub fn is_whole_number(text: &str, syntax: NumberSyntax) -> bool {
+    parse_whole_with(text, ParseFlags::for_syntax(syntax)).is_some()
+}
+
 /// Parse a number at the start of `s` (after optional leading whitespace),
 /// returning the classified value and where it ended. Returns `None` if no valid
 /// number begins there. This is the partial form (the lexer/`scan` entry); use

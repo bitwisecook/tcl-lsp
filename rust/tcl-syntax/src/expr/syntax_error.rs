@@ -47,6 +47,65 @@ const LIMIT: usize = 25;
 /// pinpoint a position that has no offending text of its own.
 const MARK: &str = "_@_";
 
+/// C's radix hint for a bareword that looks like a botched numeric literal
+/// (`tclCompExpr.c:779-809`): the message stays `invalid bareword`, but the
+/// postscript gains a parenthesised guess and the error code becomes
+/// `BADNUMBER` with a radix subcode.
+///
+/// C has arms for `b` and `o` and a `default` that fires only when the second
+/// character is a digit (legacy leading-zero octal). There is deliberately **no
+/// `x` arm**, so a bad hex numeral such as `0xg` keeps the plain `BAREWORD`
+/// code and gets no hint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NumberHint {
+    /// `0b…` with a non-binary digit.
+    Binary,
+    /// `0o…` with a non-octal digit, or a leading-zero numeral with one.
+    Octal,
+}
+
+impl NumberHint {
+    /// C's parenthesised postscript suffix, leading space included.
+    fn postscript_suffix(self) -> &'static str {
+        match self {
+            Self::Binary => " (invalid binary number?)",
+            Self::Octal => " (invalid octal number?)",
+        }
+    }
+
+    /// The `subErrCode` word C pairs with `BADNUMBER`.
+    fn sub_code(self) -> &'static str {
+        match self {
+            Self::Binary => "BINARY",
+            Self::Octal => "OCTAL",
+        }
+    }
+
+    /// C's test at `tclCompExpr.c:779-787`: only for a word starting `0`, and
+    /// only when `TclParseNumber` stopped *at a digit* or after consuming just
+    /// the leading `0` — i.e. the digits, not the prefix letter, are what went
+    /// wrong. `syntax` decides where the parse stops, so the hint follows the
+    /// release (`0o8` earns one from 8.5, where `0o` exists at all).
+    fn for_word(word: &str, syntax: crate::number::NumberSyntax) -> Option<Self> {
+        let b = word.as_bytes();
+        if b.first() != Some(&b'0') || b.len() < 2 {
+            return None;
+        }
+        let stop = crate::number::parse(word, crate::number::ParseFlags::for_syntax(syntax))
+            .map_or(0, |p| p.end);
+        let stopped_at_digit = b.get(stop).is_some_and(u8::is_ascii_digit);
+        if !stopped_at_digit && stop != 1 {
+            return None;
+        }
+        match b[1] {
+            b'b' | b'B' => Some(Self::Binary),
+            b'o' | b'O' => Some(Self::Octal),
+            c if c.is_ascii_digit() => Some(Self::Octal),
+            _ => None,
+        }
+    }
+}
+
 /// A `ParseExpr` failure mode, with the message and `-errorcode` detail word C
 /// pairs with it.
 ///
@@ -126,6 +185,9 @@ pub struct ExprSyntaxError {
     scanned: usize,
     /// The offending text, for the two modes whose message names it.
     word: String,
+    /// A botched-numeral hint, when the bareword looks like one — see
+    /// [`NumberHint`].
+    number_hint: Option<NumberHint>,
 }
 
 impl ExprSyntaxError {
@@ -142,7 +204,7 @@ impl ExprSyntaxError {
             return error;
         }
         let tokens: Vec<ExprToken> = raw.into_iter().filter(|t| !t.kind.is_skipped()).collect();
-        Scan::new(source, &tokens).run()
+        Scan::new(source, &tokens, profile.grammar.numbers).run()
     }
 
     /// The simple message plus C's quoted context (and postscript, where C adds
@@ -161,6 +223,11 @@ impl ExprSyntaxError {
     /// The full Tcl `-errorcode`, `TCL PARSE EXPR <detail>`.
     #[must_use]
     pub fn error_code(&self) -> String {
+        // A hinted bareword is C's `BADNUMBER <radix>` rather than `BAREWORD`
+        // (`tclCompExpr.c:788-807` reassigns `errCode` and sets `subErrCode`).
+        if let Some(hint) = self.number_hint {
+            return format!("TCL PARSE EXPR BADNUMBER {}", hint.sub_code());
+        }
         format!("TCL PARSE EXPR {}", self.kind.detail())
     }
 
@@ -186,6 +253,7 @@ impl ExprSyntaxError {
             // on the position rather than after the offending lexeme.
             scanned: if kind.marks_position() { 0 } else { scanned },
             word: String::new(),
+            number_hint: None,
         }
     }
 
@@ -195,6 +263,17 @@ impl ExprSyntaxError {
             at,
             scanned: word.len(),
             word: word.to_owned(),
+            number_hint: None,
+        }
+    }
+
+    /// C's bareword error for a word that looks like a botched numeral: the
+    /// same message and postscript, plus [`NumberHint`]'s parenthesised guess
+    /// and `BADNUMBER` code where C adds them.
+    fn bad_numeral(at: usize, word: &str, syntax: crate::number::NumberSyntax) -> Self {
+        Self {
+            number_hint: NumberHint::for_word(word, syntax),
+            ..Self::naming(ExprSyntaxErrorKind::InvalidBareword, at, word)
         }
     }
 
@@ -257,9 +336,13 @@ impl ExprSyntaxError {
             return None;
         }
         let (word, ellipsis) = elide(self.word.as_bytes(), 0, self.word.len());
-        Some(format!(
+        let mut post = format!(
             "should be \"${word}{ellipsis}\" or \"{{{word}{ellipsis}}}\" or \"{word}{ellipsis}(...)\" or ..."
-        ))
+        );
+        if let Some(hint) = self.number_hint {
+            post.push_str(hint.postscript_suffix());
+        }
+        Some(post)
     }
 
     /// `\nin expression "<head><lexeme><mark><tail>"`, with each of the three
@@ -336,13 +419,17 @@ struct Scan<'a> {
     pos: usize,
     expecting: Expecting,
     open: Vec<Group>,
+    /// The release's numeric grammar, so a `Number` token the lexer only
+    /// delimited can be re-tested here the way C's `ParseLexeme` does.
+    numbers: crate::number::NumberSyntax,
 }
 
 impl<'a> Scan<'a> {
-    fn new(source: &'a str, tokens: &'a [ExprToken]) -> Self {
+    fn new(source: &'a str, tokens: &'a [ExprToken], numbers: crate::number::NumberSyntax) -> Self {
         Self {
             source,
             tokens,
+            numbers,
             pos: 0,
             // C seeds the tree with a `START` node, which `IsOperator` accepts.
             expecting: Expecting::Operand,
@@ -400,6 +487,14 @@ impl<'a> Scan<'a> {
             // cannot tell the two apart, so the check lands here rather than in
             // the lexer (C decides it at `tclCompExpr.c:716-780`).
             ExprTokenType::Function => self.function_or_bareword(token, at),
+            // The lexer delimits a numeric-looking run without validating it,
+            // so a radix-invalid numeral (`0o8`), a bare prefix (`0x`), or a
+            // prefix this release lacks (`0d99` before 9.0) arrives as a
+            // `Number`. C classifies exactly those as barewords, with a radix
+            // hint where it can guess (`tclCompExpr.c:716-809`).
+            ExprTokenType::Number if !crate::number::is_whole_number(&token.text, self.numbers) => {
+                Some(ExprSyntaxError::bad_numeral(at, &token.text, self.numbers))
+            }
             ExprTokenType::Number
             | ExprTokenType::String
             | ExprTokenType::Variable

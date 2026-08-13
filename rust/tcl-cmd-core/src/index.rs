@@ -141,6 +141,7 @@ const INDEX_INT_FLAGS: tcl_syntax::number::ParseFlags = tcl_syntax::number::Pars
     integer_only: true,
     no_whitespace: false,
     no_underscore: false,
+    syntax: tcl_syntax::number::NumberSyntax::Tcl90,
 };
 
 /// Parse a leading Tcl integer, returning its value and the unconsumed tail via
