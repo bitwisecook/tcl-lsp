@@ -25,7 +25,7 @@
 //! typed `match` ([`Analyser::dispatch_analyser_hook`]); adding a new
 //! handler means adding a hook variant and stamping the spec.
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
@@ -144,9 +144,14 @@ pub(super) struct ResolvedAnalyserHook {
 /// dialect-aware registry).  Built once; the core `tcl` pack carries
 /// every stamped [`tcl_registry::hooks::AnalyserHookId`], so hook
 /// resolution behaves identically to an analyse-time run.
-fn fallback_registry() -> &'static CommandRegistry {
-    static FALLBACK: OnceLock<CommandRegistry> = OnceLock::new();
-    FALLBACK.get_or_init(CommandRegistry::build_default)
+///
+/// Handed back as a handle so it composes with [`Analyser::registry`], which
+/// is one: the two are alternatives at the same call site, so they need one
+/// type. This one is never retired — the `OnceLock` holds it for the process,
+/// which is right for a fixed core build with no pack content in it.
+fn fallback_registry() -> Arc<CommandRegistry> {
+    static FALLBACK: OnceLock<Arc<CommandRegistry>> = OnceLock::new();
+    Arc::clone(FALLBACK.get_or_init(|| Arc::new(CommandRegistry::build_default())))
 }
 
 /// Parent command for a control-flow keyword that is only valid as an
@@ -275,7 +280,7 @@ impl Analyser {
             let stray = super::syntax_checks::stray_closer_diagnostics(
                 cmd_ref,
                 &self.source,
-                self.registry,
+                self.registry.as_deref(),
                 || self.user_command_tail_names(),
             );
             self.result.diagnostics.extend(stray);
@@ -361,7 +366,7 @@ impl Analyser {
         body_text: &str,
         scope_path: &[usize],
     ) -> bool {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return false;
         };
         let Some(cmd) =
@@ -406,10 +411,14 @@ impl Analyser {
         };
         let bare = cmd_name.trim_start_matches(':');
         let spec_hidden = ctx.base_hidden
-            && self.registry.and_then(|r| r.get(bare)).is_some_and(|spec| {
-                spec.traits
-                    .contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN)
-            });
+            && self
+                .registry
+                .as_deref()
+                .and_then(|r| r.get(bare))
+                .is_some_and(|spec| {
+                    spec.traits
+                        .contains(tcl_registry::Traits::SAFE_INTERP_HIDDEN)
+                });
         let hidden =
             (spec_hidden || ctx.hidden_extra.contains(bare)) && !ctx.exposed.contains(bare);
         if !hidden {
@@ -574,7 +583,7 @@ impl Analyser {
         if self.safe_interp_stack.is_empty() {
             return;
         }
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -628,7 +637,7 @@ impl Analyser {
         text: &str,
         scope_path: &[usize],
     ) -> bool {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return false;
         };
         let Some(seg) =
@@ -988,7 +997,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.clone() else {
             return;
         };
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -1174,7 +1183,7 @@ impl Analyser {
         {
             return None;
         }
-        let registry = self.registry.unwrap_or_else(fallback_registry);
+        let registry = self.registry.clone().unwrap_or_else(fallback_registry);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         let resolved = registry.resolve_call(
             cmd_name,
@@ -1575,6 +1584,7 @@ impl Analyser {
         // reported — and fixed — the same way.
         if self
             .registry
+            .as_deref()
             .and_then(|registry| registry.get(cmd_name))
             .and_then(|spec| spec.analyser_hook)
             == Some(tcl_registry::hooks::AnalyserHookId::Catch)
@@ -1650,7 +1660,7 @@ impl Analyser {
             cmd_name,
             args,
             arg_tokens,
-            self.registry,
+            self.registry.as_deref(),
         );
         self.result.diagnostics.extend(loop_diags);
         let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
@@ -1709,7 +1719,7 @@ impl Analyser {
         {
             return;
         }
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -1818,7 +1828,7 @@ impl Analyser {
         } else {
             self.command_resolution_namespace(scope_path)
         };
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let body_args: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -1970,7 +1980,7 @@ impl Analyser {
         body_args: &[&str],
         cur_ns: &str,
     ) -> Option<(Vec<usize>, String)> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         if cmd_name.contains("::") {
             return None;
         }
@@ -2192,7 +2202,7 @@ impl Analyser {
         words: CommandPrefixWords<'_, '_>,
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let source_map = SourceMap::new(&self.source);
@@ -2398,7 +2408,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.clone() else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -2500,7 +2510,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -2561,7 +2571,7 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -2841,7 +2851,7 @@ impl Analyser {
             for frag in self.cmd_fragments(arg_tok, config) {
                 collect_substitution_heads(
                     &sm,
-                    self.registry,
+                    self.registry.as_deref(),
                     frag,
                     config,
                     &mut heads,
@@ -2952,7 +2962,7 @@ impl Analyser {
                         for frag in self.cmd_fragments(*arg_tok, config) {
                             collect_substitution_segments(
                                 &sm,
-                                self.registry,
+                                self.registry.as_deref(),
                                 frag,
                                 config,
                                 &mut nested,
@@ -2982,7 +2992,7 @@ impl Analyser {
                             ) {
                                 collect_segment_recursive(
                                     &sm,
-                                    self.registry,
+                                    self.registry.as_deref(),
                                     seg,
                                     config,
                                     &mut nested,
@@ -3014,7 +3024,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        let expr_indices: Vec<usize> = match self.registry {
+        let expr_indices: Vec<usize> = match self.registry.as_deref() {
             Some(r) => {
                 let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
                 r.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::Expr)
@@ -3051,7 +3061,7 @@ impl Analyser {
                         if inner.kind == TokenType::Cmd {
                             collect_substitution_segments(
                                 &sm,
-                                self.registry,
+                                self.registry.as_deref(),
                                 *inner,
                                 config,
                                 &mut nested,
@@ -3192,7 +3202,7 @@ impl Analyser {
         // `warn_if_unused = false`: the binding is a command side effect,
         // not a "set but never used" target (no W211).
         if cmd_name == "catch"
-            && let Some(registry) = self.registry
+            && let Some(registry) = self.registry.as_deref()
         {
             let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
             for i in registry.arg_indices_for_role(&cmd_name, &arg_strs, ArgRole::VarWrite) {
@@ -3316,7 +3326,7 @@ impl Analyser {
             let mut expr_toks: Vec<Token> = Vec::new();
             collect_expr_substitutions(
                 &sm,
-                self.registry,
+                self.registry.as_deref(),
                 expr_tok,
                 config,
                 &mut heads,
@@ -3726,7 +3736,7 @@ impl Analyser {
     /// and cannot be settled mid-walk, so it is asked once, post-walk, by
     /// `Analyser::self_dispatch_keyword_disturbed`.
     fn head_is_self_dispatch_keyword(&self, head: &str) -> bool {
-        self.registry.is_some_and(|registry| {
+        self.registry.as_deref().is_some_and(|registry| {
             registry.method_dispatch_keyword(head)
                 == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
         })
@@ -3769,6 +3779,7 @@ impl Analyser {
                     return false;
                 };
                 self.registry
+                    .as_deref()
                     .and_then(|registry| registry.uniform_manufacturer_names_instance_at(method))
                     .and_then(|name_at| args.get(name_at))
                     .is_some_and(|name| name == cmd_name)
@@ -3844,7 +3855,7 @@ impl Analyser {
             let shape_a =
                 cmd_name == "set" && args.len() >= 2 && args[1].trim_start().starts_with('[');
             let shape_b = args.first().is_some_and(|method| {
-                self.registry.is_some_and(|registry| {
+                self.registry.as_deref().is_some_and(|registry| {
                     registry
                         .uniform_manufacturer_names_instance_at(method)
                         .is_some_and(|name_at| args.get(name_at).is_some())
@@ -3903,7 +3914,7 @@ impl Analyser {
                 if !self.result.instance_command_bindings.contains(&binding) {
                     self.result.instance_command_bindings.push(binding);
                 }
-            } else if let Some(name) = self.registry.and_then(|registry| {
+            } else if let Some(name) = self.registry.as_deref().and_then(|registry| {
                 registry
                     .is_manufacturer_method(method_word)
                     .then(|| registry.uniform_manufacturer_names_instance_at(method_word))
@@ -3993,7 +4004,7 @@ impl Analyser {
     /// ambiguous flag, never a name — a missing name is auto-generated at run
     /// time and needs no recording.
     fn record_registry_defined_command(&mut self, cmd_name: &str, args: &[String]) {
-        let Some(reg) = self.registry else {
+        let Some(reg) = self.registry.as_deref() else {
             return;
         };
         let Some(spec) = reg.get(cmd_name) else {
@@ -4083,7 +4094,7 @@ impl Analyser {
     fn registry_factory_class_from_subst(&self, value: &str) -> Option<String> {
         let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
         let head = inner.split_whitespace().next()?;
-        let reg = self.registry?;
+        let reg = self.registry.as_deref()?;
         if reg
             .get(head)
             .is_some_and(|s| s.creates_instance_at.is_some())
@@ -4183,7 +4194,7 @@ impl Analyser {
         // `creates_instance_at` spec marks a naming factory (`struct::graph
         // ?name?`) whose result is the object command, so the assigned var holds
         // an instance of `class` regardless of whether a name was passed.
-        if let Some(reg) = self.registry
+        if let Some(reg) = self.registry.as_deref()
             && reg.object_class(class).is_some()
             && reg
                 .get(class)
@@ -4283,6 +4294,7 @@ impl Analyser {
     /// a walker edit.
     fn workspace_manufacturer_word(&self, word: &str) -> bool {
         self.registry
+            .as_deref()
             .is_some_and(|registry| registry.is_manufacturer_method(word))
     }
 

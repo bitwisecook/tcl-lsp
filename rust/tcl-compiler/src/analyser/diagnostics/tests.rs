@@ -1251,7 +1251,7 @@ fn w216_upvar_local_name_is_indirect_array_idiom() {
 #[test]
 fn variable_name_positions_are_registry_driven() {
     let mut a = Analyser::new();
-    a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+    a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
     let pos = |cmd: &str, args: &[&str]| {
         a.variable_name_positions(
             cmd,

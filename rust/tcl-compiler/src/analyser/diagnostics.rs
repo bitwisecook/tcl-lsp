@@ -838,7 +838,7 @@ impl Analyser {
         let defined = collect_defined_vars(&function_unit.cfg);
         // Alias recognition is registry-driven; fall back to the cached
         // default registry when the analyser has none loaded.
-        let scan_registry = self.registry.map_or_else(
+        let scan_registry = self.registry.as_deref().map_or_else(
             || tcl_registry::cache::registry_for_dialect("tcl8.6"),
             |r| r,
         );
@@ -859,7 +859,7 @@ impl Analyser {
         // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive —
         // recover those name-level reads so they suppress the dead-store /
         // unused-variable hints.
-        if let Some(registry) = self.registry {
+        if let Some(registry) = self.registry.as_deref() {
             textually_referenced.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
                 function_unit,
                 registry,

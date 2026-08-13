@@ -108,7 +108,7 @@ impl Analyser {
         let bracket_off = bracket_tok.span.start() + u32::try_from(bracket_char_idx).unwrap_or(0);
 
         let extra_known = self.user_command_tail_names();
-        let registry: &tcl_registry::CommandRegistry = match self.registry {
+        let registry: &tcl_registry::CommandRegistry = match self.registry.as_deref() {
             Some(r) => r,
             None => tcl_registry::cache::registry_for_profile(self.profile),
         };

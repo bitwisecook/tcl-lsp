@@ -712,7 +712,7 @@ impl Analyser {
         arg_expand: &[bool],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let source_map = tcl_lexer::SourceMap::new(&self.source);
@@ -825,7 +825,7 @@ impl Analyser {
         ) {
             return;
         }
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let bare = cmd_name.trim_start_matches(':');
@@ -897,7 +897,7 @@ impl Analyser {
         {
             return Some(super::dispatch::signature_for_scoped_command(scoped));
         }
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         super::dispatch::signature_for_command(registry, cmd_name, self.profile)
     }
 
@@ -984,7 +984,7 @@ impl Analyser {
         // on `grid bogus` under every dialect (the Tk-tagged fallback
         // below; Tk is a library over a Tcl base, not a profile).
         let tk_fallback = || {
-            let registry = self.registry?;
+            let registry = self.registry.as_deref()?;
             let spec = registry.get(cmd_name)?;
             spec.dialects
                 .is_some_and(|d| d.intersects(DialectSet::TK))
@@ -1199,7 +1199,7 @@ impl Analyser {
     /// narrower in scope (this ensemble, this subcommand name, a proc
     /// already known to exist).
     fn dynamic_ensemble_subcommand_known(&self, cmd_name: &str, subcommand_name: &str) -> bool {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return false;
         };
         let Some(spec) = registry.get(cmd_name) else {
@@ -1275,7 +1275,7 @@ impl Analyser {
     ) -> bool {
         use super::dispatch::{CommandSignature, signature_for_command_any_dialect};
 
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return false;
         };
         let Some(CommandSignature::WithSubcommands(any_sig)) =
@@ -2181,11 +2181,12 @@ impl Analyser {
     ) {
         if words.args.first().is_some_and(|word| {
             self.registry
+                .as_deref()
                 .is_some_and(|registry| registry.manufacturer_methods(word).next().is_some())
         }) {
             self.queue_ctor_arity_candidate(cmd_name, words, scope_path);
         }
-        if self.registry.is_some_and(|r| {
+        if self.registry.as_deref().is_some_and(|r| {
             r.get(cmd_name)
                 .is_some_and(|sig| sig.traits.contains(tcl_registry::Traits::TCLOO_NEXT_CHAIN))
         }) {
@@ -2566,7 +2567,7 @@ impl Analyser {
                 // builtin.
                 let bare = cur.strip_prefix("::").unwrap_or(&cur);
                 if !bare.contains("::")
-                    && let Some(sig) = self.registry.and_then(|r| r.get(bare))
+                    && let Some(sig) = self.registry.as_deref().and_then(|r| r.get(bare))
                 {
                     return Some(shift_arity(sig.arity, prepended_total));
                 }
@@ -2840,7 +2841,7 @@ impl Analyser {
     ) {
         use tcl_registry::prelude::DialectSet;
 
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         if args.is_empty() || arg_tokens.is_empty() {
@@ -3162,7 +3163,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         if self.dialect() != "f5-irules" {
             return;
         }
-        let Some(spec) = self.registry.and_then(|r| r.get(cmd_name)) else {
+        let Some(spec) = self.registry.as_deref().and_then(|r| r.get(cmd_name)) else {
             return;
         };
         let Some(replacement) = spec.deprecated_replacement else {
@@ -3225,7 +3226,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let Some(call) = tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(
@@ -3539,7 +3540,7 @@ before this value so it is treated as data, not an option."
         arg_tokens: &[tcl_lexer::Token],
         arg_expand: &[bool],
     ) -> Option<OptionScanContext> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         if args.is_empty() || arg_tokens.is_empty() {
             return None;
         }

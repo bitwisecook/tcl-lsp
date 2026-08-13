@@ -213,7 +213,7 @@ impl Analyser {
     /// second source of truth invites (issue #927;
     /// `docs/design/tk-widget-instance-typing.md`).
     fn is_widget_command(&self, name: &str) -> bool {
-        self.registry.is_some_and(|r| {
+        self.registry.as_deref().is_some_and(|r| {
             r.get(name).is_some_and(|s| {
                 s.creates_instance_at.is_some() && s.required_package == Some(TK_PACKAGE)
             })
@@ -352,7 +352,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let Some(spec) = registry.get(cmd_name) else {

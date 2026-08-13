@@ -773,7 +773,13 @@ pub struct Analyser {
     /// bodies) don't have to rebuild it on every command.  `None`
     /// outside an active analysis run; handlers that need the
     /// registry must check `self.registry.is_some()`.
-    pub registry: Option<&'static tcl_registry::CommandRegistry>,
+    ///
+    /// Held as an owning **handle**, not a `&'static`: a pack overlay
+    /// generation is retired once the cache has superseded it and the last
+    /// holder drops it, so keeping this handle for the whole analysis is
+    /// exactly what stops the walk reading a registry that a concurrent pack
+    /// reload has replaced underneath it. Cloning it is an `Arc` bump.
+    pub registry: Option<std::sync::Arc<tcl_registry::CommandRegistry>>,
     /// Lazily-built whole-module command-mutation trust oracle for the
     /// constant command-substitution fold (issue #1132). The analyser's own
     /// `renamed_commands` is flow-sensitive — populated only up to the
@@ -1288,7 +1294,7 @@ impl Analyser {
     /// registry data only.  Falls back to the cached default registry when
     /// the analyser has none loaded (direct handler calls in unit tests).
     pub(super) fn command_takes_regex_pattern(&self, cmd_name: &str) -> bool {
-        let registry = self.registry.map_or_else(
+        let registry = self.registry.as_deref().map_or_else(
             || tcl_registry::cache::registry_for_dialect("tcl8.6"),
             |r| r,
         );
@@ -1422,9 +1428,9 @@ impl Analyser {
     /// means the packs are not installed yet — the state the process was in a
     /// moment ago — so the fallback is the honest answer, not a wrong one.
     #[must_use]
-    pub fn profile_registry(&self) -> &'static tcl_registry::registry::CommandRegistry {
+    pub fn profile_registry(&self) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
         tcl_registry::cache::registry_for_profile_if_built(self.profile, self.pack_overlay)
-            .unwrap_or_else(|| tcl_registry::cache::registry_for_profile(self.profile))
+            .unwrap_or_else(|| tcl_registry::cache::registry_handle_for_profile(self.profile))
     }
 
     /// Set the W108 non-ASCII detection mode (`tclLsp.style.nonAscii`),
@@ -1676,7 +1682,7 @@ impl Analyser {
         self.head_identities = crate::head_identity::command_head_identities_with_config(
             source,
             self.lexer_config(),
-            self.registry.expect("registry just stashed"),
+            self.registry.as_deref().expect("registry just stashed"),
         );
         // Precompute the iRules file-profile stack (no-op off f5-irules) so
         // the per-command IRULE1001 hint can consult it without recomputing.
@@ -1695,7 +1701,7 @@ impl Analyser {
         // scan-to-next recovery uses here.
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
-            self.registry.expect("registry just stashed"),
+            self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
         );
         let known_commands: HashSet<&str> = self.recovery_known_commands.iter().collect();
@@ -1895,7 +1901,7 @@ impl Analyser {
         let stray = super::syntax_checks::stray_closer_diagnostics(
             cmd,
             &self.source,
-            self.registry,
+            self.registry.as_deref(),
             || self.user_command_tail_names(),
         );
         self.result.diagnostics.extend(stray);
@@ -1927,7 +1933,7 @@ impl Analyser {
             cmd,
             &self.source,
             region_end,
-            self.registry,
+            self.registry.as_deref(),
             &self.recovery_known_commands,
         );
         let mut emitted = false;
@@ -2042,11 +2048,11 @@ impl Analyser {
         self.head_identities = crate::head_identity::command_head_identities_with_config(
             source,
             self.lexer_config(),
-            self.registry.expect("registry just stashed"),
+            self.registry.as_deref().expect("registry just stashed"),
         );
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
-            self.registry.expect("registry just stashed"),
+            self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
@@ -2128,11 +2134,11 @@ impl Analyser {
         self.head_identities = crate::head_identity::command_head_identities_with_config(
             source,
             self.lexer_config(),
-            self.registry.expect("registry just stashed"),
+            self.registry.as_deref().expect("registry just stashed"),
         );
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
-            self.registry.expect("registry just stashed"),
+            self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
         );
         self.line_offsets = Some(compute_line_offsets(source));
@@ -2215,7 +2221,9 @@ impl Analyser {
             self.pack_overlay,
         )
         .unwrap_or_else(|| {
-            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect))
+            tcl_registry::cache::registry_handle_for_profile(tcl_dialect::DialectProfile::by_name(
+                dialect,
+            ))
         });
         let known: std::collections::HashSet<&str> = registry.command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
@@ -2427,7 +2435,7 @@ impl Analyser {
         // textually and still resolve at run time.
         self.attach_qualified_var_references();
         let diag_registry = self.profile_registry();
-        self.emit_unresolved_command_diagnostics(diag_registry);
+        self.emit_unresolved_command_diagnostics(&diag_registry);
         self.flush_disabled_command_diagnostics();
         self.flush_w143_diagnostics();
         self.flush_w304_diagnostics();
@@ -2435,13 +2443,13 @@ impl Analyser {
         self.flush_arity_diagnostics();
         self.flush_ctor_arity_diagnostics();
         self.flush_next_arity_diagnostics();
-        self.emit_missing_package_require_diagnostics(diag_registry);
+        self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
         self.flush_objdefine_abort_diagnostics();
         self.emit_lexer_warning_diagnostics();
         self.emit_w116_w117_stub_shadows();
-        self.flush_widget_dispatch_diagnostics(diag_registry);
+        self.flush_widget_dispatch_diagnostics(&diag_registry);
         self.flush_tk_geometry_diagnostics();
         self.flush_version_gate_diagnostics();
         self.flush_dsl_gate_diagnostics();
@@ -2558,7 +2566,7 @@ impl Analyser {
         if let Some(trust) = &self.command_trust {
             return Some(std::sync::Arc::clone(trust));
         }
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let module = crate::lowering::lower_to_ir_with_dialect(
             &self.source,
             registry,

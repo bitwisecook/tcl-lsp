@@ -167,9 +167,11 @@ file; this call falls through to the 'unknown' handler."
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) -> std::collections::HashSet<(String, i32)> {
-        self.registry.map_or_else(Default::default, |reg| {
-            crate::place_bridge::element_writes_observed_by_reads(&fu.cfg, &fu.name, reg)
-        })
+        self.registry
+            .as_deref()
+            .map_or_else(Default::default, |reg| {
+                crate::place_bridge::element_writes_observed_by_reads(&fu.cfg, &fu.name, reg)
+            })
     }
 
     /// Variable names read inside positions the version-precise SSA `used`
@@ -182,6 +184,7 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
     ) -> FxHashSet<String> {
         self.registry
+            .as_deref()
             .as_ref()
             .map_or_else(FxHashSet::default, |reg| {
                 Self::substitution_hidden_reads_of(fu, reg)
@@ -1237,7 +1240,7 @@ file; this call falls through to the 'unknown' handler."
             // so the version-0 chain shows a read with no visible def and
             // W210 false-fired (issue #923). This is the only place the
             // body-local write is visible.
-            if barrier_body_locally_sets(stmt_opt, var, self.registry) {
+            if barrier_body_locally_sets(stmt_opt, var, self.registry.as_deref()) {
                 continue;
             }
             // A read-modify-write command (`lappend` / `append`) that
@@ -1330,7 +1333,7 @@ file; this call falls through to the 'unknown' handler."
         let defined_vars = ctx.defined_vars;
         let considered = ctx.considered;
 
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
 
@@ -1835,9 +1838,9 @@ file; this call falls through to the 'unknown' handler."
         // `command_takes_regex_pattern` — direct handler calls in unit
         // tests), so the alias skip stays sound there too.
         let branches = {
-            // Scoped borrow: `self.registry` must release before the
+            // Scoped borrow: `self.registry.as_deref()` must release before the
             // `&mut self` diagnostic pushes below.
-            let registry = self.registry.map_or_else(
+            let registry = self.registry.as_deref().map_or_else(
                 || tcl_registry::cache::registry_for_dialect("tcl8.6"),
                 |r| r,
             );
