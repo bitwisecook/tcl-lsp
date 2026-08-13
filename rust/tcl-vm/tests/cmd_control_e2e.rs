@@ -459,11 +459,25 @@ fn if_runtime_grammar_errors() {
     );
 }
 
-/// A condition expression error in the runtime `if` propagates.
+/// A condition expression error in the runtime `if` propagates — a *syntax*
+/// error from the parse, and a boolean-coercion error from a parsable condition.
 #[test]
 fn if_runtime_condition_error() {
-    // tclsh: `expected boolean value but got "notbool"`
+    // `Tcl_IfObjCmd` runs the condition through `Tcl_ExprBooleanObj`, so it is
+    // parsed as an expression first: an unquoted word is a bareword, never a
+    // string to coerce (`tclCompExpr.c:766`; parseExpr-21.3).
+    // tclsh: `invalid bareword "notbool"` …
     let (ok, msg, _) = run("set c if; $c {notbool} {set r 1}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "invalid bareword \"notbool\"\nin expression \"notbool\";\n\
+         should be \"$notbool\" or \"{notbool}\" or \"notbool(...)\" or ..."
+    );
+    // Quoted, it *is* a string operand, and the boolean coercion is what fails
+    // (expr-old-28.12: `if {"abc"} {}`).
+    // tclsh: `expected boolean value but got "notbool"`
+    let (ok, msg, _) = run("set c if; $c {\"notbool\"} {set r 1}");
     assert!(!ok);
     assert_eq!(msg, "expected boolean value but got \"notbool\"");
 }
@@ -538,11 +552,21 @@ fn while_runtime_error_adds_body_frame() {
     );
 }
 
-/// A condition expression error in the runtime `while` propagates.
+/// A condition expression error in the runtime `while` propagates — the
+/// condition is parsed as an expression, so an unquoted word is a bareword
+/// (`tclCompExpr.c:766`), and only a quoted one reaches the boolean coercion.
 #[test]
 fn while_runtime_condition_error() {
-    // tclsh: `expected boolean value but got "notbool"`
+    // tclsh: `invalid bareword "notbool"` …
     let (ok, msg, _) = run("set c while; $c {notbool} {set x 1}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "invalid bareword \"notbool\"\nin expression \"notbool\";\n\
+         should be \"$notbool\" or \"{notbool}\" or \"notbool(...)\" or ..."
+    );
+    // tclsh: `expected boolean value but got "notbool"`
+    let (ok, msg, _) = run("set c while; $c {\"notbool\"} {set x 1}");
     assert!(!ok);
     assert_eq!(msg, "expected boolean value but got \"notbool\"");
 }
@@ -646,9 +670,19 @@ fn for_runtime_clause_errors() {
     let (ok, msg, _) = run("set c for; $c {set i 0} {$i<3} {error nexterr} {incr i}");
     assert!(!ok);
     assert_eq!(msg, "nexterr");
-    // condition error propagates.
-    // tclsh: `expected boolean value but got "x"`
+    // condition error propagates. The clause is an expression, so a bare `x` is
+    // C's bareword syntax error (`tclCompExpr.c:766`), not a string to coerce.
+    // tclsh: `invalid bareword "x"` …
     let (ok, msg, _) = run("set c for; $c {set i 0} {x} {incr i} {set z 1}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "invalid bareword \"x\"\nin expression \"x\";\n\
+         should be \"$x\" or \"{x}\" or \"x(...)\" or ..."
+    );
+    // A parsable condition that is not a boolean still reports the coercion.
+    // tclsh: `expected boolean value but got "x"`
+    let (ok, msg, _) = run("set c for; $c {set i 0} {\"x\"} {incr i} {set z 1}");
     assert!(!ok);
     assert_eq!(msg, "expected boolean value but got \"x\"");
 }

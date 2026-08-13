@@ -78,6 +78,14 @@ struct Cli {
     /// Per-script timeout, in milliseconds.
     #[arg(long, global = true, default_value_t = 5000)]
     timeout_ms: u64,
+    /// How often a generated top-level statement is a deliberately malformed
+    /// *expression* (`1+`, `1 2`, `foo bar baz`, an unbalanced paren, …), in
+    /// parts per thousand. `0` opts out entirely and restores the exact
+    /// pre-existing generator stream, so a registry's historical findings
+    /// still replay. Global, not `run`-only: `replay` has to generate a seed
+    /// the same way the campaign that recorded it did.
+    #[arg(long, global = true, default_value_t = GenConfig::default().malformed_expr_permille)]
+    malformed_expr_permille: u32,
     #[command(subcommand)]
     command: Cmd,
 }
@@ -509,7 +517,10 @@ fn summary_command(findings: &Path, pair: PairArgs) -> std::process::ExitCode {
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let timeout = Duration::from_millis(cli.timeout_ms);
-    let config = GenConfig::default();
+    let config = GenConfig {
+        malformed_expr_permille: cli.malformed_expr_permille,
+        ..GenConfig::default()
+    };
 
     match &cli.command {
         Cmd::Run(args) => run_campaign(&cli, &config, timeout, args),

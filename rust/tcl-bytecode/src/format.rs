@@ -134,7 +134,9 @@ fn format_operand<S: BuildHasher>(
             if matches!(
                 instr.op,
                 Op::INCR_SCALAR1_IMM
+                    | Op::INCR_ARRAY1_IMM
                     | Op::INCR_STK_IMM
+                    | Op::INCR_SCALAR_STK_IMM
                     | Op::INCR_ARRAY_STK_IMM
                     | Op::DICT_INCR_IMM
                     | Op::STR_MATCH
@@ -400,6 +402,34 @@ mod tests {
         assert!(output.contains("\"hello\""));
         assert!(output.contains("push1"));
         assert!(output.contains("done"));
+    }
+
+    /// Operand rendering for the newly executable opcodes: an LVT slot reads
+    /// `%vN`, an `incr` immediate carries its sign, and a plain flag/count
+    /// operand (`unsetArrayStk`, `clockRead`, `dictGetDef`) is a bare integer —
+    /// matching how the existing members of each family render.
+    #[test]
+    fn format_operand_renders_new_opcodes() {
+        use crate::{Instruction, Op, Operand};
+        use std::collections::HashMap;
+
+        let labels: HashMap<String, usize> = HashMap::new();
+        let text = |op: Op, operands: Vec<Operand>| {
+            instruction_operand_text(&Instruction::new(op, operands), &labels)
+        };
+        assert_eq!(text(Op::LOAD_ARRAY4, vec![Operand::Imm(3)]), "%v3");
+        assert_eq!(text(Op::ARRAY_MAKE_IMM, vec![Operand::Imm(0)]), "%v0");
+        assert_eq!(text(Op::VARIABLE, vec![Operand::Imm(1)]), "%v1");
+        assert_eq!(text(Op::CONST_IMM, vec![Operand::Imm(2)]), "%v2");
+        assert_eq!(
+            text(Op::INCR_ARRAY1_IMM, vec![Operand::Imm(1), Operand::Imm(-2)]),
+            "%v1 -2"
+        );
+        assert_eq!(text(Op::INCR_SCALAR_STK_IMM, vec![Operand::Imm(1)]), "+1");
+        assert_eq!(text(Op::UNSET_ARRAY_STK, vec![Operand::Imm(1)]), "1");
+        assert_eq!(text(Op::CLOCK_READ, vec![Operand::Imm(2)]), "2");
+        assert_eq!(text(Op::DICT_GET_DEF, vec![Operand::Imm(2)]), "2");
+        assert_eq!(text(Op::EXPAND_DROP, vec![]), "");
     }
 
     #[test]

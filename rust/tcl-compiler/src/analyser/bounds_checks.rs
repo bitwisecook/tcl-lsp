@@ -302,7 +302,7 @@ fn parse_simple_for_cond(cond: &str) -> Option<(String, String, i64)> {
     let all = tokenise_expr(strip_braces(cond), None);
     let tokens: Vec<&ExprToken> = all
         .iter()
-        .filter(|t| !matches!(t.kind, ExprTokenType::Whitespace | ExprTokenType::Eof))
+        .filter(|t| !t.kind.is_skipped() && t.kind != ExprTokenType::Eof)
         .collect();
     // Locate the single comparison operator; reject compound conditions.
     let mut split = None;

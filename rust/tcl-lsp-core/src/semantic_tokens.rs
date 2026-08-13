@@ -5340,61 +5340,6 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
                     false,
                 );
             }
-            E::Number => {
-                push_subtoken(
-                    full_source,
-                    line_index,
-                    abs_start,
-                    &et.text,
-                    TokenKind::Number,
-                    entries,
-                );
-            }
-            E::Variable => {
-                push_subtoken(
-                    full_source,
-                    line_index,
-                    abs_start,
-                    &et.text,
-                    TokenKind::Variable,
-                    entries,
-                );
-            }
-            // The grouping / ternary / argument-separator punctuation is as much
-            // an operator as `+` or `&&`, and the expr lexer already tells them
-            // apart — the walk just dropped them into the `_` arm below, so
-            // `expr {($a + $b) * $c}` left its parens unstyled and
-            // `$a > 1 ? "y" : "n"` left its `?` and `:` unstyled (#898 §6).
-            E::Operator | E::ParenOpen | E::ParenClose | E::Comma | E::TernaryQ | E::TernaryC => {
-                push_subtoken(
-                    full_source,
-                    line_index,
-                    abs_start,
-                    &et.text,
-                    TokenKind::Operator,
-                    entries,
-                );
-            }
-            E::String => {
-                push_subtoken(
-                    full_source,
-                    line_index,
-                    abs_start,
-                    &et.text,
-                    TokenKind::String,
-                    entries,
-                );
-            }
-            E::Bool => {
-                push_subtoken(
-                    full_source,
-                    line_index,
-                    abs_start,
-                    &et.text,
-                    TokenKind::Keyword,
-                    entries,
-                );
-            }
             E::Function if !et.text.is_empty() && !et.text.contains('\n') => {
                 let pos = line_index
                     .position_at_utf16(u32::try_from(abs_start).unwrap_or(0), full_source);
@@ -5411,9 +5356,52 @@ fn collect_expr(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>, depth:
                     mods,
                 ));
             }
-            _ => {}
+            kind => {
+                if let Some(token_kind) = expr_subtoken_kind(kind) {
+                    push_subtoken(
+                        full_source,
+                        line_index,
+                        abs_start,
+                        &et.text,
+                        token_kind,
+                        entries,
+                    );
+                }
+            }
         }
     }
+}
+
+/// The semantic-token kind an expression sub-token highlights as, for the kinds
+/// that map to one directly.
+///
+/// `None` for the two [`collect_expr`] handles itself — `Command` recurses into
+/// the nested script and `Function` needs the `defaultLibrary` modifier — and
+/// for the kinds that carry no highlighting (whitespace, the never-emitted
+/// `Eof`). Exhaustive on purpose: a new `ExprTokenType` variant fails to compile
+/// here rather than silently going unstyled.
+fn expr_subtoken_kind(kind: tcl_lexer::ExprTokenType) -> Option<TokenKind> {
+    use tcl_lexer::ExprTokenType as E;
+    Some(match kind {
+        E::Number => TokenKind::Number,
+        E::Variable => TokenKind::Variable,
+        E::String => TokenKind::String,
+        E::Bool => TokenKind::Keyword,
+        // The grouping / ternary / argument-separator punctuation is as much an
+        // operator as `+` or `&&`, and the expr lexer already tells them apart —
+        // the walk used to drop them into a catch-all arm, so
+        // `expr {($a + $b) * $c}` left its parens unstyled and
+        // `$a > 1 ? "y" : "n"` left its `?` and `:` unstyled (#898 §6).
+        E::Operator | E::ParenOpen | E::ParenClose | E::Comma | E::TernaryQ | E::TernaryC => {
+            TokenKind::Operator
+        }
+        // A TIP 582 `# …` comment inside the expression body highlights as a
+        // comment, like a script-level one. Always single-line: the lexer stops
+        // the token before the terminating newline, so this satisfies
+        // `push_subtoken`'s one-line requirement by construction.
+        E::Comment => TokenKind::Comment,
+        E::Command | E::Function | E::Whitespace | E::Eof => return None,
+    })
 }
 
 /// Walk the segmenter + comment scan and return raw

@@ -62,7 +62,9 @@
 
 use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
-use tcl_compiler::codegen::{Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op};
+use tcl_compiler::codegen::{
+    Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op, Operand,
+};
 use tcl_compiler::ir::{Module as IrModule, Procedure, Statement};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
@@ -331,6 +333,97 @@ fn catch_body_const_div_zero_emits_syntax() {
     );
     assert!(ops.contains(&Op::BEGIN_CATCH4));
     assert!(fa.literals.entries().iter().any(|l| l == "divide by zero"));
+}
+
+/// The `(code, level)` immediates `emit_catch_return` puts on `returnImm`, per
+/// C's `TclMergeReturnOptions` → `CompileReturnInternal`
+/// (`tclResult.c:866-974`, `tclCompCmdsGR.c:2410`).
+///
+/// Two normalisations produce the whole table: `-level` defaults to **1** (so a
+/// plain `return` is `(0, 1)`, never `(0, 0)` — that pair means "push the result
+/// and fall through"), and `-code return` is rewritten to `-code ok -level L+1`,
+/// so `TCL_RETURN` never reaches the operand.
+///
+/// The `break`/`continue`/non-standard rows previously encoded the code *as the
+/// level* (`(0, 3)`, `(0, 4)`), which the old compensating VM read back as the
+/// right completion by accident; under C semantics they are levels, so they
+/// would have unwound N proc frames instead of breaking a loop.
+#[test]
+fn catch_return_operands_match_c_merge_table() {
+    for (body, want) in [
+        // plain `return` inside a catch range: C emits `returnImm 0 1`
+        // (the `done` fold needs "no enclosing catch").
+        ("return", (0, 1)),
+        ("return x", (0, 1)),
+        // `-code error` → `(1, 1)`.
+        ("return -code error x", (1, 1)),
+        // `-code return` → merged to `-code ok -level 2` → `(0, 2)`.
+        ("return -code return x", (0, 2)),
+        ("return -code return -level 3 x", (0, 4)),
+        // `-code break`/`-code continue` keep the code on the operand.
+        ("return -code break x", (3, 1)),
+        ("return -code continue x", (4, 1)),
+        // a non-standard code rides the operand too.
+        ("return -code 7 x", (7, 1)),
+        // an explicit `-level` is used verbatim.
+        ("return -level 0 -code error x", (1, 0)),
+        ("return -level 2 -code error x", (1, 2)),
+        // `return -level 0` alone: C elides the instruction entirely, and
+        // `(0, 0)` is the equivalent "push the result and continue".
+        ("return -level 0 x", (0, 0)),
+    ] {
+        let src = format!("proc p {{}} {{ set rc [catch {{{body}}} e]; return $rc }}");
+        let fa = proc_via_backend(&src, "::p");
+        let ri = fa
+            .instructions
+            .iter()
+            .find(|i| i.op == Op::RETURN_IMM)
+            .unwrap_or_else(|| panic!("no returnImm for `{body}`: {:?}", opcodes(&fa)));
+        assert_eq!(
+            ri.operands,
+            vec![Operand::Imm(want.0), Operand::Imm(want.1)],
+            "`{body}` must compile to returnImm {} {}",
+            want.0,
+            want.1
+        );
+    }
+}
+
+/// `error msg` is `returnImm 1 0` — an immediate `TCL_ERROR`, not a level-1
+/// return (`TclCompileErrorCmd`, `tclCompCmds.c:2470`). Unchanged by the
+/// realignment; pinned here so the two encodings cannot drift together.
+#[test]
+fn catch_error_operands_are_code_error_level_zero() {
+    let fa = proc_via_backend(
+        "proc e {} { set rc [catch {error boom} m]; return $rc }",
+        "::e",
+    );
+    let ri = fa
+        .instructions
+        .iter()
+        .find(|i| i.op == Op::RETURN_IMM)
+        .expect("error → returnImm");
+    assert_eq!(ri.operands, vec![Operand::Imm(1), Operand::Imm(0)]);
+}
+
+/// A top-level plain `return` is `returnImm 0 1`, and the proc-body one folds to
+/// `done` (`TclCompileReturnCmd`'s `INST_DONE` optimisation).
+#[test]
+fn plain_return_encodings_top_level_and_proc() {
+    let top = module_inline_via_backend("return ok").top_level;
+    let ri = top
+        .instructions
+        .iter()
+        .find(|i| i.op == Op::RETURN_IMM)
+        .unwrap_or_else(|| panic!("top-level return → returnImm: {:?}", opcodes(&top)));
+    assert_eq!(ri.operands, vec![Operand::Imm(0), Operand::Imm(1)]);
+
+    let body = proc_via_backend("proc p {} { return ok }", "::p");
+    let ops = opcodes(&body);
+    assert!(
+        ops.contains(&Op::DONE) && !ops.contains(&Op::RETURN_IMM),
+        "a proc's plain return folds to done: {ops:?}"
+    );
 }
 
 #[test]
@@ -661,51 +754,55 @@ fn cmd_subst_nested_bracket_in_arg() {
 }
 
 #[test]
-fn cmd_subst_in_if_condition_is_expr_stk() {
-    // A command substitution used in an `if` condition is evaluated as the whole
-    // `<cond>` expression: the condition lowers to an EXPR_STK over the pushed
-    // `<cond>` body, not an inlined STR_LEN. (control_flow + cmd_subst.)
+fn cmd_subst_in_if_condition_is_a_pushed_word() {
+    // A command substitution used in an `if` condition is not inlined to
+    // STR_LEN: it becomes a pushed `<cond>` word the VM substitutes at run time.
+    // No EXPR_STK follows the push — the substituted value *is* the operand, and
+    // re-parsing it as an expression is exactly the double evaluation C avoids by
+    // compiling the operand with `TclCompileTokens`. (control_flow + cmd_subst.)
     let fa = proc_via_backend(
         "proc p {x} { if {[string length $x] > 0} { return 1 }; return 0 }",
         "::p",
     );
     let ops = opcodes(&fa);
     assert!(
-        ops.contains(&Op::EXPR_STK),
-        "cmd-subst in cond → EXPR_STK: {ops:?}"
+        !ops.contains(&Op::STR_LEN),
+        "cmd-subst in cond is not inlined: {ops:?}"
+    );
+    assert!(
+        !ops.contains(&Op::EXPR_STK),
+        "the substituted word is not re-parsed as an expression: {ops:?}"
     );
     assert!(has_cond_jump(&ops), "the if still has a conditional jump");
 }
 
 #[test]
 fn cmd_subst_info_exists_in_condition() {
-    // `info exists` inside an `if` condition also routes through EXPR_STK (the
-    // condition is a runtime expression), not the inline existScalar form.
+    // `info exists` inside an `if` condition is likewise a substituted word, not
+    // the inline existScalar form and not a re-parsed expression.
     let fa = proc_via_backend(
         "proc p {x} { if {[info exists x]} { return 1 }; return 0 }",
         "::p",
     );
     let ops = opcodes(&fa);
     assert!(
-        ops.contains(&Op::EXPR_STK),
-        "info-exists cond → EXPR_STK: {ops:?}"
+        !ops.contains(&Op::EXPR_STK),
+        "info-exists cond is a pushed word, not a re-parsed expression: {ops:?}"
     );
+    assert!(has_cond_jump(&ops), "the if still has a conditional jump");
 }
 
 #[test]
-fn cmd_subst_in_expr_position_routes_through_expr_stk() {
+fn cmd_subst_in_expr_position_is_a_pushed_word() {
     // A command substitution embedded in an `expr` body (`[llength $l] + 1`) is
-    // not separately inlined — the whole expression is evaluated at runtime as a
-    // pushed `<expr>` string via EXPR_STK (the inner subst stays inside it). This
-    // is the expr-position command-substitution lowering. (cmd_subst + values.)
+    // not separately inlined — it becomes a pushed operand word the VM
+    // substitutes, while the outer `+ 1` is real compile-time arithmetic.
+    // (cmd_subst + values.)
     let fa = proc_via_backend("proc p {l} { return [expr {[llength $l] + 1}] }", "::p");
     let ops = opcodes(&fa);
-    // The embedded `[llength $l]` is not separately inlined to LIST_LENGTH —
-    // it becomes a pushed `<expr>` operand evaluated via EXPR_STK; the outer
-    // `+ 1` is real compile-time arithmetic.
     assert!(
-        ops.contains(&Op::EXPR_STK),
-        "embedded cmd-subst → EXPR_STK: {ops:?}"
+        !ops.contains(&Op::EXPR_STK),
+        "the substituted operand is not re-parsed as an expression: {ops:?}"
     );
     assert!(
         ops.contains(&Op::ADD),

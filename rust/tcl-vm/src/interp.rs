@@ -3182,6 +3182,24 @@ impl Vm {
         imported
     }
 
+    /// The command key `key` ultimately came from, following the
+    /// `namespace import` chain to its source — C's `TclGetOriginalCommand`,
+    /// which backs the `originCmd` opcode (`namespace origin`). `key` itself
+    /// when it names no import. Keys are canonical (unrooted), as
+    /// `imported_commands` stores them.
+    pub(crate) fn command_origin_key(&self, key: &str) -> String {
+        let mut cur = key.to_owned();
+        // Bounded walk: a chain cannot be longer than the import table, so a
+        // (malformed) cycle terminates instead of spinning.
+        for _ in 0..self.imported_commands.len() {
+            match self.imported_commands.get(&cur) {
+                Some(next) => cur = next.clone(),
+                None => break,
+            }
+        }
+        cur
+    }
+
     /// `namespace forget pattern` — remove previously imported commands matching
     /// `pattern` from the current namespace (C `Tcl_ForgetImport`). Only commands
     /// created by `namespace import` are removed; a real command of the same name
@@ -4958,24 +4976,68 @@ impl Vm {
 
     /// Parse and evaluate a Tcl expression string against this VM.
     ///
-    /// A whole expression that doesn't parse (e.g. a plain string subject the
-    /// `switch` codegen feeds through `exprStk`) yields the string itself,
-    /// matching the reference VM's lenient `exprStk`.
+    /// An expression that does not parse is a Tcl error, exactly as in C — see
+    /// [`Self::expr_syntax_error`] for the message and error-code fidelity.
+    ///
+    /// Version enforcement is split: the parse is deliberately permissive (the
+    /// latest grammar, `dialect = None`) and `RuntimeExprSurface::validate` then
+    /// rejects anything the emulated release lacks. That works for constructs
+    /// which become AST nodes carrying a version floor — a 9.0-only `lt` under
+    /// 8.6 is caught there and reported as the bareword it is — but it cannot
+    /// see a *lexical* construct that leaves no node behind. TIP 582 `#`
+    /// comments are the one such case: `tcl_dialect::ExprCommentStyle` gates
+    /// them correctly for every dialect-aware consumer (the expr lexer, so the
+    /// LSP, analyser and compiler all honour it), but a VM emulating 8.x still
+    /// *evaluates* `expr {1 + 2 # note}` as 3 where C 8.6 raises
+    /// `invalid character "#"`. Closing that would mean threading the runtime
+    /// version into this parse, which would also move the `lt` rejection from
+    /// `validate` to the lexer and change its pinned message — so it is left as
+    /// follow-up rather than done here.
     pub fn eval_expr(&mut self, src: &str) -> Result<Value, TclError> {
         let node = parse_expr(src, None);
         if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
-            return Ok(Value::string(src));
+            return Err(self.expr_syntax_error(src));
         }
         let surface =
             tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version);
         if let Err(error) = surface.validate(&node) {
-            return Err(TclError::with_error_code(
-                error.message(src),
-                error.error_code(),
-            ));
+            let message = error.message(src);
+            self.seed_parsing_expression_frame(src, &message);
+            return Err(TclError::with_error_code(message, error.error_code()));
         }
         let mut ops = ExprEval { vm: self };
         eval(&node, &mut ops)
+    }
+
+    /// C Tcl's syntax error for an expression `parse_expr` could not parse.
+    ///
+    /// `parse_expr`'s [`ExprNode::Raw`](tcl_syntax::expr::ExprNode::Raw)
+    /// fallback is deliberately reason-free (the analysis pipeline needs it
+    /// never to fail), so the reason is recovered here by a diagnosis-only
+    /// re-scan of the same tokens — `tcl_syntax::expr::ExprSyntaxError`, which
+    /// reproduces `ParseExpr`'s messages, its `_@_` insert mark, and its
+    /// `TCL PARSE EXPR <detail>` code (`tclCompExpr.c:1397-1471`). The
+    /// `(parsing expression "…")` `errorInfo` frame C appends at the same site
+    /// is seeded here too.
+    ///
+    /// The scan is dialect-blind, like the parse it explains: a VM knows only
+    /// its emulated [`tcl_dialect::TclVersion`], never a vendor dialect, so an
+    /// iRules word operator (`contains`, `starts_with`, …) is diagnosed as the
+    /// bareword it genuinely is in every plain-Tcl grammar. Compiled iRules code
+    /// never reaches here — the dialect-aware compiler lowers those operators to
+    /// their own opcodes.
+    fn expr_syntax_error(&mut self, src: &str) -> TclError {
+        let error = tcl_syntax::expr::ExprSyntaxError::diagnose(src, None);
+        let message = error.message(src);
+        self.seed_parsing_expression_frame(src, &message);
+        TclError::with_error_code(message, error.error_code())
+    }
+
+    /// Add C's `(parsing expression "…")` `errorInfo` frame for a rejected
+    /// expression (`tclCompExpr.c:1461-1466`).
+    fn seed_parsing_expression_frame(&mut self, src: &str, message: &str) {
+        let frame = tcl_syntax::expr::ExprSyntaxError::error_info_frame(src);
+        self.seed_error_info_frame(message, &frame);
     }
 
     /// Compile `src` via the injected [`CompileService`], from the cache when

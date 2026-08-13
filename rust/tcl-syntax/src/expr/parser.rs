@@ -133,6 +133,21 @@ fn unaryop_from_text(text: &str) -> Option<UnaryOp> {
     })
 }
 
+/// Whether `text` spells an operator this parser accepts in prefix position.
+///
+/// The [`syntax_error`](super::syntax_error) diagnosis pass needs the same
+/// unary/binary split the parser applies, so it reads it from here rather than
+/// keeping a second list that could drift.
+pub(super) fn is_unary_operator(text: &str) -> bool {
+    unaryop_from_text(text).is_some()
+}
+
+/// Whether `text` spells an operator this parser accepts in infix position.
+/// Companion to [`is_unary_operator`]: `-` is both, `~` and `!` are prefix only.
+pub(super) fn is_binary_operator(text: &str) -> bool {
+    binop_from_text(text).is_some()
+}
+
 /// Binding power for prefix unary operators (higher than any binary).
 const UNARY_BP: u8 = 24;
 
@@ -411,7 +426,7 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
 
     let tokens: Vec<ExprToken> = raw_tokens
         .into_iter()
-        .filter(|t| t.kind != ExprTokenType::Whitespace)
+        .filter(|t| !t.kind.is_skipped())
         .collect();
 
     if tokens.is_empty() {
@@ -1247,5 +1262,115 @@ mod tests {
             !cache.map.contains_key(&first_key),
             "front (LRU) entry should have been evicted",
         );
+    }
+
+    // =================================================================
+    // TIP 582 `#` comments
+    // =================================================================
+
+    /// `source` with every comment overwritten by spaces of equal length.
+    ///
+    /// Keeps every other token at its original offset, so a parse of the result
+    /// is comparable node-for-node with a parse of the original — `ExprNode`
+    /// carries source offsets, so simply *deleting* the comment would shift
+    /// every literal to its right and the trees could not be compared.
+    fn blank_comments(source: &str) -> String {
+        let mut out = source.as_bytes().to_vec();
+        for t in tcl_lexer::tokenise_expr(source, None) {
+            if t.kind == ExprTokenType::Comment {
+                out[t.start as usize..=t.end as usize].fill(b' ');
+            }
+        }
+        String::from_utf8(out).expect("overwriting a whole token with spaces keeps UTF-8 valid")
+    }
+
+    /// A comment is filtered out with the whitespace before the Pratt parse, so
+    /// the grammar cannot see it: replacing the comment with *whitespace of the
+    /// same length* yields an identical tree. That equivalence is exactly C's
+    /// rule — `ParseExpr` skips a `COMMENT` lexeme the same way it skips a
+    /// whitespace run (`tclCompExpr.c:701`).
+    ///
+    /// Before this, the expr lexer classified `#` as an unknown character, which
+    /// tripped `parse_expr`'s `has_unknown` early return and degraded every one
+    /// of these to `ExprNode::Raw`.
+    #[test]
+    fn comments_are_invisible_to_the_grammar() {
+        for src in [
+            // Trailing, mid-expression, and hugging an operator.
+            "1 + 2 # note",
+            "1 #c\n+ 2",
+            "1#c\n+2",
+            "$a > 1 # why\n&& $b",
+            // Between a function name and its `(` — C's `:750` case, expr-62.10.
+            "max# comment\n(1,2)",
+            // Inside the argument list, either side of the comma (expr-62.7/8/9).
+            "max(1,# comment\n2)",
+            "max(1# comment\n,2)",
+            "max(# comment\n1,2)",
+            // A comment containing `#`, and one with no terminating newline.
+            "1 + 2 # a # b",
+            "[llength {a b}] # c",
+            // expr-62.5: comments do not splice the tokens they separate.
+            "$a#don't splice\nne#don't splice\nfalse",
+        ] {
+            let parsed = parse(src);
+            assert!(
+                !matches!(parsed, ExprNode::Raw { .. }),
+                "{src:?} should parse, got Raw"
+            );
+            let blanked = blank_comments(src);
+            assert_ne!(blanked, src, "{src:?} should contain a comment to blank");
+            assert_eq!(parsed, parse(&blanked), "{src:?} vs blanked {blanked:?}");
+        }
+    }
+
+    /// A comment swallows the rest of its line, operators included — so
+    /// expr-62.1's `expr {1 # + 2}` parses as the bare literal `1`, not `1 + 2`.
+    #[test]
+    fn a_comment_swallows_the_rest_of_its_line() {
+        assert_eq!(
+            parse("1 # + 2"),
+            ExprNode::Literal {
+                text: "1".to_owned(),
+                start: 0,
+                end: 0
+            }
+        );
+        // But only to the newline: the `+ 2` on the next line is still parsed,
+        // which is expr-62.2's `expr "1 #\n+ 2"` == 3.
+        assert!(matches!(
+            parse("1 #\n+ 2"),
+            ExprNode::Binary { op: BinOp::Add, .. }
+        ));
+    }
+
+    /// A comment-only body has no operands at all, so it is C's *empty*
+    /// expression and still falls back to `Raw` (the VM turns that into
+    /// `empty expression`). The comment must not be mistaken for an operand.
+    #[test]
+    fn a_comment_only_expression_is_empty() {
+        for src in ["# c", "  # c", "#", "# a\n# b"] {
+            assert!(
+                matches!(parse(src), ExprNode::Raw { .. }),
+                "{src:?} should be Raw (empty expression)"
+            );
+        }
+    }
+
+    /// The gate: under an 8.x dialect `#` is still an invalid expression
+    /// character, so the expression degrades to `Raw` exactly as before —
+    /// TIP 582 is 9.0+.
+    #[test]
+    fn comments_stay_unparsable_before_tcl9() {
+        assert!(matches!(
+            parse_expr("1 + 2 # note", Some("tcl8.6")),
+            ExprNode::Raw { .. }
+        ));
+        assert!(matches!(parse_irules("1 + 2 # note"), ExprNode::Raw { .. }));
+        // 9.0 is where it starts working.
+        assert!(!matches!(
+            parse_expr("1 + 2 # note", Some("tcl9.0")),
+            ExprNode::Raw { .. }
+        ));
     }
 }

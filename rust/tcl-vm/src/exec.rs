@@ -70,6 +70,50 @@ struct DictIterState {
     pos: usize,
 }
 
+/// One live in-frame catch range (see [`Frame::catch_ranges`]): where its
+/// handler starts, the depths to restore on absorption, and the instruction
+/// index of its `BEGIN_CATCH4` (the loop-vs-catch innermost-ness tiebreak for
+/// a caught `break`/`continue` — see [`Vm::absorb_catch_range`]). Absorption
+/// trims the operand stack *and* the in-flight `foreach` / `{*}`-expansion
+/// stacks, as C's exception handling pops `auxObjList` entries opened inside
+/// the range.
+struct CatchRange {
+    target_idx: usize,
+    stack_len: usize,
+    foreach_len: usize,
+    expand_len: usize,
+    begin_idx: usize,
+    /// The range has fired and execution is in its handler. It stays on the
+    /// stack so its `END_CATCH` pops it (C leaves the catchStack entry for
+    /// `endCatch`), but it can no longer absorb — an exception raised *inside*
+    /// the handler belongs to the enclosing range, as C's pc-containment test
+    /// decides (the handler lies outside the range's code region).
+    in_handler: bool,
+    /// The completion this range absorbed, read by its own epilogue:
+    /// `PUSH_RESULT` pushes the result, `PUSH_RETURN_CODE` the code,
+    /// `PUSH_RETURN_OPTS` the options dict (the analogue of the interp result +
+    /// `Tcl_GetReturnOptions` state a C catch range leaves behind).
+    ///
+    /// Scoped to the range rather than the frame so it cannot leak: the
+    /// epilogue reads run *before* the paired `END_CATCH`, so the firing range
+    /// is still innermost when they execute, and a range that never fired
+    /// reports `None` — an OK completion. Frame-wide state would make a
+    /// successful `catch` inherit an earlier (or inner) catch's `-code` /
+    /// `-errorinfo` on its fall-through path, since both paths share
+    /// `PUSH_RETURN_OPTS`.
+    caught: Option<CaughtState>,
+}
+
+/// A completion absorbed by a catch range, pre-digested for the compiled catch
+/// epilogue: the result value, the numeric return code, and the full options
+/// dict (`catch_error_options` shape for an error — `-errorinfo`/`-errorcode`/
+/// `-errorline` attached — `completion_options` otherwise).
+struct CaughtState {
+    result: Value,
+    code: Code,
+    options: Value,
+}
+
 /// One activation record: a bytecode function in mid-execution. `pub(crate)` so
 /// a suspended coroutine can own its frozen activation stack (`Vec<Frame>`); the
 /// fields stay private to `exec` (a coroutine only stores/moves whole frames and
@@ -89,6 +133,14 @@ pub(crate) struct Frame {
     /// last). `EXPAND_START` records the word-list start; `INVOKE_EXPANDED`
     /// pops it to recover the (post-expansion) argument count.
     expand_markers: Vec<usize>,
+    /// Active in-frame catch ranges (innermost last) — the analogue of C Tcl's
+    /// per-execution `catchStack` + `ExceptionRange` table. Pushed by a
+    /// `BEGIN_CATCH4` carrying an out-of-band handler label
+    /// (`Instruction::catch_target`), popped by `END_CATCH`. An exceptional
+    /// completion unwinding into this frame is absorbed by the innermost range:
+    /// the stack is trimmed to its depth, the completion is recorded on that
+    /// range ([`CatchRange::caught`]), and execution resumes at the handler.
+    catch_ranges: Vec<CatchRange>,
     /// Last value dropped by `POP` — the `DONE` result when the stack is empty.
     last_result: Value,
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
@@ -251,6 +303,7 @@ impl Frame {
             foreach_stack: Vec::new(),
             dict_iters: HashMap::new(),
             expand_markers: Vec::new(),
+            catch_ranges: Vec::new(),
             last_result: Value::empty(),
             is_proc,
             is_script: false,
@@ -617,14 +670,12 @@ fn imm_index(imm: i32, len: usize) -> isize {
     }
 }
 
-/// Resolve a runtime index value (`N`/`end`/`end-N`) against a length.
-fn imm_index_value(v: &Value, len: usize) -> isize {
-    crate::command::resolve_index(&v.to_str(), len).unwrap_or(-1)
-}
-
 /// Resolve a runtime index value, erroring on a non-integer spec (`bad index`)
-/// — the validating form used by the inline `linsert`/`lreplace` opcode, so the
-/// compiled path rejects `linsert a b` like the command does (linsert-2.2).
+/// — the validating form C's index-taking opcodes all use, since every one of
+/// them routes through `TclGetIntForIndexM` and treats its failure as an error
+/// (`INST_STR_INDEX`, `INST_STR_RANGE`, `INST_STR_REPLACE`, `INST_LREPLACE4`);
+/// the non-validating `unwrap_or` forms it replaced turned a garbage index into
+/// a plausible-looking value.
 fn checked_index_value(v: &Value, len: usize) -> Result<isize, Completion<Value>> {
     let s = v.to_str();
     crate::command::resolve_index(&s, len).ok_or_else(|| {
@@ -736,7 +787,18 @@ fn char_range(chars: &[char], lo: isize, hi: isize) -> Value {
 }
 
 /// Character index of `needle` in `hay` (`string first`/`last`), or -1.
+///
+/// An **empty needle is a miss**: both C helpers open with an explicit
+/// `if (ln == 0) { /* We don't find empty substrings.  Bizarre! */ goto …End; }`
+/// that leaves the result at `-1` (`tclStringObj.c:3853-3858` `TclStringFirst`,
+/// `:3948-3956` `TclStringLast`). Rust's `str::find`/`rfind` instead *do* match
+/// the empty needle, at 0 and at the haystack length respectively, so
+/// `INST_STR_FIND`/`INST_STR_FIND_LAST` returned `0`/`len` where C returns `-1`
+/// (and where our own `string first`/`last` builtins already returned `-1`).
 fn char_find(hay: &str, needle: &str, last: bool) -> i64 {
+    if needle.is_empty() {
+        return -1;
+    }
     let byte = if last {
         hay.rfind(needle)
     } else {
@@ -745,16 +807,6 @@ fn char_find(hay: &str, needle: &str, last: bool) -> i64 {
     byte.map_or(-1, |b| {
         i64::try_from(hay[..b].chars().count()).unwrap_or(-1)
     })
-}
-
-fn code_from_int(n: i32) -> Code {
-    match n {
-        1 => Code::Error,
-        2 => Code::Return,
-        3 => Code::Break,
-        4 => Code::Continue,
-        _ => Code::Ok,
-    }
 }
 
 fn label_to_idx(asm: &FunctionAsm, off2idx: &HashMap<i32, usize>, label: &str) -> Option<usize> {
@@ -806,6 +858,36 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
     match expr::unary(op, &v) {
         Ok(r) => {
             f.stack.push(r);
+            Ok(())
+        }
+        Err(e) => Err(err(e.message)),
+    }
+}
+
+/// Take the top `imm0(instr)` stack words, deepest first — the operand-counted
+/// word list an invocation-shaped opcode (`tclooNext`/`tclooNextClass`) consumes.
+/// `mnemonic` names the opcode in the underflow error.
+fn take_words(
+    f: &mut Frame,
+    instr: &Instruction,
+    mnemonic: &str,
+) -> Result<Vec<Value>, Completion<Value>> {
+    let count = usize::try_from(imm0(instr)).unwrap_or(0);
+    if count == 0 || f.stack.len() < count {
+        return Err(err(format!("{mnemonic}: stack underflow")));
+    }
+    Ok(f.stack.split_off(f.stack.len() - count))
+}
+
+/// An iRules-dialect binary operator (`IRULE_*`): the operands are on the stack
+/// left-then-right, exactly as [`bin`]/[`cmp`] take them, and the semantics come
+/// from the shared [`expr::irule_binary`].
+fn irule(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
+    let b = pop(f);
+    let a = pop(f);
+    match expr::irule_binary(op, &a, &b) {
+        Ok(v) => {
+            f.stack.push(v);
             Ok(())
         }
         Err(e) => Err(err(e.message)),
@@ -990,17 +1072,7 @@ impl Vm {
                     acts.push(fr);
                 }
                 Tick::Return(c) => {
-                    // A `break`/`continue` *returned by a command* (`if {…} $z`,
-                    // `eval break`) inside an inline loop body: jump to the
-                    // loop's exit/continue point rather than unwinding out of
-                    // the function (the inline `JUMP` only covers a *literal*
-                    // break/continue). Mirrors C Tcl's exception ranges.
-                    if matches!(c.code, Code::Break | Code::Continue)
-                        && Self::catch_loop_completion(acts.last_mut().unwrap(), c.code)
-                    {
-                        continue;
-                    }
-                    if let Some(done) = self.unwind(acts, c) {
+                    if let Some(done) = self.settle_completion(acts, c) {
                         return RunExit::Done(done);
                     }
                 }
@@ -1028,6 +1100,33 @@ impl Vm {
                 },
             }
         }
+    }
+
+    /// Settle a frame's exceptional completion (`Tick::Return`): a live catch
+    /// range in the faulting frame absorbs it first (C's catchStack; it defers
+    /// internally when an inline loop is nested inside the range); then a
+    /// `break`/`continue` *returned by a command* (`if {…} $z`, `eval break`)
+    /// inside an inline loop body jumps to the loop's exit/continue point
+    /// rather than unwinding out of the function (the inline `JUMP` only
+    /// covers a *literal* break/continue — this mirrors C Tcl's loop exception
+    /// ranges); anything still unhandled unwinds. `Some(done)` ends the drive.
+    fn settle_completion(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        c: Completion<Value>,
+    ) -> Option<Completion<Value>> {
+        let c = match self
+            .absorb_catch_range(acts.last_mut().expect("activation stack is non-empty"), c)
+        {
+            Ok(()) => return None,
+            Err(c) => c,
+        };
+        if matches!(c.code, Code::Break | Code::Continue)
+            && Self::catch_loop_completion(acts.last_mut().expect("still non-empty"), c.code)
+        {
+            return None;
+        }
+        self.unwind(acts, c)
     }
 
     /// If the instruction that just produced a `break`/`continue` completion is
@@ -1096,6 +1195,77 @@ impl Vm {
 
     /// Unwind one or more activations with completion `c`. Returns `Some` when
     /// the whole `run` is finished, `None` when a parent activation resumed.
+    /// Offer an exceptional completion to `f`'s innermost live catch range
+    /// (C's `TclGetExceptionRangeForPc(catchOnly)` at the faulting pc).
+    /// `Ok(())` means the range absorbed it: the operand/foreach/expand stacks
+    /// are trimmed to the range's depths, the digested completion is recorded
+    /// for the epilogue's `PUSH_RESULT`/`PUSH_RETURN_CODE`/`PUSH_RETURN_OPTS`,
+    /// and `pc` moves to the handler. `Err(c)` gives the completion back:
+    /// no live range, an uncatchable `exit`, or a `break`/`continue` whose
+    /// inline loop is nested *inside* the range (the loop's redirect wins, as
+    /// C picks the smallest enclosing exception range).
+    fn absorb_catch_range(
+        &mut self,
+        f: &mut Frame,
+        c: Completion<Value>,
+    ) -> Result<(), Completion<Value>> {
+        if self.exit_pending() {
+            return Err(c);
+        }
+        // Innermost range not already in its handler (an exception inside a
+        // handler belongs to the *enclosing* range, per C's pc containment).
+        let Some(pos) = f.catch_ranges.iter().rposition(|r| !r.in_handler) else {
+            return Err(c);
+        };
+        if matches!(c.code, Code::Break | Code::Continue) {
+            // The faulting instruction sits in an inline loop body iff
+            // `loop_targets` has it; the catch range is *inner* to that loop
+            // iff its `BEGIN_CATCH4` sits in the same body (same target
+            // pair). Otherwise the loop is the smaller range — defer to
+            // `catch_loop_completion`.
+            let fault = f.pc.wrapping_sub(1);
+            if let Some(pair) = f.asm.loop_targets.get(&fault) {
+                let begin = f.catch_ranges[pos].begin_idx;
+                if f.asm.loop_targets.get(&begin) != Some(pair) {
+                    return Err(c);
+                }
+            }
+        }
+        // Ranges nested above the firing one belong to abandoned constructs —
+        // their `END_CATCH`s are skipped by the handler jump — so drop them;
+        // the firing range itself stays (armed) for its own `END_CATCH`.
+        f.catch_ranges.truncate(pos + 1);
+        let range = f.catch_ranges.last_mut().expect("pos is in bounds");
+        range.in_handler = true;
+        let (target_idx, stack_len, foreach_len, expand_len) = (
+            range.target_idx,
+            range.stack_len,
+            range.foreach_len,
+            range.expand_len,
+        );
+        f.stack.truncate(stack_len);
+        f.foreach_stack.truncate(foreach_len);
+        f.expand_markers.truncate(expand_len);
+        f.pc = target_idx;
+        let options = self.digest_catch_options(&c);
+        let caught = CaughtState {
+            result: c.result,
+            code: c.code,
+            options,
+        };
+        if let Some(range) = f.catch_ranges.last_mut() {
+            range.caught = Some(caught);
+        }
+        Ok(())
+    }
+
+    /// The completion absorbed by the innermost live catch range, which is the
+    /// one whose epilogue is running (the reads precede the paired `END_CATCH`).
+    /// `None` when no range fired — the fall-through path, an OK completion.
+    fn innermost_caught(f: &Frame) -> Option<&CaughtState> {
+        f.catch_ranges.last().and_then(|r| r.caught.as_ref())
+    }
+
     fn unwind(
         &mut self,
         acts: &mut Vec<Frame>,
@@ -1224,6 +1394,15 @@ impl Vm {
                         parent.stack.push(c.result);
                         return None;
                     }
+                    // A live catch range in the parent absorbs the child's
+                    // exceptional completion — the child was invoked from
+                    // inside the range, so this is C's "command returned
+                    // non-OK inside a catch range" path at the parent's
+                    // invoke instruction.
+                    match self.absorb_catch_range(parent, c) {
+                        Ok(()) => return None,
+                        Err(back) => c = back,
+                    }
                     // A child activation that leaves an unhandled
                     // `break`/`continue` delivers it to the enclosing frame's
                     // loop exactly as an inline completion would. This covers
@@ -1306,9 +1485,9 @@ impl Vm {
         if c.code == Code::Return {
             // While the carried return level stays positive the TCL_RETURN keeps
             // unwinding one proc level at a time; when it reaches 0 the carried
-            // `-code` takes effect. `Code::from_int` (not the local
-            // `code_from_int`): `return -code N` for a non-standard N must surface
-            // `Code::Other(N)`, not collapse to `Ok` (coroutine-2.4).
+            // `-code` takes effect. `Code::from_int` (never a 0..=4-only map):
+            // `return -code N` for a non-standard N must surface `Code::Other(N)`,
+            // not collapse to `Ok` (coroutine-2.4).
             let level = crate::command::opt_get(&c.options, "-level")
                 .and_then(|v| v.as_int().ok())
                 .unwrap_or(1);
@@ -1400,6 +1579,36 @@ impl Vm {
         // The body resolves names in the proc's defining namespace. Pushed only
         // on success; `unwind` pops it together with the call-frame.
         self.push_ns(proc.namespace.clone());
+        Ok(())
+    }
+
+    /// Unset the array element `name(key)`, honouring C's `TCL_LEAVE_ERR_MSG`
+    /// (`complain`). Shared by `INST_UNSET_ARRAY` (array in an LVT slot,
+    /// `tclExecute.c:3813-3864`) and `INST_UNSET_ARRAY_STK` (array name on the
+    /// stack, `3866-3872`): the first reaches the message through
+    /// `slowUnsetArray` → `TclLookupArrayElement(…, flags, "unset", …)` →
+    /// `errorInUnset`, the second through `TclObjUnsetVar2(part1, part2, flags)`,
+    /// and both land on the same `tclVar.c` three-way text — `NOSUCHELEMENT`
+    /// (119-122: "no such element in array") / `NEEDARRAY` ("variable isn't
+    /// array") / `NOSUCHVAR` ("no such variable"). With the flag clear neither
+    /// form reports anything (C's early `NEXT_INST_F(6, 1, 0)` at 3843-3848).
+    fn unset_array_elem_checked(
+        &mut self,
+        name: &str,
+        key: &str,
+        complain: bool,
+    ) -> Result<(), Completion<Value>> {
+        if complain && self.get_array_elem(name, key).is_none() {
+            let what = if self.var_is_array(name) {
+                "no such element in array"
+            } else if self.exists_var(name) {
+                "variable isn't array"
+            } else {
+                "no such variable"
+            };
+            return Err(err(format!("can't unset \"{name}({key})\": {what}")));
+        }
+        self.array_unset_elem(name, key);
         Ok(())
     }
 
@@ -1630,14 +1839,45 @@ impl Vm {
                 }
                 f.stack.push(Value::string(s));
             }
-            // `START_CMD`/`NOP` are inert; so are the `catch` exception-range
-            // markers (the VM unwinds errors through its activation stack rather
-            // than bytecode exception ranges — the inline `dict for`/`dict map`/
-            // try codegen emits them for C-faithful reference bytecode,).
-            Op::NOP | Op::START_CMD | Op::BEGIN_CATCH4 | Op::END_CATCH => {}
+            // `START_CMD`/`NOP` are inert.
+            Op::NOP | Op::START_CMD => {}
+
+            // A `BEGIN_CATCH4` carrying an out-of-band handler label opens a
+            // live catch range (C `INST_BEGIN_CATCH4` pushing the catchStack);
+            // without one it is a *decorative* range — C-faithful reference
+            // bytecode whose construct the VM protects via its activation
+            // stack instead (`dict for`/`dict map`/`try` epilogues) — and
+            // stays inert. The 4-byte operand keeps C's meaning (range index)
+            // and is not consulted.
+            Op::BEGIN_CATCH4 => {
+                if let Some(idx) = instr
+                    .catch_target
+                    .as_deref()
+                    .and_then(|label| label_to_idx(&asm, &f.off2idx, label))
+                {
+                    f.catch_ranges.push(CatchRange {
+                        target_idx: idx,
+                        stack_len: f.stack.len(),
+                        foreach_len: f.foreach_stack.len(),
+                        expand_len: f.expand_markers.len(),
+                        begin_idx: f.pc - 1,
+                        in_handler: false,
+                        caught: None,
+                    });
+                }
+            }
+            // `END_CATCH` closes the innermost range. A decorative
+            // `BEGIN_CATCH4` pushed nothing, so its paired `END_CATCH` finds
+            // the stack empty and stays a no-op.
+            Op::END_CATCH => {
+                f.catch_ranges.pop();
+            }
 
             // -- variables (stack form, by name) --
-            Op::LOAD_STK => {
+            // The `*ScalarStk` opcodes share their C `TEBCresume` case with the
+            // general `*Stk` form (the compiler emits them when the name is known
+            // to carry no `(index)` part), so they are the same arm here.
+            Op::LOAD_STK | Op::LOAD_SCALAR_STK => {
                 let name = pop(f).to_str();
                 try_op!(self.fire_var_traces(&name, "read"));
                 match self.get_var(&name) {
@@ -1649,17 +1889,17 @@ impl Vm {
                     }
                 }
             }
-            Op::STORE_STK => {
+            Op::STORE_STK | Op::STORE_SCALAR_STK => {
                 let value = pop(f);
                 let name = pop(f).to_str();
                 try_cmd!(self.set_var(&name, value.clone()));
                 f.stack.push(value);
             }
-            Op::INCR_STK_IMM => {
+            Op::INCR_STK_IMM | Op::INCR_SCALAR_STK_IMM => {
                 let name = pop(f).to_str();
                 try_op!(self.incr_var(f, &name, i64::from(imm0(instr))));
             }
-            Op::INCR_STK => {
+            Op::INCR_STK | Op::INCR_SCALAR_STK => {
                 let amount = pop(f);
                 let name = pop(f).to_str();
                 match amount.as_int() {
@@ -1705,6 +1945,32 @@ impl Vm {
                 let name = pop(f).to_str();
                 try_op!(self.incr_var(f, &format!("{name}({key})"), i64::from(imm0(instr))));
             }
+            Op::INCR_ARRAY_STK => {
+                // Stack: [name, key, amount].
+                let amount = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                match amount.as_int() {
+                    Ok(a) => try_op!(self.incr_var(f, &format!("{name}({key})"), a)),
+                    Err(e) => return Tick::Return(crate::command::completion_from_tcl_error(e)),
+                }
+            }
+            Op::INCR_ARRAY1 => {
+                // Operand is the array's slot; stack: [key, amount].
+                let name = lvt_name(imm0(instr));
+                let amount = pop(f);
+                let key = pop(f).to_str();
+                match amount.as_int() {
+                    Ok(a) => try_op!(self.incr_var(f, &format!("{name}({key})"), a)),
+                    Err(e) => return Tick::Return(crate::command::completion_from_tcl_error(e)),
+                }
+            }
+            Op::INCR_ARRAY1_IMM => {
+                // Operands [slot, increment]; the element key is on the stack.
+                let name = lvt_name(imm0(instr));
+                let key = pop(f).to_str();
+                try_op!(self.incr_var(f, &format!("{name}({key})"), i64::from(imm_at(instr, 1))));
+            }
             Op::EXIST_SCALAR => {
                 // The slot name may be an `arr(key)` element reference baked
                 // into the LVT (the codegen names the slot `a(x)`), so resolve
@@ -1719,6 +1985,23 @@ impl Vm {
                 let name = pop(f).to_str();
                 let _ = self.fire_var_traces(&name, "read");
                 f.stack.push(Value::bool(self.exists_var(&name)));
+            }
+            // The array-element existence tests fire the element's read traces
+            // first (C `INST_EXIST_ARRAY`: a trace may create it) and never
+            // error, exactly like their scalar siblings above.
+            Op::EXIST_ARRAY => {
+                let name = lvt_name(imm0(instr));
+                let key = pop(f).to_str();
+                let full = format!("{name}({key})");
+                let _ = self.fire_var_traces(&full, "read");
+                f.stack.push(Value::bool(self.exists_var(&full)));
+            }
+            Op::EXIST_ARRAY_STK => {
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                let full = format!("{name}({key})");
+                let _ = self.fire_var_traces(&full, "read");
+                f.stack.push(Value::bool(self.exists_var(&full)));
             }
 
             // -- arrays --
@@ -1744,7 +2027,7 @@ impl Vm {
                 }
                 f.stack.push(value);
             }
-            Op::LOAD_ARRAY1 => {
+            Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
                 let name = lvt_name(imm0(instr));
                 let key = pop(f).to_str();
                 try_op!(self.fire_var_traces(&format!("{name}({key})"), "read"));
@@ -1757,7 +2040,7 @@ impl Vm {
                     }
                 }
             }
-            Op::STORE_ARRAY1 => {
+            Op::STORE_ARRAY1 | Op::STORE_ARRAY4 => {
                 let name = lvt_name(imm0(instr));
                 let value = pop(f);
                 let key = pop(f).to_str();
@@ -1769,6 +2052,28 @@ impl Vm {
             Op::ARRAY_EXISTS_IMM => {
                 let name = lvt_name(imm0(instr));
                 f.stack.push(Value::bool(self.array_is(&name)));
+            }
+            Op::ARRAY_EXISTS_STK => {
+                // The stack form resolves an arbitrary (possibly qualified) name,
+                // so it honours the namespace-variable fallback `array_is` skips.
+                let name = pop(f).to_str();
+                f.stack.push(Value::bool(self.var_is_array(&name)));
+            }
+            // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
+            // variable an empty array when undefined, no-op when it already is
+            // one, and error on a scalar or an array element.
+            Op::ARRAY_MAKE_IMM => {
+                let name = lvt_name(imm0(instr));
+                try_op!(self.ensure_array(&name));
+            }
+            Op::ARRAY_MAKE_STK => {
+                let name = pop(f).to_str();
+                if name.ends_with(')') && name.contains('(') {
+                    return Tick::Return(err(format!(
+                        "can't array set \"{name}\": variable isn't array"
+                    )));
+                }
+                try_op!(self.ensure_array(&name));
             }
 
             // -- lists (inline opcodes) --
@@ -1787,15 +2092,23 @@ impl Vm {
                     Err(e) => return Tick::Return(err(e.message)),
                 }
             }
+            // `[lindex $list $i]` — C `INST_LIST_INDEX` (`tclExecute.c:4696-4768`).
+            // The integer fast path is only a fast path: when the index object
+            // does not parse as one, C falls through to
+            // `TclLindexList(interp, valuePtr, value2Ptr)` (line 4754), which
+            // treats the index word as an index *list* — so a list-valued index
+            // drills nested sublists (`lindex {{a b} {c d}} {1 0}` → `c`), an
+            // empty index list is the whole list, and a spec that is neither
+            // (`foo`) is `bad index "foo": …` (`objResultPtr == NULL` →
+            // `goto gotError`, 4758-4761). That is exactly the runtime `lindex`
+            // command's core, so both paths single-source it.
             Op::LIST_INDEX => {
                 let idx = pop(f);
                 let l = pop(f);
-                let items = match l.as_list() {
-                    Ok(i) => i,
-                    Err(e) => return Tick::Return(err(e.message)),
-                };
-                let i = imm_index_value(&idx, items.len());
-                f.stack.push(get_at(&items, i));
+                match tcl_cmd_core::list::lindex(self, &l, std::slice::from_ref(&idx)) {
+                    Ok(v) => f.stack.push(v),
+                    Err(e) => return Tick::Return(err(e.into_message())),
+                }
             }
             Op::LIST_INDEX_IMM => {
                 let l = pop(f);
@@ -1846,12 +2159,28 @@ impl Vm {
                 try_op!(self.unset_one(&name, complain));
             }
             Op::UNSET_ARRAY => {
-                // Operands [flags, slot]; the element key is on the stack. Array
-                // elements are removed element-aware and never complain (matching
-                // C Tcl / cmd_unset).
+                // Operands [flags, slot]; the element key is on TOS. C
+                // `INST_UNSET_ARRAY` reads the flags operand
+                // (`flags = TclGetUInt1AtPtr(pc + 1) ? TCL_LEAVE_ERR_MSG : 0`,
+                // `tclExecute.c:3814`) and, when it is set and the element is
+                // absent, deliberately falls to `slowUnsetArray` (3837-3839,
+                // 3851-3862) so the miss is reported. Ignoring the operand made
+                // `unset B(nope)` silently succeed while `UNSET_SCALAR`/
+                // `UNSET_STK` complained.
+                let complain = imm0(instr) != 0;
                 let name = lvt_name(imm_at(instr, 1));
                 let key = pop(f).to_str();
-                self.array_unset_elem(&name, &key);
+                try_op!(self.unset_array_elem_checked(&name, &key, complain));
+            }
+            Op::UNSET_ARRAY_STK => {
+                // Operand = flags (non-zero ⇒ C's `TCL_LEAVE_ERR_MSG`: complain
+                // when the element is absent); the key is on TOS over the array
+                // name, matching C's `part2Ptr = OBJ_AT_TOS` /
+                // `part1Ptr = OBJ_UNDER_TOS` (`tclExecute.c:3866-3872`).
+                let complain = imm0(instr) != 0;
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                try_op!(self.unset_array_elem_checked(&name, &key, complain));
             }
 
             // -- append / lappend (LVT scalar + array forms) --
@@ -1936,6 +2265,156 @@ impl Vm {
                 f.stack.push(nv);
             }
 
+            // -- append / lappend (stack form, by name) --
+            // `set_var`/`get_var` resolve an `a(k)` name to the element, exactly
+            // as C's `TclObjLookupVarEx(part1, NULL)` parses the name.
+            Op::APPEND_STK => {
+                let v = pop(f);
+                let name = pop(f).to_str();
+                let mut s = self
+                    .get_var(&name)
+                    .map(|x| x.to_str().to_string())
+                    .unwrap_or_default();
+                s.push_str(&v.to_str());
+                let nv = Value::string(s);
+                try_cmd!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_STK => {
+                let v = pop(f);
+                let name = pop(f).to_str();
+                let mut items = match self.get_var(&name) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.push(v);
+                let nv = Value::list(items);
+                try_cmd!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+            Op::APPEND_ARRAY_STK => {
+                let v = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                let mut s = self
+                    .get_array_elem(&name, &key)
+                    .map(|x| x.to_str().to_string())
+                    .unwrap_or_default();
+                s.push_str(&v.to_str());
+                let nv = Value::string(s);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_ARRAY_STK => {
+                let v = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                let mut items = match self.get_array_elem(&name, &key) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.push(v);
+                let nv = Value::list(items);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+            // The `lappendList*` family appends *each* element of the popped list
+            // (`lappend v {*}$list`); an unparsable list errors before any write.
+            Op::LAPPEND_LIST_STK => {
+                let add = pop(f);
+                let name = pop(f).to_str();
+                let add_items = match add.as_list() {
+                    Ok(l) => l,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let mut items = match self.get_var(&name) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.extend(add_items.iter().cloned());
+                let nv = Value::list(items);
+                try_cmd!(self.set_var(&name, nv.clone()));
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_LIST_ARRAY => {
+                let name = lvt_name(imm0(instr));
+                let add = pop(f);
+                let key = pop(f).to_str();
+                let add_items = match add.as_list() {
+                    Ok(l) => l,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let mut items = match self.get_array_elem(&name, &key) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.extend(add_items.iter().cloned());
+                let nv = Value::list(items);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+            Op::LAPPEND_LIST_ARRAY_STK => {
+                let add = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                let add_items = match add.as_list() {
+                    Ok(l) => l,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let mut items = match self.get_array_elem(&name, &key) {
+                    Some(cur) => match cur.as_list() {
+                        Ok(l) => (*l).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    },
+                    None => Vec::new(),
+                };
+                items.extend(add_items.iter().cloned());
+                let nv = Value::list(items);
+                if let Err(e) = self.set_array_elem(&name, &key, nv.clone()) {
+                    return Tick::Return(e);
+                }
+                f.stack.push(nv);
+            }
+
+            // -- const (TIP 677) --
+            // `constImm`/`constStk` reuse the `const` command's core so the
+            // silent re-`const` no-op and the three error messages
+            // (`can't make constant "n": …`) stay in one place.
+            Op::CONST_IMM => {
+                let name = lvt_name(imm0(instr));
+                let value = pop(f);
+                let c = crate::command::cmd_const(self, &[Value::string(name), value]);
+                if !c.code.is_ok() {
+                    return Tick::Return(c);
+                }
+            }
+            Op::CONST_STK => {
+                let value = pop(f);
+                let name = pop(f);
+                let c = crate::command::cmd_const(self, &[name, value]);
+                if !c.code.is_ok() {
+                    return Tick::Return(c);
+                }
+            }
+
             // -- global / upvar links. The namespace ("::") or level reference
             // is left on the stack for the next link op to reuse; a trailing
             // `pop` discards it (matching C Tcl's nsupvar/upvar codegen). --
@@ -1979,6 +2458,16 @@ impl Vm {
                 } else {
                     self.add_link(&local, target_level, &other);
                 }
+            }
+            // `variable` (C `INST_VARIABLE`): link the local slot to the
+            // namespace variable named by the popped name. The link machinery is
+            // the `variable` command's (`cmd_variable`) — namespace variables
+            // live in the global frame under their canonical qualified name.
+            Op::VARIABLE => {
+                let local = lvt_name(imm0(instr));
+                let var = pop(f).to_str();
+                let target = self.qualify_name(&var);
+                self.add_link(&local, 0, &target);
             }
 
             // -- concat (stack form): Tcl-concat the top N values. --
@@ -2302,13 +2791,19 @@ impl Vm {
                 }
                 f.stack.push(dict);
             }
-            Op::DICT_RECOMBINE_IMM => {
+            Op::DICT_RECOMBINE_IMM | Op::DICT_RECOMBINE_STK => {
                 // Epilogue of compiled `dict with`: write each snapshot key's
                 // local back into the dict var (removing keys whose local was
-                // unset).
-                let dict_name = lvt_name(imm0(instr));
+                // unset). The `Stk` form takes the variable name from the stack,
+                // deepest of `varName path state` (C `INST_DICT_RECOMBINE_STK`
+                // pops the state first, then reads `OBJ_UNDER_TOS`/`OBJ_AT_TOS`).
                 let state = pop(f);
                 let _path = pop(f);
+                let dict_name = if instr.op == Op::DICT_RECOMBINE_STK {
+                    pop(f).to_str().to_string()
+                } else {
+                    lvt_name(imm0(instr))
+                };
                 let keys: Vec<String> = match dict_pairs(&state) {
                     Ok(p) => p.into_iter().map(|(k, _)| k).collect(),
                     Err(c) => return Tick::Return(c),
@@ -2382,6 +2877,24 @@ impl Vm {
                 }));
             }
 
+            // -- iRules dialect operators --
+            // The F5 word operators (`contains`/`starts_with`/`ends_with`/
+            // `equals`/`matches_glob`/`matches_regex`/`and`/`or`/`not`), which
+            // `Op::from_binop`/`from_unaryop` emit for an iRules expression.
+            // They have no C Tcl counterpart; the semantics live in `expr` next
+            // to the standard operators, and reuse the same glob matcher, ARE
+            // engine and string comparison the equivalent commands do. Operands
+            // arrive left-then-right (subject below, needle/pattern on top).
+            Op::IRULE_CONTAINS => try_op!(irule(f, BinOp::Contains)),
+            Op::IRULE_STARTS_WITH => try_op!(irule(f, BinOp::StartsWith)),
+            Op::IRULE_ENDS_WITH => try_op!(irule(f, BinOp::EndsWith)),
+            Op::IRULE_EQUALS => try_op!(irule(f, BinOp::StrEquals)),
+            Op::IRULE_MATCHES_GLOB => try_op!(irule(f, BinOp::MatchesGlob)),
+            Op::IRULE_MATCHES_REGEX => try_op!(irule(f, BinOp::MatchesRegex)),
+            Op::IRULE_WORD_AND => try_op!(irule(f, BinOp::WordAnd)),
+            Op::IRULE_WORD_OR => try_op!(irule(f, BinOp::WordOr)),
+            Op::IRULE_WORD_NOT => try_op!(un(f, UnaryOp::WordNot)),
+
             // -- string ops (inline; char-based, mirroring the reference VM) --
             Op::STR_LEN => {
                 let s = pop(f).to_str();
@@ -2390,23 +2903,47 @@ impl Vm {
                     self.runtime_version(),
                 ))));
             }
+            // C `INST_STR_INDEX` (`tclExecute.c:5336-5380`): the index goes
+            // through `TclGetIntForIndexM` and a *syntactically* bad spec is
+            // `goto gotError` (`bad index "foo": …`) — only the separate
+            // `index < 0 || index >= slength` test yields the empty string. The
+            // old `resolve_index(...).and_then(...)` chain collapsed both into
+            // the empty string, so a garbage index looked like a miss.
             Op::STR_INDEX => {
                 let idx = pop(f);
                 let s = pop(f).to_str();
                 let chars: Vec<char> = s.chars().collect();
-                let v = crate::command::resolve_index(&idx.to_str(), chars.len())
-                    .and_then(|i| usize::try_from(i).ok())
-                    .and_then(|i| chars.get(i))
-                    .map_or_else(Value::empty, |c| Value::string(c.to_string()));
-                f.stack.push(v);
+                let i = match checked_index_value(&idx, chars.len()) {
+                    Ok(i) => i,
+                    Err(c) => return Tick::Return(c),
+                };
+                f.stack.push(
+                    usize::try_from(i)
+                        .ok()
+                        .and_then(|i| chars.get(i))
+                        .map_or_else(Value::empty, |c| Value::string(c.to_string())),
+                );
             }
+            // C `INST_STR_RANGE` (`tclExecute.c:5382-5406`): *both* indices go
+            // through `TclGetIntForIndexM` and either failure is `goto gotError`
+            // (lines 5388-5397); the surviving out-of-range handling is
+            // `Tcl_GetRange`'s clamp plus the `toIdx == TCL_INDEX_NONE` → empty
+            // short-circuit, which `char_range` already models. Defaulting a bad
+            // `first` to 0 and a bad `last` to -1 turned a typo into a
+            // plausible-looking substring.
             Op::STR_RANGE => {
                 let to = pop(f);
                 let from = pop(f);
                 let s = pop(f).to_str();
                 let chars: Vec<char> = s.chars().collect();
-                let lo = crate::command::resolve_index(&from.to_str(), chars.len()).unwrap_or(0);
-                let hi = crate::command::resolve_index(&to.to_str(), chars.len()).unwrap_or(-1);
+                let lo = match checked_index_value(&from, chars.len()) {
+                    Ok(i) => i,
+                    Err(c) => return Tick::Return(c),
+                };
+                let hi = match checked_index_value(&to, chars.len()) {
+                    Ok(i) => i,
+                    Err(c) => return Tick::Return(c),
+                };
                 f.stack.push(char_range(&chars, lo, hi));
             }
             Op::STR_RANGE_IMM => {
@@ -2435,23 +2972,34 @@ impl Vm {
                         &pat, &s, nocase,
                     )));
             }
-            Op::STR_UPPER => {
+            // C `INST_STR_UPPER`/`INST_STR_LOWER`/`INST_STR_TITLE`
+            // (`tclExecute.c:5284-5334`) call `Tcl_UtfToUpper`/`ToLower`/`ToTitle`,
+            // which map **one code point to one code point** through Tcl's own
+            // tables (`Tcl_UniCharToUpper` &co, `tclUtf.c:1777-1858`) and so never
+            // change the character count. Rust's `str::to_uppercase()` implements
+            // *full* Unicode mapping and expands (`ß` → `SS`, `İ` → `i` + U+0307),
+            // which changed `string length` of the result; the shared
+            // `simple_*` helpers restrict it to the 1:1 mapping and are the same
+            // ones the `string toupper`/`tolower`/`totitle` commands use.
+            Op::STR_UPPER | Op::STR_LOWER => {
                 let s = pop(f).to_str();
-                f.stack.push(Value::string(s.to_uppercase()));
-            }
-            Op::STR_LOWER => {
-                let s = pop(f).to_str();
-                f.stack.push(Value::string(s.to_lowercase()));
+                let map = if instr.op == Op::STR_UPPER {
+                    tcl_cmd_core::string::simple_upper
+                } else {
+                    tcl_cmd_core::string::simple_lower
+                };
+                f.stack
+                    .push(Value::string(s.chars().map(map).collect::<String>()));
             }
             Op::STR_TITLE => {
                 let s = pop(f).to_str();
                 let mut out = String::with_capacity(s.len());
                 for (i, c) in s.chars().enumerate() {
-                    if i == 0 {
-                        out.extend(c.to_uppercase());
+                    out.push(if i == 0 {
+                        tcl_cmd_core::string::simple_title(c)
                     } else {
-                        out.extend(c.to_lowercase());
-                    }
+                        tcl_cmd_core::string::simple_title_rest(c)
+                    });
                 }
                 f.stack.push(Value::string(out));
             }
@@ -2459,6 +3007,17 @@ impl Vm {
                 let s = pop(f).to_str();
                 f.stack
                     .push(Value::string(s.chars().rev().collect::<String>()));
+            }
+            // `strmap` is the one-pair, always-case-sensitive `string map` C
+            // compiles a two-element literal charMap to (`INST_STR_MAP`). The
+            // stack is `from to string` — the subject on top — and the mapping
+            // itself is the `string map` command's (`cmd_string::map_apply`).
+            Op::STR_MAP => {
+                let s = pop(f).to_str();
+                let to = pop(f).to_str().to_string();
+                let from = pop(f).to_str().to_string();
+                let out = crate::cmd_string::map_apply(&[(from, to)], &s, false);
+                f.stack.push(Value::string(out));
             }
             Op::STR_REPEAT => {
                 let count = pop(f);
@@ -2500,12 +3059,30 @@ impl Vm {
                     Err(e) => return Tick::Return(err(e.message)),
                 }
             }
+            // C `INST_TRY_CVT_TO_BOOLEAN` (`tclExecute.c:6404-6414`; table
+            // `tclCompile.c:616` — `{"tryCvtToBoolean", 1, +1, 0, …}`, "Try
+            // converting stktop to boolean if possible. **No errors.** Stack:
+            // … value => … value isStrictBool"): the value is *left in place*
+            // and a 0/1 "is a valid boolean" flag is pushed on top, and the
+            // instruction never raises. Popping/re-pushing the value (and
+            // erroring on a non-boolean) desynchronised the operand stack from
+            // our own `string is boolean` codegen
+            // (`tcl-compiler/src/codegen/cmd_subst.rs`), which emits C's
+            // `tryCvtToBoolean; jumpTrue L; push ""; streq; jump end; L: pop;
+            // push "1"` sequence and so needs both the flag and the value.
+            // The flag is C's *strict* test — `TclSetBooleanFromAny` /
+            // `ParseBoolean` (`tclObj.c:2100-2280`), hence the table's
+            // `isStrictBool` — which accepts only `0`, `1` and the unique
+            // case-insensitive prefixes of `yes`/`no`/`true`/`false`/`on`/`off`,
+            // *not* `Value::as_bool`'s `Tcl_GetBooleanFromObj` leniency (any
+            // non-zero number). So `string is boolean 2` is 0 while `if {2}`
+            // still runs, and the opcode agrees with the `string is boolean`
+            // command (`tcl_cmd_core::string_is`, same acceptor).
             Op::TRY_CVT_TO_BOOLEAN => {
-                let v = pop(f);
-                match v.as_bool() {
-                    Ok(_) => f.stack.push(v),
-                    Err(e) => return Tick::Return(err(e.message)),
-                }
+                let is_bool = f.stack.last().is_some_and(|v| {
+                    tcl_syntax::boolean::parse_boolean_strict(&v.to_str()).is_some()
+                });
+                f.stack.push(Value::bool(is_bool));
             }
 
             // -- unary --
@@ -2567,10 +3144,30 @@ impl Vm {
             }
 
             // -- return --
-            // `SYNTAX` shares `RETURN_IMM`'s shape (a code immediate, result +
-            // options on the stack): the inline `if {…}` codegen emits it to
-            // raise a compile-time expression error at runtime.
-            Op::RETURN_IMM | Op::RETURN_STK | Op::SYNTAX => {
+            // `SYNTAX` shares `RETURN_IMM`'s arm in C too (`tclExecute.c:2287`
+            // falls through the two labels): both carry `(code, level)`
+            // immediates and read `OBJ_AT_TOS` as the return-options dict,
+            // `OBJ_UNDER_TOS` as the result — `CompileReturnInternal` pushes the
+            // options *last*. The inline `if {…}`/`expr` codegen emits `syntax`
+            // to raise a compile-time expression error at runtime.
+            //
+            // `TclProcessReturn` (`tclResult.c:777-785`) decides the completion:
+            // `level != 0` raises TCL_RETURN carrying `-code`/`-level` for the
+            // proc-boundary countdown, while `level == 0` makes the completion
+            // *be* `code` — so `(0, 0)` is not a return at all, it falls through
+            // to the next instruction with the result left on the stack
+            // (`INST_RETURN_IMM`'s `NEXT_INST_F(9, 1, 0)` pops only the dict).
+            //
+            // The immediates are the authoritative merged `-code`/`-level`:
+            // `TclMergeReturnOptions` consumes both keys out of the literal
+            // dict, which is why they ride the operands. Appending them after
+            // `-options` lets them win, exactly as C's out-params do.
+            Op::RETURN_IMM | Op::SYNTAX => {
+                // C's compiler guarantees both stack slots. Ours only pushes the
+                // options literal outside a proc — inside one the plain return is
+                // expected to fold to `done` — so an unfolded proc-body
+                // `returnImm` arrives with the result alone; treat that as empty
+                // options rather than eating whatever sits underneath.
                 let (result, options) = if f.stack.len() >= 2 {
                     let opts = pop(f);
                     let res = pop(f);
@@ -2578,13 +3175,43 @@ impl Vm {
                 } else {
                     (pop(f), Value::empty())
                 };
-                let code = if instr.op == Op::RETURN_STK {
-                    Code::Ok
+                let c = crate::command::cmd_return(
+                    self,
+                    &[
+                        Value::string("-options"),
+                        options,
+                        Value::string("-code"),
+                        Value::int(i64::from(imm0(instr))),
+                        Value::string("-level"),
+                        Value::int(i64::from(imm_at(instr, 1))),
+                        result,
+                    ],
+                );
+                if c.code == Code::Ok {
+                    f.stack.push(c.result);
                 } else {
-                    code_from_int(imm0(instr))
-                };
-                let final_code = if code == Code::Ok { Code::Return } else { code };
-                return Tick::Return(Completion::new(final_code, result, options));
+                    return Tick::Return(c);
+                }
+            }
+            // `returnStk` is C-ordered — result on top, the return-options dict
+            // under it — and applies the dict exactly as `return -options $opts
+            // $result` would: `-code`/`-level` drive the completion (level 0 ⇒
+            // the code takes effect immediately, level > 0 ⇒ `TCL_RETURN`
+            // counted down at proc boundaries), and a malformed dict overrides
+            // the result with its own error (C `INST_RETURN_STK` →
+            // `Tcl_SetReturnOptions`). An outcome of TCL_OK (`-level 0 -code
+            // ok`) pushes the result and *continues* — C only routes non-OK
+            // codes to `processExceptionReturn`.
+            Op::RETURN_STK => {
+                let result = pop(f);
+                let opts = pop(f);
+                let c =
+                    crate::command::cmd_return(self, &[Value::string("-options"), opts, result]);
+                if c.code == Code::Ok {
+                    f.stack.push(c.result);
+                } else {
+                    return Tick::Return(c);
+                }
             }
 
             // -- command dispatch / expr --
@@ -2622,6 +3249,16 @@ impl Vm {
                 match list_v.as_list() {
                     Ok(items) => f.stack.extend(items.iter().cloned()),
                     Err(e) => return Tick::Return(err(e.message)),
+                }
+            }
+            // `expandDrop` abandons the innermost expansion: pop its marker and
+            // truncate the stack back to the depth `EXPAND_START` recorded (C
+            // `INST_EXPAND_DROP` pops `CURR_DEPTH - marker` operands).
+            Op::EXPAND_DROP => {
+                if let Some(marker) = f.expand_markers.pop()
+                    && marker <= f.stack.len()
+                {
+                    f.stack.truncate(marker);
                 }
             }
             Op::INVOKE_EXPANDED => {
@@ -2681,7 +3318,12 @@ impl Vm {
                 let s = pop(f).to_str();
                 match self.eval_expr(&s) {
                     Ok(v) => f.stack.push(v),
-                    Err(e) => return Tick::Return(err(e.message)),
+                    // Through `completion_from_tcl_error`, not `err`: a syntax
+                    // error in the expression carries a `TCL PARSE EXPR …`
+                    // `-errorcode` that a bare message would drop.
+                    Err(e) => {
+                        return Tick::Return(crate::command::completion_from_tcl_error(e));
+                    }
                 }
             }
 
@@ -2816,6 +3458,35 @@ impl Vm {
                 }
                 f.stack.push(cur);
             }
+            // `dict getdef $d k1 ?k2 …? default` — operand [Imm(N)]; stack holds
+            // the dict, the N keys, then the default (C `INST_DICT_GET_DEF`). A
+            // key missing at any depth yields the default; a *malformed* dict
+            // still errors (C walks the path with `DICT_PATH_EXISTS`, which
+            // distinguishes "absent" from "not a dictionary").
+            Op::DICT_GET_DEF => {
+                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                if f.stack.len() < nkeys + 2 {
+                    return Tick::Return(err("dictGetDef: stack underflow"));
+                }
+                let default = pop(f);
+                let keys = f.stack.split_off(f.stack.len() - nkeys);
+                let mut cur = pop(f);
+                let mut found = true;
+                for k in &keys {
+                    let ps = match dict_pairs(&cur) {
+                        Ok(p) => p,
+                        Err(c) => return Tick::Return(c),
+                    };
+                    let ks = k.to_str();
+                    if let Some((_, v)) = ps.iter().find(|(pk, _)| pk == &*ks) {
+                        cur = v.clone();
+                    } else {
+                        found = false;
+                        break;
+                    }
+                }
+                f.stack.push(if found { cur } else { default });
+            }
             // `dict exists $d k1 ?k2 …?` — operand [Imm(N)]; stack holds the dict
             // then the N keys. Leaves a boolean on the stack.
             Op::DICT_EXISTS => {
@@ -2853,26 +3524,26 @@ impl Vm {
                 }
                 f.stack[len - n..].reverse();
             }
-            // `[lindex $list i1 i2 …]` with ≥ 2 indices — C Tcl
-            // `INST_LIST_INDEX_MULTI`; operand = list + index count. The list is
-            // deepest, then the indices; descends one index per level. An
-            // out-of-range index yields the empty string (matching `LIST_INDEX`).
+            // `[lindex $list i1 i2 …]` with ≥ 2 indices — C
+            // `INST_LIST_INDEX_MULTI` (`tclExecute.c:4833-4858`); operand =
+            // list + index count. The list is deepest, then the indices. C
+            // hands the whole run to `TclLindexFlat`, where each index is *one*
+            // spec (never re-split as an index list), an out-of-range index
+            // yields the empty string, and a malformed one returns `NULL` →
+            // `goto gotError` (`bad index "foo": …`).
             Op::LINDEX_MULTI => {
                 let opnd = usize::try_from(imm0(instr)).unwrap_or(0);
                 if opnd == 0 || f.stack.len() < opnd {
                     return Tick::Return(err("lindexMulti: stack underflow"));
                 }
                 let items = f.stack.split_off(f.stack.len() - opnd);
-                let mut cur = items[0].clone();
-                for spec in &items[1..] {
-                    let elems = match cur.as_list() {
-                        Ok(e) => e,
-                        Err(e) => return Tick::Return(err(e.message)),
-                    };
-                    let i = imm_index_value(spec, elems.len());
-                    cur = get_at(&elems, i);
+                let Some((list, idxs)) = items.split_first() else {
+                    return Tick::Return(err("lindexMulti: stack underflow"));
+                };
+                match tcl_cmd_core::list::lindex_flat(self, list, idxs) {
+                    Ok(v) => f.stack.push(v),
+                    Err(e) => return Tick::Return(err(e.into_message())),
                 }
-                f.stack.push(cur);
             }
             // `string replace $s $first $last $new` — C Tcl `INST_STR_REPLACE`.
             // Stack holds the string, the first index, the last index, then the
@@ -3019,11 +3690,48 @@ impl Vm {
                     .unwrap_or_else(|| f.last_result.clone())));
             }
 
-            // Push the current result / a normal return-options dict — the
-            // operands an inline catch epilogue consults.
-            Op::PUSH_RESULT => f.stack.push(f.last_result.clone()),
+            // The compiled catch epilogue's reads (C `INST_PUSH_RESULT`/
+            // `INST_PUSH_RETURN_CODE`/`INST_PUSH_RETURN_OPTS`): after a range
+            // absorbed a completion they report *it*; on the fall-through (no
+            // catch fired) path they report the current result / an ok options
+            // dict, as C's untouched interp state would.
+            Op::PUSH_RESULT => {
+                let v = Self::innermost_caught(f)
+                    .map_or_else(|| f.last_result.clone(), |c| c.result.clone());
+                f.stack.push(v);
+            }
+            Op::PUSH_RETURN_CODE => {
+                let code = Self::innermost_caught(f).map_or(0, |c| c.code.as_int());
+                f.stack.push(Value::int(code));
+            }
             Op::PUSH_RETURN_OPTS => {
-                f.stack.push(crate::command::options_dict(Code::Ok, 0, &[]));
+                let opts = Self::innermost_caught(f).map_or_else(
+                    || crate::command::options_dict(Code::Ok, 0, &[]),
+                    |c| c.options.clone(),
+                );
+                f.stack.push(opts);
+            }
+            // Pop a (non-ok) return code and branch into the 5-slot `jump1`
+            // table the compiler lays out right after this instruction: target
+            // byte = `2*code − 1` past the opcode, error (1) first; anything
+            // outside `error..continue` lands on the fifth slot (C
+            // `INST_RETURN_CODE_BRANCH`, which panics on TCL_OK / non-integers
+            // — the VM errors instead of aborting).
+            Op::RETURN_CODE_BRANCH => {
+                let Ok(code) = pop(f).as_int() else {
+                    return Tick::Return(err("returnCodeBranch: TOS not a return code"));
+                };
+                if code == 0 {
+                    return Tick::Return(err("returnCodeBranch: TOS is TCL_OK"));
+                }
+                let code = if (1..=4).contains(&code) { code } else { 5 };
+                let target_off = instr.offset + 2 * i32::try_from(code).unwrap_or(5) - 1;
+                match f.off2idx.get(&target_off) {
+                    Some(&idx) => f.pc = idx,
+                    None => {
+                        return Tick::Return(err("returnCodeBranch: no jump table"));
+                    }
+                }
             }
             // Evaluate a popped script string and push its result — value-position
             // multi-command substitution `[a; b]`. A non-OK
@@ -3047,6 +3755,137 @@ impl Vm {
                 }
             }
 
+            // -- introspection (C Tcl's "general introspector" instructions) --
+            // Each routes through the same core its command form uses, so the
+            // compiled and dispatched paths cannot drift.
+            Op::CURRENT_NAMESPACE => {
+                f.stack.push(tcl_cmd_core::namespace::current(self));
+            }
+            Op::INFO_LEVEL_NUM => match tcl_cmd_core::info::level(self, None) {
+                Ok(v) => f.stack.push(v),
+                Err(e) => return Tick::Return(err(e.message())),
+            },
+            Op::INFO_LEVEL_ARGS => {
+                let n = pop(f);
+                match tcl_cmd_core::info::level(self, Some(&n)) {
+                    Ok(v) => f.stack.push(v),
+                    Err(e) => return Tick::Return(err(e.message())),
+                }
+            }
+            // `resolveCmd` never errors — an unresolved name pushes the empty
+            // string (C `INST_RESOLVE_COMMAND`); `originCmd` follows the import
+            // chain and errors when the name resolves to nothing.
+            Op::RESOLVE_CMD => {
+                let name = pop(f).to_str();
+                let fqn = self
+                    .resolve_command_fqn(self.current_ns(), &name)
+                    .map_or_else(Value::empty, |key| Value::string(format!("::{key}")));
+                f.stack.push(fqn);
+            }
+            Op::ORIGIN_CMD => {
+                let name = pop(f).to_str();
+                match self.resolve_command_fqn(self.current_ns(), &name) {
+                    Some(key) => {
+                        let origin = self.command_origin_key(&key);
+                        f.stack.push(Value::string(format!("::{origin}")));
+                    }
+                    None => {
+                        return Tick::Return(err(format!("invalid command name \"{name}\"")));
+                    }
+                }
+            }
+            // `clockRead <which>` reads the same host clock `clock clicks` /
+            // `clock seconds` do (`cmd_clock`), so the opcode and the command
+            // agree. C: 0 = clicks (wide clicks — microseconds here, as
+            // `clock clicks` returns), 1 = µs, 2 = ms, 3 = s.
+            Op::CLOCK_READ => {
+                let clock = self.host_rc();
+                let clock = clock.clock();
+                let wide = match imm0(instr) {
+                    2 => i64::try_from(clock.now_millis()).unwrap_or(i64::MAX),
+                    3 => clock.now_secs(),
+                    // 0 (clicks) and 1 (microseconds) read the same counter.
+                    _ => i64::try_from(clock.now_micros()).unwrap_or(i64::MAX),
+                };
+                f.stack.push(Value::int(wide));
+            }
+
+            // -- coroutines (C `INST_YIELD` / `INST_YIELD_TO_INVOKE` /
+            // `INST_COROUTINE_NAME`) --
+            // The compiled `yield`/`yieldto` record their suspend request through
+            // the very core the builtins use (`cmd_coro::request_*`, boundary
+            // checks included) and then drain it into the `Tick::Suspend` the
+            // builtin path gets from `dispatch_words`. C pops the yielded value
+            // and pushes the resume value in its place (`pc++; cleanup = 1;
+            // TEBC_YIELD()`), which is exactly what popping here plus `resume`'s
+            // delivered-value push does.
+            Op::YIELD => {
+                let value = pop(f);
+                if let Err(c) = crate::cmd_coro::request_yield(self, value) {
+                    return Tick::Return(c);
+                }
+                if let Some(req) = self.coro.pending.take() {
+                    return Tick::Suspend(req);
+                }
+            }
+            // TOS is the command list to run in the resuming context; `resume`
+            // runs it there and its result lands where the list was.
+            Op::YIELD_TO_INVOKE => {
+                let words = match pop(f).as_list() {
+                    Ok(w) => w,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                if let Err(c) = crate::cmd_coro::request_yieldto(self, &words) {
+                    return Tick::Return(c);
+                }
+                if let Some(req) = self.coro.pending.take() {
+                    return Tick::Suspend(req);
+                }
+            }
+            Op::CORO_NAME => {
+                f.stack.push(crate::cmd_coro::current_coroutine(self));
+            }
+
+            // -- TclOO (C's "start of TclOO support instructions" block) --
+            // Each routes through the core its command form uses: `self object`,
+            // `info object class`/`namespace`/`isa object`, `next`, `nextto`. The
+            // context checks are the opcodes' own, since C's compiled forms report
+            // "X may only be called from inside a method" where the command forms
+            // report an unresolvable command name.
+            Op::TCLOO_SELF => match crate::cmd_oo::current_object_name(self) {
+                Some(name) => f.stack.push(name),
+                None => {
+                    return Tick::Return(err("self may only be called from inside a method"));
+                }
+            },
+            Op::TCLOO_IS_OBJECT => {
+                let name = pop(f);
+                f.stack
+                    .push(Value::bool(crate::cmd_oo::is_object(self, &name)));
+            }
+            Op::TCLOO_CLASS => {
+                let name = pop(f);
+                match crate::cmd_oo::object_key(self, &name) {
+                    Ok(key) => {
+                        let v = crate::cmd_oo::object_class_name(self, &key);
+                        f.stack.push(v);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            Op::TCLOO_NS => {
+                let name = pop(f);
+                match crate::cmd_oo::object_key(self, &name) {
+                    Ok(key) => {
+                        let v = crate::cmd_oo::object_namespace_name(self, &key);
+                        f.stack.push(v);
+                    }
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+            Op::TCLOO_NEXT => try_op!(self.tcloo_next(f, instr, false)),
+            Op::TCLOO_NEXT_CLASS => try_op!(self.tcloo_next(f, instr, true)),
+
             other => {
                 return Tick::Return(err(format!(
                     "opcode {} not implemented in tcl-vm",
@@ -3056,6 +3895,43 @@ impl Vm {
         }
 
         Tick::Continue
+    }
+
+    /// The `tclooNext` / `tclooNextClass` opcodes (`nextto` when `nextto` is set).
+    ///
+    /// The operand counts *all* the words C pushed, the first being the
+    /// `next`/`nextto` command word itself (C's `skip`), so the arguments are
+    /// `words[1..]` — which for `nextto` still starts with the class, exactly what
+    /// its core expects. The method-context check is the opcode's own: C's
+    /// compiled forms report "`next` may only be called from inside a method"
+    /// where the command forms report an unresolvable command name.
+    fn tcloo_next(
+        &mut self,
+        f: &mut Frame,
+        instr: &Instruction,
+        nextto: bool,
+    ) -> Result<(), Completion<Value>> {
+        let (mnemonic, verb) = if nextto {
+            ("tclooNextClass", "nextto")
+        } else {
+            ("tclooNext", "next")
+        };
+        let words = take_words(f, instr, mnemonic)?;
+        if !crate::cmd_oo::in_method(self) {
+            return Err(err(format!(
+                "{verb} may only be called from inside a method"
+            )));
+        }
+        let args = &words[1..];
+        let res = if nextto {
+            crate::cmd_oo::cmd_nextto(self, args)
+        } else {
+            crate::cmd_oo::cmd_next(self, args)
+        };
+        // `deliver_sync` pushes the result on `OK` and hands the completion back
+        // otherwise; the chained method runs on the native stack, so there is
+        // never a `Tick` to propagate from here.
+        Self::deliver_sync(f, res).map(|_| ())
     }
 
     /// Dispatch a fully-assembled command word list. Returns `Some(Tick::Call)`
@@ -3828,6 +4704,14 @@ mod tests {
         assert_eq!(char_find("héllo", "é", false), 1);
         assert_eq!(char_find("héllo", "llo", false), 2);
         assert_eq!(char_find("héllo", "l", true), 3);
+        // An empty needle is a *miss*, not a match at 0 / at the end: C's
+        // `TclStringFirst`/`TclStringLast` special-case `ln == 0` and leave the
+        // result at -1 ("We don't find empty substrings.  Bizarre!",
+        // `tclStringObj.c:3853-3858`, `:3948-3956`), where Rust's
+        // `str::find`/`rfind` would answer 0 and 5.
+        assert_eq!(char_find("hello", "", false), -1);
+        assert_eq!(char_find("hello", "", true), -1);
+        assert_eq!(char_find("", "", false), -1);
     }
 
     #[test]

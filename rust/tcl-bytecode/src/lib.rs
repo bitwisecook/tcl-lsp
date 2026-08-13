@@ -191,16 +191,23 @@ pub enum Op {
     END_CATCH,
     PUSH_RESULT,
     PUSH_RETURN_CODE,
+    /// `returnCodeBranch` — pop a return code (1–5) and jump forward
+    /// `2*code − 1` bytes past this instruction: the compiler lays a table of
+    /// five 2-byte `jump1` stubs right after it, one per code, error first
+    /// (C Tcl's `INST_RETURN_CODE_BRANCH`, the compiled `try` handler
+    /// dispatch). A code outside `error..continue` lands on the fifth stub.
+    RETURN_CODE_BRANCH,
     FOREACH_START,
     FOREACH_STEP,
     FOREACH_END,
-    /// `lmapCollect` — pop the top of stack and append it to the *collecting*
+    /// `lmap_collect` — pop the top of stack and append it to the *collecting*
     /// `foreach`/`lmap` loop's VM-side accumulator (`ForeachState.accum`). Emitted
     /// on the body's fall-through path only (a `break`/`continue` redirect skips
     /// it), so the accumulator survives break/continue with the operand stack at a
     /// statement boundary. The paired `FOREACH_END` pushes `list(accum)` as the
-    /// loop result. No C-Tcl analogue — C compiles `lmap` from `INST_FOREACH` +
-    /// an accumulator temp; the VM keeps the accumulator in the loop state instead.
+    /// loop result. A real C Tcl 9.0 instruction (`lmap_collect`,
+    /// `tclCompile.c`), though C keeps the accumulator in a temp local where the
+    /// VM keeps it in the loop state.
     LMAP_COLLECT,
     /// `dictFirst <slot>` — begin iterating a dict (top of stack), storing the
     /// iterator state in local `<slot>`; pushes value, key, and a done flag
@@ -231,6 +238,14 @@ pub enum Op {
     /// `<dictSlot>`, removing keys whose local was unset. C Tcl's compiled
     /// `dict with` epilogue.
     DICT_RECOMBINE_IMM,
+    /// `dictRecombineStk` — [`DICT_RECOMBINE_IMM`](Op::DICT_RECOMBINE_IMM) with
+    /// the dict variable's *name* taken from the stack (deepest of
+    /// `varName path state`) rather than an LVT slot.
+    DICT_RECOMBINE_STK,
+    /// `dictGetDef <numKeys>` — like [`DICT_GET`](Op::DICT_GET) but with a
+    /// default value on top of the keys: a key missing at any depth yields the
+    /// default instead of an error (`dict getdef`/`dict getwithdefault`).
+    DICT_GET_DEF,
     JUMP_TABLE,
     NOP,
     UMINUS,
@@ -262,21 +277,81 @@ pub enum Op {
     LOAD_STK,
     STORE_ARRAY_STK,
     LOAD_ARRAY_STK,
+    /// `loadScalarStk` — load the scalar named by the popped name. C Tcl shares
+    /// its `TEBCresume` case with `INST_LOAD_STK`; the compiler emits it for a
+    /// name known not to carry an `(index)` part.
+    LOAD_SCALAR_STK,
+    /// `storeScalarStk` — store into the scalar named by the popped name (the
+    /// `INST_STORE_STK` case in C Tcl, for an index-free name).
+    STORE_SCALAR_STK,
     INCR_STK,
     INCR_STK_IMM,
     INCR_ARRAY_STK_IMM,
+    /// `incrScalarStk` — increment the scalar named on the stack by the popped
+    /// amount.
+    INCR_SCALAR_STK,
+    /// `incrScalarStkImm` — increment the scalar named on the stack by the
+    /// 1-byte immediate.
+    INCR_SCALAR_STK_IMM,
+    /// `incrArray1` — increment the element (key on the stack) of the array in
+    /// local `<slot>` by the popped amount.
+    INCR_ARRAY1,
+    /// `incrArray1Imm` — increment the element (key on the stack) of the array
+    /// in local `<slot>` by the 1-byte immediate.
+    INCR_ARRAY1_IMM,
+    /// `incrArrayStk` — increment the array element named by the popped
+    /// array-name/key pair by the popped amount.
+    INCR_ARRAY_STK,
     APPEND_STK,
     LAPPEND_STK,
+    /// `appendArrayStk` — string-append to the array element named by the
+    /// popped array-name/key pair.
+    APPEND_ARRAY_STK,
+    /// `lappendArrayStk` — list-append to the array element named by the popped
+    /// array-name/key pair.
+    LAPPEND_ARRAY_STK,
     LAPPEND_LIST,
     LAPPEND_LIST_STK,
     LAPPEND_LIST_ARRAY_STK,
     STORE_ARRAY1,
     LOAD_ARRAY1,
+    /// `storeArray4` — the 4-byte-slot form of `storeArray1` (arrays past slot
+    /// 255).
+    STORE_ARRAY4,
+    /// `loadArray4` — the 4-byte-slot form of `loadArray1`.
+    LOAD_ARRAY4,
     LAPPEND_LIST_ARRAY,
     ARRAY_EXISTS_IMM,
+    /// `arrayExistsStk` — whether the variable named on the stack is an array.
+    ARRAY_EXISTS_STK,
+    /// `arrayMakeImm` — force local `<slot>` to be an array (`array set a {}`'s
+    /// materialising half); a no-op when it already is one.
+    ARRAY_MAKE_IMM,
+    /// `arrayMakeStk` — force the variable named on the stack to be an array.
+    ARRAY_MAKE_STK,
     UNSET_STK,
     UNSET_SCALAR,
     UNSET_ARRAY,
+    /// `unsetArrayStk` — unset the array element named by the popped
+    /// array-name/key pair; operand bit 0 is C's `TCL_LEAVE_ERR_MSG` (complain
+    /// when absent).
+    UNSET_ARRAY_STK,
+    /// `existArray` — whether the element (key on the stack) of the array in
+    /// local `<slot>` exists. Never errors.
+    EXIST_ARRAY,
+    /// `existArrayStk` — whether the array element named by the popped
+    /// array-name/key pair exists. Never errors.
+    EXIST_ARRAY_STK,
+    /// `constImm` — define local `<slot>` as a constant holding the popped
+    /// value (TIP 677). Re-defining an existing constant silently drops the
+    /// value.
+    CONST_IMM,
+    /// `constStk` — define the variable named on the stack as a constant
+    /// holding the popped value.
+    CONST_STK,
+    /// `variable` — link local `<slot>` to the namespace variable named by the
+    /// popped (possibly qualified) name — the compiled `variable` command.
+    VARIABLE,
     TAILCALL,
     CONCAT_STK,
     TRY_CVT_TO_NUMERIC,
@@ -317,19 +392,78 @@ pub enum Op {
     EXPAND_START,
     EXPAND_STKTOP,
     INVOKE_EXPANDED,
+    /// `expandDrop` — abandon the innermost in-progress `{*}` expansion,
+    /// truncating the operand stack back to the depth its `EXPAND_START`
+    /// recorded (C `INST_EXPAND_DROP`).
+    EXPAND_DROP,
+    /// `currentNamespace` — push the current namespace's fully-qualified name
+    /// (`::` at global scope).
+    CURRENT_NAMESPACE,
+    /// `infoLevelNumber` — push the current call-frame depth (`info level`).
+    INFO_LEVEL_NUM,
+    /// `infoLevelArgs` — push the invoking words of the level popped from the
+    /// stack (`info level $n`).
+    INFO_LEVEL_ARGS,
+    /// `resolveCmd` — push the fully-qualified name the popped command name
+    /// resolves to, or the empty string when it resolves to nothing. Never
+    /// errors.
+    RESOLVE_CMD,
+    /// `originCmd` — push the fully-qualified name of the origin (through the
+    /// import chain) of the popped command name; errors when it names no
+    /// command.
+    ORIGIN_CMD,
+    /// `clockRead <which>` — push a wall-clock reading: `0` clicks,
+    /// `1` microseconds, `2` milliseconds, `3` seconds.
+    CLOCK_READ,
+    /// `yield` — suspend the running coroutine, yielding the value on top of
+    /// the stack; the resume value replaces it. Outside a coroutine this is the
+    /// error `yield can only be called in a coroutine` (C `INST_YIELD`).
+    YIELD,
+    /// `yieldToInvoke` — suspend the running coroutine and, once it is parked,
+    /// run the command list on top of the stack in the *resuming* context; its
+    /// result replaces the list (the `yieldto` builtin's handoff, C
+    /// `INST_YIELD_TO_INVOKE`).
+    YIELD_TO_INVOKE,
+    /// `coroName` — push the fully-qualified name of the current coroutine's
+    /// command, or the empty string outside a coroutine (C
+    /// `INST_COROUTINE_NAME`).
+    CORO_NAME,
+    /// `tclooSelf` — push the current object's command name (`self` /
+    /// `self object`). Outside a method: `self may only be called from inside a
+    /// method` (C `INST_TCLOO_SELF`).
+    TCLOO_SELF,
+    /// `tclooClass` — pop an object's command name and push its class's command
+    /// name (`info object class`, C `INST_TCLOO_CLASS`).
+    TCLOO_CLASS,
+    /// `tclooNamespace` — pop an object's command name and push its instance
+    /// namespace (`info object namespace`, C `INST_TCLOO_NS`).
+    TCLOO_NS,
+    /// `tclooIsObject` — pop a name and push whether it names a `TclOO` object
+    /// (`info object isa object`). Never errors (C `INST_TCLOO_IS_OBJECT`).
+    TCLOO_IS_OBJECT,
+    /// `tclooNext <numWords>` — invoke the next implementation on the method
+    /// chain (`next`). The operand counts the words on the stack: the first is
+    /// the `next` command word itself (C's `skip = 1`), the rest are the
+    /// arguments (C `INST_TCLOO_NEXT`).
+    TCLOO_NEXT,
+    /// `tclooNextClass <numWords>` — [`TCLOO_NEXT`](Op::TCLOO_NEXT) for
+    /// `nextto`: of the `numWords` stack words the first is the command word and
+    /// the second names the class to resume from (C's `skip = 2`, C
+    /// `INST_TCLOO_NEXT_CLASS`).
+    TCLOO_NEXT_CLASS,
 }
 
 impl Op {
     /// Disassembly mnemonic.
     ///
     /// The opcode→mnemonic table is a flat 1:1 map partitioned into cohesive
-    /// per-family helpers (stack/control, arithmetic, string, list/var, and
-    /// the dict/misc remainder) so no single function carries the whole table.
-    /// Each helper returns `Some` only for the opcodes it owns; exactly one
-    /// helper matches each opcode. The `opcode_family_partition_total` test
-    /// exhaustively matches every `Op` variant, so any newly added opcode that
-    /// is not routed into a family helper is caught at test-compile time rather
-    /// than reaching the final `unreachable!`.
+    /// per-family helpers (stack/control, arithmetic, string, list/var,
+    /// coroutine/`TclOO`, and the dict/misc remainder) so no single function
+    /// carries the whole table. Each helper returns `Some` only for the opcodes
+    /// it owns; exactly one helper matches each opcode. The
+    /// `op_family_routing_and_size` test spot-checks every routing branch, so a
+    /// newly added opcode that is not routed into a family helper is caught
+    /// before it reaches the final `unreachable!`.
     #[must_use]
     pub const fn mnemonic(self) -> &'static str {
         if let Some(m) = self.mnemonic_core() {
@@ -339,6 +473,8 @@ impl Op {
         } else if let Some(m) = self.mnemonic_string() {
             m
         } else if let Some(m) = self.mnemonic_list_var() {
+            m
+        } else if let Some(m) = self.mnemonic_coro_oo() {
             m
         } else {
             self.mnemonic_dict_misc()
@@ -372,6 +508,7 @@ impl Op {
             Self::END_CATCH => "endCatch",
             Self::PUSH_RESULT => "pushResult",
             Self::PUSH_RETURN_CODE => "pushReturnCode",
+            Self::RETURN_CODE_BRANCH => "returnCodeBranch",
             Self::FOREACH_START => "foreach_start",
             Self::FOREACH_STEP => "foreach_step",
             Self::FOREACH_END => "foreach_end",
@@ -388,6 +525,13 @@ impl Op {
             Self::EXPAND_START => "expandStart",
             Self::EXPAND_STKTOP => "expandStkTop",
             Self::INVOKE_EXPANDED => "invokeExpanded",
+            Self::EXPAND_DROP => "expandDrop",
+            Self::CURRENT_NAMESPACE => "currentNamespace",
+            Self::INFO_LEVEL_NUM => "infoLevelNumber",
+            Self::INFO_LEVEL_ARGS => "infoLevelArgs",
+            Self::RESOLVE_CMD => "resolveCmd",
+            Self::ORIGIN_CMD => "originCmd",
+            Self::CLOCK_READ => "clockRead",
             _ => return None,
         })
     }
@@ -502,9 +646,32 @@ impl Op {
             Self::LAPPEND_ARRAY4 => "lappendArray4",
             Self::STORE_ARRAY1 => "storeArray1",
             Self::LOAD_ARRAY1 => "loadArray1",
+            Self::STORE_ARRAY4 => "storeArray4",
+            Self::LOAD_ARRAY4 => "loadArray4",
+            Self::INCR_ARRAY1 => "incrArray1",
+            Self::INCR_ARRAY1_IMM => "incrArray1Imm",
             Self::LAPPEND_LIST_ARRAY => "lappendListArray",
             Self::ARRAY_EXISTS_IMM => "arrayExistsImm",
+            Self::ARRAY_MAKE_IMM => "arrayMakeImm",
             Self::UNSET_ARRAY => "unsetArray",
+            Self::EXIST_ARRAY => "existArray",
+            Self::CONST_IMM => "constImm",
+            _ => return None,
+        })
+    }
+
+    /// Coroutine (`yield`/`yieldto`/`coroName`) and `TclOO` mnemonics.
+    const fn mnemonic_coro_oo(self) -> Option<&'static str> {
+        Some(match self {
+            Self::YIELD => "yield",
+            Self::YIELD_TO_INVOKE => "yieldToInvoke",
+            Self::CORO_NAME => "coroName",
+            Self::TCLOO_SELF => "tclooSelf",
+            Self::TCLOO_CLASS => "tclooClass",
+            Self::TCLOO_NS => "tclooNamespace",
+            Self::TCLOO_IS_OBJECT => "tclooIsObject",
+            Self::TCLOO_NEXT => "tclooNext",
+            Self::TCLOO_NEXT_CLASS => "tclooNextClass",
             _ => return None,
         })
     }
@@ -514,30 +681,45 @@ impl Op {
         match self {
             Self::STORE_STK => "storeStk",
             Self::LOAD_STK => "loadStk",
+            Self::STORE_SCALAR_STK => "storeScalarStk",
+            Self::LOAD_SCALAR_STK => "loadScalarStk",
             Self::STORE_ARRAY_STK => "storeArrayStk",
             Self::LOAD_ARRAY_STK => "loadArrayStk",
             Self::INCR_STK => "incrStk",
             Self::INCR_STK_IMM => "incrStkImm",
             Self::INCR_ARRAY_STK_IMM => "incrArrayStkImm",
+            Self::INCR_SCALAR_STK => "incrScalarStk",
+            Self::INCR_SCALAR_STK_IMM => "incrScalarStkImm",
+            Self::INCR_ARRAY_STK => "incrArrayStk",
             Self::APPEND_STK => "appendStk",
             Self::LAPPEND_STK => "lappendStk",
+            Self::APPEND_ARRAY_STK => "appendArrayStk",
+            Self::LAPPEND_ARRAY_STK => "lappendArrayStk",
             Self::LAPPEND_LIST => "lappendList",
             Self::LAPPEND_LIST_STK => "lappendListStk",
             Self::LAPPEND_LIST_ARRAY_STK => "lappendListArrayStk",
             Self::UNSET_STK => "unsetStk",
+            Self::UNSET_ARRAY_STK => "unsetArrayStk",
             Self::CONCAT_STK => "concatStk",
             Self::EXIST_STK => "existStk",
+            Self::EXIST_ARRAY_STK => "existArrayStk",
+            Self::ARRAY_EXISTS_STK => "arrayExistsStk",
+            Self::ARRAY_MAKE_STK => "arrayMakeStk",
+            Self::CONST_STK => "constStk",
             Self::RETURN_STK => "returnStk",
             Self::VERIFY_DICT => "verifyDict",
             Self::DICT_GET => "dictGet",
+            Self::DICT_GET_DEF => "dictGetDef",
             Self::DICT_EXISTS => "dictExists",
             Self::DICT_SET => "dictSet",
             Self::DICT_UNSET => "dictUnset",
             Self::DICT_INCR_IMM => "dictIncrImm",
             Self::DICT_APPEND => "dictAppend",
             Self::DICT_LAPPEND => "dictLappend",
+            Self::DICT_RECOMBINE_STK => "dictRecombineStk",
             Self::UPVAR => "upvar",
             Self::NSUPVAR => "nsupvar",
+            Self::VARIABLE => "variable",
             Self::OVER => "over",
             Self::REVERSE => "reverse",
             Self::PUSH_RETURN_OPTS => "pushReturnOpts",
@@ -570,13 +752,21 @@ impl Op {
                 | Self::LAPPEND_LIST
                 | Self::STORE_ARRAY1
                 | Self::LOAD_ARRAY1
+                | Self::STORE_ARRAY4
+                | Self::LOAD_ARRAY4
+                | Self::INCR_ARRAY1
+                | Self::INCR_ARRAY1_IMM
                 | Self::LAPPEND_LIST_ARRAY
                 | Self::ARRAY_EXISTS_IMM
+                | Self::ARRAY_MAKE_IMM
                 | Self::EXIST_SCALAR
+                | Self::EXIST_ARRAY
+                | Self::CONST_IMM
                 | Self::DICT_APPEND
                 | Self::DICT_LAPPEND
                 | Self::UPVAR
                 | Self::NSUPVAR
+                | Self::VARIABLE
         )
     }
 
@@ -597,10 +787,18 @@ impl Op {
     /// True for opcodes encoded as a bare byte with no operands (size 1).
     ///
     /// This is by far the largest size class, so it lives in its own helper to
-    /// keep [`Op::size`] small; the two functions together still match every
-    /// opcode and are covered by `opcode_family_partition_total`.
+    /// keep [`Op::size`] small, and is itself split in two — value/control ops
+    /// and data-access ops — so neither match outgrows the crate's
+    /// function-length limit. The three together still match every opcode and
+    /// are covered by `opcode_family_partition_total`.
     #[must_use]
     pub const fn is_one_byte(self) -> bool {
+        self.is_one_byte_value() || self.is_one_byte_access()
+    }
+
+    /// The operand-free arithmetic, comparison, coercion and stack/control
+    /// opcodes — half of [`Op::is_one_byte`].
+    const fn is_one_byte_value(self) -> bool {
         matches!(
             self,
             Self::POP
@@ -624,7 +822,44 @@ impl Op {
                 | Self::GT
                 | Self::LE
                 | Self::GE
-                | Self::STR_EQ
+                | Self::UMINUS
+                | Self::UPLUS
+                | Self::BITNOT
+                | Self::LNOT
+                | Self::NOT
+                | Self::LAND
+                | Self::LOR
+                | Self::NUMERIC_TYPE
+                | Self::TRY_CVT_TO_NUMERIC
+                | Self::TRY_CVT_TO_BOOLEAN
+                | Self::DONE
+                | Self::BREAK
+                | Self::CONTINUE
+                | Self::END_CATCH
+                | Self::PUSH_RESULT
+                | Self::PUSH_RETURN_CODE
+                | Self::RETURN_CODE_BRANCH
+                | Self::PUSH_RETURN_OPTS
+                | Self::RETURN_STK
+                | Self::FOREACH_STEP
+                | Self::FOREACH_END
+                | Self::LMAP_COLLECT
+                | Self::NOP
+                | Self::EXPAND_START
+                | Self::INVOKE_EXPANDED
+                | Self::EXPAND_DROP
+                | Self::YIELD
+                | Self::YIELD_TO_INVOKE
+                | Self::CORO_NAME
+        )
+    }
+
+    /// The operand-free string, list, variable, dict and introspection opcodes
+    /// — the other half of [`Op::is_one_byte`].
+    const fn is_one_byte_access(self) -> bool {
+        matches!(
+            self,
+            Self::STR_EQ
                 | Self::STR_NEQ
                 | Self::STR_CMP
                 | Self::STR_LT
@@ -633,28 +868,6 @@ impl Op {
                 | Self::STR_GE
                 | Self::STR_LEN
                 | Self::STR_INDEX
-                | Self::LIST_LENGTH
-                | Self::LIST_INDEX
-                | Self::DONE
-                | Self::BREAK
-                | Self::CONTINUE
-                | Self::END_CATCH
-                | Self::PUSH_RESULT
-                | Self::PUSH_RETURN_CODE
-                | Self::FOREACH_STEP
-                | Self::FOREACH_END
-                | Self::LMAP_COLLECT
-                | Self::DICT_EXPAND
-                | Self::NOP
-                | Self::UMINUS
-                | Self::UPLUS
-                | Self::BITNOT
-                | Self::LNOT
-                | Self::NOT
-                | Self::LAND
-                | Self::LOR
-                | Self::LIST_IN
-                | Self::LIST_NOT_IN
                 | Self::STR_MAP
                 | Self::STR_FIND
                 | Self::STR_RFIND
@@ -668,24 +881,6 @@ impl Op {
                 | Self::STR_RANGE
                 | Self::STR_REVERSE
                 | Self::STR_REPEAT
-                | Self::STORE_STK
-                | Self::LOAD_STK
-                | Self::STORE_ARRAY_STK
-                | Self::LOAD_ARRAY_STK
-                | Self::INCR_STK
-                | Self::APPEND_STK
-                | Self::LAPPEND_STK
-                | Self::LAPPEND_LIST_STK
-                | Self::LAPPEND_LIST_ARRAY_STK
-                | Self::TRY_CVT_TO_NUMERIC
-                | Self::VERIFY_DICT
-                | Self::EXIST_STK
-                | Self::LSET_LIST
-                | Self::LIST_CONCAT
-                | Self::PUSH_RETURN_OPTS
-                | Self::RETURN_STK
-                | Self::NUMERIC_TYPE
-                | Self::TRY_CVT_TO_BOOLEAN
                 | Self::IRULE_CONTAINS
                 | Self::IRULE_STARTS_WITH
                 | Self::IRULE_ENDS_WITH
@@ -695,8 +890,44 @@ impl Op {
                 | Self::IRULE_WORD_AND
                 | Self::IRULE_WORD_OR
                 | Self::IRULE_WORD_NOT
-                | Self::EXPAND_START
-                | Self::INVOKE_EXPANDED
+                | Self::LIST_LENGTH
+                | Self::LIST_INDEX
+                | Self::LIST_IN
+                | Self::LIST_NOT_IN
+                | Self::LIST_CONCAT
+                | Self::LSET_LIST
+                | Self::STORE_STK
+                | Self::LOAD_STK
+                | Self::STORE_SCALAR_STK
+                | Self::LOAD_SCALAR_STK
+                | Self::STORE_ARRAY_STK
+                | Self::LOAD_ARRAY_STK
+                | Self::INCR_STK
+                | Self::INCR_SCALAR_STK
+                | Self::INCR_ARRAY_STK
+                | Self::APPEND_STK
+                | Self::LAPPEND_STK
+                | Self::APPEND_ARRAY_STK
+                | Self::LAPPEND_ARRAY_STK
+                | Self::LAPPEND_LIST_STK
+                | Self::LAPPEND_LIST_ARRAY_STK
+                | Self::EXIST_STK
+                | Self::EXIST_ARRAY_STK
+                | Self::ARRAY_EXISTS_STK
+                | Self::ARRAY_MAKE_STK
+                | Self::CONST_STK
+                | Self::VERIFY_DICT
+                | Self::DICT_EXPAND
+                | Self::DICT_RECOMBINE_STK
+                | Self::CURRENT_NAMESPACE
+                | Self::INFO_LEVEL_NUM
+                | Self::INFO_LEVEL_ARGS
+                | Self::RESOLVE_CMD
+                | Self::ORIGIN_CMD
+                | Self::TCLOO_SELF
+                | Self::TCLOO_CLASS
+                | Self::TCLOO_NS
+                | Self::TCLOO_IS_OBJECT
         )
     }
 
@@ -729,16 +960,22 @@ impl Op {
             | Self::LAPPEND_ARRAY1
             | Self::STORE_ARRAY1
             | Self::LOAD_ARRAY1
+            | Self::INCR_ARRAY1
             | Self::INCR_STK_IMM
+            | Self::INCR_SCALAR_STK_IMM
             | Self::INCR_ARRAY_STK_IMM
             | Self::UNSET_STK
+            | Self::UNSET_ARRAY_STK
             | Self::TAILCALL
             | Self::STR_MATCH
             | Self::REGEXP
+            | Self::CLOCK_READ
+            | Self::TCLOO_NEXT
+            | Self::TCLOO_NEXT_CLASS
             | Self::STR_CLASS => 2,
 
             // 3-byte: opcode + 2 1-byte operands
-            Self::INCR_SCALAR1_IMM => 3,
+            Self::INCR_SCALAR1_IMM | Self::INCR_ARRAY1_IMM => 3,
 
             // 5-byte: opcode + 4-byte operand
             Self::PUSH4
@@ -762,16 +999,23 @@ impl Op {
             | Self::LAPPEND_SCALAR4
             | Self::APPEND_ARRAY4
             | Self::LAPPEND_ARRAY4
+            | Self::STORE_ARRAY4
+            | Self::LOAD_ARRAY4
             | Self::LAPPEND_LIST_ARRAY
             | Self::ARRAY_EXISTS_IMM
+            | Self::ARRAY_MAKE_IMM
             | Self::CONCAT_STK
             | Self::DICT_GET
+            | Self::DICT_GET_DEF
             | Self::DICT_EXISTS
             | Self::EXIST_SCALAR
+            | Self::EXIST_ARRAY
+            | Self::CONST_IMM
             | Self::DICT_APPEND
             | Self::DICT_LAPPEND
             | Self::UPVAR
             | Self::NSUPVAR
+            | Self::VARIABLE
             | Self::LSET_FLAT
             | Self::REVERSE
             | Self::OVER
@@ -920,9 +1164,18 @@ pub struct Instruction {
     /// substitution that the VM otherwise applies to `${…}` / `[…]` markers
     /// (see `tcl-vm::subst::subst_word`). This is the Rust analogue of the
     /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling, carried out-of-band
-    /// so the literal pool and disassembly stay byte-identical (keeps identity
+    /// so the literal pool and disassembly stay byte-stable (keeps identity
     /// stable).
     pub push_verbatim: bool,
+    /// `BEGIN_CATCH4` only: the label of the range's handler — where the VM
+    /// resumes (stack trimmed, caught completion recorded) when an exceptional
+    /// completion unwinds into the range. This is the analogue of C Tcl's
+    /// `ExceptionRange.catchOffset`, carried out-of-band (like `foreach_vars`)
+    /// so the 4-byte operand keeps C's meaning (the range index) and the
+    /// disassembly stays byte-stable. `None` marks a *decorative* range — the
+    /// codegen emitted the C-faithful shape but relies on the VM's
+    /// activation-stack unwinding instead, so `BEGIN_CATCH4` is inert.
+    pub catch_target: Option<String>,
 }
 
 impl Instruction {
@@ -943,6 +1196,7 @@ impl Instruction {
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
+            catch_target: None,
         }
     }
 }
@@ -1171,13 +1425,14 @@ mod tests {
     #[test]
     fn op_family_routing_and_size() {
         // Spot-check one opcode from each `mnemonic_*` family so every routing
-        // branch (core / arith / string / list_var / dict_misc) is exercised
-        // and none reaches the `unreachable!` fallback; plus one representative
-        // per size class for `size`/`is_one_byte`.
+        // branch (core / arith / string / list_var / coro_oo / dict_misc) is
+        // exercised and none reaches the `unreachable!` fallback; plus one
+        // representative per size class for `size`/`is_one_byte`.
         assert_eq!(Op::PUSH1.mnemonic(), "push1");
         assert_eq!(Op::ADD.mnemonic(), "add");
         assert_eq!(Op::STR_EQ.mnemonic(), "streq");
         assert_eq!(Op::LIST.mnemonic(), "list");
+        assert_eq!(Op::YIELD.mnemonic(), "yield");
         assert_eq!(Op::DICT_GET.mnemonic(), "dictGet");
         // size classes
         assert!(Op::ADD.is_one_byte());
@@ -1193,6 +1448,101 @@ mod tests {
     #[test]
     fn op_display() {
         assert_eq!(format!("{}", Op::JUMP4), "jump4");
+    }
+
+    /// The variable/array/dict/introspection opcodes the VM implements without
+    /// codegen support yet: mnemonic and encoded size must match
+    /// `tclInstructionTable` (`tclCompile.c`) exactly, since the disassembler
+    /// and the byte layout are both derived from them.
+    #[test]
+    fn op_table_matches_c_instruction_table() {
+        for (op, mnemonic, size) in [
+            (Op::LOAD_SCALAR_STK, "loadScalarStk", 1),
+            (Op::STORE_SCALAR_STK, "storeScalarStk", 1),
+            (Op::LOAD_ARRAY4, "loadArray4", 5),
+            (Op::STORE_ARRAY4, "storeArray4", 5),
+            (Op::INCR_SCALAR_STK, "incrScalarStk", 1),
+            (Op::INCR_SCALAR_STK_IMM, "incrScalarStkImm", 2),
+            (Op::INCR_ARRAY1, "incrArray1", 2),
+            (Op::INCR_ARRAY1_IMM, "incrArray1Imm", 3),
+            (Op::INCR_ARRAY_STK, "incrArrayStk", 1),
+            (Op::APPEND_ARRAY_STK, "appendArrayStk", 1),
+            (Op::LAPPEND_ARRAY_STK, "lappendArrayStk", 1),
+            (Op::EXIST_ARRAY, "existArray", 5),
+            (Op::EXIST_ARRAY_STK, "existArrayStk", 1),
+            (Op::UNSET_ARRAY_STK, "unsetArrayStk", 2),
+            (Op::ARRAY_EXISTS_STK, "arrayExistsStk", 1),
+            (Op::ARRAY_MAKE_IMM, "arrayMakeImm", 5),
+            (Op::ARRAY_MAKE_STK, "arrayMakeStk", 1),
+            (Op::VARIABLE, "variable", 5),
+            (Op::CONST_IMM, "constImm", 5),
+            (Op::CONST_STK, "constStk", 1),
+            (Op::CURRENT_NAMESPACE, "currentNamespace", 1),
+            (Op::INFO_LEVEL_NUM, "infoLevelNumber", 1),
+            (Op::INFO_LEVEL_ARGS, "infoLevelArgs", 1),
+            (Op::RESOLVE_CMD, "resolveCmd", 1),
+            (Op::ORIGIN_CMD, "originCmd", 1),
+            (Op::CLOCK_READ, "clockRead", 2),
+            (Op::DICT_GET_DEF, "dictGetDef", 5),
+            (Op::DICT_RECOMBINE_STK, "dictRecombineStk", 1),
+            (Op::EXPAND_DROP, "expandDrop", 1),
+            (Op::YIELD, "yield", 1),
+            (Op::YIELD_TO_INVOKE, "yieldToInvoke", 1),
+            (Op::CORO_NAME, "coroName", 1),
+            (Op::TCLOO_SELF, "tclooSelf", 1),
+            (Op::TCLOO_CLASS, "tclooClass", 1),
+            (Op::TCLOO_NS, "tclooNamespace", 1),
+            (Op::TCLOO_IS_OBJECT, "tclooIsObject", 1),
+            (Op::TCLOO_NEXT, "tclooNext", 2),
+            (Op::TCLOO_NEXT_CLASS, "tclooNextClass", 2),
+        ] {
+            assert_eq!(op.mnemonic(), mnemonic, "mnemonic of {op:?}");
+            assert_eq!(op.size(), size, "size of {op:?}");
+            assert_eq!(
+                op.is_one_byte(),
+                size == 1,
+                "is_one_byte must agree with size for {op:?}"
+            );
+        }
+    }
+
+    /// Every opcode whose *first* operand is an LVT slot must say so, or the
+    /// disassembler renders the slot as a bare integer instead of `%vN`.
+    #[test]
+    fn op_is_lvt_covers_the_new_slot_operands() {
+        for op in [
+            Op::LOAD_ARRAY4,
+            Op::STORE_ARRAY4,
+            Op::INCR_ARRAY1,
+            Op::INCR_ARRAY1_IMM,
+            Op::EXIST_ARRAY,
+            Op::ARRAY_MAKE_IMM,
+            Op::VARIABLE,
+            Op::CONST_IMM,
+            Op::LAPPEND_LIST_ARRAY,
+        ] {
+            assert!(op.is_lvt_op(), "{op:?} takes an LVT slot as operand 0");
+        }
+        // The stack forms name their variable at run time — no slot operand.
+        for op in [
+            Op::LOAD_SCALAR_STK,
+            Op::STORE_SCALAR_STK,
+            Op::INCR_ARRAY_STK,
+            Op::UNSET_ARRAY_STK,
+            Op::ARRAY_MAKE_STK,
+            Op::CONST_STK,
+            Op::CLOCK_READ,
+            Op::DICT_GET_DEF,
+            // The coroutine/`TclOO` ops name nothing in the LVT: the
+            // `tclooNext`/`tclooNextClass` operand is a stack word count.
+            Op::TCLOO_NEXT,
+            Op::TCLOO_NEXT_CLASS,
+            Op::YIELD,
+            Op::CORO_NAME,
+            Op::TCLOO_SELF,
+        ] {
+            assert!(!op.is_lvt_op(), "{op:?} has no LVT operand");
+        }
     }
 
     #[test]
@@ -1212,6 +1562,502 @@ mod tests {
     fn op_from_binop() {
         assert_eq!(Op::from_binop(BinOp::Add), Some(Op::ADD));
         assert_eq!(Op::from_binop(BinOp::Contains), Some(Op::IRULE_CONTAINS));
+    }
+
+    /// The exhaustive routing gate the family helpers' doc comments promise:
+    /// every `Op` variant reaches exactly one `mnemonic_*` family and one
+    /// size class without hitting the `unreachable!` fallbacks. The `match`
+    /// below lists every variant, so adding an opcode without extending it —
+    /// and therefore without deciding its family and size — fails to compile
+    /// here first.
+    #[test]
+    #[allow(clippy::too_many_lines)] // one arm per Op variant — the length IS the exhaustiveness gate
+    fn opcode_family_partition_total() {
+        #[allow(clippy::too_many_lines)] // ditto: the match must list every variant
+        fn touch(op: Op) -> (&'static str, u8) {
+            match op {
+                Op::PUSH1 => (Op::PUSH1.mnemonic(), Op::PUSH1.size()),
+                Op::PUSH4 => (Op::PUSH4.mnemonic(), Op::PUSH4.size()),
+                Op::POP => (Op::POP.mnemonic(), Op::POP.size()),
+                Op::DUP => (Op::DUP.mnemonic(), Op::DUP.size()),
+                Op::LOAD_SCALAR1 => (Op::LOAD_SCALAR1.mnemonic(), Op::LOAD_SCALAR1.size()),
+                Op::LOAD_SCALAR4 => (Op::LOAD_SCALAR4.mnemonic(), Op::LOAD_SCALAR4.size()),
+                Op::STORE_SCALAR1 => (Op::STORE_SCALAR1.mnemonic(), Op::STORE_SCALAR1.size()),
+                Op::STORE_SCALAR4 => (Op::STORE_SCALAR4.mnemonic(), Op::STORE_SCALAR4.size()),
+                Op::INCR_SCALAR1 => (Op::INCR_SCALAR1.mnemonic(), Op::INCR_SCALAR1.size()),
+                Op::INCR_SCALAR1_IMM => {
+                    (Op::INCR_SCALAR1_IMM.mnemonic(), Op::INCR_SCALAR1_IMM.size())
+                }
+                Op::INVOKE_STK1 => (Op::INVOKE_STK1.mnemonic(), Op::INVOKE_STK1.size()),
+                Op::INVOKE_STK4 => (Op::INVOKE_STK4.mnemonic(), Op::INVOKE_STK4.size()),
+                Op::EVAL_STK => (Op::EVAL_STK.mnemonic(), Op::EVAL_STK.size()),
+                Op::EXPR_STK => (Op::EXPR_STK.mnemonic(), Op::EXPR_STK.size()),
+                Op::JUMP1 => (Op::JUMP1.mnemonic(), Op::JUMP1.size()),
+                Op::JUMP4 => (Op::JUMP4.mnemonic(), Op::JUMP4.size()),
+                Op::JUMP_TRUE1 => (Op::JUMP_TRUE1.mnemonic(), Op::JUMP_TRUE1.size()),
+                Op::JUMP_TRUE4 => (Op::JUMP_TRUE4.mnemonic(), Op::JUMP_TRUE4.size()),
+                Op::JUMP_FALSE1 => (Op::JUMP_FALSE1.mnemonic(), Op::JUMP_FALSE1.size()),
+                Op::JUMP_FALSE4 => (Op::JUMP_FALSE4.mnemonic(), Op::JUMP_FALSE4.size()),
+                Op::ADD => (Op::ADD.mnemonic(), Op::ADD.size()),
+                Op::SUB => (Op::SUB.mnemonic(), Op::SUB.size()),
+                Op::MULT => (Op::MULT.mnemonic(), Op::MULT.size()),
+                Op::DIV => (Op::DIV.mnemonic(), Op::DIV.size()),
+                Op::MOD => (Op::MOD.mnemonic(), Op::MOD.size()),
+                Op::EXPON => (Op::EXPON.mnemonic(), Op::EXPON.size()),
+                Op::LSHIFT => (Op::LSHIFT.mnemonic(), Op::LSHIFT.size()),
+                Op::RSHIFT => (Op::RSHIFT.mnemonic(), Op::RSHIFT.size()),
+                Op::BITOR => (Op::BITOR.mnemonic(), Op::BITOR.size()),
+                Op::BITXOR => (Op::BITXOR.mnemonic(), Op::BITXOR.size()),
+                Op::BITAND => (Op::BITAND.mnemonic(), Op::BITAND.size()),
+                Op::EQ => (Op::EQ.mnemonic(), Op::EQ.size()),
+                Op::NEQ => (Op::NEQ.mnemonic(), Op::NEQ.size()),
+                Op::LT => (Op::LT.mnemonic(), Op::LT.size()),
+                Op::GT => (Op::GT.mnemonic(), Op::GT.size()),
+                Op::LE => (Op::LE.mnemonic(), Op::LE.size()),
+                Op::GE => (Op::GE.mnemonic(), Op::GE.size()),
+                Op::STR_EQ => (Op::STR_EQ.mnemonic(), Op::STR_EQ.size()),
+                Op::STR_NEQ => (Op::STR_NEQ.mnemonic(), Op::STR_NEQ.size()),
+                Op::STR_CMP => (Op::STR_CMP.mnemonic(), Op::STR_CMP.size()),
+                Op::STR_LT => (Op::STR_LT.mnemonic(), Op::STR_LT.size()),
+                Op::STR_GT => (Op::STR_GT.mnemonic(), Op::STR_GT.size()),
+                Op::STR_LE => (Op::STR_LE.mnemonic(), Op::STR_LE.size()),
+                Op::STR_GE => (Op::STR_GE.mnemonic(), Op::STR_GE.size()),
+                Op::STR_CONCAT1 => (Op::STR_CONCAT1.mnemonic(), Op::STR_CONCAT1.size()),
+                Op::STR_LEN => (Op::STR_LEN.mnemonic(), Op::STR_LEN.size()),
+                Op::STR_INDEX => (Op::STR_INDEX.mnemonic(), Op::STR_INDEX.size()),
+                Op::LIST => (Op::LIST.mnemonic(), Op::LIST.size()),
+                Op::LIST_LENGTH => (Op::LIST_LENGTH.mnemonic(), Op::LIST_LENGTH.size()),
+                Op::LIST_INDEX => (Op::LIST_INDEX.mnemonic(), Op::LIST_INDEX.size()),
+                Op::LIST_INDEX_IMM => (Op::LIST_INDEX_IMM.mnemonic(), Op::LIST_INDEX_IMM.size()),
+                Op::LIST_RANGE_IMM => (Op::LIST_RANGE_IMM.mnemonic(), Op::LIST_RANGE_IMM.size()),
+                Op::LINDEX_MULTI => (Op::LINDEX_MULTI.mnemonic(), Op::LINDEX_MULTI.size()),
+                Op::APPEND_SCALAR1 => (Op::APPEND_SCALAR1.mnemonic(), Op::APPEND_SCALAR1.size()),
+                Op::APPEND_SCALAR4 => (Op::APPEND_SCALAR4.mnemonic(), Op::APPEND_SCALAR4.size()),
+                Op::LAPPEND_SCALAR1 => (Op::LAPPEND_SCALAR1.mnemonic(), Op::LAPPEND_SCALAR1.size()),
+                Op::LAPPEND_SCALAR4 => (Op::LAPPEND_SCALAR4.mnemonic(), Op::LAPPEND_SCALAR4.size()),
+                Op::APPEND_ARRAY1 => (Op::APPEND_ARRAY1.mnemonic(), Op::APPEND_ARRAY1.size()),
+                Op::APPEND_ARRAY4 => (Op::APPEND_ARRAY4.mnemonic(), Op::APPEND_ARRAY4.size()),
+                Op::LAPPEND_ARRAY1 => (Op::LAPPEND_ARRAY1.mnemonic(), Op::LAPPEND_ARRAY1.size()),
+                Op::LAPPEND_ARRAY4 => (Op::LAPPEND_ARRAY4.mnemonic(), Op::LAPPEND_ARRAY4.size()),
+                Op::RETURN_IMM => (Op::RETURN_IMM.mnemonic(), Op::RETURN_IMM.size()),
+                Op::DONE => (Op::DONE.mnemonic(), Op::DONE.size()),
+                Op::START_CMD => (Op::START_CMD.mnemonic(), Op::START_CMD.size()),
+                Op::BREAK => (Op::BREAK.mnemonic(), Op::BREAK.size()),
+                Op::CONTINUE => (Op::CONTINUE.mnemonic(), Op::CONTINUE.size()),
+                Op::BEGIN_CATCH4 => (Op::BEGIN_CATCH4.mnemonic(), Op::BEGIN_CATCH4.size()),
+                Op::END_CATCH => (Op::END_CATCH.mnemonic(), Op::END_CATCH.size()),
+                Op::PUSH_RESULT => (Op::PUSH_RESULT.mnemonic(), Op::PUSH_RESULT.size()),
+                Op::PUSH_RETURN_CODE => {
+                    (Op::PUSH_RETURN_CODE.mnemonic(), Op::PUSH_RETURN_CODE.size())
+                }
+                Op::RETURN_CODE_BRANCH => (
+                    Op::RETURN_CODE_BRANCH.mnemonic(),
+                    Op::RETURN_CODE_BRANCH.size(),
+                ),
+                Op::FOREACH_START => (Op::FOREACH_START.mnemonic(), Op::FOREACH_START.size()),
+                Op::FOREACH_STEP => (Op::FOREACH_STEP.mnemonic(), Op::FOREACH_STEP.size()),
+                Op::FOREACH_END => (Op::FOREACH_END.mnemonic(), Op::FOREACH_END.size()),
+                Op::LMAP_COLLECT => (Op::LMAP_COLLECT.mnemonic(), Op::LMAP_COLLECT.size()),
+                Op::DICT_FIRST => (Op::DICT_FIRST.mnemonic(), Op::DICT_FIRST.size()),
+                Op::DICT_NEXT => (Op::DICT_NEXT.mnemonic(), Op::DICT_NEXT.size()),
+                Op::DICT_UPDATE_START => (
+                    Op::DICT_UPDATE_START.mnemonic(),
+                    Op::DICT_UPDATE_START.size(),
+                ),
+                Op::DICT_UPDATE_END => (Op::DICT_UPDATE_END.mnemonic(), Op::DICT_UPDATE_END.size()),
+                Op::DICT_EXPAND => (Op::DICT_EXPAND.mnemonic(), Op::DICT_EXPAND.size()),
+                Op::DICT_RECOMBINE_IMM => (
+                    Op::DICT_RECOMBINE_IMM.mnemonic(),
+                    Op::DICT_RECOMBINE_IMM.size(),
+                ),
+                Op::DICT_RECOMBINE_STK => (
+                    Op::DICT_RECOMBINE_STK.mnemonic(),
+                    Op::DICT_RECOMBINE_STK.size(),
+                ),
+                Op::DICT_GET_DEF => (Op::DICT_GET_DEF.mnemonic(), Op::DICT_GET_DEF.size()),
+                Op::JUMP_TABLE => (Op::JUMP_TABLE.mnemonic(), Op::JUMP_TABLE.size()),
+                Op::NOP => (Op::NOP.mnemonic(), Op::NOP.size()),
+                Op::UMINUS => (Op::UMINUS.mnemonic(), Op::UMINUS.size()),
+                Op::UPLUS => (Op::UPLUS.mnemonic(), Op::UPLUS.size()),
+                Op::BITNOT => (Op::BITNOT.mnemonic(), Op::BITNOT.size()),
+                Op::LNOT => (Op::LNOT.mnemonic(), Op::LNOT.size()),
+                Op::NOT => (Op::NOT.mnemonic(), Op::NOT.size()),
+                Op::LAND => (Op::LAND.mnemonic(), Op::LAND.size()),
+                Op::LOR => (Op::LOR.mnemonic(), Op::LOR.size()),
+                Op::LIST_IN => (Op::LIST_IN.mnemonic(), Op::LIST_IN.size()),
+                Op::LIST_NOT_IN => (Op::LIST_NOT_IN.mnemonic(), Op::LIST_NOT_IN.size()),
+                Op::STR_MAP => (Op::STR_MAP.mnemonic(), Op::STR_MAP.size()),
+                Op::STR_FIND => (Op::STR_FIND.mnemonic(), Op::STR_FIND.size()),
+                Op::STR_RFIND => (Op::STR_RFIND.mnemonic(), Op::STR_RFIND.size()),
+                Op::STR_REPLACE => (Op::STR_REPLACE.mnemonic(), Op::STR_REPLACE.size()),
+                Op::STR_TRIM => (Op::STR_TRIM.mnemonic(), Op::STR_TRIM.size()),
+                Op::STR_TRIM_LEFT => (Op::STR_TRIM_LEFT.mnemonic(), Op::STR_TRIM_LEFT.size()),
+                Op::STR_TRIM_RIGHT => (Op::STR_TRIM_RIGHT.mnemonic(), Op::STR_TRIM_RIGHT.size()),
+                Op::STR_MATCH => (Op::STR_MATCH.mnemonic(), Op::STR_MATCH.size()),
+                Op::STR_UPPER => (Op::STR_UPPER.mnemonic(), Op::STR_UPPER.size()),
+                Op::STR_LOWER => (Op::STR_LOWER.mnemonic(), Op::STR_LOWER.size()),
+                Op::STR_TITLE => (Op::STR_TITLE.mnemonic(), Op::STR_TITLE.size()),
+                Op::STR_RANGE => (Op::STR_RANGE.mnemonic(), Op::STR_RANGE.size()),
+                Op::STR_RANGE_IMM => (Op::STR_RANGE_IMM.mnemonic(), Op::STR_RANGE_IMM.size()),
+                Op::STR_REVERSE => (Op::STR_REVERSE.mnemonic(), Op::STR_REVERSE.size()),
+                Op::STR_REPEAT => (Op::STR_REPEAT.mnemonic(), Op::STR_REPEAT.size()),
+                Op::REGEXP => (Op::REGEXP.mnemonic(), Op::REGEXP.size()),
+                Op::STORE_STK => (Op::STORE_STK.mnemonic(), Op::STORE_STK.size()),
+                Op::LOAD_STK => (Op::LOAD_STK.mnemonic(), Op::LOAD_STK.size()),
+                Op::STORE_ARRAY_STK => (Op::STORE_ARRAY_STK.mnemonic(), Op::STORE_ARRAY_STK.size()),
+                Op::LOAD_ARRAY_STK => (Op::LOAD_ARRAY_STK.mnemonic(), Op::LOAD_ARRAY_STK.size()),
+                Op::LOAD_SCALAR_STK => (Op::LOAD_SCALAR_STK.mnemonic(), Op::LOAD_SCALAR_STK.size()),
+                Op::STORE_SCALAR_STK => {
+                    (Op::STORE_SCALAR_STK.mnemonic(), Op::STORE_SCALAR_STK.size())
+                }
+                Op::INCR_STK => (Op::INCR_STK.mnemonic(), Op::INCR_STK.size()),
+                Op::INCR_STK_IMM => (Op::INCR_STK_IMM.mnemonic(), Op::INCR_STK_IMM.size()),
+                Op::INCR_ARRAY_STK_IMM => (
+                    Op::INCR_ARRAY_STK_IMM.mnemonic(),
+                    Op::INCR_ARRAY_STK_IMM.size(),
+                ),
+                Op::INCR_SCALAR_STK => (Op::INCR_SCALAR_STK.mnemonic(), Op::INCR_SCALAR_STK.size()),
+                Op::INCR_SCALAR_STK_IMM => (
+                    Op::INCR_SCALAR_STK_IMM.mnemonic(),
+                    Op::INCR_SCALAR_STK_IMM.size(),
+                ),
+                Op::INCR_ARRAY1 => (Op::INCR_ARRAY1.mnemonic(), Op::INCR_ARRAY1.size()),
+                Op::INCR_ARRAY1_IMM => (Op::INCR_ARRAY1_IMM.mnemonic(), Op::INCR_ARRAY1_IMM.size()),
+                Op::INCR_ARRAY_STK => (Op::INCR_ARRAY_STK.mnemonic(), Op::INCR_ARRAY_STK.size()),
+                Op::APPEND_STK => (Op::APPEND_STK.mnemonic(), Op::APPEND_STK.size()),
+                Op::LAPPEND_STK => (Op::LAPPEND_STK.mnemonic(), Op::LAPPEND_STK.size()),
+                Op::APPEND_ARRAY_STK => {
+                    (Op::APPEND_ARRAY_STK.mnemonic(), Op::APPEND_ARRAY_STK.size())
+                }
+                Op::LAPPEND_ARRAY_STK => (
+                    Op::LAPPEND_ARRAY_STK.mnemonic(),
+                    Op::LAPPEND_ARRAY_STK.size(),
+                ),
+                Op::LAPPEND_LIST => (Op::LAPPEND_LIST.mnemonic(), Op::LAPPEND_LIST.size()),
+                Op::LAPPEND_LIST_STK => {
+                    (Op::LAPPEND_LIST_STK.mnemonic(), Op::LAPPEND_LIST_STK.size())
+                }
+                Op::LAPPEND_LIST_ARRAY_STK => (
+                    Op::LAPPEND_LIST_ARRAY_STK.mnemonic(),
+                    Op::LAPPEND_LIST_ARRAY_STK.size(),
+                ),
+                Op::STORE_ARRAY1 => (Op::STORE_ARRAY1.mnemonic(), Op::STORE_ARRAY1.size()),
+                Op::LOAD_ARRAY1 => (Op::LOAD_ARRAY1.mnemonic(), Op::LOAD_ARRAY1.size()),
+                Op::STORE_ARRAY4 => (Op::STORE_ARRAY4.mnemonic(), Op::STORE_ARRAY4.size()),
+                Op::LOAD_ARRAY4 => (Op::LOAD_ARRAY4.mnemonic(), Op::LOAD_ARRAY4.size()),
+                Op::LAPPEND_LIST_ARRAY => (
+                    Op::LAPPEND_LIST_ARRAY.mnemonic(),
+                    Op::LAPPEND_LIST_ARRAY.size(),
+                ),
+                Op::ARRAY_EXISTS_IMM => {
+                    (Op::ARRAY_EXISTS_IMM.mnemonic(), Op::ARRAY_EXISTS_IMM.size())
+                }
+                Op::ARRAY_EXISTS_STK => {
+                    (Op::ARRAY_EXISTS_STK.mnemonic(), Op::ARRAY_EXISTS_STK.size())
+                }
+                Op::ARRAY_MAKE_IMM => (Op::ARRAY_MAKE_IMM.mnemonic(), Op::ARRAY_MAKE_IMM.size()),
+                Op::ARRAY_MAKE_STK => (Op::ARRAY_MAKE_STK.mnemonic(), Op::ARRAY_MAKE_STK.size()),
+                Op::UNSET_STK => (Op::UNSET_STK.mnemonic(), Op::UNSET_STK.size()),
+                Op::UNSET_SCALAR => (Op::UNSET_SCALAR.mnemonic(), Op::UNSET_SCALAR.size()),
+                Op::UNSET_ARRAY => (Op::UNSET_ARRAY.mnemonic(), Op::UNSET_ARRAY.size()),
+                Op::UNSET_ARRAY_STK => (Op::UNSET_ARRAY_STK.mnemonic(), Op::UNSET_ARRAY_STK.size()),
+                Op::EXIST_ARRAY => (Op::EXIST_ARRAY.mnemonic(), Op::EXIST_ARRAY.size()),
+                Op::EXIST_ARRAY_STK => (Op::EXIST_ARRAY_STK.mnemonic(), Op::EXIST_ARRAY_STK.size()),
+                Op::CONST_IMM => (Op::CONST_IMM.mnemonic(), Op::CONST_IMM.size()),
+                Op::CONST_STK => (Op::CONST_STK.mnemonic(), Op::CONST_STK.size()),
+                Op::VARIABLE => (Op::VARIABLE.mnemonic(), Op::VARIABLE.size()),
+                Op::TAILCALL => (Op::TAILCALL.mnemonic(), Op::TAILCALL.size()),
+                Op::CONCAT_STK => (Op::CONCAT_STK.mnemonic(), Op::CONCAT_STK.size()),
+                Op::TRY_CVT_TO_NUMERIC => (
+                    Op::TRY_CVT_TO_NUMERIC.mnemonic(),
+                    Op::TRY_CVT_TO_NUMERIC.size(),
+                ),
+                Op::VERIFY_DICT => (Op::VERIFY_DICT.mnemonic(), Op::VERIFY_DICT.size()),
+                Op::DICT_GET => (Op::DICT_GET.mnemonic(), Op::DICT_GET.size()),
+                Op::DICT_EXISTS => (Op::DICT_EXISTS.mnemonic(), Op::DICT_EXISTS.size()),
+                Op::INVOKE_REPLACE => (Op::INVOKE_REPLACE.mnemonic(), Op::INVOKE_REPLACE.size()),
+                Op::EXIST_STK => (Op::EXIST_STK.mnemonic(), Op::EXIST_STK.size()),
+                Op::EXIST_SCALAR => (Op::EXIST_SCALAR.mnemonic(), Op::EXIST_SCALAR.size()),
+                Op::DICT_SET => (Op::DICT_SET.mnemonic(), Op::DICT_SET.size()),
+                Op::DICT_UNSET => (Op::DICT_UNSET.mnemonic(), Op::DICT_UNSET.size()),
+                Op::DICT_INCR_IMM => (Op::DICT_INCR_IMM.mnemonic(), Op::DICT_INCR_IMM.size()),
+                Op::DICT_APPEND => (Op::DICT_APPEND.mnemonic(), Op::DICT_APPEND.size()),
+                Op::DICT_LAPPEND => (Op::DICT_LAPPEND.mnemonic(), Op::DICT_LAPPEND.size()),
+                Op::UPVAR => (Op::UPVAR.mnemonic(), Op::UPVAR.size()),
+                Op::NSUPVAR => (Op::NSUPVAR.mnemonic(), Op::NSUPVAR.size()),
+                Op::LREPLACE4 => (Op::LREPLACE4.mnemonic(), Op::LREPLACE4.size()),
+                Op::OVER => (Op::OVER.mnemonic(), Op::OVER.size()),
+                Op::LSET_FLAT => (Op::LSET_FLAT.mnemonic(), Op::LSET_FLAT.size()),
+                Op::LSET_LIST => (Op::LSET_LIST.mnemonic(), Op::LSET_LIST.size()),
+                Op::LIST_CONCAT => (Op::LIST_CONCAT.mnemonic(), Op::LIST_CONCAT.size()),
+                Op::PUSH_RETURN_OPTS => {
+                    (Op::PUSH_RETURN_OPTS.mnemonic(), Op::PUSH_RETURN_OPTS.size())
+                }
+                Op::RETURN_STK => (Op::RETURN_STK.mnemonic(), Op::RETURN_STK.size()),
+                Op::REVERSE => (Op::REVERSE.mnemonic(), Op::REVERSE.size()),
+                Op::NUMERIC_TYPE => (Op::NUMERIC_TYPE.mnemonic(), Op::NUMERIC_TYPE.size()),
+                Op::TRY_CVT_TO_BOOLEAN => (
+                    Op::TRY_CVT_TO_BOOLEAN.mnemonic(),
+                    Op::TRY_CVT_TO_BOOLEAN.size(),
+                ),
+                Op::STR_CLASS => (Op::STR_CLASS.mnemonic(), Op::STR_CLASS.size()),
+                Op::SYNTAX => (Op::SYNTAX.mnemonic(), Op::SYNTAX.size()),
+                Op::IRULE_CONTAINS => (Op::IRULE_CONTAINS.mnemonic(), Op::IRULE_CONTAINS.size()),
+                Op::IRULE_STARTS_WITH => (
+                    Op::IRULE_STARTS_WITH.mnemonic(),
+                    Op::IRULE_STARTS_WITH.size(),
+                ),
+                Op::IRULE_ENDS_WITH => (Op::IRULE_ENDS_WITH.mnemonic(), Op::IRULE_ENDS_WITH.size()),
+                Op::IRULE_EQUALS => (Op::IRULE_EQUALS.mnemonic(), Op::IRULE_EQUALS.size()),
+                Op::IRULE_MATCHES_GLOB => (
+                    Op::IRULE_MATCHES_GLOB.mnemonic(),
+                    Op::IRULE_MATCHES_GLOB.size(),
+                ),
+                Op::IRULE_MATCHES_REGEX => (
+                    Op::IRULE_MATCHES_REGEX.mnemonic(),
+                    Op::IRULE_MATCHES_REGEX.size(),
+                ),
+                Op::IRULE_WORD_AND => (Op::IRULE_WORD_AND.mnemonic(), Op::IRULE_WORD_AND.size()),
+                Op::IRULE_WORD_OR => (Op::IRULE_WORD_OR.mnemonic(), Op::IRULE_WORD_OR.size()),
+                Op::IRULE_WORD_NOT => (Op::IRULE_WORD_NOT.mnemonic(), Op::IRULE_WORD_NOT.size()),
+                Op::EXPAND_START => (Op::EXPAND_START.mnemonic(), Op::EXPAND_START.size()),
+                Op::EXPAND_STKTOP => (Op::EXPAND_STKTOP.mnemonic(), Op::EXPAND_STKTOP.size()),
+                Op::INVOKE_EXPANDED => (Op::INVOKE_EXPANDED.mnemonic(), Op::INVOKE_EXPANDED.size()),
+                Op::EXPAND_DROP => (Op::EXPAND_DROP.mnemonic(), Op::EXPAND_DROP.size()),
+                Op::CURRENT_NAMESPACE => (
+                    Op::CURRENT_NAMESPACE.mnemonic(),
+                    Op::CURRENT_NAMESPACE.size(),
+                ),
+                Op::INFO_LEVEL_NUM => (Op::INFO_LEVEL_NUM.mnemonic(), Op::INFO_LEVEL_NUM.size()),
+                Op::INFO_LEVEL_ARGS => (Op::INFO_LEVEL_ARGS.mnemonic(), Op::INFO_LEVEL_ARGS.size()),
+                Op::RESOLVE_CMD => (Op::RESOLVE_CMD.mnemonic(), Op::RESOLVE_CMD.size()),
+                Op::ORIGIN_CMD => (Op::ORIGIN_CMD.mnemonic(), Op::ORIGIN_CMD.size()),
+                Op::CLOCK_READ => (Op::CLOCK_READ.mnemonic(), Op::CLOCK_READ.size()),
+                Op::YIELD => (Op::YIELD.mnemonic(), Op::YIELD.size()),
+                Op::YIELD_TO_INVOKE => (Op::YIELD_TO_INVOKE.mnemonic(), Op::YIELD_TO_INVOKE.size()),
+                Op::CORO_NAME => (Op::CORO_NAME.mnemonic(), Op::CORO_NAME.size()),
+                Op::TCLOO_SELF => (Op::TCLOO_SELF.mnemonic(), Op::TCLOO_SELF.size()),
+                Op::TCLOO_CLASS => (Op::TCLOO_CLASS.mnemonic(), Op::TCLOO_CLASS.size()),
+                Op::TCLOO_NS => (Op::TCLOO_NS.mnemonic(), Op::TCLOO_NS.size()),
+                Op::TCLOO_IS_OBJECT => (Op::TCLOO_IS_OBJECT.mnemonic(), Op::TCLOO_IS_OBJECT.size()),
+                Op::TCLOO_NEXT => (Op::TCLOO_NEXT.mnemonic(), Op::TCLOO_NEXT.size()),
+                Op::TCLOO_NEXT_CLASS => {
+                    (Op::TCLOO_NEXT_CLASS.mnemonic(), Op::TCLOO_NEXT_CLASS.size())
+                }
+            }
+        }
+        let all = [
+            Op::PUSH1,
+            Op::PUSH4,
+            Op::POP,
+            Op::DUP,
+            Op::LOAD_SCALAR1,
+            Op::LOAD_SCALAR4,
+            Op::STORE_SCALAR1,
+            Op::STORE_SCALAR4,
+            Op::INCR_SCALAR1,
+            Op::INCR_SCALAR1_IMM,
+            Op::INVOKE_STK1,
+            Op::INVOKE_STK4,
+            Op::EVAL_STK,
+            Op::EXPR_STK,
+            Op::JUMP1,
+            Op::JUMP4,
+            Op::JUMP_TRUE1,
+            Op::JUMP_TRUE4,
+            Op::JUMP_FALSE1,
+            Op::JUMP_FALSE4,
+            Op::ADD,
+            Op::SUB,
+            Op::MULT,
+            Op::DIV,
+            Op::MOD,
+            Op::EXPON,
+            Op::LSHIFT,
+            Op::RSHIFT,
+            Op::BITOR,
+            Op::BITXOR,
+            Op::BITAND,
+            Op::EQ,
+            Op::NEQ,
+            Op::LT,
+            Op::GT,
+            Op::LE,
+            Op::GE,
+            Op::STR_EQ,
+            Op::STR_NEQ,
+            Op::STR_CMP,
+            Op::STR_LT,
+            Op::STR_GT,
+            Op::STR_LE,
+            Op::STR_GE,
+            Op::STR_CONCAT1,
+            Op::STR_LEN,
+            Op::STR_INDEX,
+            Op::LIST,
+            Op::LIST_LENGTH,
+            Op::LIST_INDEX,
+            Op::LIST_INDEX_IMM,
+            Op::LIST_RANGE_IMM,
+            Op::LINDEX_MULTI,
+            Op::APPEND_SCALAR1,
+            Op::APPEND_SCALAR4,
+            Op::LAPPEND_SCALAR1,
+            Op::LAPPEND_SCALAR4,
+            Op::APPEND_ARRAY1,
+            Op::APPEND_ARRAY4,
+            Op::LAPPEND_ARRAY1,
+            Op::LAPPEND_ARRAY4,
+            Op::RETURN_IMM,
+            Op::DONE,
+            Op::START_CMD,
+            Op::BREAK,
+            Op::CONTINUE,
+            Op::BEGIN_CATCH4,
+            Op::END_CATCH,
+            Op::PUSH_RESULT,
+            Op::PUSH_RETURN_CODE,
+            Op::RETURN_CODE_BRANCH,
+            Op::FOREACH_START,
+            Op::FOREACH_STEP,
+            Op::FOREACH_END,
+            Op::LMAP_COLLECT,
+            Op::DICT_FIRST,
+            Op::DICT_NEXT,
+            Op::DICT_UPDATE_START,
+            Op::DICT_UPDATE_END,
+            Op::DICT_EXPAND,
+            Op::DICT_RECOMBINE_IMM,
+            Op::DICT_RECOMBINE_STK,
+            Op::DICT_GET_DEF,
+            Op::JUMP_TABLE,
+            Op::NOP,
+            Op::UMINUS,
+            Op::UPLUS,
+            Op::BITNOT,
+            Op::LNOT,
+            Op::NOT,
+            Op::LAND,
+            Op::LOR,
+            Op::LIST_IN,
+            Op::LIST_NOT_IN,
+            Op::STR_MAP,
+            Op::STR_FIND,
+            Op::STR_RFIND,
+            Op::STR_REPLACE,
+            Op::STR_TRIM,
+            Op::STR_TRIM_LEFT,
+            Op::STR_TRIM_RIGHT,
+            Op::STR_MATCH,
+            Op::STR_UPPER,
+            Op::STR_LOWER,
+            Op::STR_TITLE,
+            Op::STR_RANGE,
+            Op::STR_RANGE_IMM,
+            Op::STR_REVERSE,
+            Op::STR_REPEAT,
+            Op::REGEXP,
+            Op::STORE_STK,
+            Op::LOAD_STK,
+            Op::STORE_ARRAY_STK,
+            Op::LOAD_ARRAY_STK,
+            Op::LOAD_SCALAR_STK,
+            Op::STORE_SCALAR_STK,
+            Op::INCR_STK,
+            Op::INCR_STK_IMM,
+            Op::INCR_ARRAY_STK_IMM,
+            Op::INCR_SCALAR_STK,
+            Op::INCR_SCALAR_STK_IMM,
+            Op::INCR_ARRAY1,
+            Op::INCR_ARRAY1_IMM,
+            Op::INCR_ARRAY_STK,
+            Op::APPEND_STK,
+            Op::LAPPEND_STK,
+            Op::APPEND_ARRAY_STK,
+            Op::LAPPEND_ARRAY_STK,
+            Op::LAPPEND_LIST,
+            Op::LAPPEND_LIST_STK,
+            Op::LAPPEND_LIST_ARRAY_STK,
+            Op::STORE_ARRAY1,
+            Op::LOAD_ARRAY1,
+            Op::STORE_ARRAY4,
+            Op::LOAD_ARRAY4,
+            Op::LAPPEND_LIST_ARRAY,
+            Op::ARRAY_EXISTS_IMM,
+            Op::ARRAY_EXISTS_STK,
+            Op::ARRAY_MAKE_IMM,
+            Op::ARRAY_MAKE_STK,
+            Op::UNSET_STK,
+            Op::UNSET_SCALAR,
+            Op::UNSET_ARRAY,
+            Op::UNSET_ARRAY_STK,
+            Op::EXIST_ARRAY,
+            Op::EXIST_ARRAY_STK,
+            Op::CONST_IMM,
+            Op::CONST_STK,
+            Op::VARIABLE,
+            Op::TAILCALL,
+            Op::CONCAT_STK,
+            Op::TRY_CVT_TO_NUMERIC,
+            Op::VERIFY_DICT,
+            Op::DICT_GET,
+            Op::DICT_EXISTS,
+            Op::INVOKE_REPLACE,
+            Op::EXIST_STK,
+            Op::EXIST_SCALAR,
+            Op::DICT_SET,
+            Op::DICT_UNSET,
+            Op::DICT_INCR_IMM,
+            Op::DICT_APPEND,
+            Op::DICT_LAPPEND,
+            Op::UPVAR,
+            Op::NSUPVAR,
+            Op::LREPLACE4,
+            Op::OVER,
+            Op::LSET_FLAT,
+            Op::LSET_LIST,
+            Op::LIST_CONCAT,
+            Op::PUSH_RETURN_OPTS,
+            Op::RETURN_STK,
+            Op::REVERSE,
+            Op::NUMERIC_TYPE,
+            Op::TRY_CVT_TO_BOOLEAN,
+            Op::STR_CLASS,
+            Op::SYNTAX,
+            Op::IRULE_CONTAINS,
+            Op::IRULE_STARTS_WITH,
+            Op::IRULE_ENDS_WITH,
+            Op::IRULE_EQUALS,
+            Op::IRULE_MATCHES_GLOB,
+            Op::IRULE_MATCHES_REGEX,
+            Op::IRULE_WORD_AND,
+            Op::IRULE_WORD_OR,
+            Op::IRULE_WORD_NOT,
+            Op::EXPAND_START,
+            Op::EXPAND_STKTOP,
+            Op::INVOKE_EXPANDED,
+            Op::EXPAND_DROP,
+            Op::CURRENT_NAMESPACE,
+            Op::INFO_LEVEL_NUM,
+            Op::INFO_LEVEL_ARGS,
+            Op::RESOLVE_CMD,
+            Op::ORIGIN_CMD,
+            Op::CLOCK_READ,
+            Op::YIELD,
+            Op::YIELD_TO_INVOKE,
+            Op::CORO_NAME,
+            Op::TCLOO_SELF,
+            Op::TCLOO_CLASS,
+            Op::TCLOO_NS,
+            Op::TCLOO_IS_OBJECT,
+            Op::TCLOO_NEXT,
+            Op::TCLOO_NEXT_CLASS,
+        ];
+        for op in all {
+            let (mnemonic, size) = touch(op);
+            assert!(!mnemonic.is_empty());
+            assert!((1..=9).contains(&size), "{mnemonic}: size {size}");
+        }
     }
 
     #[test]

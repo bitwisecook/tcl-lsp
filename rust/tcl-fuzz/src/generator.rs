@@ -46,6 +46,26 @@ pub struct GenConfig {
     pub max_list_len: usize,
     /// Maximum expression nesting depth.
     pub max_expr_depth: u32,
+    /// How often a top-level statement is a deliberately **malformed**
+    /// expression, in parts per thousand (so `20` = 2% of top-level
+    /// statements). `0` disables the production entirely.
+    ///
+    /// Until this existed, `Gen::expr` and `Gen::expr_leaf` could only ever
+    /// build a *well-formed* expression, so the fuzzer was structurally
+    /// incapable of generating an `expr` syntax error and that whole bug class
+    /// was invisible to every campaign — see the `Malformed` shape list.
+    ///
+    /// The default is deliberately low. A malformed expression is emitted
+    /// uncaught, so it aborts the script and the statements after it never
+    /// run; at 2% per statement (mean ~5 top-level statements per script)
+    /// roughly one script in ten carries one, which reaches the class often
+    /// enough for a routine campaign to cover it while leaving the large
+    /// majority of the budget on well-formed semantics. Turn it up for a
+    /// campaign aimed at this class, or to `0` to opt out — at `0` no random
+    /// draw is consumed either, so a rate-`0` campaign reproduces the
+    /// pre-existing generator stream exactly and historical findings still
+    /// replay from their recorded seeds.
+    pub malformed_expr_permille: u32,
 }
 
 impl Default for GenConfig {
@@ -55,6 +75,7 @@ impl Default for GenConfig {
             max_stmts: 10,
             max_list_len: 5,
             max_expr_depth: 3,
+            malformed_expr_permille: 20,
         }
     }
 }
@@ -75,6 +96,144 @@ const PROC_NAMES: &[&str] = &["p0", "p1", "p2", "helper", "compute"];
 /// VM gap, so steering clear of it keeps a divergence pointed at a real
 /// miscompile rather than name-normalisation noise.
 const NS_NAMES: &[&str] = &["n1", "n2", "ns"];
+
+/// One way an expression can be malformed.
+///
+/// The list is **derived from C**, not invented: every `errCode = "..."` that
+/// `ParseExpr` in `generic/tclCompExpr.c` can reach has a representative here
+/// — `BADCHAR`, `PARTOP`, `BAREWORD`, `BADNUMBER`, `MISSING`, `UNBALANCED`,
+/// `EMPTY`, `SURPRISE` — the sole omission being `NOMEM`, an out-of-memory
+/// path no generated source can provoke. C's own coverage of these is the
+/// `parseExpr-21.*` case family in `tests/parseExpr.test`. Two further shapes
+/// cover the failures `expr` reports from the `::tcl::mathfunc` *command*
+/// layer rather than the parser ([`Self::FunctionArity`],
+/// [`Self::UnknownFunction`]): from outside, a caller cannot tell which layer
+/// refused the expression, and both are `expr` failure modes a real script
+/// hits.
+///
+/// **Every shape is a well-formed Tcl word.** The malformed-ness is confined
+/// to the *expression* grammar. A shape that instead broke `Tcl_ParseCommand`
+/// — an unterminated brace or quote, or a trailing backslash — would make the
+/// whole *script* unparsable, which is a different layer and a uniformly
+/// uninteresting whole-script failure, so no shape here contains a brace,
+/// bracket, double quote, or backslash. That is asserted over the real
+/// generated corpus by `malformed_expressions_stay_inside_the_expr_grammar`.
+///
+/// Every shape's rendered form was checked against a real `tclsh9.0.4`: each
+/// is `[info complete]` as a script *and* raises the C error family its
+/// documentation names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Malformed {
+    /// `1 +` — a binary operator with no right operand. C: `MISSING`,
+    /// "missing operand" (parseExpr-21.22, -21.25).
+    TrailingOperator,
+    /// `1 2` — two adjacent operands with no operator between them. C:
+    /// `MISSING`, "missing operator" (parseExpr-21.6).
+    MissingOperator,
+    /// The empty expression. C: `EMPTY`, "empty expression" (parseExpr-21.19).
+    EmptyExpression,
+    /// `foo bar baz` — an unquoted bareword. C: `BAREWORD`, "invalid
+    /// bareword" (parseExpr-21.3, -21.4).
+    Bareword,
+    /// `(1 + 2` — an unclosed open paren. C: `UNBALANCED`, "unbalanced open
+    /// paren" (parseExpr-21.17, -21.26).
+    UnbalancedOpenParen,
+    /// `1 + 2)` — a close paren with no opener. C: `UNBALANCED`, "unbalanced
+    /// close paren" (parseExpr-21.20, -21.29).
+    UnbalancedCloseParen,
+    /// `!` — a unary operator with no operand at all. C: `MISSING`, "missing
+    /// operand".
+    LoneUnary,
+    /// `1 @ 2` — a character the expression lexer maps to `INVALID`. C:
+    /// `BADCHAR`, "invalid character" (parseExpr-21.1, -21.34..-21.36).
+    InvalidCharacter,
+    /// `=` — the one-character prefix of a two-character operator. C:
+    /// `PARTOP`, "incomplete operator" (parseExpr-21.2).
+    IncompleteOperator,
+    /// `()` — parens around nothing, outside a function argument list. C:
+    /// `EMPTY`, "empty subexpression" (parseExpr-21.16).
+    EmptySubexpression,
+    /// `max(1, )` — a function argument list with a hole in it. C: `MISSING`
+    /// / `UNBALANCED`, "missing function argument" (parseExpr-21.18, -21.21).
+    MissingFunctionArgument,
+    /// `sin(1, 2)` / `sin()` — a known math function called with the wrong
+    /// number of arguments. Reported by the `::tcl::mathfunc` command layer:
+    /// `TCL WRONGARGS`, "too many/not enough arguments for math function".
+    FunctionArity,
+    /// `nosuchfn(1)` — a function that does not exist. Also the command
+    /// layer: `TCL LOOKUP COMMAND`, "invalid command name
+    /// `tcl::mathfunc::…`".
+    UnknownFunction,
+    /// `1 : 2` — a `:` with no preceding `?`. C: `SURPRISE`, "unexpected
+    /// operator \":\" without preceding \"?\"" (parseExpr-21.28).
+    StrayColon,
+    /// `1 , 2` — a `,` outside a function argument list. C: `SURPRISE`,
+    /// "unexpected \",\" outside function argument list" (parseExpr-21.30..-21.32).
+    StrayComma,
+    /// `1 ? 2` — a ternary missing its `:` arm. C: `MISSING`, "missing
+    /// operator \":\"" (parseExpr-21.27).
+    MissingColon,
+    /// `0o8` — a numeric literal whose digits do not fit its radix. C:
+    /// `BADNUMBER`, "invalid octal/binary number" (parseExpr-21.7, -21.8).
+    BadNumber,
+    /// `# nope` — a body that is nothing but a TIP 582 expression comment.
+    /// The comment is skipped, leaving nothing, so C reports `EMPTY`, "empty
+    /// expression". Note this shape is Tcl-9-specific in its *wording*: 8.6
+    /// has no expression comments and calls `#` an invalid character
+    /// instead. Both releases error, which is what the status comparison
+    /// needs; only an error-text comparison is version-sensitive here.
+    CommentOnly,
+}
+
+impl Malformed {
+    /// Every shape, so the generator draws uniformly over them and the tests
+    /// can assert each one is reachable.
+    const ALL: &'static [Self] = &[
+        Self::TrailingOperator,
+        Self::MissingOperator,
+        Self::EmptyExpression,
+        Self::Bareword,
+        Self::UnbalancedOpenParen,
+        Self::UnbalancedCloseParen,
+        Self::LoneUnary,
+        Self::InvalidCharacter,
+        Self::IncompleteOperator,
+        Self::EmptySubexpression,
+        Self::MissingFunctionArgument,
+        Self::FunctionArity,
+        Self::UnknownFunction,
+        Self::StrayColon,
+        Self::StrayComma,
+        Self::MissingColon,
+        Self::BadNumber,
+        Self::CommentOnly,
+    ];
+}
+
+/// Barewords for [`Malformed::Bareword`]. Deliberately excludes every word C
+/// Tcl *accepts* as a bareword operand — the boolean literals
+/// (`true`/`false`/`yes`/`no`/`on`/`off`) and `inf`/`nan` — since those parse
+/// fine (checked against `tclsh9.0.4`: `expr {true}` is `1`, not an error),
+/// which would make the shape silently well-formed and the coverage claim
+/// false.
+const MALFORMED_BAREWORDS: &[&str] = &["foo", "bar", "baz", "qux", "hello"];
+
+/// Characters C Tcl's expression lexer maps to `INVALID`, for
+/// [`Malformed::InvalidCharacter`]. Restricted to characters that are also
+/// safe inside a braced Tcl word: no brace or bracket (word-level breakage),
+/// no double quote, and no backslash (which would escape the word's closing
+/// brace and break `Tcl_ParseCommand` instead). `$` is excluded for a
+/// different reason: `$` *followed by a name* is a variable read, so it only
+/// reaches `BADCHAR` in some positions — these three do so in every position.
+const MALFORMED_BADCHARS: &[&str] = &["@", "`", "'"];
+
+/// Binary operators used to build [`Malformed::TrailingOperator`]. Includes
+/// the word operators (`eq`/`ne`/`in`/`ni`/`lt`/`gt`) as well as the symbolic
+/// ones, so the dangling-operand shape covers both lexeme kinds.
+const MALFORMED_BINARY_OPS: &[&str] = &[
+    "+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&&", "||", "&", "|", "^", "<<",
+    ">>", "**", "eq", "ne", "in", "ni", "lt", "gt",
+];
 
 /// Generate one script from `seed`.
 #[must_use]
@@ -114,6 +273,29 @@ impl Gen {
 
     /// Emit one statement at nesting `depth`.
     fn statement(&mut self, depth: u32) {
+        // A deliberately malformed expression, at the configured rate.
+        //
+        // Top-level only, for two reasons that both decide whether the
+        // comparison is meaningful. Nested inside a `proc` body it would not
+        // fire at all in C Tcl (which compiles a body lazily, at first call,
+        // so a syntax error in an *uncalled* proc is never reported) while an
+        // eagerly-compiling engine would error at definition time — a
+        // status mismatch about compile *timing*, not about the expression.
+        // Nested inside a `catch`/`try` body the error would be swallowed,
+        // erasing the very status difference this production exists to
+        // expose. At depth 0 it is neither deferred nor caught.
+        //
+        // Both guards are checked before `chance`, so a rate of 0 consumes no
+        // random draw and leaves the generated stream byte-identical to what
+        // it was before this production existed (see
+        // `GenConfig::malformed_expr_permille`).
+        if depth == 0
+            && self.config.malformed_expr_permille > 0
+            && self.rng.chance(self.config.malformed_expr_permille, 1000)
+        {
+            self.malformed_expr_stmt();
+            return;
+        }
         // At max depth, only emit leaf (non-nesting) statements.
         let leaf = depth >= self.config.max_depth || self.rng.chance(2, 3);
         if leaf {
@@ -916,11 +1098,288 @@ _cff2 _cfu; puts [info exists _cfu]}\n_cff0\n",
             _ => format!("{}.{}", self.rng.below(10), self.rng.below(10)),
         }
     }
+
+    /// Emit a statement whose expression is deliberately malformed, so the
+    /// differential actually sees an `expr` syntax error.
+    ///
+    /// Emitted **uncaught**. C Tcl raises an error here, so an engine that
+    /// instead evaluates the broken source to some value diverges as
+    /// [`crate::harness::Verdict::StatusMismatch`] — one engine errored, the
+    /// other did not. That is precisely how the real bug this production
+    /// exists for would have been caught: an unparsable runtime expression
+    /// evaluated to its own source text, so `expr {1+}` quietly returned the
+    /// string `1+` instead of failing. Wrapping the statement in `catch` would
+    /// swallow exactly that signal.
+    ///
+    /// Three contexts, all of which reach the same C `ParseExpr`: `expr` as a
+    /// command argument, an `if` condition, and an `expr` result being
+    /// assigned. Loop conditions (`while`/`for`) are deliberately excluded: an
+    /// engine that wrongly accepted a malformed condition as true would spin
+    /// until the harness timeout, degrading a crisp status mismatch into a slow
+    /// and much less informative `Timeout` finding.
+    fn malformed_expr_stmt(&mut self) {
+        let e = self.malformed_expr();
+        match self.rng.below(3) {
+            0 => {
+                let _ = writeln!(self.out, "puts [expr {{{e}}}]");
+            }
+            1 => {
+                let _ = writeln!(self.out, "if {{{e}}} {{puts _mx}}");
+            }
+            // Assigns through a private `_mx*` name so that, whichever
+            // statement slot this lands in, it cannot perturb the shared
+            // variable pool the rest of the script reads.
+            _ => {
+                let _ = writeln!(self.out, "set _mxv [expr {{{e}}}]");
+            }
+        }
+    }
+
+    /// The source text of one malformed expression, drawn uniformly from
+    /// [`Malformed::ALL`].
+    fn malformed_expr(&mut self) -> String {
+        let mode = *self.rng.pick(Malformed::ALL);
+        self.render_malformed(mode)
+    }
+
+    /// Render `mode` as expression source. [`Malformed`] documents the C error
+    /// family each shape provokes and where `tests/parseExpr.test` covers it.
+    fn render_malformed(&mut self, mode: Malformed) -> String {
+        match mode {
+            Malformed::TrailingOperator => {
+                let op = *self.rng.pick(MALFORMED_BINARY_OPS);
+                let a = self.expr_leaf();
+                format!("{a} {op}")
+            }
+            Malformed::MissingOperator => {
+                let a = self.expr_leaf();
+                let b = self.expr_leaf();
+                format!("{a} {b}")
+            }
+            Malformed::EmptyExpression => String::new(),
+            Malformed::Bareword => {
+                let n = 1 + self.rng.below(3);
+                let mut words = Vec::with_capacity(n);
+                for _ in 0..n {
+                    words.push(*self.rng.pick(MALFORMED_BAREWORDS));
+                }
+                words.join(" ")
+            }
+            Malformed::UnbalancedOpenParen => {
+                let a = self.expr_leaf();
+                let b = self.expr_leaf();
+                if self.rng.chance(1, 2) {
+                    format!("({a} + {b}")
+                } else {
+                    format!("(({a} + {b})")
+                }
+            }
+            Malformed::UnbalancedCloseParen => {
+                let a = self.expr_leaf();
+                let b = self.expr_leaf();
+                if self.rng.chance(1, 2) {
+                    format!("{a} + {b})")
+                } else {
+                    format!("{a}) + {b}")
+                }
+            }
+            Malformed::LoneUnary => (*self.rng.pick(&["!", "~", "-", "+"])).to_owned(),
+            Malformed::InvalidCharacter => {
+                let c = *self.rng.pick(MALFORMED_BADCHARS);
+                if self.rng.chance(1, 2) {
+                    c.to_owned()
+                } else {
+                    let a = self.expr_leaf();
+                    let b = self.expr_leaf();
+                    format!("{a} {c} {b}")
+                }
+            }
+            Malformed::IncompleteOperator => {
+                if self.rng.chance(1, 2) {
+                    "=".to_owned()
+                } else {
+                    let a = self.expr_leaf();
+                    let b = self.expr_leaf();
+                    format!("{a} = {b}")
+                }
+            }
+            Malformed::EmptySubexpression => {
+                if self.rng.chance(1, 2) {
+                    "()".to_owned()
+                } else {
+                    format!("{} + ()", self.expr_leaf())
+                }
+            }
+            Malformed::StrayColon | Malformed::StrayComma | Malformed::MissingColon => {
+                let punct = match mode {
+                    Malformed::StrayColon => ":",
+                    Malformed::StrayComma => ",",
+                    _ => "?",
+                };
+                let a = self.expr_leaf();
+                let b = self.expr_leaf();
+                format!("{a} {punct} {b}")
+            }
+            Malformed::BadNumber => {
+                let n = *self.rng.pick(&["0o8", "0o9", "0b2", "0b3"]);
+                if self.rng.chance(1, 2) {
+                    n.to_owned()
+                } else {
+                    format!("{} + {n}", self.expr_leaf())
+                }
+            }
+            Malformed::CommentOnly => {
+                if self.rng.chance(1, 2) {
+                    "#".to_owned()
+                } else {
+                    format!("# {}", self.rng.pick(MALFORMED_BAREWORDS))
+                }
+            }
+            Malformed::MissingFunctionArgument
+            | Malformed::FunctionArity
+            | Malformed::UnknownFunction => self.render_malformed_call(mode),
+        }
+    }
+
+    /// The malformed *function-call* shapes, split out of
+    /// [`Self::render_malformed`] to keep each rendering function small.
+    fn render_malformed_call(&mut self, mode: Malformed) -> String {
+        match mode {
+            // A hole in the argument list — a parser error (`MISSING` /
+            // `UNBALANCED`), reached before the function is ever looked up.
+            Malformed::MissingFunctionArgument => {
+                let a = self.expr_leaf();
+                if self.rng.chance(1, 2) {
+                    format!("max({a}, )")
+                } else {
+                    format!("max(, {a})")
+                }
+            }
+            // A real, arity-1 function called with two arguments or none, so
+            // both branches are a genuine arity error.
+            //
+            // Operands are literals, not `expr_leaf()`, and that matters: this
+            // shape and `UnknownFunction` below are the only two that parse
+            // cleanly and fail at *run* time, in the `::tcl::mathfunc` command
+            // layer. `expr_leaf()` can emit a read of a variable the script
+            // never assigned (only `a`/`b`/`i`/`x` are seeded), which would
+            // raise `can't read "y"` *first* and mask the arity error this
+            // shape exists to provoke — measured against a real `tclsh9.0.4`,
+            // that pre-empted 54 of 1461 generated statements before the
+            // operands here were pinned to literals.
+            Malformed::FunctionArity => {
+                let f = *self.rng.pick(&["sin", "cos", "abs", "double", "round"]);
+                if self.rng.chance(1, 2) {
+                    let (a, b) = (self.rng.below(20), self.rng.below(20));
+                    format!("{f}({a}, {b})")
+                } else {
+                    format!("{f}()")
+                }
+            }
+            // A name with no `::tcl::mathfunc` command behind it. Kept clear
+            // of every name the generator itself defines, so a generated proc
+            // can never accidentally make the call resolve. Literal operand
+            // for the same reason as `FunctionArity`.
+            _ => {
+                let f = *self.rng.pick(&["nosuchfn", "notafunc", "bogusfn"]);
+                format!("{f}({})", self.rng.below(20))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A bare [`Gen`], for driving one production directly instead of through
+    /// a whole script.
+    fn gen_with(seed: u64, config: GenConfig) -> Gen {
+        Gen {
+            rng: Rng::new(seed),
+            config,
+            out: String::new(),
+            procs: Vec::new(),
+        }
+    }
+
+    /// Whether `text` has the shape [`Malformed`] documents for `mode`, so the
+    /// per-mode expectation lives next to the assertion that checks it.
+    fn matches_mode(mode: Malformed, text: &str) -> bool {
+        let tokens: Vec<&str> = text.split_whitespace().collect();
+        let starts_with_call =
+            |names: &[&str]| names.iter().any(|f| text.starts_with(&format!("{f}(")));
+        match mode {
+            Malformed::TrailingOperator => {
+                tokens.len() == 2 && MALFORMED_BINARY_OPS.contains(&tokens[1])
+            }
+            Malformed::MissingOperator => {
+                tokens.len() == 2 && !MALFORMED_BINARY_OPS.contains(&tokens[1])
+            }
+            Malformed::EmptyExpression => text.is_empty(),
+            Malformed::Bareword => {
+                !tokens.is_empty() && tokens.iter().all(|t| MALFORMED_BAREWORDS.contains(t))
+            }
+            Malformed::UnbalancedOpenParen => text.matches('(').count() > text.matches(')').count(),
+            Malformed::UnbalancedCloseParen => {
+                text.matches(')').count() > text.matches('(').count()
+            }
+            Malformed::LoneUnary => ["!", "~", "-", "+"].contains(&text),
+            Malformed::InvalidCharacter => MALFORMED_BADCHARS.iter().any(|c| text.contains(*c)),
+            Malformed::IncompleteOperator => text.contains('=') && !text.contains("=="),
+            Malformed::EmptySubexpression => text.contains("()"),
+            Malformed::MissingFunctionArgument => {
+                text.starts_with("max(") && (text.contains(", )") || text.contains("(, "))
+            }
+            Malformed::FunctionArity => starts_with_call(&["sin", "cos", "abs", "double", "round"]),
+            Malformed::UnknownFunction => starts_with_call(&["nosuchfn", "notafunc", "bogusfn"]),
+            Malformed::StrayColon => tokens.len() == 3 && tokens[1] == ":",
+            Malformed::StrayComma => tokens.len() == 3 && tokens[1] == ",",
+            Malformed::MissingColon => tokens.len() == 3 && tokens[1] == "?",
+            Malformed::BadNumber => ["0o8", "0o9", "0b2", "0b3"]
+                .iter()
+                .any(|n| text.contains(n)),
+            Malformed::CommentOnly => text.starts_with('#'),
+        }
+    }
+
+    /// Malformed shapes whose status on our *own* engine is deliberately not
+    /// asserted, because a real divergence against C Tcl is open for them.
+    ///
+    /// `tclvm` still evaluates a radix-invalid numeric literal to its own
+    /// source text — `expr {0o8}` yields the string `0o8`, and likewise `0o9`,
+    /// `0b2`, `0b3` (and, outside this generator's set, `0x` and `0xg`) —
+    /// where C Tcl 9.0.4 raises `invalid bareword "0o8" … (invalid octal
+    /// number?)`. That is the same silent-wrong-answer shape as the `expr {1+}`
+    /// bug, on the numeric-literal path rather than the operator path. It was
+    /// found *by this production* (6 seeds in a 1000-iteration campaign at
+    /// 300‰, 2 in 3000 at the default rate) and is reported for triage, not
+    /// fixed here.
+    ///
+    /// Recorded as "not asserted" rather than "must not error" on purpose:
+    /// fixing the engine must not break this test.
+    const MALFORMED_MODES_WITH_OPEN_DIVERGENCE: &[Malformed] = &[Malformed::BadNumber];
+
+    /// Run `src` on `tcl-vm` in-process; `true` if it reported an error.
+    /// Mirrors `wasm_diff`'s direct arm. Output is discarded — only the
+    /// completion status matters here.
+    fn errors_on_our_engine(src: &str) -> bool {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let ir = tcl_compiler::lowering::lower_to_ir(src, &registry);
+        let cfg = tcl_compiler::cfg_builder::build_cfg_codegen(&ir, false);
+        let asm = tcl_compiler::codegen::codegen_module(&cfg, &ir, &registry);
+        let mut vm = tcl_vm::Vm::with_output(Box::new(std::io::sink()));
+        vm.run_module(&asm).code == tcl_vm::Code::Error
+    }
+
+    /// Whether `out` is one of the three statement forms
+    /// [`Gen::malformed_expr_stmt`] emits.
+    fn is_malformed_stmt(out: &str) -> bool {
+        let line = out.trim_end();
+        line.starts_with("set _mxv [expr {")
+            || (line.starts_with("if {") && line.ends_with("} {puts _mx}"))
+            || (line.starts_with("puts [expr {") && line.ends_with("}]"))
+    }
 
     #[test]
     fn deterministic_for_seed() {
@@ -1286,6 +1745,157 @@ mod tests {
                 assert!(
                     !line.contains(&format!("${v} ")) && !line.ends_with(&format!("${v}")),
                     "caller-frame line touches shared variable {v:?}: {line:?}"
+                );
+            }
+        }
+    }
+
+    /// Every [`Malformed`] shape renders the form its documentation promises,
+    /// so a mode can never silently degrade into a *different* (or, worse, a
+    /// well-formed) expression while still counting towards the coverage claim.
+    #[test]
+    fn malformed_modes_each_render_their_documented_shape() {
+        for mode in Malformed::ALL {
+            for seed in 0..200u64 {
+                let text = gen_with(seed, GenConfig::default()).render_malformed(*mode);
+                assert!(
+                    matches_mode(*mode, &text),
+                    "{mode:?} rendered an unexpected shape: {text:?}"
+                );
+            }
+        }
+    }
+
+    /// The single most important invariant of this production: a malformed
+    /// expression must still be a well-formed Tcl **word**.
+    ///
+    /// The malformed-ness has to stay inside the *expression* grammar. A brace,
+    /// bracket, double quote, or backslash in the rendered text would instead
+    /// break `Tcl_ParseCommand`, making the whole *script* unparsable — a
+    /// different layer of Tcl entirely, and a uniformly uninteresting
+    /// whole-script failure rather than the `expr` syntax error being hunted.
+    /// (A trailing backslash is the subtle one: inside `expr {…}` it would
+    /// escape the word's own closing brace.)
+    #[test]
+    fn malformed_expressions_stay_inside_the_expr_grammar() {
+        for mode in Malformed::ALL {
+            for seed in 0..200u64 {
+                let text = gen_with(seed, GenConfig::default()).render_malformed(*mode);
+                for bad in ['{', '}', '[', ']', '"', '\\'] {
+                    assert!(
+                        !text.contains(bad),
+                        "{mode:?} emitted {bad:?}, which breaks the script parser: {text:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The production is emitted at top level only, and that is load-bearing
+    /// twice over. Nested in a `proc` body C Tcl would not report it at all
+    /// (bodies compile lazily, at first call, so a syntax error in an uncalled
+    /// proc is never raised) while an eagerly-compiling engine would, turning
+    /// the finding into one about compile *timing*. Nested in a `catch`/`try`
+    /// body the error would be swallowed, erasing the very status difference
+    /// the production exists to expose.
+    ///
+    /// With the rate pinned to always fire, depth 0 must always take the
+    /// branch and no deeper depth ever may. The nested half is checked through
+    /// the `_mx` marker, which two of the three statement contexts carry: over
+    /// 600 nested samples that would all be malformed if the guard were
+    /// dropped, missing every marker is vanishingly unlikely.
+    #[test]
+    fn malformed_expr_is_top_level_only() {
+        let always = GenConfig {
+            malformed_expr_permille: 1000,
+            ..GenConfig::default()
+        };
+        for seed in 0..200u64 {
+            let mut top = gen_with(seed, always);
+            top.statement(0);
+            assert!(
+                is_malformed_stmt(&top.out),
+                "depth 0 did not emit the malformed production: {:?}",
+                top.out
+            );
+            for depth in 1..4 {
+                let mut nested = gen_with(seed, always);
+                nested.statement(depth);
+                assert!(
+                    !nested.out.contains("_mx"),
+                    "depth {depth} emitted a malformed expression: {:?}",
+                    nested.out
+                );
+            }
+        }
+    }
+
+    /// A rate of 0 opts out completely, so a campaign can keep the generator's
+    /// pre-existing behaviour (and a registry's historical seeds replaying)
+    /// while this production exists.
+    #[test]
+    fn malformed_expr_rate_zero_opts_out() {
+        let off = GenConfig {
+            malformed_expr_permille: 0,
+            ..GenConfig::default()
+        };
+        for seed in 0..400u64 {
+            let src = generate(seed, &off);
+            assert!(
+                !src.contains("_mx"),
+                "rate 0 still emitted a malformed statement (seed {seed}):\n{src}"
+            );
+        }
+    }
+
+    /// The production must be live at the **default** rate: a knob nobody sets
+    /// is a knob that never runs, and the point of this work was that the
+    /// malformed-expression class was unreachable in ordinary campaigns. Also
+    /// pins the rate's order of magnitude from above, so a routine campaign
+    /// keeps spending most of its budget on well-formed semantics — a
+    /// malformed statement is uncaught, so it aborts the script and everything
+    /// after it goes unexercised.
+    #[test]
+    fn malformed_expressions_reach_scripts_at_the_default_rate() {
+        let cfg = GenConfig::default();
+        let corpus: Vec<String> = (0..1000u64).map(|s| generate(s, &cfg)).collect();
+        let carrying = corpus.iter().filter(|s| s.contains("_mx")).count();
+        assert!(
+            carrying > 0,
+            "the malformed production is dead at the default rate"
+        );
+        assert!(
+            carrying < corpus.len() / 4,
+            "malformed statements dominate the corpus at the default rate: {carrying}/1000"
+        );
+    }
+
+    /// The coverage claim, evidenced rather than asserted: a malformed
+    /// expression from this production really does make *our own* engine report
+    /// an error, so the differential's status comparison has two comparable
+    /// outcomes rather than one engine quietly succeeding.
+    ///
+    /// This is the regression guard for the bug that motivated the whole
+    /// production — an unparsable runtime expression that evaluated to its own
+    /// source text, so `expr {1+}` returned the string `1+` — which no
+    /// generated script could reach before, and which a campaign therefore
+    /// could not have caught.
+    ///
+    /// Drives `tcl-vm` in-process (lower → CFG → codegen → run) exactly as
+    /// `wasm_diff`'s direct arm does, so no external binary is needed.
+    #[test]
+    fn malformed_expressions_error_on_our_engine() {
+        for mode in Malformed::ALL {
+            if MALFORMED_MODES_WITH_OPEN_DIVERGENCE.contains(mode) {
+                continue;
+            }
+            for seed in 0..12u64 {
+                let text = gen_with(seed, GenConfig::default()).render_malformed(*mode);
+                let script = format!("set a 1\nset b 2\nputs [expr {{{text}}}]\n");
+                assert!(
+                    errors_on_our_engine(&script),
+                    "{mode:?} did not error on our engine — the differential would \
+                     see one engine succeed where C Tcl raises a syntax error: {text:?}"
                 );
             }
         }

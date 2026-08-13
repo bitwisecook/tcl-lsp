@@ -47,6 +47,35 @@ impl BracedVarStyle {
     }
 }
 
+/// Whether `#` starts a comment inside an `[expr]` body — Tcl 9.0 added it
+/// (TIP 582).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ExprCommentStyle {
+    /// Tcl 9.x (and the unversioned default): at any point in the expression
+    /// except within double quotes or braces, `#` begins a comment that lasts
+    /// to the end of the line or the end of the expression, whichever comes
+    /// first (`doc/expr.n`'s `.VS TIP582` block). `COMMENT` is a first-class
+    /// lexeme (9.0.4 `tclCompExpr.c:168`) that `ParseExpr` skips like a
+    /// whitespace run (`:701`), so it may appear anywhere whitespace may.
+    #[default]
+    Hash,
+    /// The 8.x family (8.4-8.6, iRules/iApps, EDA): `#` begins no lexeme, so it
+    /// is an ordinary invalid expression character and C reports
+    /// `invalid character "#"`. Neither the `COMMENT` lexeme nor
+    /// `ParseLexeme`'s `case '#':` exists in `tclCompExpr.c` at `core-8-5-19`
+    /// or `core-8-6-16`, and 8.4 — which parsed `expr` in `tclParseExpr.c`
+    /// entirely — has no `#` lexeme either.
+    None,
+}
+
+impl ExprCommentStyle {
+    /// Whether `#` begins a comment (the Tcl 9 rule).
+    #[must_use]
+    pub fn comments(self) -> bool {
+        matches!(self, Self::Hash)
+    }
+}
+
 /// The dialect-derived slice of the lexer configuration — exactly the fields
 /// of `tcl_lexer::LexerConfig` that vary *by dialect* (as opposed to the
 /// call-site knobs: strict quoting, sub-lexing base offsets).
@@ -76,6 +105,13 @@ pub struct LexerGrammar {
     /// property consulted once at the top of a file analysis rather than a
     /// lexer rule that fires wherever U+FEFF appears.
     pub script_skips_leading_bom: bool,
+    /// Whether `#` inside an `[expr]` body begins a comment — see
+    /// [`ExprCommentStyle`].
+    ///
+    /// Derived: `runtime_base >= V9_0`. TIP 582 landed in the 8.7 / 9.0
+    /// development cycle, and since 8.7 is not a version this crate models,
+    /// `>= V9_0` is the exact gate for the supported set.
+    pub expr_comments: ExprCommentStyle,
 }
 
 impl Default for LexerGrammar {
@@ -87,13 +123,14 @@ impl Default for LexerGrammar {
             irules_brace_separator: false,
             braced_var: BracedVarStyle::Tcl9Nesting,
             script_skips_leading_bom: true,
+            expr_comments: ExprCommentStyle::Hash,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{BracedVarStyle, LexerGrammar};
+    use super::{BracedVarStyle, ExprCommentStyle, LexerGrammar};
 
     #[test]
     fn nesting_rule_is_tcl9_only() {
@@ -103,11 +140,19 @@ mod tests {
     }
 
     #[test]
+    fn expr_comments_are_tcl9_only() {
+        assert!(ExprCommentStyle::Hash.comments());
+        assert!(!ExprCommentStyle::None.comments());
+        assert_eq!(ExprCommentStyle::default(), ExprCommentStyle::Hash);
+    }
+
+    #[test]
     fn default_grammar_is_modern_tcl() {
         let g = LexerGrammar::default();
         assert!(g.expand_syntax);
         assert!(!g.irules_brace_separator);
         assert_eq!(g.braced_var, BracedVarStyle::Tcl9Nesting);
         assert!(g.script_skips_leading_bom);
+        assert_eq!(g.expr_comments, ExprCommentStyle::Hash);
     }
 }
