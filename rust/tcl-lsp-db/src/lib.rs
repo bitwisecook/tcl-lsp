@@ -2648,10 +2648,21 @@ pub fn function_optimisations<'db>(
     ir_procs.insert(qname.clone(), proc);
     let ir_module = tcl_compiler::ir::Module {
         source: body_source.clone(),
-        // Synthesised for a proc-body re-analysis, not a real compile, so no
-        // release is being targeted — numeral-grammar consumers fall back to
-        // their own default.
-        dialect: None,
+        // The document's dialect, not `None`. The unit is synthesised, but the
+        // release it is analysed under is real and known right here
+        // (`dialect_opt`, which is also what `optimise_unit_raw` below is
+        // given), so labelling the module "no release" is simply false.
+        //
+        // Nothing on *this* path reads it today — `Module::dialect`'s numeral
+        // consumers (`native_integer_proof`, `common_aot_plan`) hang off the
+        // wasm codegen pipeline, and the optimisations this path does produce
+        // take their grammar from `dialect_opt` directly, so the folds are
+        // correct either way (`0755 + 1` → 494 under 8.6, 756 under 9.0).
+        // It is set correctly because a synthesised module carrying the wrong
+        // release is a trap for the next consumer: `numbers_for_dialect(None)`
+        // silently means Tcl 9.0, so a future reader would mis-fold rather than
+        // fail. Cheap to keep honest, expensive to debug later.
+        dialect: dialect_opt.map(str::to_owned),
         top_level: tcl_compiler::ir::Script::new(),
         procedures: ir_procs,
         methods: HashMap::new(),
