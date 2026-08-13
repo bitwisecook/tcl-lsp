@@ -66,6 +66,9 @@ fn name_tls_version(raw: &str) -> String {
         return raw.to_owned();
     }
     let s = raw.trim().to_ascii_lowercase();
+    // number-drift-ok: a tshark `tls.record.version` field, not Tcl script
+    // text. tshark renders it as `0x0303` or plain decimal regardless of any
+    // Tcl release, so this grammar is tshark's and must not follow a dialect.
     let value = if let Some(hex) = s.strip_prefix("0x") {
         match u32::from_str_radix(hex, 16) {
             Ok(v) => v,

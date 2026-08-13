@@ -103,6 +103,78 @@ A separate lexer/parser/evaluator with its own:
   interpreted at runtime. Lint/diagnostics should steer users to braces, but
   the runtime must implement both.
 
+## The numeral grammar is release-dependent
+
+Everything above — the tower, the promotion rules, the operators — is
+release-invariant. **How a numeral is spelled is not.** This is the one axis of
+the numeric contract that is keyed to the Tcl release, and it is the axis that
+has repeatedly caused silent wrong answers, because most numerals read the same
+under every grammar and only a few disagree.
+
+| spelling | 8.4 | 8.5 / 8.6 | 9.0+ |
+|---|---|---|---|
+| `0x1f` hex | ✓ | ✓ | ✓ |
+| `0b1011` binary, `0o17` octal | — bareword | ✓ | ✓ |
+| `0d99` decimal | — bareword | — bareword | ✓ |
+| `1_000` digit separators | — bareword | — bareword | ✓ |
+| `0755` leading zero | **octal → 493** | **octal → 493** | **decimal → 755** |
+| `08` leading zero | — invalid octal | — invalid octal | ✓ 8 |
+
+The leading-zero row is the dangerous one: the same text is a *valid number
+with a different value*, so nothing errors — the answer is just wrong. C settles
+it at build time in `generic/tclStrToD.c`, which carries `#undef KILL_OCTAL` up
+to 8.6 (the comment reads "Define `KILL_OCTAL` to suppress interpretation of
+numbers with leading zero as octal") and defines it from 9.0. `changes.md` for
+9.0 records: "`0NNN` format is no longer octal interpretation. Use `0oNNN`."
+
+Consequences that are *not* obvious, and are pinned by tests:
+
+* **A level word inherits it.** `upvar`/`uplevel` read their level through
+  `Tcl_GetIntFromObj`, so `uplevel 010` goes **8 frames up on 8.6 and 10 on
+  9.0**, and `uplevel 0d1`/`1_0` error before 9.0. Any behaviour reached through
+  an integer conversion inherits the grammar the same way — completion codes
+  (`return -code 010`), list indices, `incr` amounts.
+* **`bad level` is ambiguous.** C reports it both for a word it cannot parse
+  and for a level past the top of the stack. Any experiment comparing releases
+  needs a call chain deeper than the largest value under test, or a divergence
+  hides as a shared error.
+
+### One facility, dialect-parameterised
+
+`rust/tcl-syntax/src/number.rs` is the **only** numeral parser in the workspace.
+It takes a `NumberSyntax` (`Tcl84` / `Tcl85` / `Tcl90`) and implements the table
+above. Every consumer asks it; nothing re-derives a prefix.
+
+How the grammar reaches a consumer depends on what the consumer is:
+
+* **Compiler, analyser, LSP, codegen — pass it down.** The dialect is a
+  top-level property of the compile: `Module.dialect` → `CodegenCtx.numbers`,
+  and analysis passes take it as a parameter. These tools handle documents of
+  *different* dialects in one process, so ambient state would let one
+  document's grammar contaminate another's results.
+* **A runtime — install it once.** A runtime is *built for* one release and
+  does not switch mid-execution, exactly as C's build-time `#define` does, so
+  the interpreter installs the ambient grammar
+  (`number::set_runtime_syntax`) when its release is pinned and every
+  `ParseFlags::default()` call site inside it becomes correct at once.
+  Switching it mid-run is unsupported: values already converted keep the
+  numbers they were read as, so a flip would make one script text mean two
+  things.
+
+Codegen decides only **whether a literal is a numeral at all** under the target
+release. It does *not* fold one: C's `CompileExprTree` pushes the source
+spelling and lets the root's `tryCvtToNumeric` convert it in a runtime built for
+the same release (`expr {0xFF}` compiles to `push "0xFF"; tryCvtToNumeric`).
+Only a compound constant subtree folds (`expr {1+1}` → `push "2"`). Folding a
+lone literal gets the right answer with the wrong bytecode.
+
+`cargo xtask number-drift` enforces the single-parser rule: it fails on
+hand-rolled radix-prefix recognition outside the facility. Parsing a prefix out
+of something that is *not* Tcl script text — a packet field, a hex colour, a
+hex-encoded byte string — is legitimate and carries a `// number-drift-ok:`
+waiver. The gate exists because the rule was broken six independent times, each
+with the identical shape: strip two characters, call `from_str_radix`.
+
 ## Numeric semantics that are tested verbatim
 
 * **Integer `/` truncates toward −∞? No — toward zero is *not* it either.**
@@ -131,7 +203,8 @@ A separate lexer/parser/evaluator with its own:
 | `%`/`/` sign and rounding rules; bit-ops integer-only | **Contract** |
 | `**` right-assoc; full precedence table; short-circuit `&&`/`||` | **Contract** |
 | `mathfunc`/`mathop` dispatch through the namespace (overridable) | **Contract** |
-| Literal radices, `_` separators, `Inf`/`NaN`/`NaN(hex)`, booleans | **Contract** |
+| `Inf`/`NaN`/`NaN(hex)`, booleans | **Contract** |
+| Literal radices, `_` separators, leading-zero octal | **Contract, keyed to the release** — see [the numeral grammar](#the-numeral-grammar-is-release-dependent). Not invariant: `0755` is 493 up to 8.6 and 755 from 9.0. |
 | Shortest-round-trip float formatting, `-0.0`/`Inf`/`NaN` text | **Contract** |
 | `eq`/`ne`/`in`/`ni`, numeric-vs-string `==` rule | **Contract** |
 | Error wording (`divide by zero`, `domain error`, …) | **Contract** |
@@ -145,8 +218,9 @@ A separate lexer/parser/evaluator with its own:
   operands — the same ladder the tower defines. Never emit a wide-only op
   without the overflow→bignum escape.
 * Constant-fold only when the fold uses the *exact* tower semantics
-  (including canonicalisation), or the compiled and interpreted results
-  diverge.
+  (including canonicalisation) **and the target release's numeral grammar**, or
+  the compiled and interpreted results diverge. `expr {0755 + 1}` folds to 494
+  for an 8.6 target and 756 for a 9.0 one.
 * Route `mathfunc` calls through the command table so user overrides win,
   even in compiled `expr`.
 
@@ -154,6 +228,8 @@ A separate lexer/parser/evaluator with its own:
 
 - [shimmer-reference-behaviour.md](shimmer-reference-behaviour.md) — how the
   number↔string boundary is observed.
+- [../dialect-profile-model.md](../dialect-profile-model.md) — the dialect
+  profile that carries `NumberSyntax`, and how one is resolved and threaded.
 - [runtime-variable-frame-model.md](runtime-variable-frame-model.md) and
   [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md)
   — the other two day-one contracts.

@@ -180,7 +180,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle tcltest-sweep tcltest-sweep-check
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-gen-tmlanguage-keywords
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-number-drift xtask-gen-tmlanguage-keywords
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -581,6 +581,10 @@ xtask-workflow-sync: ## Verify .github/workflows/ copies match their canonical d
 xtask-resolution-drift: ## Flag namespace-blind simple-name scans over all_procs/all_classes (name-resolution drift gate)
 	@echo "==> Checking for name-resolution drift (cargo xtask)"
 	cd $(ROOT) && cargo xtask resolution-drift
+
+xtask-number-drift: ## Flag hand-rolled Tcl radix-prefix recognition outside tcl_syntax::number (numeric-grammar drift gate)
+	@echo "==> Checking for numeric-grammar drift (cargo xtask)"
+	cd $(ROOT) && cargo xtask number-drift
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
