@@ -51,7 +51,7 @@
 
 use std::collections::HashMap;
 
-use tcl_dialect::{StringCharacterModel, TclVersion};
+use tcl_dialect::{NumberSyntax, StringCharacterModel, TclVersion};
 
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
@@ -230,6 +230,15 @@ pub struct FoldPolicy {
     /// answer the Tcl 8 and Tcl 9 models disagree on — the same
     /// dialect-ambiguity rule as [`Self::octal`].
     pub characters: Option<StringCharacterModel>,
+    /// Which numeric literal forms the active dialect accepts: `Some(syntax)`
+    /// parses operands under it, `None` falls back to the 9.0 grammar for a
+    /// caller that knows no dialect.
+    ///
+    /// Distinct from [`Self::octal`], which is only the leading-zero rule:
+    /// this also decides whether `0b`/`0o` exist at all (8.5+), whether `0d`
+    /// does (9.0+), and whether `_` separators do (9.0+) — so folding `0o17`
+    /// for an 8.4 target correctly yields nothing.
+    pub numbers: Option<NumberSyntax>,
 }
 
 impl FoldPolicy {
@@ -241,6 +250,7 @@ impl FoldPolicy {
             octal,
             is_irules: false,
             characters: None,
+            numbers: None,
         }
     }
 
@@ -254,6 +264,7 @@ impl FoldPolicy {
             characters: dialect
                 .and_then(|d| tcl_dialect::DialectProfile::by_name(d).runtime_base)
                 .map(TclVersion::string_character_model),
+            numbers: dialect.map(|d| tcl_dialect::DialectProfile::by_name(d).grammar.numbers),
         }
     }
 
@@ -271,6 +282,7 @@ impl FoldPolicy {
                 .profile()
                 .and_then(|profile| profile.runtime_base)
                 .map(TclVersion::string_character_model),
+            numbers: registry.profile().map(|p| p.grammar.numbers),
         }
     }
 }
@@ -383,6 +395,14 @@ fn eval_with_config(
         env,
         ambiguous: false,
         octal,
+        // Without an explicit grammar, infer from the leading-zero policy the
+        // caller did resolve: the 8.x octal rule implies the 8.x numeric
+        // grammar, and anything else is read as 9.0.
+        numbers: if octal == Some(true) {
+            NumberSyntax::Tcl85
+        } else {
+            NumberSyntax::Tcl90
+        },
         math_since,
         is_irules,
     };
@@ -395,7 +415,7 @@ fn eval_with_config(
         // to fold rather than pick one.
         return None;
     }
-    result.to_number()
+    result.to_number(ops.numbers)
 }
 
 // FoldOps — the const-folder's value ops for the shared expr walk
@@ -414,12 +434,12 @@ enum FoldValue {
 
 impl FoldValue {
     /// Interpret as a number, or `None` when the text isn't numeric.
-    fn to_number(&self) -> Option<TclValue> {
+    fn to_number(&self, numbers: NumberSyntax) -> Option<TclValue> {
         match self {
             FoldValue::Int(i) => Some(TclValue::Int(*i)),
             FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
             FoldValue::Float(f) => Some(TclValue::Float(*f)),
-            FoldValue::Str(s) => parse_literal(s),
+            FoldValue::Str(s) => parse_literal_in(s, numbers),
         }
     }
     /// Render as a string: raw for `Str`, canonical for numbers.
@@ -458,6 +478,10 @@ struct FoldOps<'a> {
     /// string, `010` → 8), `Some(false)` = decimal (Tcl 9.0 — `08` → 8,
     /// `010` → 10), `None` = dialect unknown → decline (see [`Self::ambiguous`]).
     octal: Option<bool>,
+    /// The release's numeric-literal grammar for reading operands — which radix
+    /// prefixes exist and whether `_` separates digits. Broader than
+    /// [`Self::octal`], which is only the leading-zero rule.
+    numbers: NumberSyntax,
     /// The newest math-function release the active dialect provides.  A call
     /// to a function introduced *after* this tier folds nothing — the
     /// `::tcl::mathfunc::*` command it would dispatch to does not exist in that
@@ -493,7 +517,9 @@ enum Operand {
 fn classify_operand(value: &FoldValue, octal: Option<bool>) -> Operand {
     let s = match value {
         FoldValue::Int(_) | FoldValue::Big(_) | FoldValue::Float(_) => {
-            return Operand::Num(value.to_number().unwrap());
+            // Already numeric — `to_number` cannot reach the literal parser
+            // here, so the grammar it is given is immaterial.
+            return Operand::Num(value.to_number(NumberSyntax::Tcl90).unwrap());
         }
         FoldValue::Str(s) => s.as_str(),
     };
@@ -573,11 +599,12 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // the mathfunc module, not a name check here).
         let boolean_ok = accepts_boolean_operand(&name);
         let octal = self.octal;
+        let numbers = self.numbers;
         let nums: Option<Vec<Num>> = args
             .iter()
             .map(|v| {
                 let parsed = if boolean_ok {
-                    v.to_number()
+                    v.to_number(numbers)
                 } else {
                     strict_number_for_dialect(v, octal)
                 };
@@ -618,7 +645,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             UnaryOp::Not | UnaryOp::WordNot => {
                 // `!NaN` is the same boolean-context domain error as `?:` on
                 // NaN — decline, never fold a truth value.
-                let truthy = match value.to_number().ok_or(())? {
+                let truthy = match value.to_number(self.numbers).ok_or(())? {
                     TclValue::Float(f) if f.is_nan() => return Err(()),
                     v => v.is_truthy(),
                 };
@@ -706,7 +733,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // Boolean contexts (`?:`, `&&`, `||`) reject NaN — a domain error in
         // C Tcl ("floating point value is Not a Number"), so the fold
         // declines rather than pick a truth value.
-        match value.to_number().ok_or(())? {
+        match value.to_number(self.numbers).ok_or(())? {
             TclValue::Float(f) if f.is_nan() => Err(()),
             v => Ok(v.is_truthy()),
         }
@@ -763,6 +790,14 @@ pub fn format_tcl_value(v: &TclValue) -> String {
 /// Tcl boolean spellings.
 #[must_use]
 pub fn parse_literal(text: &str) -> Option<TclValue> {
+    parse_literal_in(text, NumberSyntax::Tcl90)
+}
+
+/// [`parse_literal`] under an explicit release grammar — the form the folder
+/// uses, so an operand is read for the dialect being compiled for (`0o17` is
+/// nothing under 8.4, and `0755` is 493 up to 8.6).
+#[must_use]
+pub fn parse_literal_in(text: &str, numbers: NumberSyntax) -> Option<TclValue> {
     use tcl_syntax::number::Number;
     // Boolean keywords (`Tcl_GetBoolean`, not part of the number grammar).
     // Accepts unique-prefix spellings (`tr`, `ye`, `of`) like real Tcl.
@@ -774,7 +809,10 @@ pub fn parse_literal(text: &str) -> Option<TclValue> {
     // leading-zero decimal, `_` separators, `Inf`/`NaN`. A magnitude past a
     // wide builds the exact bignum (P4 of type-tracking.md), matching C
     // Tcl's seamless promotion.
-    match tcl_syntax::number::parse_whole(text)? {
+    match tcl_syntax::number::parse_whole_with(
+        text,
+        tcl_syntax::number::ParseFlags::for_syntax(numbers),
+    )? {
         Number::Int(v) => Some(TclValue::Int(v)),
         Number::Double(d) => Some(TclValue::Float(d)),
         Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),

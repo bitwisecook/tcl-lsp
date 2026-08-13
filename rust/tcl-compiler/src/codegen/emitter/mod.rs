@@ -86,19 +86,29 @@ pub fn codegen_function_with_procs(
 /// the proc body's `base_line` (its `proc` definition line) so the
 /// `(procedure … line N)` frame reports a proc-relative line.
 #[must_use]
+/// The per-module facts every function emission shares: the registry, the
+/// module source (for `errorInfo` surface text) and the release being compiled
+/// for. Bundled rather than threaded as parallel parameters — the argument list
+/// is already at `clippy::too_many_arguments`'s ceiling, and these three always
+/// travel together.
+#[derive(Clone, Copy)]
+struct ModuleEmit<'a> {
+    registry: &'a CommandRegistry,
+    source: &'a str,
+    numbers: tcl_dialect::NumberSyntax,
+}
+
 fn codegen_function_src(
     cfg: &CfgFunction,
     params: &[&str],
     is_proc: bool,
     proc_defs: &[IrProcedure],
-    registry: &CommandRegistry,
-    source: &str,
+    module: ModuleEmit<'_>,
     base_line: u32,
-    numbers: tcl_dialect::NumberSyntax,
 ) -> FunctionAsm {
-    let mut ctx = CodegenCtx::new(is_proc, params, registry);
-    ctx.numbers = numbers;
-    ctx.set_source(source);
+    let mut ctx = CodegenCtx::new(is_proc, params, module.registry);
+    ctx.numbers = module.numbers;
+    ctx.set_source(module.source);
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
     asm.body_base_line = base_line;
     asm
@@ -134,16 +144,12 @@ pub fn codegen_module(
         .map_or(tcl_dialect::NumberSyntax::Tcl90, |d| {
             tcl_dialect::DialectProfile::by_name(d).grammar.numbers
         });
-    let top = codegen_function_src(
-        &cfg_module.top_level,
-        &[],
-        false,
-        &[],
+    let module = ModuleEmit {
         registry,
-        src,
-        0,
+        source: src,
         numbers,
-    );
+    };
+    let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], module, 0);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
         let ir_proc = ir_module.procedures.get(qname);
@@ -161,16 +167,7 @@ pub fn codegen_module(
         let base_line = ir_proc.map_or(0, |p| line_of(src, p.span.start()));
         procs.insert(
             qname.clone(),
-            codegen_function_src(
-                cfg_func,
-                &params,
-                true,
-                &[],
-                registry,
-                src,
-                base_line,
-                numbers,
-            ),
+            codegen_function_src(cfg_func, &params, true, &[], module, base_line),
         );
     }
     ModuleAsm {

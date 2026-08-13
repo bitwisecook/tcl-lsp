@@ -424,7 +424,6 @@ impl<'a> PrattParser<'a> {
 /// let raw = parse_expr("", None);
 /// assert!(matches!(raw, ExprNode::Raw { .. }));
 /// ```
-#[must_use]
 /// The numeric grammar to parse with: a named dialect's own, else the grammar
 /// the runtime was built for ([`crate::number::runtime_syntax`]).
 ///
@@ -440,6 +439,7 @@ pub(super) fn numbers_for(dialect: Option<&str>, profile: &DialectProfile) -> Nu
     }
 }
 
+#[must_use]
 pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
     // Resolve the dialect string to its interned profile once and thread the
     // canonical name down — so the grammar branch in the expr lexer and the
