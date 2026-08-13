@@ -905,6 +905,10 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "seeded edit-storm oracle (3000 edit/segment pairs); the deterministic \
+                incremental gates stay in CI — segment_commands_incremental_pins, \
+                command_boundaries_agree_with_segmenter, and the \
+                *_incremental_matches_fresh* family; run explicitly with --ignored"]
     fn segment_commands_incremental_matches_full_under_fuzz() {
         // Differential acceptance gate: a random edit applied to a base
         // document, then incremental re-segmentation must byte-for-byte

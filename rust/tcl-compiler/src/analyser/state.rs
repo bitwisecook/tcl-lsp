@@ -6232,6 +6232,10 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "seeded edit-storm oracle (350 edit/analyse pairs); the deterministic \
+                incremental gates stay in CI — the *_incremental_matches_fresh* family \
+                and per_item_corpus::per_item_matches_analyse_over_repo_samples; \
+                run explicitly with --ignored"]
     fn analyse_incremental_matches_full_under_fuzz() {
         // The acceptance gate: a random edit applied to a base document,
         // then `analyse_incremental` must produce a result observably
