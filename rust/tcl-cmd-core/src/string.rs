@@ -254,13 +254,34 @@ fn fit(orig: char, mapped: char) -> char {
 /// `Tcl_UniCharToUpper` (`tclUtf.c:1777-1789`), a delta-encoded table with one
 /// code point in and one out — whereas Rust's [`char::to_uppercase`] /
 /// [`char::to_lowercase`] implement *full* mapping and can expand (`ß` → `SS`,
-/// `İ` → `i` + U+0307). An expanding mapping has no C counterpart, so the
-/// character is left alone; a 1:1 mapping is taken subject to [`fit`].
+/// `İ` → `i` + U+0307).
+///
+/// An expanding mapping usually means the character has **no** simple mapping
+/// (Unicode leaves `UnicodeData.txt`'s mapping field empty and puts the
+/// multi-character form in `SpecialCasing.txt`), so it is left alone: `ß`,
+/// `ﬁ`, `ŉ` and friends are identity under `Tcl_UniCharToUpper`. The one
+/// exception is handled by [`simple_lower_exception`] — inferring identity from
+/// expansion alone is wrong for it.
 fn simple(c: char, mut full: impl Iterator<Item = char>) -> char {
     match (full.next(), full.next()) {
         (Some(m), None) => fit(c, m),
         _ => c,
     }
+}
+
+/// The lone character whose *full* lowercase mapping expands even though it has
+/// a real 1:1 simple mapping: `İ` (U+0130) lowercases to `i` (U+0069) under
+/// `Tcl_UniCharToLower`, while Rust's full mapping yields `i` + U+0307
+/// (combining dot above).
+///
+/// U+0130 is the **only** such code point — it is the only one in Unicode whose
+/// full lowercase expands at all (every other expanding lowercase in
+/// `SpecialCasing.txt` is conditional on locale or final-sigma context, which C
+/// does not implement either), so this exception is complete rather than a
+/// sample. The expanding *uppercase* and *titlecase* mappings all do have empty
+/// simple-mapping fields, so [`simple`]'s identity inference is correct there.
+const fn simple_lower_exception(c: char) -> Option<char> {
+    if c == '\u{0130}' { Some('i') } else { None }
 }
 
 /// `Tcl_UniCharToUpper` — the simple uppercase mapping of one character.
@@ -272,6 +293,9 @@ pub fn simple_upper(c: char) -> char {
 /// `Tcl_UniCharToLower` — the simple lowercase mapping of one character.
 #[must_use]
 pub fn simple_lower(c: char) -> char {
+    if let Some(m) = simple_lower_exception(c) {
+        return fit(c, m);
+    }
     simple(c, c.to_lowercase())
 }
 
@@ -959,8 +983,15 @@ mod tests {
         // which hold only Unicode's *simple* mappings — so a Rust *full* mapping
         // that expands has no C counterpart and the character is preserved.
         assert_eq!(simple_upper('\u{00DF}'), '\u{00DF}'); // ß, not SS
-        assert_eq!(simple_lower('\u{0130}'), '\u{0130}'); // İ, not i + U+0307
         assert_eq!(simple_upper('\u{FB01}'), '\u{FB01}'); // ﬁ, not FI
+        // …but an expanding *full* mapping does not imply the character has no
+        // simple mapping, and U+0130 is the one place that matters: its full
+        // lowercase is `i` + U+0307, while `Tcl_UniCharToLower` maps it to plain
+        // `i` (`UnicodeData.txt` field 13 = 0069). Inferring identity from the
+        // expansion alone made `string tolower` and `STR_LOWER` disagree with C.
+        // It is the only such code point — the only one in Unicode whose full
+        // lowercase expands at all.
+        assert_eq!(simple_lower('\u{0130}'), 'i');
         // Ordinary 1:1 mappings still apply, including the shrinking ones.
         assert_eq!(simple_upper('a'), 'A');
         assert_eq!(simple_lower('É'), 'é');

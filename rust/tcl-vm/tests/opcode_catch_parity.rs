@@ -426,3 +426,68 @@ fn epilogue_reads_without_catch() {
     assert_eq!(c.code, Code::Ok);
     assert_eq!(&*c.result.to_str(), "0 {-code 0 -level 0}");
 }
+
+// -- the epilogue reads must not leak between ranges (PR #1419 review) --
+
+/// A *successful* 3-arg `catch` that follows an erroring one reports its own OK
+/// completion, not the earlier error's. Both paths of the compiled epilogue
+/// share `pushReturnOpts`, so frame-wide caught state would hand the second
+/// catch the first's `-code 1` / `-errorinfo`.
+#[test]
+fn sequential_catch_does_not_inherit_earlier_error_options() {
+    let (code, result) = run_body(
+        "proc p {} {\n  set r1 [catch {nosuchcmd} m1 o1]\n  set r2 [catch {list ok} m2 o2]\n  list $r1 $r2 [dict get $o1 -code] [dict get $o2 -code]\n}",
+        "::p",
+    );
+    assert_eq!(code, Code::Ok, "{result}");
+    assert_eq!(
+        result, "1 0 1 0",
+        "the second catch must report -code 0, not the first catch's -code 1"
+    );
+}
+
+/// The same leak, one level in: a range whose *inner* range fired must still
+/// report its own OK completion on the fall-through path. Hand-built because
+/// the inline codegen does not nest a value-position `catch` inside a catch
+/// body — the inner range here fires, is closed by its own `endCatch`, and the
+/// outer epilogue then runs with no absorption of its own.
+#[test]
+fn outer_range_does_not_inherit_inner_ranges_absorption() {
+    let mut lits = LiteralTable::new();
+    let mut labels: HashMap<String, usize> = HashMap::new();
+    let mut instrs: Vec<Instruction> = Vec::new();
+    let begin = |instrs: &mut Vec<Instruction>, range: i32, target: &str| {
+        let mut i = Instruction::new(Op::BEGIN_CATCH4, vec![Operand::Imm(range)]);
+        i.catch_target = Some(target.to_string());
+        instrs.push(i);
+    };
+    // Outer range opens; an inner range raises, handles and closes.
+    begin(&mut instrs, 0, "outer_handler");
+    begin(&mut instrs, 1, "inner_handler");
+    instrs.push(push_lit(&mut lits, "inner-boom"));
+    instrs.push(push_lit(&mut lits, ""));
+    instrs.push(Instruction::new(
+        Op::RETURN_IMM,
+        vec![Operand::Imm(1), Operand::Imm(0)],
+    ));
+    labels.insert("inner_handler".into(), instrs.len());
+    instrs.push(Instruction::new(Op::PUSH_RESULT, vec![]));
+    instrs.push(Instruction::new(Op::POP, vec![]));
+    instrs.push(Instruction::new(Op::END_CATCH, vec![]));
+    // Outer body then succeeds: its epilogue must report code 0, not 1.
+    instrs.push(Instruction::new(Op::PUSH_RETURN_CODE, vec![]));
+    instrs.push(Instruction::new(Op::END_CATCH, vec![]));
+    instrs.push(Instruction::new(Op::DONE, vec![]));
+    labels.insert("outer_handler".into(), instrs.len());
+    instrs.push(push_lit(&mut lits, "outer-handler-ran"));
+    instrs.push(Instruction::new(Op::DONE, vec![]));
+    let asm = assemble(instrs, &labels, lits);
+    let mut vm = Vm::new();
+    let c = vm.run_function(&asm);
+    assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
+    assert_eq!(
+        &*c.result.to_str(),
+        "0",
+        "the outer range never fired, so its epilogue reports an OK completion"
+    );
+}

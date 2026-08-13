@@ -89,6 +89,19 @@ struct CatchRange {
     /// the handler belongs to the enclosing range, as C's pc-containment test
     /// decides (the handler lies outside the range's code region).
     in_handler: bool,
+    /// The completion this range absorbed, read by its own epilogue:
+    /// `PUSH_RESULT` pushes the result, `PUSH_RETURN_CODE` the code,
+    /// `PUSH_RETURN_OPTS` the options dict (the analogue of the interp result +
+    /// `Tcl_GetReturnOptions` state a C catch range leaves behind).
+    ///
+    /// Scoped to the range rather than the frame so it cannot leak: the
+    /// epilogue reads run *before* the paired `END_CATCH`, so the firing range
+    /// is still innermost when they execute, and a range that never fired
+    /// reports `None` — an OK completion. Frame-wide state would make a
+    /// successful `catch` inherit an earlier (or inner) catch's `-code` /
+    /// `-errorinfo` on its fall-through path, since both paths share
+    /// `PUSH_RETURN_OPTS`.
+    caught: Option<CaughtState>,
 }
 
 /// A completion absorbed by a catch range, pre-digested for the compiled catch
@@ -125,16 +138,9 @@ pub(crate) struct Frame {
     /// `BEGIN_CATCH4` carrying an out-of-band handler label
     /// (`Instruction::catch_target`), popped by `END_CATCH`. An exceptional
     /// completion unwinding into this frame is absorbed by the innermost range:
-    /// the stack is trimmed to its depth, the completion is recorded in
-    /// [`Frame::caught`], and execution resumes at the handler.
+    /// the stack is trimmed to its depth, the completion is recorded on that
+    /// range ([`CatchRange::caught`]), and execution resumes at the handler.
     catch_ranges: Vec<CatchRange>,
-    /// The completion most recently absorbed by a catch range — what the
-    /// compiled catch epilogue reads: `PUSH_RESULT` pushes its result,
-    /// `PUSH_RETURN_CODE` its code, `PUSH_RETURN_OPTS` its options dict (the
-    /// analogue of the interp result + `Tcl_GetReturnOptions` state a C catch
-    /// range leaves behind). Sticky until the next absorption, matching how C's
-    /// interp state persists past `endCatch` for the epilogue to read.
-    caught: Option<CaughtState>,
     /// Last value dropped by `POP` — the `DONE` result when the stack is empty.
     last_result: Value,
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
@@ -298,7 +304,6 @@ impl Frame {
             dict_iters: HashMap::new(),
             expand_markers: Vec::new(),
             catch_ranges: Vec::new(),
-            caught: None,
             last_result: Value::empty(),
             is_proc,
             is_script: false,
@@ -1231,12 +1236,22 @@ impl Vm {
         f.expand_markers.truncate(expand_len);
         f.pc = target_idx;
         let options = self.digest_catch_options(&c);
-        f.caught = Some(CaughtState {
+        let caught = CaughtState {
             result: c.result,
             code: c.code,
             options,
-        });
+        };
+        if let Some(range) = f.catch_ranges.last_mut() {
+            range.caught = Some(caught);
+        }
         Ok(())
+    }
+
+    /// The completion absorbed by the innermost live catch range, which is the
+    /// one whose epilogue is running (the reads precede the paired `END_CATCH`).
+    /// `None` when no range fired — the fall-through path, an OK completion.
+    fn innermost_caught(f: &Frame) -> Option<&CaughtState> {
+        f.catch_ranges.last().and_then(|r| r.caught.as_ref())
     }
 
     fn unwind(
@@ -1835,6 +1850,7 @@ impl Vm {
                         expand_len: f.expand_markers.len(),
                         begin_idx: f.pc - 1,
                         in_handler: false,
+                        caught: None,
                     });
                 }
             }
@@ -3661,18 +3677,16 @@ impl Vm {
             // catch fired) path they report the current result / an ok options
             // dict, as C's untouched interp state would.
             Op::PUSH_RESULT => {
-                let v = f
-                    .caught
-                    .as_ref()
+                let v = Self::innermost_caught(f)
                     .map_or_else(|| f.last_result.clone(), |c| c.result.clone());
                 f.stack.push(v);
             }
             Op::PUSH_RETURN_CODE => {
-                let code = f.caught.as_ref().map_or(0, |c| c.code.as_int());
+                let code = Self::innermost_caught(f).map_or(0, |c| c.code.as_int());
                 f.stack.push(Value::int(code));
             }
             Op::PUSH_RETURN_OPTS => {
-                let opts = f.caught.as_ref().map_or_else(
+                let opts = Self::innermost_caught(f).map_or_else(
                     || crate::command::options_dict(Code::Ok, 0, &[]),
                     |c| c.options.clone(),
                 );

@@ -1483,7 +1483,10 @@ fn str_case_ops_use_simple_unicode_mapping() {
     for (op, subject, want) in [
         // Expanding full mappings have no C counterpart: character preserved.
         (Op::STR_UPPER, "\u{00DF}", "\u{00DF}"), // ß, not SS
-        (Op::STR_LOWER, "\u{0130}", "\u{0130}"), // İ, not i + U+0307
+        // …but U+0130 *does* have a simple mapping (`UnicodeData.txt` field 13
+        // = 0069), so `Tcl_UniCharToLower` gives plain `i` where Rust's full
+        // mapping gives `i` + U+0307. Sole such code point in Unicode.
+        (Op::STR_LOWER, "\u{0130}", "i"),
         (Op::STR_TITLE, "\u{00DF}x", "\u{00DF}x"),
         // Ordinary 1:1 mappings still apply.
         (Op::STR_UPPER, "aé\u{0131}", "AÉI"),
