@@ -145,9 +145,22 @@ const MANIFEST_SCAN_DIR_CAP: usize = 4_000;
 pub struct DiscoveryOptions {
     /// The editor's workspace folders, as filesystem paths.
     pub workspace_roots: Vec<PathBuf>,
-    /// The `tclLsp.specPacks` value: files or directories. A relative path is
-    /// resolved against each workspace root.
+    /// The `tclLsp.specPacks` value pulled at **session scope**: files or
+    /// directories. A relative path is resolved against each workspace root,
+    /// which is what an unscoped setting means — the user asked for
+    /// `.tcl-lsp/vendor` in "the workspace", and a multi-root workspace has
+    /// several.
     pub configured: Vec<PathBuf>,
+    /// `tclLsp.specPacks` pulled **scoped to one workspace folder**, as
+    /// `(folder, paths)`.
+    ///
+    /// A relative path here resolves against *that folder only*: the setting
+    /// was answered for that `scopeUri`, so applying it to a sibling root
+    /// would invent a pack the user never configured. Without this a
+    /// multi-root workspace that configures packs on a secondary folder loads
+    /// none of them — the session-scope pull sees only the primary folder's
+    /// answer.
+    pub folder_configured: Vec<(PathBuf, Vec<PathBuf>)>,
     /// The per-user pack directory. [`None`] uses the platform default;
     /// point it somewhere else in a test.
     pub user_dir: Option<PathBuf>,
@@ -251,6 +264,20 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
         );
         for dir in manifest_dirs(root) {
             collect_dir(&dir, Tier::Workspace, Origin::BesideManifest, &mut found);
+        }
+    }
+    // Folder-scoped `tclLsp.specPacks`. Resolved against its own folder and no
+    // other, whether or not that folder is in `workspace_roots` — the client
+    // answered this for that `scopeUri`, and a sibling root's relative
+    // resolution would be a pack the user never asked for.
+    for (folder, paths) in &options.folder_configured {
+        for configured in paths {
+            let path = if configured.is_absolute() {
+                configured.clone()
+            } else {
+                folder.join(configured)
+            };
+            collect_path(&path, Tier::Workspace, Origin::Setting, &mut found);
         }
     }
     // An absolute `tclLsp.specPacks` entry is meaningful even with no folder
@@ -413,6 +440,69 @@ mod tests {
         std::fs::write(path, body).expect("write");
     }
 
+    /// A multi-root workspace that configures `tclLsp.specPacks` on its
+    /// *secondary* folder loads that folder's packs. The session-scope pull
+    /// carries only the primary folder's answer, so before folder scoping
+    /// existed these packs were discovered by nobody.
+    #[test]
+    fn a_folder_scoped_setting_loads_that_folders_packs() {
+        let root = tmpdir("folder-scoped");
+        let primary = root.join("primary");
+        let secondary = root.join("secondary");
+        write(&secondary.join("vendor/s.tclspec"), "speclib s 1 {}\n");
+        write(&primary.join("vendor/p.tclspec"), "speclib p 1 {}\n");
+
+        let found = discover(&DiscoveryOptions {
+            workspace_roots: vec![primary.clone(), secondary.clone()],
+            // The relative entry is scoped to the secondary folder only.
+            folder_configured: vec![(secondary.clone(), vec![PathBuf::from("vendor")])],
+            skip_user_tier: true,
+            bundled_dir: Some(root.join("no-such-bundled")),
+            ..DiscoveryOptions::default()
+        });
+        let names: Vec<String> = found
+            .iter()
+            .filter_map(|f| f.path.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .collect();
+        assert!(
+            names.contains(&"s.tclspec".to_owned()),
+            "the secondary folder's configured pack must load: {names:?}"
+        );
+        // And it must NOT be resolved against the primary root: that would
+        // invent `primary/vendor` as a pack source the user never configured.
+        assert!(
+            !names.contains(&"p.tclspec".to_owned()),
+            "a folder-scoped relative entry must not resolve against a sibling root: {names:?}"
+        );
+    }
+
+    /// A session-scope relative entry keeps its documented meaning — every
+    /// workspace root — so folder scoping adds a case rather than changing one.
+    #[test]
+    fn a_session_scoped_relative_setting_still_applies_to_every_root() {
+        let root = tmpdir("session-scoped");
+        let one = root.join("one");
+        let two = root.join("two");
+        write(&one.join("vendor/a.tclspec"), "speclib a 1 {}\n");
+        write(&two.join("vendor/b.tclspec"), "speclib b 1 {}\n");
+
+        let found = discover(&DiscoveryOptions {
+            workspace_roots: vec![one, two],
+            configured: vec![PathBuf::from("vendor")],
+            skip_user_tier: true,
+            bundled_dir: Some(root.join("no-such-bundled")),
+            ..DiscoveryOptions::default()
+        });
+        let names: Vec<String> = found
+            .iter()
+            .filter_map(|f| f.path.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .collect();
+        assert!(
+            names.contains(&"a.tclspec".to_owned()) && names.contains(&"b.tclspec".to_owned()),
+            "an unscoped relative entry means 'in the workspace', all roots: {names:?}"
+        );
+    }
+
     #[test]
     fn workspace_tier_finds_dot_dir_and_manifest_siblings() {
         let root = tmpdir("ws");
@@ -524,6 +614,10 @@ mod tests {
         let found = discover(&DiscoveryOptions {
             workspace_roots: vec![root.join("does-not-exist")],
             configured: vec![PathBuf::from("also-missing.tclspec")],
+            folder_configured: vec![(
+                root.join("no-such-folder"),
+                vec![PathBuf::from("nor-this.tclspec")],
+            )],
             user_dir: Some(root.join("no-user")),
             bundled_dir: Some(root.join("no-bundled")),
             skip_user_tier: false,

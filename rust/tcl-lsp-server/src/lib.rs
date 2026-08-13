@@ -125,7 +125,7 @@ use tower_lsp_server::ls_types::{
     TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability, TypeHierarchyItem,
     TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
-    UnchangedDocumentDiagnosticReport, Uri, WatchKind, WillSaveTextDocumentParams,
+    UnchangedDocumentDiagnosticReport, Unregistration, Uri, WatchKind, WillSaveTextDocumentParams,
     WorkDoneProgressOptions, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
     WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport, WorkspaceEdit,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
@@ -4132,6 +4132,17 @@ pub struct Backend {
     /// URIs currently carrying published pack-load diagnostics, so a reload
     /// that fixes a pack clears the badge it left behind.
     spec_pack_diagnostic_uris: Arc<Mutex<HashSet<Uri>>>,
+    /// Absolute watch globs currently registered for pack directories that lie
+    /// **outside every workspace folder** — the per-user tier, and any
+    /// absolute `tclLsp.specPacks` entry.
+    ///
+    /// The main watcher registration is a workspace-relative pattern, which a
+    /// client only ever matches inside the workspace folders; an edit to a
+    /// user-tier pack therefore reached nothing and the specs stayed stale
+    /// until an unrelated config reload or a restart. Remembered here so a
+    /// reload re-registers only when the set actually moves, since each change
+    /// costs an unregister/register round trip to the client.
+    external_pack_watch_globs: Arc<Mutex<Vec<String>>>,
     /// `tclLsp.bigipVersion` — the session's target BIG-IP release for the
     /// keyed library-version axis (`None` = the oldest-supported default).
     bigip_version: Mutex<Option<String>>,
@@ -4729,6 +4740,14 @@ struct FolderConfig {
     generic_variable_patterns: FolderGenericPatterns,
     /// `tclLsp.libraryPaths` override; `None` inherits the global set.
     library_paths: Option<Vec<String>>,
+    /// `tclLsp.specPacks` scoped to this folder; `None` inherits the session
+    /// value. Kept per folder rather than folded into the session list
+    /// because a **relative** entry here means "under this folder" — the
+    /// client answered the pull for this folder's `scopeUri`. Resolving it
+    /// against every root would invent packs the user never configured, and
+    /// dropping it (what the server did before) loses a secondary folder's
+    /// packs entirely in a multi-root workspace.
+    spec_packs: Option<Vec<String>>,
     /// `.tcl-lsp.ini [project] entryPoints` — the project's "main" files (paths
     /// relative to the folder root). When set, the W120 workspace refinement
     /// treats these entries' `package require`s as available across the folder
@@ -5004,6 +5023,7 @@ impl Backend {
             spec_pack_paths: Mutex::new(Vec::new()),
             spec_packs: Arc::new(Mutex::new(Arc::new(tcl_spectcl::PackSet::default()))),
             spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
+            external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
@@ -6883,6 +6903,9 @@ impl Backend {
             // pack's notices are cleared when the *pack* changes, never when a
             // document is retired (the pack file may not even be open).
             spec_pack_diagnostic_uris: _,
+            // Owned by the SpecTcl reload path: watch registrations track the
+            // configured pack roots, not any document's lifetime.
+            external_pack_watch_globs: _,
             // Keyed by folder URI.
             workspace_folders: _,
             folder_dialects: _,
@@ -12822,9 +12845,23 @@ impl Backend {
             .iter()
             .map(PathBuf::from)
             .collect();
+        // Folder-scoped `tclLsp.specPacks`, each kept with the folder it was
+        // pulled for so a relative entry resolves there and nowhere else.
+        let folder_configured: Vec<(PathBuf, Vec<PathBuf>)> = self
+            .folder_configs
+            .lock()
+            .await
+            .iter()
+            .filter_map(|(uri, config)| {
+                let paths = config.spec_packs.as_ref()?;
+                let folder = uri.to_file_path()?.into_owned();
+                Some((folder, paths.iter().map(PathBuf::from).collect()))
+            })
+            .collect();
         tcl_spectcl::DiscoveryOptions {
             workspace_roots,
             configured,
+            folder_configured,
             ..tcl_spectcl::DiscoveryOptions::default()
         }
     }
@@ -12844,6 +12881,9 @@ impl Backend {
     /// free.
     async fn reload_spec_packs(&self) -> bool {
         let options = self.spec_pack_discovery().await;
+        // Before loading: the watch set follows the *configuration*, so it has
+        // to be refreshed even when the discovered files turn out unchanged.
+        self.refresh_external_pack_watchers(&options).await;
         // Discovery and loading are blocking filesystem + parse work; keeping
         // them off the LSP event loop is the same courtesy every other scan
         // here extends.
@@ -12956,6 +12996,123 @@ impl Backend {
                 .await;
         }
         changed
+    }
+
+    /// Re-register the watchers for pack directories outside every workspace
+    /// folder, when that set has moved since the last reload.
+    ///
+    /// The session-wide registration in [`Backend::register_file_watchers`]
+    /// uses a workspace-*relative* pattern, and a client matches such a
+    /// pattern only within its workspace folders. A pack in the per-user tier
+    /// (`<config>/specs`), or named by an absolute `tclLsp.specPacks` entry
+    /// pointing outside the workspace, is therefore discovered and loaded at
+    /// startup but never watched: editing it produced no
+    /// `didChangeWatchedFiles`, so its commands stayed as they were until an
+    /// unrelated configuration reload or a server restart. Absolute glob
+    /// patterns fix that; LSP allows them, and a client that cannot honour one
+    /// declines the registration exactly as it may decline the main one.
+    ///
+    /// Registered under its own id so it can be replaced when the configured
+    /// roots change without disturbing the source-file watcher.
+    async fn refresh_external_pack_watchers(&self, options: &tcl_spectcl::DiscoveryOptions) {
+        const REGISTRATION_ID: &str = "tcl-lsp-external-spec-packs";
+        const METHOD: &str = "workspace/didChangeWatchedFiles";
+
+        let mut roots: Vec<PathBuf> = Vec::new();
+        if !options.skip_user_tier {
+            roots.push(
+                options
+                    .user_dir
+                    .clone()
+                    .unwrap_or_else(tcl_spectcl::discovery::user_dir),
+            );
+        }
+        // Absolute settings entries only: a relative one resolves inside a
+        // workspace folder, which the main registration already covers.
+        let configured_absolute = options
+            .configured
+            .iter()
+            .map(|path| (None, path))
+            .chain(
+                options
+                    .folder_configured
+                    .iter()
+                    .flat_map(|(folder, paths)| paths.iter().map(move |p| (Some(folder), p))),
+            )
+            .filter(|(_, path)| path.is_absolute())
+            .map(|(_, path)| path.clone());
+        roots.extend(configured_absolute);
+
+        // Anything inside a workspace folder is already watched; registering it
+        // again would only make the client send every event twice.
+        let inside_workspace = |path: &Path| {
+            options
+                .workspace_roots
+                .iter()
+                .any(|root| path.starts_with(root))
+        };
+        let mut globs: Vec<String> = roots
+            .iter()
+            .filter(|path| !inside_workspace(path))
+            .filter_map(|path| {
+                let text = path.to_str()?;
+                // A settings entry may name one file or a directory to scan;
+                // discovery accepts both, so the watch has to cover both.
+                Some(if tcl_spectcl::discovery::is_pack_file(path) {
+                    text.to_owned()
+                } else {
+                    format!("{}/**/*.tclspec", text.trim_end_matches('/'))
+                })
+            })
+            .collect();
+        globs.sort();
+        globs.dedup();
+
+        {
+            let mut current = self.external_pack_watch_globs.lock().await;
+            if *current == globs {
+                return;
+            }
+            // Unregister before registering: the id is the same, and a client
+            // that already holds it would otherwise be left with both sets.
+            if !current.is_empty() {
+                let _ = self
+                    .client
+                    .unregister_capability(vec![Unregistration {
+                        id: REGISTRATION_ID.to_owned(),
+                        method: METHOD.to_owned(),
+                    }])
+                    .await;
+            }
+            current.clone_from(&globs);
+        }
+        if globs.is_empty() {
+            return;
+        }
+
+        let all_kinds = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
+        let registration = Registration {
+            id: REGISTRATION_ID.to_owned(),
+            method: METHOD.to_owned(),
+            register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
+                watchers: globs
+                    .iter()
+                    .map(|glob| FileSystemWatcher {
+                        glob_pattern: GlobPattern::String(glob.clone()),
+                        kind: all_kinds,
+                    })
+                    .collect(),
+            })
+            .ok(),
+        };
+        if let Err(err) = self.client.register_capability(vec![registration]).await {
+            self.client
+                .log_message(
+                    MessageType::LOG,
+                    format!("external spec-pack watcher registration declined by client: {err}"),
+                )
+                .await;
+        }
     }
 
     /// Publish every pack's load notices — plus the `collisions` the caller
@@ -18383,6 +18540,20 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
             paths
                 .iter()
                 .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        );
+    }
+    // `tclLsp.specPacks` per-folder override. Trimmed and emptied-dropped
+    // exactly as the session-scope parse does, so the two paths cannot
+    // disagree about what an entry is.
+    if let Some(paths) = obj.get("specPacks").and_then(serde_json::Value::as_array) {
+        fc.spec_packs = Some(
+            paths
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .map(str::to_owned)
                 .collect(),
@@ -25707,6 +25878,7 @@ mod tests {
             spec_pack_paths: Mutex::new(Vec::new()),
             spec_packs: Arc::new(Mutex::new(Arc::new(tcl_spectcl::PackSet::default()))),
             spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
+            external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
