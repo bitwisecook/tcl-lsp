@@ -2111,8 +2111,8 @@ mod tests {
     /// the result it produced.
     ///
     /// The gate and the result come from the same pass deliberately.  Asking
-    /// for them separately — `gate()` for one, a second `analyse_per_item` for
-    /// the other — analysed every fixture twice for no extra coverage: the two
+    /// for them separately — one `analyse_per_item` for the gate, a second for
+    /// the result — analysed every fixture twice for no extra coverage: the two
     /// runs are the same pure function of `(src, dialect)`, so the second can
     /// only ever agree with the first.  On the oversized-body fixtures below
     /// that redundancy was minutes per test.
@@ -2120,11 +2120,6 @@ mod tests {
         let mut a = Analyser::new();
         let got = a.analyse_per_item(src, dialect);
         (a.per_item_fallback, got)
-    }
-
-    /// Which gate (if any) `analyse_per_item` tripped for `src`.
-    fn gate(src: &str, dialect: &str) -> Option<PerItemFallback> {
-        gate_and_result(src, dialect).0
     }
 
     /// Assert that `src` reaches the incremental fast path — i.e. no gate
