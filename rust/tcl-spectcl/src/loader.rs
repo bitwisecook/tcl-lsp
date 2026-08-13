@@ -62,8 +62,9 @@
 //! records the shipped one: as a key whose *defining Rust expression* could
 //! not be recovered.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
+use std::sync::{LazyLock, Mutex};
 
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
@@ -325,8 +326,35 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
 // Leaking — a loaded pack lives as long as the process, like a shipped spec
 // ---------------------------------------------------------------------------
 
+/// Leak `text` as `&'static str`, **interned**: the same string is leaked once
+/// for the life of the process however many pack generations contain it.
+///
+/// A loaded pack's data must be `&'static` because that is what a
+/// `CommandSpec` is made of, and a leak can never be handed back. Without
+/// interning, every reload leaked a fresh copy of *everything* — each edit of
+/// one summary re-leaked every command name, synopsis, option detail and
+/// keyword in the pack. Since the overwhelming majority of a pack is
+/// byte-identical across an edit, interning collapses the marginal cost of a
+/// reload to the strings that actually changed.
+///
+/// This bounds the growth; it does not end it. Retiring a whole generation
+/// once no registry snapshot references it needs the registry's `'static`
+/// specs to become refcounted, which is a change to its public type and not
+/// one to smuggle in here.
 fn leak_str(text: &str) -> &'static str {
-    Box::leak(text.to_owned().into_boxed_str())
+    static INTERNED: LazyLock<Mutex<HashSet<&'static str>>> =
+        LazyLock::new(|| Mutex::new(HashSet::new()));
+
+    let mut interned = match INTERNED.lock() {
+        Ok(interned) => interned,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if let Some(existing) = interned.get(text) {
+        return existing;
+    }
+    let leaked: &'static str = Box::leak(text.to_owned().into_boxed_str());
+    interned.insert(leaked);
+    leaked
 }
 
 fn leak_slice<T>(items: Vec<T>) -> &'static [T] {

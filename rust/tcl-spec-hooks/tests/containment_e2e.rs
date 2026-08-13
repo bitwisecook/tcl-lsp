@@ -130,6 +130,7 @@ fn call<'w>(words: &'w [HookWord<'w>]) -> HookCall<'w> {
         version: None,
         in_event_body: false,
         option: None,
+        dialect: None,
     }
 }
 
