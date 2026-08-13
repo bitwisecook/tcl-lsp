@@ -1170,6 +1170,60 @@ impl Lsp {
         }
     }
 
+    /// Poll an arbitrary request (`query`) until its response satisfies
+    /// `predicate`, or `timeout` (load-scaled) elapses; returns the last
+    /// response either way, so a genuine content divergence is reported by
+    /// the caller's own assertion rather than swallowed here.
+    ///
+    /// # The race this closes
+    ///
+    /// [`Self::open_ready`] only waits for the *opened* document's own
+    /// diagnostics to settle. It says nothing about `scan_workspace_folders`,
+    /// the server's independent background pass that walks the workspace
+    /// root and indexes every on-disk file the client has **not** opened, so
+    /// cross-file providers (`textDocument/definition`, `references`,
+    /// `rename`, call hierarchy, `workspace/symbol`) can see them. A test
+    /// that writes a sibling fixture straight to disk, never opens it, opens
+    /// only the *other* file with `open_ready`, and then fires a single
+    /// cross-file query immediately is racing that scan: on a quiet box the
+    /// scan usually wins and the sibling is already indexed, but on a loaded
+    /// CI runner it can lose — the server has not indexed the sibling yet, so
+    /// it correctly answers with what it currently knows (empty/short), not
+    /// a bug in either the server or the query. `wait_for_workspace_scan`
+    /// gates a few *internal* server code paths (autoload resolution,
+    /// `workspace/symbol`) but the position-based providers above are
+    /// deliberately not among them, so the settling has to happen here, the
+    /// same way [`Self::await_diagnostics_settled`] settles a diagnostics
+    /// push that is refined progressively rather than gating the publish
+    /// itself.
+    ///
+    /// `query` is a live round-trip per call, so it must be cheap and
+    /// side-effect-free beyond the request itself (a plain `textDocument/*`
+    /// or `workspace/*` read). Sleeps a short, fixed step between attempts —
+    /// deliberately not load-scaled itself, only the deadline is, so a slow
+    /// machine gets more attempts rather than coarser ones.
+    pub fn await_query_settled<T: std::fmt::Display>(
+        &mut self,
+        timeout: Duration,
+        mut query: impl FnMut(&mut Self) -> T,
+        predicate: impl Fn(&T) -> bool,
+    ) -> T {
+        let deadline = Instant::now() + scaled_timeout(timeout);
+        loop {
+            let result = query(self);
+            if predicate(&result) {
+                return result;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "query never reached the expected state within {timeout:?} \
+                 (load-scaled); last response: {result}{}",
+                latency_barrier_timeout_note()
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
     /// Block until a `window/logMessage` whose text contains all `needles`
     /// (searching entries at index `since` onward). Returns the message text.
     pub fn await_log(&self, needles: &[&str], timeout: Duration, since: usize) -> String {

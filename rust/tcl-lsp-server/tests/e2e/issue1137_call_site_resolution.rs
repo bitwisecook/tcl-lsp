@@ -26,6 +26,8 @@
 //! in one response must agree about what a given span names, and none may
 //! answer from a text guess where the analyser has already decided.
 
+use std::time::Duration;
+
 use serde_json::Value;
 
 use crate::common::{Lsp, unique_uri};
@@ -65,6 +67,19 @@ fn locations(result: &Value) -> Vec<(u32, u32)> {
             ))
         })
         .collect()
+}
+
+/// Whether a `textDocument/definition` result carries a location in
+/// `utils.tcl` — the settle predicate for the cross-file scan race in
+/// `a_bare_helper_call_in_a_method_body_resolves_across_files` (see
+/// `Lsp::await_query_settled`).
+fn reaches_utils_tcl(result: &Value) -> bool {
+    result.as_array().into_iter().flatten().any(|loc| {
+        loc.get("uri")
+            .or_else(|| loc.get("targetUri"))
+            .and_then(Value::as_str)
+            .is_some_and(|u| u.ends_with("utils.tcl"))
+    })
 }
 
 fn hover_text(result: &Value) -> String {
@@ -181,15 +196,19 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
     let mut lsp = Lsp::at_workspace_root(&root);
     let uri = format!("file://{}", esnap.to_string_lossy());
     lsp.open_ready(&uri, &std::fs::read_to_string(&esnap).expect("read"));
-    let result = lsp.definition(&uri, 2, 17);
-    let targets = result.as_array().cloned().unwrap_or_default();
+    // `utils.tcl` is written straight to disk and never opened, so the
+    // cross-file target is only known once the background workspace scan has
+    // indexed it — `open_ready` above only settles esnap.tcl's own
+    // diagnostics, not that independent scan. A single immediate query races
+    // it (a real, CI-observed flake); poll instead, matching the settle
+    // convention `Lsp::await_query_settled` documents.
+    let result = lsp.await_query_settled(
+        Duration::from_secs(20),
+        |lsp| lsp.definition(&uri, 2, 17),
+        reaches_utils_tcl,
+    );
     assert!(
-        targets.iter().any(|loc| {
-            loc.get("uri")
-                .or_else(|| loc.get("targetUri"))
-                .and_then(Value::as_str)
-                .is_some_and(|u| u.ends_with("utils.tcl"))
-        }),
+        reaches_utils_tcl(&result),
         "the bare `callback` call must reach ::oo::Helpers::callback in utils.tcl: {result}",
     );
 

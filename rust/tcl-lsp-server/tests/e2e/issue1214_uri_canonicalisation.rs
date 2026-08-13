@@ -82,7 +82,7 @@ fn an_unencoded_workspace_folder_uri_is_accepted_and_normalised() {
 /// single definition site.
 #[test]
 fn a_scanned_file_and_the_same_open_file_are_one_document() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     let root = spaced_workspace("one-doc");
     let lib = root.join("lib.tcl");
@@ -111,58 +111,72 @@ fn a_scanned_file_and_the_same_open_file_are_one_document() {
     );
 
     // Exactly one workspace symbol for the proc: a second would mean the
-    // scanned copy and the open buffer were indexed as two documents.
-    let deadline = Instant::now() + Duration::from_secs(20);
-    loop {
-        let hits: Vec<Value> = lsp
-            .workspace_symbols("shared_marker")
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|s| s.get("name").and_then(Value::as_str) == Some("shared_marker"))
-            .collect();
-        if hits.len() == 1 {
-            let uri = hits[0]["location"]["uri"].as_str().unwrap_or_default();
-            assert!(
-                uri.contains("%20") && !uri.contains(' '),
-                "the reported URI must be the canonical encoded form: {uri}"
-            );
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the scanned file and the open buffer must be one document; got {hits:?}"
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    // scanned copy and the open buffer were indexed as two documents. `caller`
+    // is written to disk and never opened, so both this and the `references`
+    // query below settle the same background-workspace-scan race
+    // `Lsp::await_query_settled` documents, through the shared helper rather
+    // than an ad-hoc loop.
+    let symbols = lsp.await_query_settled(
+        Duration::from_secs(20),
+        |lsp| lsp.workspace_symbols("shared_marker"),
+        |result| {
+            result
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|s| s.get("name").and_then(Value::as_str) == Some("shared_marker"))
+                .count()
+                == 1
+        },
+    );
+    let hits: Vec<Value> = symbols
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|s| s.get("name").and_then(Value::as_str) == Some("shared_marker"))
+        .collect();
+    assert_eq!(
+        hits.len(),
+        1,
+        "the scanned file and the open buffer must be one document; got {hits:?}"
+    );
+    let uri = hits[0]["location"]["uri"].as_str().unwrap_or_default();
+    assert!(
+        uri.contains("%20") && !uri.contains(' '),
+        "the reported URI must be the canonical encoded form: {uri}"
+    );
 
     // And the cross-document call site in the unopened sibling resolves — which
     // it can only do if the scan indexed it under a URI the resolver agrees
     // with.
-    let deadline = Instant::now() + Duration::from_secs(20);
-    loop {
-        let uris: Vec<String> = lsp
-            .references(&encoded_lib, 0, 6, true)
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|r| r["uri"].as_str().map(str::to_owned))
-            .collect();
-        if uris.iter().any(|u| u.ends_with("caller.tcl")) {
-            assert!(
-                uris.iter().all(|u| !u.contains(' ')),
-                "every reported URI must be in the canonical encoded form: {uris:?}"
-            );
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the unopened caller must be found through the shared canonical form: {uris:?}"
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    let refs = lsp.await_query_settled(
+        Duration::from_secs(20),
+        |lsp| lsp.references(&encoded_lib, 0, 6, true),
+        |result| {
+            result
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|r| r["uri"].as_str().map(str::to_owned))
+                .any(|u| u.ends_with("caller.tcl"))
+        },
+    );
+    let uris: Vec<String> = refs
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|r| r["uri"].as_str().map(str::to_owned))
+        .collect();
+    assert!(
+        uris.iter().any(|u| u.ends_with("caller.tcl")),
+        "the unopened caller must be found through the shared canonical form: {uris:?}"
+    );
+    assert!(
+        uris.iter().all(|u| !u.contains(' ')),
+        "every reported URI must be in the canonical encoded form: {uris:?}"
+    );
 
     std::fs::remove_dir_all(&root).ok();
 }
