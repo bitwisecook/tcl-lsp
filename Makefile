@@ -750,7 +750,7 @@ test-exhaustive: ## Run every #[ignore]d corpus/fuzz/privileged test (slow, manu
 		cargo nextest run --profile exhaustive --run-ignored ignored-only --workspace --all-features --no-fail-fast; \
 	else \
 		echo "==> cargo-nextest not found; falling back to 'cargo test -- --ignored'"; \
-		cargo test --workspace --all-features -- --ignored; \
+		cargo test --workspace --all-features --no-fail-fast -- --ignored; \
 	fi
 
 # Differential-fuzz campaign entry point.  Campaign shape (engine pair,
