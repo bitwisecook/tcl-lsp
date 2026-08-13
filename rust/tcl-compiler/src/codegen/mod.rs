@@ -77,6 +77,14 @@ use tcl_registry::CommandRegistry;
 // area. Leaving the allow.
 #[allow(clippy::struct_excessive_bools)]
 pub struct CodegenCtx<'r> {
+    /// The numeric-literal grammar of the release being compiled *for*.
+    ///
+    /// The dialect is a top-level property of the compile, threaded from the
+    /// entry point (`IrModule::dialect`) to here, so a numeric literal is
+    /// resolved for the target release while emitting rather than re-read under
+    /// whatever rules happen to be installed at run time. Defaults to 9.0 for
+    /// the hand-built contexts in tests.
+    pub numbers: tcl_dialect::NumberSyntax,
     /// Literal constant pool.
     pub literals: LiteralTable,
     /// Local variable table.
@@ -152,6 +160,7 @@ impl<'r> CodegenCtx<'r> {
     #[must_use]
     pub fn new(is_proc: bool, params: &[&str], registry: &'r CommandRegistry) -> Self {
         Self {
+            numbers: tcl_dialect::NumberSyntax::Tcl90,
             literals: LiteralTable::new(),
             lvt: LocalVarTable::new(params),
             instructions: Vec::new(),

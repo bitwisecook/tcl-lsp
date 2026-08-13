@@ -1388,6 +1388,15 @@ pub struct Module {
     /// surface text for `errorInfo` (`while executing "…"`). Empty when not
     /// supplied (older construction paths / hand-built test modules).
     pub source: String,
+    /// The dialect this module was lowered for (`"tcl8.6"`, `"f5-irules"`, …),
+    /// `None` for an unnamed/permissive compile.
+    ///
+    /// The dialect is a top-level property of the compile, threaded from the
+    /// entry point down to codegen so the backend emits code *for* a release
+    /// rather than deferring release-dependent decisions to run time — a
+    /// numeric literal is a case in point: `0755` is 493 under 8.6 and 755
+    /// under 9.0, and which one it is settled here.
+    pub dialect: Option<String>,
     /// Top-level script (code outside any procedure).
     pub top_level: Script,
     /// Named procedures.

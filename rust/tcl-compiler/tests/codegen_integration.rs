@@ -861,6 +861,7 @@ fn codegen_module_with_no_procs() {
     };
     let ir_mod = IrModule {
         source: String::new(),
+        dialect: None,
         top_level: Script::new(),
         procedures: HashMap::new(),
         methods: HashMap::new(),

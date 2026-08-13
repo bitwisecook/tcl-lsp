@@ -94,8 +94,10 @@ fn codegen_function_src(
     registry: &CommandRegistry,
     source: &str,
     base_line: u32,
+    numbers: tcl_dialect::NumberSyntax,
 ) -> FunctionAsm {
     let mut ctx = CodegenCtx::new(is_proc, params, registry);
+    ctx.numbers = numbers;
     ctx.set_source(source);
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
     asm.body_base_line = base_line;
@@ -124,7 +126,24 @@ pub fn codegen_module(
     registry: &CommandRegistry,
 ) -> ModuleAsm {
     let src = &ir_module.source;
-    let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], registry, src, 0);
+    // The compile's target release: a named dialect's own numeric grammar, else
+    // the permissive 9.x default.
+    let numbers = ir_module
+        .dialect
+        .as_deref()
+        .map_or(tcl_dialect::NumberSyntax::Tcl90, |d| {
+            tcl_dialect::DialectProfile::by_name(d).grammar.numbers
+        });
+    let top = codegen_function_src(
+        &cfg_module.top_level,
+        &[],
+        false,
+        &[],
+        registry,
+        src,
+        0,
+        numbers,
+    );
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();
     for (qname, cfg_func) in &cfg_module.procedures {
         let ir_proc = ir_module.procedures.get(qname);
@@ -142,7 +161,16 @@ pub fn codegen_module(
         let base_line = ir_proc.map_or(0, |p| line_of(src, p.span.start()));
         procs.insert(
             qname.clone(),
-            codegen_function_src(cfg_func, &params, true, &[], registry, src, base_line),
+            codegen_function_src(
+                cfg_func,
+                &params,
+                true,
+                &[],
+                registry,
+                src,
+                base_line,
+                numbers,
+            ),
         );
     }
     ModuleAsm {

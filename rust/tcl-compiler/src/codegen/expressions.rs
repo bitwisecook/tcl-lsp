@@ -86,36 +86,41 @@ impl CodegenCtx<'_> {
     /// reports the parse error.  Returns `true` (numeric coercion
     /// guaranteed by Tcl literal handling).
     fn emit_expr_literal(&mut self, text: &str) -> bool {
-        let clean = text.trim().trim_start_matches(['+', '-']);
-        if clean.len() > 1
-            && clean.starts_with('0')
-            && matches!(
-                clean.as_bytes().get(1),
-                Some(b'o' | b'O' | b'x' | b'X' | b'b' | b'B')
-            )
-            && i64::from_str_radix(
-                &clean[2..],
-                match clean.as_bytes()[1] {
-                    b'o' | b'O' => 8,
-                    b'x' | b'X' => 16,
-                    b'b' | b'B' => 2,
-                    _ => 10,
-                },
-            )
-            .is_err()
-        {
-            self.push_lit(text);
-            self.emit(Op::EXPR_STK, vec![]);
-            return true;
+        use tcl_syntax::number::{self, Number, ParseFlags};
+
+        // Resolve the numeral for the release being compiled *for*, not for
+        // whatever is installed at run time: `0755` is 493 under 8.6 and 755
+        // under 9.0, `0b`/`0o` exist from 8.5 and `0d` from 9.0. C does the same
+        // — `CompileExprTree` pushes the object `TclParseNumber` produced, so the
+        // literal pool holds the value, never the source spelling.
+        match number::parse_whole_with(text.trim(), ParseFlags::for_syntax(self.numbers)) {
+            // Fold to the canonical string, so no runtime conversion is needed
+            // (`expr {0xff}` is `255`, `expr {1e3}` is `1000.0`).
+            Some(Number::Int(v)) => {
+                self.push_lit(&v.to_string());
+                true
+            }
+            Some(Number::Double(f)) => {
+                self.push_lit(&number::format_double(f));
+                true
+            }
+            // A bignum or NaN keeps its written form and is canonicalised by the
+            // runtime's `tryCvtToNumeric`: both are release-independent here
+            // (a >64-bit magnitude and `NaN` parse the same in every version),
+            // so deferring costs no dialect fidelity.
+            Some(_) => {
+                self.push_lit(text);
+                false
+            }
+            // Not a number in this release — `0o8` anywhere, or `0d99` before
+            // 9.0. C classifies it as a bareword and errors; `exprStk` raises
+            // that at run time with the full diagnosis.
+            None => {
+                self.push_lit(text);
+                self.emit(Op::EXPR_STK, vec![]);
+                true
+            }
         }
-        // Push the literal as written and report it as *not* guaranteed-canonical
-        // so a top-level `expr`/`set =` result runs `tryCvtToNumeric`, which
-        // regenerates the number's canonical string (`expr {1e3}` → `1000.0`,
-        // `expr {0xff}` → `255`). As an operand of an arithmetic op the raw form
-        // is fine — the op coerces — so this only adds a conversion where the
-        // literal is itself the whole expression.
-        self.push_lit(text);
-        false
     }
 
     /// Emit a `String` expression — strips surrounding `"..."` or
