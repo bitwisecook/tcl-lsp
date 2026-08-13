@@ -103,7 +103,7 @@ pub enum Number {
 /// [`Default`] is Tcl 9.0 syntax, so a caller that does not know its dialect
 /// keeps the modern rules; a version-aware caller sets [`ParseFlags::syntax`]
 /// (or builds one with [`ParseFlags::for_syntax`]).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct ParseFlags {
     /// Reject a fractional part / exponent (`TCL_PARSE_INTEGER_ONLY`).
     pub integer_only: bool,
@@ -115,6 +115,67 @@ pub struct ParseFlags {
     /// whether a bare leading `0` is octal, and whether `_` separators are
     /// allowed. See [`NumberSyntax`].
     pub syntax: NumberSyntax,
+}
+
+/// The numeric grammar this build of the runtime parses, installed once by the
+/// embedder and fixed for its lifetime.
+///
+/// C has no per-call equivalent: its numeric grammar is a *build-time*
+/// constant (`tclStrToD.c` decides octal-by-leading-zero with `#define` /
+/// `#undef KILL_OCTAL`), so the release a binary emulates is settled before any
+/// script runs. This mirrors that — the runtime is built for one dialect and
+/// does not switch during execution, which is why this is ambient state rather
+/// than an argument threaded through every `Tcl_GetIntFromObj`-shaped call.
+///
+/// A caller that must be explicit (a test, or a tool handling several dialects
+/// in one process) passes [`ParseFlags::for_syntax`] instead of relying on it.
+mod ambient {
+    use super::NumberSyntax;
+    use std::cell::Cell;
+
+    thread_local! {
+        static SYNTAX: Cell<NumberSyntax> = const { Cell::new(NumberSyntax::Tcl90) };
+    }
+
+    /// Install the numeric grammar for this thread's runtime. Call once during
+    /// construction, before any script executes.
+    pub fn set(syntax: NumberSyntax) {
+        SYNTAX.with(|c| c.set(syntax));
+    }
+
+    /// The installed grammar (Tcl 9.0 until an embedder says otherwise).
+    pub fn get() -> NumberSyntax {
+        SYNTAX.with(Cell::get)
+    }
+}
+
+/// Install the numeric grammar this runtime parses — see [`ambient`].
+///
+/// Call once while building the interpreter. Changing it mid-execution is not
+/// supported: values already converted keep the numbers they were read as, so a
+/// flip would leave the same script text meaning two different things.
+pub fn set_runtime_syntax(syntax: NumberSyntax) {
+    ambient::set(syntax);
+}
+
+/// The numeric grammar this runtime parses.
+#[must_use]
+pub fn runtime_syntax() -> NumberSyntax {
+    ambient::get()
+}
+
+impl Default for ParseFlags {
+    /// Every `TclParseNumber` bit clear, with the *runtime's* numeric grammar
+    /// (see [`set_runtime_syntax`]) — so the existing call sites follow the
+    /// dialect the runtime was built for without each threading it.
+    fn default() -> Self {
+        Self {
+            integer_only: false,
+            no_whitespace: false,
+            no_underscore: false,
+            syntax: ambient::get(),
+        }
+    }
 }
 
 impl ParseFlags {

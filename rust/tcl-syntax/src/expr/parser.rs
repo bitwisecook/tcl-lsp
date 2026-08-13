@@ -425,6 +425,21 @@ impl<'a> PrattParser<'a> {
 /// assert!(matches!(raw, ExprNode::Raw { .. }));
 /// ```
 #[must_use]
+/// The numeric grammar to parse with: a named dialect's own, else the grammar
+/// the runtime was built for ([`crate::number::runtime_syntax`]).
+///
+/// The fallback matters. An unnamed dialect resolves to the permissive 9.x
+/// profile, so without this a runtime built for 8.6 would *parse* `0o17` as a
+/// number and then fail to *read* it as one, leaving the literal to evaluate to
+/// its own text — the silent-wrong-answer shape this whole change removes.
+pub(super) fn numbers_for(dialect: Option<&str>, profile: &DialectProfile) -> NumberSyntax {
+    if dialect.is_some() {
+        profile.grammar.numbers
+    } else {
+        crate::number::runtime_syntax()
+    }
+}
+
 pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
     // Resolve the dialect string to its interned profile once and thread the
     // canonical name down — so the grammar branch in the expr lexer and the
@@ -449,7 +464,7 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
         };
     }
 
-    let mut parser = PrattParser::new(&tokens, profile.grammar.numbers);
+    let mut parser = PrattParser::new(&tokens, numbers_for(dialect, profile));
     match parser.expression(0) {
         Ok(result) if parser.pos >= tokens.len() => result,
         _ => ExprNode::Raw {

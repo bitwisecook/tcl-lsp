@@ -435,7 +435,10 @@ impl<'s> Inner<'s> {
             }
             return self.tok(ExprTokenType::Number, start);
         }
-        while self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
+        // `_` rides along inside a digit run: 9.0 allows it as a separator, and
+        // before 9.0 the whole run must still be ONE lexeme so it is reported as
+        // a single bareword rather than a number followed by junk.
+        while self.i < self.b.len() && (self.b[self.i].is_ascii_digit() || self.b[self.i] == b'_') {
             self.i += 1;
         }
         if self.i < self.b.len() && self.b[self.i] == b'.' {

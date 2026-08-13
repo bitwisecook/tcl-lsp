@@ -230,6 +230,40 @@ impl TclVersion {
         }
     }
 
+    /// The canonical dialect-profile name for this release (`"tcl8.6"`), the
+    /// inverse of [`Self::from_dialect`].
+    ///
+    /// Lets an embedder that selected a release (a `--tcl-version` flag) name
+    /// the same dialect to the *compiler*, so codegen targets the release the
+    /// runtime was built for instead of defaulting to the permissive profile.
+    #[must_use]
+    pub const fn dialect_name(self) -> &'static str {
+        match self {
+            Self::V8_4 => "tcl8.4",
+            Self::V8_5 => "tcl8.5",
+            Self::V8_6 => "tcl8.6",
+            Self::V9_0 => "tcl9.0",
+            Self::V9_1 => "tcl9.1",
+        }
+    }
+
+    /// The release's numeric-literal grammar — the single mapping every
+    /// consumer of [`crate::NumberSyntax`] derives from, so the runtime, the
+    /// compiler's const-folder, the analyser and the lexer grammar cannot
+    /// disagree about which release accepts what.
+    ///
+    /// `0b`/`0o` arrive in 8.5 and `0d` / `_` separators in 9.0, which also
+    /// drops octal-by-leading-zero; see [`crate::NumberSyntax`] for the
+    /// per-release evidence.
+    #[must_use]
+    pub const fn number_syntax(self) -> crate::NumberSyntax {
+        match self {
+            Self::V8_4 => crate::NumberSyntax::Tcl84,
+            Self::V8_5 | Self::V8_6 => crate::NumberSyntax::Tcl85,
+            Self::V9_0 | Self::V9_1 => crate::NumberSyntax::Tcl90,
+        }
+    }
+
     /// Whether the core implements `namespace path` (introduced in Tcl 8.5).
     #[must_use]
     pub const fn has_namespace_path(self) -> bool {

@@ -856,6 +856,14 @@ impl Vm {
         // version flip.
         self.bump_cmd_epoch();
         self.runtime_version = version;
+        // Install the release's numeric grammar for this runtime: `0755` is 493
+        // under 8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5 and `0d` / `_`
+        // separators from 9.0. C settles this at build time (`KILL_OCTAL`), so
+        // it is a property of the runtime rather than of each conversion — see
+        // `tcl_syntax::number::set_runtime_syntax`. Embedders call this while
+        // building the interpreter; the VM does not support switching release
+        // mid-execution.
+        tcl_syntax::number::set_runtime_syntax(version.number_syntax());
         self.write_release_globals();
     }
 

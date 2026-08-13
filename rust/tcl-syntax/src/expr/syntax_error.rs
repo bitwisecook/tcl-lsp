@@ -204,7 +204,12 @@ impl ExprSyntaxError {
             return error;
         }
         let tokens: Vec<ExprToken> = raw.into_iter().filter(|t| !t.kind.is_skipped()).collect();
-        Scan::new(source, &tokens, profile.grammar.numbers).run()
+        Scan::new(
+            source,
+            &tokens,
+            super::parser::numbers_for(dialect, profile),
+        )
+        .run()
     }
 
     /// The simple message plus C's quoted context (and postscript, where C adds
