@@ -415,6 +415,18 @@ for extra confidence on a risky change — they are no longer a precondition
 for opening a PR.  The one gap: **Emacs eglot tests run nowhere in CI**, so
 touch `editors/emacs` only with a local `make test-emacs` run.
 
+**Known eglot xfail — upstream bug, not ours.**  The eglot semantic-token
+repaint failures are an **expected failure caused by an upstream eglot
+painter bug** (issue #333: `eglot--semtok-font-lock-2` stacks
+`eglot-semantic-*` faces from stale properties while a semantic-tokens
+response is in flight).  The server is verified correct by the spec-correct
+reference client
+(`rust/tcl-lsp-server/tests/e2e/semantic_tokens_reference_client.rs`), so a
+`test-emacs` failure in that area is NOT a server regression: do not chase
+it, do not block a push or PR on it, and do not "fix" it server-side.  See
+`editors/emacs/README.md` and `scripts/eglot_test/` for the repro and the
+evidence.
+
 ### CI redundancy contract
 
 CI avoids re-testing what demonstrably didn't change, and the rules live in
@@ -829,7 +841,12 @@ layers — not just the one closest to the symptom.
   under active development. Before a feature is considered ready for release,
   all underlying issues must be fixed and the markers removed. Do not ship
   xfails — fix the root cause instead, and do not confuse an xfail with the
-  sanctioned manual-only `#[ignore]`s above.
+  sanctioned manual-only `#[ignore]`s above.  One standing exception: the
+  **eglot semantic-token repaint failures in `make test-emacs` are xfail
+  because the defect is upstream in eglot itself** (issue #333, face-stacking
+  in `eglot--semtok-font-lock-2`) — the server is proven correct by the
+  reference client, so these stay xfail until the upstream fix ships, and
+  they are not a release blocker.
 
 ## Common tasks
 
