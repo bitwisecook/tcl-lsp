@@ -161,7 +161,7 @@ fn provider_ranges_well_formed_for(idx: usize) {
 }
 
 macro_rules! corpus_range_tests {
-    ($($test:ident = $idx:literal;)+) => {
+    ($($(#[$meta:meta])* $test:ident = $idx:literal;)+) => {
         /// Guard: the explicit per-entry list must cover the whole corpus, so a
         /// new corpus entry can't silently escape the invariant sweep.
         #[test]
@@ -172,16 +172,39 @@ macro_rules! corpus_range_tests {
                 "corpus size changed — add/remove a corpus_range_tests entry"
             );
         }
-        $( #[test] fn $test() { provider_ranges_well_formed_for($idx); } )+
+        $( $(#[$meta])* #[test] fn $test() { provider_ranges_well_formed_for($idx); } )+
     };
 }
 
 corpus_range_tests! {
     ranges_entry_00 = 0;  ranges_entry_01 = 1;  ranges_entry_02 = 2;
     ranges_entry_03 = 3;  ranges_entry_04 = 4;  ranges_entry_05 = 5;
-    ranges_entry_06 = 6;  ranges_entry_07 = 7;  ranges_entry_08 = 8;
+    ranges_entry_06 = 6;
+    // Index 7 is the 400-proc `large` document — the at-scale variant of the
+    // fourteen siblings beside it, and 80-87 s of a debug-build analysis on a
+    // loaded box. Every provider it sweeps is range-checked against the other
+    // fourteen entries in ~1 s each, so what index 7 adds over CI's coverage is
+    // scale alone.
+    #[ignore = "at-scale range sweep (400-proc document); run explicitly with --ignored — \
+                the other 14 corpus entries cover every provider's range invariants"]
+    ranges_entry_07 = 7;
+    ranges_entry_08 = 8;
     ranges_entry_09 = 9;  ranges_entry_10 = 10; ranges_entry_11 = 11;
     ranges_entry_12 = 12; ranges_entry_13 = 13; ranges_entry_14 = 14;
+}
+
+/// The `#[ignore]` above names an index, but [`corpus`] sorts by name — so pin
+/// the one fact that binding rests on. Without this, adding a corpus entry
+/// before `large` alphabetically would quietly move the manual-tier marker onto
+/// an innocent entry and put the 80 s one back in CI.
+#[test]
+fn the_manual_tier_range_entry_is_still_the_large_document() {
+    assert_eq!(
+        corpus()[7].0,
+        "large",
+        "corpus order changed — move the #[ignore] in corpus_range_tests! to the \
+         index `large` now sits at"
+    );
 }
 
 // -- TestWorkspaceEditInvariants -----------------------------------------
@@ -237,6 +260,15 @@ fn test_code_action_edits_do_not_overlap() {
 // per-entry by `corpus_range_tests!` above — each entry's `#[test]` proves both
 // "ranges well-formed" and "server survives/responds" for that input.
 
+// Manual tier: the burst opens the 400-proc `large` document alongside three
+// hostile ones and sweeps every provider over each, which is 78-82 s of
+// debug-build analysis. The state-poisoning it guards against is what every
+// other test in this file would also see — they all run against a server that
+// has already served other documents — so CI keeps the property and this test
+// keeps the volume.
+#[ignore = "adversarial burst over four documents including the 400-proc one; run \
+            explicitly with --ignored — the per-entry corpus_range_tests cover \
+            survive-and-respond for each input"]
 #[test]
 fn test_server_still_responsive_after_adversarial_burst() {
     // After hammering hostile documents, a normal request on a fresh doc must

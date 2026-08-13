@@ -16,19 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end golden differential test for the time/date-category builtins.
+//! End-to-end golden differential test for the regex/string-category
+//! builtins.
 //!
-//! The pipeline captured in `tests/fixtures/time.json`
+//! The pipeline captured in `tests/fixtures/regex_str.json`
 //! from the captured query DSL fixtures: parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
 //! mode)` the Rust output (or `error:` message) must match the expected value exactly.
 //! Self-contained — no external reference at test time.
-//!
-//! `TZ=UTC` is pinned for every case (via `temp_env`) so the timezone-aware
-//! builtins (`localtime` / `mktime` / `strftime`) are deterministic, matching
-//! the `TZ=UTC` the generator pins. The non-deterministic `now` builtin is
-//! excluded from the fixture; its type/range is asserted separately here and
-//! in a `time_dt.rs` unit test.
 
 use indexmap::IndexMap;
 use serde_json::Value as J;
@@ -72,8 +67,8 @@ fn run(query: &str, input: &J, mode: &str) -> Result<String, String> {
 }
 
 #[test]
-fn time_builtins() {
-    let raw = include_str!("fixtures/time.json");
+fn regex_str_builtins() {
+    let raw = include_str!("../fixtures/regex_str.json");
     let cases: J = serde_json::from_str(raw).expect("fixture is valid JSON");
     let cases = cases.as_array().expect("fixture is an array");
     assert!(!cases.is_empty());
@@ -84,8 +79,7 @@ fn time_builtins() {
         let mode = case["mode"].as_str().unwrap();
         let kind = case["kind"].as_str().unwrap();
         let expected = case["output"].as_str().unwrap();
-        // Pin `TZ=UTC` so the timezone-aware builtins match the generator.
-        let got = temp_env::with_var("TZ", Some("UTC"), || run(query, &case["input"], mode));
+        let got = run(query, &case["input"], mode);
         let ok = match (kind, &got) {
             ("ok", Ok(out)) => out == expected,
             ("err", Err(msg)) => msg == expected,
@@ -99,25 +93,9 @@ fn time_builtins() {
     }
     assert!(
         failures.is_empty(),
-        "{} / {} time cases mismatched:\n{}",
+        "{} / {} regex_str cases mismatched:\n{}",
         failures.len(),
         cases.len(),
         failures.join("\n")
     );
-}
-
-#[test]
-fn now_returns_a_finite_recent_float() {
-    // `now` is non-deterministic and excluded from the fixture; assert its
-    // shape here too (mirrors the `time_dt.rs` unit test) so the end-to-end
-    // pipeline exercises it.
-    let out = temp_env::with_var("TZ", Some("UTC"), || {
-        run("now", &J::Null, "json").expect("now() evaluates")
-    });
-    // `json` mode renders the single float on its own line inside a list.
-    let trimmed = out.trim();
-    let inner = trimmed.trim_start_matches('[').trim_end_matches(']').trim();
-    let value: f64 = inner.parse().expect("now() renders a float literal");
-    assert!(value.is_finite(), "now() must be finite, got {value}");
-    assert!(value > 1.6e9, "now() must be after 2020, got {value}");
 }

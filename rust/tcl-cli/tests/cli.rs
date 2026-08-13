@@ -73,6 +73,16 @@ fn explore_summary_lists_views() {
     assert!(text.contains("ir:"));
 }
 
+/// Smoke variant of [`explore_summary_lists_views`]: the cheapest possible
+/// "the `tcl` binary still starts, parses its args, and reports success" CLI
+/// invocation, on the default-features surface only (no `--tui`).
+#[test]
+fn smoke_explore_reports_summary_for_tiny_snippet() {
+    let out = run_tcl(&["explore", "--source", "set x 1"]);
+    let text = String::from_utf8(out).expect("utf-8 summary");
+    assert!(text.contains("Compiler explorer summary"));
+}
+
 #[test]
 fn explore_text_renders_box_drawing_trees() {
     let out = run_tcl(&[

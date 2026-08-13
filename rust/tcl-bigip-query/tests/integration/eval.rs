@@ -16,10 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end golden differential test for the value / stream / path +
-//! encoding-category builtins.
+//! End-to-end golden differential test for the query evaluator + builtins.
 //!
-//! The pipeline captured in `tests/fixtures/value2.json`
+//! The pipeline captured in `tests/fixtures/eval.json`
 //! from the captured query DSL fixtures: parse → evaluate
 //! against a JSON-backed root → `output::render`. For each `(query, input,
 //! mode)` the Rust output (or `error:` message) must match the expected value exactly.
@@ -67,8 +66,8 @@ fn run(query: &str, input: &J, mode: &str) -> Result<String, String> {
 }
 
 #[test]
-fn value2_builtins() {
-    let raw = include_str!("fixtures/value2.json");
+fn evaluator() {
+    let raw = include_str!("../fixtures/eval.json");
     let cases: J = serde_json::from_str(raw).expect("fixture is valid JSON");
     let cases = cases.as_array().expect("fixture is an array");
     assert!(!cases.is_empty());
@@ -93,7 +92,7 @@ fn value2_builtins() {
     }
     assert!(
         failures.is_empty(),
-        "{} / {} value2 cases mismatched:\n{}",
+        "{} / {} eval cases mismatched:\n{}",
         failures.len(),
         cases.len(),
         failures.join("\n")

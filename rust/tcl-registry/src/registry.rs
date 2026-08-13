@@ -6529,4 +6529,15 @@ mod tests {
             "plain Tcl does not",
         );
     }
+
+    #[test]
+    fn smoke_lookup_set_command() {
+        let reg = CommandRegistry::build_default();
+        let spec = reg.get("set").expect("`set` must be a known command");
+        assert!(
+            spec.arity.min <= 1 && spec.arity.max >= 1,
+            "set must accept at least a variable name: {:?}",
+            spec.arity
+        );
+    }
 }

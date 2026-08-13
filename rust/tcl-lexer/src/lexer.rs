@@ -3339,4 +3339,18 @@ mod tests {
             "a missing close-quote must not be a hard error by default: {result:?}"
         );
     }
+
+    #[test]
+    fn smoke_lex_canonical_snippet() {
+        // Word, braced word, var substitution, command substitution, and a
+        // comment, in one pass — the cheapest "the lexer still starts up and
+        // produces sane output" check.
+        let lexed = Lexed::run("set x {a b}\nputs $x ;# comment\nset y [llength $x]\n");
+        let kinds = lexed.kinds();
+        assert!(kinds.contains(&TokenType::Esc), "{kinds:?}");
+        assert!(kinds.contains(&TokenType::Str), "{kinds:?}");
+        assert!(kinds.contains(&TokenType::Var), "{kinds:?}");
+        assert!(kinds.contains(&TokenType::Cmd), "{kinds:?}");
+        assert!(kinds.contains(&TokenType::Comment), "{kinds:?}");
+    }
 }

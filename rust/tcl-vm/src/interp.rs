@@ -5847,4 +5847,13 @@ mod family_b_tests {
         assert_eq!(c.code, Code::Error);
         assert_eq!(&*c.result.to_str(), "invalid command id");
     }
+
+    #[test]
+    fn smoke_eval_canonical_snippet() {
+        let mut vm = Vm::new();
+        let result = vm
+            .eval_expr("21 * 2")
+            .expect("canonical expr must evaluate");
+        assert_eq!(result.to_str().as_ref(), "42");
+    }
 }

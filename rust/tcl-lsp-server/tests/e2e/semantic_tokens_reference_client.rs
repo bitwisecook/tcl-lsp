@@ -63,14 +63,39 @@
 //!
 //! * **Latency** — issue #829's guarantee that a cold/large file's *first*
 //!   token response is never starved behind the whole-file analysis. This is a
-//!   real promise about the server's design and deleting or `#[ignore]`-ing it
-//!   would retire it, but as a wall-clock absolute it is a claim about the
-//!   *machine*, not the server. These assertions therefore go through
-//!   [`LatencyBudget`], which measures this very server's no-op round-trip
-//!   first and scales the budget by the measured scheduling capacity — so a
-//!   quiet machine still enforces the tight original bound, while a loaded one
-//!   tests the same guarantee in the currency of the capacity it actually has.
-//!   The one thing that never happens is a plain widening of the constant.
+//!   real promise about the server's design, so it is not deleted, but as a
+//!   wall-clock absolute it is a claim about the *machine*, not the server.
+//!   These assertions therefore go through [`LatencyBudget`], which measures
+//!   this very server's no-op round-trip first and scales the budget by the
+//!   measured scheduling capacity — so a quiet machine still enforces the tight
+//!   original bound, while a loaded one tests the same guarantee in the
+//!   currency of the capacity it actually has. The one thing that never happens
+//!   is a plain widening of the constant.
+//!
+//! # What runs in CI, and what is `#[ignore]`d
+//!
+//! Every content test here runs on every merge, and so do both large-file
+//! *convergence* tests
+//! ([`large_file_semantic_tokens_refresh_delivers_enriched_result`] and
+//! [`large_file_range_semantic_tokens_converges_via_refresh`]): the
+//! coarse-vs-enriched decision is a wall-clock budget, so only a document big
+//! enough to overrun it ever serves the coarse tier and converges via refresh
+//! — no small-document test can reach that branch, which makes these two the
+//! sole automated cover for the stale-token convergence contract (full and
+//! range paths respectively).  One test is `#[ignore]`d into the manual tier:
+//! [`large_file_latency_and_correctness`], a latency *benchmark* whose timing
+//! claims belong in `perf.yml`-style trend tracking — its correctness half is
+//! what the two convergence tests already pin.  The two `*_response_is_prompt`
+//! tests measure a single first response rather than looping to convergence,
+//! so they stay in CI and keep #829's promise on the merge gate.
+//!
+//! What that leaves in the merge gate is the *correctness* of the token
+//! stream — the reference client, the delta protocol, the harsh edit
+//! sequences, and the 80-odd ordinary `semantic_tokens` tests, all of which run
+//! the same cold-reopen oracle on documents small enough to be quick. What
+//! moves out is the *timing*: these three are the only tests here whose
+//! distinctive claim is a wall clock, and a wall clock measured once on a
+//! merge-gate runner is the weakest form that claim can take.
 //!
 //! A convergence *round* is therefore: request tokens, await the settled
 //! marker, and — when it reports `refresh=true` — await the refresh and
@@ -717,6 +742,9 @@ fn reference_client_tracks_rapid_fire_bursts() {
 /// after an edit deep in a big file. The timing is printed (see with
 /// `--nocapture`); the assertion bound is generous so this is a smoke gate on
 /// pathological latency, not a flaky micro-benchmark.
+#[ignore = "latency benchmark on a ~5,200-line generated file; run explicitly with \
+            --ignored — token correctness after editing is covered by the reference-client \
+            tests above and the 80-odd ordinary semantic_tokens tests"]
 #[test]
 fn large_file_latency_and_correctness() {
     let mut lsp = Lsp::tcl();
@@ -910,6 +938,11 @@ fn large_file_range_semantic_tokens_response_is_prompt() {
 /// editor re-requests and converges on the fully enriched tokens — "do the
 /// bulk of the semantic tokens first, then update the ones resolved in
 /// deeper analysis."
+// Deliberately NOT #[ignore]d: the coarse-vs-enriched decision is a wall-clock
+// budget (SEMANTIC_TOKENS_FAST_PATH_BUDGET), so only a document big enough to
+// overrun it ever serves the coarse tier and converges via refresh — a
+// small-document test cannot reach this branch, making this the sole automated
+// cover for the stale-token convergence contract (PR #1476 review).
 #[test]
 fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
     let mut lsp = Lsp::tcl();
@@ -985,6 +1018,10 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
 /// differs, so a static cold viewport converges on the enriched tier instead of
 /// staying coarse until the next scroll or edit (the gap `semantic_tokens_range`
 /// had that `_full` did not).
+// Deliberately NOT #[ignore]d: same budget-gated branch as the `_full`
+// convergence test, for the range path specifically (#844 Gap 4 — a skipped
+// viewport staying coarse until the next scroll).  Small-document range tests
+// never overrun the budget, so they cannot cover this.
 #[test]
 fn large_file_range_semantic_tokens_converges_via_refresh() {
     let mut lsp = Lsp::tcl();

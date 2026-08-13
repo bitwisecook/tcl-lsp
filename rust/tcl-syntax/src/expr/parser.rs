@@ -1206,6 +1206,20 @@ mod tests {
         assert_eq!(rendered, "-$x");
     }
 
+    #[test]
+    fn smoke_cst_round_trip() {
+        // `tcl-syntax` has no whole-script concrete syntax tree of its own
+        // (the red-green CST lives in `tcl-compiler::parsing::syntax`,
+        // consumed by the segmenter — see `docs/design/compiler/syntax-tree.md`);
+        // this crate's own lossless parse-then-render contract is the `expr`
+        // AST, so that's what this smoke test exercises: parse a canonical
+        // snippet (vars, a binary op, a function call, parenthesisation) and
+        // confirm `render_expr` reproduces the source exactly.
+        let src = "$a + max($b, 2) * ($c - 1)";
+        let node = parse(src);
+        assert_eq!(crate::expr::ast::render_expr(&node), src);
+    }
+
     // parse_expr_cached
     //
     // The global cache is shared across the whole test binary, so

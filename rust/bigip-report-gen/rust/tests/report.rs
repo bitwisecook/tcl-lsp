@@ -21,10 +21,27 @@
 //! Uses the same UCS fixtures as the Python `f5report` pytest suite
 //! (`rust/bigip-report-gen/python/tests/data/`), so the two generators are validated
 //! against identical inputs and the assertions mirror `test_report.py`.
-
-// Assertions index into fixture-derived counts with `as` casts on values that
-// are always small; truncation cannot occur for these test inputs.
-#![allow(clippy::cast_possible_truncation)]
+//!
+//! # Why the model-shape assertions share one test
+//!
+//! [`model`] extracts two gzip'd `.ucs` archives and re-derives the whole
+//! estate model. Nine tests used to assert nine independent facts about that
+//! one value, and because nextest runs **one process per test**, no
+//! `LazyLock`/`OnceLock` fixture can amortise the work across them — each
+//! process paid the extraction again, 4-8 s apiece for ~120 s of a suite that
+//! has one fixture in it.
+//!
+//! [`the_estate_model_has_the_shape_the_report_renders_from`] therefore derives
+//! the model once and calls each of the shape checks below in turn. They stay
+//! separate `fn`s named after what they pin, and every assertion carries a
+//! message naming the property, so a failure still says which claim broke and
+//! not merely "the model is wrong". The checks are pure reads of one immutable
+//! value, so running them in one process cannot make one hide another.
+//!
+//! Tests of genuinely distinct behaviour — the HTML build, the console toggle,
+//! the footer, the security/forensics tabs — keep their own `#[test]`, because
+//! each drives a different render and a failure in one says nothing about the
+//! others.
 
 use bigip_report_gen_rust::{RenderOptions, Source, build_report, collect_model};
 use serde_json::Value as J;
@@ -55,13 +72,39 @@ fn u(v: &J, key: &str) -> u64 {
         .and_then(J::as_u64)
         .unwrap_or_else(|| panic!("missing uint {key}"))
 }
+/// A JSON array's length as a `u64`, so it compares against a `counts` field
+/// without a lossy cast.
+fn len(v: &[J]) -> u64 {
+    u64::try_from(v.len()).expect("a fixture array fits in u64")
+}
 
+/// Every pure statement this suite makes about the estate model, against one
+/// derivation of it. See the module header for why they share a process.
 #[test]
-fn model_shape() {
+fn the_estate_model_has_the_shape_the_report_renders_from() {
     let m = model();
-    assert_eq!(m["title"], "Test Estate");
-    assert_eq!(arr(&m, "devices").len(), 2);
-    let names: std::collections::BTreeSet<String> = arr(&m, "devices")
+    model_shape(&m);
+    device_has_all_sections(&m);
+    pool_members_and_usedby(&m);
+    orphan_detection_consistent(&m);
+    irule_events_extracted(&m);
+    virtual_profiles_in_protocol_stack_order(&m);
+    rule_events_in_firing_order(&m);
+    totals_sum_devices(&m);
+    model_json_serialisable(&m);
+}
+
+fn model_shape(m: &J) {
+    assert_eq!(
+        m["title"], "Test Estate",
+        "the estate title is carried through"
+    );
+    assert_eq!(
+        arr(m, "devices").len(),
+        2,
+        "both source archives become devices"
+    );
+    let names: std::collections::BTreeSet<String> = arr(m, "devices")
         .iter()
         .map(|d| d["name"].as_str().unwrap().to_string())
         .collect();
@@ -70,13 +113,14 @@ fn model_shape() {
             .iter()
             .map(std::string::ToString::to_string)
             .collect();
-    assert_eq!(names, expected);
+    assert_eq!(
+        names, expected,
+        "each device is named by its own hostname, not by its file"
+    );
 }
 
-#[test]
-fn device_has_all_sections() {
-    let m = model();
-    let d = &arr(&m, "devices")[0];
+fn device_has_all_sections(m: &J) {
+    let d = &arr(m, "devices")[0];
     for key in [
         "virtuals",
         "pools",
@@ -91,61 +135,72 @@ fn device_has_all_sections() {
             "section {key} missing/not array"
         );
     }
-    assert_eq!(u(&d["counts"], "virtuals"), arr(d, "virtuals").len() as u64);
+    assert_eq!(
+        u(&d["counts"], "virtuals"),
+        len(arr(d, "virtuals")),
+        "the virtuals count matches the virtuals actually listed"
+    );
 }
 
-#[test]
-fn pool_members_and_usedby() {
-    let m = model();
-    let d = &arr(&m, "devices")[0];
+fn pool_members_and_usedby(m: &J) {
+    let d = &arr(m, "devices")[0];
     let pool = arr(d, "pools")
         .iter()
         .find(|p| p["name"] == "app1_t80_pool")
         .expect("app1_t80_pool present");
-    let mc = u(pool, "memberCount") as usize;
-    assert_eq!(mc, arr(pool, "members").len());
-    assert!(mc >= 1);
-    assert!(!pool["members"][0]["address"].as_str().unwrap().is_empty());
+    let members = len(arr(pool, "members"));
+    assert_eq!(
+        u(pool, "memberCount"),
+        members,
+        "a pool's memberCount matches its member list"
+    );
+    assert!(members >= 1, "app1_t80_pool has members");
+    assert!(
+        !pool["members"][0]["address"].as_str().unwrap().is_empty(),
+        "a pool member carries a resolved address"
+    );
     assert!(
         arr(pool, "usedBy")
             .iter()
-            .any(|x| x.as_str().unwrap().contains("app1_t443_vs"))
+            .any(|x| x.as_str().unwrap().contains("app1_t443_vs")),
+        "a pool names the virtuals that reference it"
     );
 }
 
-#[test]
-fn orphan_detection_consistent() {
-    let m = model();
-    let d = &arr(&m, "devices")[0];
-    assert!(d["orphans"]["pools"].is_array());
-    let total = u(&d["counts"], "orphans");
+fn orphan_detection_consistent(m: &J) {
+    let d = &arr(m, "devices")[0];
+    assert!(
+        d["orphans"]["pools"].is_array(),
+        "orphans are reported per object kind"
+    );
     let sum: u64 = d["orphans"]
         .as_object()
         .unwrap()
         .values()
-        .map(|v| v.as_array().unwrap().len() as u64)
+        .map(|v| len(v.as_array().unwrap()))
         .sum();
-    assert_eq!(total, sum);
-}
-
-#[test]
-fn irule_events_extracted() {
-    let m = model();
-    let d = &arr(&m, "devices")[0];
-    assert!(
-        arr(d, "rules")
-            .iter()
-            .any(|r| !r["events"].as_array().unwrap().is_empty())
+    assert_eq!(
+        u(&d["counts"], "orphans"),
+        sum,
+        "the orphan count matches the orphans actually listed"
     );
 }
 
-#[test]
-fn virtual_profiles_in_protocol_stack_order() {
+fn irule_events_extracted(m: &J) {
+    let d = &arr(m, "devices")[0];
+    assert!(
+        arr(d, "rules")
+            .iter()
+            .any(|r| !r["events"].as_array().unwrap().is_empty()),
+        "at least one iRule has its events extracted"
+    );
+}
+
+fn virtual_profiles_in_protocol_stack_order(m: &J) {
     // `app1_t80_vs` lists its profiles `http` then `tcp` in the config, but a
     // BIG-IP processes the stack transport-first — the report must show TCP
     // ahead of HTTP, not the raw config (alphabetical) order.
-    let m = model();
-    let vs = arr(&m, "devices")
+    let vs = arr(m, "devices")
         .iter()
         .flat_map(|d| arr(d, "virtuals"))
         .find(|v| v["name"] == "app1_t80_vs")
@@ -158,16 +213,18 @@ fn virtual_profiles_in_protocol_stack_order() {
         .collect();
     let tcp = profiles.iter().position(|p| p.ends_with("/tcp"));
     let http = profiles.iter().position(|p| p.ends_with("/http"));
-    assert!(tcp < http, "expected tcp before http, got {profiles:?}");
+    assert!(
+        tcp < http,
+        "a virtual's profiles are ordered transport-first: expected tcp before \
+         http, got {profiles:?}"
+    );
 }
 
-#[test]
-fn rule_events_in_firing_order() {
+fn rule_events_in_firing_order(m: &J) {
     // Events are emitted in canonical firing order, not alphabetically. For
     // every rule that has both, CLIENT_ACCEPTED must precede
     // CLIENTSSL_HANDSHAKE (which sorts the other way alphabetically).
-    let m = model();
-    for r in arr(&m, "devices").iter().flat_map(|d| arr(d, "rules")) {
+    for r in arr(m, "devices").iter().flat_map(|d| arr(d, "rules")) {
         let evs: Vec<&str> = r["events"]
             .as_array()
             .unwrap()
@@ -178,19 +235,28 @@ fn rule_events_in_firing_order() {
             evs.iter().position(|e| *e == "CLIENT_ACCEPTED"),
             evs.iter().position(|e| *e == "CLIENTSSL_HANDSHAKE"),
         ) {
-            assert!(a < b, "firing order wrong in {evs:?}");
+            assert!(
+                a < b,
+                "an iRule's events are in firing order, not alphabetical: {evs:?}"
+            );
         }
     }
 }
 
-#[test]
-fn totals_sum_devices() {
-    let m = model();
-    let per_device: u64 = arr(&m, "devices")
+fn totals_sum_devices(m: &J) {
+    let per_device: u64 = arr(m, "devices")
         .iter()
         .map(|d| u(&d["counts"], "virtuals"))
         .sum();
-    assert_eq!(u(&m["totals"], "virtuals"), per_device);
+    assert_eq!(
+        u(&m["totals"], "virtuals"),
+        per_device,
+        "the estate totals are the sum of the per-device counts"
+    );
+}
+
+fn model_json_serialisable(m: &J) {
+    serde_json::to_string(m).expect("the estate model serialises to JSON");
 }
 
 #[test]
@@ -568,13 +634,6 @@ fn console_can_be_disabled() {
     assert!(!html.contains("id=\"f5-wasm\""), "no wasm blob");
     // Certificates tab still there (it does not depend on the console).
     assert!(html.contains("data-panel=\"certificates\""));
-}
-
-#[test]
-fn model_json_serialisable() {
-    let sources = vec![load("lab-device-01.ucs")];
-    let m = collect_model(&sources, "F5 BIG-IP Configuration Report");
-    serde_json::to_string(&m).expect("model serialises");
 }
 
 #[test]

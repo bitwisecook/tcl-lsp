@@ -318,230 +318,94 @@ mod tests {
             .expect("orchestrator tcl dir")
     }
 
+    /// Return a session to a clean slate before the next scenario in the same
+    /// `#[test]` runs.
+    ///
+    /// `::orch::reset` is the very primitive `::orch::test` runs before every
+    /// test body: it clears the whole `::state::*` tree (pools, data-groups,
+    /// LB selection, HTTP request/response state, captured logs, `static::`
+    /// variables), the loaded iRule (`::itest::clear_irule`) and the recorded
+    /// decisions (`::itest::reset_decisions`). `::orch::configure` is *not*
+    /// covered by it — the config array persists — so the profile stack is
+    /// re-applied here and each scenario starts from the same footing.
+    fn scenario(s: &mut LiveSession) {
+        s.eval("::orch::reset").expect("scenario reset");
+        s.eval("::orch::configure -profiles {TCP HTTP}")
+            .expect("scenario profiles");
+    }
+
+    /// Request-lifecycle scenarios: pool selection, the reject decision,
+    /// direct non-HTTP event dispatch, `HTTP::respond` commitment, and the
+    /// fluent `was_called_with` decision matcher.
+    ///
+    /// These share one session on purpose. Standing the orchestrator up costs
+    /// ~7 s (a fresh `Vm`, a fresh `CommandRegistry`, and sourcing the ~320 KB
+    /// framework bundle) and nextest runs one process per test, so a `LazyLock`
+    /// fixture cannot amortise it — driving several scenarios through a single
+    /// session is what removes the repeated bootstrap. `scenario()` restores
+    /// isolation between them; each assertion names the scenario it belongs to.
     #[test]
-    fn live_session_routes_request_to_pool() {
+    fn live_session_drives_the_request_lifecycle() {
         let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+
+        // routes_request_to_pool: a guarded `pool` selects the named pool.
+        scenario(&mut s);
         s.eval("::orch::add_pool api_pool {10.0.1.1:8080}").unwrap();
         s.load_irule(
             "when HTTP_REQUEST {\n  if { [HTTP::host] eq \"api.example.com\" } {\n    pool api_pool\n  }\n}",
         )
         .unwrap();
         s.run_http_request("-host api.example.com -uri /").unwrap();
-        assert_eq!(s.pool_selected().unwrap(), "api_pool");
-    }
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "api_pool",
+            "routes_request_to_pool: the matching host must select api_pool"
+        );
 
-    #[test]
-    fn live_session_records_reject_decision() {
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        // records_reject_decision: `reject` lands in the decision log.
+        scenario(&mut s);
         s.load_irule("when HTTP_REQUEST {\n  reject\n}").unwrap();
         s.run_http_request("-host evil.example.com -uri /").unwrap();
         let decisions = s.decisions().unwrap();
         assert!(
             decisions.contains("connection reject"),
-            "decisions: {decisions}"
+            "records_reject_decision: decisions: {decisions}"
         );
-    }
 
-    #[test]
-    fn embedded_session_routes_request() {
-        let mut s = LiveSession::embedded().expect("embedded session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
-        s.eval("::orch::add_pool web {10.0.2.1:80}").unwrap();
-        s.load_irule("when HTTP_REQUEST {\n  pool web\n}").unwrap();
-        s.run_http_request("-host x.example.com -uri /").unwrap();
-        assert_eq!(s.pool_selected().unwrap(), "web");
-    }
-
-    #[test]
-    fn embedded_session_includes_generated_stubs() {
-        // `_mock_stubs.tcl` provides mocks for registry-only iRule commands (no
-        // hand-written mock). Without it bundled, a stub-only command like
-        // `ACCESS::session` errors "invalid command name" inside the handler,
-        // which `fire_event`'s `catch` stops — so the following `pool` never
-        // runs. Reaching the pool selection proves the stub dispatched.
-        let mut s = LiveSession::embedded().expect("embedded session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
-        s.eval("::orch::add_pool web {10.0.2.1:80}").unwrap();
-        s.load_irule("when HTTP_REQUEST {\n  ACCESS::session\n  pool web\n}")
-            .unwrap();
-        s.run_http_request("-host x.example.com -uri /").unwrap();
-        assert_eq!(
-            s.pool_selected().unwrap(),
-            "web",
-            "stub-only ACCESS::session must dispatch, not abort the handler"
-        );
-        // The generic stub must log the call under the command's real
-        // (category, action) — the data table replaced ~1500 per-command stub
-        // procs, so guard that the decision log is unchanged for a stub-only
-        // command (`ACCESS::session` -> {access session}).
-        let decisions = s.decisions().unwrap();
-        assert!(
-            decisions.contains("access session"),
-            "stub dispatch must record the decision under its real category/action; got: {decisions}"
-        );
-    }
-
-    #[test]
-    fn guest_exit_does_not_kill_the_host() {
-        // The whole point of routing `exit` through a VM completion: a guest
-        // script calling `exit` must NOT terminate this test process. If it
-        // still called `std::process::exit`, the test binary would die here.
-        let mut s = LiveSession::embedded().expect("embedded session");
-        match s.eval("exit 7") {
-            Err(SessionError::Eval(_)) => {}
-            other => panic!("exit should surface as a handleable error, got {other:?}"),
-        }
-        // The session is still usable afterwards.
-        assert_eq!(s.eval("expr {1 + 1}").unwrap(), "2");
-    }
-
-    #[test]
-    fn live_session_dispatches_non_http_event() {
-        // Generic event dispatch: a `when CLIENT_ACCEPTED` handler fires
+        // dispatches_non_http_event: a `when CLIENT_ACCEPTED` handler fires
         // directly through `fire_event`, without a full HTTP request lifecycle.
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        scenario(&mut s);
         s.load_irule("when CLIENT_ACCEPTED {\n  log local0. \"accepted-here\"\n}")
             .unwrap();
         let result = s.fire_event("CLIENT_ACCEPTED").unwrap();
-        assert!(result.contains("fired 1"), "fire result: {result}");
+        assert!(
+            result.contains("fired 1"),
+            "dispatches_non_http_event: fire result: {result}"
+        );
         assert!(
             s.logs().unwrap().contains("accepted-here"),
-            "the CLIENT_ACCEPTED handler's log output should be captured"
+            "dispatches_non_http_event: the CLIENT_ACCEPTED handler's log output should be captured"
         );
-    }
 
-    #[test]
-    fn live_session_class_match_against_datagroup() {
-        // `class match` resolves against a registered data-group: the request
-        // host is a member, so the guarded `pool` selection runs.
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
-        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
-        s.add_datagroup("hosts", "string", "api.example.com 1")
-            .unwrap();
-        s.load_irule(
-            "when HTTP_REQUEST {\n  if { [class match [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
-        )
-        .unwrap();
-        s.run_http_request("-host api.example.com -uri /").unwrap();
-        assert_eq!(s.pool_selected().unwrap(), "matched");
-    }
-
-    #[test]
-    fn live_session_class_match_miss_leaves_pool_unset() {
-        // A non-member host must not match, so the guarded `pool` never runs.
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
-        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
-        s.add_datagroup("hosts", "string", "api.example.com 1")
-            .unwrap();
-        s.load_irule(
-            "when HTTP_REQUEST {\n  if { [class match [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
-        )
-        .unwrap();
-        s.run_http_request("-host other.example.com -uri /")
-            .unwrap();
-        assert_eq!(s.pool_selected().unwrap(), "");
-    }
-
-    #[test]
-    fn live_session_class_match_starts_with_honours_operator() {
-        // `starts_with` must test whether the subject BEGINS
-        // WITH a record, not exact equality. Record `/api`, URI `/api/v1/x`
-        // matches under `starts_with` (but would NOT under `equals`).
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
-        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
-        s.add_datagroup("prefixes", "string", "/api 1").unwrap();
-        s.load_irule(
-            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] starts_with prefixes] } {\n    pool matched\n  }\n}",
-        )
-        .unwrap();
-        s.run_http_request("-host x.example.com -uri /api/v1/x")
-            .unwrap();
-        assert_eq!(s.pool_selected().unwrap(), "matched");
-    }
-
-    #[test]
-    fn live_session_class_match_equals_is_not_prefix_match() {
-        // FP-guard for: the same `/api` record under `equals`
-        // must NOT match the longer `/api/v1/x`, proving the operator actually
-        // changes the comparison rather than always behaving like `contains`.
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
-        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
-        s.add_datagroup("prefixes", "string", "/api 1").unwrap();
-        s.load_irule(
-            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] equals prefixes] } {\n    pool matched\n  }\n}",
-        )
-        .unwrap();
-        s.run_http_request("-host x.example.com -uri /api/v1/x")
-            .unwrap();
-        assert_eq!(s.pool_selected().unwrap(), "");
-    }
-
-    #[test]
-    fn live_session_class_match_ends_with_honours_operator() {
-        // `ends_with` tests the tail of the subject.
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
-        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
-        s.add_datagroup("suffixes", "string", ".png 1").unwrap();
-        s.load_irule(
-            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] ends_with suffixes] } {\n    pool matched\n  }\n}",
-        )
-        .unwrap();
-        s.run_http_request("-host x.example.com -uri /img/logo.png")
-            .unwrap();
-        assert_eq!(s.pool_selected().unwrap(), "matched");
-    }
-
-    #[test]
-    fn live_session_class_match_accepts_leading_dashdash() {
-        // A leading `--` (or option flags) before the value
-        // must be parsed off, not mistaken for the value/operator/datagroup.
-        // Before the fix, `dg_name` resolved to `equals` and raised
-        // `class "equals" not found`, aborting the handler so `pool` never ran.
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
-        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
-        s.add_datagroup("hosts", "string", "api.example.com 1")
-            .unwrap();
-        s.load_irule(
-            "when HTTP_REQUEST {\n  if { [class match -- [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
-        )
-        .unwrap();
-        s.run_http_request("-host api.example.com -uri /").unwrap();
-        assert_eq!(s.pool_selected().unwrap(), "matched");
-    }
-
-    #[test]
-    fn live_session_http_respond_commits_response() {
-        // `HTTP::respond` sets
+        // http_respond_commits_response: `HTTP::respond` sets
         // `::state::http::response_committed`; the flag must be observable
         // (the simulator reads this exact variable to populate
         // `SimOutcome::response_committed`).
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        scenario(&mut s);
         s.load_irule("when HTTP_REQUEST {\n  HTTP::respond 200 content \"ok\"\n}")
             .unwrap();
         s.run_http_request("-host x.example.com -uri /").unwrap();
         assert_eq!(
             s.eval("set ::state::http::response_committed").unwrap(),
-            "1"
+            "1",
+            "http_respond_commits_response: HTTP::respond must set the committed flag"
         );
-    }
 
-    #[test]
-    fn live_session_fluent_decision_was_called_with_scans_all_calls() {
-        // `was_called_with` must pass if ANY matching decision
-        // carries the expected value, not only the first. An iRule that calls
-        // `pool a` then `pool b` must satisfy `was_called_with "b"`.
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::configure -profiles {TCP HTTP}").unwrap();
+        // fluent_decision_was_called_with_scans_all_calls: `was_called_with`
+        // must pass if ANY matching decision carries the expected value, not
+        // only the first. An iRule that calls `pool a` then `pool b` must
+        // satisfy `was_called_with "b"`.
+        scenario(&mut s);
         s.eval("::orch::add_pool a {10.0.0.1:80}").unwrap();
         s.eval("::orch::add_pool b {10.0.0.2:80}").unwrap();
         s.load_irule("when HTTP_REQUEST {\n  pool a\n  pool b\n}")
@@ -554,30 +418,236 @@ mod tests {
             s.eval("::orch::assert_that decision lb pool_select was_called_with \"b\"")
                 .unwrap(),
             "1",
-            "was_called_with must scan all matching decisions"
+            "fluent_decision_was_called_with_scans_all_calls: must scan all matching decisions"
         );
         // The first call's value still passes too.
         assert_eq!(
             s.eval("::orch::assert_that decision lb pool_select was_called_with \"a\"")
                 .unwrap(),
             "1",
+            "fluent_decision_was_called_with_scans_all_calls: the first call's value still passes"
         );
         // FP-guard: a value that was never used fails.
         assert_eq!(
             s.eval("::orch::assert_that decision lb pool_select was_called_with \"c\"")
                 .unwrap(),
             "0",
+            "fluent_decision_was_called_with_scans_all_calls: an unused value must fail"
         );
     }
 
+    /// Every `class match` operator scenario on one session: the hit, the
+    /// miss, `starts_with` / `equals` / `ends_with`, and the leading `--`.
+    /// `scenario()` clears the data-group table between them, so each
+    /// scenario registers exactly the records it names.
     #[test]
-    fn configured_tmm_select_auto_survives_reset() {
-        // `::orch::test` runs `reset` before every body, and that `reset` must
-        // not force `_tmm_select_mode` back to "manual" and so clobber a
-        // configured `-tmm_select auto`. Capture the live mode
-        // from inside a test body (i.e. after that reset) and prove it's still
-        // "auto" so `run_http_request` takes the fakeCMP auto path.
+    fn live_session_class_match_honours_every_operator() {
         let mut s = LiveSession::new(&lib_dir()).expect("session");
+
+        // class_match_against_datagroup: `class match` resolves against a
+        // registered data-group — the request host is a member, so the guarded
+        // `pool` selection runs.
+        scenario(&mut s);
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("hosts", "string", "api.example.com 1")
+            .unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host api.example.com -uri /").unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "matched",
+            "class_match_against_datagroup: a member host must select the pool"
+        );
+
+        // class_match_miss_leaves_pool_unset: a non-member host must not
+        // match, so the guarded `pool` never runs.
+        scenario(&mut s);
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("hosts", "string", "api.example.com 1")
+            .unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host other.example.com -uri /")
+            .unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "",
+            "class_match_miss_leaves_pool_unset: a non-member host must not select a pool"
+        );
+
+        // class_match_starts_with_honours_operator: `starts_with` must test
+        // whether the subject BEGINS WITH a record, not exact equality.
+        // Record `/api`, URI `/api/v1/x` matches under `starts_with` (but
+        // would NOT under `equals`).
+        scenario(&mut s);
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("prefixes", "string", "/api 1").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] starts_with prefixes] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host x.example.com -uri /api/v1/x")
+            .unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "matched",
+            "class_match_starts_with_honours_operator: /api must prefix-match /api/v1/x"
+        );
+
+        // class_match_equals_is_not_prefix_match: FP-guard — the same `/api`
+        // record under `equals` must NOT match the longer `/api/v1/x`, proving
+        // the operator actually changes the comparison rather than always
+        // behaving like `contains`.
+        scenario(&mut s);
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("prefixes", "string", "/api 1").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] equals prefixes] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host x.example.com -uri /api/v1/x")
+            .unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "",
+            "class_match_equals_is_not_prefix_match: equals must not behave like starts_with"
+        );
+
+        // class_match_ends_with_honours_operator: `ends_with` tests the tail
+        // of the subject.
+        scenario(&mut s);
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("suffixes", "string", ".png 1").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match [HTTP::uri] ends_with suffixes] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host x.example.com -uri /img/logo.png")
+            .unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "matched",
+            "class_match_ends_with_honours_operator: .png must suffix-match /img/logo.png"
+        );
+
+        // class_match_accepts_leading_dashdash: a leading `--` (or option
+        // flags) before the value must be parsed off, not mistaken for the
+        // value/operator/datagroup. Before the fix, `dg_name` resolved to
+        // `equals` and raised `class "equals" not found`, aborting the handler
+        // so `pool` never ran.
+        scenario(&mut s);
+        s.eval("::orch::add_pool matched {10.0.9.9:80}").unwrap();
+        s.add_datagroup("hosts", "string", "api.example.com 1")
+            .unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  if { [class match -- [HTTP::host] equals hosts] } {\n    pool matched\n  }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host api.example.com -uri /").unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "matched",
+            "class_match_accepts_leading_dashdash: the -- flag must be parsed off, not read as the value"
+        );
+    }
+
+    /// The scenarios that need the framework sourced from the *embedded*
+    /// bundle rather than the on-disk `tcl/` checkout, plus the guest-`exit`
+    /// containment guarantee (which needs no particular framework state, so it
+    /// rides along here rather than paying for a fourth bootstrap).
+    #[test]
+    fn embedded_session_scenarios() {
+        let mut s = LiveSession::embedded().expect("embedded session");
+
+        // embedded_session_routes_request: the bundled framework stands up and
+        // routes a request just like the on-disk one.
+        scenario(&mut s);
+        s.eval("::orch::add_pool web {10.0.2.1:80}").unwrap();
+        s.load_irule("when HTTP_REQUEST {\n  pool web\n}").unwrap();
+        s.run_http_request("-host x.example.com -uri /").unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "web",
+            "embedded_session_routes_request: the embedded framework must route to web"
+        );
+
+        // embedded_session_includes_generated_stubs: `_mock_stubs.tcl`
+        // provides mocks for registry-only iRule commands (no hand-written
+        // mock). Without it bundled, a stub-only command like `ACCESS::session`
+        // errors "invalid command name" inside the handler, which
+        // `fire_event`'s `catch` stops — so the following `pool` never runs.
+        // Reaching the pool selection proves the stub dispatched.
+        scenario(&mut s);
+        s.eval("::orch::add_pool web {10.0.2.1:80}").unwrap();
+        s.load_irule("when HTTP_REQUEST {\n  ACCESS::session\n  pool web\n}")
+            .unwrap();
+        s.run_http_request("-host x.example.com -uri /").unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "web",
+            "embedded_session_includes_generated_stubs: stub-only ACCESS::session must dispatch, not abort the handler"
+        );
+        // The generic stub must log the call under the command's real
+        // (category, action) — the data table replaced ~1500 per-command stub
+        // procs, so guard that the decision log is unchanged for a stub-only
+        // command (`ACCESS::session` -> {access session}).
+        let decisions = s.decisions().unwrap();
+        assert!(
+            decisions.contains("access session"),
+            "embedded_session_includes_generated_stubs: stub dispatch must record the decision under its real category/action; got: {decisions}"
+        );
+
+        // guest_exit_does_not_kill_the_host: the whole point of routing `exit`
+        // through a VM completion — a guest script calling `exit` must NOT
+        // terminate this test process. If it still called
+        // `std::process::exit`, the test binary would die here. Runs last of
+        // the three so a mishandled exit cannot mask an earlier scenario.
+        scenario(&mut s);
+        match s.eval("exit 7") {
+            Err(SessionError::Eval(_)) => {}
+            other => panic!(
+                "guest_exit_does_not_kill_the_host: exit should surface as a handleable error, got {other:?}"
+            ),
+        }
+        // The session is still usable afterwards.
+        assert_eq!(
+            s.eval("expr {1 + 1}").unwrap(),
+            "2",
+            "guest_exit_does_not_kill_the_host: the session must stay usable after a guest exit"
+        );
+    }
+
+    /// The two `-tmm_select` scenarios, in the only order that keeps them
+    /// independent: `configure_tests` writes `_test_tmm_select_mode`, which is
+    /// exactly the value `reset` restores, so the "unconfigured default"
+    /// scenario has to observe the session *before* anything configures it.
+    /// It therefore runs first, and no `scenario()` reset precedes it — the
+    /// bare `::orch::reset` it performs is the thing under test.
+    #[test]
+    fn tmm_select_mode_survives_the_per_test_reset() {
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+
+        // tmm_select_defaults_to_manual_after_reset: with no configuration,
+        // reset must still yield the "manual" default — the fix restores the
+        // configured default, which defaults to manual.
+        s.eval("::orch::reset").unwrap();
+        assert_eq!(
+            s.eval("set ::orch::_tmm_select_mode").unwrap(),
+            "manual",
+            "tmm_select_defaults_to_manual_after_reset: an unconfigured reset must yield manual"
+        );
+
+        // configured_tmm_select_auto_survives_reset: `::orch::test` runs
+        // `reset` before every body, and that `reset` must not force
+        // `_tmm_select_mode` back to "manual" and so clobber a configured
+        // `-tmm_select auto`. Capture the live mode from inside a test body
+        // (i.e. after that reset) and prove it's still "auto" so
+        // `run_http_request` takes the fakeCMP auto path.
         s.eval("::orch::configure_tests -tmm_count 4 -tmm_select auto -profiles {TCP HTTP}")
             .unwrap();
         s.eval(
@@ -587,17 +657,8 @@ mod tests {
         assert_eq!(
             s.eval("set ::__captured_mode").unwrap(),
             "auto",
-            "configured -tmm_select auto must survive the per-test reset"
+            "configured_tmm_select_auto_survives_reset: configured -tmm_select auto must survive the per-test reset"
         );
-    }
-
-    #[test]
-    fn tmm_select_defaults_to_manual_after_reset() {
-        // With no configuration, reset must still yield the "manual" default —
-        // the fix restores the configured default, which defaults to manual.
-        let mut s = LiveSession::new(&lib_dir()).expect("session");
-        s.eval("::orch::reset").unwrap();
-        assert_eq!(s.eval("set ::orch::_tmm_select_mode").unwrap(), "manual");
     }
 
     #[test]

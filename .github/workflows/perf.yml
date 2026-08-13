@@ -25,16 +25,12 @@ on:
     # that go into the release notes and READMEs.
     branches: [main, rust]
     tags: ["v*"]
-  pull_request:
-    branches: [main, rust]
-    paths:
-      # Only the things that can move the numbers, plus the harness itself.
-      # A docs-only PR should not spend ten minutes cloning tcllib.
-      - "rust/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "scripts/perf/**"
-      - ".github/workflows/perf.yml"
+  # No pull_request trigger: the suite is NOT GATING YET (see above), so a
+  # PR-time run produced a number nothing consumed before merge — the same
+  # commit's numbers were then recomputed on the push and again on the tag.
+  # The push/tag/nightly runs below are what build the trend line; re-add a
+  # pull_request trigger only together with --fail-on-failed-check so a PR
+  # run actually gates something.
   schedule:
     # Nightly on the default line, so the trend keeps accumulating even
     # through weeks where nothing touches `rust/`.

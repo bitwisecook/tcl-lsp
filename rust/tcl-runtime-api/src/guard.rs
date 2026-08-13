@@ -403,7 +403,7 @@ mod tests {
     const COMMAND: GuardDomains = GuardDomains::one(GuardDomain::CommandEnvironment);
 
     #[test]
-    fn identity_is_checked_at_issue_and_validation() {
+    fn smoke_identity_is_checked_at_issue_and_validation() {
         let mut manager = GuardManager::default();
         assert_eq!(
             manager.prepare(EXPECTED, Some(OTHER), COMMAND),

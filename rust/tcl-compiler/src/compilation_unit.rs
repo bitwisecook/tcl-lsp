@@ -3673,3 +3673,29 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod smoke {
+    use tcl_registry::CommandRegistry;
+
+    use super::CompilationUnit;
+
+    /// The canonical "lex -> parse -> segment -> IR -> CFG -> codegen-ready"
+    /// pipeline on one tiny script, exercised through the same top-level
+    /// entry point every real caller (analyser, optimiser, explorer) uses.
+    #[test]
+    fn smoke_compile_canonical_snippet() {
+        let registry = CommandRegistry::build_default();
+        let src = "proc double {n} { return [expr {$n * 2}] }\nset r [double 21]\n";
+        let unit = CompilationUnit::build_for(src, &registry, false);
+        assert!(
+            unit.procedures.contains_key("::double"),
+            "expected a lowered ::double procedure, got {:?}",
+            unit.procedures.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !unit.top_level.cfg.blocks.is_empty(),
+            "top-level script must lower to a non-empty CFG"
+        );
+    }
+}
