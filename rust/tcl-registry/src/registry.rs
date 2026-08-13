@@ -476,6 +476,16 @@ impl CommandRegistry {
         self.octal_fold_policy().unwrap_or(true)
     }
 
+    /// The numeral grammar of the dialect this registry serves, or the
+    /// permissive 9.x default when no profile is loaded.
+    ///
+    /// The single way a registry-holding consumer names its release for number
+    /// parsing — the hand-written `profile().map_or(Tcl90, …)` had six copies.
+    #[must_use]
+    pub fn numbers(&self) -> tcl_dialect::NumberSyntax {
+        tcl_dialect::NumberSyntax::of_profile(self.profile())
+    }
+
     /// The three-valued leading-zero fold policy for this registry's
     /// dialect. A profile-built registry (`registry_for_profile` /
     /// `registry_for_dialect`) answers from the profile's runtime base:

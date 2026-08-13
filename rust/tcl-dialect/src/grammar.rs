@@ -160,6 +160,56 @@ impl NumberSyntax {
     /// grammar reaches them without each keeping its own list.
     pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl85, Self::Tcl90];
 
+    /// The grammar of `profile`, or the permissive 9.x default when no profile
+    /// is loaded.
+    ///
+    /// The one way to get from a dialect profile to a numeral grammar. Written
+    /// out by hand it is `profile.map_or(Tcl90, |p| p.grammar.numbers)`, which
+    /// had accumulated eleven copies — each free to pick a different default and
+    /// so to drift from the rest.
+    #[must_use]
+    pub fn of_profile(profile: Option<&crate::DialectProfile>) -> Self {
+        profile.map_or(Self::default(), |p| p.grammar.numbers)
+    }
+
+    /// The grammar of the dialect `name` resolves to, or the 9.x default when
+    /// `name` is [`None`].
+    #[must_use]
+    pub fn of_dialect_name(name: Option<&str>) -> Self {
+        name.map_or(Self::default(), |n| {
+            crate::DialectProfile::by_name(n).grammar.numbers
+        })
+    }
+
+    /// Answer `f` under **every** grammar, returning `Some` only when they all
+    /// agree — the sound reading for a consumer that has no release in hand.
+    ///
+    /// Which direction "no answer" points is the caller's decision and it is not
+    /// always the same one: a predicate claiming a value *is* a number wants
+    /// unanimity, while one refusing an optimisation because a value *could* be
+    /// a number wants [`Self::any`]. Both were hand-rolled at eight sites before
+    /// this; see `docs/design/contracts/numeric-tower-and-expr-semantics.md`.
+    #[must_use]
+    pub fn unanimous<T: PartialEq>(f: impl Fn(Self) -> T) -> Option<T> {
+        let mut answers = Self::ALL.iter().map(|&n| f(n));
+        let first = answers.next()?;
+        answers.all(|a| a == first).then_some(first)
+    }
+
+    /// Whether `f` holds under **any** grammar — the permissive counterpart to
+    /// [`Self::unanimous`], for a gate whose safe direction is to abstain from
+    /// an optimisation rather than to claim a fact.
+    #[must_use]
+    pub fn any(f: impl Fn(Self) -> bool) -> bool {
+        Self::ALL.iter().any(|&n| f(n))
+    }
+
+    /// Whether `f` holds under **every** grammar.
+    #[must_use]
+    pub fn every(f: impl Fn(Self) -> bool) -> bool {
+        Self::ALL.iter().all(|&n| f(n))
+    }
+
     /// Whether a bare leading `0` introduces an octal integer (`0755` == 493),
     /// as it does up to 8.6. False from 9.0, where it is plain decimal.
     #[must_use]

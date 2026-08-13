@@ -116,18 +116,18 @@ impl DefaultFormFirstWord {
             // an integer. A spelling only some releases read as one (`08`,
             // `1_0`, `0d1`) leaves the form ambiguous rather than committing to
             // one release's reading.
-            Self::Integer => tcl_syntax::number::NumberSyntax::ALL.iter().all(|&n| {
-                matches!(
-                    tcl_syntax::number::parse_whole_with(
-                        word,
-                        tcl_syntax::number::ParseFlags::for_syntax(n),
-                    ),
-                    Some(
-                        tcl_syntax::number::Number::Int(_)
-                            | tcl_syntax::number::Number::Big { .. }
+            Self::Integer => tcl_syntax::number::Numbers::Unknown
+                .parse_wide(word)
+                .is_some()
+                || tcl_syntax::number::NumberSyntax::every(|n| {
+                    matches!(
+                        tcl_syntax::number::parse_whole_with(
+                            word,
+                            tcl_syntax::number::ParseFlags::for_syntax(n),
+                        ),
+                        Some(tcl_syntax::number::Number::Big { .. })
                     )
-                )
-            }),
+                }),
         }
     }
 }

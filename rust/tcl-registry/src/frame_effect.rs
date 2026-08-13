@@ -202,15 +202,8 @@ impl FrameLevel {
     /// opinion" — `08` is a level on 9.0 and not one on 8.6, which is a
     /// disagreement to abstain on, not a shared rejection to pass through.
     fn parse_across_releases(word: &str) -> Option<Self> {
-        let mut answers = NumberSyntax::ALL
-            .iter()
-            .map(|&numbers| Self::parse_under(word, numbers));
-        let first = answers.next()?;
-        if answers.all(|a| a == first) {
-            first
-        } else {
-            Some(Self::Dynamic)
-        }
+        NumberSyntax::unanimous(|numbers| Self::parse_under(word, numbers))
+            .unwrap_or(Some(Self::Dynamic))
     }
 
     /// Whether *word* is taken as the level word by a command that probes its

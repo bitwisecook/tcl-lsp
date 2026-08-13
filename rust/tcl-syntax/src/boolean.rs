@@ -135,15 +135,7 @@ pub fn truthiness_with(text: &str, numbers: crate::number::NumberSyntax) -> Opti
 /// here rather than committing to either.
 #[must_use]
 pub fn truthiness_in_every_release(text: &str) -> Option<bool> {
-    let mut answers = crate::number::NumberSyntax::ALL
-        .iter()
-        .map(|&n| truthiness_inner(text, n));
-    let first = answers.next()?;
-    if answers.all(|a| a == first) {
-        first
-    } else {
-        None
-    }
+    crate::number::NumberSyntax::unanimous(|n| truthiness_inner(text, n)).flatten()
 }
 
 fn truthiness_inner(text: &str, numbers: crate::number::NumberSyntax) -> Option<bool> {

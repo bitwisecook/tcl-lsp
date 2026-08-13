@@ -230,9 +230,7 @@ fn is_numeric_string_under(
 /// not fire on it. Requiring unanimity keeps the gate correct whichever release
 /// the program is eventually built for.
 fn is_numeric_string_in_every_release(text: &str) -> bool {
-    tcl_syntax::number::NumberSyntax::ALL
-        .iter()
-        .all(|&n| is_numeric_string_under(text, Some(n)))
+    tcl_syntax::number::NumberSyntax::every(|n| is_numeric_string_under(text, Some(n)))
 }
 
 /// Whether `text` is a number under **any** release — the sound reading for a
@@ -240,9 +238,7 @@ fn is_numeric_string_in_every_release(text: &str) -> bool {
 /// number". Here the permissive direction is the safe one: a spelling numeric on
 /// even one release must block the rewrite.
 fn is_numeric_string_in_any_release(text: &str) -> bool {
-    tcl_syntax::number::NumberSyntax::ALL
-        .iter()
-        .any(|&n| is_numeric_string_under(text, Some(n)))
+    tcl_syntax::number::NumberSyntax::any(|n| is_numeric_string_under(text, Some(n)))
 }
 
 /// Whether the (delimiter-stripped) text of an `expr` literal parses as a Tcl
@@ -254,7 +250,7 @@ fn is_integer_string(text: &str) -> bool {
     // Unanimous across releases, for the same reason as
     // [`is_numeric_string_in_every_release`]: this gates rewrites that need a
     // genuine integer operand, and a release-dependent spelling is not proof.
-    tcl_syntax::number::NumberSyntax::ALL.iter().all(|&n| {
+    tcl_syntax::number::NumberSyntax::every(|n| {
         matches!(
             tcl_syntax::number::parse_whole_with(
                 strip_literal_delims(text),
@@ -339,7 +335,9 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
         if braced
             || is_numeric_string_under(
                 value,
-                Some(tcl_dialect::DialectProfile::by_opt_name(dialect).grammar.numbers),
+                Some(tcl_dialect::NumberSyntax::of_profile(Some(
+                    tcl_dialect::DialectProfile::by_opt_name(dialect),
+                ))),
             )
         {
             env.insert(name.clone(), EnvValue::Str(value.clone()));

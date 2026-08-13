@@ -264,7 +264,7 @@ impl FoldPolicy {
             characters: dialect
                 .and_then(|d| tcl_dialect::DialectProfile::by_name(d).runtime_base)
                 .map(TclVersion::string_character_model),
-            numbers: dialect.map(|d| tcl_dialect::DialectProfile::by_name(d).grammar.numbers),
+            numbers: dialect.map(|d| NumberSyntax::of_dialect_name(Some(d))),
         }
     }
 
@@ -282,7 +282,7 @@ impl FoldPolicy {
                 .profile()
                 .and_then(|profile| profile.runtime_base)
                 .map(TclVersion::string_character_model),
-            numbers: registry.profile().map(|p| p.grammar.numbers),
+            numbers: Some(registry.numbers()),
         }
     }
 }

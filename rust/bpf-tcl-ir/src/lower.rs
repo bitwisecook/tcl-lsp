@@ -84,9 +84,7 @@ pub fn lower_function(
         // was loaded for — the same compile-target rule the bytecode backend
         // uses. With no profile loaded, fall back to the grammar the process
         // was built for.
-        numbers: registry
-            .profile()
-            .map_or_else(tcl_syntax::number::runtime_syntax, |p| p.grammar.numbers),
+        numbers: registry.numbers(),
         prog_type,
         env: HashMap::new(),
         slot_types: Vec::new(),

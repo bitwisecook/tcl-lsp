@@ -251,11 +251,7 @@ impl CommitCtx<'_> {
     /// rather than whatever grammar this process was built for.
     #[must_use]
     pub fn numbers(&self) -> tcl_syntax::number::NumberSyntax {
-        self.registry
-            .profile()
-            .map_or(tcl_syntax::number::NumberSyntax::Tcl90, |p| {
-                p.grammar.numbers
-            })
+        self.registry.numbers()
     }
 }
 

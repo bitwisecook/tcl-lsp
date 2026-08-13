@@ -195,6 +195,123 @@ impl ParseFlags {
     }
 }
 
+/// **Which release's numeral grammar a consumer reads under.** The one place to
+/// say that, so no caller re-assembles it from `ParseFlags` and a default.
+///
+/// Tcl's numeral grammar is release-dependent (see [`NumberSyntax`]), and there
+/// are exactly three ways a consumer can stand in relation to it:
+///
+/// | variant | who | why |
+/// |---|---|---|
+/// | [`Numbers::Target`] | the compiler, codegen, the analyser, the LSP | compiling *for* one release, which it knows: `Module.dialect`, the registry's profile, the document's dialect |
+/// | [`Numbers::Runtime`] | an interpreter evaluating a script | built for one release and does not switch, exactly as C settles it with a build-time `#define`; the ambient is installed once by `set_runtime_syntax` |
+/// | [`Numbers::Unknown`] | a `ConstFoldFn`, an optimiser gate, a registry shape predicate | no release reachable, so it answers only what *every* release agrees on |
+///
+/// The third is the subtle one. Answering under one release's grammar when you
+/// do not know the target bakes that release's reading into a program built for
+/// another — so `Unknown` abstains instead, and each query below documents which
+/// way its abstention points.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Numbers {
+    /// A named release — a compile target, or an interpreter's own release.
+    Target(NumberSyntax),
+    /// Whatever grammar this runtime was built for (see [`set_runtime_syntax`]).
+    Runtime,
+    /// No release in hand; answer only what every release agrees on.
+    Unknown,
+}
+
+impl Numbers {
+    /// The grammar of `profile`, or the 9.x default when none is loaded.
+    #[must_use]
+    pub fn of_profile(profile: Option<&tcl_dialect::DialectProfile>) -> Self {
+        Self::Target(NumberSyntax::of_profile(profile))
+    }
+
+    /// The grammar of the dialect `name` resolves to.
+    #[must_use]
+    pub fn of_dialect_name(name: Option<&str>) -> Self {
+        Self::Target(NumberSyntax::of_dialect_name(name))
+    }
+
+    /// The single grammar this reads under, if there is one. `None` for
+    /// [`Numbers::Unknown`], whose queries span every grammar instead.
+    #[must_use]
+    pub fn syntax(self) -> Option<NumberSyntax> {
+        match self {
+            Self::Target(n) => Some(n),
+            Self::Runtime => Some(runtime_syntax()),
+            Self::Unknown => None,
+        }
+    }
+
+    /// Answer `f` under this release — or, when unknown, only if every release
+    /// agrees.
+    #[must_use]
+    pub fn resolve<T: PartialEq>(self, f: impl Fn(NumberSyntax) -> T) -> Option<T> {
+        match self.syntax() {
+            Some(n) => Some(f(n)),
+            None => NumberSyntax::unanimous(f),
+        }
+    }
+
+    /// [`ParseFlags`] for this release; `integer_only` when asked.
+    #[must_use]
+    pub fn flags(self, integer_only: bool) -> Option<ParseFlags> {
+        self.syntax().map(|n| ParseFlags {
+            integer_only,
+            ..ParseFlags::for_syntax(n)
+        })
+    }
+
+    /// Parse `s` as a complete number. When unknown, yields a value only if
+    /// every release reads the same one — so a release-dependent spelling is
+    /// [`None`] rather than a guess.
+    #[must_use]
+    pub fn parse_whole(self, s: &str) -> Option<Number> {
+        self.resolve(|n| parse_whole_with(s, ParseFlags::for_syntax(n)))
+            .flatten()
+    }
+
+    /// Whether `s` is *entirely* a number. When unknown, requires every release
+    /// to agree that it is — the sound reading for a claim that a value **is** a
+    /// number (see [`Self::is_number_in_any_release`] for the opposite gate).
+    #[must_use]
+    pub fn is_whole_number(self, s: &str) -> bool {
+        self.resolve(|n| is_whole_number(s, n)).unwrap_or(false)
+    }
+
+    /// Whether *any* release reads `s` as a number — the permissive direction,
+    /// for a gate that refuses an optimisation because a value could still be
+    /// numeric. Identical to [`Self::is_whole_number`] for a named release.
+    #[must_use]
+    pub fn is_number_in_any_release(self, s: &str) -> bool {
+        match self.syntax() {
+            Some(n) => is_whole_number(s, n),
+            None => NumberSyntax::any(|n| is_whole_number(s, n)),
+        }
+    }
+
+    /// Parse `s` as a whole integer, rejecting floats, NaN and past-wide
+    /// magnitudes. Abstains like [`Self::parse_whole`] when unknown.
+    #[must_use]
+    pub fn parse_wide(self, s: &str) -> Option<i64> {
+        self.resolve(|n| {
+            match parse_whole_with(
+                s,
+                ParseFlags {
+                    integer_only: true,
+                    ..ParseFlags::for_syntax(n)
+                },
+            ) {
+                Some(Number::Int(v)) => Some(v),
+                _ => None,
+            }
+        })
+        .flatten()
+    }
+}
+
 /// A successful parse: the classified [`Number`] and the byte offset just past
 /// the consumed number (the `endPtr` of `TclParseNumber`).
 #[derive(Debug, Clone, PartialEq)]
@@ -1042,7 +1159,10 @@ mod tests {
 
 #[cfg(test)]
 mod dialect_tests {
-    use super::{Number, NumberSyntax, ParseFlags, parse, parse_whole_with};
+    use super::{
+        Number, NumberSyntax, Numbers, ParseFlags, parse, parse_whole_with, runtime_syntax,
+        set_runtime_syntax,
+    };
 
     fn whole(s: &str, syntax: NumberSyntax) -> Option<Number> {
         parse_whole_with(s, ParseFlags::for_syntax(syntax))
@@ -1181,5 +1301,65 @@ mod dialect_tests {
             ..ParseFlags::default()
         };
         assert_eq!(parse_whole_with("1__000", no_sep), None);
+    }
+
+    /// The three ways a consumer can stand in relation to the release, and what
+    /// each answers for a spelling the releases read differently.
+    #[test]
+    fn numbers_variants_answer_their_own_use_case() {
+        // A named target reads under exactly that release.
+        assert_eq!(
+            Numbers::Target(NumberSyntax::Tcl85).parse_wide("010"),
+            Some(8)
+        );
+        assert_eq!(
+            Numbers::Target(NumberSyntax::Tcl90).parse_wide("010"),
+            Some(10)
+        );
+        // No release in hand: the readings disagree, so no answer.
+        assert_eq!(Numbers::Unknown.parse_wide("010"), None);
+        // ...but a spelling every release agrees on still resolves.
+        assert_eq!(Numbers::Unknown.parse_wide("007"), Some(7));
+        assert_eq!(Numbers::Unknown.parse_wide("0x1f"), Some(31));
+        // The runtime variant follows whatever was installed.
+        let restore = runtime_syntax();
+        set_runtime_syntax(NumberSyntax::Tcl85);
+        assert_eq!(Numbers::Runtime.parse_wide("010"), Some(8));
+        set_runtime_syntax(NumberSyntax::Tcl90);
+        assert_eq!(Numbers::Runtime.parse_wide("010"), Some(10));
+        set_runtime_syntax(restore);
+    }
+
+    /// The two abstention directions are genuinely different, and a consumer
+    /// picking the wrong one is the silent failure this API exists to prevent.
+    #[test]
+    fn unknown_abstains_in_both_directions() {
+        // "Is this provably a number?" — `08` is one only from 9.0, so no.
+        assert!(!Numbers::Unknown.is_whole_number("08"));
+        // "Could this still be a number?" — yes, on 9.0.
+        assert!(Numbers::Unknown.is_number_in_any_release("08"));
+        // Something no release reads as a number answers false both ways.
+        assert!(!Numbers::Unknown.is_whole_number("0o8"));
+        assert!(!Numbers::Unknown.is_number_in_any_release("0o8"));
+        // And something every release reads answers true both ways.
+        assert!(Numbers::Unknown.is_whole_number("42"));
+        assert!(Numbers::Unknown.is_number_in_any_release("42"));
+    }
+
+    /// `of_profile` / `of_dialect_name` are the only sanctioned ways to get from
+    /// a dialect to a grammar, so they must agree with the profile catalogue.
+    #[test]
+    fn resolvers_agree_with_the_profile_catalogue() {
+        assert_eq!(
+            NumberSyntax::of_dialect_name(Some("tcl8.6")),
+            NumberSyntax::Tcl85
+        );
+        assert_eq!(
+            NumberSyntax::of_dialect_name(Some("tcl9.0")),
+            NumberSyntax::Tcl90
+        );
+        // No dialect named falls to the permissive default, not to 8.x.
+        assert_eq!(NumberSyntax::of_dialect_name(None), NumberSyntax::default());
+        assert_eq!(NumberSyntax::of_profile(None), NumberSyntax::default());
     }
 }

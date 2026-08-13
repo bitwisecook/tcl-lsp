@@ -138,12 +138,7 @@ pub fn codegen_module(
     let src = &ir_module.source;
     // The compile's target release: a named dialect's own numeric grammar, else
     // the permissive 9.x default.
-    let numbers = ir_module
-        .dialect
-        .as_deref()
-        .map_or(tcl_dialect::NumberSyntax::Tcl90, |d| {
-            tcl_dialect::DialectProfile::by_name(d).grammar.numbers
-        });
+    let numbers = tcl_dialect::NumberSyntax::of_dialect_name(ir_module.dialect.as_deref());
     let module = ModuleEmit {
         registry,
         source: src,

@@ -1641,11 +1641,7 @@ fn w127_domain_hits(
     // Whether a literal is a Tcl integer is release-dependent (`08` and `1_0`
     // are integers from 9.0 and not before), so the domain check reads it under
     // the release being analysed rather than the ambient grammar.
-    let numbers = registry
-        .profile()
-        .map_or(tcl_syntax::number::NumberSyntax::Tcl90, |p| {
-            p.grammar.numbers
-        });
+    let numbers = registry.numbers();
     let allowed = occ.opt.value_values();
     let integer_domain = occ.opt.value_integer_domain();
     let has_closed_set = occ.opt.value_is_closed() && !allowed.is_empty();

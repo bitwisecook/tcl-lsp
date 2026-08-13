@@ -165,15 +165,10 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
 /// [`VersionedConstFoldFn`](crate::hooks::VersionedConstFoldFn), the release can
 /// be named and `index::resolve_opt_with` used directly.)
 pub(crate) fn parse_index(s: &str, length: usize) -> Option<i64> {
-    let mut answers = tcl_dialect::NumberSyntax::ALL
-        .iter()
-        .map(|&numbers| tcl_cmd_core::index::resolve_opt_with(s, length, numbers));
-    let first = answers.next()?;
-    if answers.all(|a| a == first) {
-        first
-    } else {
-        None
-    }
+    tcl_syntax::number::NumberSyntax::unanimous(|numbers| {
+        tcl_cmd_core::index::resolve_opt_with(s, length, numbers)
+    })
+    .flatten()
 }
 
 /// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
