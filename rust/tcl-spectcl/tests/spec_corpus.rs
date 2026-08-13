@@ -73,9 +73,30 @@
 //! a pack whose commands appear nowhere — every EDA vendor pack, and every
 //! external draft — the harness **synthesises** an exercising call per command
 //! from that command's own arity and argument roles, and the report says how
-//! many calls were synthesised versus how many corpus files were real. `tmp/`
-//! is picked up the same way when a fetched source tree is present; the report
-//! names it when it is not.
+//! many calls were synthesised versus how many corpus files were real.
+//!
+//! ### The `tmp/` corpus is opt-in
+//!
+//! A box that has run the source-fetch hook has five full Tcl source trees
+//! under `tmp/` — ~320 further `.tcl` files of real library code, roughly
+//! fifteen times the committed corpus. Absorbing them silently turned this test
+//! into a ten-minute sweep that then tripped its own watchdog, and it did so on
+//! developer and agent machines only: CI checkouts have no `tmp/`, so CI never
+//! saw it. The `tmp/` half is therefore behind an explicit opt-in:
+//!
+//! ```text
+//! SPECTCL_CORPUS_TMP=1 cargo test -p tcl-spectcl --test spec_corpus
+//! ```
+//!
+//! Without it the harness draws on `samples/` alone, which is exactly what CI
+//! exercises and what `spec_corpus_baseline.txt` pins — the load, install,
+//! hook-host and containment guarantees are all reached by the committed
+//! corpus. The `tmp/` sweep only adds *more third-party Tcl to analyse*, which
+//! is `xtask fp-sweep`'s job; [`MAX_CORPUS_FILES_PER_PACK`] says the same thing
+//! ("the cap keeps the harness a test rather than a sweep"). The test stays
+//! un-`#[ignore]`d in its fast, samples-only form; the environment variable is
+//! the opt-in to the big corpus, and the report names which corpora were drawn
+//! on either way.
 //!
 //! ## Containment
 //!
@@ -312,16 +333,61 @@ fn walk_corpus(dir: &Path, into: &mut Vec<CorpusFile>) {
     }
 }
 
-/// The in-repo corpus, plus `tmp/` when a fetched source tree is present.
-fn corpus(root: &Path) -> (Vec<CorpusFile>, bool) {
+/// The environment variable that opts the fetched `tmp/` source trees into the
+/// corpus. See this file's header for why they are not in it by default.
+const TMP_CORPUS_ENV: &str = "SPECTCL_CORPUS_TMP";
+
+/// What the `tmp/` half of the corpus contributed to this run.
+#[derive(Clone, Copy)]
+enum TmpCorpus {
+    /// The opt-in was set and a fetched source tree was there to walk.
+    Included,
+    /// A fetched source tree is present, but without the opt-in it is left
+    /// alone — the default run is the committed corpus CI exercises.
+    SkippedNotOptedIn,
+    /// No fetched source tree on this box; the opt-in would find nothing.
+    Absent,
+}
+
+impl TmpCorpus {
+    /// The report's one-line account of the `tmp/` half.
+    fn describe(self) -> &'static str {
+        match self {
+            Self::Included => "present and included",
+            Self::SkippedNotOptedIn => {
+                "present but not walked — set SPECTCL_CORPUS_TMP=1 for the full sweep"
+            }
+            Self::Absent => "absent — no fetched source trees, so nothing was drawn from it",
+        }
+    }
+}
+
+/// Has the caller asked for the fetched `tmp/` source trees?
+///
+/// Any non-empty value other than `0` counts, so `SPECTCL_CORPUS_TMP=1` reads
+/// the way the header documents it without `SPECTCL_CORPUS_TMP=0` silently
+/// meaning the opposite of what it says.
+fn opted_into_tmp_corpus() -> bool {
+    std::env::var_os(TMP_CORPUS_ENV).is_some_and(|value| !value.is_empty() && value != "0")
+}
+
+/// The in-repo corpus, plus `tmp/` when a fetched source tree is present *and*
+/// the caller opted into it.
+fn corpus(root: &Path) -> (Vec<CorpusFile>, TmpCorpus) {
     let mut files = Vec::new();
     walk_corpus(&root.join("samples"), &mut files);
     let tmp = root.join("tmp");
-    let tmp_present = tmp.is_dir();
-    if tmp_present {
-        walk_corpus(&tmp, &mut files);
-    }
-    (files, tmp_present)
+    let status = if tmp.is_dir() {
+        if opted_into_tmp_corpus() {
+            walk_corpus(&tmp, &mut files);
+            TmpCorpus::Included
+        } else {
+            TmpCorpus::SkippedNotOptedIn
+        }
+    } else {
+        TmpCorpus::Absent
+    };
+    (files, status)
 }
 
 /// Does `file` call `name` as a command word — i.e. does the name occur with
@@ -557,7 +623,7 @@ const HEADER: &str = "\
 | pack file | speclib | dialect | cmds | inst | gated | collide | notices | hooks bound/declared | invoked | quar | crash | corpus | synth | load ms | analyse ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
 
-fn render(reports: &[PackReport], tmp_present: bool) -> String {
+fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
     let mut out = String::new();
     out.push_str("\nSpecTcl corpus validation — per pack\n\n");
     out.push_str(HEADER);
@@ -606,11 +672,7 @@ fn render(reports: &[PackReport], tmp_present: bool) -> String {
         load * 1000.0,
         analysis * 1000.0,
         (load + analysis) * 1000.0,
-        if tmp_present {
-            "present and included"
-        } else {
-            "absent — no fetched source trees, so nothing was drawn from it"
-        },
+        tmp.describe(),
     );
     out
 }
@@ -976,9 +1038,18 @@ fn write_baseline(notices: &[String]) {
 /// to own a thread anyway. Making that thread watchdogged is what turns "a
 /// runaway hook must not hang the process" from a claim into an assertion:
 /// containment failing means this test fails in bounded time.
+///
+/// `overrun` is what an expiry *means* for this particular caller, and callers
+/// differ. For the hostile pack, three 250 ms budgets against a two-minute
+/// watchdog leave no other reading than a hang. For the corpus sweep the
+/// watchdog is a budget over an amount of work that varies with the machine and
+/// with how much corpus was opted into, so an expiry there says "too much work
+/// for this box", not "containment failed" — and reporting the second when the
+/// first happened is how a slow laptop got told it had a hung hook.
 fn with_watchdog<T: Send + 'static>(
     label: &'static str,
     budget: Duration,
+    overrun: &'static str,
     body: impl FnOnce() -> T + Send + 'static,
 ) -> T {
     let (tx, rx) = std::sync::mpsc::channel::<()>();
@@ -1000,10 +1071,9 @@ fn with_watchdog<T: Send + 'static>(
             Ok(out) => out,
             Err(payload) => std::panic::resume_unwind(payload),
         },
-        Err(RecvTimeoutError::Timeout) => panic!(
-            "{label} did not finish within {budget:?} — a hook hung, which is \
-             exactly the containment failure this harness exists to catch"
-        ),
+        Err(RecvTimeoutError::Timeout) => {
+            panic!("{label} did not finish within {budget:?} — {overrun}")
+        }
     }
 }
 
@@ -1014,90 +1084,109 @@ fn with_watchdog<T: Send + 'static>(
 /// Every shipped `.tclspec`: loaded, installed, analysed against corpus, with
 /// its hooks run through the sandboxed host — and the per-pack report.
 ///
-/// Run with `-- --nocapture` to see the table on a pass; it is included in the
-/// failure message either way.
+/// Runs against the committed `samples/` corpus by default, which is what CI
+/// exercises; `SPECTCL_CORPUS_TMP=1` adds the fetched trees under `tmp/` for
+/// the full sweep. Run with `-- --nocapture` to see the table on a pass; it is
+/// included in the failure message either way.
 #[test]
 fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
-    let (report, failures) = with_watchdog("spectcl-corpus", Duration::from_mins(10), || {
-        let root = repo_root();
-        let (corpus_files, tmp_present) = corpus(&root);
-        let packs = inventory(&root);
-        assert!(
-            packs.len() >= 21,
-            "the repository ships 21 .tclspec files (6 bundled + 11 ports + 4 external); \
+    // The watchdog bounds the work asked for, so it scales with the corpus
+    // asked for: the samples-only default is seconds, the opt-in sweep is
+    // hundreds of real-world files per pack.
+    let budget = if opted_into_tmp_corpus() {
+        Duration::from_mins(30)
+    } else {
+        Duration::from_mins(10)
+    };
+    let (report, failures) = with_watchdog(
+        "spectcl-corpus",
+        budget,
+        "the corpus analysis budget was exceeded. This is a *budget* verdict, \
+         not a containment one: no hook is known to have hung. Either this \
+         machine is heavily loaded, or SPECTCL_CORPUS_TMP=1 opted the fetched \
+         tmp/ source trees in and there is more corpus here than the budget \
+         allows",
+        || {
+            let root = repo_root();
+            let (corpus_files, tmp) = corpus(&root);
+            let packs = inventory(&root);
+            assert!(
+                packs.len() >= 21,
+                "the repository ships 21 .tclspec files (6 bundled + 11 ports + 4 external); \
              found {}",
-            packs.len()
-        );
+                packs.len()
+            );
 
-        let reports: Vec<PackReport> = packs
-            .iter()
-            .map(|pack| run_pack(pack, &root, &corpus_files))
-            .collect();
+            let reports: Vec<PackReport> = packs
+                .iter()
+                .map(|pack| run_pack(pack, &root, &corpus_files))
+                .collect();
 
-        let mut failures: Vec<String> = Vec::new();
+            let mut failures: Vec<String> = Vec::new();
 
-        let mut seen: Vec<String> = reports
-            .iter()
-            .flat_map(|report| report.notices.iter().cloned())
-            .collect();
-        seen.sort();
-        if std::env::var_os("SPECTCL_CORPUS_BLESS").is_some() {
-            write_baseline(&seen);
-        } else {
-            let baseline = read_baseline();
-            let mut counts: BTreeMap<&str, i32> = BTreeMap::new();
-            for line in &seen {
-                *counts.entry(line.as_str()).or_default() += 1;
-            }
-            for line in &baseline {
-                *counts.entry(line.as_str()).or_default() -= 1;
-            }
-            for (line, delta) in counts {
-                if delta > 0 {
-                    failures.push(format!("unexpected load notice (x{delta}): {line}"));
-                } else if delta < 0 {
-                    failures.push(format!(
-                        "baseline notice no longer produced (x{}) — delete it from \
+            let mut seen: Vec<String> = reports
+                .iter()
+                .flat_map(|report| report.notices.iter().cloned())
+                .collect();
+            seen.sort();
+            if std::env::var_os("SPECTCL_CORPUS_BLESS").is_some() {
+                write_baseline(&seen);
+            } else {
+                let baseline = read_baseline();
+                let mut counts: BTreeMap<&str, i32> = BTreeMap::new();
+                for line in &seen {
+                    *counts.entry(line.as_str()).or_default() += 1;
+                }
+                for line in &baseline {
+                    *counts.entry(line.as_str()).or_default() -= 1;
+                }
+                for (line, delta) in counts {
+                    if delta > 0 {
+                        failures.push(format!("unexpected load notice (x{delta}): {line}"));
+                    } else if delta < 0 {
+                        failures.push(format!(
+                            "baseline notice no longer produced (x{}) — delete it from \
                          tests/spec_corpus_baseline.txt: {line}",
-                        -delta
+                            -delta
+                        ));
+                    }
+                }
+            }
+
+            for report in &reports {
+                if report.quarantined > 0 {
+                    failures.push(format!(
+                        "{}: {} hook(s) quarantined — a shipped pack must never crash \
+                     or outspend its budget",
+                        report.file, report.quarantined
+                    ));
+                }
+                for crash in &report.crashes {
+                    failures.push(format!(
+                        "{}: crash record: {}",
+                        report.file,
+                        crash.headline()
+                    ));
+                }
+                if report.hook_slots != report.hook_bodies {
+                    failures.push(format!(
+                        "{}: {} declared hook bodies but only {} got a slot — the \
+                     per-family slot budget is exhausted",
+                        report.file, report.hook_bodies, report.hook_slots
+                    ));
+                }
+                if !report.unresolved.is_empty() {
+                    failures.push(format!(
+                        "{}: installed but unresolvable in the registry: {}",
+                        report.file,
+                        report.unresolved.join(", ")
                     ));
                 }
             }
-        }
 
-        for report in &reports {
-            if report.quarantined > 0 {
-                failures.push(format!(
-                    "{}: {} hook(s) quarantined — a shipped pack must never crash \
-                     or outspend its budget",
-                    report.file, report.quarantined
-                ));
-            }
-            for crash in &report.crashes {
-                failures.push(format!(
-                    "{}: crash record: {}",
-                    report.file,
-                    crash.headline()
-                ));
-            }
-            if report.hook_slots != report.hook_bodies {
-                failures.push(format!(
-                    "{}: {} declared hook bodies but only {} got a slot — the \
-                     per-family slot budget is exhausted",
-                    report.file, report.hook_bodies, report.hook_slots
-                ));
-            }
-            if !report.unresolved.is_empty() {
-                failures.push(format!(
-                    "{}: installed but unresolvable in the registry: {}",
-                    report.file,
-                    report.unresolved.join(", ")
-                ));
-            }
-        }
-
-        (render(&reports, tmp_present), failures)
-    });
+            (render(&reports, tmp), failures)
+        },
+    );
 
     println!("{report}");
     assert!(
@@ -1219,6 +1308,9 @@ fn a_hostile_pack_degrades_to_abstention_and_never_hangs() {
     let outcome = with_watchdog(
         "spectcl-hostile",
         Duration::from_mins(2),
+        "a hook hung, which is exactly the containment failure this harness \
+         exists to catch — three 250 ms budgets cannot overrun a two-minute \
+         watchdog for any other reason",
         drive_hostile_pack,
     );
     let Containment {
