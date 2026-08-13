@@ -50,17 +50,26 @@
 //! t6   ;# → 1:bad level "foo"   — 3 words ⇒ the first IS the level
 //! ```
 //!
-//! The **level-value** grammar ([`FrameLevel::parse`]) is version-invariant:
-//! a 9-deep call chain aliasing through `upvar W src dst` selects exactly the
-//! same frame on both interpreters for all 20 spellings pinned in
-//! `level_value_matrix_matches_c_tcl`.  The **level-word presence** rule of a
-//! [`FrameLevelWord::LeadingProbe`] command (`uplevel`) is *not*: see that
-//! variant's doc for the two divergent classes and their transcripts
-//! ([issue #1069][]).
+//! Neither the **level-value** grammar ([`FrameLevel::parse_for`]) nor the
+//! **level-word presence** rule of a [`FrameLevelWord::LeadingProbe`] command
+//! (`uplevel`) is version-invariant.
+//!
+//! The level value is read by `Tcl_GetIntFromObj`, so it inherits every
+//! difference in the release's numeral grammar: 8.6 and 9.0 select *different
+//! frames* for `010` (8 up vs 10 up), and one errors where the other succeeds
+//! for `08`, `0d1` and `1_0`.  See [`FrameLevel::parse_for`] for the pinned
+//! matrix.  This module previously claimed the grammar was invariant, on the
+//! strength of a 20-spelling matrix that happened to contain no divergent
+//! spelling and a call chain too shallow to distinguish a parse failure from an
+//! out-of-range level — C reports `bad level` for both.
+//!
+//! For the presence rule's two divergent classes and their transcripts, see
+//! [`FrameLevelWord::LeadingProbe`] ([issue #1069][]).
 //!
 //! [issue #1069]: https://github.com/bitwisecook/tcl-lsp/issues/1069
 
-use tcl_dialect::TclVersion;
+use tcl_dialect::{NumberSyntax, TclVersion};
+use tcl_syntax::number::ParseFlags;
 
 /// Which stack frame an `upvar` / `uplevel` level word selects.
 ///
@@ -105,32 +114,90 @@ impl FrameLevel {
     }
 
     /// Parse a level word into the frame it names, or `None` when the value
-    /// is not a frame at all (C Tcl's `bad level "…"`).
+    /// is not a frame at all (C Tcl's `bad level "…"`), **abstaining** with
+    /// [`Self::Dynamic`] for a word the releases read differently.
     ///
-    /// The grammar is `Tcl_GetInt`'s, optionally behind a leading `#`:
-    /// surrounding whitespace, an optional sign, then a decimal / `0x` /
-    /// `0o` / `0b` magnitude.  A **negative** value names no frame, so only
-    /// `-0` survives its sign.  The `#` must be the word's first byte — a
-    /// space before it is a `bad level`, though a space *after* it is fine.
-    ///
-    /// This grammar is version-invariant: tclsh 9.0.4 and 8.6.14 select the
-    /// identical frame for every spelling below (pinned in
-    /// `level_value_matrix_matches_c_tcl` against a nine-deep call chain).
+    /// Equivalent to [`Self::parse_for`] with no version. Prefer `parse_for`
+    /// wherever the target release is known — it resolves the spellings this
+    /// one has to abstain on.
     ///
     /// | word | frame | | word | frame |
     /// |---|---|---|---|---|
     /// | `1`, `+1`, `" 1"`, `"  1  "`, `0x1`, `0X1`, `0b1`, `0o1`, `"0x1 "` | caller | | `#0`, `#-0`, `"# 0"`, `"#0 "` | global |
     /// | `0`, `+0`, `-0` | current | | `#1`, `#+1`, `#0x1` | frame 1 |
     /// | `2` | caller's caller | | `7`, `007` | 7 up |
-    /// | `-1`, `-2`, `1.0`, `1e0`, `1_0`, `"+ 1"`, `--0`, `x`, `#x`, `#-1`, `""`, `" #0"` | none — `bad level` |
+    /// | `-1`, `-2`, `1.0`, `1e0`, `"+ 1"`, `--0`, `x`, `#x`, `#-1`, `""`, `" #0"` | none — `bad level` |
+    /// | `010`, `08`, `0d1`, `1_0` | `Dynamic` — release-dependent, see [`Self::parse_for`] |
     #[must_use]
     pub fn parse(word: &str) -> Option<Self> {
+        Self::parse_for(word, None)
+    }
+
+    /// Parse a level word into the frame it names under `version`.
+    ///
+    /// A level word is read by `Tcl_GetIntFromObj`, optionally behind a leading
+    /// `#`, so its grammar **is** the release's numeral grammar and inherits
+    /// every version difference in it. A **negative** value names no frame, so
+    /// only `-0` survives its sign. The `#` must be the word's first byte — a
+    /// space before it is a `bad level`, though a space *after* it is fine.
+    ///
+    /// This grammar is *not* version-invariant, contrary to what this module
+    /// claimed before: 8.6 and 9.0 select **different frames** for the same
+    /// word, and for some spellings one errors where the other succeeds.
+    /// Pinned on tclsh 8.6.16 and 9.0.4 (`level_value_matrix_diverges_by_release`):
+    ///
+    /// | word  | 8.6           | 9.0         | why |
+    /// |-------|---------------|-------------|-----|
+    /// | `010` | 8 frames up   | 10 frames up | leading-zero octal, retired in 9.0 |
+    /// | `08`  | `bad level`   | 8 frames up  | invalid octal digit vs plain decimal |
+    /// | `0d1` | `bad level`   | caller       | `0d` prefix is 9.0+ |
+    /// | `1_0` | `bad level`   | 10 frames up | `_` separators are 9.0+ |
+    /// | `007` | 7 frames up   | 7 frames up  | octal 7 and decimal 7 coincide |
+    /// | `0x1`, `0o1` | caller | caller       | prefix in both |
+    ///
+    /// The earlier "version-invariant" claim came from a matrix that contained
+    /// no divergent spelling, measured against a call chain too shallow to tell
+    /// a parse failure from an out-of-range level — both report `bad level`.
+    ///
+    /// With `version` `None`, a word every release reads the same way resolves
+    /// normally and a word they disagree about yields [`Self::Dynamic`]: the
+    /// frame is real but unknown, which is the abstaining answer every consumer
+    /// already handles. Returning `None` there would instead assert "not a
+    /// level", which is false on at least one release.
+    #[must_use]
+    pub fn parse_for(word: &str, version: Option<TclVersion>) -> Option<Self> {
         if word.contains('$') || word.contains('[') {
             return Some(Self::Dynamic);
         }
+        let Some(numbers) = version.map(TclVersion::number_syntax) else {
+            return Self::parse_across_releases(word);
+        };
+        Self::parse_under(word, numbers)
+    }
+
+    /// [`Self::parse_for`] with the numeral grammar already chosen.
+    fn parse_under(word: &str, numbers: NumberSyntax) -> Option<Self> {
         match word.strip_prefix('#') {
-            Some(rest) => parse_level_value(rest).map(Self::Absolute),
-            None => parse_level_value(word).map(Self::Relative),
+            Some(rest) => parse_level_value(rest, numbers).map(Self::Absolute),
+            None => parse_level_value(word, numbers).map(Self::Relative),
+        }
+    }
+
+    /// The answer when no release is named: unanimous across every grammar, or
+    /// [`Self::Dynamic`] when they differ.
+    ///
+    /// A `None` counts as an answer in its own right rather than as "no
+    /// opinion" — `08` is a level on 9.0 and not one on 8.6, which is a
+    /// disagreement to abstain on, not a shared rejection to pass through.
+    fn parse_across_releases(word: &str) -> Option<Self> {
+        let mut answers = NumberSyntax::ALL
+            .iter()
+            .map(|&numbers| Self::parse_under(word, numbers));
+        let first = answers.next()?;
+        if answers.all(|a| a == first) {
+            first
+        } else {
+            Some(Self::Dynamic)
         }
     }
 
@@ -162,7 +229,7 @@ impl FrameLevel {
         if word.starts_with('#') {
             return true;
         }
-        let signed = parse_signed_level_value(word);
+        let signed = parse_signed_level_value(word, version.map_or(NumberSyntax::Tcl90, TclVersion::number_syntax));
         let leading_digit = word.as_bytes().first().is_some_and(u8::is_ascii_digit);
         match version {
             // 9.0 / 9.1: the whole word goes to `Tcl_GetIntFromObj`, sign and
@@ -185,33 +252,54 @@ impl FrameLevel {
 /// The magnitude of a `Tcl_GetInt`-shaped level word, with its sign reported
 /// separately — the shared core of [`FrameLevel::parse`] and
 /// [`FrameLevel::word_could_be_level`].
-fn parse_level_magnitude(text: &str) -> Option<(bool, u32)> {
-    let trimmed = text.trim();
-    let (negative, magnitude) = match trimmed.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, trimmed.strip_prefix('+').unwrap_or(trimmed)),
+fn parse_level_magnitude(text: &str, numbers: NumberSyntax) -> Option<(bool, u32)> {
+    // A level word is read by `Tcl_GetIntFromObj`, so its grammar *is* the
+    // release's numeral grammar — the level word inherits every version
+    // difference. Pinned on tclsh 8.6.16 and 9.0.4 with a 16-frame stack (deep
+    // enough that an out-of-range level cannot be mistaken for a parse
+    // failure — both report `bad level`):
+    //
+    // | word  | 8.6            | 9.0            |
+    // |-------|----------------|----------------|
+    // | `1`   | 1              | 1              |
+    // | `007` | 7 (octal)      | 7 (decimal)    |
+    // | `010` | **8** (octal)  | **10**         |
+    // | `08`  | bad level      | **8**          |
+    // | `1_0` | bad level      | **10**         |
+    // | `0d1` | bad level      | **1**          |
+    // | `0x1` | 1              | 1              |
+    // | `0o1` | 1              | 1              |
+    //
+    // Going through the shared facility gets all eight rows for free; the
+    // hand-rolled prefix scan this replaced got four of them wrong.
+    //
+    // `no_whitespace` is deliberately *not* set: `Tcl_GetIntFromObj` tolerates
+    // surrounding space (`"  1  "` is level 1). It does not tolerate space
+    // *between* the sign and the digits (`upvar "+ 1" …` → `bad level "+ 1"`),
+    // which the facility already rejects — it reads a sign only immediately
+    // before the digits.
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::for_syntax(numbers)
     };
-    // `Tcl_GetInt` allows no space between the sign and the digits
-    // (`upvar "+ 1" …` → `bad level "+ 1"`), so the magnitude is parsed
-    // verbatim.  Each base prefix is followed by its own digits only —
-    // `from_str_radix` would otherwise accept a second sign (`0x-1`).
-    let (radix, digits) = match magnitude.get(..2) {
-        Some("0x" | "0X") => (16, &magnitude[2..]),
-        Some("0o" | "0O") => (8, &magnitude[2..]),
-        Some("0b" | "0B") => (2, &magnitude[2..]),
-        _ => (10, magnitude),
-    };
-    if digits.is_empty() || !digits.chars().all(|c| c.is_digit(radix)) {
+    // A magnitude past a wide names no frame on any release, and a float or NaN
+    // is not an integer word at all.
+    let tcl_syntax::number::Number::Int(value) =
+        tcl_syntax::number::parse_whole_with(text, flags)?
+    else {
         return None;
-    }
-    Some((negative, u32::from_str_radix(digits, radix).ok()?))
+    };
+    // Report the sign separately: the *presence* question distinguishes `-1`
+    // (consumed then rejected by 9.0) from a word 8.6 dispatches as a command.
+    let negative = value < 0;
+    Some((negative, u32::try_from(value.unsigned_abs()).ok()?))
 }
 
 /// A level word's frame number, or `None` when it names no frame.  A negative
 /// value is `bad level` on every release, so `-0` is the only signed spelling
 /// that survives.
-fn parse_level_value(text: &str) -> Option<u32> {
-    match parse_level_magnitude(text)? {
+fn parse_level_value(text: &str, numbers: NumberSyntax) -> Option<u32> {
+    match parse_level_magnitude(text, numbers)? {
         (true, value) if value != 0 => None,
         (_, value) => Some(value),
     }
@@ -220,8 +308,8 @@ fn parse_level_value(text: &str) -> Option<u32> {
 /// The same word read as a *signed* integer, for the level-word **presence**
 /// question — 9.0 consumes `-1` as a level (and then rejects it) where 8.6
 /// dispatches it as a command.
-fn parse_signed_level_value(text: &str) -> Option<i64> {
-    let (negative, magnitude) = parse_level_magnitude(text)?;
+fn parse_signed_level_value(text: &str, numbers: NumberSyntax) -> Option<i64> {
+    let (negative, magnitude) = parse_level_magnitude(text, numbers)?;
     let value = i64::from(magnitude);
     Some(if negative { -value } else { value })
 }
@@ -470,14 +558,107 @@ mod tests {
             ("$lvl", Dynamic),
             ("[expr {$n-1}]", Dynamic),
         ];
-        for (word, level) in accepted {
+        // Asserted per release rather than through the version-less `parse`:
+        // the transcript above is 8.6.14 and 9.0.4, and those two agreeing is
+        // exactly the claim. (`0b1` / `0o1` are *not* levels on 8.4, which has
+        // no such prefixes, so the version-less answer for them abstains — see
+        // `no_version_abstains_where_releases_disagree`.)
+        for version in [TclVersion::V8_6, TclVersion::V9_0] {
+            for (word, level) in accepted {
+                assert_eq!(
+                    FrameLevel::parse_for(word, Some(version)),
+                    Some(level),
+                    "level word {word:?} under {version:?}"
+                );
+            }
+            // Every one of these is `bad level "…"` on both interpreters.
+            for word in [
+                "-1", "-2", "#-1", "1.0", "1e0", "+ 1", "--0", "x", "#x", "", " #0", "foo", "0x",
+                "0b2",
+            ] {
+                assert_eq!(
+                    FrameLevel::parse_for(word, Some(version)),
+                    None,
+                    "level word {word:?} under {version:?}"
+                );
+            }
+        }
+    }
+
+    /// The level value is read by `Tcl_GetIntFromObj`, so it inherits every
+    /// version difference in the numeral grammar — the module's former
+    /// "version-invariant" claim was wrong.
+    ///
+    /// Pinned on tclsh 8.6.16 and 9.0.4 against a **16-deep** call chain. The
+    /// depth matters: C reports `bad level` both for a word it cannot parse and
+    /// for a level past the top of the stack, so a chain shallow enough for a
+    /// divergent value to be out of range hides the difference. That is how the
+    /// original 9-deep matrix concluded invariance — at depth 9, `1_0` is level
+    /// 10 on 9.0, out of range, reported as `bad level` exactly as 8.6's parse
+    /// failure is.
+    ///
+    /// ```text
+    /// # 16 frames deep, so 8 and 10 are both in range:
+    /// uplevel 010 -> 8 up  on 8.6   |  10 up on 9.0   (leading-zero octal, retired in 9.0)
+    /// uplevel 08  -> bad level      |  8 up           (invalid octal digit vs plain decimal)
+    /// uplevel 0d1 -> bad level      |  1 up           (`0d` prefix is 9.0+)
+    /// uplevel 1_0 -> bad level      |  10 up          (`_` separators are 9.0+)
+    /// uplevel 007 -> 7 up           |  7 up           (octal 7 and decimal 7 coincide)
+    /// ```
+    #[test]
+    fn level_value_matrix_diverges_by_release() {
+        use FrameLevel::Relative;
+        // (word, 8.6 answer, 9.0 answer)
+        let matrix = [
+            ("010", Some(Relative(8)), Some(Relative(10))),
+            ("08", None, Some(Relative(8))),
+            ("0d1", None, Some(Relative(1))),
+            ("1_0", None, Some(Relative(10))),
+            // The coincidence that made `007` look invariant.
+            ("007", Some(Relative(7)), Some(Relative(7))),
+        ];
+        for (word, on_86, on_90) in matrix {
+            assert_eq!(
+                FrameLevel::parse_for(word, Some(TclVersion::V8_6)),
+                on_86,
+                "level word {word:?} on 8.6"
+            );
+            assert_eq!(
+                FrameLevel::parse_for(word, Some(TclVersion::V9_0)),
+                on_90,
+                "level word {word:?} on 9.0"
+            );
+        }
+    }
+
+    /// With no release named, a word the releases read differently is
+    /// [`FrameLevel::Dynamic`] — the frame is real but unknown. Answering
+    /// `None` would assert "not a level", which is false on at least one
+    /// release; answering one release's value would be wrong on the others.
+    #[test]
+    fn no_version_abstains_where_releases_disagree() {
+        use FrameLevel::{Dynamic, Relative};
+        // Read differently somewhere in 8.4 … 9.0.
+        for word in [
+            "010", // octal 8 up to 8.6, decimal 10 from 9.0
+            "08",  // invalid octal before 9.0
+            "0d1", // `0d` is 9.0+
+            "1_0", // `_` is 9.0+
+            "0b1", // `0b`/`0o` are 8.5+, so 8.4 disagrees
+            "0o1",
+        ] {
+            assert_eq!(
+                FrameLevel::parse(word),
+                Some(Dynamic),
+                "level word {word:?} should abstain"
+            );
+        }
+        // Unanimous spellings still resolve exactly.
+        for (word, level) in [("1", Relative(1)), ("007", Relative(7)), ("0x1", Relative(1))] {
             assert_eq!(FrameLevel::parse(word), Some(level), "level word {word:?}");
         }
-        // Every one of these is `bad level "…"` on both interpreters.
-        for word in [
-            "-1", "-2", "#-1", "1.0", "1e0", "1_0", "+ 1", "--0", "x", "#x", "", " #0", "foo",
-            "0x", "0b2",
-        ] {
+        // Unanimously not a level at all.
+        for word in ["x", "1.0", "-1", ""] {
             assert_eq!(FrameLevel::parse(word), None, "level word {word:?}");
         }
     }

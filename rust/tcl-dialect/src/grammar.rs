@@ -153,6 +153,13 @@ pub enum NumberSyntax {
 }
 
 impl NumberSyntax {
+    /// Every numeral grammar, oldest first.
+    ///
+    /// For callers that must answer a question across all of them — e.g.
+    /// "do the releases agree how to read this word?" — so adding a future
+    /// grammar reaches them without each keeping its own list.
+    pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl85, Self::Tcl90];
+
     /// Whether a bare leading `0` introduces an octal integer (`0755` == 493),
     /// as it does up to 8.6. False from 9.0, where it is plain decimal.
     #[must_use]

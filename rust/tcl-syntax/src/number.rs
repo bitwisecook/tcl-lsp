@@ -474,7 +474,12 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
     // octal state.
     if radix == Radix::Dec
         && flags.syntax.leading_zero_is_octal()
-        && b[i] == b'0'
+        // `get`, not `b[i]`: the input can be exhausted here (an empty string, a
+        // whitespace-only one, or a lone sign), and under a pre-9.0 syntax this
+        // is the first byte read — an index would panic instead of reporting
+        // "not a number". Reachable from every runtime call site once the
+        // ambient grammar is 8.x (`expr {$empty + 1}`).
+        && b.get(i) == Some(&b'0')
         && i + 1 < len
         && b[i + 1].is_ascii_digit()
         && !decimal_run_is_fractional(b, i)
