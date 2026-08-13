@@ -473,7 +473,12 @@ fn check_argument(
             .get(&var)
             .is_some_and(|targets| targets.len() >= 2);
     if !multi_target_in_loop
-        && is_uncommitted_first_conversion(current, expected, ctx.values.get(&(sym, ver)), ctx.commit.numbers())
+        && is_uncommitted_first_conversion(
+            current,
+            expected,
+            ctx.values.get(&(sym, ver)),
+            ctx.commit.numbers(),
+        )
     {
         return;
     }

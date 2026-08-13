@@ -520,13 +520,15 @@ impl CommandRegistry {
     /// consumer holding a registry never spells out `profile().and_then(…)`.
     #[must_use]
     pub fn runtime_version(&self) -> Option<tcl_dialect::TclVersion> {
-        self.profile().and_then(tcl_dialect::DialectProfile::runtime_version)
+        self.profile()
+            .and_then(tcl_dialect::DialectProfile::runtime_version)
     }
 
     /// The string/character model of the release this registry's dialect runs.
     #[must_use]
     pub fn character_model(&self) -> Option<tcl_dialect::StringCharacterModel> {
-        self.profile().and_then(tcl_dialect::DialectProfile::character_model)
+        self.profile()
+            .and_then(tcl_dialect::DialectProfile::character_model)
     }
 
     /// The numeral grammar of the dialect this registry serves, or the

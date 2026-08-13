@@ -280,11 +280,36 @@ const VECTORS: &[Vector] = &[
 #[test]
 fn numeral_grammar_follows_the_emulated_release() {
     for v in VECTORS {
-        assert_eq!(vm_output(v.script, TclVersion::V8_4), v.want_84, "[8.4] {}", v.name);
-        assert_eq!(vm_output(v.script, TclVersion::V8_5), v.want_8x, "[8.5] {}", v.name);
-        assert_eq!(vm_output(v.script, TclVersion::V8_6), v.want_8x, "[8.6] {}", v.name);
-        assert_eq!(vm_output(v.script, TclVersion::V9_0), v.want_90, "[9.0] {}", v.name);
-        assert_eq!(vm_output(v.script, TclVersion::V9_1), v.want_90, "[9.1] {}", v.name);
+        assert_eq!(
+            vm_output(v.script, TclVersion::V8_4),
+            v.want_84,
+            "[8.4] {}",
+            v.name
+        );
+        assert_eq!(
+            vm_output(v.script, TclVersion::V8_5),
+            v.want_8x,
+            "[8.5] {}",
+            v.name
+        );
+        assert_eq!(
+            vm_output(v.script, TclVersion::V8_6),
+            v.want_8x,
+            "[8.6] {}",
+            v.name
+        );
+        assert_eq!(
+            vm_output(v.script, TclVersion::V9_0),
+            v.want_90,
+            "[9.0] {}",
+            v.name
+        );
+        assert_eq!(
+            vm_output(v.script, TclVersion::V9_1),
+            v.want_90,
+            "[9.1] {}",
+            v.name
+        );
     }
 }
 

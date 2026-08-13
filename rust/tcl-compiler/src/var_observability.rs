@@ -121,7 +121,10 @@ fn mark_name(state: &mut State, name: &str, flag: EscapeFlag) {
     }
 }
 
-fn alias_flag(target: &VariableAliasTarget, registry: &tcl_registry::CommandRegistry) -> EscapeFlag {
+fn alias_flag(
+    target: &VariableAliasTarget,
+    registry: &tcl_registry::CommandRegistry,
+) -> EscapeFlag {
     match target {
         VariableAliasTarget::Global { .. } => EscapeFlag::GLOBAL,
         VariableAliasTarget::CurrentNamespace { .. } | VariableAliasTarget::Namespace { .. } => {

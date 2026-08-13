@@ -596,7 +596,10 @@ mod tests {
     /// a release-dependent one for the interpreter, which does know its release.
     #[test]
     fn lindex_folds_only_unanimous_indices() {
-        assert_eq!(fold_lindex(&["a b c d e f g h i j k l", "1"]).as_deref(), Some("b"));
+        assert_eq!(
+            fold_lindex(&["a b c d e f g h i j k l", "1"]).as_deref(),
+            Some("b")
+        );
         assert_eq!(fold_lindex(&["a b c d e f g h i j k l", "010"]), None);
         assert_eq!(fold_lrange(&["a b c d", "1", "2"]).as_deref(), Some("b c"));
         assert_eq!(fold_lrange(&["a b c d", "1", "010"]), None);

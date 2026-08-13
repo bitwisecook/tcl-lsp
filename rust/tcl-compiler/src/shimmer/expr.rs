@@ -393,7 +393,12 @@ fn check_numeric_operand(
         // numeric-valued string in arithmetic are not shimmers. A committed
         // List/Dict/ByteArray, or a pure string that is not a valid instance
         // (`set s hello; expr {$s + 1}`), still fires.
-        if is_uncommitted_first_conversion(current, to_type, ctx.values.get(&(sym, ver)), ctx.commit.numbers()) {
+        if is_uncommitted_first_conversion(
+            current,
+            to_type,
+            ctx.values.get(&(sym, ver)),
+            ctx.commit.numbers(),
+        ) {
             return;
         }
     }

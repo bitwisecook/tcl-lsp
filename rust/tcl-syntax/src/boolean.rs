@@ -142,10 +142,7 @@ fn truthiness_inner(text: &str, numbers: crate::number::NumberSyntax) -> Option<
     if let Some(b) = parse_boolean_word(text) {
         return Some(b);
     }
-    match crate::number::parse_whole_with(
-        text,
-        crate::number::ParseFlags::for_syntax(numbers),
-    )? {
+    match crate::number::parse_whole_with(text, crate::number::ParseFlags::for_syntax(numbers))? {
         crate::number::Number::Int(i) => Some(i != 0),
         // A parsed `Big` is beyond `i64`, hence never zero.
         crate::number::Number::Big { .. } => Some(true),

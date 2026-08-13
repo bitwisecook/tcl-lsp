@@ -269,13 +269,15 @@ impl Lowerer<'_> {
                 "an array map's key is a 4-byte index (declare key size 4)",
             ));
         }
-        let max_entries = parse_u32(&args[4], self.numbers).filter(|m| *m >= 1).ok_or_else(|| {
-            BpfError::new(
-                BpfDiag::BadMap,
-                span,
-                "map max-entries must be a positive integer",
-            )
-        })?;
+        let max_entries = parse_u32(&args[4], self.numbers)
+            .filter(|m| *m >= 1)
+            .ok_or_else(|| {
+                BpfError::new(
+                    BpfDiag::BadMap,
+                    span,
+                    "map max-entries must be a positive integer",
+                )
+            })?;
         let concurrency = match args.get(5) {
             None => MapConcurrency::default(),
             Some(word) => MapConcurrency::parse(word).ok_or_else(|| {

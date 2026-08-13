@@ -655,13 +655,17 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             // arithmetic path (`expr {-true}`, `expr {~yes}` are errors), and
             // are dialect-sensitive the same way `arith` is (`expr {-010}`
             // is `-8` in tcl8.x, `-10` in tcl9.0).
-            UnaryOp::Pos => match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
-                // `+NaN` is "can't use non-numeric floating-point value as
-                // operand" in C — never a foldable value.
-                TclValue::Float(f) if f.is_nan() => Err(()),
-                v => Ok(FoldValue::from_tcl(v)),
-            },
-            UnaryOp::Neg => match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
+            UnaryOp::Pos => {
+                match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
+                    // `+NaN` is "can't use non-numeric floating-point value as
+                    // operand" in C — never a foldable value.
+                    TclValue::Float(f) if f.is_nan() => Err(()),
+                    v => Ok(FoldValue::from_tcl(v)),
+                }
+            }
+            UnaryOp::Neg => match strict_number_for_dialect(&value, self.octal, self.numbers)
+                .ok_or(())?
+            {
                 TclValue::Int(i) => Ok(match i.checked_neg() {
                     Some(n) => FoldValue::Int(n),
                     // −i64::MIN promotes to the bignum tier, exactly as C.
@@ -672,12 +676,14 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 TclValue::Float(f) if f.is_nan() => Err(()),
                 TclValue::Float(f) => Ok(FoldValue::Float(-f)),
             },
-            UnaryOp::BitNot => match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
-                TclValue::Int(i) => Ok(FoldValue::Int(!i)),
-                // Two's-complement `~x` is `-x - 1` at any width.
-                TclValue::Big(b) => Ok(FoldValue::from_tcl(TclValue::from_big(-b - 1))),
-                TclValue::Float(_) => Err(()),
-            },
+            UnaryOp::BitNot => {
+                match strict_number_for_dialect(&value, self.octal, self.numbers).ok_or(())? {
+                    TclValue::Int(i) => Ok(FoldValue::Int(!i)),
+                    // Two's-complement `~x` is `-x - 1` at any width.
+                    TclValue::Big(b) => Ok(FoldValue::from_tcl(TclValue::from_big(-b - 1))),
+                    TclValue::Float(_) => Err(()),
+                }
+            }
         }
     }
 

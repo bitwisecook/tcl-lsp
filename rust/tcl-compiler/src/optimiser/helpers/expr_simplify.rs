@@ -208,10 +208,7 @@ fn strip_literal_delims(text: &str) -> &str {
 /// wrongly treat it as "provably not a number".
 /// [`is_numeric_string`] under one release's grammar, or — with `numbers`
 /// [`None`] — under whichever grammar this process was built for.
-fn is_numeric_string_under(
-    text: &str,
-    numbers: Option<tcl_syntax::number::NumberSyntax>,
-) -> bool {
+fn is_numeric_string_under(text: &str, numbers: Option<tcl_syntax::number::NumberSyntax>) -> bool {
     use tcl_syntax::number::{Number, ParseFlags};
     let t = strip_literal_delims(text);
     let flags = numbers.map_or_else(ParseFlags::default, ParseFlags::for_syntax);

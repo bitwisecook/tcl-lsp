@@ -49,7 +49,11 @@ pub fn has_expand_word(tokens: Option<&CommandTokens>) -> bool {
 
 /// Apply every variable-cell alias declared by the registry invocation.
 /// Returns whether at least one alias transition was present.
-pub fn handle_variable_aliases(facts: &InvocationFacts, state: &mut EscapeState, registry: &tcl_registry::CommandRegistry) -> bool {
+pub fn handle_variable_aliases(
+    facts: &InvocationFacts,
+    state: &mut EscapeState,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
     let Some(transitions) = facts.state_transitions.declared() else {
         return false;
     };

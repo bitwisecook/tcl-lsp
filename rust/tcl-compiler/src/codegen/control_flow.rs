@@ -892,7 +892,10 @@ impl CodegenCtx<'_> {
                     .iter()
                     .find(|(n, _)| *n == val)
                     .map(|(_, c)| *c)
-                    .or_else(|| self.parse_int_operand(val).and_then(|v| i32::try_from(v).ok()));
+                    .or_else(|| {
+                        self.parse_int_operand(val)
+                            .and_then(|v| i32::try_from(v).ok())
+                    });
                 if code.is_none() {
                     break;
                 }

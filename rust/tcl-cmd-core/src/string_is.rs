@@ -351,7 +351,7 @@ fn scan_dict(chars: &[char]) -> (bool, i64) {
 
 #[cfg(test)]
 mod tests {
-    use super::{class_check, Width, integer_class_width, scan_integer};
+    use super::{Width, class_check, integer_class_width, scan_integer};
     use tcl_syntax::number::NumberSyntax;
 
     /// The existing expectations were written for 9.x semantics; keep them
@@ -359,7 +359,6 @@ mod tests {
     fn check(class: &str, s: &str, strict: bool) -> (bool, i64) {
         class_check(class, s, strict, NumberSyntax::Tcl90)
     }
-
 
     #[test]
     fn char_classes_failindex() {
@@ -483,13 +482,7 @@ mod tests {
             (false, 3),
             "trailing whitespace is skipped before reporting"
         );
-        for (v, want) in [
-            ("12x", 2),
-            ("1.5", 1),
-            ("0x", 1),
-            ("0b2", 1),
-            ("0o8", 1),
-        ] {
+        for (v, want) in [("12x", 2), ("1.5", 1), ("0x", 1), ("0b2", 1), ("0o8", 1)] {
             let c: Vec<char> = v.chars().collect();
             assert_eq!(
                 scan_integer(&c, Width::Unbounded, NumberSyntax::Tcl90).1,
@@ -511,7 +504,10 @@ mod tests {
         }
         // A past-wide magnitude parses but does not fit: -1, not an index.
         let c: Vec<char> = "99999999999999999999".chars().collect();
-        assert_eq!(scan_integer(&c, Width::Wide, NumberSyntax::Tcl90), (false, -1));
+        assert_eq!(
+            scan_integer(&c, Width::Wide, NumberSyntax::Tcl90),
+            (false, -1)
+        );
     }
 
     /// Non-ASCII text must not panic the byte→char index conversion.
@@ -519,6 +515,9 @@ mod tests {
     fn failindex_counts_characters_not_bytes() {
         let c: Vec<char> = "1é".chars().collect();
         // The `é` is two bytes but one character: the failure is at index 1.
-        assert_eq!(scan_integer(&c, Width::Unbounded, NumberSyntax::Tcl90), (false, 1));
+        assert_eq!(
+            scan_integer(&c, Width::Unbounded, NumberSyntax::Tcl90),
+            (false, 1)
+        );
     }
 }

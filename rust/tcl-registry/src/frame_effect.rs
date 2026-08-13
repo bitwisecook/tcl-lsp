@@ -234,7 +234,10 @@ impl FrameLevel {
         if word.starts_with('#') {
             return true;
         }
-        let signed = parse_signed_level_value(word, version.map_or_else(NumberSyntax::default, TclVersion::number_syntax));
+        let signed = parse_signed_level_value(
+            word,
+            version.map_or_else(NumberSyntax::default, TclVersion::number_syntax),
+        );
         let leading_digit = word.as_bytes().first().is_some_and(u8::is_ascii_digit);
         match version {
             // 9.0 / 9.1: the whole word goes to `Tcl_GetIntFromObj`, sign and
@@ -289,8 +292,7 @@ fn parse_level_magnitude(text: &str, numbers: NumberSyntax) -> Option<(bool, u32
     };
     // A magnitude past a wide names no frame on any release, and a float or NaN
     // is not an integer word at all.
-    let tcl_syntax::number::Number::Int(value) =
-        tcl_syntax::number::parse_whole_with(text, flags)?
+    let tcl_syntax::number::Number::Int(value) = tcl_syntax::number::parse_whole_with(text, flags)?
     else {
         return None;
     };
@@ -659,7 +661,11 @@ mod tests {
             );
         }
         // Unanimous spellings still resolve exactly.
-        for (word, level) in [("1", Relative(1)), ("007", Relative(7)), ("0x1", Relative(1))] {
+        for (word, level) in [
+            ("1", Relative(1)),
+            ("007", Relative(7)),
+            ("0x1", Relative(1)),
+        ] {
             assert_eq!(FrameLevel::parse(word), Some(level), "level word {word:?}");
         }
         // Unanimously not a level at all.

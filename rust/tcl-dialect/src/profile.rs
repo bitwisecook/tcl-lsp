@@ -889,7 +889,8 @@ impl DialectProfile {
     /// free to differ in what it did with a profile that names no release.
     #[must_use]
     pub fn character_model(&self) -> Option<StringCharacterModel> {
-        self.runtime_version().map(TclVersion::string_character_model)
+        self.runtime_version()
+            .map(TclVersion::string_character_model)
     }
 
     /// The full catalog of canonical dialect profiles, in sorted-name order

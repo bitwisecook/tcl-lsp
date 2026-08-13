@@ -82,9 +82,7 @@ const SANCTIONED_FILES: &[&str] = &[
 ];
 
 /// The radix-prefix spellings a Tcl numeral can carry, in both cases.
-const RADIX_PREFIXES: &[&str] = &[
-    "0x", "0X", "0o", "0O", "0b", "0B", "0d", "0D",
-];
+const RADIX_PREFIXES: &[&str] = &["0x", "0X", "0o", "0O", "0b", "0B", "0d", "0D"];
 
 /// Call shapes that mean "test whether this text starts with a radix prefix".
 const RECOGNISERS: &[&str] = &["strip_prefix(", "starts_with(", "trim_start_matches("];
