@@ -168,6 +168,37 @@ the same release (`expr {0xFF}` compiles to `push "0xFF"; tryCvtToNumeric`).
 Only a compound constant subtree folds (`expr {1+1}` → `push "2"`). Folding a
 lone literal gets the right answer with the wrong bytecode.
 
+### When no release is in hand: abstain, don't guess
+
+Some consumers genuinely cannot name a release — a `ConstFoldFn` carries no
+version, an optimiser gate runs before a target is fixed, a registry predicate
+answers a shape question about a bare word. The rule there is **unanimity**:
+resolve under every grammar and answer only if they agree.
+
+Which direction "abstain" points depends on what the caller decides, and getting
+that backwards is the trap:
+
+| consumer | decides | abstains by |
+|---|---|---|
+| `FrameLevel::parse` | which frame a level word names | `Dynamic` — real frame, unknown which |
+| `const_fold::parse_index` | whether to fold `lindex` | declining to fold |
+| `node_provably_numeric` | may a numeric rewrite fire | requiring **every** release to agree it is a number |
+| `is_numeric_or_boolean_string` | may a string promotion fire | accepting if **any** release reads a number (blocks the rewrite) |
+| `DefaultFormFirstWord::matches` | which argument form was used | reporting no match |
+| the package-resolver guard | is a branch reachable | `Guard::Unknown` |
+
+The last two rows of the middle pair are the same predicate pointing opposite
+ways: one claims "this **is** a number" and so needs proof under every release;
+the other refuses an optimisation because a value "could still be a number" and
+so needs only one release to say yes. Both were previously the ambient grammar,
+which is neither, and under 9.0 rules `08` reads as numeric — so an
+arithmetic-identity rewrite could fire on an operand that is a `bad octal` error
+on an 8.x target.
+
+Abstaining is cheap: an unfolded expression is evaluated later by something that
+*does* know its release. Guessing is not — it bakes one release's answer into a
+program built for another.
+
 `cargo xtask number-drift` enforces the single-parser rule: it fails on
 hand-rolled radix-prefix recognition outside the facility. Parsing a prefix out
 of something that is *not* Tcl script text — a packet field, a hex colour, a
