@@ -37,7 +37,7 @@ use tcl_bigip_query::output::render;
 use tcl_bigip_query::parser::parse_query;
 
 /// The same fixture the generator reads.
-const FIXTURE: &str = include_str!("../../tcl-bigip/tests/fixtures/bigip.conf");
+const FIXTURE: &str = include_str!("../../../tcl-bigip/tests/fixtures/bigip.conf");
 
 fn run(query: &str, mode: &str) -> Result<String, String> {
     let config = parse_bigip_conf(FIXTURE, "Common");
@@ -50,7 +50,7 @@ fn run(query: &str, mode: &str) -> Result<String, String> {
 
 #[test]
 fn graph() {
-    let raw = include_str!("fixtures/graph.json");
+    let raw = include_str!("../fixtures/graph.json");
     let cases: J = serde_json::from_str(raw).expect("fixture is valid JSON");
     let cases = cases.as_array().expect("fixture is an array");
     assert!(!cases.is_empty());

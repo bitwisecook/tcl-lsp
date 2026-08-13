@@ -35,7 +35,7 @@ use tcl_bigip_query::eval::{EvalContext, Root, evaluate};
 use tcl_bigip_query::parser::parse_query;
 use tcl_bigip_query::value::Value;
 
-const PEM: &str = include_str!("fixtures/x509_example.pem");
+const PEM: &str = include_str!("../fixtures/x509_example.pem");
 
 /// Run a query against an empty root, with probes disabled (the default).
 fn run_disabled(query: &str) -> Result<Vec<Value>, String> {
@@ -70,7 +70,7 @@ fn value_to_json(v: &Value) -> J {
 }
 
 fn fixture() -> Vec<J> {
-    let raw = include_str!("fixtures/probes.json");
+    let raw = include_str!("../fixtures/probes.json");
     serde_json::from_str::<J>(raw)
         .expect("fixture is valid JSON")
         .as_array()

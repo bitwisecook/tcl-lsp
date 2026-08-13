@@ -37,6 +37,15 @@
 //! server for *any* edit sequence, so what matters is only that the mix stays
 //! deterministic and hostile: insert, delete, replace, newline, and astral
 //! edits.
+//!
+//! ## What runs where
+//!
+//! Every test here runs in CI except
+//! [`every_snapshot_consumer_stays_correct_while_typing_a_large_document`],
+//! which types into a 300-proc document and takes ~3 minutes of debug-build
+//! analysis. It is `#[ignore]`d and run with `--ignored`: it applies the same
+//! oracle as its 23 siblings, only at a scale where a stale line index would
+//! land on the wrong *line* rather than the wrong column.
 
 use crate::common::helpers::*;
 use crate::common::{Lsp, Rng, unique_uri};
@@ -749,6 +758,9 @@ fn feature_requests_interleaved_with_edits() {
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
 
+#[ignore = "large-document typing storm (300 procs x 12 rounds, ~3 min); run explicitly \
+            with --ignored — the 23 other edit_tracking_stress tests run the same \
+            content-equivalence oracle on small documents in CI"]
 #[test]
 fn every_snapshot_consumer_stays_correct_while_typing_a_large_document() {
     // Issue #1184: request handlers no longer receive a deep copy of the

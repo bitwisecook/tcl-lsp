@@ -226,7 +226,7 @@ fn program_json(program: &Program) -> Value {
 }
 
 fn load_fixture() -> Value {
-    let raw = include_str!("fixtures/front_end.json");
+    let raw = include_str!("../fixtures/front_end.json");
     serde_json::from_str(raw).expect("fixture is valid JSON")
 }
 

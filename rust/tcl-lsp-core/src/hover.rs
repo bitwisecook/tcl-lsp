@@ -3645,7 +3645,7 @@ mod tests {
     }
 
     #[test]
-    fn find_word_span_extracts_word_under_cursor() {
+    fn smoke_find_word_span_extracts_word_under_cursor() {
         // Cursor on the 'r' of `proc`.
         let src = "proc greet {} {}\n";
         let (word, start, end) = find_word_span_at_position(src, 0, 1).unwrap();
@@ -3666,7 +3666,7 @@ mod tests {
     }
 
     #[test]
-    fn find_var_at_position_recognises_dollar_ref() {
+    fn smoke_find_var_at_position_recognises_dollar_ref() {
         // Cursor inside `$var`.
         let src = "set x $var\n";
         assert_eq!(find_var_at_position(src, 0, 8), Some("var".to_owned()));
