@@ -76,12 +76,16 @@ packs loaded at all — a hook-bearing spec's answer is not uniformly available
 the instant the pack installs, the way a compiled-in spec's answer always
 was.
 
-Ownership of the cached entries is also mid-change: accessors on this cache
-are moving from handing back a process-lifetime reference to handing back a
-handle the caller keeps for the duration of its own read, so a superseded
-pack generation can eventually be freed once nothing still holds it. That
-does not change any of the semantics above — identity, lookup-only, and
-fallback all hold regardless of which accessor shape is current.
+Ownership follows from the same fact. A layered generation is not
+process-lifetime data: the pack-carrying accessors hand back a
+reference-counted **handle**, not a `'static` reference, and a superseded
+generation is retired — its memory actually freed — once the cache has
+dropped it and the last holder finishes. So a consumer keeps the handle it
+was given for the duration of its own read (an analysis holds one for the
+whole walk), and never stashes a bare reference somewhere that outlives it.
+The plain, un-overlaid per-profile registries are still process-lifetime,
+exactly as before. None of this changes the semantics above — identity,
+lookup-only, and fallback hold regardless.
 
 ## Related
 
