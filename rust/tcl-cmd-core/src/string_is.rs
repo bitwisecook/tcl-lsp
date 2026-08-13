@@ -432,13 +432,16 @@ mod tests {
     /// false here — wrong on 8.6 *and* 9.0, not merely release-blind.
     #[test]
     fn a_radix_integer_is_a_double_on_every_release() {
-        for numbers in NumberSyntax::ALL.iter().copied() {
-            for v in ["0x1f", "0b101", "0o17"] {
-                // `0o`/`0b` do not exist in 8.4, so skip what is genuinely not
-                // a numeral there.
-                if !numbers.has_binary_octal_prefix() && !v.starts_with("0x") {
-                    continue;
-                }
+        // Spelled out per grammar rather than derived: `0x` is universal while
+        // `0o`/`0b` arrive in 8.5, and listing them is clearer than a predicate
+        // — which would also be a hand-rolled prefix test of exactly the kind
+        // `cargo xtask number-drift` exists to reject.
+        for (numbers, values) in [
+            (NumberSyntax::Tcl84, &["0x1f"][..]),
+            (NumberSyntax::Tcl85, &["0x1f", "0b101", "0o17"][..]),
+            (NumberSyntax::Tcl90, &["0x1f", "0b101", "0o17"][..]),
+        ] {
+            for v in values {
                 assert_eq!(
                     class_check("double", v, false, numbers),
                     (true, -1),
