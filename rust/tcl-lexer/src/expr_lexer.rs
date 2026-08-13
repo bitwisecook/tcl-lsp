@@ -273,6 +273,23 @@ struct Inner<'s> {
     /// `tcl_dialect::LexerGrammar::expr_comments`). When false, `#` stays an
     /// unknown character, which is what C 8.4-8.6 does with it.
     expr_comments: bool,
+    /// Whether `_` may sit inside a *fractional or exponent* digit run — 9.0+
+    /// only, and unlike the integer run this genuinely changes the lexeme
+    /// boundary, so it cannot be left to `tcl-syntax` to sort out.
+    ///
+    /// C's bareword scan takes `[A-Za-z0-9_]` but stops at `.`, which splits
+    /// the two cases (tclsh 8.6.16):
+    ///
+    /// | input | 8.6 | 9.0 |
+    /// |---|---|---|
+    /// | `1_0`, `1e1_0`, `0x1_f` | `invalid bareword` | valid |
+    /// | `1.0_2` | **`invalid character "_"`** | valid |
+    ///
+    /// With no `.`, the whole run is one bareword candidate on every release,
+    /// so the integer run absorbs `_` unconditionally. After a `.` the number
+    /// lexeme *ends* before 9.0 and the `_` is its own invalid lexeme — so
+    /// absorbing it there would report a bareword where C reports a character.
+    digit_separators: bool,
     unknown: bool,
 }
 
@@ -285,6 +302,7 @@ impl<'s> Inner<'s> {
             i: 0,
             irules_operators: profile.is_irules(),
             expr_comments: profile.grammar.expr_comments.comments(),
+            digit_separators: profile.grammar.numbers.allows_digit_separators(),
             unknown: false,
         }
     }
@@ -449,7 +467,8 @@ impl<'s> Inner<'s> {
         if self.i < self.b.len() && self.b[self.i] == b'.' {
             self.i += 1;
             while self.i < self.b.len()
-                && (self.b[self.i].is_ascii_digit() || self.b[self.i] == b'_')
+                && (self.b[self.i].is_ascii_digit()
+                    || (self.digit_separators && self.b[self.i] == b'_'))
             {
                 self.i += 1;
             }
@@ -465,7 +484,8 @@ impl<'s> Inner<'s> {
             // Once committed, the run takes separators like any other.
             if self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
                 while self.i < self.b.len()
-                    && (self.b[self.i].is_ascii_digit() || self.b[self.i] == b'_')
+                    && (self.b[self.i].is_ascii_digit()
+                        || (self.digit_separators && self.b[self.i] == b'_'))
                 {
                     self.i += 1;
                 }
@@ -1232,5 +1252,36 @@ mod tests {
                 "{dialect} must not lex a comment token"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod separator_boundary_tests {
+    use super::*;
+
+    /// `_` inside a *fraction* changes the lexeme boundary, so unlike the
+    /// integer run it has to follow the release. C's bareword scan takes
+    /// `[A-Za-z0-9_]` and stops at `.`, which is why `1_0` is a bareword on
+    /// 8.6 while `1.0_2` is an `invalid character "_"` there — pinned on
+    /// tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn fraction_separators_follow_the_release() {
+        // 9.0: one numeral.
+        let t = tokenise_expr("1.0_2", Some("tcl9.0"));
+        assert_eq!(t.len(), 1, "9.0 lexes `1.0_2` whole: {t:?}");
+        assert_eq!(t[0].text, "1.0_2");
+
+        // 8.6: the number ends at `1.0`, and `_` is its own (unknown) lexeme.
+        let t = tokenise_expr("1.0_2", Some("tcl8.6"));
+        assert!(t.len() > 1, "8.6 must split `1.0_2`: {t:?}");
+        assert_eq!(t[0].text, "1.0");
+
+        // The exponent behaves the same way.
+        assert_eq!(tokenise_expr("1e1_0", Some("tcl9.0")).len(), 1);
+
+        // The *integer* run absorbs `_` on every release — `1_0` is one
+        // bareword candidate on 8.6 too, which is what C reports.
+        assert_eq!(tokenise_expr("1_0", Some("tcl8.6"))[0].text, "1_0");
+        assert_eq!(tokenise_expr("1_0", Some("tcl9.0"))[0].text, "1_0");
     }
 }

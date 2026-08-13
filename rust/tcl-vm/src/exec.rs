@@ -933,6 +933,7 @@ fn proc_usage(proc: &ProcDef) -> String {
 impl Vm {
     /// Run a module: register its compiled procs, then run the top-level script.
     pub fn run_module(&mut self, module: &ModuleAsm) -> Completion<Value> {
+        self.claim_number_grammar();
         self.merge_procs(&module.procedures);
         self.run_function(&module.top_level)
     }
