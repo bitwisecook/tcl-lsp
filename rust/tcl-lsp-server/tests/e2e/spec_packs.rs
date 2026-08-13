@@ -628,3 +628,52 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// A pack that appears **while the startup reload is still running** must not
+/// be lost.
+///
+/// Two reloads overlap here: the one `initialized` starts, which parses the
+/// bundled EDA loadables and is the slower of the two, and the one this
+/// notification starts. Each takes its own filesystem snapshot, so the startup
+/// reload's view predates the file. When it finished second it republished
+/// that view and the workspace pack vanished — and because the file was
+/// already on disk with its one event consumed, nothing ever re-triggered:
+/// the pack stayed missing for the session.
+///
+/// This covers the *scenario* — a pack created before the session has
+/// settled — and it is deliberately written with no settling step so the two
+/// reloads can overlap. It is honestly not a proof: whether they actually
+/// overlap depends on how long the bundled load takes on the machine running
+/// it, and on a fast idle box the startup reload is already finished by the
+/// time the notification arrives, so this passes with or without the fix. The
+/// fix is justified by the ordering itself, not by this test failing without
+/// it. What was observed in CI is a pack set of exactly the six bundled EDA
+/// packs — the startup snapshot, verbatim.
+#[test]
+fn a_pack_created_during_the_startup_reload_survives_it() {
+    let root = workspace("startup-race");
+    let source = "mylib::with_var counter {\n    set counter 1\n}\n";
+    let doc = root.join("app.tcl");
+    write(&doc, source);
+
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
+
+    // No settling step: write and notify immediately, so the notification's
+    // reload races the one still in flight from `initialized`.
+    let pack = root.join(".tcl-lsp/mylib.tclspec");
+    write(&pack, MYLIB_PACK);
+    notify_pack_changed(&mut lsp, &pack, CREATED);
+
+    await_pack_named(&mut lsp, "mylib");
+
+    let uri = file_uri(&doc);
+    lsp.open_ready(&uri, source);
+    let hover = hover_text(&lsp.hover(&uri, 0, 4));
+    assert!(
+        hover.contains("Run a script with a caller variable bound."),
+        "the pack that won the race is the one on disk; got:\n{hover}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}

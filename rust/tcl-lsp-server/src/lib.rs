@@ -4129,6 +4129,23 @@ pub struct Backend {
     /// set is read on every `registry_for_dialect` call, which is every
     /// request.
     spec_packs: Arc<Mutex<Arc<tcl_spectcl::PackSet>>>,
+    /// Held across a whole pack reload — discovery, load, and publish.
+    ///
+    /// Two reloads can be in flight at once: `initialized` starts one, and a
+    /// `.tclspec` appearing (or `tclLsp.specPacks` moving) starts another.
+    /// Each takes its own filesystem snapshot and then publishes if the key
+    /// differs from what is current, which is last-*writer*-wins with no
+    /// regard for which snapshot is newer. The startup reload parses the
+    /// bundled EDA loadables and is by far the slower of the two, so on a
+    /// loaded machine it finishes second and republishes its pre-write view,
+    /// silently discarding the workspace pack that arrived in between. Nothing
+    /// re-triggers afterwards — the file is already on disk and its one event
+    /// has been consumed — so the pack stays missing until the next edit.
+    ///
+    /// Serialising makes every reload observe the disk *after* the previous
+    /// one published, so whichever runs last re-reads the true state. It costs
+    /// nothing on the common path: reloads are workspace-scoped, not per-edit.
+    spec_pack_reload: Arc<Mutex<()>>,
     /// URIs currently carrying published pack-load diagnostics, so a reload
     /// that fixes a pack clears the badge it left behind.
     spec_pack_diagnostic_uris: Arc<Mutex<HashSet<Uri>>>,
@@ -5022,6 +5039,7 @@ impl Backend {
             extra_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
             spec_packs: Arc::new(Mutex::new(Arc::new(tcl_spectcl::PackSet::default()))),
+            spec_pack_reload: Arc::new(Mutex::new(())),
             spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
@@ -6932,6 +6950,7 @@ impl Backend {
             extra_commands: _,
             spec_pack_paths: _,
             spec_packs: _,
+            spec_pack_reload: _,
             bigip_version: _,
             generic_variable_patterns: _,
             formatting_settings: _,
@@ -12880,6 +12899,10 @@ impl Backend {
     /// (a save with no edit, a `touch`, a branch switch that restores a file)
     /// free.
     async fn reload_spec_packs(&self) -> bool {
+        // One reload at a time — see `spec_pack_reload`. The guard spans
+        // discovery *and* the publish below, because it is the gap between
+        // them that lets a slower reload overwrite a newer one's result.
+        let _reload = self.spec_pack_reload.lock().await;
         let options = self.spec_pack_discovery().await;
         // Before loading: the watch set follows the *configuration*, so it has
         // to be refreshed even when the discovered files turn out unchanged.
@@ -25883,6 +25906,7 @@ mod tests {
             extra_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
             spec_packs: Arc::new(Mutex::new(Arc::new(tcl_spectcl::PackSet::default()))),
+            spec_pack_reload: Arc::new(Mutex::new(())),
             spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
