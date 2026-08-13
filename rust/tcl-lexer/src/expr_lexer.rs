@@ -441,9 +441,16 @@ impl<'s> Inner<'s> {
         while self.i < self.b.len() && (self.b[self.i].is_ascii_digit() || self.b[self.i] == b'_') {
             self.i += 1;
         }
+        // The fraction and exponent digit runs take `_` for the same reason the
+        // integer run above does: 9.0 allows a separator anywhere between two
+        // digits, so `1.0_2` and `1e1_0` are single numerals (tclsh 9.0: 1.02
+        // and 10000000000.0). Keeping them digit-only split the lexeme and
+        // degraded valid input to a parse error.
         if self.i < self.b.len() && self.b[self.i] == b'.' {
             self.i += 1;
-            while self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
+            while self.i < self.b.len()
+                && (self.b[self.i].is_ascii_digit() || self.b[self.i] == b'_')
+            {
                 self.i += 1;
             }
         }
@@ -453,8 +460,13 @@ impl<'s> Inner<'s> {
             if self.i < self.b.len() && matches!(self.b[self.i], b'+' | b'-') {
                 self.i += 1;
             }
+            // The exponent commits only on a *digit*: `_` must sit between two
+            // digits, so `1e_0` is not an exponent at all (tclsh 9.0 errors).
+            // Once committed, the run takes separators like any other.
             if self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
-                while self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
+                while self.i < self.b.len()
+                    && (self.b[self.i].is_ascii_digit() || self.b[self.i] == b'_')
+                {
                     self.i += 1;
                 }
             } else {

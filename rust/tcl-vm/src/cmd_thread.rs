@@ -97,6 +97,11 @@ struct Worker {
 /// thread-local.
 struct Shared {
     factory: CompileFactory,
+    /// The release the parent interpreter emulates. A worker builds its own
+    /// `Vm`, which starts at the default release, so without this a
+    /// `tcl --tcl-version 8.6` worker compiled for 8.6 but *ran* at 9.0 —
+    /// `string is integer 08` answered true there and false in the parent.
+    runtime_version: tcl_dialect::TclVersion,
     output: ThreadedOutput,
     next_id: AtomicU64,
     /// Monotonic source of opaque handles (`mutex`/`cond`/`rwmutex`/`tpool`).
@@ -168,6 +173,7 @@ impl Vm {
     pub fn enable_threads(&mut self, factory: CompileFactory, output: ThreadedOutput) {
         let shared = Arc::new(Shared {
             factory,
+            runtime_version: self.runtime_version(),
             output,
             next_id: AtomicU64::new(MAIN_ID + 1),
             handle_seq: AtomicU64::new(0),
@@ -279,6 +285,10 @@ fn run_worker(shared: &Arc<Shared>, id: u64, inbox: Receiver<Job>, script: &str)
     let out: Box<dyn Write> = Box::new(SharedOut(Arc::clone(&shared.output)));
     let mut vm = Vm::with_output(out);
     vm.set_compiler((shared.factory)());
+    // Same release as the parent: the worker's compiler already targets it, and
+    // the runtime must agree or numerals mean different things either side of
+    // `thread::send`.
+    vm.set_runtime_version(shared.runtime_version);
     let _ = vm.write_array_raw("tcl_platform", "threaded", Value::string("1"));
     vm.thread = ThreadSystem {
         shared: Some(Arc::clone(shared)),
@@ -810,6 +820,10 @@ fn run_pool_worker(shared: &Arc<Shared>, queue: &Arc<PoolQueue>, initcmd: Option
     let out: Box<dyn Write> = Box::new(SharedOut(Arc::clone(&shared.output)));
     let mut vm = Vm::with_output(out);
     vm.set_compiler((shared.factory)());
+    // Same release as the parent: the worker's compiler already targets it, and
+    // the runtime must agree or numerals mean different things either side of
+    // `thread::send`.
+    vm.set_runtime_version(shared.runtime_version);
     let _ = vm.write_array_raw("tcl_platform", "threaded", Value::string("1"));
     let id = shared.next_id.fetch_add(1, Ordering::SeqCst);
     vm.thread = ThreadSystem {

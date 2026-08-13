@@ -356,3 +356,72 @@ fn vectors_match_real_tclsh_when_available() {
         eprintln!("no system tclsh found — pinned expectations still verified");
     }
 }
+
+/// Build a VM configured for `version`, ready to evaluate.
+fn build_vm(version: TclVersion) -> (Vm, Capture, &'static str) {
+    let dialect = version.dialect_name();
+    let cap = Capture::default();
+    let mut vm = Vm::with_output(Box::new(cap.clone()));
+    vm.set_compiler(Box::new(CompilerSvc {
+        registry: CommandRegistry::build_default(),
+        dialect,
+    }));
+    vm.set_runtime_version(version);
+    (vm, cap, dialect)
+}
+
+/// Run `src` on an already-configured VM, compiling for its dialect.
+fn run_on(vm: &mut Vm, cap: &Capture, dialect: &str, src: &str) -> String {
+    cap.0.borrow_mut().clear();
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir(src, &registry, tcl_lexer::LexerConfig::default(), dialect);
+    let cfg = build_cfg_codegen(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+    let _ = vm.run_module(&asm);
+    String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
+}
+
+/// **Two interpreters on one thread must not share a numeral grammar.**
+///
+/// The grammar is installed per *interpreter*, so building a 9.0 VM must not
+/// retune an 8.6 VM that is still alive on the same thread. C's equivalent is a
+/// build-time constant, which makes it per-process — but a process there hosts
+/// one interpreter's grammar, whereas here one thread can hold several.
+///
+/// Reachable wherever a host holds more than one release at once: a test
+/// process, an editor analysing two documents, `Interp::with_child`.
+#[test]
+fn a_second_interpreter_does_not_change_the_first_ones_grammar() {
+    let (mut vm86, cap86, d86) = build_vm(TclVersion::V8_6);
+    assert_eq!(
+        run_on(&mut vm86, &cap86, d86, "puts [expr {010}]\n"),
+        "8",
+        "8.6 reads a leading zero as octal"
+    );
+
+    // A second interpreter, different release, same thread.
+    let (mut vm90, cap90, d90) = build_vm(TclVersion::V9_0);
+    assert_eq!(
+        run_on(&mut vm90, &cap90, d90, "puts [expr {010}]\n"),
+        "10",
+        "9.0 reads a leading zero as decimal"
+    );
+
+    // The first interpreter must be unaffected.
+    assert_eq!(
+        run_on(&mut vm86, &cap86, d86, "puts [expr {010}]\n"),
+        "8",
+        "the 8.6 interpreter's grammar survived a 9.0 interpreter being built"
+    );
+    // ...and interleaved the other way too.
+    assert_eq!(
+        run_on(&mut vm90, &cap90, d90, "puts [string is integer 08]\n"),
+        "1",
+        "9.0 still reads 08 as a decimal integer"
+    );
+    assert_eq!(
+        run_on(&mut vm86, &cap86, d86, "puts [string is integer 08]\n"),
+        "0",
+        "8.6 still rejects 08 as an invalid octal"
+    );
+}
