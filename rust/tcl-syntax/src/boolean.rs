@@ -116,10 +116,44 @@ pub fn parse_boolean_strict(text: &str) -> Option<bool> {
 /// it returns `None`, as does any non-boolean non-number.
 #[must_use]
 pub fn truthiness(text: &str) -> Option<bool> {
+    truthiness_with(text, crate::number::runtime_syntax())
+}
+
+/// [`truthiness`] reading the numeric fallback under an explicitly named
+/// release, for a caller whose target is not this process's own.
+///
+/// Only the *number* branch is release-dependent; the boolean words are the
+/// same in every release.
+#[must_use]
+pub fn truthiness_with(text: &str, numbers: crate::number::NumberSyntax) -> Option<bool> {
+    truthiness_inner(text, numbers)
+}
+
+/// [`truthiness`] where every release must agree — the sound reading when no
+/// release is in hand and a wrong "constant" answer would matter. `08` is 8
+/// (true) from 9.0 and not a number at all before it, so it yields [`None`]
+/// here rather than committing to either.
+#[must_use]
+pub fn truthiness_in_every_release(text: &str) -> Option<bool> {
+    let mut answers = crate::number::NumberSyntax::ALL
+        .iter()
+        .map(|&n| truthiness_inner(text, n));
+    let first = answers.next()?;
+    if answers.all(|a| a == first) {
+        first
+    } else {
+        None
+    }
+}
+
+fn truthiness_inner(text: &str, numbers: crate::number::NumberSyntax) -> Option<bool> {
     if let Some(b) = parse_boolean_word(text) {
         return Some(b);
     }
-    match crate::number::parse_whole(text)? {
+    match crate::number::parse_whole_with(
+        text,
+        crate::number::ParseFlags::for_syntax(numbers),
+    )? {
         crate::number::Number::Int(i) => Some(i != 0),
         // A parsed `Big` is beyond `i64`, hence never zero.
         crate::number::Number::Big { .. } => Some(true),

@@ -652,7 +652,11 @@ fn parse_guard(expr: &str) -> Guard {
     // The same acceptor `if` itself uses (`Tcl_GetBooleanFromObj`'s string
     // path), so `1`, `true`, `yes`, `on`, `2`, and `0x0` read exactly as the
     // interpreter reads them.
-    match tcl_syntax::boolean::truthiness(expr) {
+    // Unanimous across releases: this guard decides *reachability*, so claiming
+    // a constant that only holds on some releases would prune a branch that is
+    // live on the others. A spelling the releases read differently falls to
+    // `Unknown`, which is the abstaining direction here.
+    match tcl_syntax::boolean::truthiness_in_every_release(expr) {
         Some(value) => Guard::Constant(value),
         None => Guard::Unknown,
     }
