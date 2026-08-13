@@ -1908,18 +1908,49 @@ mod tests {
         assert!(!is_numeric_string_in_every_release(""));
     }
 
+    /// The gate reads through the shared Tcl grammar, not Rust's — `0x1a` is a
+    /// number here where `str::parse::<i64>/<f64>` rejects it outright.
+    ///
+    /// It asks the *provable* question, though, so only spellings every release
+    /// agrees on qualify. `0x1a` is hex in all of them; `0o17`/`0b101` arrive in
+    /// 8.5 and `1_000` in 9.0, so none of those three is provably a number
+    /// without a target in hand — and this predicate gates rewrites that need a
+    /// genuine numeric operand. The permissive question has its own predicate,
+    /// [`is_numeric_string_in_any_release`], asserted below.
     #[test]
     fn is_numeric_string_recognises_non_decimal_tcl_numbers() {
-        // TP: hex/octal/binary/underscore-separated forms are real Tcl
-        // numbers (tclsh: 0x1a==26, 0o17==15, 0b101==5, 1_000==1000) — the
-        // shared `tcl_syntax::number` grammar accepts them even though
-        // Rust's own `str::parse::<i64>/<f64>` rejects all four.
-        for text in ["0x1a", "0o17", "0b101", "1_000", "\"0x1a\""] {
-            assert!(is_numeric_string_in_every_release(text), "{text:?} should be numeric");
+        // Universal in every release — and rejected by Rust's own parsers.
+        for text in ["0x1a", "\"0x1a\""] {
+            assert!(
+                is_numeric_string_in_every_release(text),
+                "{text:?} should be provably numeric"
+            );
         }
-        // TN control: still rejects genuine non-numbers.
-        assert!(!is_numeric_string_in_every_release("hello"));
-        assert!(!is_numeric_string_in_every_release("0xzz"));
+        // Real Tcl numbers, but only from 8.5 / 9.0 — not provable without a
+        // target, and each *is* numeric under the release that has it.
+        for (text, first) in [
+            ("0o17", tcl_syntax::number::NumberSyntax::Tcl85),
+            ("0b101", tcl_syntax::number::NumberSyntax::Tcl85),
+            ("1_000", tcl_syntax::number::NumberSyntax::Tcl90),
+        ] {
+            assert!(
+                !is_numeric_string_in_every_release(text),
+                "{text:?} is not provable across releases"
+            );
+            assert!(
+                is_numeric_string_under(text, Some(first)),
+                "{text:?} is numeric under {first:?}"
+            );
+            assert!(
+                is_numeric_string_in_any_release(text),
+                "{text:?} is numeric on some release, so it blocks a promotion"
+            );
+        }
+        // TN control: still rejects genuine non-numbers, both ways.
+        for text in ["hello", "0xzz"] {
+            assert!(!is_numeric_string_in_every_release(text), "{text:?}");
+            assert!(!is_numeric_string_in_any_release(text), "{text:?}");
+        }
     }
 
     #[test]
