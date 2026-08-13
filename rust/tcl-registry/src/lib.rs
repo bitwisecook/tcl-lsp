@@ -211,7 +211,10 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use byte_array_effect::ByteArrayEffect;
-pub use cache::{registry_for_dialect, registry_for_profile, registry_for_profile_with_overlay};
+pub use cache::{
+    registry_for_dialect, registry_for_profile, registry_for_profile_with_overlay,
+    registry_handle_for_dialect, registry_handle_for_profile,
+};
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_table::CommandTableEffect;
 pub use completion::{

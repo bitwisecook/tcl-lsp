@@ -93,7 +93,7 @@ use tcl_registry::{
 /// what a release lays down beside the executable) rather than discovered, so
 /// the sweep does not depend on where the test binary sits or on the ambient
 /// `TCL_LSP_SPEC_PACK_DIR`.
-fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
+fn registry_for_dialect(dialect: &str) -> std::sync::Arc<CommandRegistry> {
     use std::sync::OnceLock;
     static PACKS: OnceLock<tcl_spectcl::PackSet> = OnceLock::new();
     let packs = PACKS.get_or_init(|| {
@@ -486,7 +486,7 @@ fn sweep_every_command_every_accessor() {
 
         for name in &names {
             total_specs += 1;
-            check_command_accessors(reg, ds, dname, name);
+            check_command_accessors(&reg, ds, dname, name);
         }
 
         // byte_array_payload_layouts is a per-registry aggregate; iterate it.
