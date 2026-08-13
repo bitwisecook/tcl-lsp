@@ -86,41 +86,38 @@ impl CodegenCtx<'_> {
     /// reports the parse error.  Returns `true` (numeric coercion
     /// guaranteed by Tcl literal handling).
     fn emit_expr_literal(&mut self, text: &str) -> bool {
-        use tcl_syntax::number::{self, Number, ParseFlags};
-
-        // Resolve the numeral for the release being compiled *for*, not for
-        // whatever is installed at run time: `0755` is 493 under 8.6 and 755
-        // under 9.0, `0b`/`0o` exist from 8.5 and `0d` from 9.0. C does the same
-        // — `CompileExprTree` pushes the object `TclParseNumber` produced, so the
-        // literal pool holds the value, never the source spelling.
-        match number::parse_whole_with(text.trim(), ParseFlags::for_syntax(self.numbers)) {
-            // Fold to the canonical string, so no runtime conversion is needed
-            // (`expr {0xff}` is `255`, `expr {1e3}` is `1000.0`).
-            Some(Number::Int(v)) => {
-                self.push_lit(&v.to_string());
-                true
-            }
-            Some(Number::Double(f)) => {
-                self.push_lit(&number::format_double(f));
-                true
-            }
-            // A bignum or NaN keeps its written form and is canonicalised by the
-            // runtime's `tryCvtToNumeric`: both are release-independent here
-            // (a >64-bit magnitude and `NaN` parse the same in every version),
-            // so deferring costs no dialect fidelity.
-            Some(_) => {
-                self.push_lit(text);
-                false
-            }
-            // Not a number in this release — `0o8` anywhere, or `0d99` before
-            // 9.0. C classifies it as a bareword and errors; `exprStk` raises
-            // that at run time with the full diagnosis.
-            None => {
-                self.push_lit(text);
-                self.emit(Op::EXPR_STK, vec![]);
-                true
-            }
+        // What the *target release* decides here is whether the text is a
+        // numeral at all — not what it evaluates to. `0o8` is never one, `0d99`
+        // is one only from 9.0, `0o17` only from 8.5. Everything about the
+        // spelling that is release-dependent (is `0755` octal 493 or decimal
+        // 755?) is settled later, by the `tryCvtToNumeric` the caller emits,
+        // running in a runtime built for this same dialect.
+        //
+        // A valid numeral is *not* folded, because C does not fold one:
+        //
+        //     % tcl::unsupported::disassemble script {expr {0xFF}}
+        //     (0) push1 0    # "0xFF"
+        //     (2) tryCvtToNumeric
+        //
+        // `CompileExprTree`'s `OT_LITERAL` case pushes the source spelling and
+        // leaves `convert` set, so the root emits `INST_TRY_CVT_TO_NUMERIC`.
+        // Only a *compound* constant subtree folds (`expr {1+1}` pushes `"2"`
+        // and clears `convert`, via `ExecConstantExprTree`) — that path is
+        // `tcl_expr_eval`'s, and it is dialect-aware in its own right. Folding
+        // here instead would put the value where C puts the spelling: the same
+        // answer, a different literal pool and one instruction fewer.
+        if tcl_syntax::number::is_whole_number(text.trim(), self.numbers) {
+            self.push_lit(text.trim());
+            // Not canonical: the caller emits `tryCvtToNumeric`, which converts
+            // under the runtime's grammar (`1e3` → `1000.0`, `0xFF` → `255`).
+            return false;
         }
+        // Not a numeral in this release. C classifies it as a bareword and
+        // compiles a syntax error; `exprStk` raises the same diagnosis at run
+        // time with the full `ParseExpr` message.
+        self.push_lit(text);
+        self.emit(Op::EXPR_STK, vec![]);
+        true
     }
 
     /// Emit a `String` expression — strips surrounding `"..."` or
@@ -485,6 +482,75 @@ mod tests {
         assert!(!numeric);
         // Valid hex → just push
         assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
+    }
+
+    /// A valid numeral goes into the literal pool as its **source spelling**,
+    /// never as a folded value — C's `CompileExprTree` `OT_LITERAL` case pushes
+    /// the spelling and lets the root's `tryCvtToNumeric` convert it. Verified
+    /// against tclsh 9.0:
+    ///
+    /// ```text
+    /// % tcl::unsupported::disassemble script {expr {0xFF}}
+    ///     (0) push1 0    # "0xFF"
+    ///     (2) tryCvtToNumeric
+    /// ```
+    ///
+    /// Folding here would agree on the answer and disagree on the bytecode.
+    /// Surrounding whitespace *is* trimmed (`expr { 42 }` pushes `"42"`).
+    #[test]
+    fn a_valid_numeral_is_pushed_as_its_spelling_not_its_value() {
+        let registry = CommandRegistry::build_default();
+        for (text, want) in [
+            ("0xFF", "0xFF"),
+            ("1e3", "1e3"),
+            ("42", "42"),
+            (" 42 ", "42"),
+            ("0755", "0755"),
+            ("NaN", "NaN"),
+            ("99999999999999999999999", "99999999999999999999999"),
+        ] {
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            assert!(!ctx.emit_expr(&lit(text)), "{text}: reported canonical");
+            assert_eq!(opcodes(&ctx), vec![Op::PUSH1], "{text}: opcodes");
+            assert_eq!(ctx.literals.entries()[0], want, "{text}: literal pool");
+        }
+    }
+
+    /// The *validity* of a numeral is release-dependent, and that is the one
+    /// thing codegen decides about it: a spelling its target release does not
+    /// have is a bareword, routed to `exprStk` for the runtime diagnosis.
+    #[test]
+    fn numeral_validity_follows_the_target_release() {
+        use tcl_dialect::NumberSyntax;
+        let registry = CommandRegistry::build_default();
+        // (text, syntax, is a numeral here)
+        for (text, numbers, valid) in [
+            // `0o` arrived in 8.5, `0d` in 9.0, `_` in 9.0.
+            ("0o17", NumberSyntax::Tcl84, false),
+            ("0o17", NumberSyntax::Tcl85, true),
+            ("0d99", NumberSyntax::Tcl85, false),
+            ("0d99", NumberSyntax::Tcl90, true),
+            ("1_000", NumberSyntax::Tcl85, false),
+            ("1_000", NumberSyntax::Tcl90, true),
+            // Bad digits for the radix are never a numeral.
+            ("0o8", NumberSyntax::Tcl85, false),
+            ("0o8", NumberSyntax::Tcl90, false),
+            // A leading zero is octal up to 8.6 and decimal from 9.0, but it is
+            // a numeral either way — only `tryCvtToNumeric` sees the difference.
+            ("0755", NumberSyntax::Tcl85, true),
+            ("0755", NumberSyntax::Tcl90, true),
+        ] {
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            ctx.numbers = numbers;
+            let numeric = ctx.emit_expr(&lit(text));
+            let want = if valid {
+                vec![Op::PUSH1]
+            } else {
+                vec![Op::PUSH1, Op::EXPR_STK]
+            };
+            assert_eq!(opcodes(&ctx), want, "{text} under {numbers:?}");
+            assert_eq!(numeric, !valid, "{text} under {numbers:?}: canonical flag");
+        }
     }
 
     // -- String --
