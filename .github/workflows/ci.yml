@@ -420,12 +420,13 @@ jobs:
   #   rust-tests        workspace minus the VM-sim heavies and tcl-lsp-server,
   #                     plus ALL workspace doctests (cheap; nextest can't run
   #                     doctests, so they live here once rather than in each job)
-  #   rust-tests-heavy  the VM-sim heavies (`tcl-irule-test`, `f5-cli`).
-  #                     Measured 2026-08-13: ~44 s total — tcl-irule-test's 19
-  #                     LiveSession tests source the ~320 KB orchestrator bundle
-  #                     on a fresh tcl-vm each (~7-9 s apiece); f5-cli touches
-  #                     it in only 2 of its 149 tests.  Kept split for
-  #                     concurrency, not because it is still the long pole.
+  #   rust-tests-heavy  the VM-sim heavies (`tcl-irule-test`, `f5-cli`) plus
+  #                     `tcl-fuzz`'s plumbing unit tests (excluded from
+  #                     rust-tests so wasmtime/cranelift stay out of the main
+  #                     partition's build graph; fuzz campaigns themselves are
+  #                     manual-only, never CI).  Measured 2026-08-13: ~44 s
+  #                     total.  Kept split for concurrency, not because it is
+  #                     still the long pole.
   #   lsp-e2e           the native lsp_e2e suite: spawns the real tcl-lsp-server
   #                     via CARGO_BIN_EXE_tcl-lsp-server and drives LSP JSON-RPC
   #                     over stdio (rust/tcl-lsp-server/tests/*_e2e.rs)
@@ -490,7 +491,7 @@ jobs:
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             extra="--no-run"
           fi
-          cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --all-features --no-fail-fast
+          cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features --no-fail-fast
 
       # nextest does not run doctests; run them for the WHOLE workspace (incl.
       # the crates excluded above — doctests are cheap) so the other jobs need
@@ -526,7 +527,12 @@ jobs:
           tool: nextest
 
       # Same skip/downgrade contract as rust-tests — see the channel job header.
-      - name: cargo nextest run (VM-sim heavies)
+      # tcl-fuzz lives here, not in rust-tests: its wasmtime/cranelift
+      # dependency chain (~40 crates, cranelift-codegen alone an 81 MB rlib)
+      # would otherwise sit in the main partition's build graph.  Only the
+      # fuzzer's own fast plumbing unit tests run — fuzz CAMPAIGNS are
+      # manual-only (`make fuzz`), never CI.
+      - name: cargo nextest run (VM-sim heavies + tcl-fuzz plumbing)
         if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
@@ -536,7 +542,7 @@ jobs:
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             extra="--no-run"
           fi
-          cargo nextest run $extra -p tcl-irule-test -p f5-cli --all-features --no-fail-fast
+          cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features --no-fail-fast
 
   # Native-server lsp_e2e suite.  Its own job (hence its own status check)
   # because it is a distinct, heavier surface: it builds the `tcl-lsp-server`

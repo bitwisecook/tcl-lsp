@@ -368,6 +368,15 @@ CI, and a manual-only exhaustive tier that never runs automatically.
 | **deep** (CI: `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `test-ext`, `cargo-deny`, `python`) | every PR and every push to `rust`/`main`, automatically | the full workspace suite (native lsp_e2e included), the VM-sim heavies, the VS Code extension, supply-chain audit, Python lint/typecheck.  CI skips work only when its inputs demonstrably didn't change (see "CI redundancy contract" below) |
 | **exhaustive / manual-only** (`make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]`) | only when a human (or a deliberate scheduled job) invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*`/tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns.  NEVER wire these into `prep-pr`, `test`, `check-all`, or CI |
 
+**Fuzzing is always manual.**  This covers campaigns (`make fuzz` /
+`tcl-fuzz`) *and* fuzz-shaped `#[test]`s — anything whose body is
+generator-driven or seeded-random exploration (edit storms, permuted-input
+loops) is `#[ignore]`d into the manual tier, regardless of how fast it
+happens to be today.  Deterministic fixed-input tests covering the same
+code stay in CI.  (`tcl-fuzz`'s own plumbing unit tests are ordinary tests
+of the fuzzer's code, not fuzzing — they run in CI's `rust-tests-heavy`
+partition.)
+
 The two local gates, in the order you run them:
 
 ```
