@@ -39,9 +39,9 @@ ARCH="$(uname -m)"
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
 # Pinned toolchain versions. Bump these when new stable releases land.
-WASMTIME_VERSION="43.0.1"
-BINARYEN_VERSION="123"
-WASI_SDK_VERSION="25.0"
+WASMTIME_VERSION="47.0.3"
+BINARYEN_VERSION="132"
+WASI_SDK_VERSION="33.0"
 # Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
 # (see docs/rust-rewrite.md). Installing the channel — rather than a pinned
 # version — keeps it auto-updating to the latest stable and, critically,
@@ -164,9 +164,9 @@ install_wasmtime() {
     local expected_sha=""
     case "$wasm_arch" in
         x86_64-linux)
-            expected_sha="9f3cf977fc29e2ccab2d198435265b066dce3d608fc6692d700ed1b9b74c35a1" ;;
+            expected_sha="ca1fc56d1afc40c8782e96c297fd182a0da162f9a8f52a1e7b094e1dd648e178" ;;
         aarch64-linux)
-            expected_sha="dbf36d4e9108df377ddfb88f2d8db4e07efce9726b68da53ae78ed5579293923" ;;
+            expected_sha="497b518db00ae585f04390758eaa99ad555bee50612dce7d102602778fb46ff0" ;;
     esac
     if [ -z "$expected_sha" ]; then
         echo "session-start: no pinned wasmtime sha256 for ${wasm_arch}" >&2
@@ -225,9 +225,9 @@ install_binaryen() {
     local expected_sha=""
     case "$bin_arch" in
         x86_64-linux)
-            expected_sha="e959f2170af4c20c552e9de3a0253704d6a9d2766e8fdb88e4d6ac4bae9388fe" ;;
+            expected_sha="195ddc94f9bc89f45abdabb0b9eea86023d727ba90eac8b35b80f2544fc30572" ;;
         aarch64-linux)
-            expected_sha="" ;; # fill on first aarch64 cold-start
+            expected_sha="c58562417836c5d0493d89bdefc434933bdc097db641b483df86bcfa557a107f" ;;
     esac
     local actual_sha
     actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
@@ -291,9 +291,9 @@ install_wasi_sdk() {
     local expected actual
     case "$sdk_arch" in
         x86_64)
-            expected="52640dde13599bf127a95499e61d6d640256119456d1af8897ab6725bcf3d89c" ;;
+            expected="0ba8b5bfaeb2adf3f29bab5841d76cf5318ab8e1642ea195f88baba1abd47bce" ;;
         arm64)
-            expected="47fccad8b2498f2239e05e1115c3ffc652bf37e7de2f88fb64b2d663c976ce2d" ;;
+            expected="4f98ee738c7abb45c81a94d1461fc53cc569d1cd01498951c8184d841a027844" ;;
         *)
             expected="" ;;
     esac
