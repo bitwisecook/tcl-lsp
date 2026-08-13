@@ -5515,23 +5515,23 @@ impl Backend {
     /// is absent or a concurrent edit cancels the read, so the caller can fall
     /// back to a direct computation (behaviour preserved).
     ///
-    /// Yields the **lifted** `lsp_types` tree, not the core one: the query is
-    /// `returns(ref)`, so the projection happens inside the worker closure
-    /// while the snapshot is still borrowable.  That keeps the borrow contained
-    /// *and* skips the full duplicate of the `String`-bearing symbol tree that
-    /// handing the core value back out would cost.
-    async fn db_document_symbols(&self, uri: &Uri) -> Option<Vec<DocumentSymbol>> {
+    /// Yields the **core** symbol tree, and the caller lifts it into
+    /// `lsp_types` afterwards.  Keeping the projection out of the closure is a
+    /// liveness requirement, not a style choice: everything inside
+    /// `Cancelled::catch` runs while this read handle is open, `set_text` waits
+    /// on open reads while holding the server's db mutex, and a lift is a pure
+    /// allocation walk with no cancellation checkpoint.  Projecting in here
+    /// stalls the next keystroke and — via that mutex — every other request.
+    /// See `docs/design/rust/lsp-performance.md` and issue #829.
+    async fn db_document_symbols(
+        &self,
+        uri: &Uri,
+    ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = *self.db_config.lock().await;
         let snapshot = self.db.lock().await.clone();
         tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
-                tcl_lsp_db::document_symbols(&snapshot, file, config)
-                    .iter()
-                    .map(lift_document_symbol)
-                    .collect::<Vec<_>>()
-            })
-            .ok()
+            salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&snapshot, file, config)).ok()
         })
         .await
         .ok()
@@ -5545,21 +5545,16 @@ impl Backend {
     /// [`Self::db_document_symbols`]; the BIG-IP dialect has no salsa query
     /// (it folds on the stanza tree, not the Tcl analyser) and so never
     /// calls this.
-    /// Like [`Self::db_document_symbols`], yields the lifted `lsp_types` ranges:
-    /// the query is `returns(ref)` and the projection runs inside the worker
-    /// closure.
-    async fn db_folding_ranges(&self, uri: &Uri) -> Option<Vec<FoldingRange>> {
+    /// Like [`Self::db_document_symbols`], yields the core ranges and leaves the
+    /// lift to the caller, for the same liveness reason.
+    async fn db_folding_ranges(
+        &self,
+        uri: &Uri,
+    ) -> Option<Vec<tcl_lsp_core::folding::FoldingRange>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let snapshot = self.db.lock().await.clone();
         tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
-                tcl_lsp_db::folding_ranges(&snapshot, file)
-                    .iter()
-                    .copied()
-                    .map(lift_folding_range)
-                    .collect::<Vec<_>>()
-            })
-            .ok()
+            salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&snapshot, file)).ok()
         })
         .await
         .ok()
@@ -15190,22 +15185,16 @@ impl LanguageServer for Backend {
             // Pure-CPU tokenise/segment work; run on a worker so a parser
             // panic is contained as a JSON-RPC error rather than unwinding
             // the event loop (defence in depth).
-            tokio::task::spawn_blocking(move || {
-                core_bigip::folding_ranges(&text)
-                    .into_iter()
-                    .map(lift_folding_range)
-                    .collect::<Vec<_>>()
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("folding worker panicked: {err}").into(),
-                data: None,
-            })?
+            tokio::task::spawn_blocking(move || core_bigip::folding_ranges(&text))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("folding worker panicked: {err}").into(),
+                    data: None,
+                })?
         } else if let Some(ranges) = self.db_folding_ranges(&params.text_document.uri).await {
             // Served from the salsa query graph (memoised); avoids a fresh
-            // segmenter/registry walk on every request.  Already lifted — the
-            // query is `returns(ref)` and projects inside the worker.
+            // segmenter/registry walk on every request.
             ranges
         } else {
             // Cold / cancelled fallback: compute directly so the request
@@ -15214,9 +15203,6 @@ impl LanguageServer for Backend {
             let registry = self.registry_for_dialect(&doc.dialect).await;
             tokio::task::spawn_blocking(move || {
                 tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry)
-                    .into_iter()
-                    .map(lift_folding_range)
-                    .collect::<Vec<_>>()
             })
             .await
             .map_err(|err| jsonrpc::Error {
@@ -15228,7 +15214,7 @@ impl LanguageServer for Backend {
         if ranges.is_empty() {
             return Ok(None);
         }
-        Ok(Some(ranges))
+        Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
 
     async fn document_symbol(
@@ -15253,23 +15239,16 @@ impl LanguageServer for Backend {
         // panic is contained as a JSON-RPC error.
         let symbols = if Self::is_bigip_dialect(&doc.dialect) {
             let text = doc.text.clone();
-            tokio::task::spawn_blocking(move || {
-                core_bigip::document_symbols(&text)
-                    .iter()
-                    .map(lift_document_symbol)
-                    .collect::<Vec<_>>()
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("document_symbol worker panicked: {err}").into(),
-                data: None,
-            })?
+            tokio::task::spawn_blocking(move || core_bigip::document_symbols(&text))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("document_symbol worker panicked: {err}").into(),
+                    data: None,
+                })?
         } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await {
             // Served from the salsa query graph (memoised; reuses the tracked
-            // file_analysis instead of re-running the full analyser).  Already
-            // lifted — the query is `returns(ref)` and projects inside the
-            // worker, so the symbol tree is never duplicated.
+            // file_analysis instead of re-running the full analyser).
             symbols
         } else {
             // Cold / cancelled fallback: compute directly so the request never
@@ -15284,9 +15263,6 @@ impl LanguageServer for Backend {
             let text = doc.text.clone();
             tokio::task::spawn_blocking(move || {
                 core_symbols::document_symbols_from_analysis(&text, &analysis)
-                    .iter()
-                    .map(lift_document_symbol)
-                    .collect::<Vec<_>>()
             })
             .await
             .map_err(|err| jsonrpc::Error {
@@ -15295,7 +15271,8 @@ impl LanguageServer for Backend {
                 data: None,
             })?
         };
-        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+        let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
+        Ok(Some(DocumentSymbolResponse::Nested(lifted)))
     }
 
     async fn completion(
@@ -21670,19 +21647,16 @@ fn lift_symbol_kind(k: CoreSymbolKind) -> SymbolKind {
     }
 }
 
-/// Takes `&` rather than an owned symbol so the salsa path can project straight
-/// out of the memo table (`document_symbols` is `returns(ref)`) without
-/// duplicating the whole tree first.
-fn lift_document_symbol(s: &core_symbols::DocumentSymbol) -> DocumentSymbol {
+fn lift_document_symbol(s: core_symbols::DocumentSymbol) -> DocumentSymbol {
     let children = if s.children.is_empty() {
         None
     } else {
-        Some(s.children.iter().map(lift_document_symbol).collect())
+        Some(s.children.into_iter().map(lift_document_symbol).collect())
     };
     #[allow(deprecated)] // `deprecated` is required by lsp-types but unused.
     DocumentSymbol {
-        name: s.name.clone(),
-        detail: s.detail.clone(),
+        name: s.name,
+        detail: s.detail,
         kind: lift_symbol_kind(s.kind),
         tags: None,
         deprecated: None,
@@ -26024,7 +25998,7 @@ mod tests {
             children: vec![inner],
         };
 
-        let lifted = lift_document_symbol(&outer);
+        let lifted = lift_document_symbol(outer);
         assert_eq!(lifted.name, "demo");
         assert_eq!(lifted.detail.as_deref(), Some("()"));
         assert_eq!(lifted.kind, SymbolKind::FUNCTION);

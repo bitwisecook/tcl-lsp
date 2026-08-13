@@ -33,34 +33,48 @@
 //! rather than modelled as a salsa input — reading an immutable value inside a
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
 //!
-//! # Return modes (`returns(clone)` / `returns(copy)` / `returns(ref)`)
+//! # Return modes (`returns(clone)` / `returns(copy)`)
 //!
 //! Salsa 0.28 returns *references into the memo table* by default, so a query
-//! declared `-> Arc<T>` hands back `&'db Arc<T>` unless told otherwise.  The
-//! choice per query is driven by one constraint: the server runs each read on a
-//! **cloned, short-lived snapshot** inside `salsa::Cancelled::catch` on a
-//! blocking worker, so a `&'db` borrow cannot outlive that closure.  Whatever
-//! leaves the closure must be owned.
+//! declared `-> Arc<T>` hands back `&'db Arc<T>` unless told otherwise.  Every
+//! query here opts out, for two stacked reasons:
 //!
-//! - **`returns(clone)` — the `Arc<T>` queries (the overwhelming majority).**
-//!   The clone is the refcount bump the "share via `Arc`" priority above
-//!   already assumed, and the `Arc` is what the caller moves out.
+//! - **Ownership.** The server runs each read on a **cloned, short-lived
+//!   snapshot** inside `salsa::Cancelled::catch` on a blocking worker, and the
+//!   result is moved out of that closure — past the point where the snapshot is
+//!   borrowable.
+//! - **Liveness, which is the binding one.** `returns(ref)` does not merely
+//!   ask the caller to keep the borrow inside the closure; it forces every use
+//!   of the value to happen *there*, inside the read.  That is exactly what
+//!   this server must not do.  `set_text` takes salsa's global write
+//!   exclusivity **while holding the server's db mutex**, so a read handle held
+//!   across uncancellable work blocks the next edit's write — and, through that
+//!   mutex, every other request, including ones that touch no document at all.
+//!   See `docs/design/rust/lsp-performance.md` and issue #829.  Work done
+//!   inside the read must therefore stay minimal and cancellable; converting a
+//!   result into its `lsp-types` wire shape is neither.
+//!
+//! So the split is by cost, not by borrow:
+//!
+//! - **`returns(clone)`** everywhere the value is a payload.  For the crate's
+//!   usual `Arc<T>` shape this is the refcount bump the "share via `Arc`"
+//!   priority above already assumed.  For the handful of bare-value queries
+//!   ([`document_symbols`], [`folding_ranges`], [`semantic_tokens`],
+//!   [`semantic_tokens_project`]) it is one deep copy, taken deliberately: it
+//!   buys the caller the freedom to project *outside* the read region, and a
+//!   copy is much cheaper than a stalled keystroke.
 //! - **`returns(copy)` — scalar getters** on the input/interned structs
 //!   (`bool` / `u64` / `NonAsciiMode` / a nested interned handle).  A `&bool`
 //!   getter is strictly worse; the copy is free.
-//! - **`returns(ref)` — the bare-value queries whose consumer converts rather
-//!   than moves.** [`document_symbols`] and [`folding_ranges`] return a plain
-//!   `Vec<_>` that the server immediately projects into the `lsp-types` wire
-//!   shape.  Under `returns(clone)` that path pays for the projection *and* a
-//!   full duplicate of the memoised value first — for the symbol tree, every
-//!   `String` in it twice.  Borrowing and projecting **inside** the worker
-//!   closure keeps the borrow contained and drops the intermediate copy
-//!   entirely.
 //!
-//! [`semantic_tokens`] and [`semantic_tokens_project`] deliberately stay on
-//! `returns(clone)`: their payload is a flat `Vec<u32>` that the handler hands
-//! to the JSON-RPC layer *by value*, so `returns(ref)` would only relocate the
-//! same single copy from salsa to the call site, not remove it.
+//! An earlier revision of this upgrade did put [`document_symbols`] and
+//! [`folding_ranges`] on `returns(ref)` and moved the `lsp-types` projection
+//! into the worker closure to contain the borrow.  It saved a copy and cost
+//! liveness: the projection is a pure allocation walk with no salsa
+//! cancellation checkpoint, so it extended the uncancellable tail of a read
+//! that `set_text` has to wait behind.  It reproduced as the VS Code suite
+//! wedging on a `didOpen` drain with even document-free requests unanswered —
+//! the #829 signature.  Do not reintroduce it.
 //!
 //! # Deep-memo eviction (`lru = N`)
 //!
@@ -3181,10 +3195,12 @@ pub fn compiler_check_diagnostics_uncached(
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the
 /// tracked [`file_analysis_incremental`] so the outline shares the per-item
 /// memoised analysis with the push-diagnostics path in the same edit.
-// `returns(ref)`: the server projects this straight into `lsp_types` inside the
-// worker closure, so borrowing avoids duplicating the whole `String`-bearing
-// symbol tree first. See the crate docs' "Return modes".
-#[salsa::tracked(returns(ref))]
+// `returns(clone)`, not `returns(ref)`: the caller must be able to move the
+// result out of `Cancelled::catch` and project it into `lsp-types` *outside*
+// the read, because that projection has no cancellation checkpoint and a read
+// held across it blocks a concurrent `set_text`. See the crate docs' "Return
+// modes" and issue #829.
+#[salsa::tracked(returns(clone))]
 pub fn document_symbols(
     db: &dyn TclDb,
     file: SourceFile,
@@ -3231,9 +3247,9 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 /// lands after diagnostics have already analysed this revision is a cache
 /// hit, and a cold request is preemptible by the next edit instead of running
 /// an uninterruptible pass to completion.
-// Stays on `returns(clone)`, unlike the other bare-value queries: the payload is
-// a flat `Vec<u32>` the handler returns to the JSON-RPC layer by value, so
-// `returns(ref)` would relocate that one copy rather than remove it.
+// `returns(clone)`: same liveness rule as the other bare-value queries, and the
+// payload is a flat `Vec<u32>` the handler hands to the JSON-RPC layer by value
+// anyway, so a borrow would buy nothing even if it were safe.
 #[salsa::tracked(returns(clone))]
 pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig) -> SemanticTokens {
     let registry = db.registry(file.dialect(db));
@@ -3453,9 +3469,11 @@ pub fn semantic_tokens_project(
 }
 
 /// Folding ranges — wraps `folding::folding_ranges`; reads the durable registry.
-// `returns(ref)`: projected into `lsp_types` inside the worker closure, like
-// [`document_symbols`]. See the crate docs' "Return modes".
-#[salsa::tracked(returns(ref))]
+// `returns(clone)` for the same liveness reason as [`document_symbols`]: this
+// query has no interior cancellation checkpoint at all (it is a single
+// straight-line segmenter walk), so the read region must stay as short as
+// possible and the projection must happen outside it.
+#[salsa::tracked(returns(clone))]
 pub fn folding_ranges(db: &dyn TclDb, file: SourceFile) -> Vec<FoldingRange> {
     let registry = db.registry(file.dialect(db));
     tcl_lsp_core::folding::folding_ranges(file.text(db), file.dialect(db), registry)
@@ -3647,7 +3665,7 @@ mod tests {
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = document_symbols(&db, file, cfg(&db));
         let expected = tcl_lsp_core::document_symbols::document_symbols(SRC, "tcl");
-        assert_eq!(*got, expected);
+        assert_eq!(got, expected);
     }
 
     #[test]
@@ -4349,7 +4367,7 @@ mod tests {
         let got = folding_ranges(&db, file);
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::folding::folding_ranges(SRC, "tcl", reg);
-        assert_eq!(*got, expected);
+        assert_eq!(got, expected);
     }
 
     /// Folding served through salsa is memoised: a repeat request for the
