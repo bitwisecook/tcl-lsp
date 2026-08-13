@@ -786,17 +786,10 @@ impl<'s> Inner<'s> {
         self.tok(ExprTokenType::String, start)
     }
 
-    /// Whether the word-shaped operator `op` really is an operator lexeme at
-    /// byte `at` — C's `ParseLexeme` word-operator case, in one place so the
-    /// main scan and [`Self::number`]'s junction probe cannot drift apart.
+    /// The release-independent half of C's word-operator case: the two
+    /// boundary guards that decide whether `op` at `at` is a standalone
+    /// lexeme rather than part of a neighbouring bareword.
     ///
-    /// Three conditions, each mirroring C:
-    ///
-    /// * **The release has it.** `lt`/`le`/`gt`/`ge` are 9.0+ (TIP 461),
-    ///   `in`/`ni` are 8.5+ (TIP 201) — before that the spelling is not in the
-    ///   lexeme table at all and the bareword scan swallows it, so `1 lt_ 2`
-    ///   is `invalid bareword "lt_"` under 8.6 but `invalid character "_"`
-    ///   under 9.0. See [`tcl_dialect::EXPR_WORD_OPERATORS`].
     /// * **Nothing bareword-ish precedes it.** C never checks this explicitly;
     ///   it falls out of the bareword scan having already consumed `a_eq` /
     ///   `9_ne` whole. Checking `prev` here reproduces that boundary.
@@ -805,10 +798,7 @@ impl<'s> Inner<'s> {
     ///   so a digit or `_` after the operator leaves it an operator and the
     ///   rest becomes its own lexeme: `1 eq2` is `1 eq 2` (tclsh: 0), and
     ///   `1 eq_ 2` is `invalid character "_"` on every release 8.4–9.1.
-    fn word_operator_at(&self, op: &str, at: usize) -> bool {
-        if !tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base) {
-            return false;
-        }
+    fn word_operator_boundary_ok(&self, op: &str, at: usize) -> bool {
         if at > 0 {
             let prev = self.b[at - 1];
             if prev.is_ascii_alphabetic() || prev == b'_' {
@@ -819,6 +809,50 @@ impl<'s> Inner<'s> {
             .b
             .get(at + op.len())
             .is_some_and(u8::is_ascii_alphabetic)
+    }
+
+    /// Whether `op` at `at` is genuinely a binary operator lexeme in this
+    /// release — the faithful `ParseLexeme` answer, boundary guards plus the
+    /// release's own operator table.
+    ///
+    /// Used by [`Self::word_operator_follows`], where the truthful answer is
+    /// what C's `(NODE_TYPE & lexeme) == BINARY` probe needs: `1lt 2` is
+    /// `invalid bareword "1lt"` under 8.6 (no `lt` lexeme to stop the join)
+    /// but `1` `lt` `2` under 9.0.
+    fn word_operator_at(&self, op: &str, at: usize) -> bool {
+        tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base)
+            && self.word_operator_boundary_ok(op, at)
+    }
+
+    /// Whether the main scan should emit `op` at `at` as an operator token.
+    ///
+    /// Deliberately *weaker* than [`Self::word_operator_at`]: the release gate
+    /// is applied only where it actually moves a boundary — when a bareword
+    /// byte (a digit or `_`) follows, so the run would otherwise fuse into one
+    /// bareword. tclsh 8.6 vs 9.0:
+    ///
+    /// | input | 8.6 | 9.0 | gate needed? |
+    /// |---|---|---|---|
+    /// | `1 lt_ 2` | `invalid bareword "lt_"` | `invalid character "_"` | yes |
+    /// | `1 lt2 2` | `invalid bareword "lt2"` | `missing operator` | yes |
+    /// | `1 lt 2`, `$a lt $b` | `invalid bareword "lt"` | `1` | **no** |
+    ///
+    /// In the last row the boundary is the same either way, and the release
+    /// gate is settled *above* the lexer — the parser rejects a `lt` the
+    /// dialect lacks and reports `invalid bareword "lt"`, which is what tclsh
+    /// prints. Emitting the token there keeps that path working, and keeps it
+    /// visible to the analyser: W003 exists precisely to say "this operator is
+    /// Tcl 9.0+ (TIP 461)", and it can only say so about an operator it can
+    /// still see. Suppressing the token here made W003 silent on the very
+    /// dialects it targets.
+    fn word_operator_lexeme_at(&self, op: &str, at: usize) -> bool {
+        self.word_operator_boundary_ok(op, at)
+            && (!self
+                .b
+                .get(at + op.len())
+                .copied()
+                .is_some_and(is_bareword_byte)
+                || tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base))
     }
 
     /// Whether any word operator this release has begins at byte `at` — C's
@@ -842,7 +876,7 @@ impl<'s> Inner<'s> {
             // ASCII, so a byte-prefix check is exactly equivalent and total.
             if self.b[self.i..].starts_with(op.as_bytes()) {
                 if tcl_dialect::expr_word_operator_since(op).is_some()
-                    && !self.word_operator_at(op, self.i)
+                    && !self.word_operator_lexeme_at(op, self.i)
                 {
                     continue;
                 }
@@ -1416,18 +1450,22 @@ mod separator_boundary_tests {
     }
 
     /// The word-operator set is release-dependent, and that moves the lexeme
-    /// boundary. tclsh-verified for `1 lt_ 2`: `invalid bareword "lt_"` on
-    /// 8.5/8.6 (no `lt` lexeme before TIP 461) but `invalid character "_"` on
-    /// 9.0/9.1. `eq` exists throughout, so `eq_` splits on every release.
+    /// boundary *where a bareword byte follows the operator*. tclsh-verified:
+    /// `1 lt_ 2` is `invalid bareword "lt_"` on 8.5/8.6 (no `lt` lexeme before
+    /// TIP 461) but `invalid character "_"` on 9.0/9.1, and `1 lt2 2` is
+    /// `invalid bareword "lt2"` on 8.6 against `missing operator` on 9.0.
+    /// `eq` exists throughout, so `eq_` splits on every release.
     #[test]
     fn word_operator_availability_moves_the_boundary() {
-        // `lt` is 9.0+: before it, `lt_` is one bareword.
+        // `lt` is 9.0+: before it, `lt_` / `lt2` are one bareword.
         for old in ["tcl8.5", "tcl8.6"] {
-            assert_eq!(
-                tokenise_expr("1 lt_ 2", Some(old))[2].text,
-                "lt_",
-                "{old} must keep `lt_` whole"
-            );
+            for src in ["1 lt_ 2", "1 lt2 2"] {
+                let t = tokenise_expr(src, Some(old));
+                assert!(
+                    t[2].text.starts_with("lt") && t[2].text.len() > 2,
+                    "{old} must keep `{src}`'s `lt…` whole: {t:?}"
+                );
+            }
         }
         for new in ["tcl9.0", "tcl9.1"] {
             let t = tokenise_expr("1 lt_ 2", Some(new));
@@ -1441,6 +1479,27 @@ mod separator_boundary_tests {
         // operator still leaves it an operator: `1 eq2` is `1 eq 2` (tclsh: 0).
         let t = tokenise_expr("1 eq2", Some("tcl9.0"));
         assert_eq!(t[2].text, "eq", "a digit must not glue onto `eq`: {t:?}");
+    }
+
+    /// The release gate must NOT fire where it changes nothing about the
+    /// boundary — a word operator followed by whitespace is one lexeme in
+    /// every release, and the version check belongs above the lexer (the
+    /// parser reports `invalid bareword "lt"` under 8.6, which is what tclsh
+    /// prints). W003 reads these tokens to say "this operator is Tcl 9.0+
+    /// (TIP 461)", so suppressing them here silenced the diagnostic on exactly
+    /// the dialects it targets — nine e2e tests caught it.
+    #[test]
+    fn a_standalone_word_operator_stays_visible_to_the_analyser() {
+        for d in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules"] {
+            for (src, op) in [("$a lt $b", "lt"), ("$a in $b", "in"), ("1 ge 2", "ge")] {
+                let t = tokenise_expr(src, Some(d));
+                assert!(
+                    t.iter()
+                        .any(|k| k.kind == ExprTokenType::Operator && k.text == op),
+                    "{d}: `{src}` must still expose `{op}` as an Operator token: {t:?}"
+                );
+            }
+        }
     }
 
     /// A numeric run butted against bareword characters is ONE bareword —

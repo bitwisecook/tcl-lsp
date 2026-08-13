@@ -172,6 +172,20 @@ ties it to `OperatorSpec::expr_grammar_min_version`. Note C guards only the
 *trailing* side of a word operator, with `isalpha` and not `TclIsBareword`:
 `1 eq2` really is `1 eq 2`.
 
+**The gate applies only where it moves a boundary.** When a word operator is
+followed by whitespace — `$a lt $b`, the shape real code takes — the token
+boundary is identical either way, and the version check is settled *above* the
+lexer: the parser rejects a `lt` the dialect lacks and reports
+`invalid bareword "lt"`, exactly as tclsh does. So the lexer still emits the
+operator token there, and only withholds it when a bareword byte (`_` or a
+digit) follows and the run would otherwise fuse. This is not merely an
+optimisation: **W003 exists to say "this operator is Tcl 9.0+ (TIP 461)", and
+it can only say that about an operator it can still see.** Gating the token
+unconditionally silenced the diagnostic on precisely the dialects it targets —
+nine e2e tests and the iRules `in`/`ni` suite caught it. A diagnostic that
+reports unavailability needs the *maximal* vocabulary; only the boundary needs
+the release's actual one.
+
 **3. A number against barewords is one bareword.** When `TclParseNumber`
 stops on a `TclIsBareword` byte, C rescans `[A-Za-z0-9_]*` from the start as a
 single `BAREWORD` — `1_eq`, `1abc`, `12x`, `1e_0`, `9_ne` all report whole.
