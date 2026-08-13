@@ -122,6 +122,14 @@ SERVER_TARGET_MAP := \
 	aarch64-pc-windows-msvc:win32-arm64
 SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$(p))))
 
+# The bundled SpecTcl loadables (`docs/design/spec-packs.md`): the EDA vendor
+# libraries are `.tclspec` packs, not compiled-in Rust, so a shipped server is
+# incomplete without them. `tcl_spectcl::discovery::bundled_dir` looks for a
+# `specs/` directory *beside the executable*, so every place that stages a
+# `tcl-lsp-server` binary stages this directory next to it.
+SPEC_PACK_SRC   := $(ROOT)specs
+SPEC_PACK_FILES := $(wildcard $(SPEC_PACK_SRC)/*.tclspec)
+
 # vsce's supported --target platform strings (see "Platform-specific
 # extensions" at code.visualstudio.com/api/working-with-extensions/publishing-extension).
 # Six of the seven SERVER_TARGET_MAP bundle dirs are also valid vsce
@@ -196,7 +204,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
 .PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets
-.PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow
+.PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 # Rust runtime port
 .PHONY: runtime-rust-test runtime-rust-lint zed-query-check vm-test vm-lint
@@ -269,7 +277,9 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscode
 			mkdir -p "$(STAGE_DIR)/server/$$dir"; \
 			cp "$$src" "$(STAGE_DIR)/server/$$dir/$$exe"; \
 			chmod +x "$(STAGE_DIR)/server/$$dir/$$exe"; \
-			echo "    server/$$dir/$$exe"; \
+			mkdir -p "$(STAGE_DIR)/server/$$dir/specs"; \
+			cp $(SPEC_PACK_SRC)/*.tclspec "$(STAGE_DIR)/server/$$dir/specs/"; \
+			echo "    server/$$dir/$$exe (+ specs/)"; \
 		done; \
 		if [ -n "$$missing" ]; then \
 			echo "ERROR: missing built server binaries for:$$missing"; \
@@ -320,12 +330,16 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			else \
 				missing="$$missing server/$$dir/$$exe"; \
 			fi; \
+			for pack in $(notdir $(SPEC_PACK_FILES)); do \
+				echo "$$entries" | grep -qx "extension/server/$$dir/specs/$$pack" \
+					|| missing="$$missing server/$$dir/specs/$$pack"; \
+			done; \
 		done; \
 		if [ -n "$$missing" ]; then \
-			echo "VSIX missing expected native server binaries:$$missing"; \
+			echo "VSIX missing expected native server binaries / spec packs:$$missing"; \
 			exit 1; \
 		fi; \
-		echo "==> VSIX bundles $$have/$$want native server binaries"
+		echo "==> VSIX bundles $$have/$$want native server binaries, each with the shipped spec packs"
 
 # ---------------------------------------------------------------------------
 # Platform-targeted VSIX packaging — six small, single-binary VSIXes
@@ -646,7 +660,7 @@ tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in syn
 # Phase targets for parallel prep-pr execution
 _prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets typecheck-spec-studio-ts lint-spec-studio-ts
 _prep-pr-tests: test-rust
-_prep-pr-smoke: smoke-vsix
+_prep-pr-smoke: smoke-vsix verify-standalone-eda
 
 # Rust-side check gate (fmt + clippy + generated-file drift).  Mirrors the
 # pr-gate job in GitHub Actions (ci.yml).
@@ -1343,7 +1357,9 @@ $(JB_PLUGIN): jb-plugin-force
 			mkdir -p "$(JB_DIR)/server/$$dir"; \
 			cp "$$src" "$(JB_DIR)/server/$$dir/$$exe"; \
 			chmod +x "$(JB_DIR)/server/$$dir/$$exe"; \
-			echo "    server/$$dir/$$exe"; \
+			mkdir -p "$(JB_DIR)/server/$$dir/specs"; \
+			cp $(SPEC_PACK_SRC)/*.tclspec "$(JB_DIR)/server/$$dir/specs/"; \
+			echo "    server/$$dir/$$exe (+ specs/)"; \
 		done; \
 		if [ -n "$$missing" ]; then \
 			echo "ERROR: missing built server binaries for:$$missing"; \
@@ -1379,12 +1395,16 @@ verify-jetbrains-server: $(JB_PLUGIN) ## Fail if the JetBrains plugin is missing
 			else \
 				missing="$$missing server/$$dir/$$exe"; \
 			fi; \
+			for pack in $(notdir $(SPEC_PACK_FILES)); do \
+				echo "$$entries" | grep -q "/server/$$dir/specs/$$pack$$" \
+					|| missing="$$missing server/$$dir/specs/$$pack"; \
+			done; \
 		done; \
 		if [ -n "$$missing" ]; then \
-			echo "JetBrains plugin missing expected native server binaries:$$missing"; \
+			echo "JetBrains plugin missing expected native server binaries / spec packs:$$missing"; \
 			exit 1; \
 		fi; \
-		echo "==> JetBrains plugin bundles $$have/$$want native server binaries"
+		echo "==> JetBrains plugin bundles $$have/$$want native server binaries, each with the shipped spec packs"
 
 verify-editor-jetbrains: ## Run the IntelliJ Plugin Verifier over the JetBrains plugin (binary-compat gate)
 	@echo "==> Verifying JetBrains plugin against the configured IDE targets"
@@ -1422,9 +1442,33 @@ $(ST_PACKAGE): rust-server
 	@mkdir -p $(BUILD_DIR)/sublime-stage/server
 	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server
 	chmod +x $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server
+	@# The bundled SpecTcl loadables go *beside the executable*, which is where
+	@# `tcl_spectcl::discovery::bundled_dir` looks. plugin.py extracts the whole
+	@# `server/` subtree from the .sublime-package ZIP into the cache dir, so
+	@# `server/specs/` lands next to the extracted binary and is found there.
+	@# Without this the shipped EDA syntaxes (Cadence/Xilinx/Quartus/Mentor/
+	@# Synopsys) would highlight commands the server reports as unknown.
+	@mkdir -p $(BUILD_DIR)/sublime-stage/server/specs
+	cp $(SPEC_PACK_SRC)/*.tclspec $(BUILD_DIR)/sublime-stage/server/specs/
 	cp $(LICENSE_SRC) $(BUILD_DIR)/sublime-stage/LICENSE.txt
 	@echo "==> Packaging .sublime-package"
 	cd $(BUILD_DIR)/sublime-stage && zip -r $(ST_PACKAGE) . -x '__pycache__/*'
+	@# Same gate the VSIX and JetBrains packaging carry: a package that ships
+	@# the server without the loadables beside it silently loses every EDA
+	@# vendor command, since those specs have no Rust modules behind them.
+	@set -eu; \
+	entries="$$(unzip -Z1 $(ST_PACKAGE))"; \
+	missing=""; \
+	echo "$$entries" | grep -qx "server/tcl-lsp-server" || missing="$$missing server/tcl-lsp-server"; \
+	for pack in $(notdir $(SPEC_PACK_FILES)); do \
+		echo "$$entries" | grep -qx "server/specs/$$pack" \
+			|| missing="$$missing server/specs/$$pack"; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		echo "Sublime package missing expected server / spec packs:$$missing"; \
+		exit 1; \
+	fi; \
+	echo "==> Sublime package bundles the native server with the shipped spec packs"
 	cp $(ST_PACKAGE) $(BUILD_DIR)/Tcl.sublime-package
 	@echo ""
 	@echo "Built: $(ST_PACKAGE)"
@@ -1433,6 +1477,49 @@ $(ST_PACKAGE): rust-server
 
 publish-sublime: build-editor-sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
 	@bash $(ROOT)scripts/release/publish_sublime.sh
+
+# The standalone-binary packaging gate. The VSIX / JetBrains / Sublime
+# bundles all stage `specs/` beside the server binary (SPEC_PACK_SRC above)
+# and the three gates above this one prove that staging happened. The
+# `tcl-lsp-server-<triple>` / `tcl-mcp-<triple>` / `tcl-<triple>` /
+# `f5-query-<triple>` release assets (publish-native-binaries in ci.yml)
+# ship as *bare* binaries with nothing staged beside them at all — what the
+# Zed extension downloads at runtime, and what every "point an LSP client at
+# a binary" editor in INSTALL-editors.md (Neovim, Emacs, Helix, Vim, Kate,
+# Kakoune, Notepad++, Geany, Lite XL, micro, CudaText, JupyterLab) is told to
+# fetch. There is nothing to stage for those, so there is nothing a content
+# listing can check; `rust/tcl-spectcl/src/bundled.rs` instead compiles the
+# six EDA `.tclspec` sources into the binary as a fallback the loader falls
+# back to only when no `specs/` directory exists anywhere `bundled_dir`
+# looks — see that module's "The embedded fallback" doc section. This gate
+# proves the fallback behaviourally: build the `tcl` CLI in release (so the
+# `#[cfg(debug_assertions)]` dev-checkout fallback in `bundled_dir` is
+# compiled out, not just absent at runtime), copy *only* the binary into an
+# empty directory, and ask it to resolve a shipped Xilinx EDA command with
+# `TCL_LSP_SPEC_PACK_DIR` unset. `rust/tcl-spectcl/src/bundled.rs`'s own test
+# suite (`cargo test -p tcl-spectcl bundled::`, part of every `make test-rust`
+# run) proves the same fallback at the registry level on every PR; this is
+# the once-per-release confirmation that an actual compiled, isolated binary
+# does too.
+verify-standalone-eda: ## Prove a bare release binary with no specs/ beside it still resolves an EDA command (the embedded-pack fallback)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: cargo is required."; exit 1; \
+	fi; \
+	echo "==> Building native tcl CLI (release) for the standalone-EDA check"; \
+	cd $(ROOT) && cargo build -p tcl-cli --release --quiet; \
+	iso="$$(mktemp -d)"; \
+	trap 'rm -rf "$$iso"' EXIT; \
+	cp "$(ROOT)target/release/tcl" "$$iso/tcl"; \
+	chmod +x "$$iso/tcl"; \
+	echo "==> Running $$iso/tcl (alone, no specs/, TCL_LSP_SPEC_PACK_DIR unset) against synth_design"; \
+	if ! (cd "$$iso" && env -u TCL_LSP_SPEC_PACK_DIR ./tcl command-info synth_design --dialect xilinx-eda-tcl); then \
+		echo "FAILED: a standalone tcl binary with no specs/ beside it could not resolve"; \
+		echo "        the Xilinx EDA command 'synth_design' — the embedded-pack fallback"; \
+		echo "        in rust/tcl-spectcl/src/bundled.rs is broken or was bypassed."; \
+		exit 1; \
+	fi; \
+	echo "==> OK: standalone tcl CLI resolved synth_design with no specs/ present"
 
 # Zed extension
 
@@ -1476,7 +1563,7 @@ publish-zed: build-editor-zed ## Publish Zed extension (prep local PR branch for
 
 # Release
 
-release: package-vsix package-vsix-targets claude-skills build-editor-jetbrains build-editor-sublime build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
+release: package-vsix package-vsix-targets claude-skills build-editor-jetbrains build-editor-sublime verify-standalone-eda build-editor-zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 

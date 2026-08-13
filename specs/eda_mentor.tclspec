@@ -1,0 +1,666 @@
+# tcl-lsp — bundled SpecTcl loadable: the Siemens/Mentor tool commands (Questa, ModelSim, Calibre).
+#
+# This pack IS the source of truth for these commands. The Rust modules that
+# used to hold them (rust/tcl-registry/src/commands/eda_mentor/) were deleted when
+# the EDA vendor libraries migrated to bundled `.tclspec` loadables, per
+# docs/design/spec-packs.md ("the EDA vendor libraries ship as bundled
+# `.tclspec` loadables … so the loader path is exercised in production from day
+# one rather than reserved for private packs"). Every command was proved
+# field-for-field equal to its compiled spec by the SpecTcl round-trip gate
+# before the modules were removed.
+#
+# Discovery: the **bundled** tier — `specs/` beside the server executable, or
+# wherever $TCL_LSP_SPEC_PACK_DIR points (rust/tcl-spectcl/src/discovery.rs).
+# Edit this file to change the specs; there is no generator to re-run.
+# Syntax: docs/design/spec-dsl-examples/README.md. The initial text was written
+# by the spec studio's SpecTcl renderer (rust/tcl-spec-studio/src/render_spectcl.rs)
+# from the registry modules, which reported no unwritable field on any command
+# here; this file is hand-maintained from now on.
+
+speclib eda_mentor 1.0 {
+
+command add_list {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {add list ?-radix radix? signal_list}
+
+    hover {
+        summary {Add signals to the list window (add list).}
+        synopsis {add list ?-radix radix? signal_list}
+        source {F5}
+    }
+}
+
+command add_log {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {add log ?-r? signal_list}
+
+    hover {
+        summary {Log signals for waveform viewing (add log).}
+        synopsis {add log ?-r? signal_list}
+        source {F5}
+    }
+}
+
+command add_wave {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {add wave ?-position pos? ?-radix radix? ?-format format? ?-label label? ?-divider name? ?-group name? signal_list}
+
+    hover {
+        summary {Add signals to the wave window (add wave).}
+        synopsis {add wave ?-position pos? ?-radix radix? ?-format format? ?-label label? ?-divider name? ?-group name}
+        source {F5}
+    }
+}
+
+command bc {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {bc ?breakpoint_id | -all?}
+
+    hover {
+        summary {Clear (disable) breakpoints.}
+        synopsis {bc ?breakpoint_id | -all?}
+        source {F5}
+    }
+}
+
+command bd {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {bd ?breakpoint_id | -all?}
+
+    hover {
+        summary {Delete breakpoints.}
+        synopsis {bd ?breakpoint_id | -all?}
+        source {F5}
+    }
+}
+
+command be {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {be ?breakpoint_id | -all?}
+
+    hover {
+        summary {Enable breakpoints.}
+        synopsis {be ?breakpoint_id | -all?}
+        source {F5}
+    }
+}
+
+command bl {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {bl}
+
+    hover {
+        summary {List all breakpoints.}
+        synopsis {bl}
+        source {F5}
+    }
+}
+
+command bp {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {bp ?file_name? ?line_number? ?-cond condition?}
+
+    hover {
+        summary {Set a breakpoint.}
+        synopsis {bp ?file_name? ?line_number? ?-cond condition?}
+        source {F5}
+    }
+}
+
+command calibre {
+    dialects tcl8.6
+    required_package calibre
+
+    form Default {calibre ?-drc | -lvs | -pex? ?-hier? ?-turbo? ?-hyper? rule_file}
+
+    hover {
+        summary {Run Calibre physical verification.}
+        synopsis {calibre ?-drc | -lvs | -pex? ?-hier? ?-turbo? ?-hyper? rule_file}
+        source {F5}
+    }
+}
+
+command calibre_drc {
+    dialects tcl8.6
+    required_package calibre
+
+    form Default {calibre_drc ?-hier? ?-turbo? rule_file}
+
+    hover {
+        summary {Run Calibre DRC (design rule check).}
+        synopsis {calibre_drc ?-hier? ?-turbo? rule_file}
+        source {F5}
+    }
+}
+
+command calibre_lvs {
+    dialects tcl8.6
+    required_package calibre
+
+    form Default {calibre_lvs ?-hier? ?-turbo? rule_file}
+
+    hover {
+        summary {Run Calibre LVS (layout vs schematic).}
+        synopsis {calibre_lvs ?-hier? ?-turbo? rule_file}
+        source {F5}
+    }
+}
+
+command calibre_pex {
+    dialects tcl8.6
+    required_package calibre
+
+    form Default {calibre_pex ?-hier? ?-turbo? rule_file}
+
+    hover {
+        summary {Run Calibre PEX (parasitic extraction).}
+        synopsis {calibre_pex ?-hier? ?-turbo? rule_file}
+        source {F5}
+    }
+}
+
+command change {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {change signal_name value}
+
+    hover {
+        summary {Change the value of a VHDL signal or variable.}
+        synopsis {change signal_name value}
+        source {F5}
+    }
+}
+
+command coverage {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?}
+
+    hover {
+        summary {Configure or report code coverage.}
+        synopsis {coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?}
+        source {F5}
+    }
+}
+
+command describe {
+    dialects tcl8.6
+    arity 1
+    required_package questa
+
+    form Default {describe signal_name}
+
+    hover {
+        summary {Show type and value information for a signal.}
+        synopsis {describe signal_name}
+        source {F5}
+    }
+}
+
+command drivers {
+    dialects tcl8.6
+    arity 1
+    required_package questa
+
+    form Default {drivers signal_name}
+
+    hover {
+        summary {Find drivers of a signal.}
+        synopsis {drivers signal_name}
+        source {F5}
+    }
+}
+
+command examine {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {examine ?-radix radix? ?-time time? signal_name}
+
+    hover {
+        summary {Examine the value of a signal or variable.}
+        synopsis {examine ?-radix radix? ?-time time? signal_name}
+        source {F5}
+    }
+}
+
+command find {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {find ?-recursive? ?-type type? ?-ports? ?-signals? ?-internal? pattern}
+
+    hover {
+        summary {Find signals matching a pattern.}
+        synopsis {find ?-recursive? ?-type type? ?-ports? ?-signals? ?-internal? pattern}
+        source {F5}
+    }
+}
+
+command force {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {force ?-freeze | -drive | -deposit? signal_name value ?time? ?-repeat period? ?-cancel period?}
+
+    hover {
+        summary {Force a signal to a value.}
+        synopsis {force ?-freeze | -drive | -deposit? signal_name value ?time? ?-repeat period? ?-cancel period?}
+        source {F5}
+    }
+}
+
+command formal_analyze {
+    dialects tcl8.6
+    required_package questa-formal
+
+    form Default {formal_analyze ?-property prop_list?}
+
+    hover {
+        summary {Analyze formal verification results.}
+        synopsis {formal_analyze ?-property prop_list?}
+        source {F5}
+    }
+}
+
+command formal_compile {
+    dialects tcl8.6
+    required_package questa-formal
+
+    form Default {formal_compile ?-d design? ?-work library?}
+
+    hover {
+        summary {Compile design for formal verification.}
+        synopsis {formal_compile ?-d design? ?-work library?}
+        source {F5}
+    }
+}
+
+command formal_verify {
+    dialects tcl8.6
+    required_package questa-formal
+
+    form Default {formal_verify ?-timeout time? ?-engine engine?}
+
+    hover {
+        summary {Run formal verification.}
+        synopsis {formal_verify ?-timeout time? ?-engine engine?}
+        source {F5}
+    }
+}
+
+command init_signal_driver {
+    dialects tcl8.6
+    arity 2..
+    required_package questa
+
+    form Default {init_signal_driver src_signal dst_signal ?-default default_value? ?-delay delay?}
+
+    hover {
+        summary {Initialize signal driver for cross-hierarchy driving.}
+        synopsis {init_signal_driver src_signal dst_signal ?-default default_value? ?-delay delay?}
+        source {F5}
+    }
+}
+
+command init_signal_spy {
+    dialects tcl8.6
+    arity 2..
+    required_package questa
+
+    form Default {init_signal_spy src_signal dst_signal ?-node? ?-verbose?}
+
+    hover {
+        summary {Initialize signal spy for cross-hierarchy access.}
+        synopsis {init_signal_spy src_signal dst_signal ?-node? ?-verbose?}
+        source {F5}
+    }
+}
+
+command onbreak {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {onbreak {command}}
+
+    hover {
+        summary {Define action when a breakpoint is hit.}
+        synopsis {onbreak {command}}
+        source {F5}
+    }
+}
+
+command qrun {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {qrun ?-f file? ?-clean? ?-sv? ?-optimize? ?-top top? file_list}
+
+    hover {
+        summary {Questa unified compile/optimize/simulate command.}
+        synopsis {qrun ?-f file? ?-clean? ?-sv? ?-optimize? ?-top top? file_list}
+        source {F5}
+    }
+}
+
+command qverilog {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {qverilog ?-sv? ?+define+name=val? ?-R? ?-c? file_list}
+
+    hover {
+        summary {Questa one-step Verilog compile and simulate.}
+        synopsis {qverilog ?-sv? ?+define+name=val? ?-R? ?-c? file_list}
+        source {F5}
+    }
+}
+
+command qvhdl {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {qvhdl ?-2008? ?-R? ?-c? file_list}
+
+    hover {
+        summary {Questa one-step VHDL compile and simulate.}
+        synopsis {qvhdl ?-2008? ?-R? ?-c? file_list}
+        source {F5}
+    }
+}
+
+command qwave {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {qwave ?subcommand? ?args ...?}
+
+    hover {
+        summary {Questa waveform viewer command.}
+        synopsis {qwave ?subcommand? ?args ...?}
+        source {F5}
+    }
+}
+
+command readers {
+    dialects tcl8.6
+    arity 1
+    required_package questa
+
+    form Default {readers signal_name}
+
+    hover {
+        summary {Find readers of a signal.}
+        synopsis {readers signal_name}
+        source {F5}
+    }
+}
+
+command release {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {release signal_name}
+
+    hover {
+        summary {Release a previously forced signal.}
+        synopsis {release signal_name}
+        source {F5}
+    }
+}
+
+command restart {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {restart ?-force? ?-nowave? ?-nolist? ?-nolog? ?-nobreakpoint? ?-nokill?}
+
+    hover {
+        summary {Restart the current simulation.}
+        synopsis {restart ?-force? ?-nowave? ?-nolist? ?-nolog? ?-nobreakpoint? ?-nokill?}
+        source {F5}
+    }
+}
+
+command resume {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {resume}
+
+    hover {
+        summary {Resume simulation from a breakpoint.}
+        synopsis {resume}
+        source {F5}
+    }
+}
+
+command run {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {run ?time_value? ?-all? ?-continue?}
+
+    hover {
+        summary {Advance simulation by specified time.}
+        synopsis {run ?time_value? ?-all? ?-continue?}
+        source {F5}
+    }
+}
+
+command signal_force {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {signal_force signal_name value ?time? ?-freeze | -drive | -deposit?}
+
+    hover {
+        summary {Force a signal value using SignalSpy.}
+        synopsis {signal_force signal_name value ?time? ?-freeze | -drive | -deposit?}
+        source {F5}
+    }
+}
+
+command signal_release {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {signal_release signal_name}
+
+    hover {
+        summary {Release a SignalSpy-forced signal.}
+        synopsis {signal_release signal_name}
+        source {F5}
+    }
+}
+
+command toggle {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {toggle ?signal_name? ?-report?}
+
+    hover {
+        summary {Report toggle coverage statistics.}
+        synopsis {toggle ?signal_name? ?-report?}
+        source {F5}
+    }
+}
+
+command transcript {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {transcript ?on | off | file file_name?}
+
+    hover {
+        summary {Control transcript file output.}
+        synopsis {transcript ?on | off | file file_name?}
+        source {F5}
+    }
+}
+
+command vcom {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {vcom ?-work library? ?-2008? ?-explicit? ?-check_synthesis? ?-lint? ?-suppress n? ?-nowarn n? file_list}
+
+    hover {
+        summary {Compile VHDL source files.}
+        synopsis {vcom ?-work library? ?-2008? ?-explicit? ?-check_synthesis? ?-lint? ?-suppress n? ?-nowarn n? file_l}
+        source {F5}
+    }
+}
+
+command vcover {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {vcover ?merge | report | attr? ?-input file_list? ?-output file? ?-detail? ?-verbose?}
+
+    hover {
+        summary {Process coverage data files.}
+        synopsis {vcover ?merge | report | attr? ?-input file_list? ?-output file? ?-detail? ?-verbose?}
+        source {F5}
+    }
+}
+
+command vdel {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {vdel ?-lib library? ?-all? ?design_unit?}
+
+    hover {
+        summary {Delete a compiled library or design unit.}
+        synopsis {vdel ?-lib library? ?-all? ?design_unit?}
+        source {F5}
+    }
+}
+
+command virtual {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {virtual ?-install | -env env? ?signal | function? ?-name name?}
+
+    hover {
+        summary {Create virtual signals or regions.}
+        synopsis {virtual ?-install | -env env? ?signal | function? ?-name name?}
+        source {F5}
+    }
+}
+
+command vlib {
+    dialects tcl8.6
+    arity 1
+    required_package questa
+
+    form Default {vlib ?-type type? library_name}
+
+    hover {
+        summary {Create a design library directory.}
+        synopsis {vlib ?-type type? library_name}
+        source {F5}
+    }
+}
+
+command vlog {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {vlog ?-work library? ?-sv? ?+define+name=val? ?+incdir+dir? ?-lint? ?-suppress n? ?-nowarn n? file_list}
+
+    hover {
+        summary {Compile Verilog/SystemVerilog source files.}
+        synopsis {vlog ?-work library? ?-sv? ?+define+name=val? ?+incdir+dir? ?-lint? ?-suppress n? ?-nowarn n? file_l}
+        source {F5}
+    }
+}
+
+command vmap {
+    dialects tcl8.6
+    arity 1..
+    required_package questa
+
+    form Default {vmap ?-c? ?-del? library_name ?library_path?}
+
+    hover {
+        summary {Map a logical library name to a directory.}
+        synopsis {vmap ?-c? ?-del? library_name ?library_path?}
+        source {F5}
+    }
+}
+
+command vopt {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {vopt ?+acc? ?-o optimized_name? ?-debugdb? ?-L library? top_module}
+
+    hover {
+        summary {Optimize a compiled design for simulation.}
+        synopsis {vopt ?+acc? ?-o optimized_name? ?-debugdb? ?-L library? top_module}
+        source {F5}
+    }
+}
+
+command vsim {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {vsim ?-c? ?-do command? ?-t time_resolution? ?-voptargs args? ?-L library? ?-debugdb? ?-wlf file? ?-onfinish action? ?-gui? ?work.top_module?}
+
+    hover {
+        summary {Load and start simulation.}
+        synopsis {vsim ?-c? ?-do command? ?-t time_resolution? ?-voptargs args? ?-L library? ?-debugdb? ?-wlf file? ?-}
+        source {F5}
+    }
+}
+
+command wave {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {wave ?subcommand? ?args ...?}
+
+    hover {
+        summary {Waveform window command.}
+        synopsis {wave ?subcommand? ?args ...?}
+        source {F5}
+    }
+}
+
+command when {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {when {condition} {action} ?-label label?}
+
+    hover {
+        summary {Define conditional actions during simulation.}
+        synopsis {when {condition} {action} ?-label label?}
+        source {F5}
+    }
+}
+
+}

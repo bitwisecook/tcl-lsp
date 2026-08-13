@@ -86,7 +86,6 @@ use tcl_lsp_core::workspace_index as core_workspace_index;
 use tcl_lsp_core::workspace_symbols::{
     self as core_workspace_symbols, WorkspaceSymbolKind as CoreWorkspaceSymbolKind,
 };
-use tcl_lsp_db::TclDb as _;
 use tcl_registry::CommandRegistry;
 use tokio::sync::{Mutex, RwLock, Semaphore};
 use tower_lsp_server::jsonrpc;
@@ -125,7 +124,7 @@ use tower_lsp_server::ls_types::{
     TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability, TypeHierarchyItem,
     TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
-    UnchangedDocumentDiagnosticReport, Uri, WatchKind, WillSaveTextDocumentParams,
+    UnchangedDocumentDiagnosticReport, Unregistration, Uri, WatchKind, WillSaveTextDocumentParams,
     WorkDoneProgressOptions, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
     WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport, WorkspaceEdit,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
@@ -738,7 +737,7 @@ struct RangeConvergenceInputs {
     uri: String,
     /// The coarse token stream already served, to diff the enriched recompute against.
     served: Vec<u32>,
-    registry: &'static CommandRegistry,
+    registry: Arc<CommandRegistry>,
     /// The document text, shared with the request's own coarse tokenisation
     /// rather than cloned for the continuation (#1147): one buffer per request,
     /// not one per tier.
@@ -1025,7 +1024,7 @@ struct DiagToggles {
 #[derive(Clone)]
 struct DiagInputs {
     client: Client,
-    registry: &'static CommandRegistry,
+    registry: Arc<CommandRegistry>,
     disabled: HashSet<String>,
     /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
     /// resolved for this document's folder. Applied as a display-side re-label
@@ -1499,6 +1498,27 @@ async fn report_analysis_worker_panic(
     client.log_message(MessageType::ERROR, message).await;
 }
 
+/// Run `work` on this worker thread with the workspace's `SpecTcl` hook host
+/// installed.
+///
+/// A pack's `const_fold` / `arg_role_resolver` / … body runs on a sandboxed VM,
+/// and a VM is not `Send`, so the host that owns one is **per thread**
+/// (`tcl_registry::pack_hooks`: "a thread with no host installed abstains").
+/// Analysis and optimisation run on `spawn_blocking` workers, and the pool
+/// hands work to whichever thread is free, so the host cannot be installed
+/// where the packs are loaded — [`Backend::reload_spec_packs`] publishes the
+/// plan and this builds a thread's host from it the first time that thread does
+/// analysis, and again after a pack edit changes the plan.
+///
+/// The cost with no packs loaded — the overwhelmingly common case — is one
+/// relaxed atomic load, which is why this can sit at the top of every worker
+/// closure that reaches the registry's hook fields rather than being threaded
+/// through their inputs.
+fn with_pack_hooks<R>(work: impl FnOnce() -> R) -> R {
+    tcl_spectcl::hooks::ensure_thread_host();
+    work()
+}
+
 /// Base analysis: the cancellable salsa `file_analysis_incremental` query
 /// (slice 5), off the LSP event loop — the whole-file per-item walk that
 /// dominates the deep pass and feeds *both* the workspace-independent fast tier
@@ -1545,10 +1565,13 @@ async fn compute_base_analysis(
         let widened = widen_recovery_extra_commands(recovery, extra_commands, text, dialect).await;
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
+        let a_packs = config.spec_pack_key(&*db.lock().await);
         return match tokio::task::spawn_blocking(move || {
-            Backend::recovery_analyser(a_disabled, non_ascii_mode, widened)
-                .analyse(&a_text, &a_dialect)
-                .clone()
+            with_pack_hooks(|| {
+                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened, a_packs)
+                    .analyse(&a_text, &a_dialect)
+                    .clone()
+            })
         })
         .await
         {
@@ -1566,10 +1589,12 @@ async fn compute_base_analysis(
         // exclusive-access-blocking references across the debounce sleep.
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
-                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+            with_pack_hooks(|| {
+                salsa::Cancelled::catch(|| {
+                    tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                })
+                .ok()
             })
-            .ok()
         })
         .await
         {
@@ -1599,15 +1624,23 @@ async fn compute_base_analysis(
         // the **closed-file** tier since #1144, not just a rare fallback, so a
         // closed file's badge must not lose them.
         let a_path = uri.to_file_path().map(|p| p.display().to_string());
-        let a_bigip = config.bigip_version(&*db.lock().await).clone();
-        let analysis = tokio::task::spawn_blocking(move || {
-            Arc::new(
-                Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra)
-                    .with_file_path(a_path)
-                    .with_bigip_version(a_bigip)
-                    .analyse(&a_text, &a_dialect)
-                    .clone(),
+        let (a_bigip, a_packs) = {
+            let db = db.lock().await;
+            (
+                config.bigip_version(&*db).clone(),
+                config.spec_pack_key(&*db),
             )
+        };
+        let analysis = tokio::task::spawn_blocking(move || {
+            with_pack_hooks(|| {
+                Arc::new(
+                    Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra, a_packs)
+                        .with_file_path(a_path)
+                        .with_bigip_version(a_bigip)
+                        .analyse(&a_text, &a_dialect)
+                        .clone(),
+                )
+            })
         })
         .await
         .unwrap_or_default();
@@ -1872,7 +1905,7 @@ async fn compute_project_diags(
 /// worker panic (settle) — matching [`compute_base_analysis`].
 async fn compute_compiler_diags(
     ctx: &SalsaAnalysisCtx<'_>,
-    registry: &'static CommandRegistry,
+    registry: &Arc<CommandRegistry>,
     generic_variable_patterns: Option<&[String]>,
 ) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
     let &SalsaAnalysisCtx {
@@ -1886,10 +1919,12 @@ async fn compute_compiler_diags(
     if let Some(file) = file {
         let snapshot = db.lock().await.clone();
         match tokio::task::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
-                tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+            with_pack_hooks(|| {
+                salsa::Cancelled::catch(|| {
+                    tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+                })
+                .ok()
             })
-            .ok()
         })
         .await
         {
@@ -1909,20 +1944,23 @@ async fn compute_compiler_diags(
         }
     } else {
         let (c_text, c_dialect) = (text.to_owned(), dialect.to_owned());
-        let c_registry = registry;
+        let c_registry = Arc::clone(registry);
         let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
         ControlFlow::Continue(
             tokio::task::spawn_blocking(move || {
-                Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
-                    &c_text,
-                    c_registry,
-                    &c_dialect,
-                    c_generic.as_deref(),
-                    // The no-salsa-input fallback: this document is not in the
-                    // db, so there is genuinely no workspace view to pass —
-                    // `None` is the honest answer, not a missed wiring.
-                    None,
-                ))
+                with_pack_hooks(|| {
+                    Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
+                        &c_text,
+                        &c_registry,
+                        &c_dialect,
+                        c_generic.as_deref(),
+                        // The no-salsa-input fallback: this document is not in
+                        // the db, so there is genuinely no workspace view to
+                        // pass — `None` is the honest answer, not a missed
+                        // wiring.
+                        None,
+                    ))
+                })
             })
             .await
             .unwrap_or_else(|_| {
@@ -2951,7 +2989,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
 
 /// The non-document-buffer handles the analyser/compiler/publish path needs.
 struct AnalyserPathInputs<'a> {
-    registry: &'static CommandRegistry,
+    registry: Arc<CommandRegistry>,
     extra_commands: &'a HashSet<String>,
     generic_variable_patterns: Option<&'a [String]>,
     non_ascii_mode: NonAsciiMode,
@@ -3023,7 +3061,7 @@ async fn run_diagnostics_analyser_path(
     // call parking a blocking-pool thread on the already-in-flight base read.
     let recovery = RecoveryWidenCtx {
         cache: inputs.recovery_names,
-        registry: inputs.registry,
+        registry: &inputs.registry,
         workspace_index: inputs.workspace_index,
         package_resolver: inputs.package_resolver,
     };
@@ -3121,7 +3159,11 @@ async fn run_deep_diagnostics(
 ) -> bool {
     let (base_result, compiler_result, project_result) = tokio::join!(
         base,
-        compute_compiler_diags(salsa_ctx, inputs.registry, inputs.generic_variable_patterns),
+        compute_compiler_diags(
+            salsa_ctx,
+            &inputs.registry,
+            inputs.generic_variable_patterns
+        ),
         compute_project_diags(salsa_ctx, project),
     );
     let analysis: Arc<AnalysisResult> = match base_result {
@@ -3184,7 +3226,7 @@ async fn run_deep_diagnostics(
                 SourceInheritance::default()
             },
             if needs_settling {
-                settle_cross_file_calls(&index, &analysis, inputs.registry, delivery.uri.as_str())
+                settle_cross_file_calls(&index, &analysis, &inputs.registry, delivery.uri.as_str())
             } else {
                 CrossFileCalls::default()
             },
@@ -3212,7 +3254,7 @@ async fn run_deep_diagnostics(
         &RefinementInputs {
             inheritance: &inheritance,
             package_resolver: inputs.package_resolver,
-            registry: inputs.registry,
+            registry: &inputs.registry,
             workspace_known_names,
             settled_calls,
             cross_file_resolution: inputs.cross_file_resolution,
@@ -3320,7 +3362,7 @@ struct LiftInputs<'a> {
 struct RefinementInputs<'a> {
     inheritance: &'a SourceInheritance,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
-    registry: &'static CommandRegistry,
+    registry: &'a CommandRegistry,
     /// The workspace index's memoised command names — read whenever this
     /// document has a W123 to refine, because
     /// [`refine_workspace_index_w123`]'s always-on math-function tier needs
@@ -3861,6 +3903,40 @@ async fn publish_diagnostics_result(
     true
 }
 
+/// Which event asked for a `SpecTcl` pack reload.
+///
+/// The reload itself is identical for all three — the trigger exists so the
+/// **startup** one can be told apart from the others, which is what
+/// [`STARTUP_RELOAD_HOLD_ENV`] needs: only the startup reload honours the
+/// test-only hold that forces the two-reload interleaving this module is
+/// careful about.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ReloadTrigger {
+    /// The one `initialized` starts, which parses the bundled EDA loadables
+    /// and is by far the slowest.
+    Startup,
+    /// A `.tclspec` appeared, changed, or was deleted.
+    WatchedFile,
+    /// `tclLsp.specPacks` may have moved, so the discovery inputs did.
+    Config,
+}
+
+/// The workspace's published pack set, stamped with the reload generation that
+/// published it.
+///
+/// The stamp is what makes publish order a function of **when the disk was
+/// read** rather than of who finished last: a reload takes its sequence number
+/// before it looks at the filesystem, so a snapshot taken earlier carries a
+/// smaller number no matter how long it then spends parsing. See
+/// [`Backend::spec_pack_reload_seq`].
+#[derive(Default)]
+struct PublishedPackSet {
+    /// The sequence number of the reload that published `packs`; `0` before
+    /// anything has been published.
+    seq: u64,
+    packs: Arc<tcl_spectcl::PackSet>,
+}
+
 /// LSP server backend.
 ///
 /// Holds the LSP `Client` for outbound notifications, a document
@@ -4078,6 +4154,72 @@ pub struct Backend {
     /// known by the unknown-command (W123) check; mirrored onto the salsa
     /// `AnalyserConfig`.
     extra_commands: Mutex<Vec<String>>,
+    /// `tclLsp.specPacks` — extra `.tclspec` files or directories to load as
+    /// `SpecTcl` packs, on top of the ones discovery finds by convention.
+    spec_pack_paths: Mutex<Vec<String>>,
+    /// The workspace's loaded `SpecTcl` packs (`docs/design/spec-packs.md`).
+    ///
+    /// Workspace scope, deliberately: the set is loaded at `initialized` and
+    /// reloaded when a pack file changes, **never** per document and never per
+    /// edit of the code that uses it.  Held behind an `Arc` inside the mutex so
+    /// a reader clones the handle and releases the lock immediately — a pack
+    /// set is read on every `registry_for_dialect` call, which is every
+    /// request.
+    ///
+    /// Carries the generation that published it ([`PublishedPackSet`]) so a
+    /// reload can tell whether its own snapshot is newer than what is already
+    /// out there.
+    spec_packs: Arc<Mutex<PublishedPackSet>>,
+    /// Monotonic reload generation, handed out at the top of every
+    /// [`Backend::reload_spec_packs`] — *before* discovery, so the number
+    /// orders reloads by **when they read the disk**, not by when they
+    /// finished.
+    ///
+    /// A reload publishes only if its number is greater than the one stamped
+    /// on the current set, so a snapshot taken before a write can never
+    /// overwrite one taken after it, however long its load took.
+    ///
+    /// This is **armour, not the fix**. With `spec_pack_reload` held across
+    /// discover → load → publish, reloads cannot overlap at all and this
+    /// comparison can never fail; it exists so the ordering invariant — newest
+    /// snapshot wins — survives on its own if that mutex is ever narrowed or
+    /// removed by someone who reads the serialisation as mere throughput
+    /// insurance. `fetch_add` on a single atomic is totally ordered even under
+    /// `Relaxed`, so the numbers stay unique and monotonic without the mutex;
+    /// the compare-and-publish itself is atomic because it happens under the
+    /// `spec_packs` lock.
+    spec_pack_reload_seq: std::sync::atomic::AtomicU64,
+    /// Held across a whole pack reload — discovery, load, and publish.
+    ///
+    /// Two reloads can be in flight at once: `initialized` starts one, and a
+    /// `.tclspec` appearing (or `tclLsp.specPacks` moving) starts another.
+    /// Each takes its own filesystem snapshot and then publishes if the key
+    /// differs from what is current, which is last-*writer*-wins with no
+    /// regard for which snapshot is newer. The startup reload parses the
+    /// bundled EDA loadables and is by far the slower of the two, so on a
+    /// loaded machine it finishes second and republishes its pre-write view,
+    /// silently discarding the workspace pack that arrived in between. Nothing
+    /// re-triggers afterwards — the file is already on disk and its one event
+    /// has been consumed — so the pack stays missing until the next edit.
+    ///
+    /// Serialising makes every reload observe the disk *after* the previous
+    /// one published, so whichever runs last re-reads the true state. It costs
+    /// nothing on the common path: reloads are workspace-scoped, not per-edit.
+    spec_pack_reload: Arc<Mutex<()>>,
+    /// URIs currently carrying published pack-load diagnostics, so a reload
+    /// that fixes a pack clears the badge it left behind.
+    spec_pack_diagnostic_uris: Arc<Mutex<HashSet<Uri>>>,
+    /// Absolute watch globs currently registered for pack directories that lie
+    /// **outside every workspace folder** — the per-user tier, and any
+    /// absolute `tclLsp.specPacks` entry.
+    ///
+    /// The main watcher registration is a workspace-relative pattern, which a
+    /// client only ever matches inside the workspace folders; an edit to a
+    /// user-tier pack therefore reached nothing and the specs stayed stale
+    /// until an unrelated config reload or a restart. Remembered here so a
+    /// reload re-registers only when the set actually moves, since each change
+    /// costs an unregister/register round trip to the client.
+    external_pack_watch_globs: Arc<Mutex<Vec<String>>>,
     /// `tclLsp.bigipVersion` — the session's target BIG-IP release for the
     /// keyed library-version axis (`None` = the oldest-supported default).
     bigip_version: Mutex<Option<String>>,
@@ -4675,6 +4817,14 @@ struct FolderConfig {
     generic_variable_patterns: FolderGenericPatterns,
     /// `tclLsp.libraryPaths` override; `None` inherits the global set.
     library_paths: Option<Vec<String>>,
+    /// `tclLsp.specPacks` scoped to this folder; `None` inherits the session
+    /// value. Kept per folder rather than folded into the session list
+    /// because a **relative** entry here means "under this folder" — the
+    /// client answered the pull for this folder's `scopeUri`. Resolving it
+    /// against every root would invent packs the user never configured, and
+    /// dropping it (what the server did before) loses a secondary folder's
+    /// packs entirely in a multi-root workspace.
+    spec_packs: Option<Vec<String>>,
     /// `.tcl-lsp.ini [project] entryPoints` — the project's "main" files (paths
     /// relative to the folder root). When set, the W120 workspace refinement
     /// treats these entries' `package require`s as available across the folder
@@ -4917,6 +5067,7 @@ impl Backend {
             Vec::new(),
             None,
             None,
+            0,
         );
         Self {
             client,
@@ -4946,6 +5097,12 @@ impl Backend {
             editor_library_paths: Mutex::new(Vec::new()),
             package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
+            spec_pack_paths: Mutex::new(Vec::new()),
+            spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
+            spec_pack_reload: Arc::new(Mutex::new(())),
+            spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
+            spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
+            external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
@@ -5337,10 +5494,16 @@ impl Backend {
         let mode = *self.non_ascii_mode.lock().await;
         let extra = self.extra_commands.lock().await.clone();
         let generic = self.generic_variable_patterns.lock().await.clone();
+        // The loaded pack set's content identity: the analyser reads the
+        // registry this key was installed under, so an EDA document sees the
+        // bundled vendor library and a workspace pack reaches the diagnostics
+        // it was written to change.
+        let pack_key = self.spec_packs().await.key;
         let config = *self.db_config.lock().await;
         let mut db = self.db.lock().await;
         config.set_disabled_diagnostics(&mut *db).to(disabled);
         config.set_non_ascii_mode(&mut *db).to(mode);
+        config.set_spec_pack_key(&mut *db).to(pack_key);
         config.set_extra_commands(&mut *db).to(extra);
         config.set_generic_variable_patterns(&mut *db).to(generic);
         let bigip = self.bigip_version.lock().await.clone();
@@ -5554,16 +5717,17 @@ impl Backend {
         // fresh with the same per-folder config the cached path would have used,
         // so the on-demand result still honours folder-scoped suppression.
         let config = self.resolved_db_config(uri).await;
-        let (disabled, na_mode, extra) = {
+        let (disabled, na_mode, extra, pack_key) = {
             let db = self.db.lock().await;
             (
                 config.disabled_diagnostics(&*db).iter().cloned().collect(),
                 config.non_ascii_mode(&*db),
                 config.extra_commands(&*db).iter().cloned().collect(),
+                config.spec_pack_key(&*db),
             )
         };
         tokio::task::spawn_blocking(move || {
-            let mut analyser = Self::configured_analyser(disabled, na_mode, extra);
+            let mut analyser = Self::configured_analyser(disabled, na_mode, extra, pack_key);
             Arc::new(analyser.analyse(&text, &dialect))
         })
         .await
@@ -5883,6 +6047,11 @@ impl Backend {
             "tcl-xilinx" | "xilinx-eda-tcl" => "xilinx-eda-tcl",
             "tcl-quartus" | "intel-quartus-eda-tcl" => "intel-quartus-eda-tcl",
             "tcl-mentor" | "mentor-eda-tcl" => "mentor-eda-tcl",
+            // SpecTcl command packs (`.tclspec`). The editor extensions
+            // contribute `tclspec` as the language id; `tcl-spec` matches the
+            // `tcl-…` shape every other integration id uses, and `spectcl` is
+            // the canonical dialect name direct / MCP callers pass.
+            "tclspec" | "tcl-spec" | "spectcl" => "spectcl",
             "tk" => "tk",
             _ => return None,
         };
@@ -6163,12 +6332,12 @@ impl Backend {
     ) -> Option<core_semantic_tokens::SemanticTokens> {
         if is_apl_source(uri, &doc.language_id) {
             let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
-            return Some(core_semantic_tokens::apl_range(&doc.text, range, registry));
+            return Some(core_semantic_tokens::apl_range(&doc.text, range, &registry));
         }
         if Self::is_bigip_dialect(&doc.dialect) {
             let registry = self.registry_for_dialect(IRULES_DIALECT).await;
             return Some(core_semantic_tokens::bigip_conf_range(
-                &doc.text, range, registry,
+                &doc.text, range, &registry,
             ));
         }
         None
@@ -6196,7 +6365,7 @@ impl Backend {
         if is_apl_source(uri, &doc.language_id) {
             // The iApps registry: an APL `[ … ]` bracket expression is iApp Tcl.
             let registry = self.registry_for_dialect(IAPPS_DIALECT).await;
-            let data = core_semantic_tokens::apl_full(&doc.text, registry).data;
+            let data = core_semantic_tokens::apl_full(&doc.text, &registry).data;
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
                 .await;
             return Ok(data);
@@ -6205,7 +6374,7 @@ impl Backend {
             // The iRules registry, not the BIG-IP one: a `ltm rule { … }` body is
             // iRules code embedded in the config, and is walked as such.
             let registry = self.registry_for_dialect(IRULES_DIALECT).await;
-            let data = core_semantic_tokens::bigip_conf_full(&doc.text, registry).data;
+            let data = core_semantic_tokens::bigip_conf_full(&doc.text, &registry).data;
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
                 .await;
             return Ok(data);
@@ -6220,13 +6389,13 @@ impl Backend {
             // salsa path below.
             let data = tokio::task::spawn_blocking(move || {
                 let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
-                    &text, registry, false, &dialect,
+                    &text, &registry, false, &dialect,
                 );
                 let analysis = tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect);
                 core_semantic_tokens::full_with_cu_and_analysis(
                     &text,
                     &dialect,
-                    registry,
+                    &registry,
                     Some(&cu),
                     Some(&analysis),
                 )
@@ -6289,7 +6458,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
         tokio::task::spawn_blocking(move || {
-            core_semantic_tokens::full(&text, &dialect, registry).data
+            core_semantic_tokens::full(&text, &dialect, &registry).data
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -6809,6 +6978,13 @@ impl Backend {
             closed_diag_gen: _,
             closed_diag_order: _,
             semantic_tokens_convergence: _,
+            // Keyed by pack-file URI, owned by the SpecTcl reload path: a
+            // pack's notices are cleared when the *pack* changes, never when a
+            // document is retired (the pack file may not even be open).
+            spec_pack_diagnostic_uris: _,
+            // Owned by the SpecTcl reload path: watch registrations track the
+            // configured pack roots, not any document's lifetime.
+            external_pack_watch_globs: _,
             // Keyed by folder URI.
             workspace_folders: _,
             folder_dialects: _,
@@ -6833,6 +7009,10 @@ impl Backend {
             editor_library_paths: _,
             package_prefer_latest_default: _,
             extra_commands: _,
+            spec_pack_paths: _,
+            spec_packs: _,
+            spec_pack_reload: _,
+            spec_pack_reload_seq: _,
             bigip_version: _,
             generic_variable_patterns: _,
             formatting_settings: _,
@@ -8067,12 +8247,14 @@ impl Backend {
         };
         {
             let index = self.workspace_index.read().await;
-            let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
+            // Pack-aware: a call site settled against the workspace index must
+            // see the same command universe hover and diagnostics do.
+            let registry = self.registry_for_dialect(&analysis.dialect).await;
             let exports = index.export_snapshot();
             if let Some(cand) = settle_call_against_workspace(
                 &index,
                 analysis,
-                registry,
+                &registry,
                 uri.as_str(),
                 inv,
                 exports.as_ref(),
@@ -9084,7 +9266,7 @@ impl Backend {
         uri: &Uri,
         doc: &DocumentState,
         analysis: &AnalysisResult,
-        registry: &'static tcl_registry::CommandRegistry,
+        registry: &Arc<tcl_registry::CommandRegistry>,
         pos: Position,
         new_name: &str,
     ) -> jsonrpc::Result<Vec<core_rename::TextEdit>> {
@@ -9094,6 +9276,9 @@ impl Backend {
         let new_name_worker = new_name.to_owned();
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
+        // The worker owns a clone of the handle: it outlives this frame, and
+        // the generation it names must outlive the worker.
+        let registry_worker = Arc::clone(registry);
         tokio::task::spawn_blocking(move || {
             core_rename::rename_in_program(
                 &text,
@@ -9103,7 +9288,7 @@ impl Backend {
                 &new_name_worker,
                 &analysis_for_worker,
                 core_definition::CallResolution {
-                    registry: Some(registry),
+                    registry: Some(&registry_worker),
                     program: Some(core_definition::ProgramExports {
                         uri: &uri_key,
                         oracle: exports.as_ref(),
@@ -10364,7 +10549,7 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let value = tokio::task::spawn_blocking(move || {
             if aggressive {
-                let res = core_minify::minify_tcl_aggressive(&text, &dialect, isolated, registry);
+                let res = core_minify::minify_tcl_aggressive(&text, &dialect, isolated, &registry);
                 serde_json::json!({
                     "source": res.source,
                     "originalLength": res.original_length,
@@ -10374,7 +10559,7 @@ impl Backend {
                 })
             } else if compact {
                 let (minified, symbol_map) =
-                    core_minify::minify_tcl_compact(&text, &dialect, isolated, registry);
+                    core_minify::minify_tcl_compact(&text, &dialect, isolated, &registry);
                 serde_json::json!({
                     "source": minified,
                     "originalLength": text.len(),
@@ -10382,7 +10567,7 @@ impl Backend {
                     "symbolMap": symbol_map.format(),
                 })
             } else {
-                let minified = core_minify::minify_tcl(&text, &dialect, registry);
+                let minified = core_minify::minify_tcl(&text, &dialect, &registry);
                 serde_json::json!({
                     "source": minified,
                     "originalLength": text.len(),
@@ -10429,12 +10614,13 @@ impl Backend {
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
         let value = tokio::task::spawn_blocking(move || {
+            tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = Some(dialect.as_str());
             let (source, opts) = if profile == "full" {
-                tcl_compiler::optimiser::optimise_source_multipass(&text, registry, dialect_opt, 5)
+                tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
             } else {
                 let opts =
-                    tcl_compiler::optimiser::optimise_with_dialect(&text, registry, dialect_opt);
+                    tcl_compiler::optimiser::optimise_with_dialect(&text, &registry, dialect_opt);
                 let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
                 (applied, opts)
             };
@@ -10652,6 +10838,7 @@ impl Backend {
         };
         let (disabled, na_mode) = self.analyser_config().await;
         let extra: HashSet<String> = self.extra_commands.lock().await.iter().cloned().collect();
+        let pack_key = self.spec_packs().await.key;
         let dialect = doc.dialect.clone();
         // The one place that legitimately owns a copy: fix-all *rewrites* the
         // source in a loop, so it needs a mutable buffer of its own rather than
@@ -10666,7 +10853,7 @@ impl Backend {
             let mut applied: Vec<serde_json::Value> = Vec::new();
             for _ in 0..FIX_ALL_MAX_PASSES {
                 let mut analyser =
-                    Self::configured_analyser(disabled.clone(), na_mode, extra.clone());
+                    Self::configured_analyser(disabled.clone(), na_mode, extra.clone(), pack_key);
                 let analysis = analyser.analyse(&tcl_lexer::normalise_lone_cr(&source), &dialect);
                 let chosen = Self::bulk_applicable_fixes(&analysis);
                 if chosen.is_empty() {
@@ -10838,6 +11025,7 @@ impl Backend {
         // analysed before or after its config landed.
         let optimiser_profile = self.optimiser_profile.lock().await.name();
         let library_paths = self.editor_library_paths.lock().await.clone();
+        let (spec_packs, spec_packs_loaded) = self.spec_pack_report().await;
         let line_length = *self.line_length.lock().await;
         // `tclLsp.formatting.docstringStyle` (#1314) — same per-URI fold as
         // `resolved_docstring_style`, but a folder-only query (no readable
@@ -10899,6 +11087,8 @@ impl Backend {
             "optimiser_enabled": optimiser_enabled,
             "optimiser_profile": optimiser_profile,
             "library_paths": library_paths,
+            "spec_packs": spec_packs,
+            "spec_packs_loaded": spec_packs_loaded,
             "line_length": line_length,
             "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
@@ -11218,6 +11408,12 @@ impl Backend {
     /// on-demand providers.
     async fn run_config_reload(&self) {
         self.pull_and_apply_config().await;
+        // `tclLsp.specPacks` is part of what was just applied: if it moved, the
+        // pack set — and therefore the registry every open document resolves
+        // against — moves with it.  The reload is content-keyed, so a settings
+        // burst that does not touch `specPacks` costs one discovery walk and
+        // nothing else.
+        self.reload_spec_packs(ReloadTrigger::Config).await;
         // The re-pull may have flipped `features.diagnostics`,
         // `optimiser.enabled`, or the disabled-diagnostics set — none of which
         // changes a document's dialect (the dialect the re-pull *does* resolve
@@ -11432,6 +11628,21 @@ impl Backend {
                 .collect();
             *self.extra_commands.lock().await = extra;
         }
+        // `tclLsp.specPacks` — extra `.tclspec` files or directories, on top
+        // of the ones discovery finds by convention (`.tcl-lsp/`, beside a
+        // `tclpkg.tcl`). A relative entry is resolved against each workspace
+        // folder; the reload itself is driven by `initialized` and the file
+        // watcher, so this only records the paths.
+        if let Some(paths) = cfg.get("specPacks").and_then(serde_json::Value::as_array) {
+            let paths: Vec<String> = paths
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect();
+            *self.spec_pack_paths.lock().await = paths;
+        }
         // `tclLsp.bigipVersion` — the target BIG-IP release for the keyed
         // library-version axis (an empty string clears the pin back to the
         // oldest-supported default).
@@ -11499,6 +11710,9 @@ impl Backend {
             // process-global value when set; otherwise the folder inherits it.
             let global_extra = self.extra_commands.lock().await.clone();
             let global_generic = self.generic_variable_patterns.lock().await.clone();
+            // Packs are a workspace fact, never a per-folder one, so every
+            // folder handle carries the same key the global config does.
+            let pack_key = self.spec_packs().await.key;
             let mut db = self.db.lock().await;
             let mut handles = self.folder_db_configs.lock().await;
             let mut tombstones = self.folder_db_config_tombstones.lock().await;
@@ -11543,10 +11757,12 @@ impl Backend {
                     handle.set_non_ascii_mode(&mut *db).to(mode);
                     handle.set_extra_commands(&mut *db).to(extra);
                     handle.set_generic_variable_patterns(&mut *db).to(generic);
+                    handle.set_spec_pack_key(&mut *db).to(pack_key);
                     next.push((folder.clone(), handle));
                 } else {
-                    let handle =
-                        tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode, extra, generic, None);
+                    let handle = tcl_lsp_db::AnalyserConfig::new(
+                        &*db, disabled, mode, extra, generic, None, pack_key,
+                    );
                     next.push((folder.clone(), handle));
                 }
             }
@@ -11662,7 +11878,7 @@ impl Backend {
         let profile = tcl_dialect::DialectProfile::by_name(&dialect);
         let mut subs: Vec<serde_json::Value> = {
             use tcl_registry::ProfileQueries;
-            profile.resolve_command(registry, &name)
+            profile.resolve_command(&registry, &name)
         }
         .map(|spec| {
             spec.subcommands
@@ -12018,10 +12234,12 @@ impl Backend {
         disabled: HashSet<String>,
         mode: NonAsciiMode,
         extra_commands: HashSet<String>,
+        pack_key: u64,
     ) -> Analyser {
         Analyser::with_disabled_diagnostics(disabled)
             .with_non_ascii_mode(mode)
             .with_extra_commands(extra_commands)
+            .with_pack_overlay(pack_key)
     }
 
     /// [`Self::configured_analyser`] taking the recovery path's **shared**
@@ -12032,25 +12250,89 @@ impl Backend {
         disabled: HashSet<String>,
         mode: NonAsciiMode,
         extra_commands: Arc<HashSet<String>>,
+        pack_key: u64,
     ) -> Analyser {
         Analyser::with_disabled_diagnostics(disabled)
             .with_non_ascii_mode(mode)
             .with_shared_extra_commands(extra_commands)
+            .with_pack_overlay(pack_key)
     }
 
     /// Return the command registry with `dialect` loaded on top of the
-    /// default Tcl + stdlib + tcllib specs.
+    /// default Tcl + stdlib + tcllib specs, **plus the workspace's `SpecTcl`
+    /// packs**.
     ///
     /// The registry is the process-wide per-profile cache in `tcl-registry`,
     /// built once per dialect profile and shared for the process lifetime —
     /// an unknown or unparseable dialect string resolves to the plain-Tcl
     /// profile rather than leaking a fresh registry per typo.
-    async fn registry_for_dialect(&self, dialect: &str) -> &'static CommandRegistry {
-        // Routed through the query database so every consumer (the salsa
-        // queries included) reads one registry per dialect.  Clone the db
-        // handle (cheap) so the lookup does not hold the db mutex.
-        let db = self.db.lock().await.clone();
-        db.registry(dialect)
+    ///
+    /// With packs loaded the entry is keyed by `(profile, pack-set content
+    /// hash)` instead, which is the whole of what "workspace scope" means in
+    /// `docs/design/spec-packs.md`: one registry per pack *content*, shared by
+    /// every document, rebuilt when the pack changes and never per edit of the
+    /// code that uses it.  With no packs — the overwhelmingly common case —
+    /// this is byte for byte the lookup it always was.
+    ///
+    /// Returned as an owning handle, and the caller is expected to keep it for
+    /// the length of the request it serves. That is what makes a pack reload
+    /// safe: the superseded generation stays alive and readable for every
+    /// request already walking with it, and is freed once the last of them
+    /// finishes (`tcl_registry::cache`'s memory note). Both arms hand back the
+    /// same underlying instance the process already had — the no-packs arm
+    /// re-enters the same cache the salsa query reads, so this is a change of
+    /// ownership, not of identity.
+    async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
+        let packs = self.spec_packs().await;
+        if !packs.is_empty() {
+            return tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+        }
+        // The same per-dialect cache entry the salsa `registry` query returns
+        // — that query is a forwarder to this cache, and both spellings
+        // resolve `dialect` through the same catalogue — asked for as a
+        // handle so this function has one return type.  Reaching the cache
+        // directly also spares the db mutex a lock on a path that only ever
+        // forwarded.
+        tcl_registry::cache::registry_handle_for_profile(tcl_dialect::DialectProfile::by_name(
+            dialect,
+        ))
+    }
+
+    /// `tclLsp.specPacks` and what discovery made of it, for
+    /// `tcl-lsp.getEffectiveConfig`: the configured paths, and one entry per
+    /// loaded pack.
+    ///
+    /// Both halves are reported because they answer different questions. The
+    /// paths are the *settle signal* a test polls after pushing a config. The
+    /// loaded packs are what a user needs when the answer to "why is my pack
+    /// not loading?" is that discovery never saw it — visible without reading
+    /// a server log, which is the only other place that fact exists.
+    async fn spec_pack_report(&self) -> (Vec<String>, Vec<serde_json::Value>) {
+        let configured = self.spec_pack_paths.lock().await.clone();
+        let loaded = self.spec_packs().await;
+        let report = loaded
+            .packs
+            .iter()
+            .map(|pack| {
+                serde_json::json!({
+                    "name": pack.name,
+                    "tier": pack.tier.label(),
+                    "commands": pack.commands.len(),
+                    "files": pack
+                        .files
+                        .iter()
+                        .map(|f| f.display().to_string())
+                        .collect::<Vec<String>>(),
+                })
+            })
+            .collect();
+        (configured, report)
+    }
+
+    /// The workspace's loaded `SpecTcl` packs.  Clones the `Arc` and drops the
+    /// lock, so no request path holds it across an await.
+    async fn spec_packs(&self) -> Arc<tcl_spectcl::PackSet> {
+        Arc::clone(&self.spec_packs.lock().await.packs)
     }
 
     /// Run the analyser on `text` and push the resulting
@@ -12194,9 +12476,10 @@ impl Backend {
         uri: &Uri,
         text: &str,
         dialect: &str,
-        registry: &'static CommandRegistry,
+        registry: &Arc<CommandRegistry>,
     ) -> tcl_lsp_db::CompilerDiagnostics {
-        let (c_text, c_dialect, c_registry) = (text.to_owned(), dialect.to_owned(), registry);
+        let (c_text, c_dialect, c_registry) =
+            (text.to_owned(), dialect.to_owned(), Arc::clone(registry));
         // URI-scoped (folder/project override aware), matching the push
         // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
         // honours a folder's `diagnostics.genericVariablePatterns` override.
@@ -12208,7 +12491,7 @@ impl Backend {
         tokio::task::spawn_blocking(move || {
             tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &c_text,
-                c_registry,
+                &c_registry,
                 &c_dialect,
                 c_generic.as_deref(),
                 c_evidence.as_deref(),
@@ -12290,7 +12573,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = self
-            .compiler_diagnostics_for(uri, &analysis_text, &dialect, registry)
+            .compiler_diagnostics_for(uri, &analysis_text, &dialect, &registry)
             .await;
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
@@ -12301,7 +12584,7 @@ impl Backend {
         // `textDocument/codeAction`, which lifts its quick-fixes from this
         // exact set (see `published_analyser_diagnostics`).
         let analyser_diags = self
-            .published_analyser_diagnostics(uri, &analysis, &dialect, registry, &disabled)
+            .published_analyser_diagnostics(uri, &analysis, &dialect, &registry, &disabled)
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         tokio::task::spawn_blocking(move || {
@@ -12384,8 +12667,8 @@ impl Backend {
             CrossFileCalls::default()
         } else {
             let index = self.workspace_index.read().await;
-            let registry = tcl_registry::registry_for_dialect(inputs.dialect);
-            settle_cross_file_calls(&index, analysis, registry, uri.as_str())
+            let registry = self.registry_for_dialect(inputs.dialect).await;
+            settle_cross_file_calls(&index, analysis, &registry, uri.as_str())
         };
         let analyser_diags = refine_workspace_w120(
             analyser_diags,
@@ -12449,7 +12732,7 @@ impl Backend {
         uri: &Uri,
         analysis: &AnalysisResult,
         dialect: &str,
-        registry: &'static CommandRegistry,
+        registry: &CommandRegistry,
         disabled: &HashSet<String>,
     ) -> Vec<tcl_compiler::analyser::Diagnostic> {
         // Opt-in project callback arity: direct cross-file calls are settled
@@ -12596,6 +12879,14 @@ impl Backend {
                         // Case-folded in the glob itself: watcher registrations
                         // carry no `ignoreCase` option and VS Code matches them
                         // case-sensitively on Linux (issue #1215).
+                        //
+                        // This also covers `.tclspec` SpecTcl packs, which are
+                        // in `TCL_SOURCE_EXTENSIONS` — a pack *is* one Tcl
+                        // script. A second watcher for them would only make the
+                        // client send every pack event twice; what makes a pack
+                        // event different is not the watch but what
+                        // `did_change_watched_files` does with it (see
+                        // `WatchedFileChanges::spec_pack_changed`).
                         glob_pattern: GlobPattern::String(tcl_source_watch_glob()),
                         kind: all_kinds,
                     },
@@ -12625,6 +12916,433 @@ impl Backend {
                     MessageType::LOG,
                     format!("file-watcher registration declined by client: {err}"),
                 )
+                .await;
+        }
+    }
+
+    // -- SpecTcl spec packs ------------------------------------------------
+
+    /// What [`tcl_spectcl::discover`] should look at for this workspace:
+    /// every open folder, plus whatever `tclLsp.specPacks` names.
+    ///
+    /// The user and bundled tiers take their defaults — the platform config
+    /// directory and the shipped loadables — so a workspace need declare
+    /// nothing to get them.
+    async fn spec_pack_discovery(&self) -> tcl_spectcl::DiscoveryOptions {
+        let workspace_roots: Vec<PathBuf> = self
+            .workspace_folders
+            .lock()
+            .await
+            .iter()
+            .filter_map(|uri| uri.to_file_path().map(std::borrow::Cow::into_owned))
+            .collect();
+        let configured = self
+            .spec_pack_paths
+            .lock()
+            .await
+            .iter()
+            .map(PathBuf::from)
+            .collect();
+        // Folder-scoped `tclLsp.specPacks`, each kept with the folder it was
+        // pulled for so a relative entry resolves there and nowhere else.
+        let folder_configured: Vec<(PathBuf, Vec<PathBuf>)> = self
+            .folder_configs
+            .lock()
+            .await
+            .iter()
+            .filter_map(|(uri, config)| {
+                let paths = config.spec_packs.as_ref()?;
+                let folder = uri.to_file_path()?.into_owned();
+                Some((folder, paths.iter().map(PathBuf::from).collect()))
+            })
+            .collect();
+        tcl_spectcl::DiscoveryOptions {
+            workspace_roots,
+            configured,
+            folder_configured,
+            ..tcl_spectcl::DiscoveryOptions::default()
+        }
+    }
+
+    /// Discover, load and install the workspace's `SpecTcl` packs, then publish
+    /// each pack file's load notices as diagnostics on that file.
+    ///
+    /// Runs at `initialized` and again whenever a `.tclspec` changes on disk or
+    /// `tclLsp.specPacks` moves.  Everything about it is workspace-scoped and
+    /// off the per-edit path: discovery walks the filesystem and loading parses
+    /// Tcl, neither of which belongs anywhere near a keystroke.
+    ///
+    /// Returns `true` when the loaded set actually changed, so a caller can
+    /// decide whether re-analysing every open document is warranted — the pack
+    /// set's content hash makes "the watcher fired but the bytes are the same"
+    /// (a save with no edit, a `touch`, a branch switch that restores a file)
+    /// free.
+    ///
+    /// `trigger` says which event asked, and is used for exactly one thing:
+    /// the startup reload honours [`STARTUP_RELOAD_HOLD_ENV`], the test-only
+    /// hold that lets the e2e suite force the two-reload interleaving.
+    async fn reload_spec_packs(&self, trigger: ReloadTrigger) -> bool {
+        // One reload at a time — see `spec_pack_reload`. The guard spans
+        // discovery *and* the publish below, because it is the gap between
+        // them that lets a slower reload overwrite a newer one's result.
+        let _reload = self.spec_pack_reload.lock().await;
+        // Taken here, under the guard and *before* discovery: the number has
+        // to order reloads by when they read the disk. See
+        // `spec_pack_reload_seq`.
+        let seq = self
+            .spec_pack_reload_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        let options = self.spec_pack_discovery().await;
+        // Before loading: the watch set follows the *configuration*, so it has
+        // to be refreshed even when the discovered files turn out unchanged.
+        self.refresh_external_pack_watchers(&options).await;
+        // Discovery and loading are blocking filesystem + parse work; keeping
+        // them off the LSP event loop is the same courtesy every other scan
+        // here extends.
+        // The test hold and its "snapshot taken" signal — absent in every real
+        // session, because [`startup_reload_hold`] is zero unless the e2e
+        // suite asked for it. See [`STARTUP_RELOAD_HOLD_ENV`].
+        let (hold, held_tx, held_rx) = match trigger {
+            ReloadTrigger::Startup if !startup_reload_hold().is_zero() => {
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                (startup_reload_hold(), Some(tx), Some(rx))
+            }
+            _ => (std::time::Duration::ZERO, None, None),
+        };
+        let load = tokio::task::spawn_blocking(move || {
+            let files = tcl_spectcl::discover(&options);
+            // `load_discovered`, not `pack::load`: a bare `tcl-lsp-server`
+            // release binary (Zed, the standalone-editor instructions) has no
+            // `specs/` directory beside it, so discovery finds no bundled tier
+            // and the shipped EDA loadables have to come from the embedded
+            // copy. A plain load would leave every EDA command unknown in
+            // exactly those clients.
+            let loaded = tcl_spectcl::bundled::load_discovered(&files);
+            // The test seam, and the only place it can go: the snapshot is
+            // taken, the publish has not happened, so the world is free to
+            // change underneath a view that is already stale. The signal goes
+            // out first so the test knows the snapshot it has to invalidate
+            // exists; then the thread sits on it.
+            if let Some(tx) = held_tx {
+                let _ = tx.send(());
+                std::thread::sleep(hold);
+            }
+            loaded
+        });
+        if let Some(rx) = held_rx
+            && rx.await.is_ok()
+        {
+            // Announced on the client's log channel because that is the one
+            // ordering signal an e2e client can actually wait on: it means
+            // "this reload's view of the disk is now fixed", which is the
+            // instant the test has to write its pack file at.
+            self.client
+                .log_message(
+                    MessageType::INFO,
+                    format!(
+                        "{STARTUP_RELOAD_HELD_LOG} for {}ms ({STARTUP_RELOAD_HOLD_ENV})",
+                        hold.as_millis()
+                    ),
+                )
+                .await;
+        }
+        let loaded = load.await;
+        let Ok(loaded) = loaded else {
+            // A panic in the loader must not take the session with it: the
+            // workspace keeps whatever pack set it already had.
+            self.client
+                .log_message(
+                    MessageType::WARNING,
+                    "SpecTcl pack load failed; keeping the previously loaded packs",
+                )
+                .await;
+            return false;
+        };
+
+        let changed = {
+            let mut guard = self.spec_packs.lock().await;
+            // Newest snapshot wins, decided by when the disk was read. With
+            // `spec_pack_reload` held this is always true — see
+            // `spec_pack_reload_seq` for why it is checked anyway.
+            let newest = seq > guard.seq;
+            let changed = newest && guard.packs.key != loaded.key;
+            if changed {
+                // Publish the hook plan *before* the new pack set becomes
+                // visible, and under the same lock: slots are allocated once,
+                // here, for the whole process, and each worker thread builds
+                // its own sandboxed host from the plan the first time it runs
+                // analysis (`with_pack_hooks`).  A `HookHost` owns VM
+                // instances, which are not `Send`, so this cannot install
+                // anything itself — it records what to install.  Publishing
+                // after the swap would leave a window in which a query sees
+                // the pack's commands with their hooks still abstaining.
+                tcl_spectcl::hooks::publish(&loaded);
+                let loaded = Arc::new(loaded);
+                // Publish the same set to every other consumer in this process
+                // — the compiler explorer most of all, which built a plain
+                // registry and so reported a pack's (and every EDA) command
+                // unknown on the very line whose diagnostic resolved it.
+                tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded)));
+                // The stamp moves with the content: it records which snapshot
+                // the *current* set came from, so a reload that read the disk
+                // earlier than that can never take its place.
+                *guard = PublishedPackSet { seq, packs: loaded };
+            }
+            changed
+        };
+
+        let packs = self.spec_packs().await;
+        if changed && !packs.is_empty() {
+            // Build the `(profile, key)` registry for every dialect now.
+            //
+            // The analyser resolves its own registry and can only *look up*
+            // that entry (`Analyser::with_pack_overlay` /
+            // `registry_for_profile_if_built`) — building it needs the pack
+            // contents, which only this crate's loader has. Doing it here means
+            // the entry is always there by the time a document is analysed, so
+            // the very first diagnostics pass after a load already knows a
+            // bundled EDA library's commands rather than reporting every one of
+            // them unknown until some other provider happened to build it.
+            //
+            // The set of profiles is closed and each registry is built once for
+            // the process, so this is a bounded one-off — and every one of them
+            // would have been built lazily by the first document of that
+            // dialect anyway. It runs on a worker: it is parse-free but not
+            // free.
+            let for_worker = Arc::clone(&packs);
+            let _ = tokio::task::spawn_blocking(move || {
+                for profile in tcl_dialect::DialectProfile::all() {
+                    let _ = tcl_spectcl::install::registry_with_packs(profile, &for_worker);
+                }
+            })
+            .await;
+            // The analyser reads the key off the salsa config, so publish it
+            // before anything re-analyses.
+            self.sync_db_config().await;
+        }
+        // Shipped-command collisions are not load notices — the loader has no
+        // registry to compare against, so `PackSet::notices` cannot carry
+        // them. They are computed here, against the session dialect's plain
+        // registry, and published alongside. Without this the author of a pack
+        // declaring `lsort` gets silence: the declaration is dropped (or the
+        // shipped spec replaced, with `-override`) and nothing in the editor
+        // says which, though the loader promised to report both.
+        //
+        // Session dialect, not per-folder: a pack's commands are installed at
+        // workspace scope, and the notice is about the pack file, which has no
+        // dialect of its own.
+        let dialect = self.session_dialect().await;
+        let for_collisions = Arc::clone(&packs);
+        let collisions = tokio::task::spawn_blocking(move || {
+            tcl_spectcl::pack::collision_notices(
+                &for_collisions,
+                tcl_registry::registry_for_dialect(&dialect),
+            )
+        })
+        .await
+        .unwrap_or_default();
+        self.publish_spec_pack_notices(&packs, &collisions).await;
+        if changed {
+            let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
+            self.client
+                .log_message(
+                    MessageType::INFO,
+                    format!(
+                        "SpecTcl: {} pack(s), {commands} command(s), {} notice(s), \
+                         {} shipped-command collision(s)",
+                        packs.packs.len(),
+                        packs.notices.len(),
+                        collisions.len()
+                    ),
+                )
+                .await;
+        }
+        changed
+    }
+
+    /// Re-register the watchers for pack directories outside every workspace
+    /// folder, when that set has moved since the last reload.
+    ///
+    /// The session-wide registration in [`Backend::register_file_watchers`]
+    /// uses a workspace-*relative* pattern, and a client matches such a
+    /// pattern only within its workspace folders. A pack in the per-user tier
+    /// (`<config>/specs`), or named by an absolute `tclLsp.specPacks` entry
+    /// pointing outside the workspace, is therefore discovered and loaded at
+    /// startup but never watched: editing it produced no
+    /// `didChangeWatchedFiles`, so its commands stayed as they were until an
+    /// unrelated configuration reload or a server restart. Absolute glob
+    /// patterns fix that; LSP allows them, and a client that cannot honour one
+    /// declines the registration exactly as it may decline the main one.
+    ///
+    /// Registered under its own id so it can be replaced when the configured
+    /// roots change without disturbing the source-file watcher.
+    async fn refresh_external_pack_watchers(&self, options: &tcl_spectcl::DiscoveryOptions) {
+        const REGISTRATION_ID: &str = "tcl-lsp-external-spec-packs";
+        const METHOD: &str = "workspace/didChangeWatchedFiles";
+
+        let mut roots: Vec<PathBuf> = Vec::new();
+        if !options.skip_user_tier {
+            roots.push(
+                options
+                    .user_dir
+                    .clone()
+                    .unwrap_or_else(tcl_spectcl::discovery::user_dir),
+            );
+        }
+        // Absolute settings entries only: a relative one resolves inside a
+        // workspace folder, which the main registration already covers.
+        let configured_absolute = options
+            .configured
+            .iter()
+            .map(|path| (None, path))
+            .chain(
+                options
+                    .folder_configured
+                    .iter()
+                    .flat_map(|(folder, paths)| paths.iter().map(move |p| (Some(folder), p))),
+            )
+            .filter(|(_, path)| path.is_absolute())
+            .map(|(_, path)| path.clone());
+        roots.extend(configured_absolute);
+
+        // Anything inside a workspace folder is already watched; registering it
+        // again would only make the client send every event twice.
+        let inside_workspace = |path: &Path| {
+            options
+                .workspace_roots
+                .iter()
+                .any(|root| path.starts_with(root))
+        };
+        let mut globs: Vec<String> = roots
+            .iter()
+            .filter(|path| !inside_workspace(path))
+            .filter_map(|path| {
+                let text = path.to_str()?;
+                // A settings entry may name one file or a directory to scan;
+                // discovery accepts both, so the watch has to cover both.
+                Some(if tcl_spectcl::discovery::is_pack_file(path) {
+                    text.to_owned()
+                } else {
+                    format!("{}/**/*.tclspec", text.trim_end_matches('/'))
+                })
+            })
+            .collect();
+        globs.sort();
+        globs.dedup();
+
+        {
+            let mut current = self.external_pack_watch_globs.lock().await;
+            if *current == globs {
+                return;
+            }
+            // Unregister before registering: the id is the same, and a client
+            // that already holds it would otherwise be left with both sets.
+            if !current.is_empty() {
+                let _ = self
+                    .client
+                    .unregister_capability(vec![Unregistration {
+                        id: REGISTRATION_ID.to_owned(),
+                        method: METHOD.to_owned(),
+                    }])
+                    .await;
+            }
+            current.clone_from(&globs);
+        }
+        if globs.is_empty() {
+            return;
+        }
+
+        let all_kinds = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
+        let registration = Registration {
+            id: REGISTRATION_ID.to_owned(),
+            method: METHOD.to_owned(),
+            register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
+                watchers: globs
+                    .iter()
+                    .map(|glob| FileSystemWatcher {
+                        glob_pattern: GlobPattern::String(glob.clone()),
+                        kind: all_kinds,
+                    })
+                    .collect(),
+            })
+            .ok(),
+        };
+        if let Err(err) = self.client.register_capability(vec![registration]).await {
+            self.client
+                .log_message(
+                    MessageType::LOG,
+                    format!("external spec-pack watcher registration declined by client: {err}"),
+                )
+                .await;
+        }
+    }
+
+    /// Publish every pack's load notices — plus the `collisions` the caller
+    /// computed against the plain registry — as diagnostics on the pack file
+    /// they came from, and clear the ones a previous load left on files that
+    /// are now clean.
+    ///
+    /// A notice is not a compile error — the pack loaded, minus the thing the
+    /// notice names — so this is the natural surface for it: the author sees
+    /// "unknown property `arty` dropped" on the line they typed it, in the
+    /// editor they typed it in, exactly as they would a diagnostic on Tcl code.
+    ///
+    /// # Known limitation: an *open* pack file
+    ///
+    /// `.tclspec` is in `TCL_SOURCE_EXTENSIONS` (a pack is one Tcl script), so
+    /// an open pack buffer is also an analysed document, and `publishDiagnostics`
+    /// replaces a URI's whole set. The two publishers therefore overwrite each
+    /// other: whichever ran last wins, so editing an open pack shows the
+    /// analyser's view until the next reload restores the notices. Fixing it
+    /// properly means merging pack notices into the document's diagnostic set
+    /// on both the push and the pull path (which has its own cache) rather than
+    /// publishing them separately — worth doing, and deliberately not smuggled
+    /// into this change.
+    async fn publish_spec_pack_notices(
+        &self,
+        packs: &tcl_spectcl::PackSet,
+        collisions: &[tcl_spectcl::PackNotice],
+    ) {
+        use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
+
+        let mut by_uri: HashMap<Uri, Vec<Diagnostic>> = HashMap::new();
+        for notice in packs.notices.iter().chain(collisions) {
+            let Some(uri) = canonical_file_uri(&notice.path) else {
+                continue;
+            };
+            let severity = match notice.severity {
+                tcl_spectcl::pack::Severity::Warning => DiagnosticSeverity::WARNING,
+                tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
+            };
+            by_uri.entry(uri).or_default().push(Diagnostic {
+                range: whole_line_range(&notice.path, notice.line),
+                severity: Some(severity),
+                code: Some(NumberOrString::String(SPEC_PACK_DIAGNOSTIC_CODE.to_owned())),
+                source: Some("tcl-lsp".to_owned()),
+                message: format!("{}: {}", notice.context, notice.message),
+                ..Diagnostic::default()
+            });
+        }
+
+        // Files that had notices last time and do not now must be cleared, or
+        // a fixed pack keeps its badge until the editor restarts.
+        let stale: Vec<Uri> = {
+            let mut tracked = self.spec_pack_diagnostic_uris.lock().await;
+            let stale = tracked
+                .iter()
+                .filter(|uri| !by_uri.contains_key(*uri))
+                .cloned()
+                .collect();
+            *tracked = by_uri.keys().cloned().collect();
+            stale
+        };
+        for uri in stale {
+            self.client.publish_diagnostics(uri, Vec::new(), None).await;
+        }
+        for (uri, diagnostics) in by_uri {
+            self.client
+                .publish_diagnostics(uri, diagnostics, None)
                 .await;
         }
     }
@@ -13472,7 +14190,7 @@ impl Backend {
                         &text,
                         &dialect,
                         range,
-                        registry,
+                        &registry,
                         cu.as_deref(),
                         analysis.as_deref(),
                     )
@@ -13723,6 +14441,12 @@ impl LanguageServer for Backend {
         // Best-effort: clients without dynamic-registration support reject
         // this, which is harmless — the startup scan still seeds the index.
         self.register_file_watchers().await;
+        // Load the workspace's SpecTcl packs before the first analysis so a
+        // pack-declared command is known from the first keystroke rather than
+        // flashing W123 until a reload catches up.  `pull_and_apply_config`
+        // above has already applied `tclLsp.specPacks`, so discovery sees the
+        // configured paths on this first pass.
+        self.reload_spec_packs(ReloadTrigger::Startup).await;
         // Type-hierarchy support is advertised statically by the
         // `inject_type_hierarchy_provider` service layer (see `main.rs`) — a
         // dynamic `client/registerCapability` here would both duplicate it and
@@ -14186,10 +14910,23 @@ impl LanguageServer for Backend {
         // file, a deletion — must refresh the cross-document index so
         // definition / references / rename / call-hierarchy keep seeing the
         // project's true on-disk state between restarts.
-        let (config_changed, sidecar_changed, last_kind) =
-            partition_watched_file_changes(params.changes);
+        let WatchedFileChanges {
+            config_changed,
+            sidecar_changed,
+            spec_pack_changed,
+            last_kind,
+        } = partition_watched_file_changes(params.changes);
         if sidecar_changed {
             self.invalidate_sidecar_stubs().await;
+        }
+        // A pack file moved: reload the whole set (a pack is a logical unit
+        // spread over any number of files, so there is no such thing as
+        // reloading one file of it) and, when the content really changed,
+        // re-analyse every open document — a command that just became known,
+        // or just stopped being known, changes what W123 and hover say about
+        // code nobody touched.
+        if spec_pack_changed && self.reload_spec_packs(ReloadTrigger::WatchedFile).await {
+            self.reschedule_all_open_documents().await;
         }
         // Partition the (deduplicated) event set so the disk-backed work below
         // runs once per kind — a parallel read+analyse and one batched
@@ -14326,6 +15063,9 @@ impl LanguageServer for Backend {
         if config_changed {
             self.pull_and_apply_config().await;
             self.scan_workspace_folders().await;
+            // `tclLsp.specPacks` is part of what was just re-applied, so the
+            // pack set may point somewhere else now.
+            self.reload_spec_packs(ReloadTrigger::Config).await;
             self.reschedule_all_open_documents().await;
             // Closed files that carry a badge follow the same reconfigured
             // disabled-code / master-switch state (#865).
@@ -14379,7 +15119,7 @@ impl LanguageServer for Backend {
         // handler.
         let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::formatting_with(&text, &config, registry)
+            core_formatting::formatting_with(&text, &config, &registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -14451,7 +15191,7 @@ impl LanguageServer for Backend {
             // preserved).
             let registry = self.registry_for_dialect(&doc.dialect).await;
             tokio::task::spawn_blocking(move || {
-                tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, registry)
+                tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry)
             })
             .await
             .map_err(|err| jsonrpc::Error {
@@ -14566,7 +15306,7 @@ impl LanguageServer for Backend {
                 pos.line,
                 pos.character,
                 &analysis,
-                Some(registry),
+                Some(&registry),
                 Some(&*workspace),
                 &doc.dialect,
             )
@@ -14649,7 +15389,7 @@ impl LanguageServer for Backend {
                 pos.character,
                 &dialect,
                 &analysis,
-                registry,
+                &registry,
             )
         })
         .await
@@ -15567,13 +16307,13 @@ impl LanguageServer for Backend {
         let dialect = doc.dialect.clone();
         let serve_text = Arc::clone(&text);
         let serve_dialect = dialect.clone();
-        let serve_registry = registry;
+        let serve_registry = Arc::clone(&registry);
         let core_data = tokio::task::spawn_blocking(move || {
             core_semantic_tokens::range_with_cu_and_analysis(
                 &serve_text,
                 &serve_dialect,
                 core_range,
-                serve_registry,
+                &serve_registry,
                 cached_cu.as_deref(),
                 cached_analysis.as_deref(),
             )
@@ -15916,7 +16656,7 @@ impl LanguageServer for Backend {
                 range,
                 Some(&analysis),
                 core_definition::CallResolution {
-                    registry: Some(registry),
+                    registry: Some(&registry),
                     program: Some(core_definition::ProgramExports {
                         uri: &uri_key,
                         oracle: exports.as_ref(),
@@ -16151,7 +16891,7 @@ impl LanguageServer for Backend {
                 &uri,
                 &analysis,
                 &doc.dialect,
-                registry,
+                &registry,
                 &disabled_codes,
             )
             .await;
@@ -16202,7 +16942,7 @@ impl LanguageServer for Backend {
                 &mut actions,
                 &doc.text,
                 range,
-                registry,
+                &registry,
                 program,
                 &analysis,
                 &context_diags,
@@ -16214,11 +16954,11 @@ impl LanguageServer for Backend {
                 &uri_str,
                 &dialect,
                 &analysis,
-                registry,
+                &registry,
             );
             let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &doc.text,
-                registry,
+                &registry,
                 &dialect,
                 generic_patterns.as_deref(),
                 evidence.as_deref(),
@@ -16301,7 +17041,7 @@ impl LanguageServer for Backend {
         // against them) — see `DocumentState::raw`.
         let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::formatting_with(&text, &config, registry)
+            core_formatting::formatting_with(&text, &config, &registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -16343,7 +17083,7 @@ impl LanguageServer for Backend {
         // a JSON-RPC error.
         let text = doc.raw().to_owned();
         let edits = tokio::task::spawn_blocking(move || {
-            core_formatting::range_formatting(&text, range, &config, registry)
+            core_formatting::range_formatting(&text, range, &config, &registry)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -16533,7 +17273,7 @@ impl LanguageServer for Backend {
             }));
         }
         let edits = self
-            .in_document_rename_edits(&uri, &doc, &analysis, registry, pos, &new_name)
+            .in_document_rename_edits(&uri, &doc, &analysis, &registry, pos, &new_name)
             .await?;
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
@@ -16567,7 +17307,7 @@ impl LanguageServer for Backend {
                     analysis: &analysis,
                     pos,
                     new_name: &new_name,
-                    registry,
+                    registry: &registry,
                 },
                 local_rejected,
                 &mut changes,
@@ -16727,7 +17467,7 @@ impl LanguageServer for Backend {
                 pos.character,
                 &analysis,
                 core_definition::CallResolution {
-                    registry: Some(registry),
+                    registry: Some(&registry),
                     program: Some(core_definition::ProgramExports {
                         uri: &uri_key,
                         oracle: exports.as_ref(),
@@ -16799,7 +17539,7 @@ impl LanguageServer for Backend {
                 pos.line,
                 pos.character,
                 &analysis_worker,
-                Some(registry),
+                Some(&registry),
                 hover_profile,
                 Some(core_definition::ProgramExports {
                     uri: &uri_key,
@@ -17264,6 +18004,43 @@ fn default_optimiser_profile() -> tcl_compiler::optimiser::profiles::Optimisatio
     )
 }
 
+/// Env var holding the **startup** pack reload's already-taken filesystem
+/// snapshot for this many milliseconds before it is published.
+///
+/// It exists solely so the e2e suite can force the interleaving that
+/// [`Backend::spec_pack_reload`] and [`Backend::spec_pack_reload_seq`] exist to
+/// survive: a pack file that appears *after* the startup reload has read the
+/// disk but *before* it publishes. Real sessions never set it, and unset (or
+/// unparseable, or `0`) is a no-op — the hold is read once, and a zero hold
+/// costs nothing but the comparison.
+///
+/// Only the startup reload honours it ([`ReloadTrigger::Startup`]); holding a
+/// watched-file or config reload would delay the very snapshot the test needs
+/// to land first, which is the opposite of the point.
+const STARTUP_RELOAD_HOLD_ENV: &str = "TCL_LSP_TEST_STARTUP_RELOAD_HOLD_MS";
+
+/// Logged (once, and only under [`STARTUP_RELOAD_HOLD_ENV`]) the moment the
+/// held startup reload has finished reading the disk.
+///
+/// The e2e test waits on this before writing its pack file: without a signal
+/// it would be guessing whether the snapshot it means to invalidate had been
+/// taken yet, and a guess that lands early produces a startup snapshot that
+/// already contains the pack — a race that proves nothing.
+const STARTUP_RELOAD_HELD_LOG: &str = "SpecTcl: startup reload holding its snapshot";
+
+/// How long the startup pack reload sits on its snapshot, from
+/// [`STARTUP_RELOAD_HOLD_ENV`]. Read once per process; zero unless a test
+/// asked for it.
+fn startup_reload_hold() -> std::time::Duration {
+    static HOLD: std::sync::OnceLock<std::time::Duration> = std::sync::OnceLock::new();
+    *HOLD.get_or_init(|| {
+        std::env::var(STARTUP_RELOAD_HOLD_ENV)
+            .ok()
+            .and_then(|raw| raw.trim().parse::<u64>().ok())
+            .map_or(std::time::Duration::ZERO, std::time::Duration::from_millis)
+    })
+}
+
 /// Map a `tclLsp.style.nonAscii` setting string to a [`NonAsciiMode`].
 /// An unknown / absent value resolves to [`NonAsciiMode::Default`] (the
 /// per-dialect auto behaviour).
@@ -17517,6 +18294,12 @@ fn formatter_config_from(
 /// glob can reach it; it is re-read on the next pull instead.
 const PROJECT_CONFIG_GLOB: &str = "**/.tcl-lsp.ini";
 
+/// `true` when `uri` names a `.tclspec` `SpecTcl` pack.
+fn is_spec_pack_file(uri: &Uri) -> bool {
+    uri.to_file_path()
+        .is_some_and(|path| tcl_spectcl::discovery::is_pack_file(&path))
+}
+
 fn is_config_file(uri: &Uri) -> bool {
     let s = uri.as_str();
     s.ends_with("/.tcl-lsp.ini")
@@ -17543,26 +18326,45 @@ fn is_sidecar_stubs_file(uri: &Uri) -> bool {
 /// Split watched events into config / sidecar flags and the final event for
 /// each Tcl source.  A batch may contain a path more than once, so the last
 /// event wins, matching the old serial handling.
-fn partition_watched_file_changes(
-    changes: Vec<FileEvent>,
-) -> (bool, bool, HashMap<Uri, FileChangeType>) {
-    let mut config_changed = false;
-    let mut sidecar_changed = false;
-    let mut last_kind = HashMap::new();
+fn partition_watched_file_changes(changes: Vec<FileEvent>) -> WatchedFileChanges {
+    let mut partition = WatchedFileChanges::default();
     for change in changes {
         if is_config_file(&change.uri) {
-            config_changed = true;
+            partition.config_changed = true;
         } else if is_sidecar_stubs_file(&change.uri) {
-            sidecar_changed = true;
+            partition.sidecar_changed = true;
+        } else if is_spec_pack_file(&change.uri) {
+            // A `.tclspec` is an analysis *input*, never an indexed document:
+            // it declares commands, it does not contain any. Routing it here
+            // rather than into `last_kind` is what keeps the workspace index
+            // from trying to analyse a spec pack as Tcl source.
+            partition.spec_pack_changed = true;
         } else if change
             .uri
             .to_file_path()
             .is_none_or(|path| is_tcl_source(&path))
         {
-            last_kind.insert(change.uri, change.typ);
+            partition.last_kind.insert(change.uri, change.typ);
         }
     }
-    (config_changed, sidecar_changed, last_kind)
+    partition
+}
+
+/// One `workspace/didChangeWatchedFiles` batch, split by what each path *is*.
+///
+/// Deduplicated to one event per URI (`last_kind`) so the disk-backed work runs
+/// once per file per batch — a 500-file branch switch used to run 500
+/// sequential full analyses (#1161).
+#[derive(Debug, Default)]
+struct WatchedFileChanges {
+    /// A layered-settings file moved.
+    config_changed: bool,
+    /// A `.tcl.stubs` sidecar moved.
+    sidecar_changed: bool,
+    /// A `.tclspec` `SpecTcl` pack moved.
+    spec_pack_changed: bool,
+    /// The Tcl source files, one entry per URI, with its last event kind.
+    last_kind: HashMap<Uri, FileChangeType>,
 }
 
 /// Read an INI config file at `path` (if present/readable) into the
@@ -17938,6 +18740,20 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
             paths
                 .iter()
                 .filter_map(serde_json::Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        );
+    }
+    // `tclLsp.specPacks` per-folder override. Trimmed and emptied-dropped
+    // exactly as the session-scope parse does, so the two paths cannot
+    // disagree about what an entry is.
+    if let Some(paths) = obj.get("specPacks").and_then(serde_json::Value::as_array) {
+        fc.spec_packs = Some(
+            paths
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .map(str::to_owned)
                 .collect(),
@@ -18839,7 +19655,7 @@ fn refine_w123_diagnostics(
 fn settle_call_against_workspace<'a>(
     index: &core_workspace_index::WorkspaceIndex,
     analysis: &AnalysisResult,
-    registry: &'static CommandRegistry,
+    registry: &CommandRegistry,
     uri: &str,
     inv: &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     exports: &dyn tcl_lsp_core::namespace_import::NamespaceExportOracle,
@@ -18915,7 +19731,7 @@ struct CrossFileCalls {
 fn settle_cross_file_calls(
     index: &core_workspace_index::WorkspaceIndex,
     analysis: &AnalysisResult,
-    registry: &'static CommandRegistry,
+    registry: &CommandRegistry,
     uri: &str,
 ) -> CrossFileCalls {
     let mut out = CrossFileCalls::default();
@@ -19438,6 +20254,37 @@ fn compute_source_inheritance(
         ambient,
         placed: tcl_lsp_core::source_graph::descendant_requires(uri_str, &edges, &requires),
         unresolvable_source,
+    }
+}
+
+/// The diagnostic code every `SpecTcl` pack-load notice carries.
+///
+/// One code for the family rather than one per notice kind: the notices are
+/// *degradations* the loader chose to report, not a diagnostic catalogue with
+/// per-code documentation and quick fixes behind it. A user who does not want
+/// them silences the family.
+const SPEC_PACK_DIAGNOSTIC_CODE: &str = "SPECTCL";
+
+/// A range covering line `line` (1-based) of `path`, for a pack-load notice.
+///
+/// Reads the file to find the line's true length so the squiggle covers the
+/// statement rather than a single character. A file that has changed or gone
+/// since the notice was raised degrades to the start of the line — the notice
+/// is still worth showing, and an approximate range beats dropping it.
+fn whole_line_range(path: &Path, line: u32) -> tower_lsp_server::ls_types::Range {
+    use tower_lsp_server::ls_types::{Position, Range};
+    let zero_based = line.saturating_sub(1);
+    let end = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| {
+            text.lines()
+                .nth(zero_based as usize)
+                .map(|l| u32::try_from(l.chars().count()).unwrap_or(u32::MAX))
+        })
+        .unwrap_or(0);
+    Range {
+        start: Position::new(zero_based, 0),
+        end: Position::new(zero_based, end),
     }
 }
 
@@ -23093,13 +23940,14 @@ mod tests {
     #[test]
     fn configured_analyser_threads_mode_and_disabled() {
         // `Off` mode suppresses W108 entirely.
-        let mut a = Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off, HashSet::new());
+        let mut a =
+            Backend::configured_analyser(HashSet::new(), NonAsciiMode::Off, HashSet::new(), 0);
         let r = a.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
         // A disabled code is filtered from the analyser's output.
         let mut disabled = HashSet::new();
         disabled.insert("W108".to_string());
-        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict, HashSet::new());
+        let mut b = Backend::configured_analyser(disabled, NonAsciiMode::Strict, HashSet::new(), 0);
         let r = b.analyse("set x \u{201c}hi\u{201d}\n", "tcl8.6");
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W108));
     }
@@ -25197,6 +26045,7 @@ mod tests {
             Vec::new(),
             None,
             None,
+            0,
         );
         Backend {
             client: service.inner().client.clone(),
@@ -25226,6 +26075,12 @@ mod tests {
             editor_library_paths: Mutex::new(Vec::new()),
             package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
+            spec_pack_paths: Mutex::new(Vec::new()),
+            spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
+            spec_pack_reload: Arc::new(Mutex::new(())),
+            spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
+            spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
+            external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
@@ -29164,6 +30019,33 @@ mod tests {
         ));
     }
 
+    /// `SpecTcl` packs are watched by the *source* glob rather than by a
+    /// watcher of their own, so this is the assertion that keeps them watched
+    /// at all: drop `tclspec` from `TCL_SOURCE_EXTENSIONS` and pack reload
+    /// silently stops working, with nothing else failing.
+    #[test]
+    fn the_source_watch_glob_covers_spec_packs() {
+        let glob = tcl_source_watch_glob();
+        assert!(
+            glob.contains("[tT][cC][lL][sS][pP][eE][cC]"),
+            "the source watcher must cover `.tclspec`, or a pack edit reaches \
+             nothing: {glob}"
+        );
+        // And the classifier routes such an event to the pack reload rather
+        // than to the workspace index.
+        let uri: Uri = "file:///w/lib/mylib.TCLSPEC".parse().unwrap();
+        assert!(is_spec_pack_file(&uri));
+        let partition = partition_watched_file_changes(vec![FileEvent {
+            uri,
+            typ: FileChangeType::CHANGED,
+        }]);
+        assert!(partition.spec_pack_changed);
+        assert!(
+            partition.last_kind.is_empty(),
+            "a pack is an analysis input, not an indexed document"
+        );
+    }
+
     #[test]
     fn is_skipped_scan_dir_skips_vendor_and_hidden() {
         assert!(is_skipped_scan_dir(Path::new("/a/.git")));
@@ -29298,6 +30180,58 @@ mod tests {
         );
     }
 
+    /// Opening a `.tclspec` activates the `SpecTcl` pack.
+    ///
+    /// Every editor integration registers `.tclspec` under the plain `tcl`
+    /// language id (the extension is the registration `spec-packs.md` asks
+    /// for), so the routing that has to work is the bare-`tcl` path: the
+    /// shared detector reads the extension — and, for a pack saved under
+    /// another name, the `speclib` content signature — and answers `spectcl`.
+    /// The canonical name and the editor spellings are accepted directly too,
+    /// for MCP / direct callers and any integration that contributes its own
+    /// language id.
+    #[tokio::test]
+    async fn dialect_for_open_routes_tclspec_to_the_spectcl_dialect() {
+        let backend = test_backend();
+        // A folder override is in place precisely to prove the file's own
+        // identity beats it: a `.tclspec` under an iRules folder is still a
+        // spec pack.
+        *backend.folder_dialects.lock().await = vec![(
+            Uri::from_str("file:///workspace/").unwrap(),
+            "f5-irules".to_owned(),
+        )];
+        let pack = Uri::from_str("file:///workspace/mylib.tclspec").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&pack, "tcl", "command foo { arity 1 }\n")
+                .await,
+            "spectcl".to_owned(),
+            "the `.tclspec` extension selects the SpecTcl dialect",
+        );
+        // The `speclib` directive is a content signature, so a pack saved
+        // under a `.tcl` name routes too.
+        let misnamed = Uri::from_str("file:///workspace/mylib.tcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&misnamed, "tcl", "speclib mylib 1.0 {\n}\n")
+                .await,
+            "spectcl".to_owned(),
+        );
+        // An explicit language id — canonical or editor spelling — routes
+        // directly, without consulting the document at all.
+        for id in ["spectcl", "tclspec", "tcl-spec"] {
+            assert_eq!(
+                backend.dialect_for_open(&pack, id, "").await,
+                "spectcl".to_owned(),
+                "language id {id:?} names the SpecTcl dialect",
+            );
+        }
+        // …and the registry that dialect resolves to really carries the pack.
+        let reg = tcl_registry::registry_for_dialect("spectcl");
+        assert!(reg.get("speclib").is_some(), "the SpecTcl pack is loaded");
+        assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
+    }
+
     /// A `dialect =` key in `config.ini` / `.tcl-lsp.ini` sets the session
     /// `default_dialect`; a normally-opened `.tcl` buffer (language id `"tcl"`,
     /// which every editor sends) must resolve to it rather than pinning
@@ -29397,7 +30331,7 @@ mod tests {
         let second = backend.registry_for_dialect("f5-irules").await;
 
         assert!(
-            std::ptr::eq(first, second),
+            Arc::ptr_eq(&first, &second),
             "repeated dialect lookups should return the cached registry",
         );
         assert!(
@@ -32825,7 +33759,7 @@ mod tests {
             .expect("worker did not panic")
             .expect("not cancelled");
         let registry = backend.registry_for_dialect("tcl9.0").await;
-        let coarse = core_semantic_tokens::full(src, "tcl9.0", registry);
+        let coarse = core_semantic_tokens::full(src, "tcl9.0", &registry);
 
         assert!(!served.data.is_empty(), "must never serve an empty stream");
         assert!(

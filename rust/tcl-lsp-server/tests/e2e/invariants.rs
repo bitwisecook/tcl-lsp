@@ -21,6 +21,8 @@
 //! document: well-formed ranges, disjoint `WorkspaceEdit`s, and that hostile
 //! inputs never wedge/crash the server or emit a malformed span.
 
+use std::time::Duration;
+
 use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 
@@ -126,7 +128,21 @@ fn provider_ranges_well_formed_for(idx: usize) {
     let entries = corpus();
     let (name, source) = &entries[idx];
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, source);
+    // `large` is 400 procs — the one corpus entry that is not the "tens of
+    // lines" document `open_ready`'s 30 s backstop is sized for. A full
+    // debug-build analysis of it, on a machine already running the rest of
+    // the suite beside it, is legitimately tens of seconds; the harness
+    // documents this case and asks such call sites to supply their own
+    // backstop rather than the whole suite inheriting a worst-case number
+    // (`common/mod.rs`, `open_ready_timeout`). Load scaling still applies on
+    // top, but it keys off capacity, not off a sibling CI job saturating the
+    // machine — which is what turned this into a red build rather than a slow
+    // one. Sized by the document so a future large entry is covered too.
+    if source.lines().count() > 100 {
+        lsp.open_ready_timeout(&uri, source, Duration::from_mins(3));
+    } else {
+        lsp.open_ready(&uri, source);
+    }
     let results = exercise_all_providers(&mut lsp, &uri);
     let mut violations: Vec<String> = Vec::new();
     for (req, res) in &results {

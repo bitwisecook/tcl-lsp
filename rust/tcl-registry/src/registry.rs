@@ -219,7 +219,7 @@ const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT
 /// queried read-only. All command-specific knowledge lives in the
 /// specs — consumers never match on command name strings.
 pub struct CommandRegistry {
-    by_name: FxHashMap<String, Vec<CommandSpec>>,
+    by_name: FxHashMap<&'static str, Vec<&'static CommandSpec>>,
     loaded_dialects: DialectSet,
     /// The dialect profile this registry was built for, when it came from
     /// `registry_for_profile` / `registry_for_dialect`. `None` for
@@ -261,12 +261,19 @@ fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
         add(crate::commands::irules::irules_command_specs());
         add(crate::commands::iapps::iapps_command_specs());
         add(crate::commands::expect::expect_command_specs());
-        add(crate::commands::sdc_base::sdc_base_command_specs());
-        add(crate::commands::eda_synopsys::eda_synopsys_command_specs());
-        add(crate::commands::eda_cadence::eda_cadence_command_specs());
-        add(crate::commands::eda_xilinx::eda_xilinx_command_specs());
-        add(crate::commands::eda_quartus::eda_quartus_command_specs());
-        add(crate::commands::eda_mentor::eda_mentor_command_specs());
+        // The EDA vendor libraries are deliberately NOT added: they ship as
+        // bundled `.tclspec` loadables (`docs/design/spec-packs.md`), so this
+        // crate does not know their names at compile time and W002 reports an
+        // EDA command outside an EDA profile as an ordinary unknown command
+        // rather than as "exists, but not here". The pack is what knows.
+        // SpecTcl is deliberately NOT added. This set answers "is this name a
+        // command in *some* dialect", and W002 turns a `true` into "exists,
+        // but not here". SpecTcl's statement words are ordinary English nouns
+        // (`arity`, `traits`, `value`, `detail`) that mean nothing outside a
+        // pack body, so claiming them here would rewrite an honest
+        // unknown-command report on a user's `proc arity` call into a
+        // misleading dialect-availability one — the exact opposite of the
+        // context-sensitivity the SpecTcl grammars exist to provide.
         set
     })
 }
@@ -353,6 +360,56 @@ fn push_command_prefix_options(
     }
 }
 
+/// The shipped specs of one command group, built once and leaked.
+///
+/// Every group below is a `fn() -> Vec<CommandSpec>` over `const` data, so it
+/// returns byte-identical specs however often it is called — and it was called
+/// often: once per `build_default`, which the cache's own docs note runs per
+/// CFG build on some paths, and once more per dialect layer per registry
+/// generation. Building each group once and handing out `&'static` slices
+/// makes a registry an index over shared data instead of an owner of a private
+/// copy of it.
+fn shared_specs(
+    cell: &'static OnceLock<&'static [CommandSpec]>,
+    build: fn() -> Vec<CommandSpec>,
+) -> &'static [CommandSpec] {
+    cell.get_or_init(|| &*Vec::leak(build()))
+}
+
+/// Declare a `fn() -> &'static [CommandSpec]` wrapping one group's builder in
+/// its own `OnceLock`.
+macro_rules! shared_group {
+    ($name:ident, $build:expr) => {
+        fn $name() -> &'static [CommandSpec] {
+            static CELL: OnceLock<&'static [CommandSpec]> = OnceLock::new();
+            shared_specs(&CELL, $build)
+        }
+    };
+}
+
+shared_group!(tcl_specs, crate::commands::tcl::tcl_command_specs);
+shared_group!(stdlib_specs, crate::commands::stdlib::stdlib_command_specs);
+shared_group!(tcllib_specs, crate::commands::tcllib::tcllib_command_specs);
+shared_group!(
+    argparse_specs,
+    crate::commands::argparse::argparse_command_specs
+);
+shared_group!(
+    ticklecharts_specs,
+    crate::commands::ticklecharts::ticklecharts_command_specs
+);
+shared_group!(itcl_specs, crate::commands::itcl::itcl_command_specs);
+shared_group!(tk_specs, crate::commands::tk::tk_command_specs);
+shared_group!(bpf_specs, crate::commands::bpf::bpf_command_specs);
+shared_group!(irules_specs, crate::commands::irules::irules_command_specs);
+shared_group!(iapps_specs, crate::commands::iapps::iapps_command_specs);
+shared_group!(tmsh_specs, crate::commands::iapps::tmsh_command_specs);
+shared_group!(expect_specs, crate::commands::expect::expect_command_specs);
+shared_group!(
+    spectcl_specs,
+    crate::commands::spectcl::spectcl_command_specs
+);
+
 impl CommandRegistry {
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
     #[must_use]
@@ -362,23 +419,23 @@ impl CommandRegistry {
             loaded_dialects: DialectSet::empty(),
             profile: None,
         };
-        for spec in crate::commands::tcl::tcl_command_specs() {
-            registry.insert(spec);
+        for spec in tcl_specs() {
+            registry.insert_static(spec);
         }
-        for spec in crate::commands::stdlib::stdlib_command_specs() {
-            registry.insert(spec);
+        for spec in stdlib_specs() {
+            registry.insert_static(spec);
         }
-        for spec in crate::commands::tcllib::tcllib_command_specs() {
-            registry.insert(spec);
+        for spec in tcllib_specs() {
+            registry.insert_static(spec);
         }
-        for spec in crate::commands::argparse::argparse_command_specs() {
-            registry.insert(spec);
+        for spec in argparse_specs() {
+            registry.insert_static(spec);
         }
-        for spec in crate::commands::ticklecharts::ticklecharts_command_specs() {
-            registry.insert(spec);
+        for spec in ticklecharts_specs() {
+            registry.insert_static(spec);
         }
-        for spec in crate::commands::itcl::itcl_command_specs() {
-            registry.insert(spec);
+        for spec in itcl_specs() {
+            registry.insert_static(spec);
         }
         // Tk geometry/widget commands (`grid` / `pack` / `wm` / `button` / …)
         // are part of the always-known command universe: a `.tcl` script may
@@ -386,8 +443,8 @@ impl CommandRegistry {
         // recognised under every Tcl dialect, so Tk is folded into the base
         // registry.  Mark the dialect loaded so a later `load_dialect(TK)` is
         // a no-op rather than a double-insert.
-        for spec in crate::commands::tk::tk_command_specs() {
-            registry.insert(spec);
+        for spec in tk_specs() {
+            registry.insert_static(spec);
         }
         registry.loaded_dialects |= DialectSet::TK;
         registry
@@ -398,51 +455,32 @@ impl CommandRegistry {
         if self.loaded_dialects.contains(dialect) {
             return;
         }
-        let specs: Vec<CommandSpec> = match dialect {
-            d if d == DialectSet::BPF => crate::commands::bpf::bpf_command_specs(),
-            d if d == DialectSet::IRULES => crate::commands::irules::irules_command_specs(),
-            d if d == DialectSet::IAPPS => crate::commands::iapps::iapps_command_specs(),
+        let specs: &'static [CommandSpec] = match dialect {
+            d if d == DialectSet::BPF => bpf_specs(),
+            d if d == DialectSet::IRULES => irules_specs(),
+            d if d == DialectSet::IAPPS => iapps_specs(),
             // The tmsh shell's own pack: the `tmsh::` surface shared with
             // iApps (tagged `IAPPS|TMSH`), without the iApp-only commands
             // (D8).
-            d if d == DialectSet::TMSH => crate::commands::iapps::tmsh_command_specs(),
-            d if d == DialectSet::TK => crate::commands::tk::tk_command_specs(),
-            d if d == DialectSet::EXPECT => crate::commands::expect::expect_command_specs(),
-            // The EDA shells load by profile identity via `load_eda_packs`
-            // (below), not a DialectSet bit — they are modelled as base-Tcl-
-            // version dialects plus `required_package`-gated command libraries
-            // (design doc `eda-library-packages.md`).
-            _ => Vec::new(),
+            d if d == DialectSet::TMSH => tmsh_specs(),
+            d if d == DialectSet::TK => tk_specs(),
+            d if d == DialectSet::EXPECT => expect_specs(),
+            // SpecTcl: the `.tclspec` DSL's own statement words. A pack file
+            // is an ordinary Tcl script, so the base Tcl surface stays loaded
+            // underneath (hook bodies are real Tcl); this layer adds the
+            // declaration vocabulary on top of it.
+            d if d == DialectSet::SPECTCL => spectcl_specs(),
+            // The EDA shells have no DialectSet bit and no compiled-in pack —
+            // they are base-Tcl-version dialects plus `required_package`-gated
+            // command libraries (design doc `eda-library-packages.md`), and
+            // those libraries ship as bundled `.tclspec` loadables that
+            // `tcl_spectcl::bundled` installs (`docs/design/spec-packs.md`).
+            _ => &[],
         };
         for spec in specs {
-            self.insert(spec);
+            self.insert_static(spec);
         }
         self.loaded_dialects |= dialect;
-    }
-
-    /// Load an EDA shell profile's command packs by profile name — the shared
-    /// `sdc_base` constraint/collection library plus the vendor's tool packs.
-    ///
-    /// EDA shells are modelled as a base Tcl version (loaded via
-    /// [`Self::load_dialect`] with the version bit) plus `required_package`-
-    /// gated libraries, rather than a vendor `DialectSet` bit (design doc
-    /// `eda-library-packages.md`), so their packs load by profile identity.
-    /// A no-op for any non-EDA profile name.
-    pub fn load_eda_packs(&mut self, profile_name: &str) {
-        let vendor = match profile_name {
-            "xilinx-eda-tcl" => crate::commands::eda_xilinx::eda_xilinx_command_specs(),
-            "synopsys-eda-tcl" => crate::commands::eda_synopsys::eda_synopsys_command_specs(),
-            "cadence-eda-tcl" => crate::commands::eda_cadence::eda_cadence_command_specs(),
-            "intel-quartus-eda-tcl" => crate::commands::eda_quartus::eda_quartus_command_specs(),
-            "mentor-eda-tcl" => crate::commands::eda_mentor::eda_mentor_command_specs(),
-            _ => return,
-        };
-        for spec in crate::commands::sdc_base::sdc_base_command_specs() {
-            self.insert(spec);
-        }
-        for spec in vendor {
-            self.insert(spec);
-        }
     }
 
     /// Load iRules dialect commands (convenience wrapper).
@@ -507,12 +545,31 @@ impl CommandRegistry {
         self.profile
     }
 
-    /// Insert a command spec into the registry.
+    /// Insert an owned command spec, **leaking it** for the process lifetime.
+    ///
+    /// The registry indexes `&'static CommandSpec`, so an owned spec has to be
+    /// given somewhere permanent to live. That is the right trade for the two
+    /// callers that need it — a test building a registry by hand, and a
+    /// `.tclspec` pack whose specs are already leaked by the loader — and the
+    /// wrong one for the hundreds of shipped specs, which is why
+    /// [`Self::insert_static`] exists and every built-in path uses it.
+    ///
+    /// A caller in a loop over user input wants `insert_static` and an arena
+    /// it controls, not this.
     pub fn insert(&mut self, spec: CommandSpec) {
-        self.by_name
-            .entry(spec.name.to_owned())
-            .or_default()
-            .push(spec);
+        self.insert_static(Box::leak(Box::new(spec)));
+    }
+
+    /// Insert a spec the caller already owns permanently — no copy, no leak.
+    ///
+    /// This is what makes a per-pack-edit registry affordable. A registry is
+    /// rebuilt from scratch for every distinct pack-set content the server
+    /// sees, and a `CommandSpec` is 1,296 bytes: copying the ~2,400 shipped
+    /// specs into each generation cost megabytes a keystroke. Sharing one
+    /// leaked copy of every shipped spec reduces a generation to its index —
+    /// the names, and one pointer each.
+    pub fn insert_static(&mut self, spec: &'static CommandSpec) {
+        self.by_name.entry(spec.name).or_default().push(spec);
     }
 
     /// Whether `name` exists as a command in *any* dialect, independent of
@@ -545,7 +602,7 @@ impl CommandRegistry {
                 name.strip_prefix("::")
                     .and_then(|bare| self.by_name.get(bare))
             })
-            .and_then(|v| v.last())
+            .and_then(|v| v.last().copied())
     }
 
     /// Whether a **fresh interpreter** of this registry's dialect already holds
@@ -964,11 +1021,11 @@ impl CommandRegistry {
     /// the data they shadow. `get_for_dialect`, the iRules event
     /// cross-product, and (via `ProfileQueries::resolve_command`) the CLI
     /// snapshot all resolve through this one rule.
-    fn best_visible<'a>(
+    fn best_visible(
         &self,
-        specs: &'a [CommandSpec],
+        specs: &[&'static CommandSpec],
         dialect: DialectSet,
-    ) -> Option<&'a CommandSpec> {
+    ) -> Option<&'static CommandSpec> {
         specs
             .iter()
             .enumerate()
@@ -978,7 +1035,7 @@ impl CommandRegistry {
                     std::cmp::Reverse(s.dialects.map_or(u32::MAX, |d| d.bits().count_ones()));
                 (s.dialects.is_some(), scope_tightness, index)
             })
-            .map(|(_, s)| s)
+            .map(|(_, s)| *s)
     }
 
     /// The full availability test for a mask query on this registry: the
@@ -1021,7 +1078,7 @@ impl CommandRegistry {
 
     /// Return all registered command names.
     pub fn command_names(&self) -> impl Iterator<Item = &str> {
-        self.by_name.keys().map(String::as_str)
+        self.by_name.keys().copied()
     }
 
     /// Return command names whose command-level descriptor selects `operation`.
@@ -1044,7 +1101,7 @@ impl CommandRegistry {
                         spec.inline_codegen_hook,
                     ) == Some(operation)
                 })
-                .then_some(name.as_str())
+                .then_some(*name)
         })
     }
 
@@ -1184,7 +1241,7 @@ impl CommandRegistry {
     /// dialect) goes through [`Self::get_for_dialect`]'s most-specific
     /// rule.
     #[must_use]
-    pub fn specs(&self, name: &str) -> &[CommandSpec] {
+    pub fn specs(&self, name: &str) -> &[&'static CommandSpec] {
         self.by_name.get(name).map_or(&[], Vec::as_slice)
     }
 
@@ -1268,7 +1325,7 @@ impl CommandRegistry {
                 {
                     return None;
                 }
-                Some(name.as_str())
+                Some(*name)
             })
             .collect();
         names.sort_unstable();
@@ -1446,7 +1503,7 @@ impl CommandRegistry {
                 specs
                     .iter()
                     .any(|s| s.defines_symbol.is_some())
-                    .then_some(name.as_str())
+                    .then_some(*name)
             })
             .collect()
     }
@@ -1457,10 +1514,7 @@ impl CommandRegistry {
         self.by_name
             .iter()
             .filter_map(|(name, specs)| {
-                specs
-                    .last()
-                    .filter(|s| s.traits.contains(t))
-                    .map(|_| name.as_str())
+                specs.last().filter(|s| s.traits.contains(t)).map(|_| *name)
             })
             .collect()
     }
@@ -1952,7 +2006,7 @@ impl CommandRegistry {
     /// BIG-IP provides each datagram without a `UDP::collect` command.
     #[must_use]
     pub fn data_collection_collect_command(&self, protocol: &str) -> Option<&CommandSpec> {
-        self.by_name.values().flatten().find(|spec| {
+        self.by_name.values().flatten().copied().find(|spec| {
             spec.data_collection.is_some_and(|operation| {
                 operation.action == DataCollectionAction::Collect
                     && operation.protocol.name.eq_ignore_ascii_case(protocol)
@@ -2019,7 +2073,7 @@ impl CommandRegistry {
                 specs
                     .iter()
                     .any(|s| s.traits.intersects(FRAME_SENSITIVE_TRAITS))
-                    .then_some(name.as_str())
+                    .then_some(*name)
             })
             .collect()
     }
@@ -5365,13 +5419,6 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.load_dialect(DialectSet::EXPECT);
         assert!(reg.get("expect").is_some() || reg.get("spawn").is_some());
-    }
-
-    #[test]
-    fn load_eda_synopsys() {
-        let mut reg = CommandRegistry::build_default();
-        reg.load_eda_packs("synopsys-eda-tcl");
-        assert!(reg.len() > 100);
     }
 
     #[test]

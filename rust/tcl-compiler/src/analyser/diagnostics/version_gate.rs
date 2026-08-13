@@ -398,7 +398,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.clone() else {
             return;
         };
         let Some(spec) = registry.get(cmd_name) else {
@@ -708,7 +708,7 @@ impl Analyser {
         arg_tokens: &[Token],
     ) {
         use tcl_registry::patterns::FormatType;
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();

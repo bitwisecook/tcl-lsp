@@ -6,6 +6,19 @@ base Tcl version, not a dialect of its own. There is no `XILINX`, `SYNOPSYS`,
 `vendor_bit: None` and a plain Tcl-version `availability_mask`, and its
 command surface is gated by `required_package` instead.
 
+> **Where the packs live now.** The model below is unchanged — an EDA shell is
+> a base Tcl version plus `sdc_base` and its vendor's library, gated by
+> `required_package` — but the libraries are no longer Rust. `sdc_base` and the
+> five vendor packs (346 commands) are **bundled `.tclspec` loadables** under
+> `specs/`, shipped beside the server executable and read by the `SpecTcl`
+> loader (`docs/design/spec-packs.md`: "the EDA vendor libraries ship as
+> bundled `.tclspec` loadables … so the loader path is exercised in production
+> from day one"). `CommandRegistry::load_eda_packs` and
+> `commands/{sdc_base,eda_*}/` are gone; `tcl_spectcl::bundled` is what puts a
+> vendor library into a profile registry, and it applies the same ambient-
+> package filter this document specifies, so a profile still sees `sdc` plus
+> its own vendor and no rival's.
+
 ## Why packages rather than a vendor bit
 
 A vendor identity is fully expressed by two things a profile already carries:

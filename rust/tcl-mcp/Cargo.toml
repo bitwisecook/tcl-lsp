@@ -38,6 +38,8 @@ tcl-diagram = { path = "../tcl-diagram" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-spectcl = { path = "../tcl-spectcl" }
+tcl-spec-studio = { path = "../tcl-spec-studio" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-bigip = { path = "../tcl-bigip" }

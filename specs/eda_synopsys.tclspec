@@ -1,0 +1,921 @@
+# tcl-lsp — bundled SpecTcl loadable: the Synopsys tool commands (Design Compiler, IC Compiler, PrimeTime).
+#
+# This pack IS the source of truth for these commands. The Rust modules that
+# used to hold them (rust/tcl-registry/src/commands/eda_synopsys/) were deleted when
+# the EDA vendor libraries migrated to bundled `.tclspec` loadables, per
+# docs/design/spec-packs.md ("the EDA vendor libraries ship as bundled
+# `.tclspec` loadables … so the loader path is exercised in production from day
+# one rather than reserved for private packs"). Every command was proved
+# field-for-field equal to its compiled spec by the SpecTcl round-trip gate
+# before the modules were removed.
+#
+# Discovery: the **bundled** tier — `specs/` beside the server executable, or
+# wherever $TCL_LSP_SPEC_PACK_DIR points (rust/tcl-spectcl/src/discovery.rs).
+# Edit this file to change the specs; there is no generator to re-run.
+# Syntax: docs/design/spec-dsl-examples/README.md. The initial text was written
+# by the spec studio's SpecTcl renderer (rust/tcl-spec-studio/src/render_spectcl.rs)
+# from the registry modules, which reported no unwritable field on any command
+# here; this file is hand-maintained from now on.
+
+speclib eda_synopsys 1.0 {
+
+command analyze {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {analyze -format format ?-library lib? ?-define define_list? ?-work work? file_list}
+
+    hover {
+        summary {Analyze HDL source files for syntax and semantic errors.}
+        synopsis {analyze -format format ?-library lib? ?-define define_list? ?-work work? file_list}
+        source {F5}
+    }
+}
+
+command characterize {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {characterize ?-constraints? instance_list}
+
+    hover {
+        summary {Characterize a subdesign for context-dependent optimization.}
+        synopsis {characterize ?-constraints? instance_list}
+        source {F5}
+    }
+}
+
+command check_design {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {check_design ?-summary? ?-no_warnings?}
+
+    hover {
+        summary {Check the design for consistency problems.}
+        synopsis {check_design ?-summary? ?-no_warnings?}
+        source {F5}
+    }
+}
+
+command check_library {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {check_library ?library_list?}
+
+    hover {
+        summary {Check libraries for consistency issues.}
+        synopsis {check_library ?library_list?}
+        source {F5}
+    }
+}
+
+command clock_opt {
+    dialects tcl8.6
+    required_package synopsys-icc2
+
+    form Default {clock_opt ?-effort high|medium|low?}
+
+    hover {
+        summary {Perform clock tree synthesis and optimization.}
+        synopsis {clock_opt ?-effort high|medium|low?}
+        source {F5}
+    }
+}
+
+command compile {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {compile ?-map_effort effort? ?-area_effort effort? ?-incremental_mapping? ?-exact_map? ?-no_design_rule? ?-scan?}
+
+    hover {
+        summary {Compile (synthesize) the current design.}
+        synopsis {compile ?-map_effort effort? ?-area_effort effort? ?-incremental_mapping? ?-exact_map? ?-no_design_r}
+        source {F5}
+    }
+}
+
+command compile_ultra {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {compile_ultra ?-incremental? ?-retime? ?-scan? ?-no_autoungroup? ?-no_boundary_optimization? ?-gate_clock? ?-timing_high_effort_script?}
+
+    hover {
+        summary {Compile with advanced optimizations.}
+        synopsis {compile_ultra ?-incremental? ?-retime? ?-scan? ?-no_autoungroup? ?-no_boundary_optimization? ?-gate_}
+        source {F5}
+    }
+}
+
+command connect_net {
+    dialects tcl8.6
+    arity 2..
+    required_package synopsys-dc
+
+    form Default {connect_net net_name port_pin_list}
+
+    hover {
+        summary {Connect a net to pins/ports.}
+        synopsis {connect_net net_name port_pin_list}
+        source {F5}
+    }
+}
+
+command create_cell {
+    dialects tcl8.6
+    arity 2
+    required_package synopsys-dc
+
+    form Default {create_cell cell_name lib_cell}
+
+    hover {
+        summary {Create a new cell instance.}
+        synopsis {create_cell cell_name lib_cell}
+        source {F5}
+    }
+}
+
+command create_floorplan {
+    dialects tcl8.6
+    required_package synopsys-icc2
+
+    form Default {create_floorplan ?-core_utilization util? ?-core_aspect_ratio ratio? ?-left_io2core dist? ?-bottom_io2core dist? ?-right_io2core dist? ?-top_io2core dist?}
+
+    hover {
+        summary {Create an initial floorplan.}
+        synopsis {create_floorplan ?-core_utilization util? ?-core_aspect_ratio ratio? ?-left_io2core dist? ?-bottom_i}
+        source {F5}
+    }
+}
+
+command create_net {
+    dialects tcl8.6
+    arity 1
+    required_package synopsys-dc
+
+    form Default {create_net net_name}
+
+    hover {
+        summary {Create a new net.}
+        synopsis {create_net net_name}
+        source {F5}
+    }
+}
+
+command create_port {
+    dialects tcl8.6
+    arity 1..
+    required_package synopsys-dc
+
+    form Default {create_port port_name ?-direction direction?}
+
+    hover {
+        summary {Create a new port in the design.}
+        synopsis {create_port port_name ?-direction direction?}
+        source {F5}
+    }
+}
+
+command current_instance {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {current_instance ?instance_name?}
+
+    hover {
+        summary {Navigate into a hierarchical instance.}
+        synopsis {current_instance ?instance_name?}
+        source {F5}
+    }
+}
+
+command disconnect_net {
+    dialects tcl8.6
+    arity 2..
+    required_package synopsys-dc
+
+    form Default {disconnect_net net_name port_pin_list}
+
+    hover {
+        summary {Disconnect a net from pins/ports.}
+        synopsis {disconnect_net net_name port_pin_list}
+        source {F5}
+    }
+}
+
+command elaborate {
+    dialects tcl8.6
+    arity 1..
+    required_package synopsys-dc
+
+    form Default {elaborate design_name ?-library lib? ?-architecture arch? ?-parameters params? ?-update?}
+
+    hover {
+        summary {Elaborate a design from analyzed HDL.}
+        synopsis {elaborate design_name ?-library lib? ?-architecture arch? ?-parameters params? ?-update?}
+        source {F5}
+    }
+}
+
+command get_timing_paths {
+    dialects tcl8.6
+    required_package synopsys-pt
+
+    form Default {get_timing_paths ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type type? ?-max_paths n? ?-nworst n? ?-slack_lesser_than value?}
+
+    hover {
+        summary {Get timing paths as a collection.}
+        synopsis {get_timing_paths ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type type? ?-max_pa}
+        source {F5}
+    }
+}
+
+command group {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {group ?-design_name name? ?-cell_name name? cell_list}
+
+    hover {
+        summary {Group logic into a hierarchical block.}
+        synopsis {group ?-design_name name? ?-cell_name name? cell_list}
+        source {F5}
+    }
+}
+
+command initialize_floorplan {
+    dialects tcl8.6
+    required_package synopsys-icc2
+
+    form Default {initialize_floorplan ?-core_utilization util? ?-core_offset offset?}
+
+    hover {
+        summary {Initialize the floorplan from constraints.}
+        synopsis {initialize_floorplan ?-core_utilization util? ?-core_offset offset?}
+        source {F5}
+    }
+}
+
+command insert_clock_gating {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {insert_clock_gating ?-global?}
+
+    hover {
+        summary {Insert clock gating logic.}
+        synopsis {insert_clock_gating ?-global?}
+        source {F5}
+    }
+}
+
+command insert_dft {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {insert_dft}
+
+    hover {
+        summary {Insert DFT structures (scan chains).}
+        synopsis {insert_dft}
+        source {F5}
+    }
+}
+
+command link {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {link ?-force?}
+
+    hover {
+        summary {Link the current design to library cells.}
+        synopsis {link ?-force?}
+        source {F5}
+    }
+}
+
+command match {
+    dialects tcl8.6
+    required_package synopsys-fm
+
+    form Default {match}
+
+    hover {
+        summary {Match compare points between reference and implementation.}
+        synopsis {match}
+        source {F5}
+    }
+}
+
+command optimize_netlist {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {optimize_netlist -area}
+
+    hover {
+        summary {Perform incremental netlist optimization.}
+        synopsis {optimize_netlist -area}
+        source {F5}
+    }
+}
+
+command place_opt {
+    dialects tcl8.6
+    required_package synopsys-icc2
+
+    form Default {place_opt ?-effort high|medium|low?}
+
+    hover {
+        summary {Perform placement optimization.}
+        synopsis {place_opt ?-effort high|medium|low?}
+        source {F5}
+    }
+}
+
+command printvar {
+    dialects tcl8.6
+    required_package synopsys
+
+    form Default {printvar ?variable_name?}
+
+    hover {
+        summary {Print the value of an application variable.}
+        synopsis {printvar ?variable_name?}
+        source {F5}
+    }
+}
+
+command read_db {
+    dialects tcl8.6
+    arity 1
+    required_package synopsys-dc
+
+    form Default {read_db file_name}
+
+    hover {
+        summary {Read a .db technology library.}
+        synopsis {read_db file_name}
+        source {F5}
+    }
+}
+
+command read_ddc {
+    dialects tcl8.6
+    arity 1
+    required_package synopsys-dc
+
+    form Default {read_ddc file_name}
+
+    hover {
+        summary {Read a Synopsys DDC database.}
+        synopsis {read_ddc file_name}
+        source {F5}
+    }
+}
+
+command read_def {
+    dialects tcl8.6
+    arity 1..
+    required_package synopsys-icc2
+
+    form Default {read_def ?-add_def_only_objects all? file_name}
+
+    hover {
+        summary {Read a DEF file.}
+        synopsis {read_def ?-add_def_only_objects all? file_name}
+        source {F5}
+    }
+}
+
+command read_file {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {read_file ?-format format? file_list}
+
+    hover {
+        summary {Read a design file into memory.}
+        synopsis {read_file ?-format format? file_list}
+        source {F5}
+    }
+}
+
+command read_lef {
+    dialects tcl8.6
+    arity 1
+    required_package synopsys-icc2
+
+    form Default {read_lef file_name}
+
+    hover {
+        summary {Read a LEF technology file.}
+        synopsis {read_lef file_name}
+        source {F5}
+    }
+}
+
+command read_sdc {
+    dialects tcl8.6
+    arity 1..
+    required_package synopsys
+
+    form Default {read_sdc ?-echo? file_name}
+
+    hover {
+        summary {Read SDC constraint file.}
+        synopsis {read_sdc ?-echo? file_name}
+        source {F5}
+    }
+}
+
+command read_verilog {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {read_verilog ?-define define_list? file_list}
+
+    hover {
+        summary {Read Verilog source files.}
+        synopsis {read_verilog ?-define define_list? file_list}
+        source {F5}
+    }
+}
+
+command read_vhdl {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {read_vhdl ?-library lib? file_list}
+
+    hover {
+        summary {Read VHDL source files.}
+        synopsis {read_vhdl ?-library lib? file_list}
+        source {F5}
+    }
+}
+
+command remove_cell {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {remove_cell cell_list}
+
+    hover {
+        summary {Remove a cell from the design.}
+        synopsis {remove_cell cell_list}
+        source {F5}
+    }
+}
+
+command remove_design {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {remove_design ?-all? ?-designs? ?design_list?}
+
+    hover {
+        summary {Remove a design from memory.}
+        synopsis {remove_design ?-all? ?-designs? ?design_list?}
+        source {F5}
+    }
+}
+
+command report_analysis_coverage {
+    dialects tcl8.6
+    required_package synopsys-pt
+
+    form Default {report_analysis_coverage ?-nosplit? ?-status_details untested?}
+
+    hover {
+        summary {Report timing analysis coverage.}
+        synopsis {report_analysis_coverage ?-nosplit? ?-status_details untested?}
+        source {F5}
+    }
+}
+
+command report_bottleneck {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_bottleneck ?-nosplit? ?-max_cells n?}
+
+    hover {
+        summary {Report timing bottleneck analysis.}
+        synopsis {report_bottleneck ?-nosplit? ?-max_cells n?}
+        source {F5}
+    }
+}
+
+command report_cell {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_cell ?-nosplit? ?-connections? ?cell_list?}
+
+    hover {
+        summary {Report cell-level information.}
+        synopsis {report_cell ?-nosplit? ?-connections? ?cell_list?}
+        source {F5}
+    }
+}
+
+command report_clock_gating {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_clock_gating ?-nosplit? ?-verbose?}
+
+    hover {
+        summary {Report clock gating statistics.}
+        synopsis {report_clock_gating ?-nosplit? ?-verbose?}
+        source {F5}
+    }
+}
+
+command report_congestion {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_congestion ?-nosplit?}
+
+    hover {
+        summary {Report routing congestion.}
+        synopsis {report_congestion ?-nosplit?}
+        source {F5}
+    }
+}
+
+command report_delay_calculation {
+    dialects tcl8.6
+    required_package synopsys-pt
+
+    form Default {report_delay_calculation ?-from from_pin? ?-to to_pin?}
+
+    hover {
+        summary {Report delay calculation details.}
+        synopsis {report_delay_calculation ?-from from_pin? ?-to to_pin?}
+        source {F5}
+    }
+}
+
+command report_design {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_design ?-nosplit? ?-verbose?}
+
+    hover {
+        summary {Report design summary.}
+        synopsis {report_design ?-nosplit? ?-verbose?}
+        source {F5}
+    }
+}
+
+command report_hierarchy {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_hierarchy ?-nosplit? ?-full?}
+
+    hover {
+        summary {Report design hierarchy.}
+        synopsis {report_hierarchy ?-nosplit? ?-full?}
+        source {F5}
+    }
+}
+
+command report_net {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_net ?-nosplit? ?-connections? ?-verbose? ?net_list?}
+
+    hover {
+        summary {Report net information.}
+        synopsis {report_net ?-nosplit? ?-connections? ?-verbose? ?net_list?}
+        source {F5}
+    }
+}
+
+command report_qor {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_qor ?-nosplit? ?-summary?}
+
+    hover {
+        summary {Report Quality of Results metrics.}
+        synopsis {report_qor ?-nosplit? ?-summary?}
+        source {F5}
+    }
+}
+
+command report_reference {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_reference ?-nosplit? ?-hierarchy?}
+
+    hover {
+        summary {Report library cell references.}
+        synopsis {report_reference ?-nosplit? ?-hierarchy?}
+        source {F5}
+    }
+}
+
+command report_status {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {report_status ?-verbose?}
+
+    hover {
+        summary {Report verification status.}
+        synopsis {report_status ?-verbose?}
+        source {F5}
+    }
+}
+
+command route_auto {
+    dialects tcl8.6
+    required_package synopsys-icc2
+
+    form Default {route_auto ?-max_detail_route_iterations n?}
+
+    hover {
+        summary {Perform automatic routing.}
+        synopsis {route_auto ?-max_detail_route_iterations n?}
+        source {F5}
+    }
+}
+
+command route_opt {
+    dialects tcl8.6
+    required_package synopsys-icc2
+
+    form Default {route_opt ?-effort high|medium|low?}
+
+    hover {
+        summary {Perform post-route optimization.}
+        synopsis {route_opt ?-effort high|medium|low?}
+        source {F5}
+    }
+}
+
+command set_app_var {
+    dialects tcl8.6
+    arity 2
+    required_package synopsys
+
+    form Default {set_app_var variable_name value}
+
+    hover {
+        summary {Set a Synopsys application variable.}
+        synopsis {set_app_var variable_name value}
+        source {F5}
+    }
+}
+
+command set_clock_gating_style {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {set_clock_gating_style ?-sequential_cell cell_type? ?-positive_edge_logic gate_type? ?-negative_edge_logic gate_type? ?-control_point before|after? ?-control_signal scan_enable? ?-minimum_bitwidth n? ?-max_fanout n?}
+
+    hover {
+        summary {Specify clock gating implementation style.}
+        synopsis {set_clock_gating_style ?-sequential_cell cell_type? ?-positive_edge_logic gate_type? ?-negative_edge}
+        source {F5}
+    }
+}
+
+command set_host_options {
+    dialects tcl8.6
+    required_package synopsys
+
+    form Default {set_host_options ?-max_cores n?}
+
+    hover {
+        summary {Configure multi-core and host settings.}
+        synopsis {set_host_options ?-max_cores n?}
+        source {F5}
+    }
+}
+
+command set_implementation_design {
+    dialects tcl8.6
+    arity 1
+    required_package synopsys-fm
+
+    form Default {set_implementation_design design_name}
+
+    hover {
+        summary {Set the implementation design for formal verification.}
+        synopsis {set_implementation_design design_name}
+        source {F5}
+    }
+}
+
+command set_operating_conditions {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?}
+
+    hover {
+        summary {Set operating conditions for timing.}
+        synopsis {set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?}
+        source {F5}
+    }
+}
+
+command set_reference_design {
+    dialects tcl8.6
+    arity 1
+    required_package synopsys-fm
+
+    form Default {set_reference_design design_name}
+
+    hover {
+        summary {Set the reference design for formal verification.}
+        synopsis {set_reference_design design_name}
+        source {F5}
+    }
+}
+
+command set_scan_configuration {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {set_scan_configuration ?-chain_count n? ?-clock_mixing mix_type? ?-style style?}
+
+    hover {
+        summary {Configure scan chain parameters.}
+        synopsis {set_scan_configuration ?-chain_count n? ?-clock_mixing mix_type? ?-style style?}
+        source {F5}
+    }
+}
+
+command set_technology {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {set_technology ?technology?}
+
+    hover {
+        summary {Set the target technology.}
+        synopsis {set_technology ?technology?}
+        source {F5}
+    }
+}
+
+command size_cell {
+    dialects tcl8.6
+    arity 2
+    required_package synopsys-dc
+
+    form Default {size_cell cell_name lib_cell}
+
+    hover {
+        summary {Resize a cell to a different library cell.}
+        synopsis {size_cell cell_name lib_cell}
+        source {F5}
+    }
+}
+
+command swap_cell {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {swap_cell cell_list lib_cell}
+
+    hover {
+        summary {Swap a cell with a different library cell.}
+        synopsis {swap_cell cell_list lib_cell}
+        source {F5}
+    }
+}
+
+command ungroup {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {ungroup ?-all? ?-flatten? ?-start_level n? ?-simple_names? ?cells?}
+
+    hover {
+        summary {Dissolve hierarchy of specified cells.}
+        synopsis {ungroup ?-all? ?-flatten? ?-start_level n? ?-simple_names? ?cells?}
+        source {F5}
+    }
+}
+
+command uniquify {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {uniquify ?-force? ?-dont_skip_empty_designs?}
+
+    hover {
+        summary {Make each instance of a subdesign unique.}
+        synopsis {uniquify ?-force? ?-dont_skip_empty_designs?}
+        source {F5}
+    }
+}
+
+command update_timing {
+    dialects tcl8.6
+    required_package synopsys-pt
+
+    form Default {update_timing ?-full?}
+
+    hover {
+        summary {Update timing in the design.}
+        synopsis {update_timing ?-full?}
+        source {F5}
+    }
+}
+
+command verify {
+    dialects tcl8.6
+    required_package synopsys-fm
+
+    form Default {verify ?-verbose?}
+
+    hover {
+        summary {Run formal equivalence checking.}
+        synopsis {verify ?-verbose?}
+        source {F5}
+    }
+}
+
+command write {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {write ?-format format? ?-hierarchy? ?-output file? ?design_list?}
+
+    hover {
+        summary {Write design data to a file.}
+        synopsis {write ?-format format? ?-hierarchy? ?-output file? ?design_list?}
+        source {F5}
+    }
+}
+
+command write_def {
+    dialects tcl8.6
+    required_package synopsys-icc2
+
+    form Default {write_def ?-version version? file_name}
+
+    hover {
+        summary {Write a DEF file.}
+        synopsis {write_def ?-version version? file_name}
+        source {F5}
+    }
+}
+
+command write_file {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {write_file ?-format format? ?-hierarchy? ?-output file?}
+
+    hover {
+        summary {Write design to file in specified format.}
+        synopsis {write_file ?-format format? ?-hierarchy? ?-output file?}
+        source {F5}
+    }
+}
+
+command write_gds {
+    dialects tcl8.6
+    required_package synopsys-icc2
+
+    form Default {write_gds ?-long_names? ?-output file_name?}
+
+    hover {
+        summary {Write a GDSII stream file.}
+        synopsis {write_gds ?-long_names? ?-output file_name?}
+        source {F5}
+    }
+}
+
+command write_sdc {
+    dialects tcl8.6
+    required_package synopsys
+
+    form Default {write_sdc ?-nosplit? ?-version version? ?file_name?}
+
+    hover {
+        summary {Write SDC constraints to a file.}
+        synopsis {write_sdc ?-nosplit? ?-version version? ?file_name?}
+        source {F5}
+    }
+}
+
+}

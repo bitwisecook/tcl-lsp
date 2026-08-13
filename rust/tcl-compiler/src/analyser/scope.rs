@@ -870,7 +870,7 @@ impl Analyser {
         // minifier's rename pass.  `record_var_read` no-ops on names
         // that aren't in the current scope, so liberal collection is
         // safe.
-        if let Some(registry) = self.registry {
+        if let Some(registry) = self.registry.as_deref() {
             let mut extra: Vec<VarReadSite> = Vec::new();
             let cmd_name = cmd.texts.first().map_or("", String::as_str);
             let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();

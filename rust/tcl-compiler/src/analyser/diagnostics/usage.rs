@@ -151,7 +151,7 @@ Use braces: {{ \u{2026} }}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -834,7 +834,7 @@ Use braces: {{ \u{2026} }}"
         if cmd == "upvar" {
             return upvar_local_name_positions(args);
         }
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return Vec::new();
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();

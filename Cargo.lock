@@ -4140,6 +4140,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-spectcl",
  "temp-env",
  "thiserror 2.0.20",
 ]
@@ -4210,6 +4211,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-engine-api"
+version = "0.1.0"
+
+[[package]]
+name = "tcl-engine-tclvm"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-registry",
+ "tcl-vm",
+]
+
+[[package]]
 name = "tcl-explorer"
 version = "0.1.0"
 dependencies = [
@@ -4219,6 +4236,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-spectcl",
  "tcl-syntax",
 ]
 
@@ -4340,6 +4358,7 @@ dependencies = [
  "tcl-lsp-core",
  "tcl-lsp-db",
  "tcl-registry",
+ "tcl-spectcl",
  "tcl-version",
  "temp-env",
  "tokio",
@@ -4364,6 +4383,8 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-spec-studio",
+ "tcl-spectcl",
  "tcl-syntax",
  "tcl-version",
  "tokio",
@@ -4384,6 +4405,7 @@ dependencies = [
  "tcl-registry",
  "tcl-sandbox",
  "tcl-syntax",
+ "tcl-userdirs",
  "toml",
  "ureq",
  "zip",
@@ -4413,6 +4435,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-regex",
+ "tcl-spectcl",
  "tcl-syntax",
 ]
 
@@ -4432,6 +4455,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-spec-hooks"
+version = "0.1.0"
+dependencies = [
+ "tcl-compiler",
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-engine-tclvm",
+ "tcl-registry",
+]
+
+[[package]]
 name = "tcl-spec-studio"
 version = "0.1.0"
 dependencies = [
@@ -4441,6 +4475,26 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-spectcl",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-spectcl"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-engine-tclvm",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-spec-hooks",
+ "tcl-syntax",
+ "tcl-userdirs",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -4455,6 +4509,10 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
 ]
+
+[[package]]
+name = "tcl-userdirs"
+version = "0.1.0"
 
 [[package]]
 name = "tcl-version"
@@ -5743,6 +5801,12 @@ dependencies = [
  "tcl-registry",
  "tcl-syntax",
 ]
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aee1b19627c7c60102ab80d3a9cbe18de90bfe03bfa6c3715447681f0e8c8af6"
 
 [[package]]
 name = "zeroize"

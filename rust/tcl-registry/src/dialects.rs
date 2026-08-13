@@ -352,6 +352,9 @@ pub const DETECT_SCAN_BYTES: usize = 8192;
 /// project source we index.
 pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
     "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
+    // SpecTcl packs (`spec-packs.md`): a `.tclspec` is one Tcl script, sits
+    // beside the code it describes, and is indexed like any other source.
+    "tclspec",
 ];
 
 /// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], written so it
@@ -413,6 +416,11 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
         "iapp" => "f5-iapps",
         "tmsh" => "f5-tmsh",
         "exp" | "expect" => "expect",
+        // A SpecTcl command pack. The extension is what activates the pack's
+        // own statement vocabulary, which is why `spec-packs.md` calls for
+        // "file-type registration across every editor integration": with it,
+        // authoring a pack needs no configuration at all.
+        "tclspec" => "spectcl",
         "xdc" => "xilinx-eda-tcl",
         "sdc" => "synopsys-eda-tcl",
         // Mentor/Questa simulation macro files (`.do` is Tcl).
@@ -497,6 +505,11 @@ pub fn dialect_hint_markers() -> impl Iterator<Item = &'static str> {
 /// as a whole word anywhere in the scanned head. Ordered most-specific first so
 /// an EDA-tool script never falls through to a weaker signal.
 const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
+    // SpecTcl command packs. `speclib` is the DSL's one loader directive and
+    // its only possible top-level word, so it is both the most specific
+    // signature here and the one that catches a pack saved under a `.tcl`
+    // name — the case the extension tier below cannot reach.
+    ("spectcl", &["speclib"]),
     // F5 tmsh / iApp management scripts.
     (
         "f5-iapps",

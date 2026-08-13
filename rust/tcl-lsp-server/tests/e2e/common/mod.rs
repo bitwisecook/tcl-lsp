@@ -567,6 +567,19 @@ impl Lsp {
     /// drive `initialize` itself — e.g. with a deliberately malformed folder
     /// URI.
     pub fn spawn(config: Value) -> Self {
+        Self::spawn_with_env(config, &[])
+    }
+
+    /// [`Lsp::spawn`] with extra environment variables set on the server
+    /// process.
+    ///
+    /// For the server's *test seams* — the `TCL_LSP_TEST_*` knobs that exist
+    /// so an e2e test can force an interleaving it cannot otherwise provoke
+    /// (`TCL_LSP_TEST_STARTUP_RELOAD_HOLD_MS`). It has to be the child's
+    /// environment rather than this process's: the server is a separate
+    /// binary, and `std::env::set_var` here would leak into every other test
+    /// sharing the runner process.
+    pub fn spawn_with_env(config: Value, env: &[(&str, &str)]) -> Self {
         let bin = env!("CARGO_BIN_EXE_tcl-lsp-server");
 
         // Isolate the server from the developer machine's config/cache so a
@@ -579,7 +592,11 @@ impl Lsp {
         std::fs::create_dir_all(xdg_root.join("config")).expect("mk xdg config");
         std::fs::create_dir_all(xdg_root.join("cache")).expect("mk xdg cache");
 
-        let mut child = Command::new(bin)
+        let mut command = Command::new(bin);
+        for (key, value) in env {
+            command.env(key, value);
+        }
+        let mut child = command
             .env("XDG_CONFIG_HOME", xdg_root.join("config"))
             .env("XDG_CACHE_HOME", xdg_root.join("cache"))
             .stdin(Stdio::piped())
@@ -673,6 +690,35 @@ impl Lsp {
     pub fn at_workspace_root(root: &std::path::Path) -> Self {
         let mut lsp = Self::spawn(json!({ "features": { "linkedEditingRange": true } }));
         lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+        lsp
+    }
+
+    /// [`Lsp::with_config`] rooted at a **real on-disk directory**.
+    ///
+    /// The combination the two existing constructors do not cover, and the one
+    /// any workspace-scope feature needs: a config the server will actually
+    /// apply *and* a root it can walk. Settles the config first, for the same
+    /// reason [`Lsp::with_config`] does — a test that opens a document before
+    /// its settings have landed is testing the defaults.
+    pub fn with_config_at_root(config: Value, root: &std::path::Path) -> Self {
+        Self::with_config_at_root_env(config, root, &[])
+    }
+
+    /// [`Lsp::with_config_at_root`] with extra environment variables on the
+    /// server process — see [`Lsp::spawn_with_env`].
+    ///
+    /// Settling the config here does **not** settle the startup *pack* reload:
+    /// the server pulls and applies its configuration before it starts
+    /// loading packs, so a test that means to race that load still can.
+    pub fn with_config_at_root_env(
+        config: Value,
+        root: &std::path::Path,
+        env: &[(&str, &str)],
+    ) -> Self {
+        let mut lsp = Self::spawn_with_env(config, env);
+        lsp.initialize_at(&format!("file://{}", root.to_string_lossy()));
+        let requested = lsp.shared.tcllsp_config.lock().unwrap().clone();
+        lsp.settle_config(&requested);
         lsp
     }
 
@@ -1152,6 +1198,60 @@ impl Lsp {
                 .wait_timeout(notes, remaining)
                 .unwrap();
             notes = guard;
+        }
+    }
+
+    /// Poll an arbitrary request (`query`) until its response satisfies
+    /// `predicate`, or `timeout` (load-scaled) elapses; returns the last
+    /// response either way, so a genuine content divergence is reported by
+    /// the caller's own assertion rather than swallowed here.
+    ///
+    /// # The race this closes
+    ///
+    /// [`Self::open_ready`] only waits for the *opened* document's own
+    /// diagnostics to settle. It says nothing about `scan_workspace_folders`,
+    /// the server's independent background pass that walks the workspace
+    /// root and indexes every on-disk file the client has **not** opened, so
+    /// cross-file providers (`textDocument/definition`, `references`,
+    /// `rename`, call hierarchy, `workspace/symbol`) can see them. A test
+    /// that writes a sibling fixture straight to disk, never opens it, opens
+    /// only the *other* file with `open_ready`, and then fires a single
+    /// cross-file query immediately is racing that scan: on a quiet box the
+    /// scan usually wins and the sibling is already indexed, but on a loaded
+    /// CI runner it can lose — the server has not indexed the sibling yet, so
+    /// it correctly answers with what it currently knows (empty/short), not
+    /// a bug in either the server or the query. `wait_for_workspace_scan`
+    /// gates a few *internal* server code paths (autoload resolution,
+    /// `workspace/symbol`) but the position-based providers above are
+    /// deliberately not among them, so the settling has to happen here, the
+    /// same way [`Self::await_diagnostics_settled`] settles a diagnostics
+    /// push that is refined progressively rather than gating the publish
+    /// itself.
+    ///
+    /// `query` is a live round-trip per call, so it must be cheap and
+    /// side-effect-free beyond the request itself (a plain `textDocument/*`
+    /// or `workspace/*` read). Sleeps a short, fixed step between attempts —
+    /// deliberately not load-scaled itself, only the deadline is, so a slow
+    /// machine gets more attempts rather than coarser ones.
+    pub fn await_query_settled<T: std::fmt::Display>(
+        &mut self,
+        timeout: Duration,
+        mut query: impl FnMut(&mut Self) -> T,
+        predicate: impl Fn(&T) -> bool,
+    ) -> T {
+        let deadline = Instant::now() + scaled_timeout(timeout);
+        loop {
+            let result = query(self);
+            if predicate(&result) {
+                return result;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "query never reached the expected state within {timeout:?} \
+                 (load-scaled); last response: {result}{}",
+                latency_barrier_timeout_note()
+            );
+            std::thread::sleep(Duration::from_millis(20));
         }
     }
 
@@ -1667,6 +1767,19 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
         "libraryPaths" => effective
             .get("library_paths")
             .is_some_and(|got| got == want),
+        // `tclLsp.specPacks` is reported verbatim, *and* the packs it produced
+        // are reported beside it — so this barrier waits for the discovery +
+        // load pass, not merely for the setting to be recorded.  Without that
+        // second half a test could open a document before its pack was in the
+        // registry and see the very W123 the pack exists to remove.
+        "specPacks" => {
+            effective.get("spec_packs").is_some_and(|got| got == want)
+                && effective.get("spec_packs_loaded").is_some_and(|loaded| {
+                    want.as_array().is_none_or(|w| {
+                        w.is_empty() || loaded.as_array().is_some_and(|l| !l.is_empty())
+                    })
+                })
+        }
         // Nested formatting settings; only `docstringStyle` has a settle
         // signal (`getEffectiveConfig`'s `docstring_style`) today.
         "formatting" => want.as_object().is_none_or(|fmt| {

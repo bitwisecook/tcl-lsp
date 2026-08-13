@@ -1,0 +1,52 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The SpecTcl hook host: the layer above the Tcl extension interface that owns
+# everything DSL-specific — emitter verbs, per-family calling conventions and
+# preconditions, abstention and error policy, budgets, per-pack isolation, and
+# quarantine. It speaks only `tcl-engine-api` beneath it, so it cannot depend
+# on an engine's identity.
+[package]
+name = "tcl-spec-hooks"
+publish.workspace = true
+description = "The SpecTcl hook host — pack-declared hook bodies on a sandboxed engine, with crash containment and per-pack isolation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "tcl_spec_hooks"
+
+[dependencies]
+tcl-engine-api = { path = "../tcl-engine-api" }
+tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-dialect = { path = "../tcl-dialect" }
+
+[dev-dependencies]
+tcl-compiler = { path = "../tcl-compiler" }
+# Deliberately no `tcl-spectcl`, even as a dev-dependency: the adapter that
+# joins a loaded pack to this host now lives in `tcl-spectcl::hooks`, so the
+# dependency runs one way — loader over host — and the pack-source proving case
+# lives in that crate's tests.
+
+[lints]
+workspace = true

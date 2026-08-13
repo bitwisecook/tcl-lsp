@@ -1,0 +1,101 @@
+# SpecTcl corpus-validation harness — accepted load notices.
+#
+# Regenerate with:  SPECTCL_CORPUS_BLESS=1 cargo test -p tcl-spectcl --test spec_corpus
+#
+# Every line is one notice the loader emitted for a `.tclspec` the repository
+# ships, in the form
+#
+#     <pack file>\t<severity>\t<context>\t<message>
+#
+# tab-separated, sorted, one line per occurrence — 49 of them today, in four
+# groups. `tests/spec_corpus.rs`
+# compares the notices of every pack against this file as a multiset and fails
+# on any difference in either direction, so a notice that gets fixed must also
+# be deleted from here — the baseline cannot silently rot into a wildcard.
+#
+# THE LOAD-BEARING FACT, and the reason this file is not simply a mute-button:
+# `specs/` — the six bundled EDA loadables, the packs an installed tcl-lsp
+# actually loads — appears NOWHERE below. All 346 of their commands load
+# without a single notice. Every entry here belongs to a design artefact under
+# `docs/design/spec-dsl-examples/`, and each is a known, named gap rather than
+# a defect:
+#
+#   `unknown property `object_class` dropped` (13 lines, all four external
+#       drafts) — a REAL LOADER GAP, and the most useful thing this baseline
+#       records. `object_class NAME ?-superclass {…}? ?-allow-unknown?
+#       { method … }` is ratified vocabulary: it is in the frozen syntax
+#       (`docs/design/spec-dsl-examples/README.md`, the field table and the
+#       statement index) and it is a compiled-in `SpecTcl` self-spec statement
+#       (`tcl-registry/src/commands/spectcl/blocks.rs`). `tcl-spectcl`'s
+#       loader implements none of it — `object_class` does not appear in
+#       `src/loader.rs` at all — so every handle-returning factory in the four
+#       external drafts loses its method table on the way in. Nothing under
+#       `specs/` uses the statement, which is why the gap survived the EDA
+#       migration unnoticed.
+#
+#   `unknown flag `-readonly` on `option` dropped` (3, tcllib draft) — not a
+#       gap: the draft says so itself at `tcllib.tclspec:288`, "no field in the
+#       DSL to lower `-readonly` into — written on all three options anyway".
+#       A marked invention, dropped exactly as the compatibility policy
+#       promises.
+#
+#   `names a lowering hook` / `names a codegen hook` (6, the `foreach`, `if`,
+#       `return`, `switch` and `upvar` ports) — deliberate. A pack naming a
+#       *native* lowering or codegen hook changes how the compiler translates a
+#       command, so the loader warns and installs it anyway. These five ports
+#       are ports of shipped specs that legitimately carry those hooks; a
+#       private pack getting the same warning is being told something true.
+#
+#   ``state_transitions` row … is not yet loadable` /
+#   ``world_effects` row … is not yet loadable` (27, the `oo-class` and `upvar`
+#       ports) — the loader's own words. Those two descriptor families are the
+#       named, still-unimplemented tail of the schema; the ports transcribe
+#       them because the ports were written against the *design*, and the
+#       notices are the honest record of the distance left.
+#
+# Adding a line here is therefore an admission with a reason attached. Adding
+# one for a file under `specs/` would be a regression in the only tier that
+# ships.
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-body-kind` on `arg` dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-repeats` on `arg` dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `Plain` on `arg` dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `row {…` on `arg` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse / object_class ::fileutil::traverse / method foreach	unknown flag `-body-kind` on `arg` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse / object_class ::fileutil::traverse / method foreach	unknown flag `Plain` on `arg` dropped
+docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command struct::tree / object_class ::struct::tree	`arg_role_resolver` hook body on `method walk` is not yet bindable; the field abstains
+docs/design/spec-dsl-examples/foreach.tclspec	Warning	command foreach	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+docs/design/spec-dsl-examples/if.tclspec	Warning	command if	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`state_transitions` row `argument_shape` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`state_transitions` row `commit` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`state_transitions` row `covers` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`state_transitions` row `resolver` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`state_transitions` row `widen` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`world_effects` row `callback` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`world_effects` row `dynamic_fallback` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand createWithNamespace	`state_transitions` row `argument_shape` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand createWithNamespace	`state_transitions` row `commit` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand createWithNamespace	`state_transitions` row `covers` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand createWithNamespace	`state_transitions` row `resolver` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand createWithNamespace	`state_transitions` row `widen` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand createWithNamespace	`state_transitions` row `widen` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand createWithNamespace	`world_effects` row `callback` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand createWithNamespace	`world_effects` row `dynamic_fallback` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`state_transitions` row `argument_shape` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`state_transitions` row `commit` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`state_transitions` row `covers` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`state_transitions` row `resolver` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`world_effects` row `callback` is not yet loadable; dropped
+docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`world_effects` row `dynamic_fallback` is not yet loadable; dropped
+docs/design/spec-dsl-examples/return.tclspec	Warning	command return	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+docs/design/spec-dsl-examples/switch.tclspec	Warning	command switch	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	`state_transitions` row `argument_shape` is not yet loadable; dropped
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	`state_transitions` row `commit` is not yet loadable; dropped
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	`state_transitions` row `covers` is not yet loadable; dropped
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	`state_transitions` row `covers` is not yet loadable; dropped
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	`state_transitions` row `resolver` is not yet loadable; dropped
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	`state_transitions` row `widen` is not yet loadable; dropped
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	names a codegen hook: this changes how the compiler translates the command, not just what the editor knows about it
+docs/design/spec-dsl-examples/upvar.tclspec	Warning	command upvar	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it

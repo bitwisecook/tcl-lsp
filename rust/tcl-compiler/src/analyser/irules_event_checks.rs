@@ -271,7 +271,7 @@ impl Analyser {
         cmd_tok: Token,
         event: &str,
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let Some(spec) = ({
@@ -450,7 +450,7 @@ impl Analyser {
         if self.body_depth != 0 || event.is_some() {
             return;
         }
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         if registry.is_irules_top_level_only(cmd_name) {
@@ -631,6 +631,7 @@ impl Analyser {
     ) {
         let Some(policy) = self
             .registry
+            .as_deref()
             .and_then(|registry| registry.event_handler_priority(cmd_name))
         else {
             return;

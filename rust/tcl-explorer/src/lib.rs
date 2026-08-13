@@ -47,7 +47,11 @@ pub use view_tree::{ViewNode, build_view};
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_dialect::DialectProfile;
-use tcl_registry::registry_for_dialect;
+// The pack-carrying registry, not the plain one: since the EDA vendor
+// libraries became `.tclspec` loadables they exist nowhere else, so an
+// explorer on the plain registry reports every `synth_design` unknown while
+// the diagnostic on the same line resolves it.
+use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 
 /// Per-function compilation artefacts surfaced by the explorer.
 ///
@@ -195,7 +199,8 @@ impl ExplorerResult {
 /// the Rust passes are infallible — they are run as part of building the unit.
 #[must_use]
 pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
-    let registry = registry_for_dialect(dialect);
+    let registry_held = registry_for_dialect(dialect);
+    let registry = &*registry_held;
     // Build for the requested dialect so every dialect-sensitive layer is
     // honoured: Tcl 8.4 / iRules disable `{*}` expansion, iRules enable the
     // `}{` brace-separator, and the iRules word operators (`contains`, …) are

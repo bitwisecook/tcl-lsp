@@ -33,7 +33,7 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
         val INSTANCE = TclFileType()
 
         private val SUPPORTED_EXTENSIONS = setOf(
-            "tcl", "tk", "itcl", "tm",
+            "tcl", "tk", "itcl", "tm", "tclspec",
             "iapp", "iappimpl", "impl",
             "irul", "irule",
             "apl", "exp"

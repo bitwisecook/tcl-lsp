@@ -87,7 +87,9 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
 
-    let result = Analyser::new().analyse(&source, &dialect);
+    let result = Analyser::new()
+        .with_pack_overlay(tcl_cli_support::spec_pack_key())
+        .analyse(&source, &dialect);
     let line_index = LineIndex::new(&source);
 
     let issues: Vec<LegacyIssue> = result

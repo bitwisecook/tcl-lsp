@@ -43,7 +43,7 @@ impl Analyser {
     /// the command is unknown).  Shared lookup for the trait-gated security
     /// checks below — none of them match on command-name strings.
     fn security_spec(&self, cmd_name: &str) -> Option<&tcl_registry::CommandSpec> {
-        self.registry.and_then(|r| r.get(cmd_name))
+        self.registry.as_deref().and_then(|r| r.get(cmd_name))
     }
 
     /// W101's gate: a command that concatenates **all** of its arguments
@@ -166,7 +166,7 @@ impl Analyser {
         // ``catch {<cmd>}`` is the canonical Tcl idiom for "do this if
         // possible, ignore if not".
         if let Some(body) = args.first()
-            && catch_body_is_fire_and_forget(body, self.registry)
+            && catch_body_is_fire_and_forget(body, self.registry.as_deref())
         {
             return;
         }
@@ -215,7 +215,7 @@ Consider capturing the result: catch {\u{2026}} result"
         arg_tokens: &[tcl_lexer::Token],
         title_prefix: &str,
     ) -> Vec<super::types::CodeFix> {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return Vec::new();
         };
         let Some(spec) = registry.get(cmd_name) else {
@@ -456,7 +456,7 @@ word as one argument; no re-parsing)"
         if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
             return false;
         }
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return false;
         };
         let start = tok.span.start() as usize + tok.content_offset as usize;
@@ -1169,7 +1169,7 @@ matching time on crafted input."
         cmd_tok: tcl_lexer::Token,
     ) {
         let mut hits: Vec<W127Hit> = Vec::new();
-        if let Some(registry) = self.registry {
+        if let Some(registry) = self.registry.clone() {
             let Some(spec) = registry.get(cmd_name) else {
                 return;
             };
@@ -1303,7 +1303,7 @@ matching time on crafted input."
     ) {
         let mut hits: Vec<W127Hit> = Vec::new();
         let mut hook_hits: Vec<W127Hit> = Vec::new();
-        if let Some(registry) = self.registry {
+        if let Some(registry) = self.registry.as_deref() {
             let Some(spec) = registry.get(cmd_name) else {
                 return;
             };
@@ -1381,7 +1381,7 @@ matching time on crafted input."
             return;
         }
         // Registry-augmented credential option flags (all `'static`, so
-        // the `self.registry` borrow ends with this binding).
+        // the `self.registry.as_deref()` borrow ends with this binding).
         let extra_opts: &'static [&'static str] = self
             .registry
             .as_ref()

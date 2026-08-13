@@ -416,6 +416,14 @@ fn inherited_target(
 
 /// `interp alias {} NEW {} TARGET ?arg…?` and its deletion form.
 fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
+    // A `SpecTcl` pack may stamp `CreatesAliases` on a command that carries
+    // none of `interp alias`'s words — see
+    // [`crate::alias::is_interp_alias_shape`]. The detectors below already
+    // state nothing for such a call, and so must the foreign-target-path arm
+    // that reads `args[1..4]` positionally.
+    if !crate::alias::is_interp_alias_shape(args) {
+        return;
+    }
     if let Some(deleted) = detect_interp_alias_delete(args) {
         map.record_both_spellings(&deleted, None, at);
         return;

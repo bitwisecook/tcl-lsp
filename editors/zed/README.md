@@ -48,7 +48,7 @@ are intentionally gated on explicit client support:
 
 | Language | Extensions |
 |----------|-----------|
-| Tcl | `.tcl`, `.tk`, `.itcl`, `.tm` |
+| Tcl | `.tcl`, `.tk`, `.itcl`, `.tm`, `.tclspec` |
 | iRules | `.irul`, `.irule` |
 | iApps | `.iapp`, `.iappimpl`, `.impl` |
 | Expect | `.exp` |

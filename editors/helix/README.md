@@ -32,7 +32,7 @@ args = []
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm"]
+file-types = ["tcl", "tk", "itcl", "tm", "tclspec"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]

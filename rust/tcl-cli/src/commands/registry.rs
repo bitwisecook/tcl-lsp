@@ -41,10 +41,10 @@ pub fn run_registry_dump(
     // `tcl8.6` registry serves all four Tcl dialects (and `--all-dialects`).
     let json = if all_dialects {
         let registry = registry_for_dialect("tcl8.6");
-        command_registry_snapshots(registry, &TCL_DIALECTS)
+        command_registry_snapshots(&registry, &TCL_DIALECTS)
     } else {
         let registry = registry_for_dialect(dialect);
-        command_registry_snapshot(registry, dialect)
+        command_registry_snapshot(&registry, dialect)
     };
     write_text_output(&target, &json.dumps_indent2())?;
     Ok(0)

@@ -183,3 +183,60 @@ fn manufacturer_methods_has_a_typed_list_editor_and_empty_default() {
         serde_json::json!([]),
     );
 }
+
+/// Every field kind the schema can emit must have a front-end editor.
+///
+/// The two halves are joined by a string — `FieldKind::tag` on the Rust side,
+/// a key of the `makeEditors` map on the TypeScript side — so nothing but this
+/// test makes them agree. When they disagree the field does not fail loudly:
+/// the form renders the literal text "no editor for <tag>" in place of the
+/// control, which is how `objectClass` shipped editable-in-principle and
+/// uneditable in fact. Everything else about that field was already there —
+/// schema entry, draft seeding, `SpecTcl` renderer, help text — which is
+/// exactly why the gap survived review.
+#[test]
+fn every_field_kind_has_a_front_end_editor() {
+    const EDITORS_TS: &str = include_str!("../web/src/editors.ts");
+
+    // The map body — `const editors: Record<string, Editor> = { … }` — so a
+    // tag named only in a comment or a helper cannot satisfy this.
+    let start = EDITORS_TS
+        .find("const editors: Record<string, Editor> = {")
+        .expect("editors.ts declares the editor map");
+    let body = &EDITORS_TS[start..];
+
+    let mut missing: Vec<&str> = Vec::new();
+    for field in schema::COMMAND_FIELDS
+        .iter()
+        .chain(schema::SUBCOMMAND_FIELDS)
+    {
+        let tag = field.kind.tag();
+        // Keys are written bare (`subCommands: (…) => …`), one per entry.
+        if !body.contains(&format!("\n    {tag}: (")) {
+            missing.push(tag);
+        }
+    }
+    missing.sort_unstable();
+    missing.dedup();
+    assert!(
+        missing.is_empty(),
+        "field kinds with no editor in web/src/editors.ts: {missing:?} — \
+         the form will render `no editor for <tag>` instead of a control"
+    );
+}
+
+/// A structural kind rebuilds its subtree on change; a plain input must not,
+/// or the caret jumps to the end of the field mid-word. `objectClass` adds and
+/// removes method rows, so it belongs to the first group.
+#[test]
+fn object_class_is_declared_structural() {
+    const EDITORS_TS: &str = include_str!("../web/src/editors.ts");
+    let start = EDITORS_TS
+        .find("export const STRUCTURAL_KINDS = new Set([")
+        .expect("editors.ts declares STRUCTURAL_KINDS");
+    let end = start + EDITORS_TS[start..].find("]);").expect("the set is closed");
+    assert!(
+        EDITORS_TS[start..end].contains("\"objectClass\""),
+        "objectClass adds and removes method rows, so it must rebuild on change"
+    );
+}

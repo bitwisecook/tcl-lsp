@@ -32,6 +32,9 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
+# The EDA vendor libraries ship as bundled `.tclspec` loadables, so the CLI
+# needs the pack loader to see them (`docs/design/spec-packs.md`).
+tcl-spectcl = { path = "../tcl-spectcl" }
 thiserror = "2"
 anstream = "1"
 anstyle = "1"

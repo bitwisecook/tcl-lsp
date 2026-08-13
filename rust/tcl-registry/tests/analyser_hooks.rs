@@ -31,10 +31,9 @@ use tcl_dialect::DialectSet;
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::{CommandRegistry, CommandTableEffect, Traits};
 
-/// Every dialect name that loads a non-trivial command pack — the same
-/// list `registry_sweep.rs` uses — so the sweep sees every spec,
-/// including dialect twins (the iRules `proc`) and dialect-only
-/// commands (the EDA `foreach_in_collection`).
+/// Every dialect name that loads a non-trivial *compiled-in* command pack —
+/// the same list `registry_sweep.rs` uses — so the sweep sees every spec,
+/// including dialect twins (the iRules `proc`).
 const LOADABLE_DIALECTS: &[&str] = &[
     "tcl8.4",
     "tcl8.5",
@@ -43,24 +42,41 @@ const LOADABLE_DIALECTS: &[&str] = &[
     "f5-irules",
     "f5-iapps",
     "expect",
-    "synopsys-eda-tcl",
-    "cadence-eda-tcl",
-    "xilinx-eda-tcl",
-    "intel-quartus-eda-tcl",
-    "mentor-eda-tcl",
     "bpf",
 ];
 
-/// A registry with every loadable dialect pack merged in.
+/// The shipped `.tclspec` loadables, which is where the EDA vendor libraries
+/// live now — `sdc_base` and the five vendor packs have no Rust modules at
+/// all (`docs/design/spec-packs.md`), so a stamp on `foreach_in_collection`
+/// reaches this sweep only by way of the pack loader.
+///
+/// The path is the repository's `specs/`, which is exactly what a release
+/// lays down beside the executable; naming it rather than relying on
+/// discovery's defaults keeps the test independent of where the test binary
+/// happens to sit.
+fn bundled_packs() -> tcl_spectcl::PackSet {
+    tcl_spectcl::bundled::load_from(
+        &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs"),
+    )
+}
+
+/// A registry with every loadable dialect pack merged in — compiled-in
+/// dialects by their `DialectSet` bit, the EDA vendor libraries through the
+/// `SpecTcl` loader.
 fn full_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
     for name in LOADABLE_DIALECTS {
-        // Non-EDA dialects load by their DialectSet bit; the EDA shells are
-        // packaged (no vendor bit) and load their packs by profile identity
-        // (eda-library-packages.md).
-        match DialectSet::parse(name) {
-            Some(dialect) => reg.load_dialect(dialect),
-            None => reg.load_eda_packs(name),
+        let dialect = DialectSet::parse(name).expect("a compiled-in dialect name");
+        reg.load_dialect(dialect);
+    }
+    let packs = bundled_packs();
+    assert!(
+        !packs.is_empty(),
+        "the shipped EDA loadables must be present for this sweep to see them"
+    );
+    for pack in &packs.packs {
+        for command in &pack.commands {
+            reg.insert(command.spec.clone());
         }
     }
     reg

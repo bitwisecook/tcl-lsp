@@ -24,6 +24,7 @@ Key crates under `rust/` and their one-line roles:
 tcl-lexer / tcl-syntax    Lexer + concrete/red-green syntax tree (CST).
 tcl-compiler              IR / CFG / SSA / optimiser / codegen (WASM emitter).
 tcl-registry              Command + dialect registry; dialect detection.
+tcl-spectcl               SpecTcl `.tclspec` packs: loader, discovery, cache, install.
 tcl-vm / tcl-vm-cli       Bytecode VM + its CLI.
 tcl-bigip / tcl-bigip-query   BIG-IP model + the f5-query engine.
 tcl-irules                iRules dialect model + analysis.
@@ -40,8 +41,9 @@ f5-xc                     iRules → F5 XC translation.
 xtask                     Build / codegen / drift-check gate runner.
 ```
 
-Supporting crates (core types, platform, host, regex, bytecode, runtime-api,
-sandbox, LSP db, bpf-tcl-*, irule-test, …) are also listed in `Cargo.toml`.
+Supporting crates (core types, platform, userdirs, host, regex, bytecode,
+runtime-api, sandbox, LSP db, bpf-tcl-*, irule-test, …) are also listed in
+`Cargo.toml`.
 
 ```
 editors/          Editor integrations (VS Code, Zed, JetBrains,
@@ -758,7 +760,11 @@ for the contract.
 
 Command metadata lives on the `CommandSpec` type in `rust/tcl-registry`,
 **not** in hardcoded sets scattered across consumer modules. Commands are
-defined in the registry's per-dialect spec packs (Tcl, F5 iRules/iApps, EDA).
+defined in the registry's per-dialect spec packs (Tcl, F5 iRules/iApps, Tk,
+Expect, …) — **except the EDA vendor libraries**, which ship as bundled
+`SpecTcl` loadables in `specs/*.tclspec` and reach a registry only through
+`tcl_spectcl::bundled` (`docs/design/spec-packs.md`). Editing an EDA command
+means editing the `.tclspec`, not a Rust module.
 
 When a consumer needs to know something about a command (e.g. "is this an
 action?", "does this mutate state?"), add a field to `CommandSpec`, a query

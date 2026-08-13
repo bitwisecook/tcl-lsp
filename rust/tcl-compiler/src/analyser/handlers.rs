@@ -1011,13 +1011,13 @@ impl Analyser {
         value_text: &str,
         scope_path: &[usize],
     ) -> Option<String> {
-        let registry = self.registry?;
+        let registry = self.registry.clone()?;
         let trimmed = value_text.trim();
         let inner = trimmed
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
             .unwrap_or(trimmed);
-        if !crate::const_subst::head_may_fold(registry, inner) {
+        if !crate::const_subst::head_may_fold(&registry, inner) {
             return None;
         }
         let trust = self.whole_file_command_trust()?;
@@ -1035,7 +1035,7 @@ impl Analyser {
                 .map(str::to_owned)
         };
         crate::const_subst::ConstSubstCtx {
-            registry,
+            registry: &registry,
             dialect,
             defining_class: defining_class.as_deref(),
             trusts: &trusts,
@@ -1265,7 +1265,7 @@ impl Analyser {
         // definer?  The `registry` borrow is confined to this block so the
         // shadowing check below can re-borrow `self`.
         let sym = {
-            let registry = self.registry?;
+            let registry = self.registry.as_deref()?;
             if let Some(sym) = registry.defines_symbol(cmd_name, dialect) {
                 Some(*sym)
             } else if cmd_name.contains("::") {
@@ -1380,7 +1380,7 @@ impl Analyser {
         params: &[crate::signature_scan::types::ParamDef],
         body_text: &str,
     ) -> ProcParamFacts {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return (
                 std::collections::HashMap::new(),
                 std::collections::HashSet::new(),
@@ -2533,7 +2533,7 @@ impl Analyser {
     /// library's own handler spelling, installed as the interpreter-wide
     /// handler rather than scoped to callers inside `::tcl`.
     fn defines_global_unresolved_handler(&self, qualified: &str) -> bool {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return false;
         };
         let mut carriers =
@@ -2714,7 +2714,7 @@ impl Analyser {
         arg_tokens: &[Token],
         child_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let list_append = registry
@@ -3413,7 +3413,7 @@ impl Analyser {
         // it opens the same frame scope (issue #1138).  Any other shape falls
         // through to the generic recursion.
         if body_tok.kind != TokenType::Str
-            && !self.registry.is_some_and(|r| {
+            && !self.registry.as_deref().is_some_and(|r| {
                 crate::script_arg::list_quoted_script_command(r, body_tok, &body_text).is_some()
             })
         {
@@ -3545,6 +3545,7 @@ impl Analyser {
 
         let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
             .registry
+            .as_deref()
             .and_then(|r| r.get("namespace"))
             .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec, sub)))
             .map(|(spec, sub)| {
@@ -4251,7 +4252,7 @@ impl Analyser {
             return false;
         }
 
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return true;
         };
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -4377,7 +4378,7 @@ impl Analyser {
         // `[catch …]` path in `dispatch_nested_segment`. The literal spec
         // name is sound here: `AnalyserHookId::Catch` dispatch already
         // resolved the head (qualified spellings included) to this spec.
-        if let Some(registry) = self.registry {
+        if let Some(registry) = self.registry.as_deref() {
             let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
             for i in registry.arg_indices_for_role(
                 "catch",
@@ -4439,7 +4440,7 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         if registry.get(cmd_name).is_none_or(|spec| {
@@ -5797,6 +5798,7 @@ impl Analyser {
         cmd_name: &str,
     ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
         self.registry
+            .as_deref()
             .as_ref()
             .and_then(|r| r.get(cmd_name))
             .and_then(|s| s.definition_body)
@@ -5949,7 +5951,7 @@ impl Analyser {
         if depth > MAX_UNKNOWN_BODY_DEPTH {
             return None;
         }
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let mut proof = UnknownPathProof::default();
         for seg in self.direct_statements_in_span(body_span)? {
             if states.is_empty() {
@@ -6019,7 +6021,7 @@ impl Analyser {
         seg: &SegmentedCommand,
         _word_param: &str,
     ) -> Option<(Vec<Span>, bool)> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         if registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
             != tcl_registry::registry::InvocationCompletion::FallsThrough
@@ -6153,7 +6155,7 @@ impl Analyser {
     }
 
     fn method_body_terminates(&self, method: &super::types::MethodDef) -> Option<bool> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         for seg in self.direct_statements_in_span(method.body_span)? {
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
             match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
@@ -6358,7 +6360,7 @@ impl Analyser {
     /// creation's structural template exists only when the ordinary generic
     /// handler classified it as a class creation.
     pub(super) fn record_literal_parameter_definitions(&mut self) {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let candidates = self.parameterised_creation_sites(registry);
@@ -6472,7 +6474,7 @@ impl Analyser {
         depth: u32,
         stack: &mut Vec<String>,
     ) -> Option<bool> {
-        let registry = self.registry?;
+        let registry = self.registry.clone()?;
         for seg in self.direct_statements_in_span(body_span)? {
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
             match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
@@ -6534,7 +6536,7 @@ impl Analyser {
         if depth >= MAX_UNKNOWN_BODY_DEPTH {
             return false;
         }
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return false;
         };
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
@@ -6762,7 +6764,7 @@ impl Analyser {
         env: &std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<bool> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let spec = registry.get(arm.controller.name())?;
         match self.control_arm_semantics_for(arm)? {
             tcl_registry::registry::ControlArmSemantics::Always => return Some(true),
@@ -6792,7 +6794,7 @@ impl Analyser {
         &self,
         arm: &ControlArm,
     ) -> Option<tcl_registry::registry::ControlArmSemantics> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let direct = arm
             .controller
@@ -6814,7 +6816,7 @@ impl Analyser {
     }
 
     fn control_arms_for_segment(&self, seg: &SegmentedCommand) -> ControlArms {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return ControlArms::default();
         };
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
@@ -6876,7 +6878,7 @@ impl Analyser {
         env: &std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<bool> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let exprs = registry.arg_indices_for_role(
             arm.controller.name(),
@@ -6915,7 +6917,7 @@ impl Analyser {
         env: &std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<bool> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let (case, invocation) = registry.case_invocation(
             arm.controller.name(),
@@ -7012,7 +7014,7 @@ impl Analyser {
         if depth > MAX_UNKNOWN_BODY_DEPTH {
             return None;
         }
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         let spec = registry.get(seg.name())?;
 
@@ -7116,7 +7118,7 @@ impl Analyser {
         env: &mut std::collections::HashMap<String, String>,
         depth: u32,
     ) -> Option<()> {
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         let Some(spec) = registry.get(seg.name()) else {
             env.clear();
             return Some(());
@@ -7257,7 +7259,7 @@ impl Analyser {
         if depth > MAX_UNKNOWN_BODY_DEPTH {
             return None;
         }
-        let registry = self.registry?;
+        let registry = self.registry.as_deref()?;
         if let Some(spec) = registry.get(head) {
             if !self.static_provenance_command_is_trusted(head) {
                 return None;
@@ -7297,7 +7299,7 @@ impl Analyser {
     /// flow-insensitive, so a compatible mutation before or after the proof
     /// site blocks it equally.
     fn static_provenance_command_is_trusted(&self, query: &str) -> bool {
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return false;
         };
         let Some(statements) = self.statements_in_span(Span::new(
@@ -7430,7 +7432,7 @@ impl Analyser {
         let statements = self.direct_statements_in_span(body_span)?;
         let mut result = String::new();
         for seg in statements {
-            let registry = self.registry?;
+            let registry = self.registry.as_deref()?;
             let raw_args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
             match registry.invocation_completion(
                 seg.name(),
@@ -7774,7 +7776,7 @@ impl Analyser {
         if depth >= MAX_UNKNOWN_BODY_DEPTH {
             return;
         }
-        let Some(registry) = self.registry else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
         let Some(statements) = self.direct_statements_in_span(body_span) else {
@@ -8297,6 +8299,7 @@ impl Analyser {
         let manufacturer = match user_factory.as_ref() {
             None => self
                 .registry
+                .as_deref()
                 .and_then(|registry| registry.exported_manufacturer_method(cmd_name, &args[0])),
             Some(_) => grammar.and_then(|grammar| grammar.manufacturer(&args[0])),
         }?;
@@ -8610,10 +8613,15 @@ impl Analyser {
     /// adds another file-loading command is covered by declaring the trait.
     fn note_external_unit_command_moved(&mut self, name: &str) {
         let bare = name.trim_start_matches("::");
-        if self.registry.and_then(|r| r.get(bare)).is_some_and(|spec| {
-            spec.traits
-                .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
-        }) {
+        if self
+            .registry
+            .as_deref()
+            .and_then(|r| r.get(bare))
+            .is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
+            })
+        {
             self.result.has_dynamic_providers = true;
         }
     }
@@ -8641,7 +8649,7 @@ impl Analyser {
     /// behaviour.
     fn leading_option_words(&self, cmd_name: &str, args: &[String]) -> usize {
         use tcl_registry::ProfileQueries;
-        let Some(spec) = self.registry.and_then(|r| r.get(cmd_name)) else {
+        let Some(spec) = self.registry.as_deref().and_then(|r| r.get(cmd_name)) else {
             return 0;
         };
         let options = self.profile.available_option_specs(spec);
@@ -9111,6 +9119,7 @@ impl Analyser {
         use tcl_registry::ProfileQueries;
         let Some((spec, sub_spec)) = self
             .registry
+            .as_deref()
             .and_then(|r| r.get("namespace"))
             .and_then(|spec| spec.subcommand(sub).map(|s| (spec, s)))
         else {
@@ -10554,7 +10563,7 @@ mod tests {
     #[test]
     fn handle_namespace_export_clear_records_an_ordered_tombstone() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.handle_namespace_export_command(
             &["export".to_string(), "bar".to_string()],
             &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
@@ -10598,7 +10607,7 @@ mod tests {
         // ::src::*`. Consuming every matching word instead recorded two
         // tombstones and silently dropped the `-clear` export.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.handle_namespace_export_command(
             &[
                 "export".to_string(),
@@ -10628,7 +10637,7 @@ mod tests {
         // The flag is only ever the *first* word: oracle `namespace export a
         // -clear` → `namespace export` returns `a -clear`.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.handle_namespace_export_command(
             &["export".to_string(), "a".to_string(), "-clear".to_string()],
             &[
@@ -10656,7 +10665,7 @@ mod tests {
         // second is recorded as the pattern word it is — one whose empty
         // source namespace both wildcard resolvers already decline.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.handle_namespace_import_command(
             &[
                 "import".to_string(),
@@ -10684,7 +10693,7 @@ mod tests {
     #[test]
     fn handle_namespace_export_bare_clear_records_a_tombstone() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.handle_namespace_export_command(
             &["export".to_string(), "-clear".to_string()],
             &[esc_tok(span(0, 6)), esc_tok(span(7, 13))],
@@ -11970,7 +11979,7 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.result
             .global_scope
             .children
@@ -11994,7 +12003,7 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.result
             .global_scope
             .children
@@ -12628,7 +12637,7 @@ mod tests {
         // so only the genuine `-command ::real::target` is recorded.
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.result
             .global_scope
             .children
@@ -13021,7 +13030,7 @@ mod tests {
 
     fn switch_analyser() -> Analyser {
         let mut analyser = Analyser::new();
-        analyser.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        analyser.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         analyser
     }
 
@@ -13175,7 +13184,7 @@ mod tests {
     fn handle_catch_with_result_var_defines_it() {
         let mut a = Analyser::new();
         // The binding positions come from the registry's VarWrite roles.
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string()],
             &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
@@ -13187,7 +13196,7 @@ mod tests {
     #[test]
     fn handle_catch_with_options_var_defines_both() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string(), "opts".to_string()],
             &[
@@ -14059,7 +14068,7 @@ mod tests {
     fn handle_oo_class_create_records_class() {
         let mut a = Analyser::new();
         // Metaclass recognition is now registry-trait-driven (`IS_OO_METACLASS`).
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         let handled = a.handle_oo_class_command(
             "oo::class",
             &["create".to_string(), "MyClass".to_string()],
@@ -14082,7 +14091,7 @@ mod tests {
         // arg_tokens stripped of cmd_name (matching the
         // ``process_command`` dispatch convention).
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_for_dialect("tcl"));
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
         let handled = a.handle_oo_class_command(
             "oo::class",
             &[

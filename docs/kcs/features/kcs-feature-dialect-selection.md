@@ -36,10 +36,6 @@ The dialect controls which commands are available in completions and hover, whic
 - Wrong dialect produces false-positive diagnostics.
 - Dialect not persisted across restarts.
 
-## Test anchors
-
-- `editors/vscode/src/test/dialectDetection.test.ts`
-
 ## Screenshots
 
 - `25-dialect-selection` — dialect picker showing available dialects

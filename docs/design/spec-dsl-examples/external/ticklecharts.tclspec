@@ -1,0 +1,285 @@
+# Draft spec for nico-robert/ticklecharts (external corpus, NOT in the
+# shipped registry). Source: github.com/nico-robert/ticklecharts @ b49f014c
+# (2025-07-04), package version 3.2.8.
+#
+# Exercises: object_class with a large instance-method surface (raised as
+# G1 from this file; syntax now ratified in ../README.md and used here), an
+# argument-shape ensemble dispatched by a literal first word rather than a
+# native namespace ensemble, a shared closed-value table applied to
+# *options* rather than positional args (INVENTED — see G5), a per-option
+# version gate against a third-party library's own release train rather
+# than a Tcl dialect (G3, spelled with the ratified `-introduced`), a file-write sink on an
+# object-class method (documents G7 — cannot actually be declared today),
+# and foreign (non-Tcl) code as a value (documents G6 — deliberately NOT
+# drafted as a fix).
+#
+# Full evidence and gap numbering: ../external/README.md
+
+speclib ticklecharts 3.2 {
+
+# ---------------------------------------------------------------------------
+# Shared, named closed-value tables.
+#
+# ticklecharts centralises ~124 closed-value checks in one dispatcher keyed
+# by symbol (eformat.tcl:6 `ticklecharts::formatEcharts`, switch on
+# $formattype); `formatTextAlign` (eformat.tcl:46-48) is representative:
+#   set validvalue {auto left right center}
+#   if {$value ni $validvalue} { error ... }
+# The mechanism below (`values NAME { value V -detail {...} }` +
+# `-values-from NAME`) already exists for positional `arg`s
+# (string.tclspec:17-42, `is-classes`) — applying it to an `option`
+# further down (`-colorBy`) is the only invented part; see G5.
+
+# The literal first-word cases `Add` dispatches on (chart.tcl:1027-1049,
+# `switch -exact -- [lindex $args 0]`) — transcribed by hand since, per
+# chart.tcl:1050-1065, the ONLY place this set exists at runtime is the
+# error-message branch's introspection of the class's own method table.
+values chart-add-series-names {
+    value barSeries          -detail {AddBarSeries}
+    value lineSeries         -detail {AddLineSeries}
+    value pieSeries          -detail {AddPieSeries}
+    value funnelSeries       -detail {AddFunnelSeries}
+    value radarSeries        -detail {AddRadarSeries}
+    value scatterSeries      -detail {AddScatterSeries}
+    value heatmapSeries      -detail {AddHeatmapSeries}
+    value graphic            -detail {AddGraphic}
+    value sunburstSeries     -detail {AddSunburstSeries}
+    value treeSeries         -detail {AddTreeSeries}
+    value themeRiverSeries   -detail {AddThemeRiverSeries}
+    value sankeySeries       -detail {AddSankeySeries}
+    value pictorialBarSeries -detail {AddPictorialBarSeries}
+    value candlestickSeries  -detail {AddCandlestickSeries}
+    value parallelSeries     -detail {AddParallelSeries}
+    value gaugeSeries        -detail {AddGaugeSeries}
+    value graphSeries        -detail {AddGraphSeries}
+    value wordCloudSeries    -detail {AddWordCloudSeries (alias: wCSeries)}
+    value boxPlotSeries      -detail {AddBoxPlotSeries}
+    value treeMapSeries      -detail {AddTreeMapSeries}
+    value mapSeries          -detail {AddMapSeries}
+    value linesSeries        -detail {AddLinesSeries}
+}
+
+# ---------------------------------------------------------------------------
+# The chart type. `new` returns an object handle whose ~47 methods
+# (chart.tcl:36-1179) are almost all `AddXSeries {args}` one-liners, plus a
+# handful of structural ones (Render, toHTML, toJSON, SetOptions, Xaxis,
+# Yaxis, Add, AddJSON, deleteSeries, ...). Representative subset only, per
+# the "3-5 representative commands" brief — full method list is grep'able
+# at chart.tcl with `grep -n "    method [A-Za-z]" chart.tcl` (47 hits).
+command ticklecharts::chart {
+    # `arity 1..` is the METHOD word plus its arguments, not the
+    # constructor's: `ticklecharts::chart new -theme dark` puts `new` at
+    # word 0.  Reconciled against the shipped ticklecharts class factories
+    # (rust/tcl-registry/src/commands/ticklecharts/mod.rs:409-457), which
+    # are the ratified shape for any TclOO class command: arity 1.. +
+    # allow_unknown_subcommands (a TclOO object also answers every
+    # oo::object method) + `new`/`create` subcommands carrying the
+    # constructor's own shape + manufacturer rows saying where the
+    # instance name and the constructor arguments sit.
+    arity 1..
+    allow_unknown_subcommands
+    # Not a tcllib module -- `required_package` (package-require gating)
+    # applies; `tcllib_package` is left unset entirely, not "".
+    required_package ticklecharts
+
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
+
+    subcommand new {
+        arity 0..
+        detail   {Create a new chart object with an auto-generated command name.}
+        synopsis {ticklecharts::chart new ?-theme name?}
+        option -theme -takes name -detail {Chart theme name (chart.tcl:6-32).}
+    }
+
+    subcommand create {
+        arity 1..
+        detail   {Create a new chart object with the given command name.}
+        synopsis {ticklecharts::chart create name ?-theme name?}
+        arg 0 -role Name
+        option -theme -takes name -detail {Chart theme name (chart.tcl:6-32).}
+    }
+
+    hover {
+        summary  {Create a chart object (Apache ECharts wrapper).}
+        synopsis {ticklecharts::chart new ?-theme name?}
+        description {Returns a dispatchable object handle; build the chart by calling AddXSeries / SetOptions / axis methods on it, then Render or toHTML/toJSON.}
+        source   {chart.tcl:6-32 (constructor), nico-robert/ticklecharts}
+        example  {set chart [ticklecharts::chart new]
+$chart AddLineSeries -data {1 2 3}
+$chart Render -outfile out.html}
+        returns  {A TclOO object command.}
+    }
+
+    # G1 was raised against this file: no object_class/TclOO syntax existed
+    # in the DSL sketch despite `CommandSpec::object_class`
+    # (rust/tcl-registry/src/spec.rs:1122-1125) existing and that field's OWN
+    # doc comment naming `ticklecharts::chart` as its example.  The syntax is
+    # now ratified in ../README.md and this file uses it: the class NAME is
+    # the statement's own word (ObjectClassSpec.class_name), superclasses and
+    # allow-unknown are optional flags, and `method` blocks reuse
+    # `subcommand`'s grammar 1:1 because instance methods ARE SubCommands
+    # structurally (ObjectClassSpec.instance_methods: &[SubCommand],
+    # spec.rs:255-256).  No superclasses and no unknown-method handler here,
+    # so both flags are absent.
+    object_class ticklecharts::chart {
+
+        # `Add` is the argument-shape ensemble: chart.tcl:1006-1069 takes a
+        # LITERAL first word ("barSeries", "lineSeries", ...) and
+        # `switch -exact --`s on it (chart.tcl:1026-1050). On no match it
+        # does NOT read a declared table — it introspects its own class
+        # definition (`ticklecharts::classDef [self class] [self method]`,
+        # chart.tcl:1051) to build the error message. Zero native
+        # `namespace ensemble` anywhere in this corpus; see README §5 item 2.
+        method Add {
+            arity 1..
+            detail   {Add a series/graphic item by literal type name.}
+            synopsis {$chart Add seriesType ?-opt value ...?}
+            mutator
+            arg 0 -role Value -values-from chart-add-series-names -closed
+            hover {
+                summary {Dispatch to AddXSeries by literal first-word type name.}
+                description {Equivalent to calling the matching AddXSeries method directly (chart.tcl:1007-1017); kept only for a writing-style preference the author documents in-line.}
+            }
+        }
+
+        # One leaf of the 3,961-declaration option surface (series.tcl:6-16),
+        # picked because it carries every flavour found: a version-gated
+        # option against ECharts' OWN release train (not Tcl), a
+        # shared-closed-enum option, and a plain union-typed option.
+        method AddBarSeries {
+            arity 0..
+            detail   {Add a bar-chart series.}
+            synopsis {$chart AddBarSeries ?-type bar? ?-colorBy series|data? ?-data list? ...}
+            mutator
+
+            # series.tcl:16 `setdef options -type -minversion 5 -validvalue
+            # formatTypeBar -type str -trace no -default "bar"`.
+            option -type -takes value -values {bar} -closed \
+                -detail {Series subtype; always "bar" on this method (formatTypeBar, eformat.tcl:1419-1430).}
+
+            # series.tcl:19 `setdef options -colorBy -minversion "5.2.0" ...`
+            # -- version-gated against ECharts' OWN release train, not a Tcl
+            # dialect.  G3 was raised here as `-since VERSION`; the ratified
+            # spelling is the option row's existing `-introduced`, one of the
+            # four lifecycle flags named for `Lifecycle`'s own fields
+            # (rust/tcl-registry/src/hover.rs:402-408).  The gap G3 actually
+            # documents survives the rename intact: the version axis is the
+            # LIBRARY's, which is precisely what `Lifecycle` is documented as
+            # being ("orthogonal to dialects").
+            option -colorBy -takes value -values {series data} -closed \
+                -introduced 5.2.0 \
+                -detail {Group `-itemStyle color` assignment by series or by data point. Needs Echarts >= 5.2.0.}
+
+            # series.tcl:76-77 `setdef options -label ... -default
+            # [ticklecharts::label $value]` -- value is itself a nested
+            # dict built by a sibling option-builder proc. `-nested` here
+            # is the same speculative extension apave's row grammar needs
+            # (G8) applied at 1 level instead of 2; flagged the same way.
+            option -label -takes value -role Value \
+                -detail {Label formatting sub-options (itself a nested option dict — see G8 for the general nested-option-value gap).}
+
+            option -data -takes value -role Value \
+                -detail {List of data points or {value: ..., ...} dicts (series.tcl:52-56).}
+        }
+
+        # A real, grounded file-write sink that sits on an object-class
+        # method, not a free command. Documents G7 rather than fixing it:
+        # taint_code_sink_args / taint_network_sink_args / taint_log_sink /
+        # taint_source / taint_sink_safe_colour / credential_options are
+        # ALL *command only* per fields.md's own scope markers; this
+        # `method` block is a SubCommand and cannot carry them no matter
+        # how the option/arg syntax below is spelled. Written anyway to
+        # show what an author would WANT to say.
+        method Render {
+            arity 0..
+            detail   {Export the chart to an HTML file.}
+            synopsis {$chart Render ?-outfile path? ?-title t? ...}
+            mutator
+
+            option -outfile -takes value -role Value \
+                -detail {Output HTML path (default: [info script]/render.html). chart.tcl:255,267,271.}
+
+            # chart.tcl:271-272: `set fp [open $outputFile w+]; puts $fp
+            # [my toHTML {*}$opts]`. Real FileIo write, caller-controlled
+            # destination. Would be `side_effect FileIo -writes` if this
+            # were a *command*; SubCommand's side_effects field IS
+            # command-and-subcommand scoped (fields.md), so this statement
+            # alone IS legal today —
+            side_effect FileIo -writes
+
+            # -- but the taint half is not: no SubCommand field exists for
+            # "this method's -outfile option is a path-write sink" the way
+            # a *command*-scoped spec could say
+            # `taint_network_sink_args`/a hypothetical path-sink list. Not
+            # written here because there is nothing to write it AS.
+
+            returns_path
+            hover {
+                summary {Write the chart's HTML rendering to a file and return its path.}
+                returns {The full native path of the written file (chart.tcl:288).}
+            }
+        }
+
+        method toJSON {
+            arity 0
+            detail   {Serialise the chart's current option tree to a JSON string.}
+            synopsis {$chart toJSON}
+            return_type String
+            hover { summary {Return the chart options as an ECharts-compatible JSON string.} }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# ticklecharts::jsfunc — wraps a literal or `subst`-substituted JAVASCRIPT
+# source blob (jsfunc.tcl:6-48) that is spliced verbatim into the generated
+# HTML (chart.tcl:316,348-351, `ticklecharts::htmlMap`). Documents G6;
+# deliberately NOT drafted as a fix — see the note in the method body below.
+command ticklecharts::jsfunc {
+    # Same class-command shape as chart above: word 0 is the manufacturer
+    # keyword, so the JS payload's position is stated on the `new` / `create`
+    # subcommands rather than on the class command.
+    arity 1..
+    allow_unknown_subcommands
+    required_package ticklecharts
+
+    manufacturer new                       -constructor-args-from 1
+    manufacturer create -names-instance-at 1 -constructor-args-from 2
+
+    # `arg 0` of the constructor genuinely is NOT `-role Body`: Body is
+    # documented (fields.md) as "Tcl script body, recursed into by the
+    # analyser" -- jsfunc's payload is never analysed as Tcl and would
+    # corrupt highlighting/folding/completion if treated as one. There is no
+    # ArgRole for "opaque code in a different language, later embedded as an
+    # output sink" and no taint colour parallel to HTML_ESCAPED for "safe JS
+    # to inline" (G6). Left as the honest default (Value) rather than
+    # inventing a role with no registry backing to point at.
+    subcommand new {
+        arity 1
+        detail   {Wrap a JavaScript source fragment.}
+        synopsis {ticklecharts::jsfunc new {javascript source}}
+        arg 0 -role Value
+    }
+
+    subcommand create {
+        arity 2
+        detail   {Wrap a JavaScript source fragment under an explicit command name.}
+        synopsis {ticklecharts::jsfunc create name {javascript source}}
+        arg 0 -role Name
+        arg 1 -role Value
+    }
+
+    hover {
+        summary  {Wrap a literal JavaScript source fragment for embedding in the rendered chart.}
+        synopsis {ticklecharts::jsfunc new {javascript source}}
+        description {The braced argument is JavaScript, not Tcl, though it may itself be `subst`-substituted by the CALLER before being passed in (see examples/wordcloud/wordcloud_image.tcl in the corpus: `[subst -nocommands {...}]`). Spliced verbatim into the generated HTML/JS at render time (chart.tcl:316,348-351) -- an output-sink-shaped operation with no ArgRole/taint-colour support today (G6).}
+        source   {jsfunc.tcl:1-65}
+    }
+
+    object_class ticklecharts::jsfunc {
+        method get { arity 0 ; detail {Return the wrapped JS source.} ; synopsis {$jsf get} ; return_type String }
+    }
+}
+
+}

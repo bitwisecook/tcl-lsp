@@ -31,21 +31,51 @@
 //!   the form, the draft model, and the renderer from a single table.
 //! - [`catalogue`] — the registry's enum and bitflag vocabularies, with
 //!   compile-time witnesses that they stay complete.
+//! - [`help`] — the long-form, Tcl-developer-facing help behind the form's
+//!   **?** buttons and the Reference tab, with tests that keep it covering
+//!   every field, group, and catalogue.
 //! - [`coverage`] — the same idea one level down: exhaustive *destructurings*
 //!   of the `CommandSpec` family, so a new registry **field** breaks the build
 //!   until it is surfaced in the studio (or explicitly excluded).
 //! - [`draft`] — the JSON draft model, and seeding a draft from a live spec.
 //! - [`render_rs`] — draft → registry `.rs` source, copyright banner included.
 //! - [`render_stub`] — draft → `# tcl-lsp: stub` block or `.tcl.stubs` file.
+//! - [`render_spectcl`] — draft → `.tclspec` spec pack, the loader's inverse.
 //! - [`infer`] — Tcl package sources → draft specs, via the real analyser.
+//! - [`corpus`] — the shape heuristics the importer layers on top: option
+//!   tables, mode-word subcommands, closed value sets and callback arity, read
+//!   deterministically out of a proc's body with an evidence line each.
+//! - [`sample`] — the Test tab's engine: a sample of Tcl analysed with the pack
+//!   installed, plus a per-word explanation of which spec field produced it.
+//! - [`store`] — the studio's **models**, kept away from every UI: the
+//!   immutable built-ins, the DSL-text-backed pack store, and the one
+//!   resolution facade that merges them under the shipped collision policy.
+//! - [`spectcl`] — `.tclspec` spec packs → live `CommandSpec`s, read from the
+//!   CST and never executed.
+//!
+//! Two of those are re-exports rather than modules of this crate. [`spectcl`]
+//! and [`catalogue`] were written here, where the DSL was designed, and now
+//! live in `tcl-spectcl` — the LSP server loads packs at workspace init and
+//! cannot reasonably depend on a draft model, a `.rs` renderer, and a schema
+//! coverage gate to do it. The studio's surface is unchanged: same paths, same
+//! types, and the equivalence gate in `tests/spectcl_ports.rs` still tests the
+//! very loader the server runs.
 
-pub mod catalogue;
+pub mod corpus;
 pub mod coverage;
 pub mod draft;
+pub mod help;
 pub mod infer;
+pub mod reference;
 pub mod render_rs;
+pub mod render_spectcl;
 pub mod render_stub;
+pub mod sample;
 pub mod schema;
+pub mod store;
+
+pub use tcl_spectcl::catalogue;
+pub use tcl_spectcl::loader as spectcl;
 
 use serde_json::{Value, json};
 use tcl_registry::cache::registry_for_dialect;

@@ -1,0 +1,118 @@
+# Port of rust/tcl-registry/src/commands/tcl/switch_.rs
+#
+# Exercises: stepped arity with an extra exact count, value-consuming option
+# skipping in a role-resolver hook body, reserved_trailing_words, and an
+# inline case_list descriptor.  (`if`'s clause chain — the other shape of
+# "clause grammar" — is in if.tclspec.)
+
+speclib tcl 1.0 {
+
+command switch {
+    # Present and unrestricted in every dialect including iRules; the legal
+    # *option set* narrows per Tcl version through the per-option gates below,
+    # not through a whole-command dialect gate.
+    dialects {all-tcl f5-irules}
+    traits {NOT_PROC_FACTORY BYTE_COMPILED CONTROL_FLOW LANGUAGE_KEYWORD
+            NEVER_INLINE_BODY HAS_SWITCH_BODY}
+
+    # `string pattern body ?pattern body ...?` (an odd count from 3) — OR the
+    # single-braced-body shorthand `string {pattern body ...}` (exactly 2).
+    # tclsh 8.6.14: `switch $s a b c` fails "wrong # args"; `switch $s {a b}`
+    # and `switch $s a b c d` both succeed.
+    arity 3.. -step 2 -also 2
+
+    # Skip option flags (including the value-consuming ones), skip the subject
+    # word, then mark either the single braced clause list or the body of each
+    # pattern/body pair.  A body of exactly `-` falls through to the next
+    # clause and is not a script.
+    arg_role_resolver {words ctx} {
+        set n [llength $words]
+        set i 0
+        while {$i < $n} {
+            set w [lindex $words $i]
+            if {$w eq "--"} { incr i ; break }
+            if {[string index $w 0] ne "-"} break
+            if {$w in {-matchvar -indexvar}} { incr i 2 } else { incr i }
+        }
+        incr i                                  ;# the subject word
+        if {$i >= $n} return
+        if {$i == $n - 1} { role $i Body ; return }
+        while {$i + 1 < $n} {
+            if {[lindex $words [expr {$i + 1}]] ne "-"} {
+                role [expr {$i + 1}] Body
+            }
+            incr i 2
+        }
+    }
+
+    lowering_hook -native Switch
+    analyser_hook -native Switch
+    return_type String
+
+    option -exact  -detail {Exact string compare mode. This is the default.}
+    option -glob   -detail {Glob-style pattern mode, as implemented by `string match`.}
+    option -integer -dialects tcl9.1 -detail {Integer comparison mode: string and every pattern (other than a trailing default) must be a valid integer, or switch raises an error. Cannot be combined with -nocase.}
+    option -regexp -detail {Regular expression pattern mode.}
+    option -nocase -dialects tcl8.5+ -detail {Case-insensitive matching. Not supported together with -integer (Tcl 9.1+).}
+    option -matchvar -takes varName -dialects tcl8.5+ -detail {Store the list of matched substrings here — element 0 is the overall match, each later element a capturing group (only legal with -regexp); an empty list when a default branch runs.}
+    option -indexvar -takes varName -dialects tcl8.5+ -detail {Store the list of matched substring start/end index pairs here, parallel to -matchvar (only legal with -regexp); an empty list when a default branch runs.}
+    option -- -detail {End of options: the next word is always the subject string, even if it starts with -.}
+
+    # TclNRSwitchObjCmd only scans for -flag words up to objc - 2: the trailing
+    # `string` and pattern-list-or-first-pattern words are never mistaken for
+    # options, even when dynamic and starting with `-`.
+    reserved_trailing_words 2
+
+    # The shipped constant is reachable as the one-word `case_list switch`;
+    # spelled out here to show the descriptor is authorable, which is what a
+    # private Expect-like or dispatch-table command needs.
+    case_list {
+        subject_args 1
+        exact_option  -exact
+        glob_option   -glob
+        regex_option  -regexp
+        nocase_option -nocase
+        end_options_option --
+        fallthrough_body -
+        value_options_require_regex {-matchvar -indexvar}
+        clause_flags {}
+        clause_value_flags {}
+        keyword_patterns {default} -final-only
+    }
+
+    side_effect Unknown -reads -writes
+
+    form Default {switch ?options? string pattern body ?pattern body ...?}
+    form Default {switch ?options? string {pattern body ?pattern body ...?}}
+
+    hover {
+        summary {Pattern-based branching on a subject string.}
+        synopsis {switch ?options? string pattern body ?pattern body ...?}
+        synopsis {switch ?options? string {pattern body ?pattern body ...?}}
+        description {Compares string against each pattern in turn and, on the first match, evaluates the corresponding body and returns its result. -exact (the default), -glob (as `string match`), -regexp, and, from Tcl 9.1, -integer select the comparison mode; -nocase (Tcl 8.5+) makes any of them case-insensitive except -integer, which it cannot combine with — -integer also turns a non-integer string or pattern, other than a trailing default, into an error. A pattern of default, which must come last, matches unconditionally; with no match and no default, switch returns an empty string. A body of exactly "-" shares the next pattern's body, so several patterns can fall through to one script. Patterns and bodies may be given as separate words, with substitutions applying normally, or grouped into one braced {pattern body ...} argument, handy for multi-line switches — no command or variable substitution happens on patterns in the braced form, so it can behave differently from the separate-words form. -matchvar and -indexvar (Tcl 8.5+, only with -regexp) capture the overall match plus each capturing group's substrings, or their start/end indices, into the named variables, writing an empty list when a default branch runs. When switch is called with exactly two arguments in total, neither is scanned as an option (documented from Tcl 8.5 on) — the first is always the subject and the second the pattern list, even if the subject begins with -; with more arguments, a subject beginning with - still needs --. Tcl 8.4 recognises only -exact/-glob/-regexp/--.}
+        source {Tcl switch(n)}
+        example {switch -glob -- $ext {
+    .tcl    -
+    .tm     { puts "Tcl source" }
+    .h      { puts "C header" }
+    default { puts "unknown extension" }
+}
+
+# Capture what matched (Tcl 8.5+)
+switch -regexp -matchvar parts -- $line {
+    {^(\w+):\s*(.*)$} {
+        puts "key=[lindex $parts 1] value=[lindex $parts 2]"
+    }
+}
+
+# Dispatch on argument count (Tcl 9.1+)
+switch -integer -- [llength $args] {
+    0       { puts "no arguments" }
+    1       { puts "one argument: [lindex $args 0]" }
+    default { puts "many arguments: $args" }
+}}
+        returns {The result of evaluating the matched body, or an empty string when no pattern matches and there is no default clause.}
+    }
+}
+
+}

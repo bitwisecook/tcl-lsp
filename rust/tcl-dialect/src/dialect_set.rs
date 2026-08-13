@@ -26,10 +26,11 @@ bitflags! {
     /// `None` on a `CommandSpec` means "available in all dialects".
     /// A specific `DialectSet` restricts availability.
     ///
-    /// Backed by `u64`: 12 bits are used today (5 Tcl versions + iRules, iApps,
-    /// Tk, Expect, BPF, tmsh, the BIG-IP config surface); bits 8–12 were freed
-    /// by the EDA-as-packages migration, leaving ample headroom for future
-    /// dialect bits and the versioned-library work without a width migration.
+    /// Backed by `u64`: 13 bits are used today (5 Tcl versions + iRules, iApps,
+    /// Tk, Expect, BPF, tmsh, the BIG-IP config surface, `SpecTcl`); bits 8–12
+    /// were freed by the EDA-as-packages migration — bit 8 has since been
+    /// taken by `SpecTcl` — leaving ample headroom for future dialect bits and
+    /// the versioned-library work without a width migration.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct DialectSet: u64 {
         /// Tcl 8.4
@@ -51,8 +52,14 @@ bitflags! {
         // Bits 8–12 (formerly the Synopsys/Cadence/Xilinx/Quartus/Mentor EDA
         // vendor bits) were retired: EDA shells are modelled as a base Tcl
         // version plus `required_package`-gated command libraries, not vendor
-        // dialects (design doc `eda-library-packages.md`). The slots are left
-        // free for future dialects.
+        // dialects (design doc `eda-library-packages.md`). Bit 8 was taken by
+        // SpecTcl below; 9–12 are left free for future dialects.
+        /// `SpecTcl` — the `.tclspec` spec-pack authoring DSL (design doc
+        /// `spec-packs.md`). A declarative Tcl script whose statement words
+        /// (`speclib`, `command`, `option`, `arg`, …) are a command surface
+        /// of their own, so the DSL gets the editor experience from the same
+        /// registry machinery it configures.
+        const SPECTCL   = 1 << 8;
         /// BPF-Tcl (the eBPF framework dialect)
         const BPF       = 1 << 13;
         /// Tcl 9.1
@@ -134,6 +141,7 @@ pub const KNOWN_DIALECTS: &[&str] = &[
     "f5-tmsh",
     "intel-quartus-eda-tcl",
     "mentor-eda-tcl",
+    "spectcl",
     "synopsys-eda-tcl",
     "tcl8.4",
     "tcl8.5",
@@ -231,6 +239,7 @@ impl DialectSet {
             "expect" => Self::EXPECT,
             "f5-tmsh" => Self::TMSH,
             "f5-bigip" => Self::BIGIP,
+            "spectcl" => Self::SPECTCL,
             _ => return None,
         })
     }
@@ -253,6 +262,7 @@ impl DialectSet {
             Self::EXPECT => "expect",
             Self::TMSH => "f5-tmsh",
             Self::BIGIP => "f5-bigip",
+            Self::SPECTCL => "spectcl",
             _ => return None,
         })
     }
@@ -278,6 +288,7 @@ impl DialectSet {
             DialectSet::BPF,
             DialectSet::TMSH,
             DialectSet::BIGIP,
+            DialectSet::SPECTCL,
         ];
         PRIMITIVES
             .iter()
@@ -340,7 +351,10 @@ impl DialectSet {
                 Self::TCL85
             }
             "tcl8.6" | "synopsys-eda-tcl" | "mentor-eda-tcl" | "expect" => Self::TCL86,
-            "tcl9.0" => Self::TCL90,
+            // SpecTcl's hook bodies are evaluated on our own Tcl 9.0-shaped
+            // VM (`spec-packs.md`, "Purity and the sandbox"), so its expr
+            // grammar is 9.0's.
+            "tcl9.0" | "spectcl" => Self::TCL90,
             "tcl9.1" => Self::TCL91,
             _ => return None,
         })
@@ -391,7 +405,7 @@ mod tests {
     #[test]
     fn available_dialects_is_sorted_and_complete() {
         let d = available_dialects();
-        assert_eq!(d.len(), 16);
+        assert_eq!(d.len(), 17);
         let mut sorted = d.to_vec();
         sorted.sort_unstable();
         assert_eq!(d, sorted.as_slice(), "must be pre-sorted");

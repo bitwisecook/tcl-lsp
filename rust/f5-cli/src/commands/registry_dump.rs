@@ -44,7 +44,7 @@ use tcl_registry::snapshot::{
 
 /// The `f5-irules` command-registry snapshot (core Tcl + iRules commands).
 fn commands_snapshot() -> Json {
-    command_registry_snapshot(registry_for_dialect("f5-irules"), "f5-irules")
+    command_registry_snapshot(&registry_for_dialect("f5-irules"), "f5-irules")
 }
 
 /// Run the `registry-dump` verb for `section`, writing to `output`

@@ -167,7 +167,7 @@ fn cross_file_call_site_evidence(
         let dialect = document.effective_dialect(dialect_override);
         merged.merge_from(&tcl_compiler::unit_scope::scan_source_call_sites(
             &document.source,
-            registry_for_dialect(&dialect),
+            &registry_for_dialect(&dialect),
             &dialect,
             &known,
             &reach,
@@ -181,7 +181,7 @@ fn cross_file_call_site_evidence(
 fn document_proc_names(document: &InputDocument, dialect: &str) -> Vec<String> {
     tcl_compiler::signature_scan::extract_signatures(
         &document.source,
-        registry_for_dialect(dialect),
+        &registry_for_dialect(dialect),
     )
     .procs
     .into_keys()
@@ -242,7 +242,7 @@ fn collect_rows(
     let analysis_cu = std::sync::Arc::new(CompilationUnit::build_with_options(
         source,
         UnitBuildOptions {
-            registry,
+            registry: &registry,
             defer_top_level: false,
             config: tcl_lexer::LexerConfig::default(),
             dialect,
@@ -251,7 +251,9 @@ fn collect_rows(
     ));
 
     let file_path = document.path.as_deref().map(|p| p.display().to_string());
-    let mut analyser = Analyser::new().with_file_path(file_path);
+    let mut analyser = Analyser::new()
+        .with_file_path(file_path)
+        .with_pack_overlay(tcl_cli_support::spec_pack_key());
     analyser.set_cu_override(std::sync::Arc::clone(&analysis_cu));
     let result = analyser.analyse(source, dialect);
     for d in &result.diagnostics {
@@ -282,7 +284,7 @@ fn collect_rows(
         std::sync::Arc::new(CompilationUnit::build_with_options(
             source,
             UnitBuildOptions {
-                registry,
+                registry: &registry,
                 defer_top_level: false,
                 config: checks_config,
                 dialect,
@@ -292,7 +294,7 @@ fn collect_rows(
     };
     let cu = checks_cu.as_ref();
     let dialect_opt = (!dialect.is_empty()).then_some(dialect);
-    for d in run_all_checks(cu, registry, dialect_opt) {
+    for d in run_all_checks(cu, &registry, dialect_opt) {
         if d.code.is_optimisation() || disabled.contains(d.code.as_str()) {
             continue;
         }

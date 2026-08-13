@@ -54,13 +54,25 @@ export interface FieldSchema {
   label: string;
   doc: string;
   group: string;
+  /** Long-form help behind the field's ? button, from `help::field_help`. */
+  help: string;
   kind: FieldKind;
+}
+
+/** A catalogue's title and introduction, from `help::CATALOGUE_HELP`. */
+export interface CatalogueHelp {
+  title: string;
+  intro: string;
 }
 
 /** The whole schema, from `schema::to_json`. */
 export interface Schema {
   groups: string[];
+  /** Long-form help per group heading, from `help::GROUP_HELP`. */
+  groupHelp: Record<string, string>;
   catalogues: Catalogues;
+  /** Title and introduction per catalogue id, from `help::CATALOGUE_HELP`. */
+  catalogueHelp: Record<string, CatalogueHelp>;
   command: FieldSchema[];
   subcommand: FieldSchema[];
 }
@@ -115,6 +127,206 @@ export interface StagedFile {
   source: string;
 }
 
+/* The pack store ---------------------------------------------------------- */
+
+/**
+ * Where a name's *effective* definition comes from, from `store::Origin`.
+ *
+ * `shadowed` is the one that matters to an author: the pack declares the name,
+ * a shipped spec already has it, and the pack did not say `-override` — so the
+ * shipped spec is what an editor would use and the pack's declaration is inert.
+ */
+export type PackOrigin = "builtin" | "pack" | "override" | "shadowed";
+
+/** One thing the loader dropped, from `spectcl::Notice`. */
+export interface PackNotice {
+  line: number;
+  context: string;
+  reason: string;
+}
+
+/** A name the pack and the shipped registry both define. */
+export interface PackCollision {
+  name: string;
+  override: boolean;
+  effect: "pack-spec-wins" | "shipped-spec-wins";
+  reason: string;
+}
+
+/** One sidebar row: a pack command and its state at a glance. */
+export interface PackCommandRow {
+  name: string;
+  origin: PackOrigin;
+  override: boolean;
+  summary: string;
+  fields_set: number;
+  subcommands: number;
+  options: number;
+  notices: number;
+  unrenderable: number;
+}
+
+/** The whole store, from `store::Resolution::store_view`. */
+export interface PackStoreView {
+  pack: string;
+  dsl_version: string;
+  dialect: string;
+  commands: PackCommandRow[];
+  notices: PackNotice[];
+  collisions: PackCollision[];
+  summary: {
+    commands: number;
+    notices: number;
+    collisions: number;
+    shadowed_commands: number;
+    bytes: number;
+    hooks?: number;
+  };
+  error?: string;
+}
+
+/** The merged view of one command, from `store::Resolution::view`. */
+export interface PackCommandView {
+  name: string;
+  origin: PackOrigin;
+  editable: boolean;
+  dialect: string;
+  override: boolean;
+  effective: Draft | null;
+  pack: Draft | null;
+  builtin: Draft | null;
+  notices: PackNotice[];
+  error?: string;
+}
+
+/** The reply to a write-back: the new document, and how it was reached. */
+export interface PackWrite {
+  source: string;
+  /** `"spliced"` kept every other byte; `"rerendered"` rebuilt the file. */
+  writeback?: "spliced" | "rerendered";
+  /**
+   * Properties the declaration stated before the edit and does not after it.
+   *
+   * A draft cannot recover a hook body — it holds a function pointer — so a
+   * command re-rendered from its draft would lose the author's Tcl. Most such
+   * statements are carried across verbatim; anything that could not be is named
+   * here so the author is told rather than surprised.
+   */
+  dropped?: string[];
+  name?: string;
+  removed?: string;
+  error?: string;
+}
+
+/* The Test tab ------------------------------------------------------------ */
+
+/** One diagnostic the analyser raised over the sample. */
+export interface TestDiagnostic {
+  code: string;
+  severity: string;
+  message: string;
+  line: number;
+  column: number;
+  end_line: number;
+  end_column: number;
+  start: number;
+  end: number;
+}
+
+/** One word of the sample, with what the merged registry says about it. */
+export interface TestToken {
+  start: number;
+  end: number;
+  line: number;
+  column: number;
+  text: string;
+  index: number;
+  depth: number;
+  command: string;
+  origin: PackOrigin | "unknown";
+  /** `command`, `subcommand`, `option`, `option-value`, `terminator`, … */
+  kind: string;
+  /** The spec property that produced this word, when one did. */
+  field: string | null;
+  detail: string;
+  roles: { role: string; doc: string }[];
+  severity: string | null;
+}
+
+/**
+ * The sample split into chunks covering every byte, in order.
+ *
+ * Rust emits the text rather than offsets so the front-end never converts a
+ * byte index into a JavaScript string index — a conversion that breaks the
+ * moment the sample holds a character outside the BMP's ASCII range.
+ */
+export interface TestChunk {
+  text: string;
+  token: number | null;
+}
+
+/** The whole Test tab reply, from `sample::Bench::analyse`. */
+export interface TestReport {
+  dialect: string;
+  pack: string;
+  /** Whether the pack contributed anything to the registry that was used. */
+  installed: boolean;
+  render: TestChunk[];
+  tokens: TestToken[];
+  diagnostics: TestDiagnostic[];
+  summary: {
+    words: number;
+    calls: number;
+    pack_calls: number;
+    unknown_commands: number;
+    diagnostics: number;
+    errors: number;
+    warnings: number;
+  };
+  error?: string;
+}
+
+/** The deep view of one word, from `sample::Bench::inspect`. */
+export interface TestInspection {
+  word: {
+    text: string;
+    start: number;
+    end: number;
+    line: number;
+    column: number;
+    index: number;
+    depth: number;
+    kind: string;
+  };
+  call: { command: string; args: string[]; resolved: boolean };
+  spec: {
+    name: string;
+    origin: PackOrigin | "unknown";
+    source: string;
+    dialect: string;
+    summary: string;
+    synopsis: string;
+    arity: string;
+    subcommands: number;
+    options: number;
+    required_package: string | null;
+    return_type: string;
+    fields_set: string[];
+  } | null;
+  subcommand: {
+    name: string;
+    detail: string;
+    synopsis: string;
+    arity: string;
+    options: number;
+  } | null;
+  role: { roles: { role: string; doc: string }[]; field: string | null; detail: string };
+  diagnostics: TestDiagnostic[];
+  notices: PackNotice[];
+  editable: boolean;
+  error?: string;
+}
+
 /**
  * The wasm module's exports.
  *
@@ -131,6 +343,24 @@ export interface StudioWasm {
   render_rs(draftJson: string, pack: string): string;
   render_stub(draftsJson: string, mode: string, dialect: string): string;
   import_package(filesJson: string, dialect: string): string;
+
+  /* The pack store. Every one of these takes the `.tclspec` document, so the
+     browser holds exactly one piece of state and Rust stays a pure function
+     of it — which is what makes the DSL pane and the form two projections of
+     one thing rather than two stores to reconcile. */
+  pack_new(packName: string): string;
+  pack_load(source: string, dialect: string): string;
+  pack_command(source: string, name: string, dialect: string): string;
+  pack_set_command(source: string, name: string, draftJson: string, overrides: boolean): string;
+  pack_remove_command(source: string, name: string): string;
+  pack_render(source: string): string;
+  pack_validate(source: string, dialect: string): string;
+
+  /* The Test tab: the sample analysed with the pack installed, and the
+     per-word deep view. `offset` is a **byte** offset into `sample`, which is
+     what a token carries — never a JavaScript string index. */
+  pack_test_analyse(source: string, sample: string, dialect: string): string;
+  pack_test_inspect(source: string, sample: string, dialect: string, offset: number): string;
 }
 
 /**
