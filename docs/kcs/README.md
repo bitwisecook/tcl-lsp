@@ -259,6 +259,19 @@ The `help` subcommand, the MCP `help` tool, and the VS Code `/help`
 chat command all read these files at runtime to build their feature
 catalogues.
 
+## Compiler fact contracts
+
+Notes about a change to a **compiler fact** — something an analyser pass,
+diagnostic, or downstream tool reads from the compiler and used to be able
+to assume was fixed for the life of the process, and no longer can — live
+under [`compiler/`](compiler/README.md).
+
+- [kcs-qa-is-the-command-registry-fixed-at-compile-time.md](compiler/kcs-qa-is-the-command-registry-fixed-at-compile-time.md)
+  — why the command registry the analyser consults is no longer fixed at
+  compile time now that SpecTcl packs can load at runtime, and what that
+  means for W002/W123 and any consumer that memoises "is this command
+  known".
+
 ## Diagnostics and optimisations (per-code pages)
 
 164 per-code KCS notes live under [`codes/`](codes/README.md) — 133
