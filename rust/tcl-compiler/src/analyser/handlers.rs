@@ -4649,6 +4649,7 @@ impl Analyser {
             // wherever the releases disagree — the direction every consumer of
             // this level already treats conservatively.
             self.registry
+                .as_ref()
                 .map_or_else(
                     || FrameLevel::parse(&args[0]),
                     |r| FrameLevel::parse_in(&args[0], r),
