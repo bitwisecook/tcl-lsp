@@ -44,6 +44,7 @@ use crate::ir::{
     ProgType, SlotId, Term, UnOp,
 };
 use crate::ty::{ByteOrder, Region, Ty, Width};
+use tcl_syntax::number::{Number, NumberSyntax, ParseFlags, parse_whole_with};
 
 /// Guard against runaway macro/loop expansion during lowering. The *real*
 /// stack cap (64 slots / 512 bytes) is enforced after liveness-based slot
@@ -79,6 +80,13 @@ pub fn lower_function(
     let mut l = Lowerer {
         func,
         registry,
+        // Numerals in the DSL follow the grammar of the dialect this registry
+        // was loaded for — the same compile-target rule the bytecode backend
+        // uses. With no profile loaded, fall back to the grammar the process
+        // was built for.
+        numbers: registry
+            .profile()
+            .map_or_else(tcl_syntax::number::runtime_syntax, |p| p.grammar.numbers),
         prog_type,
         env: HashMap::new(),
         slot_types: Vec::new(),
@@ -125,6 +133,9 @@ struct Lowerer<'f> {
     /// The command registry (with the BPF dialect loaded) whose `BpfOpSpec`
     /// descriptors drive all command dispatch.
     registry: &'f CommandRegistry,
+    /// The numeric-literal grammar of the dialect being compiled for — every
+    /// integer literal in the DSL is read through it.
+    numbers: NumberSyntax,
     /// Program type — selects verdict semantics (`accept`/`drop` vs `pass`/`tx`).
     prog_type: ProgType,
     /// Typed symbol table: variable name → (stable slot, type). Function-global
@@ -239,14 +250,14 @@ impl Lowerer<'_> {
                 format!("unknown map kind `{}` (want hash or array)", args[1]),
             )
         })?;
-        let key_size = parse_size(&args[2]).ok_or_else(|| {
+        let key_size = parse_size(&args[2], self.numbers).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadMap,
                 span,
                 "map key size must be 1, 2, 4, or 8 bytes (keys are passed by value)",
             )
         })?;
-        let value_size = parse_size(&args[3]).ok_or_else(|| {
+        let value_size = parse_size(&args[3], self.numbers).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadMap,
                 span,
@@ -260,7 +271,7 @@ impl Lowerer<'_> {
                 "an array map's key is a 4-byte index (declare key size 4)",
             ));
         }
-        let max_entries = parse_u32(&args[4]).filter(|m| *m >= 1).ok_or_else(|| {
+        let max_entries = parse_u32(&args[4], self.numbers).filter(|m| *m >= 1).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadMap,
                 span,
@@ -380,7 +391,7 @@ impl Lowerer<'_> {
             return Err(arity(span, cmd, "DST SRC OFFSET ?be|le|native?"));
         }
         let ptr = self.expect_ctx_ptr(&args[1], span)?;
-        let off_i64 = parse_int(&args[2]).ok_or_else(|| {
+        let off_i64 = parse_int(&args[2], self.numbers).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadInt,
                 span,
@@ -799,7 +810,7 @@ impl Lowerer<'_> {
     ) -> Result<SlotId, BpfError> {
         match node {
             ExprNode::Literal { text, .. } => {
-                let val = parse_int(text).ok_or_else(|| {
+                let val = parse_int(text, self.numbers).ok_or_else(|| {
                     BpfError::new(
                         BpfDiag::BadInt,
                         span,
@@ -1070,32 +1081,36 @@ fn map_un(op: UnaryOp) -> Option<UnOp> {
     })
 }
 
-/// Parse a Tcl integer literal: decimal, `0x` hex, or `0b` binary, with an
-/// optional leading sign.
-fn parse_int(text: &str) -> Option<i64> {
-    let t = text.trim();
-    let (neg, rest) = match t.strip_prefix('-') {
-        Some(r) => (true, r),
-        None => (false, t.strip_prefix('+').unwrap_or(t)),
+/// Parse a Tcl integer literal that must fit a wide, under `numbers` — the
+/// numeric grammar of the dialect this program is being compiled for.
+///
+/// Delegates to the toolchain's single number facility
+/// ([`tcl_syntax::number`]) rather than hand-rolling radix handling, so the DSL
+/// reads a numeral exactly as the compiler, VM and analyser would: the same
+/// prefixes (`0x`/`0o`/`0b`/`0d`, each gated on the release that introduced
+/// it), the same octal-by-leading-zero rule, and the same `_` separators.
+/// `integer_only` makes a fractional part trailing junk, and a magnitude past
+/// `i64` is rejected here because every BPF operand is a wide or narrower.
+fn parse_int(text: &str, numbers: NumberSyntax) -> Option<i64> {
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::for_syntax(numbers)
     };
-    let v = if let Some(h) = rest.strip_prefix("0x").or_else(|| rest.strip_prefix("0X")) {
-        i64::from_str_radix(h, 16).ok()?
-    } else if let Some(b) = rest.strip_prefix("0b").or_else(|| rest.strip_prefix("0B")) {
-        i64::from_str_radix(b, 2).ok()?
-    } else {
-        rest.parse::<i64>().ok()?
-    };
-    Some(if neg { -v } else { v })
+    match parse_whole_with(text, flags)? {
+        Number::Int(v) => Some(v),
+        // Bignum, float and NaN literals have no eBPF representation.
+        Number::Big { .. } | Number::Double(_) | Number::Nan { .. } => None,
+    }
 }
 
 /// Parse a non-negative integer literal into a `u32`.
-fn parse_u32(s: &str) -> Option<u32> {
-    parse_int(s).and_then(|v| u32::try_from(v).ok())
+fn parse_u32(s: &str, numbers: NumberSyntax) -> Option<u32> {
+    parse_int(s, numbers).and_then(|v| u32::try_from(v).ok())
 }
 
 /// Parse a by-value map key/value size: 1, 2, 4, or 8 bytes.
-fn parse_size(s: &str) -> Option<u32> {
-    parse_u32(s).filter(|v| matches!(v, 1 | 2 | 4 | 8))
+fn parse_size(s: &str, numbers: NumberSyntax) -> Option<u32> {
+    parse_u32(s, numbers).filter(|v| matches!(v, 1 | 2 | 4 | 8))
 }
 
 /// The span of some loop in `func`, if it contains a cycle (back-edge).
@@ -1243,5 +1258,63 @@ mod tests {
         let src = "when SOCKET_FILTER {\n  setbuf pkt ctx\n  pktlen len pkt\n  if {$len eq 36} { accept }\n  drop\n}\n";
         let err = crate::frontend::compile_module(src).unwrap_err();
         assert_eq!(err.code, BpfDiag::OutOfSubset);
+    }
+
+    /// Integer literals in the DSL come from the toolchain's one number
+    /// facility, so the eBPF backend reads a numeral exactly as the bytecode
+    /// backend and the VM would under the same dialect — no second, narrower
+    /// grammar that quietly disagrees.
+    ///
+    /// The `bpf` profile is a 9.x dialect, so all four radix prefixes exist,
+    /// `_` is a digit separator, and a bare leading zero is *decimal* (9.0
+    /// defines `KILL_OCTAL`, retiring octal-by-leading-zero). The old
+    /// hand-rolled parser knew only `0x`, `0b` and decimal, so `0o17`, `0d99`
+    /// and `1_000` were all rejected as bad integers.
+    #[test]
+    fn integer_literals_follow_the_target_dialects_number_grammar() {
+        let numbers = tcl_dialect::DialectProfile::by_name("bpf").grammar.numbers;
+        for (text, want) in [
+            ("42", Some(42)),
+            ("-42", Some(-42)),
+            ("+42", Some(42)),
+            ("0x1f", Some(31)),
+            ("0b1011", Some(11)),
+            // 9.x forms the hand-rolled parser could not read.
+            ("0o17", Some(15)),
+            ("0d99", Some(99)),
+            ("1_000", Some(1000)),
+            // A leading zero is decimal in 9.0, so this one numeral the old
+            // parser did agree on — for the wrong reason.
+            ("010", Some(10)),
+            // Not integers under any release.
+            ("0o8", None),
+            ("0x", None),
+            ("3.5", None),
+            ("nope", None),
+            ("99999999999999999999999", None),
+        ] {
+            assert_eq!(parse_int(text, numbers), want, "parse_int({text:?})");
+        }
+    }
+
+    /// The grammar is a property of the dialect, not a constant. Compiled for
+    /// an older release the same text reads differently — most sharply `010`,
+    /// which is octal 8 up to 8.6 and decimal 10 from 9.0. A backend with its
+    /// own numeral parser cannot express that difference at all; going through
+    /// the shared facility gets it for free.
+    #[test]
+    fn an_older_target_reads_the_same_numerals_differently() {
+        use tcl_dialect::NumberSyntax;
+        // Octal-by-leading-zero, alive until 9.0 killed it.
+        assert_eq!(parse_int("010", NumberSyntax::Tcl84), Some(8));
+        assert_eq!(parse_int("010", NumberSyntax::Tcl85), Some(8));
+        assert_eq!(parse_int("010", NumberSyntax::Tcl90), Some(10));
+        // `0o`/`0b` arrived in 8.5, `0d` in 9.0, `_` in 9.0: before its
+        // release each is trailing junk, so the whole-string parse fails
+        // rather than reading a prefix of it.
+        assert_eq!(parse_int("0o17", NumberSyntax::Tcl84), None);
+        assert_eq!(parse_int("0o17", NumberSyntax::Tcl85), Some(15));
+        assert_eq!(parse_int("0d99", NumberSyntax::Tcl85), None);
+        assert_eq!(parse_int("1_000", NumberSyntax::Tcl85), None);
     }
 }
