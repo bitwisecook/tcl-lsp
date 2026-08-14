@@ -516,11 +516,14 @@ fn expr_comparison_inversion_membership() {
 }
 
 #[test]
-fn expr_comparison_inversion_less_than() {
-    // `!($a < $b)` -> `$a >= $b` (the Lt arm).
-    // tclsh-proof: a=3 b=3 -> both `!($a<$b)` and `$a>=$b` -> 1; a=2 b=3 -> both
-    //   -> 0 (8.6 + 9.0).
-    assert_eq!(min("if {!($a < $b)} {puts x}\n"), "if {$a>=$b} {puts x}");
+fn expr_comparison_inversion_less_than_is_declined() {
+    // FIXED (was an unsound minification, issue #1437): `!($a < $b)` is NOT
+    // `$a >= $b` once an operand may be NaN.
+    // tclsh-proof: a=NaN b=1 -> `!($a<$b)` -> 1 but `$a>=$b` -> 0 (8.6 + 9.0),
+    //   because a NaN operand makes every ordered comparison false. The
+    //   minifier has no type information about `$a`, so it cannot rule NaN out
+    //   and keeps the expression as written — only whitespace is stripped.
+    assert_eq!(min("if {!($a < $b)} {puts x}\n"), "if {!($a<$b)} {puts x}");
 }
 
 #[test]

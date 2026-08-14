@@ -374,7 +374,11 @@ fn instcombine_boolean_simplifications() {
     // !!(boolean) collapses: ==/!=/< are already boolean (tclsh sweep == ).
     assert!(optimised("set v [expr {!!($a == $b)}]", TCL).contains("set v [expr {$a == $b}]"));
     assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("set v [expr {$a != $b}]"));
-    assert!(optimised("set v [expr {!($a < $b)}]", TCL).contains("set v [expr {$a >= $b}]"));
+    // The ordered comparisons invert only on operands proved non-NaN — an
+    // untyped `$a` may hold NaN, for which `!($a < 1)` is 1 while `$a >= 1` is 0
+    // (issue #1437). The `int_x` wrapper supplies the proof.
+    assert!(!optimised("set v [expr {!($a < $b)}]", TCL).contains("$a >= $b"));
+    assert!(optimised(&int_x("set v [expr {!($x < 1)}]"), TCL).contains("set v [expr {$x >= 1}]"));
 
     // The optimiser does NOT simplify `!($a in $b)` → `$a ni $b` here (no
     // optimisation fires); a known gap.
@@ -389,13 +393,15 @@ fn instcombine_de_morgan() {
     assert!(opt_fires("set v [expr {!($a || $b)}]", TCL, "O110"));
 
     // De Morgan + comparison inversion via fixpoint (tclsh 4-var sweep == ).
+    // `==` inverts unconditionally; the ordered `$c < $d` half keeps its `!`
+    // because neither operand is proved non-NaN (issue #1437).
     assert!(
         optimised("set v [expr {!($a == $b && $c < $d)}]", TCL)
-            .contains("set v [expr {$a != $b || $c >= $d}]")
+            .contains("set v [expr {$a != $b || !($c < $d)}]")
     );
     assert!(
         optimised("set v [expr {!($a == $b || $c < $d)}]", TCL)
-            .contains("set v [expr {$a != $b && $c >= $d}]")
+            .contains("set v [expr {$a != $b && !($c < $d)}]")
     );
 
     // De Morgan inside an `if` condition.
@@ -417,9 +423,13 @@ fn instcombine_de_morgan() {
 
 #[test]
 fn instcombine_self_comparison_tautologies() {
-    // tclsh sweep: x == x ⇒ 1, x != x ⇒ 0 (constant regardless of $x).
-    assert!(optimised("set v [expr {$x == $x}]", TCL).contains("set v 1"));
-    assert!(optimised("set v [expr {$x != $x}]", TCL).contains("set v 0"));
+    // tclsh sweep: x == x ⇒ 1, x != x ⇒ 0 — but NOT for NaN, where tclsh gives
+    // 0 and 1 respectively, so the fold needs $x proved non-NaN (issue #1437).
+    assert!(optimised(&int_x("set v [expr {$x == $x}]"), TCL).contains("set v 1"));
+    assert!(optimised(&int_x("set v [expr {$x != $x}]"), TCL).contains("set v 0"));
+    // Untyped $x keeps the comparison.
+    assert!(optimised("set v [expr {$x == $x}]", TCL).contains("$x == $x"));
+    assert!(optimised("set v [expr {$x != $x}]", TCL).contains("$x != $x"));
 }
 
 #[test]

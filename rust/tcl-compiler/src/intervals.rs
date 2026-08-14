@@ -377,18 +377,31 @@ fn eval_expr_at(
 /// The interval a value satisfies given `value <op> k` is true (or false, when
 /// `negate`).  Returns the half-line constraint, or `None` if `op` is not an
 /// order/equality comparison.
+///
+/// The `negate` (false-edge) inversion comes from [`BinOp::inverse`] — the
+/// owner table in `tcl_syntax::expr::operators` — rather than a local copy of
+/// its rows (issue #1437).  Operators the table inverts but this domain does
+/// not model (`eq`/`ne`, `in`/`ni`, the string orderings) invert to another
+/// unmodelled operator and fall out of the match below as `None`, exactly as
+/// they did when the local table passed them through untouched.
+///
+/// **NaN and the false edge.**  `BinOp::inverse_needs_non_nan` flags the four
+/// ordered rows: `!(x < k)` is *not* `x >= k` when `x` may be NaN, because a
+/// NaN operand makes every ordered comparison false, so a NaN `x` takes the
+/// false edge of `if {$x < k}` without satisfying `x >= k`.  That is sound here
+/// because this is an **integer** abstract domain: an [`Interval`] is only ever
+/// read as "*if* this value is an integer, it lies in this range", and NaN — like
+/// `1.5` or `abc` — is simply not in the domain.  The lone guard-narrowing
+/// consumer ([`crate::interval_bounds`]) acts on the fact only where the value
+/// is used as a list index, which must be an integer or the access fails
+/// anyway, and it reports only when the *whole* interval is out of range, so a
+/// non-integer value can never turn the narrowing into a claim about
+/// well-formed code.  The equality rows need no such argument: `!=` is the
+/// exact complement of `==` even for NaN.
 #[must_use]
 fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
     let op = if negate {
-        match op {
-            BinOp::Lt => BinOp::Ge,
-            BinOp::Le => BinOp::Gt,
-            BinOp::Gt => BinOp::Le,
-            BinOp::Ge => BinOp::Lt,
-            BinOp::Eq => BinOp::Ne,
-            BinOp::Ne => BinOp::Eq,
-            other => other,
-        }
+        op.inverse().unwrap_or(op)
     } else {
         op
     };
@@ -1226,6 +1239,45 @@ mod tests {
                 hi: Some(4)
             })
         );
+    }
+
+    /// The false-edge inversion now comes from the owner table
+    /// (`BinOp::inverse`) instead of a local copy, and this pins the whole
+    /// negated row set — including the NaN-affected ordered four, whose
+    /// narrowing this domain deliberately keeps (issue #1437; see
+    /// [`guard_interval`]'s "NaN and the false edge").
+    #[test]
+    fn guard_interval_negation_matches_the_owner_inverse_table() {
+        let neg = |op| guard_interval(op, 5, true);
+        let half_from = |lo| {
+            Some(Interval {
+                lo: Some(lo),
+                hi: None,
+            })
+        };
+        let half_to = |hi| {
+            Some(Interval {
+                lo: None,
+                hi: Some(hi),
+            })
+        };
+        // The ordered four invert to each other: `!(x < 5)` narrows to x >= 5.
+        assert_eq!(neg(BinOp::Lt), half_from(5));
+        assert_eq!(neg(BinOp::Le), half_from(6));
+        assert_eq!(neg(BinOp::Gt), half_to(5));
+        assert_eq!(neg(BinOp::Ge), half_to(4));
+        // `!=` is the exact complement of `==` for every value, NaN included,
+        // so the false edge of `if {$x != 5}` really is the point [5,5].
+        assert_eq!(neg(BinOp::Ne), Some(constant(5)));
+        // `==` inverts to `!=`, which is no single interval.
+        assert_eq!(neg(BinOp::Eq), None);
+        // Operators the owner table inverts but this domain does not model
+        // still yield nothing, exactly as the local pass-through table did.
+        for op in [BinOp::StrEq, BinOp::StrNe, BinOp::In, BinOp::Ni] {
+            assert_eq!(neg(op), None, "{op:?} is not an integer-domain guard");
+        }
+        // And an operator with no inverse at all is left alone.
+        assert_eq!(neg(BinOp::Add), None);
     }
 
     #[test]
