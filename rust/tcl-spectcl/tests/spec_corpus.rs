@@ -53,7 +53,7 @@
 //! The shipped collision policy is *shipped wins unless the pack says
 //! `-override`*, and no example port declares `-override` — they are ports of
 //! shipped specs, so installing them naturally is a no-op and step 2 would be
-//! vacuous for eleven of the twenty-one packs. The harness therefore reports
+//! vacuous for eleven of the twenty-two packs. The harness therefore reports
 //! the natural outcome ([`tcl_spectcl::pack::collision_notices`], the
 //! `collide` column) **and** installs with the override flag forced on, so the
 //! analyser reads the *pack's* specs and the *pack's* hook bodies run. Both
@@ -205,7 +205,7 @@ fn tclspec_files_in(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// Every `.tclspec` the repository ships: the bundled EDA loadables under
-/// `specs/`, the eleven ports, and the four external drafts.
+/// `specs/`, the eleven ports, and the five external drafts.
 ///
 /// Discovered by scanning, never listed, so a pack added tomorrow is covered
 /// by this harness the day it lands — and, if it loads with a notice, fails
@@ -1111,8 +1111,8 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
             let (corpus_files, tmp) = corpus(&root);
             let packs = inventory(&root);
             assert!(
-                packs.len() >= 21,
-                "the repository ships 21 .tclspec files (6 bundled + 11 ports + 4 external); \
+                packs.len() >= 22,
+                "the repository ships 22 .tclspec files (6 bundled + 11 ports + 5 external); \
              found {}",
                 packs.len()
             );

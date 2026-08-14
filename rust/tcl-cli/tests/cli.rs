@@ -30,6 +30,10 @@ fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
 
+fn spec_pack_project() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/spec-packs/tiny-project")
+}
+
 /// Run the built `tcl` binary with `args`, returning captured stdout bytes.
 fn run_tcl(args: &[&str]) -> Vec<u8> {
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
@@ -43,6 +47,75 @@ fn run_tcl(args: &[&str]) -> Vec<u8> {
         String::from_utf8_lossy(&output.stderr)
     );
     output.stdout
+}
+
+#[test]
+fn command_info_discovers_the_current_projects_spec_pack() {
+    let project = spec_pack_project();
+    let with_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(&project)
+        .args(["command-info", "::tcl_lsp_fixture::collect", "--json"])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert!(
+        with_pack.status.success(),
+        "project pack was not discovered: {}",
+        String::from_utf8_lossy(&with_pack.stderr)
+    );
+    let found: serde_json::Value =
+        serde_json::from_slice(&with_pack.stdout).expect("command-info JSON");
+    assert_eq!(found["found"], true);
+    assert_eq!(
+        found["summary"],
+        "Evaluate a script while collecting a result in a caller variable."
+    );
+
+    let without_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(project.join("lib"))
+        .args(["command-info", "::tcl_lsp_fixture::collect", "--json"])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert_eq!(without_pack.status.code(), Some(1));
+    let missing: serde_json::Value =
+        serde_json::from_slice(&without_pack.stdout).expect("command-info JSON");
+    assert_eq!(missing["found"], false);
+}
+
+#[test]
+fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
+    let project = spec_pack_project();
+    let args = [
+        "diag",
+        "--source",
+        "::tcl_lsp_fixture::collect output",
+        "--json",
+    ];
+
+    let with_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(&project)
+        .args(args)
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert_eq!(with_pack.status.code(), Some(1));
+    let analysed: serde_json::Value =
+        serde_json::from_slice(&with_pack.stdout).expect("diag JSON with pack");
+    let codes: Vec<&str> = analysed[0]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .filter_map(|diagnostic| diagnostic["code"].as_str())
+        .collect();
+    assert_eq!(codes, ["E002", "W120"]);
+
+    let without_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(project.join("lib"))
+        .args(args)
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert!(without_pack.status.success());
+    let opaque: serde_json::Value =
+        serde_json::from_slice(&without_pack.stdout).expect("diag JSON without pack");
+    assert_eq!(opaque[0]["diagnostics"], serde_json::json!([]));
 }
 
 #[test]

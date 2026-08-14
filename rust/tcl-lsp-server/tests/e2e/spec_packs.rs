@@ -26,7 +26,7 @@
 //! absence of an unknown-command diagnostic, and load notices squiggled on the
 //! pack file itself.
 
-use crate::common::helpers::hover_text;
+use crate::common::helpers::{decode_semantic_tokens, hover_text};
 use crate::common::{Lsp, scaled_timeout};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -37,8 +37,8 @@ const MYLIB_PACK: &str = r"
 speclib mylib 1 {
     command mylib::with_var {
         arity 2..3
-        arg 0 -role varwrite
-        arg 1 -role body
+        arg 0 -role VarWrite
+        arg 1 -role Body
         hover {
             summary  {Run a script with a caller variable bound.}
             synopsis {mylib::with_var varName script ?mode?}
@@ -174,6 +174,52 @@ fn a_workspace_pack_makes_an_unknown_command_resolve_with_hover() {
         .find(|pack| pack.get("name").and_then(Value::as_str) == Some("mylib"))
         .unwrap_or_else(|| panic!("the workspace pack: {packs:#?}"));
     assert_eq!(mine.get("tier").and_then(Value::as_str), Some("workspace"));
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Pack argument roles must reach the memoised semantic-token query too, not
+/// only hover and diagnostics. `Body` recurses into the script and `VarWrite`
+/// paints the caller variable as a variable rather than a string.
+#[test]
+fn a_workspace_packs_argument_roles_drive_semantic_tokens() {
+    let root = workspace("semantic-tokens");
+    write(&root.join(".tcl-lsp/mylib.tclspec"), MYLIB_PACK);
+    let source = "mylib::with_var counter {\n    set counter 1\n}\n";
+    let doc = root.join("app.tcl");
+    write(&doc, source);
+
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
+    let uri = file_uri(&doc);
+    await_pack_named(&mut lsp, "mylib");
+    lsp.open_ready(&uri, source);
+
+    let legend: Vec<String> =
+        lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
+            .as_array()
+            .expect("semantic-token legend")
+            .iter()
+            .filter_map(Value::as_str)
+            .map(ToOwned::to_owned)
+            .collect();
+    let tokens = decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri));
+    assert!(
+        tokens.iter().any(|token| {
+            token.line == 1
+                && token.char == 4
+                && legend[usize::try_from(token.ttype).expect("token type index")] == "function"
+        }),
+        "the inner `set` must be tokenised through the pack's Body role: {tokens:?}"
+    );
+    assert!(
+        tokens.iter().any(|token| {
+            token.line == 0
+                && token.char == 16
+                && legend[usize::try_from(token.ttype).expect("token type index")] == "variable"
+        }),
+        "the `counter` argument must use the pack's VarWrite role: {tokens:?}"
+    );
 
     let _ = std::fs::remove_dir_all(&root);
 }
