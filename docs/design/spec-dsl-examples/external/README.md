@@ -7,6 +7,13 @@ private-library author would need to say, and where the provisional DSL
 sketch (and the ported core-command examples already sitting in the parent
 directory) falls short.
 
+A later end-to-end validation uses the relationship between
+`georgtree/tclinterp` and `georgtree/SpiceGenTcl`. Its focused generated pack
+and reproducible CLI/VS Code results are recorded in
+[tclinterp-validation-report.md](tclinterp-validation-report.md). That real
+code is documentation evidence only; automated regression tests use the
+synthetic fixture under `tests/fixtures/spec-packs/`.
+
 Every claim below is grounded in a `file:line` from an actual clone; nothing
 here is invented from the library's documentation alone. Syntax that is
 *invented* for the drafted specs is marked `DSL GAP` inline in the

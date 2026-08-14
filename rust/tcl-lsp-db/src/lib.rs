@@ -233,6 +233,11 @@ pub trait TclDb: salsa::Database {
     /// The dialect-loaded command registry (built once per canonical dialect
     /// key, then shared).  Immutable for the process lifetime.
     fn registry(&self, dialect: &str) -> &'static CommandRegistry;
+
+    /// An owning registry handle for a workspace pack generation already
+    /// installed by the server. Falls back to the plain profile on a cache
+    /// miss; only `tcl-spectcl` can construct the overlay's contents.
+    fn registry_with_overlay(&self, dialect: &str, overlay: u64) -> Arc<CommandRegistry>;
 }
 
 /// The Tcl LSP query database.
@@ -303,6 +308,12 @@ impl TclDb for TclDatabase {
         // iRules documents as plain Tcl and declined every word-operator fold
         // (issue #1048).
         tcl_registry::registry_for_dialect(dialect)
+    }
+
+    fn registry_with_overlay(&self, dialect: &str, overlay: u64) -> Arc<CommandRegistry> {
+        let profile = tcl_dialect::DialectProfile::by_name(dialect);
+        tcl_registry::cache::registry_for_profile_if_built(profile, overlay)
+            .unwrap_or_else(|| tcl_registry::cache::registry_handle_for_profile(profile))
     }
 }
 
@@ -3268,13 +3279,13 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 // anyway, so a borrow would buy nothing even if it were safe.
 #[salsa::tracked(returns(clone))]
 pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig) -> SemanticTokens {
-    let registry = db.registry(file.dialect(db));
+    let registry = db.registry_with_overlay(file.dialect(db), config.spec_pack_key(db));
     let cu = document_compilation_unit(db, file);
     let analysis = file_analysis_incremental(db, file, config);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
         file.dialect(db),
-        registry,
+        &registry,
         Some(&cu),
         Some(&analysis),
     )
@@ -3465,8 +3476,9 @@ pub fn semantic_tokens_project(
     db: &dyn TclDb,
     file: SourceFile,
     project: Project,
+    config: AnalyserConfig,
 ) -> SemanticTokens {
-    let registry = db.registry(file.dialect(db));
+    let registry = db.registry_with_overlay(file.dialect(db), config.spec_pack_key(db));
     let cu = document_compilation_unit(db, file);
     let classes = project_class_index(db, project);
     let proc_roles = project_proc_var_index(db, project);
@@ -3474,7 +3486,7 @@ pub fn semantic_tokens_project(
     tcl_lsp_core::semantic_tokens::full_with_cu_and_facts(
         file.text(db),
         file.dialect(db),
-        registry,
+        &registry,
         Some(&cu),
         tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
             classes: Some(&classes),
@@ -4329,7 +4341,7 @@ mod tests {
             None,
         );
         let project = Project::new(&db, vec![lib, user]);
-        let cross = semantic_tokens_project(&db, user, project);
+        let cross = semantic_tokens_project(&db, user, project, cfg(&db));
         let local = semantic_tokens(&db, user, cfg(&db));
         assert_ne!(
             cross.data, local.data,

@@ -172,8 +172,8 @@ mod tests {
             "speclib mylib 1 {\n  \
              command mylib::with_var {\n    \
                arity 2..3\n    \
-               arg 0 -role varwrite\n    \
-               arg 1 -role body\n    \
+               arg 0 -role VarWrite\n    \
+               arg 1 -role Body\n    \
                hover -summary {Run a script with a caller variable bound.}\n  \
              }\n}\n",
         );
@@ -184,6 +184,22 @@ mod tests {
             .expect("the pack command resolves like any other");
         assert_eq!(spec.arity.min, 2);
         assert_eq!(spec.arity.max, 3);
+        assert_eq!(
+            registry.arg_indices_for_role(
+                "mylib::with_var",
+                &["counter", "set counter 1"],
+                tcl_registry::ArgRole::VarWrite,
+            ),
+            vec![0],
+        );
+        assert_eq!(
+            registry.arg_indices_for_role(
+                "mylib::with_var",
+                &["counter", "set counter 1"],
+                tcl_registry::ArgRole::Body,
+            ),
+            vec![1],
+        );
         assert!(
             registry.command_names().any(|n| n == "mylib::with_var"),
             "and is enumerable, so completion sees it"

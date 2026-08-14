@@ -45,6 +45,11 @@ pub fn run_explore(
     let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
     let source = combine_sources(&documents);
 
+    // `tcl-explorer` deliberately resolves the process's active registry so
+    // its pipeline matches the LSP. Initialising the CLI registry publishes
+    // the discovered project pack set (and its hook plan) on that interface.
+    let _registry = tcl_cli_support::registry_for_dialect(&dialect);
+
     if tui {
         return run_tui(&source, &dialect);
     }

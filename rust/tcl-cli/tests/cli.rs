@@ -24,10 +24,14 @@
 //! committed golden/snapshot fixtures.
 
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Output};
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+}
+
+fn spec_pack_project() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/spec-packs/tiny-project")
 }
 
 /// Run the built `tcl` binary with `args`, returning captured stdout bytes.
@@ -43,6 +47,208 @@ fn run_tcl(args: &[&str]) -> Vec<u8> {
         String::from_utf8_lossy(&output.stderr)
     );
     output.stdout
+}
+
+fn run_tcl_in(current_dir: &std::path::Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(current_dir)
+        .args(args)
+        .output()
+        .expect("failed to spawn tcl binary")
+}
+
+#[test]
+fn command_info_discovers_the_current_projects_spec_pack() {
+    let project = spec_pack_project();
+    let with_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(&project)
+        .args(["command-info", "::tcl_lsp_fixture::collect", "--json"])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert!(
+        with_pack.status.success(),
+        "project pack was not discovered: {}",
+        String::from_utf8_lossy(&with_pack.stderr)
+    );
+    let found: serde_json::Value =
+        serde_json::from_slice(&with_pack.stdout).expect("command-info JSON");
+    assert_eq!(found["found"], true);
+    assert_eq!(
+        found["summary"],
+        "Evaluate a script while collecting a result in a caller variable."
+    );
+
+    let without_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(project.join("lib"))
+        .args(["command-info", "::tcl_lsp_fixture::collect", "--json"])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert_eq!(without_pack.status.code(), Some(1));
+    let missing: serde_json::Value =
+        serde_json::from_slice(&without_pack.stdout).expect("command-info JSON");
+    assert_eq!(missing["found"], false);
+}
+
+#[test]
+fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
+    let project = spec_pack_project();
+    let args = [
+        "diag",
+        "--source",
+        "::tcl_lsp_fixture::collect output",
+        "--json",
+    ];
+
+    let with_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(&project)
+        .args(args)
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert_eq!(with_pack.status.code(), Some(1));
+    let analysed: serde_json::Value =
+        serde_json::from_slice(&with_pack.stdout).expect("diag JSON with pack");
+    let codes: Vec<&str> = analysed[0]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .filter_map(|diagnostic| diagnostic["code"].as_str())
+        .collect();
+    assert_eq!(codes, ["E002", "W120"]);
+
+    let without_pack = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(project.join("lib"))
+        .args(args)
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert!(without_pack.status.success());
+    let opaque: serde_json::Value =
+        serde_json::from_slice(&without_pack.stdout).expect("diag JSON without pack");
+    assert_eq!(opaque[0]["diagnostics"], serde_json::json!([]));
+}
+
+#[test]
+fn analyser_only_verbs_install_the_current_projects_spec_pack_overlay() {
+    let project = spec_pack_project();
+    let source = "::tcl_lsp_fixture::collect output { proc nested {} { expr $input + 1 } }";
+
+    let symbols = run_tcl_in(&project, &["symbols", "--source", source, "--json"]);
+    assert!(symbols.status.success());
+    let symbols: serde_json::Value =
+        serde_json::from_slice(&symbols.stdout).expect("symbols JSON with pack");
+    assert!(
+        symbols["symbols"]
+            .as_array()
+            .expect("symbols array")
+            .iter()
+            .any(|symbol| symbol["name"] == "nested"),
+        "the Body role must expose the nested procedure"
+    );
+
+    let legacy = run_tcl_in(&project, &["find-legacy", "--source", source, "--json"]);
+    assert!(legacy.status.success());
+    let legacy: serde_json::Value =
+        serde_json::from_slice(&legacy.stdout).expect("find-legacy JSON with pack");
+    assert_eq!(legacy["issues"][0]["code"], "W100");
+
+    let minimized = run_tcl_in(
+        &project,
+        &["minimize", "--source", source, "W100", "--json"],
+    );
+    assert!(minimized.status.success());
+    let minimized: serde_json::Value =
+        serde_json::from_slice(&minimized.stdout).expect("minimize JSON with pack");
+    assert_eq!(minimized[0]["reproduces"], true);
+
+    let without_pack = run_tcl_in(
+        &project.join("lib"),
+        &["symbols", "--source", source, "--json"],
+    );
+    assert!(without_pack.status.success());
+    let without_pack: serde_json::Value =
+        serde_json::from_slice(&without_pack.stdout).expect("symbols JSON without pack");
+    assert_eq!(without_pack["count"], 0);
+}
+
+#[test]
+fn explore_uses_the_current_projects_active_spec_pack_registry() {
+    let project = spec_pack_project();
+    let source = "::tcl_lsp_fixture::collect output { set value 1 }";
+    let args = ["explore", "--source", source, "--json"];
+
+    let with_pack = run_tcl_in(&project, &args);
+    assert!(with_pack.status.success());
+    let with_pack: serde_json::Value =
+        serde_json::from_slice(&with_pack.stdout).expect("explore JSON with pack");
+    assert_eq!(
+        with_pack["semantic"][0]["invocations"][0]["resolution"],
+        "resolved"
+    );
+    assert_eq!(
+        with_pack["worldSsa"][0]["invocations"][0]["command"],
+        "::tcl_lsp_fixture::collect"
+    );
+
+    let without_pack = run_tcl_in(&project.join("lib"), &args);
+    assert!(without_pack.status.success());
+    let without_pack: serde_json::Value =
+        serde_json::from_slice(&without_pack.stdout).expect("explore JSON without pack");
+    assert_eq!(
+        without_pack["semantic"][0]["invocations"][0]["resolution"],
+        "unresolved-unknown-literal-head"
+    );
+}
+
+#[test]
+fn cli_publishes_project_pack_hooks() {
+    let project = spec_pack_project();
+    let args = [
+        "opt",
+        "--source",
+        "set length [::tcl_lsp_fixture::strlen abcde]",
+    ];
+
+    let with_pack = run_tcl_in(&project, &args);
+    assert!(with_pack.status.success());
+    let with_pack = String::from_utf8(with_pack.stdout).expect("UTF-8 opt output");
+    assert!(
+        with_pack.contains("set length 5"),
+        "hook did not fold: {with_pack}"
+    );
+    assert!(
+        with_pack.contains("O129"),
+        "hook rewrite was not reported: {with_pack}"
+    );
+
+    let without_pack = run_tcl_in(&project.join("lib"), &args);
+    assert!(without_pack.status.success());
+    let without_pack = String::from_utf8(without_pack.stdout).expect("UTF-8 opt output");
+    assert!(without_pack.contains("::tcl_lsp_fixture::strlen abcde"));
+    assert!(!without_pack.contains("O129"));
+}
+
+#[test]
+fn highlight_uses_the_current_projects_spec_pack_registry() {
+    let project = spec_pack_project();
+    let args = [
+        "highlight",
+        "--source",
+        "::tcl_lsp_fixture::catalog names",
+        "--format",
+        "html",
+    ];
+
+    let with_pack = run_tcl_in(&project, &args);
+    assert!(with_pack.status.success());
+    let with_pack = String::from_utf8(with_pack.stdout).expect("UTF-8 highlight output");
+    assert!(
+        with_pack.contains("color:#2c5282;\">names</span>"),
+        "pack subcommand was not highlighted: {with_pack}"
+    );
+
+    let without_pack = run_tcl_in(&project.join("lib"), &args);
+    assert!(without_pack.status.success());
+    let without_pack = String::from_utf8(without_pack.stdout).expect("UTF-8 highlight output");
+    assert!(!without_pack.contains("color:#2c5282;\">names</span>"));
 }
 
 #[test]

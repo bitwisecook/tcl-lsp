@@ -5684,7 +5684,9 @@ impl Backend {
         let snapshot = self.db.lock().await.clone();
         Some(tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
-                Some(project) => tcl_lsp_db::semantic_tokens_project(&snapshot, file, project),
+                Some(project) => {
+                    tcl_lsp_db::semantic_tokens_project(&snapshot, file, project, config)
+                }
                 None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
             })
             .ok()
@@ -6391,6 +6393,11 @@ impl Backend {
             return Ok(data);
         }
 
+        // Install (and retain) this workspace pack generation before the salsa
+        // query resolves its opaque `spec_pack_key`. The query database sits
+        // below `tcl-spectcl`, so it can look up an installed overlay but must
+        // never manufacture one without the pack contents.
+        let _registry_generation = self.registry_for_dialect(&doc.dialect).await;
         let Some(mut enriched) = self.db_semantic_tokens(uri).await else {
             let registry = self.registry_for_dialect(&doc.dialect).await;
             let (text, dialect) = (doc.text.clone(), doc.dialect.clone());

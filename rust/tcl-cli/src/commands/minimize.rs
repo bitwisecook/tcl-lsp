@@ -98,7 +98,7 @@ pub enum MinimizeError {
 /// Whether `code` fires anywhere in `source` under `dialect`.
 fn fires(source: &str, code: &str, dialect: &str) -> bool {
     Analyser::new()
-        .with_pack_overlay(tcl_cli_support::spec_pack_key())
+        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect))
         .analyse(source, dialect)
         .diagnostics
         .iter()
