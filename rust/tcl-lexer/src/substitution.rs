@@ -165,6 +165,17 @@ fn scalar(value: u32, escapes: EscapeSyntax) -> char {
     char::from_u32(value).unwrap_or('\u{FFFD}')
 }
 
+/// True when the escape starting at `text[i] == '\'` is a `\<newline>` line
+/// continuation rather than an ordinary escape.
+///
+/// The classification a scanner needs when a continuation must behave as the
+/// whitespace it substitutes to (`TclParseWhiteSpace` gives it `TYPE_SPACE`)
+/// while every other escape is content. Release-invariant: no release moves the
+/// newline out of the byte straight after the backslash.
+pub(crate) fn is_line_continuation(text: &str, i: usize) -> bool {
+    matches!(text.as_bytes().get(i + 1), Some(b'\n' | b'\r'))
+}
+
 /// End of a `\<newline>` line continuation starting at `b[i] == b'\\'`, whose
 /// newline byte is `nl`.
 ///

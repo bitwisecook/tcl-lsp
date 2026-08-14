@@ -52,7 +52,7 @@
 //! [`SourceMap`]: crate::SourceMap
 
 use crate::source_map::SourceMap;
-use crate::substitution::backslash_escape_end;
+use crate::substitution::{backslash_escape_end, is_line_continuation};
 use crate::tokens::{ByteCol, SourcePosition, Token};
 
 /// The closing delimiter for an opening `"` / `{` / `[`, or `None`.
@@ -406,7 +406,10 @@ pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
 ///
 /// Command position is the start of the substitution, and whatever
 /// follows an unescaped newline or `;` at bracket top level, leading
-/// whitespace skipped.  A `#` inside a `"…"` or `{…}` word is ordinary
+/// whitespace skipped.  A backslash-newline counts as that leading
+/// whitespace — it substitutes to a space — so a `#` after one still
+/// opens a comment and the `]` in `"a[\n\\\n# ] c\n]b"` stays inert.
+/// A `#` inside a `"…"` or `{…}` word is ordinary
 /// text, never a comment — hence the invariant that `at_command_start`
 /// is only ever raised while `braces == 0 && !in_quotes`, which is what
 /// lets the `#` arm below test that flag alone.
@@ -424,8 +427,15 @@ fn command_subst_end(source: &str, open_bracket: usize) -> Option<usize> {
             // One unit everywhere, comments included: a backslash-newline
             // continues a comment onto the following line rather than
             // ending it.
+            //
+            // A continuation substitutes to a space, and C Tcl runs
+            // `ParseAllWhiteSpace` — which absorbs it — *before* testing for
+            // the `#` that opens a comment, so it keeps command position just
+            // as a literal space does. Any other escape is content and ends
+            // command position.
+            let continuation = is_line_continuation(source, pos);
             pos = backslash_escape_end(source, pos);
-            at_command_start = false;
+            at_command_start &= continuation;
             continue;
         }
         if in_comment {
@@ -991,6 +1001,39 @@ mod tests {
         // `]` opening that continuation line stays inert.
         let src = "\"a[\n# one \\\n] still comment\nformat b]c\"";
         assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_backslash_newline_keeps_command_position() {
+        // The reviewer's reproducer on PR #1481: the line between the `[` and
+        // the `#` is a lone backslash. The continuation substitutes to a
+        // space, so the `#` is still at command position and the `]` it
+        // comments out is inert. Clearing command position there closed the
+        // substitution on that `]`, and O129 then anchored on the `"` opening
+        // the inner `"b"` and rewrote over valid source.
+        let src = "\"x[string length abc]a[\n\\\n# ] comment\nset y \"b\"\n]c\"";
+        assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_backslash_crlf_keeps_command_position() {
+        // The same rule for the CRLF spelling of the continuation, whose
+        // trailing spaces and tabs belong to the escape too. The later
+        // `"b"` is what makes the assertion bite: closing on the commented
+        // `]` would report the quote opening it as this word's closer.
+        let src = "\"a[\\\r\n  # ]\nset y \"b\"\n]c\"";
+        assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_ordinary_escape_ends_command_position() {
+        // Only a continuation is whitespace. `\q` is content, so the `#`
+        // after it is an ordinary word character and the `]` beside it closes
+        // the substitution as usual — the word must not run on to the quote
+        // opening `"tail"`.
+        let src = "\"a[\\q#bar]c\" \"tail\"";
+        assert_eq!(close_quote_offset(src, 0), Some(11));
+        assert_eq!(&src[..=11], "\"a[\\q#bar]c\"");
     }
 
     #[test]

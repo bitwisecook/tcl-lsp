@@ -176,6 +176,40 @@ pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
     Span::new(argv_span.start(), end)
 }
 
+/// The rewrite span for a `"…"` word whose replacement was built from
+/// *`inside`* — the word's interior as the segmenter reported it — or `None`
+/// when the two disagree.
+///
+/// A rewrite that splices `"<inside, edited>"` over
+/// [`full_quoted_string_span`] is only sound while `"<inside>"` *is* the
+/// source that span covers. The span comes from a source scan and `inside`
+/// from the token stream, so a lexer that mis-measures the word hands the
+/// pass a short interior to splice over a long span, silently deleting the
+/// tail. That is what corrupts `"a[<newline># ] c<newline>set y "b"<newline>]c"`:
+/// the lexer's own bracket scan has no comment state, so the word it reports
+/// stops at the commented-out `]` while the span correctly reaches the final
+/// `"`, and the rewrite drops `"\n]c`.
+///
+/// Declining is the conservative answer — the optimisation is lost, the
+/// source is not.
+///
+/// A word that is not written `"…"` has no closing quote to scan for and its
+/// span is the argv span untouched, so there is nothing to cross-check and it
+/// passes through.
+#[must_use]
+pub fn quoted_word_rewrite_span(source: &str, argv_span: Span, inside: &str) -> Option<Span> {
+    let span = full_quoted_string_span(source, argv_span);
+    if source.as_bytes().get(argv_span.start() as usize) != Some(&b'"') {
+        return Some(span);
+    }
+    let covered = source.get(span.as_range())?;
+    let mut written = covered.chars();
+    if written.next() != Some('"') || written.next_back() != Some('"') {
+        return None;
+    }
+    (written.as_str() == inside).then_some(span)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,6 +337,64 @@ mod tests {
             span,
             Span::new(6, u32::try_from(source.len()).unwrap()),
             "span must cover the whole multiline quoted word",
+        );
+    }
+
+    #[test]
+    fn full_quoted_string_span_spans_a_comment_reached_by_a_continuation() {
+        // The comment is reached across a backslash-newline, which C Tcl
+        // absorbs as whitespace before it looks for the `#`.  The word still
+        // closes at the final `"`; anchoring on the inner `"b"` instead made
+        // O129 rewrite `set y "b"` into `set y b""b"`.
+        let source = "set x \"a[\n\\\n# ] comment\nset y \"b\"\n]c\"";
+        let span = full_quoted_string_span(source, Span::new(6, 8));
+        assert_eq!(
+            span,
+            Span::new(6, u32::try_from(source.len()).unwrap()),
+            "a line continuation must not lose command position",
+        );
+    }
+
+    #[test]
+    fn quoted_word_rewrite_span_agreeing_text_is_accepted() {
+        let source = "set x \"a[foo \"b\"]c\"";
+        assert_eq!(
+            quoted_word_rewrite_span(source, Span::new(6, 8), "a[foo \"b\"]c"),
+            Some(Span::new(6, u32::try_from(source.len()).unwrap())),
+        );
+    }
+
+    #[test]
+    fn quoted_word_rewrite_span_short_word_text_is_declined() {
+        // The segmenter's bracket scan has no comment state, so it reports the
+        // word as ending at the commented-out `]` while the span reaches the
+        // final `"`. Splicing the short interior over the long span deletes
+        // the tail, so the caller must be told to decline.
+        let source = "set x \"a[\n# ] c\nset y \"b\"\n]c\"";
+        assert_eq!(
+            quoted_word_rewrite_span(source, Span::new(6, 8), "a[\n# ] c\nset y b\""),
+            None,
+        );
+    }
+
+    #[test]
+    fn quoted_word_rewrite_span_unquoted_word_passes_through() {
+        // A bare word carries no quotes to cross-check; the caller supplies
+        // them itself, so the span is returned as `full_quoted_string_span`
+        // computed it.
+        let source = "puts a$b";
+        assert_eq!(
+            quoted_word_rewrite_span(source, Span::new(5, 8), "a$b"),
+            Some(Span::new(5, 8)),
+        );
+    }
+
+    #[test]
+    fn quoted_word_rewrite_span_empty_word_is_accepted() {
+        let source = "puts \"\"";
+        assert_eq!(
+            quoted_word_rewrite_span(source, Span::new(5, 7), ""),
+            Some(Span::new(5, 7)),
         );
     }
 

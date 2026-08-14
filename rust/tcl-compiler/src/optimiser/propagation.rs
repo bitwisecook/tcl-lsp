@@ -70,7 +70,7 @@ use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
-use super::helpers::spans::full_quoted_string_span;
+use super::helpers::spans::{full_quoted_string_span, quoted_word_rewrite_span};
 use super::{Optimisation, PassContext};
 
 /// Run the propagation pass across every function.
@@ -2707,7 +2707,11 @@ fn visit_string_interpolation_cmd_subs(
         return;
     }
     out.push_str(&inside[last..]);
-    let rewrite_span = full_quoted_string_span(ctx.source, span);
+    // The replacement is `inside` with the folds applied, so it may only be
+    // spliced over source the segmenter reported as exactly `inside`.
+    let Some(rewrite_span) = quoted_word_rewrite_span(ctx.source, span, inside) else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O129,
         "Fold constant builtin command substitution in interpolation",
@@ -4407,6 +4411,38 @@ mod tests {
             &fold.replacement,
         );
         assert_eq!(rewritten, "puts \"aBc\"\n");
+    }
+
+    /// Review on PR #1481, same #1424 lineage: a `"…"` word holding a
+    /// command-position comment reached across a backslash-newline
+    /// continuation. `tclsh` prints `x3abc`; the O129 rewrite printed
+    /// `x3ab""b"c`.
+    ///
+    /// Two scanners have to agree for the splice to be sound. The rewrite
+    /// *span* comes from `close_quote_offset`, which now keeps command
+    /// position across the continuation and so reaches the final `"`. The
+    /// replacement *text* comes from the segmenter, whose own bracket scan
+    /// still has no comment state and stops at the commented-out `]`. While
+    /// they disagree the pass must decline rather than splice a short word
+    /// over a long span — so no applicable O129 is offered here.
+    #[test]
+    fn o129_fold_declines_when_the_word_text_does_not_match_the_span() {
+        let src = "puts \"x[string length abc]a[\n\\\n# ] comment\nset y \"b\"\n]c\"\n";
+        let opts = crate::optimiser::optimise_raw(src, &registry(), None);
+        for opt in opts
+            .iter()
+            .filter(|o| o.code == DiagCode::O129 && !o.hint_only)
+        {
+            let mut rewritten = src.to_owned();
+            rewritten.replace_range(
+                opt.span.start() as usize..opt.span.end() as usize,
+                &opt.replacement,
+            );
+            assert_eq!(
+                rewritten, src,
+                "an applicable O129 here corrupts the source: {opt:?}",
+            );
+        }
     }
 
     #[test]
