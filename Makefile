@@ -765,6 +765,13 @@ fuzz: ## Run a tcl-fuzz differential campaign (manual-only; see the fuzz-finding
 
 # The workspace test suite, including the native lsp_e2e suite
 # (rust/tcl-lsp-server/tests/*_e2e.rs).  Set SKIP_TEST_RUST=1 to skip.
+#
+# Prefers nextest when it is installed, the way `smoke` does, and for the same
+# reason CI's rust-tests job uses it: nextest runs every test binary's tests in
+# ONE global parallel pool, where plain `cargo test` runs the binaries serially.
+# nextest cannot run doctests, so those follow in a second pass — the same split
+# the rust-tests job makes.  The `cargo test` fallback keeps the target working
+# on a machine without nextest.
 test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip with SKIP_TEST_RUST=1)
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_RUST:-}" ]; then \
@@ -777,7 +784,17 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
 		exit 1; \
 	fi; \
 	echo "==> Running Rust workspace tests (includes the native lsp_e2e suite)"; \
-	cd $(ROOT) && cargo test --workspace --all-features
+	cd $(ROOT) && \
+	if command -v cargo-nextest >/dev/null 2>&1; then \
+		echo "==> cargo nextest run --workspace --all-features"; \
+		cargo nextest run --workspace --all-features --no-fail-fast; \
+		echo "==> cargo test --doc (nextest cannot run doctests)"; \
+		cargo test --workspace --all-features --doc --no-fail-fast; \
+	else \
+		echo "==> cargo-nextest not found; falling back to 'cargo test'"; \
+		echo "    (nextest pools every test binary; plain cargo test runs them serially)"; \
+		cargo test --workspace --all-features; \
+	fi
 
 # Build the native Rust LSP server binary (target/release/tcl-lsp-server) —
 # the only server there is, and the one every harness drives (test-ext points
