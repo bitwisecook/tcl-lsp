@@ -112,6 +112,44 @@ the laptop:
 maintainer doesn't have to remember the sequence.  `make publish-vsix` /
 `make publish-jetbrains` remain laptop fallbacks if a CI publish job fails.
 
+## The 2.1.x pre-release sequence is a program, not a procedure
+
+Step 2 above is the *primitive*.  For the `rust` pre-release line there is
+work that must happen before it — the release-notes performance graphs —
+and every part of it used to be a step someone remembered:
+
+```
+scripts/release/rust_release.sh next patch      # -> the next version
+scripts/release/rust_release.sh prepare X.Y.Z   # everything before the tag
+#   ...open + merge the notes PR against `rust`, pull, then:
+scripts/release/rust_release.sh tag X.Y.Z       # verify, then tag.sh
+```
+
+| Step | Script | Produces |
+|---|---|---|
+| `preflight` | `rust_release.sh` | nothing — asserts branch, clean tree, free tag, ordering, channel |
+| `perf` | `perf_release.sh` → `scripts/perf/` | `results/X.Y.Z.json`, the `MANIFEST.toml` entry, re-rendered `graphs/` |
+| `notes` | `perf_notes.py` | the `## Performance…` section of `RELEASE_NOTES.md` |
+| `verify` | `rust_release.sh` | nothing — re-renders the graphs and diffs them against the committed ones |
+| `tag` | `rust_release.sh` → `tag.sh` | the annotated tag, which triggers everything above |
+
+The invariant `verify` enforces: **`scripts/perf/graphs/` must be exactly
+what `scripts/perf/results/` renders to with the release highlighted.**
+`report.py` is byte-deterministic, so re-rendering and diffing is a real
+check rather than an approximation, and it runs again inside `tag` — a
+graph set that has drifted from its inputs cannot reach a release.
+
+Two things this deliberately leaves to a human: the prose changelog
+(a judgement, not a derivation) and pushing the notes branch / opening
+the PR (`prepare` stops at a local commit and prints both commands,
+the same way `publish_zed.sh` stops before touching an external repo).
+
+The measurement host matters.  `scripts/perf/README.md` documents that CI
+and macOS take different code paths, so the *committed* result — taken
+wherever the maintainer ran `prepare` — is the release record.
+`perf.yml` still benchmarks the tag on its own runner for the trend line,
+but renders and attaches the committed result when there is one.
+
 The publish-verify step (`scripts/release/publish_verify.sh`, 179
 lines) checks every publish credential and tool non-destructively — it
 never ships anything.  Designed for a quick pre-flight check the week
@@ -213,7 +251,18 @@ stored, is a design conversation: it requires updating this contract and
 
 - [`Makefile`](../../../Makefile) — `publish-vsix`, `publish-vsix-targets`,
   `publish-jetbrains`, `publish-sublime`, `publish-zed`, `publish-all`,
-  `publish-verify`, `publish-flow`, `release-tag`.
+  `publish-verify`, `publish-flow`, `release-tag`, and the pre-release
+  sequence `release-perf`, `release-notes-perf`, `release-verify`,
+  `release-prepare`, `release-rust-tag`.
+- [`scripts/release/rust_release.sh`](../../../scripts/release/rust_release.sh) —
+  the 2.1.x pre-release driver (`next` / `preflight` / `perf` / `notes` /
+  `verify` / `prepare` / `tag`).
+- [`scripts/release/perf_release.sh`](../../../scripts/release/perf_release.sh)
+  and [`scripts/release/perf_notes.py`](../../../scripts/release/perf_notes.py) —
+  the release-notes performance graphs and the section that embeds them.
+- [`.github/workflows/perf.yml`](../../../.github/workflows/perf.yml) —
+  benchmarks every push and tag; attaches `perf-*.svg` / `perf-summary.md`
+  to the GitHub Release, which is what the notes link to.
 - [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml) —
   builds artefacts, attests them, attaches them to the Release, and runs
   the two marketplace publish jobs.  Every `secrets.*` reference sits in a

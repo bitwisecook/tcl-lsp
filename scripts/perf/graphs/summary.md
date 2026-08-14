@@ -1,5 +1,7 @@
 ## Performance
 
+`2.1.18` is this release: it is the blue line in every graph below, and the bold row in the table. Earlier releases are drawn in grey, fading with age.
+
 | Version | Peak RSS (MiB) | Final RSS (MiB) | RSS growth (MiB) | Total CPU (s) | Total wall (s) | Failed checks |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | 2.1.0 | 88.89 | 88.89 | 87.97 | 3.63 | 121.90 | 1 |
@@ -19,7 +21,9 @@
 | 2.1.15 | 173.61 | 173.61 | 172.36 | 15.69 | 12.54 | 0 |
 | 2.1.16 | 192.70 | 192.70 | 191.44 | 39.04 | 35.44 | 0 |
 | 2.1.17 | 275.15 | 275.15 | 259.65 | 15.00 | 9.29 | 0 |
-| 2.1.18 | 242.82 | 242.82 | 226.16 | 28.00 | 16.24 | 0 |
+| **2.1.18** | 242.82 | 242.82 | 226.16 | 28.00 | 16.24 | 0 |
+
+_`2.1.18` and `2.1.17` were measured on different hosts (AMD EPYC 9V74 80-Core Processor → AMD EPYC 7763 64-Core Processor), so no release-over-release delta is quoted: the difference would be mostly hardware._
 
 **Failed checks**
 

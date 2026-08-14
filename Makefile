@@ -206,6 +206,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets
 .PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
+.PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
 # Rust runtime port
 .PHONY: runtime-rust-test runtime-rust-lint zed-query-check vm-test vm-lint
 # Screenshots
@@ -1684,6 +1685,26 @@ release-sums: claude-skills package-vsix package-vsix-targets build-editor-jetbr
 release-tag: ## Create + push the annotated release tag (V=x.y.z)
 	@bash $(ROOT)scripts/release/tag.sh $(V)
 
+# The 2.1.x pre-release line's prepare-then-tag flow. `rust_release.sh tag`
+# re-runs release-verify and checks the notes actually merged before handing
+# off to tag.sh, so it is the entry point to prefer over release-tag for a
+# pre-release; release-tag stays the bare tagging primitive (and the only
+# entry point for the stable line cut from main).
+release-perf: ## Benchmark V=x.y.z and regenerate the release-notes graphs
+	@bash $(ROOT)scripts/release/perf_release.sh $(V) $(PERF_ARGS)
+
+release-notes-perf: ## Write the performance section of RELEASE_NOTES.md for V=x.y.z
+	@python3 $(ROOT)scripts/release/perf_notes.py $(V)
+
+release-verify: ## Check the committed perf results, graphs and notes agree for V=x.y.z
+	@bash $(ROOT)scripts/release/rust_release.sh verify $(V)
+
+release-prepare: ## Preflight + benchmark + notes + verify + commit for V=x.y.z (rust line)
+	@bash $(ROOT)scripts/release/rust_release.sh prepare $(V) $(PREPARE_ARGS)
+
+release-rust-tag: ## Verify the prepared artefacts, then tag V=x.y.z (rust line)
+	@bash $(ROOT)scripts/release/rust_release.sh tag $(V)
+
 publish-all: publish-vsix publish-vsix-targets publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
@@ -1697,6 +1718,11 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "    pre-release/brave  v2.1.x (odd 2.x minor)         cut from rust"
 	@echo "    # odd-minor 2.x -> GitHub --prerelease + VS Code --pre-release channel;"
 	@echo "    # 1.x stays the default install until a user opts into pre-releases."
+	@echo ""
+	@echo "  For the 2.1.x pre-release line, steps 1-2 are one program:"
+	@echo "    make release-prepare V=X.Y.Z     # preflight, benchmark, graphs, notes, verify, commit"
+	@echo "    # ...open + merge the notes PR against rust, pull, then:"
+	@echo "    make release-rust-tag V=X.Y.Z    # re-verifies, then tags"
 	@echo ""
 	@echo "  1. make publish-verify             # check that local credentials + tooling are ready"
 	@echo "  2. make release-tag V=X.Y.Z        # creates + pushes the annotated tag (e.g. 2.1.0)"

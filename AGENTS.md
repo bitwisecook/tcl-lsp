@@ -211,6 +211,8 @@ The project uses GNU Make. Key targets:
 | `make build-editor-vsix`        | Build the .vsix VS Code extension (bundles the native `tcl-lsp-server` binaries) |
 | `make codegen`     | Regenerate all generated files (editor catalogs + settings + AI prompts) via `cargo xtask` |
 | `make publish-flow` | Print the release + marketplace publish cheat-sheet |
+| `make release-prepare V=X.Y.Z` | 2.1.x pre-release: preflight, benchmark the release, regenerate the release-notes graphs, write the perf notes section, verify, commit |
+| `make release-verify V=X.Y.Z` | Check `scripts/perf/{results,graphs}` and `RELEASE_NOTES.md` agree for X.Y.Z |
 
 The build is organised into **four layers** with a clear separation
 between them — see
@@ -309,6 +311,18 @@ source of truth (prints `true`/`false`); CI (`create-release`,
 `publish-vsix-marketplace`), the Makefile (`VSCE_PRERELEASE_FLAG`), and
 `tag.sh` all read it, so nothing per-version needs editing — just
 `make release-tag V=2.1.0` from `rust`.
+
+The 2.1.x line has one thing to do **before** the tag: measure the release
+and regenerate the release-notes performance graphs.
+`scripts/release/rust_release.sh` drives that whole sequence
+(`next` → `preflight` → `prepare` → `tag`); `prepare` benchmarks the tree
+about to be tagged, commits `scripts/perf/results/X.Y.Z.json` alongside the
+re-rendered `scripts/perf/graphs/`, and writes the `## Performance` section
+of `RELEASE_NOTES.md` — never hand-edit that section, its four release-asset
+URLs are the easiest thing in a release to leave pointing at the previous
+version. `verify` (re-render the graphs, diff against the committed ones)
+gates the tag, and the `graphs-current` job in `perf.yml` runs the same
+check on every push.
 
 ## WASM command parity
 

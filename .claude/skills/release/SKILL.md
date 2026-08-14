@@ -2,10 +2,11 @@
 name: release
 description: >
   Run the full release workflow: validate the release branch (2.x pre-releases
-  are cut from `rust`, 1.x stable from `main`), test, generate changelog, tag,
+  are cut from `rust`, 1.x stable from `main`), test, benchmark the release and
+  regenerate the release-notes performance graphs, generate the changelog, tag,
   push, then let CI build and publish — approving the marketplace Environments
   with `gh` from the release laptop. Asks for patch/minor/major if not
-  specified. Tag-only — no source-file edits, no commit on the release branch.
+  specified. The 2.1.x line is driven by `scripts/release/rust_release.sh`.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 ---
 
@@ -18,7 +19,27 @@ from the latest annotated tag (via `hatch-vcs` for the Python wheel and via
 the Makefile + `git describe` for every editor build). To cut a release we
 push a `vX.Y.Z` tag — there is no source-file bump and no commit on the
 release branch. RELEASE_NOTES.md is the one exception, and it lands via a PR
-before tagging.
+before tagging — together with the release's benchmark result and the
+regenerated performance graphs, which are committed artefacts.
+
+## The 2.1.x line is scripted — use the script
+
+Everything below except the prose changelog is implemented by
+`scripts/release/rust_release.sh`. Prefer it over doing the steps by hand;
+it is what makes two releases come out the same way.
+
+```bash
+scripts/release/rust_release.sh next patch      # -> the next version
+scripts/release/rust_release.sh preflight X.Y.Z # branch, clean tree, free tag, ordering
+#   ...write the prose changelog (step 5 below)
+scripts/release/rust_release.sh prepare X.Y.Z   # bench + graphs + notes + verify + commit
+#   ...push the branch, open + merge the notes PR, pull `rust`
+scripts/release/rust_release.sh tag X.Y.Z       # re-verifies, then tag.sh
+```
+
+`prepare` stops at a local commit and prints the push / PR commands rather
+than pushing — read the diff first. The steps below give the detail and the
+reasoning; do not substitute a hand-rolled sequence for the script.
 
 ## Two release lines
 
@@ -104,6 +125,11 @@ Split `prev_version` into MAJOR.MINOR.PATCH and apply the bump:
 - `minor`: increment MINOR, reset PATCH to 0
 - `major`: increment MAJOR, reset MINOR and PATCH to 0
 
+On the 2.1.x line, `scripts/release/rust_release.sh next patch|minor|major`
+computes this, and `… preflight X.Y.Z` then checks the branch, the clean
+worktree, that the tag is free locally *and* on origin, and that the version is
+actually newer than the latest tag. Run both before writing anything.
+
 ### 5. Generate changelog
 
 Generate a changelog from the **source diff** between the previous tag and
@@ -136,19 +162,56 @@ with these sections (omit empty sections):
 Focus on user-visible changes. Group related changes. Use UK spelling. Do not
 list every file touched; summarise the meaningful changes.
 
+Write the prose only. **Do not hand-write the `## Performance` section** — step
+5a generates it, and hand-editing it is how a release ships the previous
+release's graphs under this release's heading.
+
+### 5a. Benchmark the release and regenerate the graphs
+
+The release-notes graphs are committed artefacts and must be measured from the
+tree that is about to be tagged:
+
+```bash
+scripts/release/rust_release.sh prepare X.Y.Z
+```
+
+That runs, in order: `preflight` again; a release build of `tcl-lsp-server`;
+the pinned-corpus benchmark into `scripts/perf/results/X.Y.Z.json`; the
+`MANIFEST.toml` version entry; a re-render of `scripts/perf/graphs/` with
+X.Y.Z highlighted as the current release (bright blue, history in ageing grey);
+the `## Performance` section of `RELEASE_NOTES.md`, including the four
+release-asset URLs; `verify`, which re-renders the graphs and diffs them
+against the committed ones; and finally a local commit on `release/vX.Y.Z`.
+
+It stops before pushing and prints the push / PR commands.
+
+Two things to watch and report to the user rather than paper over:
+
+- **The measurement host.** The benchmark warns when this release was measured
+  on a different machine than the previous one; wall time and CPU are not
+  comparable across that boundary, and the generated notes say so instead of
+  quoting a delta. `scripts/perf/README.md` explains why CI numbers are not a
+  substitute for macOS ones.
+- **A `--force` prompt.** If `results/X.Y.Z.json` already exists, `prepare`
+  keeps it. Re-measuring a committed record needs
+  `scripts/release/perf_release.sh X.Y.Z --force` and a reason.
+
 ### 6. Land RELEASE_NOTES.md via PR
 
 The release branch is protected, so the release-notes commit lands via a PR
 **against that branch** (`--base "$release_branch"` — a notes PR opened against
-`main` for a 2.x pre-release would land the notes on the wrong line):
+`main` for a 2.x pre-release would land the notes on the wrong line). Step 5a
+already made the branch and the commit; push it and open the PR:
 
 ```bash
-git checkout -b release/vX.Y.Z
-git add RELEASE_NOTES.md
-git commit -m "Add release notes for vX.Y.Z"
 git push -u origin release/vX.Y.Z
 gh pr create --base "$release_branch" --title "Release vX.Y.Z notes" --body "..."
 ```
+
+The commit carries `RELEASE_NOTES.md` **and** the perf artefacts —
+`scripts/perf/results/X.Y.Z.json`, the regenerated `scripts/perf/graphs/`, and
+the `MANIFEST.toml` entry. All four belong in the same PR: the graphs are only
+meaningful next to the result they were rendered from.
 
 Wait for CI on the PR to go green, then ask the user to merge it (squash).
 Once merged, switch back and pull:
@@ -160,9 +223,18 @@ git pull origin "$release_branch"
 
 ### 7. Create and push the tag
 
-`make release-tag` handles validation (clean tree, correct branch, no
-existing tag) and pushes only the tag — no source-file edits, no commit on
-main:
+On the 2.1.x line, tag through the driver — it re-runs `verify` (the committed
+graphs must still be exactly what the committed results render to) and refuses
+if the notes PR has not merged into `rust` yet, then hands off to `tag.sh`:
+
+```bash
+scripts/release/rust_release.sh tag X.Y.Z     # or: make release-rust-tag V=X.Y.Z
+```
+
+`make release-tag V=X.Y.Z` is the bare primitive underneath — it handles
+validation (clean tree, correct branch, no existing tag) and pushes only the
+tag, with no source-file edits and no commit on the release branch. It is the
+entry point for the stable line cut from `main`:
 
 ```bash
 make release-tag V=X.Y.Z
@@ -400,7 +472,11 @@ Release vX.Y.Z complete.
   Previous version: <prev>
   New version:      X.Y.Z
   Tag:              vX.Y.Z
+  Benchmarked on:   <host cpu / platform from results/X.Y.Z.json>
   Editors published: <list or "none">
 ```
+
+If the benchmark host differed from the previous release's, say so here too —
+it is the reason the notes quote no release-over-release delta.
 
 $ARGUMENTS

@@ -45,6 +45,32 @@ permissions:
   contents: read
 
 jobs:
+  # The committed graphs are quoted as the release record and are embedded in
+  # release notes by URL, so they have to be exactly what the committed results
+  # render to. report.py is byte-deterministic, which makes "re-render and diff"
+  # a real check rather than an approximation.
+  #
+  # Cheap and hermetic — no build, no corpus, no network — so it runs on every
+  # trigger and catches a hand-edited SVG or a results file committed without
+  # re-rendering, long before `rust_release.sh verify` would at tag time.
+  graphs-current:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Re-render the committed graphs and diff
+        working-directory: scripts/perf
+        run: |
+          python3 report.py --results results --out "$RUNNER_TEMP/graphs" >/dev/null
+          if ! diff -ru graphs "$RUNNER_TEMP/graphs"; then
+            echo "::error title=Perf graphs are stale::scripts/perf/graphs/ is not what scripts/perf/results/ renders to. Run: cd scripts/perf && python3 report.py"
+            exit 1
+          fi
+          echo "graphs/ matches results/"
+
   benchmark:
     runs-on: ubuntu-26.04
     timeout-minutes: 60
@@ -131,12 +157,24 @@ jobs:
       - name: Render graphs against the release history
         working-directory: scripts/perf
         run: |
-          # `cp -n`: on a tag whose version is already committed to
-          # `results/` (a re-run, or a re-cut tag), the freshly measured file
-          # must win over the stored one rather than be silently overwritten
-          # by it.
-          cp -n results/*.json ci-results/ || true
-          python3 report.py --results ci-results --out ci-graphs
+          # Rendered from a third directory so neither input is clobbered.
+          # Precedence matters on a tag whose version is already committed to
+          # `results/` — which is now the normal case, since
+          # `scripts/release/rust_release.sh prepare` measures the release and
+          # commits the result before the tag exists. That committed figure is
+          # the release record, taken on the host the maintainer chose (see
+          # "CI results are not a substitute for macOS results" in the README),
+          # so it wins. This run's own measurement stays intact in
+          # `ci-results/` and is uploaded as the artefact regardless.
+          mkdir -p render
+          cp results/*.json render/ 2>/dev/null || true
+          cp -n ci-results/*.json render/
+          # `--highlight` explicitly, not by default: report.py's default is
+          # the newest *release* in the set, and a branch run is labelled
+          # `ci-<sha>`, which sorts before every numbered version. Naming the
+          # label makes the ref under test the blue line either way.
+          python3 report.py --results render --out ci-graphs \
+            --highlight "${{ steps.label.outputs.label }}"
 
       - name: Job summary
         working-directory: scripts/perf
@@ -225,7 +263,12 @@ jobs:
             cp "ci-graphs/$f.svg" "out/perf-$f.svg"
           done
           cp ci-graphs/summary.md "out/perf-summary.md"
-          cp "ci-results/${{ steps.label.outputs.label }}.json" \
+          # From `render/`, not `ci-results/`: that is the file the attached
+          # graphs were drawn from. When the release was measured before the
+          # tag, it is the committed record rather than this run's rerun, and
+          # attaching the other one would put a JSON beside the SVGs that
+          # disagrees with them.
+          cp "render/${{ steps.label.outputs.label }}.json" \
              "out/perf-${{ steps.label.outputs.label }}.json"
 
           for attempt in $(seq 1 40); do
