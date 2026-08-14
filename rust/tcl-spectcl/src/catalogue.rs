@@ -563,6 +563,10 @@ pub const TRAITS: &[Variant] = &[
         "DECLARES_NAMESPACE",
         "declares the namespace its NamespaceName word names",
     ),
+    v(
+        "TK_GEOMETRY_MANAGER",
+        "a Tk geometry manager that claims a container",
+    ),
 ];
 
 /// [`TaintColour`] bits.

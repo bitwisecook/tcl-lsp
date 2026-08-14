@@ -540,13 +540,23 @@ fn word_taint_at<S: std::hash::BuildHasher>(
             t = t.join(word_taint_at(arg, uses, taints, ctx, depth + 1));
         }
         t = t.shape_unproven();
-        // Stamp the encoder/transform colour the command adds to a
-        // tainted result (e.g. `uri::encode` → `URL_ENCODED`), so a
-        // later pass through the same encoder is detectable as a
-        // double-encode (T106).
-        if t.is_tainted()
-            && let Some(colour) = transform_colour(ctx.registry, &cmd, &arg_refs)
-        {
+        // Stamp the encoder/transform colour the command adds to its result
+        // (e.g. `uri::encode` → `URL_ENCODED`, `file normalize` →
+        // `PATH_NORMALISED`), so a later pass through the same encoder is
+        // detectable as a double-encode (T106) and a consumer asking "has
+        // this value been through a normalising sanitiser" gets a yes.
+        //
+        // Stamped regardless of taint (issue #1391).  The colour describes
+        // what the *command* guarantees about its result, not what its input
+        // was, so gating it on `is_tainted()` made the fact unobservable for
+        // exactly the values a hygiene check like W201 asks about — a path
+        // built from clean local variables and then normalised.  Nothing
+        // widens as a result: every consumer that acts on a colour
+        // ([`emit_double_encode_warnings`], the sink mitigation checks)
+        // requires `is_tainted()` first, and a clean lattice is `join`'s
+        // identity, so a clean colour never dilutes a tainted operand's
+        // must-have mitigations.
+        if let Some(colour) = transform_colour(ctx.registry, &cmd, &arg_refs) {
             t = t.with(colour);
         }
         return t;

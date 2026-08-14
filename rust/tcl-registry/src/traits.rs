@@ -1022,6 +1022,22 @@ declare_traits! {
     /// reason this is a trait rather than a subcommand-name check in the
     /// handler: it references an existing namespace and never declares one.
     DeclaresNamespace => DECLARES_NAMESPACE;
+
+    /// A Tk **geometry manager** — a command that claims a widget's
+    /// container and takes over the placement of the widgets given to it
+    /// (`pack`, `grid`, `place`).
+    ///
+    /// Tk allows exactly one manager per container: `TkSetGeometryContainer`
+    /// (9.0.4 `generic/tkGeometry.c`) raises *"cannot use geometry manager
+    /// … inside … which already has slaves managed by …"* the moment a
+    /// second one claims the same parent, so a file mixing two of them on
+    /// one container is a runtime error (TK1001).
+    ///
+    /// A trait rather than a name list in the analyser because the set is
+    /// open: a `ttk::` megawidget or a vendor Tk fork can ship another
+    /// manager, and its spec should switch TK1001 on without an analyser
+    /// edit (issue #1390).
+    TkGeometryManager => TK_GEOMETRY_MANAGER;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the

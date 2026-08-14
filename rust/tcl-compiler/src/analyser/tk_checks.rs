@@ -30,7 +30,7 @@
 //! [`super::state::Analyser::flush_tk_geometry_diagnostics`] from the shared
 //! diagnostic-emission tail, gated on the resolved activation condition.
 //! TK1001 additionally needs all of a parent's geometry calls before it can
-//! decide a `pack`/`grid` conflict, so it accumulates per-parent usage and
+//! decide a geometry-manager conflict, so it accumulates per-parent usage and
 //! is decided in the same flush.
 //!
 //! Two distinct questions are involved, and conflating them was issue #1188:
@@ -82,8 +82,10 @@
 //!
 //! Diagnostic codes:
 //!
-//! - **TK1001** (WARNING): geometry-manager conflict — `pack` and `grid`
-//!   used on the same parent *in the same interpreter* (a runtime error in Tk).
+//! - **TK1001** (WARNING): geometry-manager conflict — two of the commands
+//!   carrying [`Traits::TK_GEOMETRY_MANAGER`](tcl_registry::Traits) (`pack`,
+//!   `grid`, `place`) used on the same parent *in the same interpreter* (a
+//!   runtime error in Tk).
 //! - **TK1002** (WARNING): widget path references a parent that does not exist
 //!   *in that interpreter's* hierarchy.
 //! - **TK1003** (HINT): unknown option for a widget command (per-command, so
@@ -99,8 +101,9 @@ use super::types::{Diagnostic, Severity};
 /// TK1001 can be decided post-walk.
 #[derive(Debug, Default)]
 pub(super) struct TkGeometryUsage {
-    /// The distinct geometry managers (`pack` / `grid` / `place`) seen
-    /// for this parent.
+    /// The distinct geometry managers (whatever carries
+    /// `Traits::TK_GEOMETRY_MANAGER` — `pack` / `grid` / `place` today)
+    /// seen for this parent.
     pub managers: std::collections::BTreeSet<String>,
     /// Each geometry call site `(manager, span)`, in document order, so a
     /// conflict reports on every offending call.
@@ -136,9 +139,6 @@ pub(super) struct TkDomainState {
     pub geometry: std::collections::BTreeMap<String, TkGeometryUsage>,
 }
 
-/// Tk geometry-manager commands.
-const GEOMETRY_COMMANDS: &[&str] = &["pack", "grid", "place"];
-
 /// The package name whose presence activates the TK checks.  The single
 /// source of truth for both halves of the gate: the `package require` name
 /// [`Analyser::has_tk_require`] looks for, and the `CommandSpec`
@@ -161,11 +161,6 @@ pub(super) const TK_PACKAGE: &str = "Tk";
 #[must_use]
 pub(super) fn tk_checks_could_apply(source: &str, dialect: &str) -> bool {
     dialect == "tk" || source.contains(TK_PACKAGE)
-}
-
-/// Return `true` if `name` is a Tk geometry-manager command.
-fn is_geometry_command(name: &str) -> bool {
-    GEOMETRY_COMMANDS.contains(&name)
 }
 
 /// Return `true` if `path` matches Tcl/Tk widget-path syntax — a leading
@@ -217,6 +212,19 @@ impl Analyser {
             r.get(name).is_some_and(|s| {
                 s.creates_instance_at.is_some() && s.required_package == Some(TK_PACKAGE)
             })
+        })
+    }
+
+    /// Return `true` if `name` is a Tk geometry-manager command — the
+    /// registry's [`Traits::TK_GEOMETRY_MANAGER`], not a hand-maintained
+    /// three-name list.  TK1001's question is "did two managers claim one
+    /// container", and which commands are managers is spec data: a `ttk::`
+    /// megawidget manager or a vendor Tk fork joins the check by stamping
+    /// the trait, with no edit here (issue #1390).
+    fn is_geometry_command(&self, name: &str) -> bool {
+        self.registry.as_deref().is_some_and(|r| {
+            r.get(name)
+                .is_some_and(|s| s.traits.contains(tcl_registry::Traits::TK_GEOMETRY_MANAGER))
         })
     }
 
@@ -273,7 +281,7 @@ impl Analyser {
         }
 
         // Track geometry-manager usage for the post-walk TK1001 check.
-        if is_geometry_command(cmd_name)
+        if self.is_geometry_command(cmd_name)
             && let Some(widget_path) = args.first()
             && is_widget_path(widget_path)
         {
@@ -468,19 +476,39 @@ impl Analyser {
         // never conflict.
         for state in domains.into_values() {
             for (parent, usage) in state.geometry {
-                if usage.managers.contains("pack") && usage.managers.contains("grid") {
-                    for (_manager, span) in usage.sites {
-                        self.result.diagnostics.push(Diagnostic {
-                            code: DiagCode::Tk1001,
-                            span,
-                            message: format!(
-                                "Geometry manager conflict: cannot mix 'pack' and 'grid' \
-                                 in the same parent '{parent}'."
-                            ),
-                            severity: Severity::Warning,
-                            fixes: Vec::new(),
-                        });
+                // *Any* two managers conflict — Tk allows one per container,
+                // whichever it is.  The old rule asked for `pack` and `grid`
+                // by name, so a `place`/`grid` clash (a real
+                // `TkSetGeometryContainer` error) was silent and the
+                // registry's manager set could never grow (issue #1390).
+                if usage.managers.len() < 2 {
+                    continue;
+                }
+                // Name the first two in the order they claim the container,
+                // so the message reads the way the file does.
+                let mut named: Vec<&str> = Vec::new();
+                for (manager, _) in &usage.sites {
+                    if !named.contains(&manager.as_str()) {
+                        named.push(manager);
                     }
+                    if named.len() == 2 {
+                        break;
+                    }
+                }
+                let [first, second] = named[..] else {
+                    continue;
+                };
+                for (_manager, span) in &usage.sites {
+                    self.result.diagnostics.push(Diagnostic {
+                        code: DiagCode::Tk1001,
+                        span: *span,
+                        message: format!(
+                            "Geometry manager conflict: cannot mix '{first}' and '{second}' \
+                             in the same parent '{parent}'."
+                        ),
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
                 }
             }
         }
@@ -534,6 +562,26 @@ mod tests {
     fn tk1001_quiet_for_pack_only() {
         let src = "frame .top\npack .top.a\npack .top.b";
         assert!(!has(src, "tk", "TK1001"));
+    }
+
+    #[test]
+    fn tk1001_covers_place_and_qualified_spellings() {
+        // Every manager is whatever carries `TK_GEOMETRY_MANAGER`, resolved
+        // through the registry — so `place` conflicts with `pack`, and the
+        // `::`-qualified spelling the old three-name `contains` rejected
+        // resolves to the same spec (issue #1390).
+        assert!(has("frame .top\nplace .top.a\ngrid .top.b", "tk", "TK1001"));
+        assert!(has(
+            "frame .top\n::pack .top.a\n::grid .top.b",
+            "tk",
+            "TK1001"
+        ));
+        // A non-manager command on the same parent is still not a conflict.
+        assert!(!has(
+            "frame .top\npack .top.a\nraise .top.b",
+            "tk",
+            "TK1001"
+        ));
     }
 
     #[test]

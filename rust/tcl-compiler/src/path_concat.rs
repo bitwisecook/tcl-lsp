@@ -29,13 +29,22 @@
 //!   and `HAS_INTERPOLATION` (substitution evidence) on each SSA def.
 //! * `taints` — `PATH_NORMALISED` on the defined value suppresses the
 //!   warning (the value has already been through `file normalize` or
-//!   equivalent). This arm is currently inactive: the taint engine does
-//!   not yet set `PATH_NORMALISED` on `[file normalize]` results.
+//!   equivalent).
 //!
-//! A forward-scan within the same block also suppresses the warning
-//! when the very next assignment to the same variable is
-//! `[file normalize $var]` — this is the only suppression path that
-//! currently fires end-to-end.
+//! Both suppression paths read the same lattice colour. The second is a
+//! forward scan over the block's own statements: when the next assignment to
+//! the same variable produces a `PATH_NORMALISED` value, the concatenated
+//! value never escapes unnormalised, so the warning is dropped.
+//!
+//! The colour is registry data — `file`'s `normalize` subcommand declares
+//! `taint_transform: Some(TaintColour::PATH_NORMALISED)` and
+//! `crate::taint` resolves it — so every spelling answers alike: a nested
+//! `[file normalize [file join $a $b]]`, the `file nor` unique-prefix
+//! abbreviation the ensemble accepts, a normalisation reaching the variable
+//! through a copy, and a `::file`-qualified call. Until issue #1391 this
+//! module instead text-matched `[file normalize $sameVar]` on a stale belief
+//! that the taint engine never set the colour, and every other spelling
+//! false-positived.
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
@@ -65,24 +74,6 @@ pub struct PathConcatWarning {
     /// Optional `[file join …]` replacement text when the RHS
     /// decomposes into simple segments.
     pub replacement: Option<String>,
-}
-
-/// True when `value` is exactly `[file normalize $var_name]` (bare or
-/// braced variable reference, possibly quoted).
-fn is_file_normalize_of(value: &str, var_name: &str) -> bool {
-    let Some((cmd, args)) = parse_command_substitution(value) else {
-        return false;
-    };
-    if cmd != "file" || args.is_empty() || args[0] != "normalize" {
-        return false;
-    }
-    for arg in &args[1..] {
-        let stripped = arg.trim().trim_matches('"');
-        if stripped == format!("${var_name}") || stripped == format!("${{{var_name}}}") {
-            return true;
-        }
-    }
-    false
 }
 
 /// Return `true` when `s` is a simple path segment (alphanumerics +
@@ -196,9 +187,8 @@ where
 {
     let mut out: Vec<PathConcatWarning> = Vec::new();
     let path_sep_bits = RenderedProperties::HAS_FORWARD_SLASH | RenderedProperties::HAS_BACKSLASH;
-    // Only `PATH_NORMALISED`. It is not currently assigned by the taint
-    // engine, so this arm is inactive; the forward-scan below is the only
-    // active suppression.
+    // Only `PATH_NORMALISED` — the colour `file normalize` (and any other
+    // spec declaring the same `taint_transform`) stamps on its result.
     let suppress_colours = TaintColour::PATH_NORMALISED;
 
     for bn in cfg_order(cfg) {
@@ -279,20 +269,29 @@ where
                 continue;
             }
 
-            // Forward-scan: the next assignment to the same variable in
-            // this block is `[file normalize $var]` → clean.
+            // Forward-scan: the next assignment to the same variable in this
+            // block produces a `PATH_NORMALISED` value → the concatenated
+            // value never leaves the block unnormalised.  The question is put
+            // to the taint lattice, not to the assignment's text, so it is
+            // the *sanitiser* that is recognised rather than one spelling of
+            // one call to it (issue #1391).
             let mut suppressed = false;
-            for later in &block.statements[idx + 1..] {
+            for (later_idx, later) in block.statements.iter().enumerate().skip(idx + 1) {
                 if let Statement::AssignValue {
-                    name: later_name,
-                    value: later_val,
-                    ..
+                    name: later_name, ..
                 } = later
                     && later_name == name
                 {
-                    if is_file_normalize_of(later_val, name) {
-                        suppressed = true;
-                    }
+                    suppressed = ssa_block
+                        .statements
+                        .get(later_idx)
+                        .is_some_and(|later_ssa| {
+                            later_ssa.defs.iter().any(|(&def_name, &def_ver)| {
+                                taints
+                                    .get(&(def_name, def_ver))
+                                    .is_some_and(|t| t.colours.intersects(suppress_colours))
+                            })
+                        });
                     break;
                 }
             }
@@ -443,28 +442,6 @@ mod tests {
         assert!(build_file_join_fix("http://$host/path").is_none());
     }
 
-    // is_file_normalize_of unit tests
-
-    #[test]
-    fn file_normalize_matches_bare_var() {
-        assert!(is_file_normalize_of("[file normalize $p]", "p"));
-    }
-
-    #[test]
-    fn file_normalize_matches_braced_var() {
-        assert!(is_file_normalize_of("[file normalize ${p}]", "p"));
-    }
-
-    #[test]
-    fn file_normalize_rejects_other_cmd() {
-        assert!(!is_file_normalize_of("[file join $p]", "p"));
-    }
-
-    #[test]
-    fn file_normalize_rejects_different_var() {
-        assert!(!is_file_normalize_of("[file normalize $q]", "p"));
-    }
-
     // end-to-end detection tests
 
     /// Baseline: `set p "/tmp/$x"` flags W201.
@@ -513,6 +490,35 @@ mod tests {
         assert!(
             ws.iter().all(|w| w.variable != "p"),
             "subsequent [file normalize $p] should suppress W201: {ws:?}",
+        );
+    }
+
+    /// The suppression is the *sanitiser*, not one spelling of it: a nested
+    /// normalisation, the ensemble's unique-prefix abbreviation, and the
+    /// `::`-qualified call all carry `PATH_NORMALISED` on the lattice, and
+    /// each one the old text match rejected (issue #1391).
+    #[test]
+    fn file_normalize_suppression_is_spelling_independent() {
+        for later in [
+            "set p [file normalize [file join $p sub]]",
+            "set p [file nor $p]",
+            "set p [::file normalize $p]",
+        ] {
+            let ws = warnings_for(&format!("set x 42\nset p \"/tmp/$x\"\n{later}"));
+            assert!(
+                ws.iter().all(|w| w.variable != "p"),
+                "{later} should suppress W201: {ws:?}",
+            );
+        }
+    }
+
+    /// A later assignment that is *not* a normalisation still reports.
+    #[test]
+    fn a_non_normalising_reassignment_does_not_suppress() {
+        let ws = warnings_for("set x 42\nset p \"/tmp/$x\"\nset p [file join $p sub]");
+        assert!(
+            ws.iter().any(|w| w.variable == "p"),
+            "[file join] is not a normalising sanitiser: {ws:?}",
         );
     }
 

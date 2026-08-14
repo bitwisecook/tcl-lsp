@@ -1155,6 +1155,13 @@ pub struct Analyser {
     /// `analyse` run (only under the `f5-irules` dialect) and cleared at the
     /// top of each run.  `None` outside an active iRules analysis.
     pub(super) irules_file_profiles: Option<Vec<String>>,
+    /// IRULE4003's per-file event-body index: `(event name, body texts)` for
+    /// every event-handler command in the document, built once from the
+    /// segmenter and the registry's `IS_EVENT_HANDLER` / `ArgRole::Body`
+    /// facts.  Cleared at the top of each analysis run alongside
+    /// [`Self::irules_file_profiles`]; `None` until the first IRULE4003
+    /// candidate asks for it.
+    pub(super) irules_event_bodies: Option<Vec<(String, Vec<String>)>>,
 }
 
 /// W108 non-ASCII detection mode for the `tclLsp.style.nonAscii`
@@ -1417,6 +1424,7 @@ impl Analyser {
             took_fast_path: false,
             per_item_fallback: None,
             irules_file_profiles: None,
+            irules_event_bodies: None,
         }
     }
 
@@ -1633,6 +1641,7 @@ impl Analyser {
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
+        self.irules_event_bodies = None;
         // File-suppression pre-scan: merge codes from any
         // top-of-file ``# tcl-lsp: disable=CODE`` directives into
         // ``self.disabled_diagnostics`` so later emitter passes
@@ -2024,6 +2033,8 @@ impl Analyser {
         dialect: &str,
     ) -> (AnalysisResult, Vec<super::snapshot::AnalyserSnapshot>) {
         self.source = source.to_string();
+        // Same-source memo, cleared with the source it was derived from.
+        self.irules_event_bodies = None;
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
@@ -2114,6 +2125,8 @@ impl Analyser {
         finalise: bool,
     ) -> AnalysisResult {
         self.source = source.to_string();
+        // Same-source memo, cleared with the source it was derived from.
+        self.irules_event_bodies = None;
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();

@@ -54,6 +54,8 @@
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind, MemberSpec, MemberVisibility};
+use tcl_registry::side_effects::SideEffectTarget;
+use tcl_registry::{CommandRegistry, Traits};
 
 use super::diagnostics::helpers::has_substitution;
 use super::scope::scope_at_mut;
@@ -66,20 +68,68 @@ use super::utils::{param_name_spans_for_token, parse_param_list};
 use crate::ir::{Module, Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
 
-/// Command names that, when called from inside a user-defined
-/// ``unknown`` proc, indicate the handler chains to the original
-/// Tcl ``unknown`` rather than dispatching itself.
+/// The names by which a user handler conventionally keeps the original
+/// `unknown` it displaced (`rename unknown _original_unknown`).
 ///
-/// Names match exactly — when any IR call inside the body
-/// resolves to one of these, ``UnknownProcInfo::chains_original``
-/// flips to ``true``.
-const CHAIN_TARGETS: &[&str] = &[
-    "_original_unknown",
-    "_orig_unknown",
-    "::tcl::unknown",
-    "tcl::unknown",
-    "original_unknown",
-];
+/// This is the irreducible residue of the old `CHAIN_TARGETS` list: the saved
+/// name is *chosen by the script author*, so no registry can know it — only
+/// the convention can be recognised.  The handler's own spellings are **not**
+/// here; they come from [`tcl_registry::Traits::UNRESOLVED_COMMAND_HANDLER`]
+/// via [`chains_original_unknown`], which is how `analyser::handlers` and
+/// `unit_scope` already answer the same question (issue #1390).
+const SAVED_ORIGINAL_HANDLER_NAMES: &[&str] =
+    &["_original_unknown", "_orig_unknown", "original_unknown"];
+
+/// Whether a call to `command` from inside a user `unknown` body chains to
+/// the interpreter's original unresolved-command handler.
+///
+/// True for a saved-handler name ([`SAVED_ORIGINAL_HANDLER_NAMES`]) and for
+/// every spelling of the registry's own handler — bare, `::`-rooted, and the
+/// Tcl library's `tcl::` form, the same three-way match
+/// `Analyser::defines_global_unresolved_handler` uses.  The old list named
+/// the `tcl::` pair by hand and omitted `unknown` / `::unknown` entirely, so
+/// a handler that chained through the plain spelling read as self-contained
+/// and every unresolved command in the file collected a spurious W123.
+fn chains_original_unknown(registry: &CommandRegistry, command: &str) -> bool {
+    let bare = command.strip_prefix("::").unwrap_or(command);
+    if SAVED_ORIGINAL_HANDLER_NAMES.contains(&bare) {
+        return true;
+    }
+    let mut carriers = registry.commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER);
+    carriers.sort_unstable();
+    carriers
+        .iter()
+        .any(|name| bare == *name || bare.strip_prefix("tcl::") == Some(*name))
+}
+
+/// Whether a call to `command` shells out to an external process — the
+/// registry's [`Traits::UNSAFE`] paired with a
+/// [`SideEffectTarget::Process`] effect, as `exec` declares them.
+///
+/// Replaces `command == "exec"`, which missed the `::exec` spelling and every
+/// other process-spawning command a dialect might declare.
+fn spawns_process(registry: &CommandRegistry, command: &str) -> bool {
+    registry.get(command).is_some_and(|spec| {
+        spec.traits.contains(Traits::UNSAFE)
+            && spec
+                .side_effects
+                .iter()
+                .any(|effect| effect.target == SideEffectTarget::Process)
+    })
+}
+
+/// Whether a call to `command` pulls further script into the interpreter —
+/// the registry's [`Traits::LOADS_EXTERNAL_UNIT`].
+///
+/// `auto_load` carries it, and so do `source`, `load`, `package require`, and
+/// `auto_import`: each can define the very command the handler was invoked
+/// for, so each makes the handler's resolvable set unknowable in exactly the
+/// same way the hardcoded `command == "auto_load"` recognised for one of them.
+fn loads_external_unit(registry: &CommandRegistry, command: &str) -> bool {
+    registry
+        .get(command)
+        .is_some_and(|spec| spec.traits.contains(Traits::LOADS_EXTERNAL_UNIT))
+}
 
 /// Implicit variable snit injects into `typemethod` / `typeconstructor` bodies.
 ///
@@ -1844,10 +1894,11 @@ impl Analyser {
     ///   ``has_pattern_dispatch``.  ``string tolower`` /
     ///   ``string toupper`` in the subject sets
     ///   ``case_insensitive``.
-    /// - `Statement::Call` / `Statement::Barrier` whose command name
-    ///   matches one of [`CHAIN_TARGETS`] — sets ``chains_original``.
-    /// - ``exec`` calls — set ``has_exec``.
-    /// - ``auto_load`` calls — set ``has_auto_load``.
+    /// - `Statement::Call` / `Statement::Barrier` that chains the original
+    ///   handler ([`chains_original_unknown`]) — sets ``chains_original``.
+    /// - a call that shells out ([`spawns_process`]) — sets ``has_exec``.
+    /// - a call that loads more script ([`loads_external_unit`]) — sets
+    ///   ``has_auto_load``.
     ///
     /// Empty bodies set ``empty_stub = true`` and skip the IR
     /// walk.  Lowering failures fall back to the conservative
@@ -1891,9 +1942,17 @@ impl Analyser {
         };
 
         let mut info = UnknownProcInfo::default();
+        // The registry answers which call chains the original handler, which
+        // shells out, and which loads more script; fall back to the cached
+        // dialect registry when the analyser was built without one (direct
+        // handler calls in unit tests).
+        let registry: &CommandRegistry = self
+            .registry
+            .as_deref()
+            .unwrap_or_else(|| tcl_registry::cache::registry_for_dialect(self.dialect()));
 
         for stmt in &module.top_level.statements {
-            walk_unknown_stmt(stmt, &first_param, &mut info, 0);
+            walk_unknown_stmt(stmt, registry, &first_param, &mut info, 0);
         }
 
         info
@@ -1955,7 +2014,13 @@ const MAX_UNKNOWN_STMT_WALK_DEPTH: tcl_core_types::RecursionLimit =
 /// ``switch`` arm or ``exec`` call buried inside a guard or
 /// loop is still detected. `depth` is `stmt`'s own nesting level — see
 /// [`MAX_UNKNOWN_STMT_WALK_DEPTH`].
-fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProcInfo, depth: u32) {
+fn walk_unknown_stmt(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    first_param: &str,
+    info: &mut UnknownProcInfo,
+    depth: u32,
+) {
     if MAX_UNKNOWN_STMT_WALK_DEPTH.exceeded(depth) {
         return;
     }
@@ -1991,17 +2056,20 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
             for arm in arms {
                 if let Some(body) = &arm.body {
                     for inner in &body.statements {
-                        walk_unknown_stmt(inner, first_param, info, depth + 1);
+                        walk_unknown_stmt(inner, registry, first_param, info, depth + 1);
                     }
                 }
             }
         }
-        Statement::Call { command, .. } | Statement::Barrier { command, .. } => {
-            if CHAIN_TARGETS.contains(&command.as_str()) {
+        Statement::Call { .. } | Statement::Barrier { .. } => {
+            let command = stmt.canonical_command_or_source();
+            if chains_original_unknown(registry, command) {
                 info.chains_original = true;
-            } else if command == "exec" {
+            }
+            if spawns_process(registry, command) {
                 info.has_exec = true;
-            } else if command == "auto_load" {
+            }
+            if loads_external_unit(registry, command) {
                 info.has_auto_load = true;
             }
         }
@@ -2010,12 +2078,12 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
         } => {
             for clause in clauses {
                 for inner in &clause.body.statements {
-                    walk_unknown_stmt(inner, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, registry, first_param, info, depth + 1);
                 }
             }
             if let Some(body) = else_body {
                 for inner in &body.statements {
-                    walk_unknown_stmt(inner, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, registry, first_param, info, depth + 1);
                 }
             }
         }
@@ -2026,7 +2094,7 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
         | Statement::Block { body, .. }
         | Statement::UpFrame { body, .. } => {
             for inner in &body.statements {
-                walk_unknown_stmt(inner, first_param, info, depth + 1);
+                walk_unknown_stmt(inner, registry, first_param, info, depth + 1);
             }
         }
         Statement::Try {
@@ -2036,16 +2104,16 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
             ..
         } => {
             for inner in &body.statements {
-                walk_unknown_stmt(inner, first_param, info, depth + 1);
+                walk_unknown_stmt(inner, registry, first_param, info, depth + 1);
             }
             for handler in handlers {
                 for inner in &handler.body.statements {
-                    walk_unknown_stmt(inner, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, registry, first_param, info, depth + 1);
                 }
             }
             if let Some(body) = finally_body {
                 for inner in &body.statements {
-                    walk_unknown_stmt(inner, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, registry, first_param, info, depth + 1);
                 }
             }
         }

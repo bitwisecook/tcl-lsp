@@ -14780,6 +14780,27 @@ mod tests {
     }
 
     #[test]
+    fn analyse_w123_suppressed_for_every_chain_spelling_of_the_handler() {
+        // `chains_original` is the registry's
+        // `Traits::UNRESOLVED_COMMAND_HANDLER`, so every spelling of the
+        // handler counts.  The old `CHAIN_TARGETS` list named the `tcl::`
+        // pair by hand and omitted `unknown` / `::unknown` entirely, so a
+        // handler chaining through the plain spelling read as
+        // self-contained and every unresolved command in the file collected
+        // a spurious W123 (issue #1390).
+        for chain in ["unknown", "::unknown", "::tcl::unknown", "_orig_unknown"] {
+            let mut a = crate::analyser::Analyser::new();
+            let src =
+                format!("proc unknown {{cmd args}} {{ {chain} $cmd {{*}}$args }}\nbogus_cmd arg");
+            let r = a.analyse(&src, "tcl");
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+                "chaining through {chain} should suppress W123",
+            );
+        }
+    }
+
+    #[test]
     fn analyse_w123_suppressed_when_unknown_proc_calls_exec() {
         // ``exec $cmd`` inside ``unknown`` is a dynamic shape;
         // any command may be a real binary on PATH.
