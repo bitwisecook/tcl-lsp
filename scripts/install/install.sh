@@ -58,7 +58,8 @@
 #   TCL_LSP_NO_DEPS         - 1 to skip OS-package install (curl, unzip)
 #   TCL_LSP_NO_PATH         - 1 to skip PATH/rc modification
 #   TCL_LSP_NO_COMP         - 1 to skip shell completion
-#   TCL_LSP_NO_LEGACY_CLEANUP - 1 to keep recognised Python-era tcl-lsp files
+#   TCL_LSP_NO_LEGACY_CLEANUP - 1 to keep the main installer's Python zipapps,
+#                               completions, Claude bundle, and MCP registrations
 #   TCL_LSP_NO_MCP          - 1 to skip MCP-server install for AI clients
 #   TCL_LSP_NO_SKILLS       - 1 to skip Claude Code skills install
 #   TCL_LSP_NO_CLAUDE       - 1 to ignore Claude Code even if detected
@@ -1596,11 +1597,9 @@ looks_like_legacy_zipapp() {
     f="$1"
     [ -r "$f" ] || return 1
 
-    first="$(head -n 1 "$f" 2>/dev/null)"
-    case "$first" in
-        '#!'*python*) : ;;
-        *) return 1 ;;
-    esac
+    # Avoid command substitution here: scanning a native executable whose
+    # basename starts with tcl/f5 can otherwise feed NUL bytes into the shell.
+    head -c 256 "$f" 2>/dev/null | grep -aq '^#!.*python' || return 1
     head -c 2048 "$f" 2>/dev/null | grep -aq 'PK' || return 1
     LC_ALL=C grep -aqE \
         'shared/_build_info\.py|lsp/_build_info\.py|static/index\.html|ai/mcp/tcl_mcp_server\.py|tooling/(tcl|f5|wasm)/|explorer/(tcl|f5|wasm)_cli\.py' \
@@ -1745,43 +1744,279 @@ remove_legacy_python_artefact() {
     fi
 }
 
+legacy_installer_dirs() {
+    # Main's installer could use any PATH directory, the common user/system
+    # prefixes offered by its picker, or a custom prefix written into a shell
+    # rc file. Emit all discoverable locations; duplicates are harmless.
+    printf '%s\n' "${PATH:-}" | tr ':' '\n'
+    printf '%s\n' "$HOME/.local/bin" "$HOME/bin" \
+        /usr/local/bin /opt/homebrew/bin /opt/local/bin
+    [ -n "${PREFIX:-}" ] && printf '%s\n' "$PREFIX"
+    [ -n "${TCL_PREFIX_OVERRIDE:-}" ] && printf '%s\n' "$TCL_PREFIX_OVERRIDE"
+    [ -n "${F5_PREFIX_OVERRIDE:-}" ] && printf '%s\n' "$F5_PREFIX_OVERRIDE"
+    [ -n "${MCP_PREFIX_OVERRIDE:-}" ] && printf '%s\n' "$MCP_PREFIX_OVERRIDE"
+
+    for rc in "${RC:-$HOME/.profile}" "$HOME/.profile" "$HOME/.bashrc" \
+              "$HOME/.bash_profile" "${ZDOTDIR:-$HOME}/.zshrc" \
+              "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"; do
+        [ -f "$rc" ] || continue
+        sed -n '
+            /^# Added by tcl-lsp installer$/ {
+                n
+                s#^export PATH="\([^":]*\):\$PATH"$#\1#p
+                s#^fish_add_path \([^[:space:]]*\)$#\1#p
+            }
+        ' "$rc"
+    done
+}
+
+legacy_claude_mcp_record() {
+    have claude || return 1
+    claude mcp list 2>/dev/null \
+        | awk '$1 == "tcl-lsp" || $1 == "tcl-lsp:" { print; exit }'
+}
+
+legacy_codex_mcp_path() {
+    cfg="$HOME/.codex/config.toml"
+    [ -f "$cfg" ] || return 1
+    awk '
+        /^[[:space:]]*\[mcp_servers\.tcl_lsp\][[:space:]]*$/ { inside=1; next }
+        inside && /^[[:space:]]*\[/ { inside=0 }
+        inside && /\.pyz/ {
+            if (match($0, /"[^"]+\.pyz"/)) {
+                print substr($0, RSTART+1, RLENGTH-2); exit
+            }
+        }
+    ' "$cfg"
+}
+
+cleanup_legacy_mcp_registrations() {
+    # The main-branch installer registered only Claude (implicit local scope)
+    # and Codex (user config). Remove an entry only when it still names the
+    # retired Python zipapp; native or unrelated entries are left untouched.
+    claude_record="$1"
+    case "$claude_record" in
+        *tcl-lsp-mcp-server.pyz*|*tcl-ai.pyz*)
+            if (cd "${PROJECT_ROOT:-$PWD}" \
+                && claude mcp remove -s local tcl-lsp >/dev/null 2>&1); then
+                log "removed retired Python MCP registration from Claude Code (local scope)"
+            elif (cd "${PROJECT_ROOT:-$PWD}" \
+                  && claude mcp remove tcl-lsp >/dev/null 2>&1); then
+                log "removed retired Python MCP registration from Claude Code"
+            else
+                warn "could not remove retired Python MCP registration from Claude Code"
+            fi
+            ;;
+    esac
+
+    cfg="$HOME/.codex/config.toml"
+    legacy_codex_path="$2"
+    if [ -n "$legacy_codex_path" ]; then
+        backup="${cfg}.bak.$(date +%Y%m%d%H%M%S).python-migration"
+        cp "$cfg" "$backup"
+        tmp_cfg="$WORKDIR/codex-legacy-cleanup.toml"
+        awk '
+            /^[[:space:]]*\[mcp_servers\.tcl_lsp([.][^]]+)?\][[:space:]]*$/ { drop=1; next }
+            drop && /^[[:space:]]*\[/ { drop=0 }
+            !drop { print }
+        ' "$cfg" > "$tmp_cfg"
+        mv "$tmp_cfg" "$cfg"
+        log "removed retired Python MCP registration from Codex (backup: $backup)"
+    fi
+}
+
+looks_like_legacy_completion() {
+    f="$1"
+    [ -f "$f" ] || return 1
+    LC_ALL=C grep -aqE '_ARGCOMPLETE|python_argcomplete|register-python-argcomplete' "$f"
+}
+
+cleanup_legacy_completions() {
+    # Main installed completion into these exact per-user paths. The generated
+    # scripts identify themselves through argcomplete protocol markers, which
+    # are absent from the native clap completions.
+    for completion in \
+        "$HOME/.local/share/bash-completion/completions/tcl" \
+        "$HOME/.local/share/bash-completion/completions/f5" \
+        "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl" \
+        "${ZDOTDIR:-$HOME}/.zsh/completions/_f5" \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions/tcl.fish" \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions/f5.fish"; do
+        if looks_like_legacy_completion "$completion"; then
+            rm -f "$completion"
+            log "removed retired Python shell completion $completion"
+        fi
+    done
+}
+
+looks_like_any_native_cli() {
+    f="$1"
+    [ -f "$f" ] && [ -x "$f" ] || return 1
+    case "$(basename "$f")" in
+        tcl* ) LC_ALL=C grep -aq 'Unified Tcl toolchain CLI' "$f" ;;
+        f5* )  LC_ALL=C grep -aq 'BIG-IP.*query' "$f" ;;
+        * )    return 1 ;;
+    esac
+}
+
+dir_has_native_tcl_lsp() {
+    dir="$1"
+    [ -d "$dir" ] || return 1
+    for candidate in "$dir"/tcl* "$dir"/f5*; do
+        [ -f "$candidate" ] || continue
+        if looks_like_our_native_mcp "$candidate" \
+           || looks_like_any_native_cli "$candidate"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+installer_path_from_line() {
+    printf '%s\n' "$1" | sed -n '
+        s#^export PATH="\([^":]*\):\$PATH"$#\1#p
+        s#^fish_add_path \([^[:space:]]*\)$#\1#p
+    '
+}
+
+cleanup_legacy_path_entries() {
+    # Keep a marker block when its directory now contains a native replacement;
+    # otherwise remove the exact two lines owned by the main installer.
+    [ "${TCL_LSP_NO_LEGACY_CLEANUP:-0}" = "1" ] && return 0
+    for rc in "${RC:-$HOME/.profile}" "$HOME/.profile" "$HOME/.bashrc" \
+              "$HOME/.bash_profile" "${ZDOTDIR:-$HOME}/.zshrc" \
+              "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"; do
+        [ -f "$rc" ] || continue
+        tmp_rc="$(mktemp "$WORKDIR/rc-clean.XXXXXX")"
+        changed=0
+        while IFS= read -r line || [ -n "$line" ]; do
+            if [ "$line" = "$PATH_MARKER" ]; then
+                path_line=""
+                if IFS= read -r path_line || [ -n "$path_line" ]; then
+                    installer_dir="$(installer_path_from_line "$path_line")"
+                    if [ -n "$installer_dir" ] \
+                       && ! dir_has_native_tcl_lsp "$installer_dir"; then
+                        changed=1
+                        continue
+                    fi
+                    printf '%s\n%s\n' "$line" "$path_line" >> "$tmp_rc"
+                    continue
+                fi
+            fi
+            printf '%s\n' "$line" >> "$tmp_rc"
+        done < "$rc"
+        if [ "$changed" = 1 ]; then
+            backup="${rc}.bak.$(date +%Y%m%d%H%M%S).python-migration"
+            cp "$rc" "$backup"
+            mv "$tmp_rc" "$rc"
+            log "removed stale installer PATH entry from $rc (backup: $backup)"
+        else
+            rm -f "$tmp_rc"
+        fi
+    done
+}
+
+legacy_claude_skill() {
+    skill_dir="$1"
+    [ -f "$skill_dir/SKILL.md" ] || return 1
+    LC_ALL=C grep -aqE \
+        'python3[[:space:]]+\.claude/tcl-ai\.pyz|\.claude/prompts/' \
+        "$skill_dir/SKILL.md"
+}
+
+cleanup_legacy_claude_bundle() {
+    # The Python bundle merged files into ~/.claude, so preserve every retired
+    # item in one recovery directory before removing it from active discovery.
+    claude_root="$HOME/.claude"
+    [ -d "$claude_root" ] || return 0
+    backup="$claude_root/.tcl-lsp-python-backup-$(date +%Y%m%d%H%M%S)"
+    staged=0
+
+    if [ -f "$claude_root/tcl-ai.pyz" ] \
+       && looks_like_legacy_zipapp "$claude_root/tcl-ai.pyz"; then
+        mkdir -p "$backup"
+        cp "$claude_root/tcl-ai.pyz" "$backup/"
+        rm -f "$claude_root/tcl-ai.pyz"
+        staged=1
+    fi
+
+    for prompt in brainstorm-security-checks.md explain_flow_system.md \
+                  irules_system.md irules_system.md.j2 manifest.json \
+                  tcl_system.md tcl_system.md.j2 tk_system.md; do
+        [ -f "$claude_root/prompts/$prompt" ] || continue
+        mkdir -p "$backup/prompts"
+        cp "$claude_root/prompts/$prompt" "$backup/prompts/"
+        rm -f "$claude_root/prompts/$prompt"
+        staged=1
+    done
+    rmdir "$claude_root/prompts" 2>/dev/null || true
+
+    for skill_dir in "$claude_root"/skills/*; do
+        [ -d "$skill_dir" ] || continue
+        if legacy_claude_skill "$skill_dir"; then
+            :
+        elif [ "$staged" = 1 ] \
+             && [ "$(basename "$skill_dir")" = f5-query ] \
+             && grep -aqE '^name:[[:space:]]*f5-query[[:space:]]*$' \
+                    "$skill_dir/SKILL.md"; then
+            # f5-query was the one main-bundle skill with no Python/prompt
+            # reference. Remove it only after another legacy bundle marker
+            # proves this is a Python-era installation.
+            :
+        else
+            continue
+        fi
+        mkdir -p "$backup/skills"
+        cp -R "$skill_dir" "$backup/skills/"
+        rm -rf -- "$skill_dir"
+        staged=1
+    done
+    rmdir "$claude_root/skills" 2>/dev/null || true
+
+    if [ "$staged" = 1 ]; then
+        log "retired the Python Claude bundle (backup: $backup)"
+    else
+        rmdir "$backup" 2>/dev/null || true
+    fi
+}
+
 cleanup_legacy_python_installs() {
     [ "${TCL_LSP_NO_LEGACY_CLEANUP:-0}" = "1" ] && {
         log "keeping recognised Python-era artefacts (TCL_LSP_NO_LEGACY_CLEANUP=1)"
         return 0
     }
 
-    # Old installers wrote standalone zipapps into a PATH directory. Search
-    # only exact historical names, and delete only files whose shebang, ZIP
-    # structure, and embedded project paths positively identify them as ours.
-    # Python itself, virtual environments, and pip packages are never touched.
-    legacy_dirs="${PATH:-}"
-    legacy_dirs="${legacy_dirs}:$HOME/.local/bin:$HOME/bin"
-    [ -n "${PREFIX:-}" ] && legacy_dirs="${legacy_dirs}:$PREFIX"
-    [ -n "${MCP_PREFIX_OVERRIDE:-}" ] && legacy_dirs="${legacy_dirs}:$MCP_PREFIX_OVERRIDE"
+    # Capture registrations before removing their commands. Some clients hide
+    # an entry after its executable disappears.
+    claude_record="$(legacy_claude_mcp_record || true)"
+    codex_mcp_path="$(legacy_codex_mcp_path || true)"
 
-    OLD_IFS="$IFS"; IFS=:
+    # Delete every installer-owned Python zipapp in every discoverable legacy
+    # prefix, including binaries installed with TCL_LSP_SUFFIX. Ownership is
+    # established from the archive's embedded tcl-lsp paths, not its filename.
+    legacy_dirs="$(legacy_installer_dirs)"
+    OLD_IFS="$IFS"; IFS='
+'
     for legacy_dir in $legacy_dirs; do
-        [ -n "$legacy_dir" ] || legacy_dir=.
+        [ -n "$legacy_dir" ] || continue
         [ -d "$legacy_dir" ] || continue
-        if [ "$WANT_TCL" = "1" ]; then
-            remove_legacy_python_artefact "$legacy_dir/tcl"
-        fi
-        if [ "$WANT_F5" = "1" ]; then
-            remove_legacy_python_artefact "$legacy_dir/f5"
-        fi
-        # These products have no native successor on the Rust branch.
-        remove_legacy_python_artefact "$legacy_dir/tcl-explorer"
-        remove_legacy_python_artefact "$legacy_dir/tcl-explorer-gui"
-        if [ "$WANT_MCP" = "1" ]; then
-            remove_legacy_python_artefact "$legacy_dir/tcl-lsp-mcp-server.pyz"
-        fi
+        for legacy in "$legacy_dir"/tcl* "$legacy_dir"/f5*; do
+            [ -f "$legacy" ] || continue
+            remove_legacy_python_artefact "$legacy"
+        done
     done
     IFS="$OLD_IFS"
 
-    if [ "$WANT_SKILLS" = "1" ]; then
-        remove_legacy_python_artefact "$HOME/.claude/tcl-ai.pyz"
-    fi
+    # A registered MCP path may live outside PATH and outside every standard
+    # prefix, so collect it directly before removing the registration.
+    claude_mcp_path="$(printf '%s\n' "$claude_record" \
+        | grep -oE '/[A-Za-z0-9._/+~:-]+\.pyz' | head -n 1 || true)"
+    [ -n "$claude_mcp_path" ] && remove_legacy_python_artefact "$claude_mcp_path"
+    [ -n "$codex_mcp_path" ] && remove_legacy_python_artefact "$codex_mcp_path"
+
+    cleanup_legacy_mcp_registrations "$claude_record" "$codex_mcp_path"
+    cleanup_legacy_completions
+    cleanup_legacy_claude_bundle
 }
 
 propose_update_clis() {
@@ -2856,6 +3091,10 @@ main() {
     require_root_or_die
 
     # === PHASE 3: execute the plan (no more questions) ===
+    # Retire main-branch Python artefacts before writing their native
+    # replacements. This also prevents old shell completions, Claude skills,
+    # or MCP registrations from surviving when that component was declined.
+    cleanup_legacy_python_installs
     install_downloader
 
     if needs_prefix; then
@@ -2877,7 +3116,7 @@ main() {
     esac
 
     install_ai_integrations
-    cleanup_legacy_python_installs
+    cleanup_legacy_path_entries
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
     if needs_prefix && ! path_contains "$PREFIX"; then

@@ -30,6 +30,23 @@ Bobbit is project-only because it discovers the project-root `.mcp.json`.
 Claude Code skills are offered separately. Run `sh install.sh --help` for the full env-var list
 (`TCL_LSP_ONLY`, `TCL_LSP_NO_MCP`, `TCL_LSP_NO_SKILLS`, `TCL_LSP_NO_PATH`, …).
 
+### Migrating from the main-branch Python installer
+
+Migration is automatic, even when you decline an equivalent native component.
+The installer removes positively identified Python zipapps (`tcl`, `f5`, the
+two retired compiler-explorer launchers, and `tcl-lsp-mcp-server.pyz`), including
+installs with a suffix or in a custom directory recorded in your shell startup
+file. It also removes Python `argcomplete` scripts and stale Claude Code or
+Codex MCP registrations. The old Claude prompt and skill bundle is moved out of
+active discovery and backed up under `~/.claude/.tcl-lsp-python-backup-*` before
+the native bundle is installed.
+
+Shared system packages such as Python, Tcl, `curl`, `unzip`, `sshpass`, or
+Wireshark are not removed, because the installer did not own them. Existing
+`.tcl-lsp-bak-*` recovery directories are also preserved. Set
+`TCL_LSP_NO_LEGACY_CLEANUP=1` only if you deliberately need to keep the retired
+installation active.
+
 ## Manual install
 
 Release assets are named `<tool>-<target-triple>`, with no version in the
