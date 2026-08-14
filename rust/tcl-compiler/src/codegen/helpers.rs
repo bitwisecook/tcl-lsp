@@ -166,26 +166,51 @@ fn consume_array_index(bytes: &[u8], mut i: usize) -> usize {
     i
 }
 
+/// Flush the raw literal run `template[lit_start..end]` (if non-empty) as a
+/// [`SubstPart::Lit`], decoding it through the shared full backslash decoder
+/// [`tcl_lexer::backslash_subst`] — the same decoder `expressions.rs`'s
+/// no-substitution literal branch uses. That decoder is UTF-8-aware and
+/// handles every escape form (`\xNN`, `\uNNNN`, `\UNNNNNNNN`, octal `\NNN`,
+/// line continuation), unlike the seven-letter-escape hand-roll this
+/// replaced.
+fn flush_subst_lit(parts: &mut Vec<SubstPart>, template: &str, lit_start: usize, end: usize) {
+    if lit_start < end {
+        parts.push(SubstPart::Lit(
+            tcl_lexer::backslash_subst(&template[lit_start..end]).into_owned(),
+        ));
+    }
+}
+
 /// Parse a substitution template into parts.
 ///
 /// Returns `None` if the template contains constructs we cannot
 /// inline (unbalanced brackets, bare `$` without a name, etc.).
+///
+/// Only scans for `$`/`[` substitution triggers; literal text (including any
+/// backslash escapes within it) is left raw in the source and decoded in one
+/// pass by [`flush_subst_lit`] when a literal run ends. A backslash escape is
+/// always skipped as a unit via [`tcl_lexer::backslash_escape_end`] before the
+/// trigger check runs, so an escaped `\$`/`\[` decodes to a literal `$`/`[`
+/// and never starts a substitution.
 #[must_use]
 pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
     let bytes = template.as_bytes();
     let n = bytes.len();
     let mut parts = Vec::new();
     let mut i = 0;
-    let mut buf = String::new();
+    let mut lit_start = 0;
 
     while i < n {
         let ch = bytes[i];
 
+        if ch == b'\\' {
+            i = tcl_lexer::backslash_escape_end(template, i);
+            continue;
+        }
+
         if ch == b'[' {
             // Command substitution
-            if !buf.is_empty() {
-                parts.push(SubstPart::Lit(std::mem::take(&mut buf)));
-            }
+            flush_subst_lit(&mut parts, template, lit_start, i);
             let mut depth: u32 = 0;
             let start = i;
             while i < n {
@@ -204,36 +229,12 @@ pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
                 return None;
             }
             parts.push(SubstPart::Cmd(template[start..i].to_owned()));
-            continue;
-        }
-
-        if ch == b'\\' {
-            if i + 1 < n {
-                let next_ch = bytes[i + 1];
-                let replacement = match next_ch {
-                    b'a' => '\x07',
-                    b'b' => '\x08',
-                    b'f' => '\x0c',
-                    b'n' => '\n',
-                    b'r' => '\r',
-                    b't' => '\t',
-                    b'v' => '\x0b',
-                    b'\\' => '\\',
-                    _ => char::from(next_ch),
-                };
-                buf.push(replacement);
-                i += 2;
-            } else {
-                buf.push('\\');
-                i += 1;
-            }
+            lit_start = i;
             continue;
         }
 
         if ch == b'$' {
-            if !buf.is_empty() {
-                parts.push(SubstPart::Lit(std::mem::take(&mut buf)));
-            }
+            flush_subst_lit(&mut parts, template, lit_start, i);
             i += 1;
             if i >= n {
                 return None;
@@ -274,16 +275,14 @@ pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
                 i = consume_array_index(bytes, i);
                 parts.push(SubstPart::Var(template[start..i].to_owned()));
             }
+            lit_start = i;
             continue;
         }
 
-        buf.push(char::from(ch));
         i += 1;
     }
 
-    if !buf.is_empty() {
-        parts.push(SubstPart::Lit(buf));
-    }
+    flush_subst_lit(&mut parts, template, lit_start, n);
 
     if parts.is_empty() { None } else { Some(parts) }
 }
@@ -761,6 +760,88 @@ mod tests {
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[0], SubstPart::Scalar("a(1)".into()));
         assert_eq!(parts[1], SubstPart::Lit("rest".into()));
+    }
+
+    // -- parse_subst_template: full backslash decoding (issue #1441) --
+
+    #[test]
+    fn subst_template_hex_escape_then_var() {
+        // Regression for issue #1441: `\x41` was emitted as the literal text
+        // `x41` instead of decoding to `A`.
+        let parts = parse_subst_template(r"\x41$v").unwrap();
+        assert_eq!(
+            parts,
+            vec![SubstPart::Lit("A".into()), SubstPart::Var("v".into())]
+        );
+    }
+
+    #[test]
+    fn subst_template_hex_escape_then_array_var() {
+        // The exact issue #1441 reproducer shape: `"\x41$arr(0)"`.
+        let parts = parse_subst_template(r"\x41$arr(0)").unwrap();
+        assert_eq!(
+            parts,
+            vec![
+                SubstPart::Lit("A".into()),
+                SubstPart::Var("arr(0)".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn subst_template_octal_escape() {
+        // Regression for issue #1441: `\101` was emitted as the literal text
+        // `101` instead of decoding to `A`.
+        let parts = parse_subst_template(r"\101").unwrap();
+        assert_eq!(parts, vec![SubstPart::Lit("A".into())]);
+    }
+
+    #[test]
+    fn subst_template_unicode_escape() {
+        // Regression for issue #1441: `\uNNNN` fell to the `_ =>
+        // char::from(next_ch)` branch and was emitted as literal `u00e9`
+        // instead of decoding to `é`.
+        let parts = parse_subst_template("\\u00e9").unwrap();
+        assert_eq!(parts, vec![SubstPart::Lit("é".into())]);
+    }
+
+    #[test]
+    fn subst_template_wide_unicode_escape() {
+        let parts = parse_subst_template(r"\U0001F600").unwrap();
+        assert_eq!(parts, vec![SubstPart::Lit("\u{1F600}".into())]);
+    }
+
+    #[test]
+    fn subst_template_multibyte_literal_text_with_var() {
+        // Regression for issue #1441: non-escape bytes were pushed one at a
+        // time via `char::from(byte)`, mangling multi-byte UTF-8 (e.g. `é`)
+        // into separate Latin-1 code points.
+        let parts = parse_subst_template("café $name").unwrap();
+        assert_eq!(
+            parts,
+            vec![
+                SubstPart::Lit("café ".into()),
+                SubstPart::Var("name".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn subst_template_escaped_dollar_and_bracket_stay_literal() {
+        // `\$` and `\[` must decode to a literal `$`/`[` and must NOT be
+        // treated as a variable/command substitution trigger.
+        let parts = parse_subst_template(r"\$foo \[bar\]").unwrap();
+        assert_eq!(parts, vec![SubstPart::Lit("$foo [bar]".into())]);
+    }
+
+    #[test]
+    fn subst_template_escaped_dollar_before_real_var() {
+        // A real substitution after an escaped one still triggers correctly.
+        let parts = parse_subst_template(r"\$$name").unwrap();
+        assert_eq!(
+            parts,
+            vec![SubstPart::Lit("$".into()), SubstPart::Var("name".into())]
+        );
     }
 
     // -- regexp_to_glob --
