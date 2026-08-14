@@ -269,6 +269,20 @@ pub struct DialectProfile {
     pub help_terms: &'static [&'static str],
 }
 
+/// Profile equality **is** pointer identity, as the type's contract states:
+/// every profile a consumer holds came from the interned catalog (or the
+/// [`DialectProfile::plain_tcl`] sink), so two handles name the same dialect
+/// exactly when they are the same allocation. Spelling it as a trait impl
+/// lets a config type that carries a resolved profile keep deriving
+/// `PartialEq`.
+impl PartialEq for DialectProfile {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl Eq for DialectProfile {}
+
 /// The catalog: one profile per canonical dialect, in
 /// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
 ///

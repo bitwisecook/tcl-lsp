@@ -15137,15 +15137,10 @@ impl LanguageServer for Backend {
         // settings object is the sole source; the resolved formatter width is
         // then applied on top, preserving prior behaviour.
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
-        let mut config = core_formatting::FormatterConfig {
-            lexer_config: tcl_lexer::LexerConfig::for_dialect(&doc.dialect),
-            dialect: Some(doc.dialect.clone()),
-            // Version-range-aware rewrites (#1257): the document targets this
-            // release but may be run on a later one, so a spelling is only
-            // rewritten when it means the same thing across the whole range.
-            target_range: tcl_registry::version_range::forward_range(&doc.dialect),
-            ..core_formatting::FormatterConfig::default()
-        };
+        // The document's resolved dialect is the formatter's one dialect fact
+        // (issue #1465): the lexer preset, the rewrite-candidate release, and
+        // the version-range-aware forward range (#1257) all follow from it.
+        let mut config = core_formatting::FormatterConfig::for_dialect(&doc.dialect);
         if let Some(obj) = formatting.as_object() {
             apply_formatting_object(obj, &mut config);
         }
@@ -18293,18 +18288,13 @@ fn formatter_config_from(
     dialect: &str,
 ) -> core_formatting::FormatterConfig {
     use core_formatting::IndentStyle;
-    let mut cfg = core_formatting::FormatterConfig {
-        // Tokenise with the document's dialect so, e.g., an `.irul` file's
-        // `if {expr}{body}` (`}{` valid in TMM) is parsed and re-emitted as
-        // `} {` rather than left unchanged by the stock-Tcl lexer.
-        lexer_config: tcl_lexer::LexerConfig::for_dialect(dialect),
-        dialect: Some(dialect.to_owned()),
-        // Version-range-aware rewrites (#1257): the document targets this
-        // release but may be run on a later one, so a spelling is only
-        // rewritten when it means the same thing across the whole range.
-        target_range: tcl_registry::version_range::forward_range(dialect),
-        ..Default::default()
-    };
+    // The document's dialect, as one resolved profile (issue #1465): it
+    // supplies the lexer preset — so an `.irul` file's `if {expr}{body}`
+    // (`}{` valid in TMM) is parsed and re-emitted as `} {` rather than left
+    // unchanged by the stock-Tcl lexer — the release its rewrite candidates
+    // are filtered against, and the forward range a rewrite must stay correct
+    // across (#1257).
+    let mut cfg = core_formatting::FormatterConfig::for_dialect(dialect);
     if let Some(obj) = formatting.as_object() {
         apply_formatting_object(obj, &mut cfg);
     }
@@ -23827,6 +23817,34 @@ mod tests {
         opts.insert_spaces = false;
         let cfg = formatter_config_from(&serde_json::Value::Null, &opts, "tcl");
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Tabs);
+    }
+
+    #[test]
+    fn formatter_config_carries_the_documents_resolved_dialect() {
+        // The document's detected dialect (`DocumentState::dialect`) is the
+        // formatter's one dialect fact (issue #1465): the lexer preset, the
+        // rewrite-candidate mask, and the forward range all follow from the
+        // profile it resolves.
+        let opts = tower_lsp_server::ls_types::FormattingOptions {
+            tab_size: 4,
+            insert_spaces: true,
+            ..Default::default()
+        };
+        for spelling in ["f5-irules", "irules"] {
+            let cfg = formatter_config_from(&serde_json::Value::Null, &opts, spelling);
+            assert!(cfg.profile.is_irules(), "{spelling}");
+            // The `}{` ghost separator TMM accepts, which a Tcl 9 lexer does
+            // not parse as two words.
+            assert!(cfg.lexer_config().irules_brace_separator, "{spelling}");
+            // A vendor dialect names no core release: no forward range.
+            assert!(cfg.target_range().is_empty(), "{spelling}");
+        }
+        let cfg = formatter_config_from(&serde_json::Value::Null, &opts, "tcl8.6");
+        assert!(!cfg.lexer_config().irules_brace_separator);
+        assert_eq!(
+            cfg.target_range(),
+            tcl_registry::version_range::forward_range("tcl8.6")
+        );
     }
 
     #[test]

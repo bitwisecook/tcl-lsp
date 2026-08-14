@@ -678,7 +678,7 @@ pub(crate) fn rewrites_for_command(
     // computed once so every per-release check below — subcommand words,
     // option words, and now positional/repeated-tail boolean sites (issue
     // #1268) — walks the same list.
-    let release_names = tcl_registry::version_range::core_releases_in(config.target_range);
+    let release_names = tcl_registry::version_range::core_releases_in(config.target_range());
     let releases: Vec<(&str, &CommandRegistry)> = release_names
         .iter()
         .map(|&release| (release, tcl_registry::registry_for_dialect(release)))
@@ -1102,7 +1102,7 @@ mod tests {
 
         let run = |dialect: Option<DialectSet>, target_range: DialectSet| {
             let cfg = FormatterConfig {
-                target_range,
+                target_range_override: Some(target_range),
                 ..config(false, BooleanForm::TrueFalse)
             };
             let owned = vec!["flag".to_owned(), "yes".to_owned()];

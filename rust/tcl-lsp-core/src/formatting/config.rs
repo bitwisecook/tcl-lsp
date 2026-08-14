@@ -35,6 +35,7 @@
 //! docstring knobs affect a plain format pass — only the explicit
 //! generate-docstring action.
 
+use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 use tcl_registry::prelude::DialectSet;
 
@@ -152,14 +153,18 @@ impl BooleanForm {
 
 /// All configurable formatting options.
 ///
-/// This is a flat configuration DTO: every boolean is an independent,
-/// user-facing on/off setting (not a state machine).
+/// This is a flat configuration DTO of *style* knobs: every boolean is an
+/// independent, user-facing on/off setting (not a state machine). The one
+/// non-style member is [`Self::profile`], the resolved dialect every
+/// dialect-derived fact is projected from — build it with
+/// [`Self::for_profile`] / [`Self::for_dialect`] and set the style knobs on
+/// top.
 ///
 /// `struct_excessive_bools` is kept here deliberately. The only fix the
 /// lint accepts is grouping the bools into sub-structs, but the public
 /// flat-field API is consumed cross-crate by `tcl-lsp-server`
-/// (`formatter_config_from` builds it field-by-field, and a struct
-/// literal in `lib.rs` plus several `.field` reads depend on the flat
+/// (`formatter_config_from` sets the style knobs field-by-field, and
+/// several `.field` reads in `lib.rs` depend on the flat
 /// shape). Regrouping cannot be done without editing `tcl-lsp-server`,
 /// which is out of scope for this crate, so the allow stays until that
 /// cross-crate change is made together.
@@ -248,33 +253,34 @@ pub struct FormatterConfig {
     /// rewrite off.  Only *consumption* sites the registry proves boolean are
     /// rewritten — never a value-definition site.
     pub boolean_form: BooleanForm,
-    /// Lexer preset the formatter tokenises with. Carries the dialect's
-    /// parsing rules — notably `irules_brace_separator`, which makes an iRule's
-    /// `}{` (valid in TMM, e.g. `if {expr}{body}`) parse as two words so the
-    /// formatter re-emits it as `} {`. Defaults to plain-Tcl
-    /// ([`LexerConfig::default`]); set to [`LexerConfig::for_dialect`] to format
-    /// a specific dialect.
-    pub lexer_config: LexerConfig,
-    /// The document's resolved dialect name (`"tcl8.6"`, `"f5-irules"`, …),
-    /// or `None` when the caller does not know it.
+    /// The document's resolved dialect profile — the **single** dialect fact
+    /// the formatter carries (issue #1465).
     ///
-    /// The formatter's entry points take a `&CommandRegistry`, which is
-    /// already dialect-specific, so the *table contents* were always right —
-    /// but nothing said which release, so no rewrite could reason about
-    /// spellings that differ across versions (issue #1257).  Set together
-    /// with [`Self::target_range`].
-    pub dialect: Option<String>,
-    /// The **range of releases** the document must stay correct across.
+    /// The formatter needs three dialect-derived facts: the lexer preset it
+    /// tokenises with ([`Self::lexer_config`]), the availability mask that
+    /// filters per-release rewrite candidates ([`Self::dialect_bits`]), and
+    /// the release range a rewrite must stay correct across
+    /// ([`Self::target_range`]). All three are pure projections of this
+    /// profile and are derived from it here, so a caller can no longer set a
+    /// strict subset and format an iRule with the Tcl 9 lexer.
     ///
-    /// Empty (the default) means "only the registry handed to the formatter"
-    /// — the pre-existing behaviour.  Set it to
-    /// [`tcl_registry::version_range::forward_range`] of the document's
-    /// dialect to make the version-range-aware rewrites apply: an
-    /// abbreviation is then expanded only when it resolves to the *same*
-    /// keyword in every release of the range, so a prefix that a later Tcl
-    /// makes ambiguous is left alone rather than expanded into one of its
-    /// candidates.
-    pub target_range: DialectSet,
+    /// Defaults to [`DialectProfile::plain_tcl`] — the permissive modern-Tcl
+    /// profile: the 9.x lexing grammar, no candidate filter, and no forward
+    /// range. Resolve a real one with [`Self::for_profile`] or
+    /// [`Self::for_dialect`] (which alias-normalises, so both iRules
+    /// spellings land on the same profile).
+    pub profile: &'static DialectProfile,
+    /// An explicit **range of releases** the document must stay correct
+    /// across, replacing the profile's own forward range.
+    ///
+    /// `None` — the default — means [`Self::target_range`] answers with the
+    /// profile's forward-compatibility range
+    /// ([`tcl_registry::version_range::forward_range`]): the document's own
+    /// release and every later one, which is what a document written for one
+    /// release and run on a later one needs. Set this only for a document
+    /// that must *also* keep working on a release the profile does not
+    /// imply — a backward range no single profile can express.
+    pub target_range_override: Option<DialectSet>,
 }
 
 impl Default for FormatterConfig {
@@ -307,9 +313,8 @@ impl Default for FormatterConfig {
             docstring_decoration_width: 70,
             expand_abbreviations: true,
             boolean_form: BooleanForm::TrueFalse,
-            lexer_config: LexerConfig::default(),
-            dialect: None,
-            target_range: DialectSet::empty(),
+            profile: DialectProfile::plain_tcl(),
+            target_range_override: None,
         }
     }
 }
@@ -337,6 +342,70 @@ pub fn detect_line_ending(source: &str) -> &'static str {
 }
 
 impl FormatterConfig {
+    /// Default formatting knobs, targeting `profile`.
+    ///
+    /// The one way to aim the formatter at a dialect: the lexer preset, the
+    /// rewrite-candidate filter, and the forward range all follow from this
+    /// one resolved profile, so none of them can be forgotten (issue #1465).
+    #[must_use]
+    pub fn for_profile(profile: &'static DialectProfile) -> Self {
+        Self {
+            profile,
+            ..Self::default()
+        }
+    }
+
+    /// [`Self::for_profile`] from a dialect *name*, resolved through
+    /// [`DialectProfile::by_name`] — so an alias spelling (`irules`,
+    /// `tcl-irule`) selects the same `f5-irules` profile as the canonical
+    /// name, and an unknown name lands on the permissive modern-Tcl
+    /// fallback rather than a mismatched default.
+    #[must_use]
+    pub fn for_dialect(dialect: &str) -> Self {
+        Self::for_profile(DialectProfile::by_name(dialect))
+    }
+
+    /// The lexer preset the formatter tokenises with, from the profile's
+    /// grammar.
+    ///
+    /// Carries the dialect's parsing rules — notably
+    /// `irules_brace_separator`, which makes an iRule's `}{` (valid in TMM,
+    /// e.g. `if {expr}{body}`) parse as two words so the formatter re-emits
+    /// it as `} {`, and `expand_syntax`, which is off for the 8.4-based
+    /// dialects so a `{*}` there stays a literal braced word.
+    #[must_use]
+    pub fn lexer_config(&self) -> LexerConfig {
+        LexerConfig::from_grammar(self.profile.grammar)
+    }
+
+    /// The availability mask the profile's own release(s) contribute, or
+    /// `None` when the profile is the permissive fallback — i.e. no dialect
+    /// was declared, so every keyword the handed registry declares stays a
+    /// rewrite candidate (the pre-#1257 conservative direction).
+    #[must_use]
+    pub fn dialect_bits(&self) -> Option<DialectSet> {
+        if self.profile.is_fallback() {
+            None
+        } else {
+            Some(self.profile.availability_mask)
+        }
+    }
+
+    /// The range of releases a rewrite must stay correct across: the explicit
+    /// [`Self::target_range_override`], else the profile's
+    /// forward-compatibility range.
+    ///
+    /// An abbreviation is expanded only when it resolves to the *same*
+    /// keyword in every release of this range, so a prefix a later Tcl makes
+    /// ambiguous is left alone rather than expanded into one of its
+    /// candidates. A vendor dialect that names no core release (`f5-irules`)
+    /// yields the empty range — the handed registry is then the whole story.
+    #[must_use]
+    pub fn target_range(&self) -> DialectSet {
+        self.target_range_override
+            .unwrap_or_else(|| tcl_registry::version_range::forward_range(self.profile.name))
+    }
+
     /// The concrete line ending to emit when formatting `source`: the
     /// configured one, or — for the [`LINE_ENDING_AUTO`] default — the one
     /// `source` already uses ([`detect_line_ending`]).
@@ -359,5 +428,89 @@ impl FormatterConfig {
             IndentStyle::Tabs => "\t".repeat(level),
             IndentStyle::Spaces => " ".repeat(self.indent_size * level),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FormatterConfig, LINE_ENDING_AUTO};
+    use tcl_dialect::DialectProfile;
+    use tcl_registry::prelude::DialectSet;
+
+    #[test]
+    fn every_dialect_fact_follows_from_the_one_profile() {
+        // Issue #1465: the lexer preset, the candidate-filter mask, and the
+        // forward range are projections of the resolved profile, so aiming
+        // the formatter at iRules is one decision, not three.
+        let cfg = FormatterConfig::for_profile(DialectProfile::irules());
+        assert!(cfg.profile.is_irules());
+        // The iRules grammar: the `}{` ghost separator on, and — an 8.4 core
+        // — `{*}` expansion off, so `{*}` stays a literal braced word.
+        assert!(cfg.lexer_config().irules_brace_separator);
+        assert!(!cfg.lexer_config().expand_syntax);
+        assert_eq!(cfg.dialect_bits(), Some(DialectSet::IRULES));
+        // `f5-irules` names its own runtime, not a core release: no forward
+        // range to widen an abbreviation over.
+        assert!(cfg.target_range().is_empty());
+    }
+
+    #[test]
+    fn both_irules_spellings_resolve_the_same_profile() {
+        // The canonical name and its legacy aliases are one dialect; a caller
+        // passing either gets the iRules lexer.
+        for spelling in ["f5-irules", "irules", "tcl-irule"] {
+            let cfg = FormatterConfig::for_dialect(spelling);
+            assert!(cfg.profile.is_irules(), "{spelling}");
+            assert!(cfg.lexer_config().irules_brace_separator, "{spelling}");
+        }
+    }
+
+    #[test]
+    fn a_core_release_projects_its_mask_and_forward_range() {
+        let cfg = FormatterConfig::for_dialect("tcl8.6");
+        assert_eq!(cfg.dialect_bits(), Some(DialectSet::TCL86));
+        assert_eq!(
+            tcl_registry::version_range::core_releases_in(cfg.target_range()),
+            vec!["tcl8.6", "tcl9.0", "tcl9.1"]
+        );
+        assert!(cfg.lexer_config().expand_syntax);
+        assert!(!cfg.lexer_config().irules_brace_separator);
+    }
+
+    #[test]
+    fn the_default_is_the_modern_tcl_profile() {
+        let cfg = FormatterConfig::default();
+        assert!(cfg.profile.is_fallback());
+        // Modern lexing: `{*}` expansion and Tcl 9's nesting `${…}` rule.
+        assert!(cfg.lexer_config().expand_syntax);
+        assert!(!cfg.lexer_config().irules_brace_separator);
+        // No dialect declared, so no candidate filter and no range — the
+        // conservative direction, unchanged from before #1465.
+        assert_eq!(cfg.dialect_bits(), None);
+        assert!(cfg.target_range().is_empty());
+        assert_eq!(cfg.line_ending, LINE_ENDING_AUTO);
+    }
+
+    #[test]
+    fn an_explicit_range_overrides_the_profiles_forward_one() {
+        // A document that must also keep working on an *older* release than
+        // its own names a range no profile implies.
+        let cfg = FormatterConfig {
+            target_range_override: Some(DialectSet::TCL86 | DialectSet::TCL90),
+            ..FormatterConfig::for_dialect("tcl9.0")
+        };
+        assert_eq!(
+            tcl_registry::version_range::core_releases_in(cfg.target_range()),
+            vec!["tcl8.6", "tcl9.0"]
+        );
+        // The rest of the dialect still follows the profile.
+        assert_eq!(cfg.dialect_bits(), Some(DialectSet::TCL90));
+    }
+
+    #[test]
+    fn an_unknown_dialect_name_lands_on_the_permissive_fallback() {
+        let cfg = FormatterConfig::for_dialect("tcl-9000");
+        assert!(cfg.profile.is_fallback());
+        assert_eq!(cfg, FormatterConfig::default());
     }
 }

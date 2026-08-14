@@ -80,6 +80,60 @@ fn no_input_errors_exit_2() {
     );
 }
 
+/// The source every dialect assertion below formats: TMM accepts the `}{`
+/// ghost separator (`if {expr}{body}`), stock Tcl does not.
+const GHOST_SEPARATOR_IRULE: &str =
+    "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
+
+#[test]
+fn format_resolves_the_irules_profile_for_its_dialect() {
+    // Issue #1465: the formatter used to start from `FormatterConfig::default()`
+    // and never see `--dialect`, so `f5 irule format` — the primary non-editor
+    // entry point for formatting iRules — tokenised them with the Tcl 9 lexer
+    // and left `}{` unsplit. The resolved profile now carries the lexer
+    // grammar, so the default dialect (f5-irules) splits it.
+    let (code, out, stderr) = run(&["irule", "format", "--source", GHOST_SEPARATOR_IRULE]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert!(out.contains("} {"), "stdout: {out}");
+    assert!(!out.contains("}{"), "stdout: {out}");
+}
+
+#[test]
+fn format_accepts_both_irules_dialect_spellings() {
+    // `irules` / `tcl-irule` are aliases of the canonical `f5-irules`, and
+    // profile resolution canonicalises them, so all three format alike.
+    for dialect in ["f5-irules", "irules", "tcl-irule"] {
+        let (code, out, stderr) = run(&[
+            "irule",
+            "format",
+            "--dialect",
+            dialect,
+            "--source",
+            GHOST_SEPARATOR_IRULE,
+        ]);
+        assert_eq!(code, 0, "{dialect} stderr: {stderr}");
+        assert!(out.contains("} {"), "{dialect} stdout: {out}");
+        assert!(!out.contains("}{"), "{dialect} stdout: {out}");
+    }
+}
+
+#[test]
+fn format_under_a_core_tcl_dialect_leaves_the_ghost_separator_alone() {
+    // The control half: `}{` is an iRules rule, not a Tcl one, so asking for a
+    // core release must not synthesise the separator — proving the output
+    // above comes from the resolved dialect and not from a hardcoded rewrite.
+    let (code, out, stderr) = run(&[
+        "irule",
+        "format",
+        "--dialect",
+        "tcl9.0",
+        "--source",
+        GHOST_SEPARATOR_IRULE,
+    ]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert!(out.contains("}{"), "stdout: {out}");
+}
+
 #[test]
 fn lint_clean_input_no_findings() {
     // A config / standalone iRule with no issues prints the no-findings line
