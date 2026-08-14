@@ -20367,13 +20367,21 @@ fn whole_line_range(
 /// they are two documents to everything keyed by URI: find-references,
 /// workspace symbols, and rename each see one file twice.
 ///
-/// The canonicalisation is `ls_types`' own `from_file_path` plus
-/// [`uri_norm::canonical_uri_string`], whose whole job is the one place the two
-/// implementations disagree: `from_file_path` upper-cases a Windows drive
-/// letter, `vscode-uri`'s `URI.file()` lower-cases it.
+/// The canonicalisation starts with `ls_types`' own `from_file_path`, then
+/// [`uri_norm::repair_file_uri_from_path`] gives a leading `//` the authority
+/// shape VS Code's `URI.file` uses on every host and removes Windows-only
+/// extended-length markers. Finally, [`uri_norm::canonical_uri_string`] pins
+/// Windows drive-letter and percent-escape case to the spelling `vscode-uri`
+/// uses on every platform.
 #[must_use]
 pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
     let raw = Uri::from_file_path(path)?;
+    // `cfg!` keeps both branches type-checked on every host; unlike `#[cfg]`,
+    // a macOS/Linux gate therefore catches Windows repair-path regressions.
+    let raw = match uri_norm::repair_file_uri_from_path(raw.as_str(), cfg!(windows)) {
+        Some(repaired) => Uri::from_str(&repaired).ok()?,
+        None => raw,
+    };
     match uri_norm::canonical_uri_string(raw.as_str()) {
         std::borrow::Cow::Borrowed(_) => Some(raw),
         std::borrow::Cow::Owned(canonical) => Uri::from_str(&canonical).ok(),
@@ -22265,6 +22273,24 @@ mod tests {
         let child = resolve_source_uri(app.as_str(), "lib/util.tcl").unwrap();
         let expected = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
         assert_eq!(child, expected.as_str());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_file_uri_preserves_a_posix_question_mark_segment() {
+        assert_eq!(
+            canonical_file_uri("/?/foo.tcl").unwrap().as_str(),
+            "file:///%3F/foo.tcl",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_file_uri_matches_vscode_for_a_posix_double_slash_path() {
+        assert_eq!(
+            canonical_file_uri("//srv/share/a.tcl").unwrap().as_str(),
+            "file://srv/share/a.tcl",
+        );
     }
 
     #[test]
