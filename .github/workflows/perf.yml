@@ -25,12 +25,19 @@ on:
     # that go into the release notes and READMEs.
     branches: [main, rust]
     tags: ["v*"]
-  # No pull_request trigger: the suite is NOT GATING YET (see above), so a
-  # PR-time run produced a number nothing consumed before merge — the same
+  pull_request:
+    branches: [main, rust]
+  # The `benchmark` job stays off PRs — it is NOT GATING YET (see above), so a
+  # PR-time run produced a number nothing consumed before merge, and the same
   # commit's numbers were then recomputed on the push and again on the tag.
-  # The push/tag/nightly runs below are what build the trend line; re-add a
-  # pull_request trigger only together with --fail-on-failed-check so a PR
-  # run actually gates something.
+  # Re-enable it on PRs only together with --fail-on-failed-check, so a PR run
+  # actually gates something.
+  #
+  # `graphs-current` is a different animal and does run here: it needs no
+  # corpus, no build and no network, it takes seconds, and what it catches — a
+  # committed SVG that no longer matches the committed results — is a wrong
+  # file sitting in the diff under review. Catching that after merge, or at
+  # tag time, is catching it too late.
   schedule:
     # Nightly on the default line, so the trend keeps accumulating even
     # through weeks where nothing touches `rust/`.
@@ -72,6 +79,9 @@ jobs:
           echo "graphs/ matches results/"
 
   benchmark:
+    # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
+    # job, so a job-level skip costs no downstream status.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:

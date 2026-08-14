@@ -110,6 +110,16 @@ fi
 
 # --- 1. the binary under test ------------------------------------------------
 
+# Every step below runs `bench.py` from `scripts/perf`, so a relative
+# `--server` given at the repo root would be re-resolved against that directory
+# — `target/release/tcl-lsp-server` becoming `scripts/perf/target/…`, which
+# does not exist. Anchor it to the caller's cwd once, here, before anything
+# changes directory.
+case "$server" in
+    ""|/*) ;;
+    *) server="$PWD/$server" ;;
+esac
+
 if [ -z "$server" ]; then
     server="$ROOT/target/release/tcl-lsp-server"
     if [ "$skip_build" -eq 1 ]; then

@@ -62,6 +62,20 @@ HERE="$ROOT/scripts/release"
 PERF="$ROOT/scripts/perf"
 RELEASE_BRANCH=rust
 
+# Everything a release preparation is allowed to touch — the prose changelog
+# plus the three perf artefacts `perf` regenerates. This is both what `prepare`
+# stages and what `preflight` tolerates in a modified worktree: the changelog is
+# written *before* `prepare` runs (it is a judgement, not something a script can
+# derive), so a flat clean-tree requirement would reject the one edit the
+# process depends on. Anything outside this list still fails, because a stray
+# source change swept into the release commit is exactly what that check is for.
+RELEASE_PATHS=(
+    RELEASE_NOTES.md
+    scripts/perf/results
+    scripts/perf/graphs
+    scripts/perf/MANIFEST.toml
+)
+
 die() { echo "error: $*" >&2; exit 1; }
 step() { echo; echo "==> $*"; }
 
@@ -143,19 +157,33 @@ cmd_preflight() {
 
     step "Preflight for v$v"
 
+    # `release/vX.Y.Z` is allowed as well as the release branch: `prepare`
+    # creates it partway through, so requiring `rust` would make re-running
+    # `prepare` — the whole point of the steps being idempotent — fail on the
+    # branch its own previous run left you on.
     local branch; branch="$(git -C "$ROOT" branch --show-current)"
-    if [ "$branch" != "$RELEASE_BRANCH" ] && [ "${ALLOW_NON_MAIN_RELEASE:-0}" != "1" ]; then
-        die "on branch '$branch'; 2.x pre-releases are cut from '$RELEASE_BRANCH'.
+    if [ "$branch" != "$RELEASE_BRANCH" ] && [ "$branch" != "release/v$v" ] &&
+       [ "${ALLOW_NON_MAIN_RELEASE:-0}" != "1" ]; then
+        die "on branch '$branch'; 2.x pre-releases are cut from '$RELEASE_BRANCH'
+       (or its 'release/v$v' preparation branch).
        Set ALLOW_NON_MAIN_RELEASE=1 to override."
     fi
     echo "    branch:   $branch"
 
-    # Not a style point: `hatch-vcs` and `git describe` derive every version
-    # literal in the tree from the tag, and a dirty tree at tag time embeds a
-    # `+dev` suffix in artefacts that claim to be the release.
-    git -C "$ROOT" diff --quiet && git -C "$ROOT" diff --cached --quiet ||
-        die "worktree is dirty — commit or stash first"
-    echo "    worktree: clean"
+    # Modifications are confined to RELEASE_PATHS. Anything else has no business
+    # in a release commit, and at tag time `tag.sh` still demands a wholly clean
+    # tree — `hatch-vcs` and `git describe` derive every version literal from the
+    # tag, so a dirty tree there embeds a `+dev` suffix in artefacts that claim
+    # to be the release.
+    local excludes=() p
+    for p in "${RELEASE_PATHS[@]}"; do excludes+=(":(exclude)$p"); done
+    local dirty
+    dirty="$(git -C "$ROOT" status --porcelain -uno -- "${excludes[@]}")"
+    [ -z "$dirty" ] || die "worktree has changes outside the release artefacts:
+$(printf '%s\n' "$dirty" | sed 's/^/         /')
+       Commit or stash them. Only these may be modified going into a release:
+         ${RELEASE_PATHS[*]}"
+    echo "    worktree: clean outside the release artefacts"
 
     if git -C "$ROOT" rev-parse "v$v" >/dev/null 2>&1; then
         die "tag v$v already exists locally"
@@ -256,8 +284,7 @@ cmd_prepare() {
     if [ "$(git -C "$ROOT" branch --show-current)" != "$branch" ]; then
         git -C "$ROOT" checkout -b "$branch"
     fi
-    git -C "$ROOT" add RELEASE_NOTES.md scripts/perf/results scripts/perf/graphs \
-        scripts/perf/MANIFEST.toml
+    git -C "$ROOT" add -- "${RELEASE_PATHS[@]}"
     if git -C "$ROOT" diff --cached --quiet; then
         echo "    nothing to commit — already prepared"
     else
