@@ -74,11 +74,9 @@ installer_env=""
 if [ -n "${TCL_LSP_OS:-}" ]; then
     installer_env="TCL_LSP_OS=$TCL_LSP_OS "
 fi
-# TCL_LSP_VERSION pins the installer to the tag we are verifying. Without it the
-# installer resolves its default channel — the latest *stable* release — so the
-# whole post-tag check ran against a different version than the one being cut,
-# and said nothing about it. That is doubly wrong for a pre-release, which is
-# never "latest": v2.1.8's smoke run installed v1.11.4 and failed on a 404.
+# TCL_LSP_VERSION independently pins the smoke test to the tag under test. The
+# published installer is also stamped to select its own tag, but retaining this
+# explicit pin makes this harness catch a broken or missing release stamp.
 # shellcheck disable=SC2086
 if curl -fsSL "$INSTALLER_URL" \
         | env $installer_env TCL_LSP_VERSION="$tag" TCL_LSP_PREFIX="$PREFIX" \
@@ -102,11 +100,9 @@ else
     found=0
     # The installer downloads prebuilt native per-triple binaries
     # (tcl-<triple>, f5-query-<triple>, tcl-mcp-<triple>) and renames them to
-    # bare names (tcl, f5, tcl-mcp); on platforms without a native MCP build it
-    # falls back to the tcl-lsp-mcp-server.pyz zipapp. Rather than reconstruct
-    # the host triple, match each installed file's hash against any entry in
-    # SHA256SUMS.
-    for f in "$PREFIX/tcl" "$PREFIX/f5" "$PREFIX/tcl-mcp" "$PREFIX/tcl-lsp-mcp-server.pyz"; do
+    # bare names (tcl, f5, tcl-mcp). Rather than reconstruct the host triple,
+    # match each installed file's hash against any entry in SHA256SUMS.
+    for f in "$PREFIX/tcl" "$PREFIX/f5" "$PREFIX/tcl-mcp"; do
         [ -e "$f" ] || continue
         found=$((found + 1))
         base=$(basename "$f")
@@ -118,6 +114,8 @@ else
         fi
     done
     [ "$found" -gt 0 ] || fail "no installed binaries found under $PREFIX"
+    [ ! -e "$PREFIX/tcl-lsp-mcp-server.pyz" ] \
+        || fail "retired Python MCP zipapp was installed"
 fi
 
 # ---------------------------------------------------------------- 2./3. CLIs
@@ -148,16 +146,9 @@ done
 # ---------------------------------------------------------------- 4. MCP
 
 hdr "MCP server"
-# The installer prefers the native tcl-mcp binary and falls back to the
-# tcl-lsp-mcp-server.pyz zipapp on platforms without a native build.
-mcp=""
-if [ -x "$PREFIX/tcl-mcp" ]; then
-    mcp="$PREFIX/tcl-mcp"
-elif [ -f "$PREFIX/tcl-lsp-mcp-server.pyz" ]; then
-    mcp="$PREFIX/tcl-lsp-mcp-server.pyz"
-fi
-if [ -z "$mcp" ]; then
-    fail "MCP server missing (looked for $PREFIX/tcl-mcp and $PREFIX/tcl-lsp-mcp-server.pyz)"
+mcp="$PREFIX/tcl-mcp"
+if [ ! -x "$mcp" ]; then
+    fail "native MCP server missing at $mcp"
 else
     # Speak MCP to it rather than asking it for a banner. The native 2.x server
     # takes no flags at all — `--help` just starts the server, which then dies on

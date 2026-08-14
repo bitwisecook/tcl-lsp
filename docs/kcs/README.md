@@ -155,6 +155,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 ## How-Tos
 
+- [kcs-howto-build-and-install-on-an-unsupported-platform.md](kcs-howto-build-and-install-on-an-unsupported-platform.md)
+  — build only the native programs or editor integrations needed on a platform
+  for which the release installer has no prebuilt binaries.
 - [kcs-howto-lock-down-tcl-pkg.md](kcs-howto-lock-down-tcl-pkg.md) — deploy a
   locked-down `tcl pkg` policy for an organisation: a sandbox floor developers
   cannot loosen, registry allow-lists, operator scanning hooks, and gating
