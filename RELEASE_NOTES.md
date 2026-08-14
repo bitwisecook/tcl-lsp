@@ -1,80 +1,81 @@
-# v2.1.17
+# v2.1.19
 
 **2.x alpha — pre-release channel.**
 
-A pre-release on the **2.x** line, where the ongoing Rust rewrite of tcl-lsp
-ships its alphas. It is opt-in: install it from the VS Code Marketplace
-**pre-release** channel or the JetBrains Marketplace **eap** channel, or
-download the pre-release VSIX / plugin / native binaries from this GitHub
-release. The stable **1.x** line stays the default for everyone who has not
-opted into pre-releases, and a `2.1.x` build never becomes the "latest" GitHub
-release or the default Marketplace download.
+This release advances the Rust-native compiler, analyser, language server,
+runtime, and extension tooling. It remains opt-in through the VS Code
+Marketplace **pre-release** channel, the JetBrains Marketplace **eap** channel,
+or the assets on this GitHub release. The stable **1.x** line remains the
+default.
 
-A documentation and tooling release. No language-server behaviour changes: the
-analyser, compiler and registry are untouched. What changes is the documentation
-you read, the build targets you run, and the screenshots on the Marketplace
-listing.
+## Compiler and runtime
 
-## Documentation
+- The compiler now has one registry-owned semantic invocation contract for
+  effects, state transitions, dispatch dependencies, completion behaviour,
+  executable intermediate representation, and WebAssembly backend selection.
+  Optimisation and analysis consumers use typed registry facts instead of
+  command-name branches.
+- A semantic ahead-of-time optimisation foundation adds proof-carrying,
+  dialect-aware native paths with guarded fallback to the exact evaluated
+  argument vector. The new optimisation switches remain off by default while
+  the proof surface expands.
+- Tcl's release-dependent numeral grammar is now handled by one shared facility
+  across syntax, analysis, optimisation, code generation, the virtual machine,
+  and the WebAssembly runtime. This fixes nine defects, including Tcl 8 octal
+  handling, `string is` options, frame-level parsing, and inconsistent constant
+  folding.
+- The virtual machine now covers all 191 Tcl 9.0.4 opcodes, including
+  coroutine, TclOO, exception-range, variable, array, and introspection
+  families.
 
-The README was 3088 lines with every feature at equal weight. It is now ordered
-by what you actually reach for: seven headline features (diagnostics, semantic
-highlighting, completions, hover, navigation, refactorings, formatting), then a
-full index linking all 86 per-feature notes, then the deeper material.
+## Language server and extensibility
 
-Two lists the README never carried are now complete and generated from the
-source of truth rather than written by hand — all **sixteen dialects** (the old
-prose omitted `expect`, `bpf`, `tcl9.1`, `f5-tmsh`, and named the five EDA
-vendors only collectively) and all **69 registry packages**.
+- Computed `source` paths now resolve through `file normalize`, chained local
+  constants, namespace variables, and cross-file constants. Document links
+  anchor on the file-name token instead of painting across substitutions.
+- W308 now recognises generated `oo::configurable` accessors and template
+  methods supplied by known subclasses, while retaining warnings for genuine
+  unknown methods.
+- Registry semantic proofs now drive option, callback-arity, formal-parameter,
+  lifecycle, dispatch, and optimisation decisions. The compiler explorer shows
+  the durable world-state and proof evidence behind those decisions.
+- SpecTcl packs can provide live, sandboxed hooks and folder-scoped overlays.
+  The bundled EDA command libraries have moved to loadable `.tclspec` packs,
+  and the Spec Studio can edit, validate, and render the same source format.
 
-F5 moves to a standalone **[README-f5.md](README-f5.md)**: the four F5 dialects,
-the BIG-IP config model, the `f5` CLI, the query DSL with its worked how-tos,
-the `f5q` Python bindings, the report generator, XC translation, and the iRule
-Event Orchestrator.
+## Engineering
 
-The install guides were telling users to download Python `.pyz` zipapps that
-have not shipped for several releases. Every install path now describes the
-native per-triple binaries that releases actually publish, across
-INSTALL-cli.md, INSTALL-editors.md, and the Helix, Sublime, JetBrains and Emacs
-editor READMEs. CONTRIBUTING.md likewise still documented the retired Python
-server — seven "concern packages" and an `.importlinter` file, none of which
-exist — and now describes the Cargo workspace.
+- The local and continuous-integration test surface is now split into fast
+  smoke, deep, and explicitly manual exhaustive tiers. Consolidated integration
+  binaries and smaller build artefacts reduce test startup time and disk use.
+- Rust, TypeScript, Kotlin, editor, continuous-integration action, Wasmtime,
+  Binaryen, and wasi-sdk dependencies have been refreshed. The TypeScript
+  updates also clear the affected transitive dependency advisories.
+- Design and user documentation has been rewritten around the current native
+  Rust architecture, with obsolete Python-era APIs and port narratives removed.
 
-A new KCS rule: **a fixed bug that needs no reader action is not a KCS note.**
-Recorded in STYLE.md, AGENTS.md and the KCS README, with the test to apply.
+## Performance across the 2.1 pre-releases
 
-## Fixes
+These graphs include every published `2.1.x` pre-release from `v2.1.0` through
+`v2.1.19`. There is no `v2.1.2` point because that version was never released.
+The benchmark corpus, scope, and revision are fixed across the series.
 
-- **VS Code extension tests could not start on macOS.** The test host's IPC
-  socket path exceeded the 103-byte `sun_path` limit, failing with a bare
-  `EINVAL`. Both the single-root and multi-root runners now keep it well under.
-- **`make` printed a warning and could run codegen twice.** Two rules used
-  GNU Make 4.3 grouped-target syntax; macOS ships Make 3.81, which parses it as
-  a third target named `&` and attaches the recipe to every output.
-- **The diagram webview fetched Mermaid from a CDN** at render time, with a
-  remote origin in its CSP, and silently degraded to raw source when offline.
-  Mermaid is now bundled into the VSIX.
-- **Chat picked an arbitrary language model** — the first the host returned —
-  whenever the panel handed it the synthetic `auto` selector. It now prefers the
-  largest context window.
-- Chat's code-fence parsers accepted only a few exact tags, discarding
-  well-formed answers labelled otherwise.
+Runs through `v2.1.16` were recorded on the maintainer's Apple M1 Max; later
+runs use four-core GitHub Linux runners. The host change is visible in the
+series, so compare CPU and wall time within a host era rather than treating the
+boundary as a product-only delta. The raw result and generated summary are
+attached to this release.
 
-## Known issue
+### Resident memory
 
-`@irule /create` and `/diagram` receive **empty model responses** — `/diagram`
-logs `0 chars returned`. `/explain`, `/validate`, `/review` and `/help` answer
-normally, so this is specific to the two commands that send the largest prompts.
-Chat now says so plainly instead of ending on a silent "Generating Mermaid
-diagram...". The `26-ai-create` and `28-ai-diagram` screenshots in this release
-show that failure state honestly rather than a staged success.
+![Resident memory across all 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-memory.svg)
 
-## Screenshots
+### CPU utilisation
 
-All 30 scenes retaken against the current build. The capture harness had three
-faults that made it unusable unattended: an AI sign-in prompt that could hang a
-run forever, a capture handshake that polled marker files, and two waits that
-burned their full timeout on every run because they expected more diagnostics
-and semantic tokens than the fixtures produce. Scene times fell from 32s, 22.6s
-and 12.1s to 5.7s, 2.9s and 2.4s.
+![CPU utilisation across all 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-cpu.svg)
 
+### Per-check wall time
+
+![Per-check wall time across all 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-walltime.svg)
+
+[Benchmark table and method notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-summary.md)
