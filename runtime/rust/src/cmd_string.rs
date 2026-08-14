@@ -1080,7 +1080,14 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let s = obj_bytes(argv[last]);
     let class_str = std::str::from_utf8(class).unwrap_or("");
     let s_str = String::from_utf8_lossy(&s);
-    let (ok, fail_index) = tcl_cmd_core::string_is::class_check(class_str, &s_str, strict);
+    // The numeric classes follow the emulated release's numeral grammar (the
+    // ambient syntax this interpreter installed for its runtime version).
+    let (ok, fail_index) = tcl_cmd_core::string_is::class_check(
+        class_str,
+        &s_str,
+        strict,
+        tcl_syntax::number::runtime_syntax(),
+    );
 
     if !ok {
         if let Some(var) = failvar {
