@@ -445,7 +445,13 @@ jobs:
     # healthy — a 2026-08 regression to 16 min turned out to be two oversized
     # `tcl-compiler` per_item tests, since fixed; if this job blows past ~5
     # min again, suspect a runaway test before suspecting the box or the
-    # cache).  It is the ONLY job routed to the self-hosted runner, and that
+    # cache).  No longer the longest pole: `lsp-e2e` now is (~390s vs ~150s
+    # here).  Note that neither is the workflow's critical path — the
+    # `build-tcl-lsp-server` -> `test-ext` chain is, finishing 40-80s after
+    # `lsp-e2e` does, so shortening the test jobs cuts cost and the local
+    # `make test-rust` loop rather than PR turnaround.
+    #
+    # It is the ONLY job routed to the self-hosted runner, and that
     # is deliberate: the box has one runner instance, so anything sent there
     # executes serially and queues behind this job.
     #
