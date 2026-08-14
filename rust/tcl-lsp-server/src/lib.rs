@@ -35,6 +35,7 @@ pub mod rt;
 pub mod stdio_pump;
 pub mod transport_liveness;
 pub mod uri_norm;
+pub mod vfs;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::ControlFlow;
@@ -1105,6 +1106,9 @@ struct DiagInputs {
     /// the worker keeps the pull cache current and asks the client to re-pull
     /// instead of pushing — see that field for the rationale (#721).
     client_supports_pull: bool,
+    /// Where the recovery-widening package read gets its bytes — see
+    /// [`crate::vfs`].
+    store: Arc<dyn vfs::SourceStore>,
 }
 
 impl DiagInputs {
@@ -1657,6 +1661,9 @@ struct RecoveryWidenCtx<'a> {
     registry: &'a CommandRegistry,
     workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
+    /// Where a resolved package's implementation files are read from — see
+    /// [`crate::vfs`].
+    store: &'a Arc<dyn vfs::SourceStore>,
 }
 
 /// The inputs [`RecoveryNameCache`] keys its entries on — everything the
@@ -1785,7 +1792,8 @@ async fn widen_recovery_extra_commands(
             &|path| {
                 // Shared decoder: a package implementation file with a stray
                 // high byte should still contribute its command names.
-                tcl_lsp_core::source_decode::read_source_file(path)
+                ctx.store
+                    .read_source(path)
                     .map(|(text, _)| defined_command_tails(&text, dialect))
                     .unwrap_or_default()
             },
@@ -2876,34 +2884,11 @@ async fn files_with_covered_load_targets(
 /// cancelled mid-flight and the caller should retry the document's latest
 /// state.
 async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
-    let DiagInputs {
-        client,
-        registry,
-        disabled,
-        severity_overrides,
-        extra_commands,
-        generic_variable_patterns,
-        style_line_length,
-        non_ascii_mode,
-        opt_disabled,
-        documents,
-        diag_slots,
-        workspace_index,
-        rehomed_source_seeds,
-        rehoming_gate,
-        package_resolver,
-        recovery_names,
-        entry_points,
-        folder_root,
-        db,
-        db_project,
-        pull_diag_cache,
-        closed_diag_gen,
-        toggles,
-        client_supports_pull,
-        // The worker captured the job from the remaining handles already.
-        ..
-    } = inputs;
+    // Read through `inputs` rather than destructuring it: the two context
+    // structs below borrow most of its fields, and a by-value destructure of
+    // two dozen names buys nothing but length. The salsa handles it also
+    // carries were already consumed by the worker to capture `job`.
+    let toggles = &inputs.toggles;
     let DiagJob {
         text,
         decode_report,
@@ -2925,15 +2910,15 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     let analysis_text = tcl_lexer::normalise_lone_cr(&text);
 
     let delivery = DeliveryCtx {
-        client: &client,
-        documents: &documents,
-        diag_slots: &diag_slots,
-        pull_diag_cache: &pull_diag_cache,
-        closed_diag_gen: &closed_diag_gen,
+        client: &inputs.client,
+        documents: &inputs.documents,
+        diag_slots: &inputs.diag_slots,
+        pull_diag_cache: &inputs.pull_diag_cache,
+        closed_diag_gen: &inputs.closed_diag_gen,
         uri,
         currency,
         version,
-        client_supports_pull,
+        client_supports_pull: inputs.client_supports_pull,
     };
 
     if !toggles.diagnostics_enabled {
@@ -2944,11 +2929,11 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         text: &text,
         decode_report,
         dialect: &dialect,
-        disabled: &disabled,
-        severity_overrides: &severity_overrides,
-        opt_disabled: &opt_disabled,
+        disabled: &inputs.disabled,
+        severity_overrides: &inputs.severity_overrides,
+        opt_disabled: &inputs.opt_disabled,
         optimiser_enabled: toggles.optimiser_enabled,
-        style_line_length,
+        style_line_length: inputs.style_line_length,
         xc_diagnostics: toggles.xc.xc_diagnostics,
     };
     if let Some(settled) =
@@ -2958,7 +2943,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     }
 
     let salsa_ctx = SalsaAnalysisCtx {
-        db: &db,
+        db: &inputs.db,
         uri,
         file,
         config,
@@ -2970,19 +2955,20 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         &salsa_ctx,
         &lift_inputs,
         &AnalyserPathInputs {
-            registry,
-            extra_commands: &extra_commands,
-            generic_variable_patterns: generic_variable_patterns.as_deref(),
-            non_ascii_mode,
-            db_project: &db_project,
-            workspace_index: &workspace_index,
-            rehomed_source_seeds: &rehomed_source_seeds,
-            rehoming_gate: &rehoming_gate,
-            package_resolver: &package_resolver,
-            recovery_names: &recovery_names,
-            entry_points: &entry_points,
-            folder_root: folder_root.as_deref(),
+            registry: Arc::clone(&inputs.registry),
+            extra_commands: &inputs.extra_commands,
+            generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
+            non_ascii_mode: inputs.non_ascii_mode,
+            db_project: &inputs.db_project,
+            workspace_index: &inputs.workspace_index,
+            rehomed_source_seeds: &inputs.rehomed_source_seeds,
+            rehoming_gate: &inputs.rehoming_gate,
+            package_resolver: &inputs.package_resolver,
+            recovery_names: &inputs.recovery_names,
+            entry_points: &inputs.entry_points,
+            folder_root: inputs.folder_root.as_deref(),
             cross_file_resolution: toggles.xc.cross_file_resolution,
+            store: &inputs.store,
         },
     )
     .await
@@ -3012,6 +2998,9 @@ struct AnalyserPathInputs<'a> {
     /// `LiftInputs::xc_diagnostics` (the unrelated f5-irules-specific
     /// XC100-301 translatability lints).
     cross_file_resolution: bool,
+    /// Where the recovery-widening package read gets its bytes — see
+    /// [`crate::vfs`].
+    store: &'a Arc<dyn vfs::SourceStore>,
 }
 
 /// The Tcl analyser path, made **progressive** (#844): the deep pass — base
@@ -3065,6 +3054,7 @@ async fn run_diagnostics_analyser_path(
         registry: &inputs.registry,
         workspace_index: inputs.workspace_index,
         package_resolver: inputs.package_resolver,
+        store: inputs.store,
     };
     let base = compute_base_analysis(
         delivery.client,
@@ -4387,6 +4377,12 @@ pub struct Backend {
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them. See [`EditOrder`].
     edit_order: EditOrder,
+    /// Where every *closed* file the server reads comes from — see
+    /// [`crate::vfs`]. Natively this is [`vfs::NativeStore`], a direct
+    /// delegation to `std::fs`; a browser worker supplies a
+    /// [`vfs::MemoryStore`] the host fills in over `postMessage`. `Arc` so a
+    /// blocking task can carry it.
+    store: Arc<dyn vfs::SourceStore>,
 }
 
 /// Every per-document-URI cache [`Backend`] holds, borrowed as one group.
@@ -5060,6 +5056,17 @@ impl Backend {
     /// providers when the document store has no override.
     #[must_use]
     pub fn new(client: Client) -> Self {
+        Self::with_store(client, Arc::new(vfs::NativeStore))
+    }
+
+    /// Build a fresh backend that reads every closed file through `store`.
+    ///
+    /// [`Backend::new`] is this with [`vfs::NativeStore`], which is the whole
+    /// of the native server. A host with no filesystem — a browser worker —
+    /// passes its own [`vfs::SourceStore`] here instead; see [`crate::vfs`]
+    /// for what that does and does not cover.
+    #[must_use]
+    pub fn with_store(client: Client, store: Arc<dyn vfs::SourceStore>) -> Self {
         let db = tcl_lsp_db::TclDatabase::default();
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
@@ -5130,6 +5137,7 @@ impl Backend {
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
+            store,
         }
     }
 
@@ -6125,11 +6133,11 @@ impl Backend {
         // Through the shared decoder, not `read_to_string`: a closed file with
         // one ill-formed byte must still resolve its spans rather than vanish
         // from cross-document navigation (issue #1326).
-        let (text, _) =
-            crate::rt::spawn_blocking(move || tcl_lsp_core::source_decode::read_source_file(&path))
-                .await
-                .ok()?
-                .ok()?;
+        let store = Arc::clone(&self.store);
+        let (text, _) = crate::rt::spawn_blocking(move || store.read_source(&path))
+            .await
+            .ok()?
+            .ok()?;
         let dialect = match self.resolve_folder_dialect(url).await {
             Some(d) => d,
             None => self.session_dialect().await,
@@ -6142,15 +6150,16 @@ impl Backend {
     /// transports Unicode text rather than those bytes, so this equality is
     /// the boundary between a fact (safe to diagnose) and a guess (not safe).
     async fn decode_report_for_matching_disk_text(
+        store: &Arc<dyn vfs::SourceStore>,
         uri: &Uri,
         text: &str,
     ) -> Option<tcl_lsp_core::source_decode::DecodeReport> {
         let path = uri.to_file_path()?.into_owned();
-        let (decoded, report) =
-            crate::rt::spawn_blocking(move || tcl_lsp_core::source_decode::read_source_file(&path))
-                .await
-                .ok()?
-                .ok()?;
+        let store = Arc::clone(store);
+        let (decoded, report) = crate::rt::spawn_blocking(move || store.read_source(&path))
+            .await
+            .ok()?
+            .ok()?;
         (decoded == text).then_some(report)
     }
 
@@ -6630,10 +6639,12 @@ impl Backend {
     /// reindex (#1161), so both agree on exactly how a disk-backed file is
     /// turned into an index/salsa entry.
     async fn scan_disk_file(
+        store: &Arc<dyn vfs::SourceStore>,
         uri: Uri,
         folder_dialects: Arc<Vec<(Uri, String)>>,
         default_dialect: Arc<String>,
     ) -> Option<(Uri, String, String, AnalysisResult)> {
+        let store = Arc::clone(store);
         crate::rt::spawn_blocking(move || {
             let path = uri.to_file_path()?;
             // Normalise on the way in, exactly as `read_document` does for the
@@ -6645,7 +6656,7 @@ impl Backend {
             // would fail on ill-formed UTF-8 and `.ok()?` would then drop the
             // whole file — its procs, its `source` edges, its symbols — out of
             // the index with nothing said about it.
-            let (raw, _) = tcl_lsp_core::source_decode::read_source_file(&path).ok()?;
+            let (raw, _) = store.read_source(&path).ok()?;
             let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
             let dialect =
                 Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
@@ -6688,9 +6699,11 @@ impl Backend {
             .map(|uri| {
                 let folder_dialects = Arc::clone(&folder_dialects);
                 let default_dialect = Arc::clone(&default_dialect);
+                let store = Arc::clone(&self.store);
                 async move {
                     let scanned =
-                        Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
+                        Self::scan_disk_file(&store, uri.clone(), folder_dialects, default_dialect)
+                            .await;
                     Some((uri, scanned))
                 }
             })
@@ -6756,7 +6769,8 @@ impl Backend {
         // error in its siblings.
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        let scanned = Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
+        let scanned =
+            Self::scan_disk_file(&self.store, uri.clone(), folder_dialects, default_dialect).await;
         // Serialise the standalone replacement with source-site reconciliation,
         // then hold `documents` across the still-closed re-check and both
         // updates. Global order: rehoming_gate → documents → db →
@@ -6829,7 +6843,8 @@ impl Backend {
         let dialect = self.dialect_for_closed(uri, &text).await;
         // Closed diagnostics are also backed by the exact on-disk text, so the
         // same byte-evidence contract used at `didOpen` applies here.
-        let decode_report = Self::decode_report_for_matching_disk_text(uri, &text).await;
+        let decode_report =
+            Self::decode_report_for_matching_disk_text(&self.store, uri, &text).await;
         // Bump this URI's closed-run generation and capture it, so a newer close
         // / watched-change refresh supersedes this run at publish time.
         let generation = self.next_closed_diag_generation(uri).await;
@@ -7038,6 +7053,7 @@ impl Backend {
             semantic_tokens_refresh_pending: _,
             warm_task: _,
             edit_order: _,
+            store: _,
         } = self;
         PerUriCaches {
             autoloaded_library_uris,
@@ -11290,6 +11306,7 @@ impl Backend {
         // and the project `.tcl-lsp.ini` `[project]` (highest), applying the
         // documented precedence and merge rules.
         let global_ini = read_ini_layer(
+            self.store.as_ref(),
             core_tcl_install::user_config_path(),
             config_ini::Layer::Global,
         );
@@ -11298,6 +11315,7 @@ impl Backend {
         // story for a single-root workspace; per-folder applies below refine
         // the analyser knobs for multi-root).
         let primary_project = read_ini_layer(
+            self.store.as_ref(),
             folders
                 .first()
                 .and_then(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
@@ -11340,6 +11358,7 @@ impl Backend {
                     .zip(values)
                     .filter_map(|(folder, editor_cfg)| {
                         let project = read_ini_layer(
+                            self.store.as_ref(),
                             folder
                                 .to_file_path()
                                 .map(std::borrow::Cow::into_owned)
@@ -11984,12 +12003,17 @@ impl Backend {
         let contents = self.render_config_ini().await;
         let result = path.parent().map_or_else(
             || Err(std::io::Error::other("no config directory")),
-            std::fs::create_dir_all,
+            |parent| self.store.create_dir_all(parent),
         );
-        match result.and_then(|()| std::fs::write(&path, contents)) {
+        match result.and_then(|()| self.store.write(&path, contents.as_bytes())) {
+            // The rendered text comes back with the path. On a host whose
+            // store is in memory there is no file for the user to open, so the
+            // contents are the only useful half of the answer; natively it is
+            // an extra field a client may ignore.
             Ok(()) => serde_json::json!({
                 "success": true,
                 "path": path.to_string_lossy(),
+                "contents": contents,
             }),
             Err(err) => serde_json::json!({
                 "success": false,
@@ -12402,6 +12426,7 @@ impl Backend {
             client_supports_pull: self
                 .client_supports_pull_diagnostics
                 .load(std::sync::atomic::Ordering::Relaxed),
+            store: Arc::clone(&self.store),
         }
     }
 
@@ -13324,7 +13349,7 @@ impl Backend {
                 tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
             };
             by_uri.entry(uri).or_default().push(Diagnostic {
-                range: whole_line_range(&notice.path, notice.line),
+                range: whole_line_range(self.store.as_ref(), &notice.path, notice.line),
                 severity: Some(severity),
                 code: Some(NumberOrString::String(SPEC_PACK_DIAGNOSTIC_CODE.to_owned())),
                 source: Some("tcl-lsp".to_owned()),
@@ -14534,7 +14559,8 @@ impl LanguageServer for Backend {
         // change lands while this runs, the version/text check below refuses
         // to attach facts about the file that was opened to the edited buffer.
         drop(turn);
-        let decode_report = Self::decode_report_for_matching_disk_text(&uri, &text).await;
+        let decode_report =
+            Self::decode_report_for_matching_disk_text(&self.store, &uri, &text).await;
         if let Some(decode_report) = decode_report {
             let mut docs = self.documents.lock().await;
             if let Some(doc) = docs.get_mut(&uri)
@@ -18375,8 +18401,12 @@ struct WatchedFileChanges {
 /// Read an INI config file at `path` (if present/readable) into the
 /// editor-shape `tclLsp` settings JSON for its `layer`. Missing or unreadable
 /// files yield an empty object, so a layer simply contributes nothing.
-fn read_ini_layer(path: Option<PathBuf>, layer: config_ini::Layer) -> serde_json::Value {
-    path.and_then(|p| std::fs::read_to_string(p).ok())
+fn read_ini_layer(
+    store: &dyn vfs::SourceStore,
+    path: Option<PathBuf>,
+    layer: config_ini::Layer,
+) -> serde_json::Value {
+    path.and_then(|p| store.read_to_string(&p).ok())
         .map_or_else(
             || serde_json::json!({}),
             |content| config_ini::settings_from_ini(&content, layer),
@@ -20276,10 +20306,15 @@ const SPEC_PACK_DIAGNOSTIC_CODE: &str = "SPECTCL";
 /// statement rather than a single character. A file that has changed or gone
 /// since the notice was raised degrades to the start of the line — the notice
 /// is still worth showing, and an approximate range beats dropping it.
-fn whole_line_range(path: &Path, line: u32) -> tower_lsp_server::ls_types::Range {
+fn whole_line_range(
+    store: &dyn vfs::SourceStore,
+    path: &Path,
+    line: u32,
+) -> tower_lsp_server::ls_types::Range {
     use tower_lsp_server::ls_types::{Position, Range};
     let zero_based = line.saturating_sub(1);
-    let end = std::fs::read_to_string(path)
+    let end = store
+        .read_to_string(path)
         .ok()
         .and_then(|text| {
             text.lines()
@@ -22032,7 +22067,7 @@ mod tests {
             "[global]\ndialect = tcl9.0\n[optimiser]\nenabled = false\n",
         )
         .unwrap();
-        let global = read_ini_layer(Some(path), config_ini::Layer::Global);
+        let global = read_ini_layer(&vfs::NativeStore, Some(path), config_ini::Layer::Global);
         backend.apply_global_config(&global).await;
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         assert!(!*backend.optimiser_enabled.lock().await);
@@ -26112,6 +26147,7 @@ mod tests {
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
+            store: Arc::new(vfs::NativeStore),
         }
     }
 
@@ -26945,6 +26981,7 @@ mod tests {
             registry,
             workspace_index: &backend.workspace_index,
             package_resolver: &backend.package_resolver,
+            store: &backend.store,
         };
         let base: HashSet<String> = ["mycmd".to_owned()].into_iter().collect();
 
