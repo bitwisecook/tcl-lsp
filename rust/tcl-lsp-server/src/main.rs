@@ -22,89 +22,37 @@
 //! `LspService`, and serves the LSP protocol over stdio. All
 //! decision logic lives in `tcl_lsp_server::Backend` and the
 //! pure-crate feature providers — this binary is just the
-//! transport, plus one capability-injection shim (below).
+//! transport, plus the two protocol shims in
+//! [`tcl_lsp_server::service`].
+//!
+//! **Native only.** Stdio and a multi-thread Tokio runtime are the two things
+//! a wasm32 target does not have, and Cargo builds every `[[bin]]` for
+//! whatever target it is given — there is no per-target bin switch — so
+//! `cargo check --target wasm32-unknown-unknown -p tcl-lsp-server` compiles
+//! this file too. Every item below is therefore gated to non-wasm targets and
+//! a bare `main` stands in for wasm, which turns that check into a check of
+//! the *library*: the half a browser worker actually links. The browser host
+//! is `tcl-lsp-server-wasm`, which drives the same `LspService` over
+//! `postMessage`.
 
 #![forbid(unsafe_code)]
 
+#[cfg(not(target_family = "wasm"))]
 use tcl_lsp_server::Backend;
+#[cfg(not(target_family = "wasm"))]
+use tcl_lsp_server::service::{inject_type_hierarchy_provider, normalise_request_uris};
+#[cfg(not(target_family = "wasm"))]
 use tcl_lsp_server::stdio_pump;
+#[cfg(not(target_family = "wasm"))]
 use tcl_lsp_server::transport_liveness::{
     DEFAULT_HANDLER_CONCURRENCY, DeferredConcurrency, UNBOUNDED_TRANSPORT_CONCURRENCY,
 };
-use tcl_lsp_server::uri_norm::normalise_uris_in_params;
+#[cfg(not(target_family = "wasm"))]
 use tower::ServiceExt as _;
-use tower_lsp_server::jsonrpc::{Request, Response};
+#[cfg(not(target_family = "wasm"))]
+use tower_lsp_server::jsonrpc::Response;
+#[cfg(not(target_family = "wasm"))]
 use tower_lsp_server::{LspService, Server};
-
-/// Put every URI in an incoming message into the one canonical form, before it
-/// is deserialised.
-///
-/// The single boundary at which client-sent URIs meet the ones the server
-/// constructs for itself (`tcl_lsp_server::canonical_file_uri`) — issue #1214.
-/// Two jobs:
-///
-/// * **Accept-then-normalise.** Some `JetBrains`- and Neovim-style clients send a
-///   folder URI with the spaces left raw. That is not a valid URI, so `Uri`'s
-///   `Deserialize` rejects it and the whole `initialize` fails — the session
-///   never starts. Repairing it here means such a client is accepted.
-/// * **Canonicalise.** A client that upper-cases a Windows drive letter (or
-///   lower-cases its percent-escapes) would otherwise spell a file differently
-///   from the way the workspace scan spells it, and everything keyed by URI —
-///   find-references, workspace symbols, rename — would see one file as two.
-///
-/// Here rather than in each handler because there is one of it and sixty of
-/// them, and because the document store must key on the same spelling a later
-/// request looks up. Inert for a conforming client: a VS Code message comes
-/// through byte-for-byte unchanged.
-fn normalise_request_uris(request: Request) -> Request {
-    let (method, id, params) = request.into_parts();
-    let params = params.map(|mut p| {
-        normalise_uris_in_params(&mut p);
-        p
-    });
-    let builder = Request::build(method);
-    let builder = match id {
-        Some(id) => builder.id(id),
-        None => builder,
-    };
-    let builder = match params {
-        Some(params) => builder.params(params),
-        None => builder,
-    };
-    builder.finish()
-}
-
-/// Inject `typeHierarchyProvider` into the serialised `initialize` response.
-///
-/// The type-hierarchy request handlers (`prepare_type_hierarchy` /
-/// `supertypes` / `subtypes`) are implemented, but `ls-types` 0.0.6's
-/// `ServerCapabilities` struct has no `type_hierarchy_provider` field, so the
-/// capability cannot be advertised through the normal typed path.  Dynamic
-/// `client/registerCapability` is not an option either: it does not appear in
-/// the client's `initializeResult.capabilities`, which editors (and our VS
-/// Code test suite) inspect to decide the provider is present.
-///
-/// So we post-process the response instead: the `initialize` reply is the only
-/// one whose result carries a `capabilities` object, so we key off that and add
-/// `typeHierarchyProvider: true` (LSP allows a bare boolean here).  Every other
-/// response passes through untouched.
-fn inject_type_hierarchy_provider(response: Response) -> Response {
-    let (id, body) = response.into_parts();
-    let Ok(mut result) = body else {
-        return Response::from_parts(id, body);
-    };
-    if let Some(caps) = result
-        .get_mut("capabilities")
-        .and_then(|c| c.as_object_mut())
-        && !caps.contains_key("typeHierarchyProvider")
-    {
-        caps.insert(
-            "typeHierarchyProvider".to_owned(),
-            serde_json::Value::Bool(true),
-        );
-    }
-    Response::from_parts(id, Ok(result))
-}
 
 /// Every Tokio worker thread's stack budget.
 ///
@@ -119,8 +67,10 @@ fn inject_type_hierarchy_provider(response: Response) -> Response {
 /// nesting depth 130-140 — see issue #996). Sizing worker threads
 /// generously here is the load-bearing fix for the crash; the depth caps
 /// alone were never enough on this runtime's actual thread stacks.
+#[cfg(not(target_family = "wasm"))]
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
+#[cfg(not(target_family = "wasm"))]
 fn main() {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -130,6 +80,7 @@ fn main() {
         .block_on(serve());
 }
 
+#[cfg(not(target_family = "wasm"))]
 async fn serve() {
     let stdin = tokio::io::stdin();
     // INVARIANT (no wedged sessions): the transport's write half must never be
@@ -190,3 +141,9 @@ async fn serve() {
     // the queue from being lost to `main` returning out from under it.
     let _ = stdout_drained.await;
 }
+
+/// Stands in for the real `main` on wasm, where there is no stdio to serve
+/// over — a `[[bin]]` target still has to have one. The browser host is
+/// `tcl-lsp-server-wasm`.
+#[cfg(target_family = "wasm")]
+fn main() {}

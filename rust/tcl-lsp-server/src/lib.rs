@@ -32,6 +32,10 @@
 
 pub mod config_ini;
 pub mod rt;
+pub mod service;
+/// The stdout decoupling pump the native binary serves through. Native only:
+/// it is `tokio::io::Stdout` end to end, and a browser worker has no stdio.
+#[cfg(not(target_family = "wasm"))]
 pub mod stdio_pump;
 pub mod transport_liveness;
 pub mod uri_norm;

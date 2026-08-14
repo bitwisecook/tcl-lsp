@@ -107,8 +107,11 @@ mod wasm {
     use std::task::{Context, Poll};
     use std::time::Duration;
 
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
     use futures_util::FutureExt as _;
-    use futures_util::future::LocalBoxFuture;
+    use futures_util::future::BoxFuture;
     use futures_util::stream::{FuturesUnordered, StreamExt as _};
 
     /// Why a task did not produce a value.
@@ -155,7 +158,7 @@ mod wasm {
     #[derive(Debug)]
     pub struct JoinHandle<T> {
         state: HandleState<T>,
-        aborted: std::rc::Rc<std::cell::Cell<bool>>,
+        aborted: Arc<AtomicBool>,
     }
 
     #[derive(Debug)]
@@ -173,19 +176,19 @@ mod wasm {
         /// exists, so this is a no-op for those; a [`spawn`] task stops at its
         /// next await point.
         pub fn abort(&self) {
-            self.aborted.set(true);
+            self.aborted.store(true, Ordering::Relaxed);
         }
 
         /// A cheap, cloneable cancellation handle for this task.
         #[must_use]
         pub fn abort_handle(&self) -> AbortHandle {
             AbortHandle {
-                aborted: std::rc::Rc::clone(&self.aborted),
+                aborted: Arc::clone(&self.aborted),
             }
         }
     }
 
-    impl<T> Future for JoinHandle<T> {
+    impl<T: Unpin> Future for JoinHandle<T> {
         type Output = Result<T, JoinError>;
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -206,13 +209,13 @@ mod wasm {
     /// A cancellation handle detached from its [`JoinHandle`].
     #[derive(Debug, Clone)]
     pub struct AbortHandle {
-        aborted: std::rc::Rc<std::cell::Cell<bool>>,
+        aborted: Arc<AtomicBool>,
     }
 
     impl AbortHandle {
         /// Request cancellation of the task this handle refers to.
         pub fn abort(&self) {
-            self.aborted.set(true);
+            self.aborted.store(true, Ordering::Relaxed);
         }
     }
 
@@ -227,7 +230,7 @@ mod wasm {
     {
         JoinHandle {
             state: HandleState::Ready(Some(f())),
-            aborted: std::rc::Rc::new(std::cell::Cell::new(false)),
+            aborted: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -238,8 +241,8 @@ mod wasm {
         F::Output: 'static,
     {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        let aborted = std::rc::Rc::new(std::cell::Cell::new(false));
-        let flag = std::rc::Rc::clone(&aborted);
+        let aborted = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&aborted);
         wasm_bindgen_futures::spawn_local(async move {
             let value = Abortable {
                 inner: Box::pin(future),
@@ -259,7 +262,7 @@ mod wasm {
     /// Wraps a future so [`AbortHandle::abort`] stops it at its next poll.
     struct Abortable<F: Future> {
         inner: Pin<Box<F>>,
-        aborted: std::rc::Rc<std::cell::Cell<bool>>,
+        aborted: Arc<AtomicBool>,
     }
 
     impl<F: Future> Future for Abortable<F> {
@@ -267,7 +270,7 @@ mod wasm {
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             let this = self.get_mut();
-            if this.aborted.get() {
+            if this.aborted.load(Ordering::Relaxed) {
                 return Poll::Ready(None);
             }
             this.inner.as_mut().poll(cx).map(Some)
@@ -280,16 +283,16 @@ mod wasm {
     /// awaited. Every call site in this crate spawns the whole batch and then
     /// drains it, so the outputs are the same.
     pub struct JoinSet<T> {
-        tasks: FuturesUnordered<LocalBoxFuture<'static, T>>,
+        tasks: FuturesUnordered<BoxFuture<'static, T>>,
     }
 
-    impl<T> Default for JoinSet<T> {
+    impl<T: Send + 'static> Default for JoinSet<T> {
         fn default() -> Self {
             Self::new()
         }
     }
 
-    impl<T: 'static> JoinSet<T> {
+    impl<T: Send + 'static> JoinSet<T> {
         /// An empty set.
         #[must_use]
         pub fn new() -> Self {
@@ -305,9 +308,9 @@ mod wasm {
         /// would only mislead, so this returns nothing.
         pub fn spawn<F>(&mut self, future: F)
         where
-            F: Future<Output = T> + 'static,
+            F: Future<Output = T> + Send + 'static,
         {
-            self.tasks.push(future.boxed_local());
+            self.tasks.push(future.boxed());
         }
 
         /// How many tasks have not yet been drained.
@@ -409,9 +412,22 @@ mod wasm {
     }
 
     /// Sleep for `duration`, via `setTimeout`.
+    ///
+    /// The `setTimeout` future is awaited inside a detached task and the
+    /// result comes back over a channel, rather than being awaited here
+    /// directly. `gloo_timers`' `TimeoutFuture` owns a `Closure<dyn FnMut()>`
+    /// and is therefore `!Send`, and every `LanguageServer` handler future in
+    /// this crate must be `Send` on every target — holding the timer across
+    /// this `await` would poison all of them. A `oneshot::Receiver` is `Send`,
+    /// so the JS closure never crosses the boundary.
     pub async fn sleep(duration: Duration) {
         let millis = u32::try_from(duration.as_millis()).unwrap_or(u32::MAX);
-        gloo_timers::future::TimeoutFuture::new(millis).await;
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        wasm_bindgen_futures::spawn_local(async move {
+            gloo_timers::future::TimeoutFuture::new(millis).await;
+            let _ = tx.send(());
+        });
+        let _ = rx.await;
     }
 
     /// Sleep until `deadline`, via `setTimeout`. Returns at once if the
@@ -466,6 +482,7 @@ mod wasm {
     }
 
     /// A browser worker has exactly one thread.
+    #[must_use]
     pub const fn available_parallelism() -> usize {
         1
     }

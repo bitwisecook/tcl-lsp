@@ -1,0 +1,28 @@
+# SPIKE crate — NOT part of the tcl-lsp workspace, NOT for commit.
+# Standalone [workspace] table so cargo doesn't walk up into the real
+# workspace (see tcl-spec-studio-wasm/Cargo.toml for why this matters
+# inside a worktree).
+[workspace]
+
+[package]
+name = "spike-salsa-wasm"
+publish = false
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tcl-lsp-db = { path = "../rust/tcl-lsp-db" }
+tcl-compiler = { path = "../rust/tcl-compiler" }
+salsa = { version = "0.28", default-features = false, features = ["macros", "inventory"] }
+parking_lot = "0.12"
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "unwind"
