@@ -1110,6 +1110,17 @@ impl Lowerer<'_> {
     }
 
     /// Lower a body argument using token offset info.
+    ///
+    /// Rebasing the body's spans by one offset is truthful only while `text`
+    /// maps 1:1 onto the source region `tok` covers.  A compound `{body}x`
+    /// word does not: its value is the brace content welded to the trailing
+    /// fragment with the `}` dropped, so every token past the drop slides one
+    /// byte left — an off-by-one span on ASCII, an offset inside a UTF-8
+    /// sequence on anything else (issue #1325).  Clamp to the part that does
+    /// map, exactly as the analyser's `analyse_body` does, so the welded tail
+    /// — which is not a script in the first place — is dropped rather than
+    /// lowered at fictional offsets.  An ordinary braced body fills its
+    /// region and passes through untouched.
     pub(super) fn lower_body_from_tok(
         &mut self,
         text: &str,
@@ -1120,6 +1131,7 @@ impl Lowerer<'_> {
             return Script::new();
         };
         let offset = tok.span.start() + u32::from(tok.content_offset);
+        let text = self.guarded_body_text(*tok, text);
         self.lower_body(text, offset, namespace)
     }
 }

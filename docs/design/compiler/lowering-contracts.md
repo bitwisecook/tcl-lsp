@@ -15,6 +15,11 @@ trace facts they thread through; the contract below holds for all of them.
 ## Contract expectations
 
 - IR node ranges must remain precise and point to user-authored source spans.
+  Every statement span the lowering emits is a real byte range of the buffer
+  it was lowered from — in bounds and on a character boundary — checked at the
+  one chokepoint (`Lowerer::lower_segmented`) by a `debug_assert`, so a
+  producer regression fails the test build rather than reaching a consumer
+  that slices the source with it.
 - Command-level token snapshots (`CommandTokens`) should preserve enough lexical context for downstream diagnostics.
 - Unknown/dynamic constructs should degrade to explicit barrier/call shapes rather than silent assumptions.
 - Namespace/proc qualification should be normalised consistently.
@@ -29,6 +34,23 @@ trace facts they thread through; the contract below holds for all of them.
   block declares. The class command itself still lowers to its existing
   barrier and codegen never reads `Module::methods`, so bytecode is
   unaffected; method extraction is an analysis-only side artefact.
+
+## Body rebasing: the spans a body word may claim
+
+A nested body is segmented from a word's *value* and its spans are then
+rebased by one base offset — the word's content offset in the document. That
+is truthful only while the value is the source region verbatim, which an
+ordinary braced body is and a **compound** `{body}x` word is not: its value
+welds the brace content to the trailing fragment with the closing `}`
+dropped, sliding every token past the drop one byte left (an off-by-one span
+on ASCII, an offset inside a UTF-8 sequence on anything else — issue #1325).
+
+`Lowerer::guarded_body_text` routes every such rebase through
+`segmenter::body_text_in_region`, the same guard the analyser's `analyse_body`
+uses, so the body lowered is the part that really maps onto the region and the
+welded tail — which is not a script — is dropped. An ordinary body passes
+through unchanged, and a substituting word (`$body`, `[gen]`) is left to the
+literal gates, which barrier it rather than lowering it (issue #1375).
 
 ## Operational guidance
 

@@ -797,6 +797,22 @@ pub struct Lowerer<'r> {
     /// here reaches the same crash first and makes the CFG builder's own
     /// cap moot (issue #996).
     nest_depth: u32,
+    /// The buffer every span this lowering emits indexes into — the document
+    /// text for an ordinary lowering, and the *materialised literal* while a
+    /// synthesised script is lowered at offset `0` inside one (the `eval
+    /// $const` / factory-body paths that re-enter [`Self::lower_script`]).
+    /// [`Self::lower_script`] swaps it for the duration of each such
+    /// re-entry, because that is exactly where a new span space begins;
+    /// [`Self::lower_body`] does not, since a body's spans are rebased into
+    /// the space it inherits.
+    ///
+    /// Held so the lowerer can *check* a body word's rebase against the text
+    /// it claims to slice ([`crate::segmenter::body_text_in_region`] in
+    /// [`Self::lower_body_from_tok`]) rather than trusting the arithmetic —
+    /// the guard the analyser has carried since issue #1325.  Empty until a
+    /// script is lowered, which the guard reads as "nothing to compare
+    /// against" and leaves every body text alone.
+    source: String,
 }
 
 /// Maximum nesting depth for the recursive `lower_script` / `lower_body`
@@ -840,6 +856,7 @@ impl<'r> Lowerer<'r> {
             target: CompileTarget::Analysis,
             body_cache: None,
             nest_depth: 0,
+            source: String::new(),
         }
     }
 
@@ -918,7 +935,13 @@ impl<'r> Lowerer<'r> {
             self.nest_depth -= 1;
             return over_depth_script(0, source.len());
         }
+        // `source` starts a span space: its statements' offsets are relative
+        // to it, whether it is the document or a literal materialised inside
+        // one.  Swap it in for the descent and restore the enclosing one after
+        // (see [`Self::source`]).
+        let enclosing_source = std::mem::replace(&mut self.source, source.to_owned());
         let result = self.lower_script_inner(source, namespace);
+        self.source = enclosing_source;
         self.nest_depth -= 1;
         result
     }
@@ -950,6 +973,39 @@ impl<'r> Lowerer<'r> {
         let result = self.lower_body_inner(text, base_offset, namespace);
         self.nest_depth -= 1;
         result
+    }
+
+    /// The part of a body word's `text` whose spans may honestly be rebased
+    /// by that word's content offset, given the word occupies `tok`'s span in
+    /// [`Self::source`].
+    ///
+    /// Every body lowering below adds one base offset to the spans the
+    /// segmenter cuts from a word *value*, which is truthful only while that
+    /// value is the source region verbatim.  A compound `{body}x` word breaks
+    /// it: the value is the brace content welded to the tail with the closing
+    /// `}` dropped, so every token past the drop slides one byte left — an
+    /// off-by-one span on ASCII, an offset inside a UTF-8 sequence on
+    /// anything else (issue #1325).  [`crate::segmenter::body_text_in_region`]
+    /// clamps such a value to the contiguous braced part and passes an
+    /// ordinary body through untouched; the analyser's `analyse_body` has
+    /// applied it since #1325 and this is the lowering side of the same
+    /// guard.
+    ///
+    /// A substituting word (`$body`, `[gen]`) is left alone: its value is
+    /// run-time data that no source region can be compared against, so there
+    /// is nothing here to prove and clamping it would only delete text.  Such
+    /// words are the literal gates' business — they barrier rather than lower
+    /// (issue #1375).
+    fn guarded_body_text<'t>(&self, tok: tcl_lexer::Token, text: &'t str) -> &'t str {
+        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+            return text;
+        }
+        crate::segmenter::body_text_in_region(
+            &self.source,
+            (tok.span.start() + u32::from(tok.content_offset)) as usize,
+            tok.span.end() as usize,
+            text,
+        )
     }
 
     fn lower_body_inner(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
@@ -985,7 +1041,37 @@ impl<'r> Lowerer<'r> {
                 stmts.push(stmt);
             }
         }
+        self.debug_assert_spans_in_source(&stmts);
         stmts
+    }
+
+    /// Every statement leaving [`Self::lower_segmented`] must carry a span
+    /// that is a real range of the buffer it was lowered from — the contract
+    /// downstream consumers rely on when they slice the source with an IR
+    /// span (AGENTS.md: "trust it rather than re-deriving").
+    ///
+    /// This is the producer-side chokepoint: every statement the lowering
+    /// emits passes through here, at the nesting level whose segments were
+    /// cut from [`Self::source`], so a body rebase that overshoots its
+    /// document (issue #1325's compound `{body}x` word, issue #1375's
+    /// non-literal body word) fails the build's own tests instead of
+    /// reaching a consumer.  Debug-only: the guards in
+    /// [`Self::lower_body_from_tok`] and codegen's slice clamp are what keep
+    /// a release build safe.
+    fn debug_assert_spans_in_source(&self, stmts: &[Statement]) {
+        debug_assert!(
+            self.source.is_empty()
+                || stmts
+                    .iter()
+                    .all(|stmt| self.source.get(stmt.span().as_range()).is_some()),
+            "lowering emitted a span outside its {} byte source: {:?}",
+            self.source.len(),
+            stmts
+                .iter()
+                .map(Statement::span)
+                .filter(|span| self.source.get(span.as_range()).is_none())
+                .collect::<Vec<_>>(),
+        );
     }
 
     /// Maintain the per-scope const-map after a command lowers.
@@ -1721,7 +1807,9 @@ impl<'r> Lowerer<'r> {
         let event_name = &args[0];
         let body_idx = args.len() - 1;
         let body_tok = seg.arg_tokens()[body_idx];
-        let body_text = &args[body_idx];
+        // The rebase below is truthful only for a body word that is its source
+        // region verbatim — see [`Self::guarded_body_text`].
+        let body_text = self.guarded_body_text(body_tok, &args[body_idx]);
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         // Fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
@@ -1841,7 +1929,7 @@ impl<'r> Lowerer<'r> {
             }
         }
         let body = if body_tok.kind == TokenType::Str {
-            let body_text = &args[body_tok_idx];
+            let body_text = self.guarded_body_text(*body_tok, &args[body_tok_idx]);
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
@@ -1959,7 +2047,7 @@ impl<'r> Lowerer<'r> {
             }
         }
         let body = if body_tok.kind == TokenType::Str {
-            let body_text = &args[0];
+            let body_text = self.guarded_body_text(body_tok, &args[0]);
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
@@ -2084,6 +2172,10 @@ impl<'r> Lowerer<'r> {
         {
             (Some(lambda_text), Some(&lambda_tok)) if lambda_tok.kind == TokenType::Str => {
                 let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
+                // The element spans below are this word's own spans rebased by
+                // `base`, so the lambda text has to be the region verbatim
+                // before it is split — see [`Self::guarded_body_text`].
+                let lambda_text = self.guarded_body_text(lambda_tok, lambda_text);
                 segment_commands_with_offset_and_config(lambda_text, base, self.config)
                     .iter()
                     .flat_map(|c| c.argv.iter().copied().zip(c.texts.iter().cloned()))
@@ -2098,7 +2190,7 @@ impl<'r> Lowerer<'r> {
             .filter(|(tok, _)| tok.kind == TokenType::Str)
             .map(|(tok, text)| {
                 (
-                    text.clone(),
+                    self.guarded_body_text(*tok, text).to_owned(),
                     tok.span.start() + u32::from(tok.content_offset),
                 )
             });
@@ -2234,7 +2326,11 @@ impl<'r> Lowerer<'r> {
         let prev = self.in_namespace_eval;
         self.in_namespace_eval = true;
         let body_tok = seg.arg_tokens()[2];
-        let body_text = &args[2];
+        // `namespace eval` inlines whatever body word it is given, including a
+        // compound `{…}x` one, so the rebase below needs the #1325 guard (see
+        // [`Self::guarded_body_text`]) — both for the body itself and for the
+        // body unit's span derived from its length.
+        let body_text = self.guarded_body_text(body_tok, &args[2]);
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let body = self.lower_body(body_text, body_offset, &child_ns);
         self.in_namespace_eval = prev;

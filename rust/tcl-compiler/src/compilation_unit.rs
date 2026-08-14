@@ -615,7 +615,15 @@ impl FunctionUnit {
         // chokepoint — so O100 / O101 / branch folds never propagate a value
         // across the barrier. A dynamic *read* only observes, so it leaves
         // the value lattice alone.
-        let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry);
+        // Split the `[…]` texts this walk re-reads under the same dialect the
+        // lowering used, so the barrier and the IR agree on word boundaries —
+        // `registry` is the document's own profile-built registry here, and
+        // its profile is what `LexerConfig::for_dialect` reads (issue #1393).
+        let dynamic_names = crate::dynamic_names::dynamic_name_barrier(
+            &cfg,
+            registry,
+            crate::dynamic_names::lexer_config_for(registry),
+        );
         let mut sccp = sccp_with_extra_escaping(
             &cfg,
             &ssa,

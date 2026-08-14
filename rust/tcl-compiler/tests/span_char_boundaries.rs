@@ -194,3 +194,141 @@ fn body_text_in_region_leaves_a_position_preserving_overlay_alone() {
     let src = "if {1} {puts hi}\n";
     assert_eq!(body_text_in_region(src, 8, 15, "puts hi"), "puts hi");
 }
+
+// The lowering side of the same guard (issue #1393).
+//
+// IR spans are the contract every downstream consumer trusts — codegen slices
+// the source with them, the LSP turns them into editor ranges — so the
+// lowerer has to be as truthful a span producer as the analyser.  It rebases a
+// body word's tokens by one offset in the same places and for the same
+// reasons, and until #1393 it did so with no guard at all: the shapes that
+// still reach a body rebase past #1375's literal gates (`namespace eval`,
+// `eval`, `uplevel`, `apply`, `when`) slid every token of a compound `{body}x`
+// word one byte left, exactly as `analyse_body` used to.
+
+/// Every statement span the lowering emits for `src`, checked against `src`.
+///
+/// `str::get` is the whole assertion: it returns `None` both for a span that
+/// runs past the end and for one that lands inside a UTF-8 sequence — the two
+/// failure modes of an unguarded rebase.  The lowering's own
+/// `debug_assert_spans_in_source` fires first on a test build; this catches
+/// the same fault from the outside, and names the statement when it does.
+fn assert_lowered_spans_are_sliceable(src: &str, dialect: &str) {
+    use tcl_compiler::ir::for_each_statement;
+
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let module = tcl_compiler::lowering::lower_to_ir_with_config(
+        src,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
+    let check = |label: &str, script: &tcl_compiler::ir::Script| {
+        for_each_statement(script, &mut |stmt| {
+            let span = stmt.span();
+            assert!(
+                src.get(span.as_range()).is_some(),
+                "{label}: {}..{} is not a sliceable range of {src:?}",
+                span.start(),
+                span.end(),
+            );
+        });
+    };
+    check("top level", &module.top_level);
+    for (name, procedure) in &module.procedures {
+        check(name, &procedure.body);
+    }
+    for (name, unit) in &module.body_units {
+        check(name, &unit.body);
+    }
+}
+
+/// The shapes that still reach a body rebase after #1375's literal gates, each
+/// with a compound body word — the `{body}x` weld that slides the rebase.
+fn compound_body_shapes(tail: &str) -> Vec<(String, &'static str)> {
+    vec![
+        (format!("namespace eval n {{set x 1}}{tail}\n"), "tcl8.6"),
+        (
+            format!("namespace eval n {{ proc p {{}} {{set x 1}} }}{tail}\n"),
+            "tcl8.6",
+        ),
+        (format!("eval {{set x 1}}{tail}\n"), "tcl8.6"),
+        (format!("uplevel 1 {{set x 1}}{tail}\n"), "tcl8.6"),
+        (format!("uplevel #0 {{set x 1}}{tail}\n"), "tcl8.6"),
+        (format!("apply {{{{}} {{set x 1}}}}{tail}\n"), "tcl8.6"),
+        (format!("apply {{{{}} {{set x 1}}{tail}}}\n"), "tcl8.6"),
+        (
+            format!("when HTTP_REQUEST {{set x 1}}{tail}\n"),
+            "f5-irules",
+        ),
+        // …and the gated forms, which must stay in bounds however they are
+        // resolved (barrier or lowered body).
+        (format!("if {{1}} {{puts hi}}{tail}\n"), "tcl8.6"),
+        (format!("while {{1}} {{puts hi}}{tail}\n"), "tcl8.6"),
+        (format!("foreach i {{a b}} {{puts $i}}{tail}\n"), "tcl8.4"),
+        (format!("proc p {{}} {{set x 1}}{tail}\n"), "tcl8.6"),
+        (format!("catch {{set x 1}}{tail} msg\n"), "tcl8.6"),
+        (format!("switch $x {{ a {{puts hi}}{tail} }}\n"), "tcl8.6"),
+        (
+            format!("oo::class create C {{ method m {{}} {{set x 1}}{tail} }}\n"),
+            "tcl8.6",
+        ),
+    ]
+}
+
+#[test]
+fn lowered_spans_survive_a_compound_body_word() {
+    // The ASCII weld is the quiet half of #1325: every span past the dropped
+    // `}` is one byte out, which `str::get` cannot see. It is here so the
+    // matrix covers both halves; the multi-byte tails below are what turn the
+    // same slide into an unsliceable span.
+    for tail in ["x", "\u{200b}", "é", "→", "🎈"] {
+        for (src, dialect) in compound_body_shapes(tail) {
+            assert_lowered_spans_are_sliceable(&src, dialect);
+        }
+    }
+}
+
+#[test]
+fn lowered_spans_survive_the_zero_width_irule() {
+    // The corpus shape from #1325, lowered rather than analysed.
+    assert_lowered_spans_are_sliceable(NESTED, "f5-irules");
+    assert_lowered_spans_are_sliceable(MINIMAL, "tcl8.6");
+}
+
+#[test]
+fn a_compound_body_lowers_at_the_offsets_it_is_written_at() {
+    // The sliceability audit above catches the mid-character half of the bug.
+    // This is the quiet half: with the welded `}` dropped and no clamp, the
+    // inner `set x 1` used to lower one byte wide (`set x 1}`) on ASCII and
+    // one byte left of its written position on anything wider.
+    for (src, body_unit) in [
+        ("namespace eval n {set x 1}x\n", true),
+        ("namespace eval n {set x 1}\u{200b}\n", true),
+        ("apply {{} {set x 1}}x\n", true),
+        ("uplevel 1 {set x 1}x\n", false),
+        ("eval {set x 1}x\n", false),
+    ] {
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        let scripts: Vec<&tcl_compiler::ir::Script> = if body_unit {
+            module.body_units.values().map(|unit| &unit.body).collect()
+        } else {
+            vec![&module.top_level]
+        };
+        let mut inner = Vec::new();
+        for script in scripts {
+            tcl_compiler::ir::for_each_statement(script, &mut |stmt| {
+                if let Some(text) = src.get(stmt.span().as_range())
+                    && text.starts_with("set")
+                {
+                    inner.push(text.to_owned());
+                }
+            });
+        }
+        assert_eq!(
+            inner,
+            vec!["set x 1".to_owned()],
+            "the welded tail must be dropped, not lowered, in {src:?}",
+        );
+    }
+}
