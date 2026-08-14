@@ -323,11 +323,21 @@ jobs:
       # `make test-ext` still needs `cargo` for `xtask-gen-zed-queries` /
       # `zed-query-check` (generated Zed asset drift), even though the
       # `tcl-lsp-server` binary itself now comes from build-tcl-lsp-server.
+      #
+      # That cargo work is small when cached and expensive when not (measured:
+      # `cargo xtask gen-zed-queries --check` is ~0s warm, ~157s cold), and this
+      # job sits on the workflow's critical path — `build-tcl-lsp-server` ->
+      # `test-ext` finishes after every other branch.  It was also the only
+      # cargo job here without an explicit `cache-key`, so it shared the default
+      # with whatever else did and could lose its cache to a collision.  Key it
+      # per job like the rest, so the critical path is not the one running on
+      # the least reliable cache.
       - name: Set up Rust
         if: env.RUN_EXT == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
+          cache-key: test-ext
 
       - name: Set up Node.js
         if: env.RUN_EXT == 'true'

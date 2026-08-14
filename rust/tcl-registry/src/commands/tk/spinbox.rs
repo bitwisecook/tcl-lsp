@@ -417,7 +417,7 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 /// The command's subcommands.
-const SUBCOMMANDS: &[SubCommand] = &[
+static SUBCOMMANDS: [SubCommand; 13] = [
     SubCommand {
         name: "bbox",
         arity: Arity::exact(1),
@@ -522,7 +522,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `docs/design/tk-widget-instance-typing.md`).
 static SPINBOX_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "spinbox",
-    instance_methods: SUBCOMMANDS,
+    instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
 };
@@ -545,7 +545,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
-        subcommands: SUBCOMMANDS,
+        subcommands: &SUBCOMMANDS,
         object_class: Some(&SPINBOX_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT

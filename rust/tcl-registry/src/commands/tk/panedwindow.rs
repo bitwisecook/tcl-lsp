@@ -20,7 +20,7 @@
 use crate::prelude::*;
 
 /// The command's subcommands.
-const SUBCOMMANDS: &[SubCommand] = &[
+static SUBCOMMANDS: [SubCommand; 8] = [
     SubCommand {
         name: "add",
         arity: Arity::at_least(1),
@@ -281,7 +281,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `docs/design/tk-widget-instance-typing.md`).
 static PANEDWINDOW_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "panedwindow",
-    instance_methods: SUBCOMMANDS,
+    instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
 };
@@ -304,7 +304,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
-        subcommands: SUBCOMMANDS,
+        subcommands: &SUBCOMMANDS,
         object_class: Some(&PANEDWINDOW_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT

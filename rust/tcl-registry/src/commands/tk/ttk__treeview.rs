@@ -144,7 +144,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// The command's subcommands.
-const SUBCOMMANDS: &[SubCommand] = &[
+static SUBCOMMANDS: [SubCommand; 24] = [
     SubCommand {
         name: "bbox",
         arity: Arity::at_least(1),
@@ -327,7 +327,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 /// separate class (see `docs/design/tk-widget-instance-typing.md`).
 static TTK_TREEVIEW_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "ttk::treeview",
-    instance_methods: SUBCOMMANDS,
+    instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
 };
@@ -351,7 +351,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
-        subcommands: SUBCOMMANDS,
+        subcommands: &SUBCOMMANDS,
         object_class: Some(&TTK_TREEVIEW_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
