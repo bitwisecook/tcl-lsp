@@ -32,7 +32,7 @@ use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 
-use super::{Lowerer, parse_param_names};
+use super::{Lowerer, parse_var_list_names};
 
 /// A single pattern/body pair collected by
 /// [`lower_switch`](super::Lowerer::lower_switch) before the
@@ -463,7 +463,11 @@ impl Lowerer<'_> {
         let cmd_tokens = Self::cmd_tokens(seg);
         let mut iterators = Vec::new();
         for i in (0..body_idx).step_by(2) {
-            let var_names = parse_param_names(&args[i]);
+            // A varList that is not a well-formed Tcl list binds nothing we can
+            // name; the runtime `foreach` raises Tcl's own error.
+            let Some(var_names) = parse_var_list_names(&args[i]) else {
+                return Self::barrier(seg, "foreach with malformed variable list");
+            };
             iterators.push(ForeachIterator {
                 vars: var_names,
                 list_arg: args[i + 1].clone(),
@@ -592,8 +596,11 @@ impl Lowerer<'_> {
         // not the literal value.  See the type-level doc-comment
         // above for the runtime-semantics caveat.
         let cmd_tokens = Self::cmd_tokens(seg);
+        let Some(vars) = parse_var_list_names(&args[0]) else {
+            return Self::barrier(seg, "foreachLine with malformed variable list");
+        };
         let iterators = vec![ForeachIterator {
-            vars: parse_param_names(&args[0]),
+            vars,
             list_arg: args[1].clone(),
             list_braced: cmd_tokens.arg_is_braced_literal(1),
         }];
@@ -704,7 +711,9 @@ impl Lowerer<'_> {
                 let handler_tok = arg_tokens.get(i + 3);
                 let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
 
-                let var_names = parse_param_names(var_list);
+                let Some(var_names) = parse_var_list_names(var_list) else {
+                    return Self::barrier(seg, "try with malformed handler variable list");
+                };
                 let result_var = var_names.first().map(|v| normalise_var_name(v).to_owned());
                 let options_var = var_names.get(1).map(|v| normalise_var_name(v).to_owned());
 
@@ -1000,7 +1009,9 @@ impl Lowerer<'_> {
 
         match sub.as_str() {
             "for" | "map" if sub_args.len() >= 3 => {
-                let var_names = parse_param_names(&sub_args[0]);
+                let Some(var_names) = parse_var_list_names(&sub_args[0]) else {
+                    return Self::barrier(seg, &format!("dict {sub} with malformed variable list"));
+                };
                 let body_idx = 3; // index in original args
                 let body_tok = arg_tokens.get(body_idx);
                 // The body is lowered via `lower_body_from_tok`, which
@@ -1505,6 +1516,80 @@ mod tests {
             &m.top_level.statements[0],
             Statement::Barrier { reason, .. } if reason == "dict for with dynamic body"
         ));
+    }
+
+    // issue #1431: a varList word is a Tcl list, not a whitespace split. The
+    // hand-rolled splitter took only the first word of a braced element and cut
+    // a backslash-escaped space in two, so both spellings of a one-variable
+    // binding bound the wrong names.
+
+    /// Loop-variable names of the single-iterator `foreach` at statement 0.
+    fn foreach_vars(src: &str) -> Vec<String> {
+        let m = lower_to_ir(src, &reg());
+        let Statement::Foreach { iterators, .. } = &m.top_level.statements[0] else {
+            panic!("expected Foreach for {src:?}, got {:?}", m.top_level);
+        };
+        assert_eq!(iterators.len(), 1, "one iterator for {src:?}");
+        iterators[0].vars.clone()
+    }
+
+    #[test]
+    fn foreach_grouped_var_element_binds_one_name() {
+        // tclsh 9.0: `proc s {} { foreach {{x y}} {1} {}; info locals }`
+        // reports the single local named `x y`.
+        assert_eq!(foreach_vars("foreach {{x y}} {1} {puts hi}"), vec!["x y"]);
+    }
+
+    #[test]
+    fn foreach_escaped_space_var_binds_one_name() {
+        // Same oracle for the escaped spelling: `foreach {a\ b} {1} {}` binds
+        // the one local `a b`, not the two names `a\` and `b`.
+        assert_eq!(foreach_vars("foreach {a\\ b} {1} {puts hi}"), vec!["a b"]);
+    }
+
+    #[test]
+    fn foreach_plain_var_list_still_binds_every_name() {
+        // FP-guard: the ordinary multi-variable list is unchanged.
+        assert_eq!(
+            foreach_vars("foreach {m n} {1 2} {puts hi}"),
+            vec!["m", "n"]
+        );
+        assert_eq!(foreach_vars("foreach x {1 2} {puts hi}"), vec!["x"]);
+    }
+
+    #[test]
+    fn dict_for_grouped_var_element_binds_one_name() {
+        assert_eq!(
+            foreach_vars("dict for {{k 1} v} $d {puts hi}"),
+            vec!["k 1", "v"],
+        );
+    }
+
+    #[test]
+    fn malformed_var_list_falls_through_to_barrier() {
+        // An unbalanced varList names no binding, so each loop defers to its
+        // runtime command, which raises Tcl's own list error.
+        for (src, expected) in [
+            (
+                "foreach {a \"b} {1} {puts hi}",
+                "foreach with malformed variable list",
+            ),
+            (
+                "dict for {k \"v} $d {puts hi}",
+                "dict for with malformed variable list",
+            ),
+            (
+                "try {puts hi} on error {m \"o} {puts bad}",
+                "try with malformed handler variable list",
+            ),
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if reason == expected),
+                "expected {expected:?} barrier for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
     }
 }
 

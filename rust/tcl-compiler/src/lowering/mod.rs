@@ -293,61 +293,70 @@ fn proc_body_namespace(qualified: &str, lexical_fallback: &str) -> String {
     }
 }
 
-/// Parse a Tcl parameter / variable list into its names.
+/// Collapse the one substitution a braced word permits before the word's text
+/// is parsed as a list.
 ///
-/// The list is a braced word, so a `\<newline>` line continuation collapses to
-/// a single space first (the one substitution braces permit) — without it a
-/// multi-line var-list (`foreach {a b\<nl>  c} …`, a wrapped `proc` param list)
-/// would keep the `\` glued to the preceding name (`b\`) and bind the wrong
-/// variable.
-fn parse_param_names(param_str: &str) -> Vec<String> {
-    let collapsed = tcl_syntax::backslash::collapse_brace_continuations_str(param_str);
-    let mut params = Vec::new();
-    let text = collapsed.trim();
-    let bytes = text.as_bytes();
-    let mut i = 0;
+/// Both list words below arrive as brace-quoted source, so a `\<newline>` line
+/// continuation is still spelled out in the text the segmenter hands over —
+/// without collapsing it a wrapped var list (`foreach {a b\<nl>  c} …`) or a
+/// wrapped `proc` parameter list would keep the `\` glued to the preceding name
+/// (`b\`) and bind the wrong variable.
+fn collapse_list_word(word_text: &str) -> std::borrow::Cow<'_, str> {
+    tcl_syntax::backslash::collapse_brace_continuations_str(word_text)
+}
 
-    while i < bytes.len() {
-        // Skip whitespace.
-        while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
-        }
-        if i >= bytes.len() {
-            break;
-        }
+/// Split a Tcl *variable list* word into the variable names it binds.
+///
+/// This is the `foreach` / `lmap` varList word, and the identically-shaped
+/// varLists of `dict for|map`, `array for`, and a `try on|trap` handler. Such a
+/// word is a plain Tcl list, so grouping binds *one* variable whose name
+/// contains the separator: tclsh 9.0 binds the single name `a b` for both
+/// `foreach {{a b}} …` and `foreach {a\ b} …`, where a whitespace split would
+/// invent two names (or drop one). [`tcl_syntax::list::split_list`] owns that
+/// grammar, and it is what the analyser's `define_vars_from_list` already uses
+/// for the same word, so lowering and analysis agree by construction.
+///
+/// `None` means the word is not a well-formed list (an unmatched brace or
+/// quote). Callers fall back to the runtime command, which raises Tcl's own
+/// error, rather than guessing at a binding.
+fn parse_var_list_names(list_text: &str) -> Option<Vec<String>> {
+    let collapsed = collapse_list_word(list_text);
+    let names = tcl_syntax::list::split_list(&collapsed).ok()?;
+    Some(
+        names
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect(),
+    )
+}
 
-        if bytes[i] == b'{' {
-            // Braced parameter — find matching close brace.
-            let mut level = 1i32;
-            i += 1;
-            let start = i;
-            while i < bytes.len() && level > 0 {
-                match bytes[i] {
-                    b'{' => level += 1,
-                    b'}' => level -= 1,
-                    _ => {}
-                }
-                i += 1;
-            }
-            let inner = &text[start..i.saturating_sub(1)].trim();
-            if !inner.is_empty()
-                && let Some(name) = inner.split_whitespace().next()
-            {
-                params.push(name.to_owned());
-            }
-        } else {
-            // Bare word parameter.
-            let start = i;
-            while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                i += 1;
-            }
-            let word = &text[start..i];
-            if !word.is_empty() {
-                params.push(word.to_owned());
-            }
-        }
-    }
-    params
+/// Split a Tcl *formal parameter* list word into its parameter names.
+///
+/// This is the `proc` / `apply`-lambda / TclOO-method parameter word, a
+/// different grammar from [`parse_var_list_names`]: it has two list levels, the
+/// outer one holding a specifier per parameter and each specifier itself a
+/// `name ?default?` list. So `{x {y 2} args}` is the three parameters `x`, `y`
+/// (defaulting to `2`), and `args`; and `proc p {a\ b} {}` is the *single*
+/// parameter `a` defaulting to `b` (tclsh 9.0: `info args p` → `a`), not the
+/// two names a whitespace split would produce.
+/// [`tcl_syntax::formal_params::parse_formal_parameters`] owns that grammar and
+/// is what the VM, the WASM runtime, and `signature_scan` all decode with.
+///
+/// Only the names reach the IR — [`Procedure::params`] is name-only, and
+/// `params_raw` keeps the source text for consumers that need the defaults.
+///
+/// `None` means Tcl itself would refuse to create the procedure (a malformed
+/// list, a specifier with three or more fields, an array-element or qualified
+/// name), so the caller defers to the runtime command that reports it.
+fn parse_formal_param_names(param_text: &str) -> Option<Vec<String>> {
+    let collapsed = collapse_list_word(param_text);
+    let parameters = tcl_syntax::formal_params::parse_formal_parameters(&collapsed).ok()?;
+    Some(
+        parameters
+            .into_iter()
+            .map(|parameter| parameter.name)
+            .collect(),
+    )
 }
 
 /// Return `Some(true)` / `Some(false)` if *`expr_text`* is a
@@ -1471,7 +1480,20 @@ impl<'r> Lowerer<'r> {
         // Phase 4: lower the body (materialised, static, or empty
         // for dynamic-with-resolved-name), register the Procedure,
         // and emit the runtime `proc` Call.
-        let params = parse_param_names(&args[1]);
+        // A parameter list Tcl would reject (malformed, an overlong specifier,
+        // an array-element or qualified name) creates no procedure: leave it to
+        // the runtime `proc`, which raises the error, rather than registering a
+        // Procedure whose parameters we guessed at.
+        let Some(params) = parse_formal_param_names(&args[1]) else {
+            return Statement::Barrier {
+                span: seg.span,
+                reason: "malformed proc params".into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: seg.args().to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            };
+        };
         let qualified = qualify_proc_name(namespace, proc_name);
         // The body's own command/variable resolution namespace is the one the
         // proc is *defined in* — the qualifier prefix of its own qualified
@@ -2073,7 +2095,17 @@ impl<'r> Lowerer<'r> {
                 )
             });
 
-        if let Some((body_text, body_offset)) = body_info {
+        // The lambda's bound parameters are element 0 of the lambda list, so a
+        // `$param` read inside the body resolves to the param (not a caller
+        // scalar). A parameter list `apply` itself would reject leaves the body
+        // unwalked: with no trustworthy bound names, a body unit would resolve
+        // its reads against the wrong frame.
+        let params = match lambda_elems.first() {
+            Some((_, param_text)) => parse_formal_param_names(param_text),
+            None => Some(Vec::new()),
+        };
+
+        if let (Some((body_text, body_offset)), Some(params)) = (body_info, params) {
             // `apply` evaluates the body in the namespace named by lambda element
             // 2, or the *global* namespace when it is absent — never the caller's
             // namespace. Element 2 is interpreted relative to the **global**
@@ -2098,16 +2130,10 @@ impl<'r> Lowerer<'r> {
             self.const_map_stack.pop();
             self.proc_depth -= 1;
 
-            // The lambda's bound parameters are element 0 of the lambda list, so
-            // a `$param` read inside the body resolves to the param (not a
-            // caller scalar). A body defined inside a TclOO method body is not
-            // registered globally (`suppress_proc_register`), but a body unit is
+            // A body defined inside a TclOO method body is not registered
+            // globally (`suppress_proc_register`), but a body unit is
             // analysis-only (never codegen-emitted), so it is always safe to
             // record for coverage.
-            let params = lambda_elems
-                .first()
-                .map(|(_, t)| parse_param_names(t))
-                .unwrap_or_default();
             let span = tcl_lexer::Span::new(
                 body_offset,
                 body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
@@ -2154,7 +2180,13 @@ impl<'r> Lowerer<'r> {
         // The body (index 3) must be a single braced-literal token to walk.
         let body_is_braced = arg_tokens.get(3).is_some_and(|t| t.kind == TokenType::Str)
             && arg_single.get(3).copied() == Some(true);
-        if args.len() == 4 && body_is_braced {
+        // A varList Tcl would refuse to split binds nothing statically, so it
+        // falls through to the opaque runtime barrier below. Decided before the
+        // body is walked, so a rejected loop leaves no const-map traces behind.
+        if args.len() == 4
+            && body_is_braced
+            && let Some(vars) = parse_var_list_names(&args[1])
+        {
             let body_tok = &arg_tokens[3];
             // The body runs in the *caller's* frame (`vm.eval_source` in place),
             // so lower it inline — inheriting the caller's const-map — into a
@@ -2164,7 +2196,6 @@ impl<'r> Lowerer<'r> {
             // regex-source / taint), while codegen barriers it to the byte-
             // identical `::tcl::array::for` invoke — see `lower_foreach_dispatch`.
             let body = self.lower_body_from_tok(&args[3], Some(body_tok), namespace);
-            let vars = parse_param_names(&args[1]);
             return Statement::Foreach {
                 span: seg.span,
                 iterators: vec![ForeachIterator {
@@ -2798,14 +2829,14 @@ impl<'r> Lowerer<'r> {
                 .insert(class_qname.to_string());
             return;
         }
-        let params = match member.indices_for_call(args, ArgRole::ParamList).next() {
-            Some(rel) => seg
-                .texts
-                .get(base + rel)
-                .filter(|p| !p.is_empty())
-                .map(|p| parse_param_names(p))
-                .unwrap_or_default(),
-            None => Vec::new(),
+        // A parameter list Tcl would reject defines no method, and the class as
+        // a whole becomes unanalysable — the same abstention the dynamic name /
+        // body check above makes.
+        let Some(params) = member_param_names(member, args, seg, base) else {
+            self.module
+                .oo_unanalysed_classes
+                .insert(class_qname.to_string());
+            return;
         };
         // Lower the method body in its own frame (fresh const-map +
         // proc-depth) so the enclosing scope's tracked scalars
@@ -2874,6 +2905,28 @@ impl<'r> Lowerer<'r> {
             return;
         }
         self.module.methods.insert(method_qname, def);
+    }
+}
+
+/// Formal-parameter names of a body-bearing member, read from the word its
+/// grammar marks as the parameter list (`base + rel` in `seg.texts`).
+///
+/// An absent or empty word is the nullary member `method m {} {…}`, so it
+/// yields no names; `None` is a list Tcl itself would reject.
+fn member_param_names(
+    member: &tcl_registry::definer::MemberSpec,
+    args: &[String],
+    seg: &SegmentedCommand,
+    base: usize,
+) -> Option<Vec<String>> {
+    let param_text = member
+        .indices_for_call(args, ArgRole::ParamList)
+        .next()
+        .and_then(|rel| seg.texts.get(base + rel))
+        .filter(|text| !text.is_empty());
+    match param_text {
+        Some(text) => parse_formal_param_names(text),
+        None => Some(Vec::new()),
     }
 }
 
@@ -4335,18 +4388,126 @@ mod tests {
     }
 
     #[test]
-    fn parse_param_names_basic() {
-        assert_eq!(parse_param_names("a b c"), vec!["a", "b", "c"]);
+    fn formal_param_names_take_the_specifier_name_only() {
+        assert_eq!(
+            parse_formal_param_names("a b c").unwrap(),
+            vec!["a", "b", "c"],
+        );
+        assert_eq!(
+            parse_formal_param_names("{x default} y").unwrap(),
+            vec!["x", "y"]
+        );
+        assert!(parse_formal_param_names("").unwrap().is_empty());
+        // A wrapped parameter list collapses its continuation before splitting.
+        assert_eq!(
+            parse_formal_param_names("a b\\\n    c").unwrap(),
+            vec!["a", "b", "c"]
+        );
     }
 
     #[test]
-    fn parse_param_names_braced() {
-        assert_eq!(parse_param_names("{x default} y"), vec!["x", "y"]);
+    fn formal_param_names_reject_what_tcl_rejects() {
+        // Tcl refuses to create these procedures, so lowering declines too.
+        assert_eq!(parse_formal_param_names("{a b c}"), None);
+        assert_eq!(parse_formal_param_names("{a::b}"), None);
+        assert_eq!(parse_formal_param_names("{a(1)}"), None);
+        assert_eq!(parse_formal_param_names("{a"), None);
     }
 
     #[test]
-    fn parse_param_names_empty() {
-        assert!(parse_param_names("").is_empty());
+    fn var_list_names_keep_grouped_elements_whole() {
+        assert_eq!(parse_var_list_names("a b").unwrap(), vec!["a", "b"]);
+        // tclsh 9.0: both spellings bind the one variable named `a b`.
+        assert_eq!(parse_var_list_names("{a b}").unwrap(), vec!["a b"]);
+        assert_eq!(parse_var_list_names("a\\ b").unwrap(), vec!["a b"]);
+        assert!(parse_var_list_names("").unwrap().is_empty());
+        assert_eq!(
+            parse_var_list_names("a b\\\n    c").unwrap(),
+            vec!["a", "b", "c"]
+        );
+        // Unbalanced — no binding can be named, so the caller barriers.
+        assert_eq!(parse_var_list_names("{a"), None);
+    }
+
+    // issue #1431: a formal-parameter list has two list levels, so a grouped or
+    // escaped specifier is one parameter, not one name per whitespace run. The
+    // hand-rolled splitter gave `proc p {a\ b} {}` an arity of two.
+
+    /// Parameter names recorded for `::p` when `src` is lowered.
+    fn proc_params(src: &str) -> Vec<String> {
+        let m = lower_to_ir(src, &reg());
+        m.procedures
+            .get("::p")
+            .unwrap_or_else(|| panic!("::p registered for {src:?}"))
+            .params
+            .clone()
+    }
+
+    #[test]
+    fn escaped_space_proc_param_is_one_parameter() {
+        // tclsh 9.0: `proc p {a\ b} {}` → `info args p` is `a`, with
+        // `info default p a` yielding `b`. Only the name reaches the IR, so the
+        // arity is one — the splitter used to report two (`a\` and `b`).
+        assert_eq!(proc_params("proc p {a\\ b} {}"), vec!["a"]);
+        // The grouped spelling decodes identically.
+        assert_eq!(proc_params("proc p {{a b}} {}"), vec!["a"]);
+    }
+
+    #[test]
+    fn proc_params_keep_defaults_and_args_as_names() {
+        // FP-guard: `{x {y 2} args}` is still the three parameters `x`, `y`,
+        // and the variadic `args`.
+        assert_eq!(
+            proc_params("proc p {x {y 2} args} {}"),
+            vec!["x", "y", "args"]
+        );
+        assert!(proc_params("proc p {} {}").is_empty());
+    }
+
+    #[test]
+    fn proc_params_tcl_rejects_fall_through_to_barrier() {
+        // tclsh: `proc p {{a b c}} {}` → "too many fields in argument
+        // specifier". No procedure is created, so lowering registers none and
+        // leaves the runtime `proc` to report it.
+        for src in [
+            "proc p {{a b c}} {}",
+            "proc p {a::b} {}",
+            "proc p {a(1)} {}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                !m.procedures.contains_key("::p"),
+                "no ::p for {src:?}: {:?}",
+                m.procedures.keys().collect::<Vec<_>>(),
+            );
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if reason == "malformed proc params"),
+                "expected a malformed-params barrier for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
+    }
+
+    #[test]
+    fn oo_method_params_use_the_formal_parameter_grammar() {
+        let m = lower_to_ir(
+            "oo::class create C {\n    method m {a\\ b {c 1}} { return 1 }\n}\n",
+            &reg(),
+        );
+        let method = m.methods.get("::C::m").unwrap_or_else(|| {
+            panic!(
+                "::C::m lowered, got {:?}",
+                m.methods.keys().collect::<Vec<_>>()
+            )
+        });
+        assert_eq!(method.params, vec!["a", "c"]);
+        // A parameter list Tcl rejects makes the whole class unanalysable.
+        let m = lower_to_ir(
+            "oo::class create C {\n    method m {{a b c}} { return 1 }\n}\n",
+            &reg(),
+        );
+        assert!(m.oo_unanalysed_classes.contains("::C"), "{m:?}");
+        assert!(!m.methods.contains_key("::C::m"));
     }
 
     #[test]
