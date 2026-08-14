@@ -787,6 +787,36 @@ action?", "does this mutate state?"), add a field to `CommandSpec`, a query
 method to the registry, and set the flag on the relevant command specs. Do
 **not** create an ad-hoc set of command names in the consumer module.
 
+### Native specs and the SpecTcl DSL must maintain functional parity
+
+Anything a native `.rs` `CommandSpec` (or one of its attached descriptor
+types) can express, a `.tclspec` pack must be able to express too — and the
+studio must round-trip it.  A registry change is **not complete** until all
+four surfaces move together:
+
+1. **Registry** — the new field/descriptor on the type, with its coverage
+   witness in `rust/tcl-spec-studio/src/coverage.rs` (an exhaustive
+   destructuring plus a `Field` table entry, so the build breaks until the
+   studio knows about it).
+2. **Loader** — a documented spelling in `rust/tcl-spectcl/src/loader.rs`,
+   recorded in the frozen-syntax memo
+   (`docs/design/spec-dsl-examples/README.md`) and its coverage matrix.
+3. **Renderer** — `render_spectcl.rs` emits the spelling (non-default
+   values only), and the `spectcl_roundtrip` gate proves draft → DSL →
+   loader → draft loses nothing.
+4. **Studio form** — `schema.rs` / `draft.rs` / `help.rs` surface it for
+   editing.
+
+The only sanctioned exception is an explicit entry in `render_spectcl.rs`'s
+`GAPS` table naming the field, its documented spelling, and why it cannot
+round-trip yet (`DraftOpaque` for genuinely opaque function pointers,
+`Excluded` for deliberate design exclusions) — a `TODO(spectcl)` comment in
+rendered output is the visible trace.  Never let the two spec forms drift
+silently: a field that native specs can set but a pack cannot say, with no
+`GAPS` entry, is a bug.  New DSL words are **additive** (the `speclib`
+version word revs, e.g. 1.0 → 1.1; `VOCABULARY_VERSION` bumps only on
+meaning changes) and the loader must keep accepting every older vocabulary.
+
 ### Argument role resolution order
 
 Three mechanisms assign argument roles (BODY, EXPR, VAR_READ, VAR_WRITE, etc.)
