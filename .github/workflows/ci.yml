@@ -382,6 +382,48 @@ jobs:
         if: env.RUN_EXT == 'true'
         run: cd editors/vscode && npm ci
 
+      # `@vscode/test-electron` downloads a full VS Code build on every run and
+      # nothing cached it, so the extension-test step paid that download each
+      # time — on the critical path (`build-tcl-lsp-server` -> `test-ext` is the
+      # last branch to finish, and its 275s step runs suites that report
+      # "14 passing (3s)": the cost is almost entirely fetch + host startup, not
+      # testing).
+      #
+      # The key carries the RESOLVED stable version, queried from the same
+      # endpoint test-electron itself uses.  Keying on anything coarser (a date
+      # window, say) is broken: `actions/cache` entries are immutable, so when a
+      # new stable ships mid-window test-electron downloads it, the save is
+      # skipped because the key already exists, and every remaining run in that
+      # window re-downloads — the cache silently stops working exactly when VS
+      # Code releases.  Version-keying rotates on release, stores the new build
+      # once, and hits thereafter, while still tracking the stable channel
+      # rather than pinning it.
+      #
+      # If the endpoint cannot be reached the key falls back to a date stamp:
+      # that only costs a download, whereas failing the step would take the
+      # whole critical path down over a cache.
+      - name: Resolve VS Code stable version
+        if: env.RUN_EXT == 'true'
+        id: vscode-version
+        run: |
+          set -uo pipefail
+          ver=$(curl -fsSL --max-time 20 \
+            https://update.code.visualstudio.com/api/update/linux-x64/stable/latest \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])' 2>/dev/null || true)
+          if [ -z "$ver" ]; then
+            ver="unresolved-$(date -u +%Y-%m-%d)"
+            echo "::warning::could not resolve VS Code stable version; using $ver"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "VS Code stable resolves to: $ver"
+
+      - name: Cache VS Code test download
+        if: env.RUN_EXT == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: editors/vscode/.vscode-test
+          key: vscode-test-${{ runner.os }}-${{ hashFiles('editors/vscode/package-lock.json') }}-${{ steps.vscode-version.outputs.version }}
+
       - name: Lint TypeScript
         if: env.RUN_EXT == 'true'
         run: cd editors/vscode && npm run lint
