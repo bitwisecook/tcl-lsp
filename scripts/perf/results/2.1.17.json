@@ -1,0 +1,528 @@
+{
+  "anchors": [
+    "georgtree/tcl_tools/mathutil.tcl"
+  ],
+  "checks": [
+    {
+      "cpu_s": 3.0,
+      "id": "scan.workspace",
+      "items": null,
+      "label": "Workspace scan (cold index)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 1,
+      "rss_after_kib": 141840,
+      "rss_before_kib": 0,
+      "wall_s": 1.8113
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "open.docs",
+      "items": null,
+      "label": "Open 4 documents + analyse",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 2,
+      "rss_after_kib": 170436,
+      "rss_before_kib": 141840,
+      "wall_s": 0.1993
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "edit.storm",
+      "items": null,
+      "label": "Typing storm (400 edits, no requests)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 3,
+      "rss_after_kib": 194464,
+      "rss_before_kib": 170436,
+      "wall_s": 0.7849
+    },
+    {
+      "cpu_s": 6.0,
+      "id": "edit.tokens",
+      "items": null,
+      "label": "Typing + semantic tokens (100 edits)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 4,
+      "rss_after_kib": 222820,
+      "rss_before_kib": 194464,
+      "wall_s": 3.0764
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.hover",
+      "items": 6,
+      "label": "Hover at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 5,
+      "rss_after_kib": 223204,
+      "rss_before_kib": 222820,
+      "wall_s": 0.0026
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.definition",
+      "items": 6,
+      "label": "Go to definition",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 6,
+      "rss_after_kib": 223204,
+      "rss_before_kib": 223204,
+      "wall_s": 0.0027
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.references",
+      "items": 25,
+      "label": "Find references",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 7,
+      "rss_after_kib": 226752,
+      "rss_before_kib": 223204,
+      "wall_s": 0.3815
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.completion",
+      "items": 14064,
+      "label": "Completion at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 8,
+      "rss_after_kib": 231144,
+      "rss_before_kib": 226752,
+      "wall_s": 0.0448
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "nav.symbols",
+      "items": null,
+      "label": "Document symbols + folding",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 9,
+      "rss_after_kib": 231208,
+      "rss_before_kib": 231144,
+      "wall_s": 0.1058
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "lens.resolve",
+      "items": null,
+      "label": "Code lens + resolve",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 10,
+      "rss_after_kib": 231208,
+      "rss_before_kib": 231208,
+      "wall_s": 0.2215
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "action.codeaction",
+      "items": null,
+      "label": "Code actions at definition sites",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 11,
+      "rss_after_kib": 236004,
+      "rss_before_kib": 231208,
+      "wall_s": 0.1647
+    },
+    {
+      "cpu_s": 2.0,
+      "id": "refactor.rename",
+      "items": null,
+      "label": "Rename symbol (one per document)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 12,
+      "rss_after_kib": 281348,
+      "rss_before_kib": 236004,
+      "wall_s": 1.7188
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "refactor.filerename",
+      "items": null,
+      "label": "External file rename (one per document)",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 13,
+      "rss_after_kib": 281752,
+      "rss_before_kib": 281348,
+      "wall_s": 0.3307
+    },
+    {
+      "cpu_s": 0.0,
+      "id": "nav.after_rename",
+      "items": 25,
+      "label": "Find references after rename",
+      "note": null,
+      "ok": true,
+      "ops": 6,
+      "ord": 14,
+      "rss_after_kib": 281752,
+      "rss_before_kib": 281752,
+      "wall_s": 0.1494
+    },
+    {
+      "cpu_s": 1.0,
+      "id": "close.docs",
+      "items": null,
+      "label": "Close all documents",
+      "note": null,
+      "ok": true,
+      "ops": null,
+      "ord": 15,
+      "rss_after_kib": 281752,
+      "rss_before_kib": 281752,
+      "wall_s": 0.3006
+    }
+  ],
+  "corpus_files": 113,
+  "corpus_revision": 1,
+  "documents": [
+    {
+      "bytes": 8198,
+      "path": "georgtree/tcl_tools/mathutil.tcl",
+      "positions": 6
+    },
+    {
+      "bytes": 59467,
+      "path": "georgtree/ruff/src/formatter.tcl",
+      "positions": 20
+    },
+    {
+      "bytes": 6030,
+      "path": "georgtree/SpiceGenTcl/src/ngspice/specAnalysesClassesNgspice.tcl",
+      "positions": 0
+    },
+    {
+      "bytes": 7109,
+      "path": "georgtree/SpiceGenTcl/examples/ngspice/advanced/verilog_a_magnetic.tcl",
+      "positions": 0
+    }
+  ],
+  "host": {
+    "cores": 4,
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "load_1m": 2.4,
+    "mem_gb": 16
+  },
+  "platform": "linux-x86_64",
+  "schema": 1,
+  "scope": "small",
+  "timeline": [
+    {
+      "cpu_s": 0.0,
+      "rss_kib": 15868,
+      "t_s": 0.03
+    },
+    {
+      "cpu_s": 0.0,
+      "rss_kib": 28416,
+      "t_s": 0.287
+    },
+    {
+      "cpu_s": 0.0,
+      "rss_kib": 88908,
+      "t_s": 0.556
+    },
+    {
+      "cpu_s": 1.0,
+      "rss_kib": 116564,
+      "t_s": 0.825
+    },
+    {
+      "cpu_s": 2.0,
+      "rss_kib": 127948,
+      "t_s": 1.081
+    },
+    {
+      "cpu_s": 2.0,
+      "rss_kib": 141816,
+      "t_s": 1.34
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 141840,
+      "t_s": 1.598
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 141840,
+      "t_s": 1.854
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 141840,
+      "t_s": 2.111
+    },
+    {
+      "cpu_s": 3.0,
+      "rss_kib": 160104,
+      "t_s": 2.37
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 170436,
+      "t_s": 2.63
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 186256,
+      "t_s": 2.887
+    },
+    {
+      "cpu_s": 4.0,
+      "rss_kib": 192964,
+      "t_s": 3.143
+    },
+    {
+      "cpu_s": 5.0,
+      "rss_kib": 194464,
+      "t_s": 3.4
+    },
+    {
+      "cpu_s": 5.0,
+      "rss_kib": 194464,
+      "t_s": 3.656
+    },
+    {
+      "cpu_s": 5.0,
+      "rss_kib": 194464,
+      "t_s": 3.913
+    },
+    {
+      "cpu_s": 5.0,
+      "rss_kib": 203916,
+      "t_s": 4.172
+    },
+    {
+      "cpu_s": 6.0,
+      "rss_kib": 204176,
+      "t_s": 4.43
+    },
+    {
+      "cpu_s": 6.0,
+      "rss_kib": 209748,
+      "t_s": 4.687
+    },
+    {
+      "cpu_s": 7.0,
+      "rss_kib": 210224,
+      "t_s": 4.943
+    },
+    {
+      "cpu_s": 7.0,
+      "rss_kib": 210732,
+      "t_s": 5.2
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 214264,
+      "t_s": 5.468
+    },
+    {
+      "cpu_s": 8.0,
+      "rss_kib": 216120,
+      "t_s": 5.734
+    },
+    {
+      "cpu_s": 9.0,
+      "rss_kib": 216120,
+      "t_s": 5.991
+    },
+    {
+      "cpu_s": 9.0,
+      "rss_kib": 216220,
+      "t_s": 6.248
+    },
+    {
+      "cpu_s": 10.0,
+      "rss_kib": 217272,
+      "t_s": 6.505
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 222776,
+      "t_s": 6.763
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 222820,
+      "t_s": 7.019
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 222820,
+      "t_s": 7.276
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 223204,
+      "t_s": 7.532
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 223204,
+      "t_s": 7.789
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 223204,
+      "t_s": 8.045
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 223416,
+      "t_s": 8.302
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 226752,
+      "t_s": 8.558
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 226752,
+      "t_s": 8.815
+    },
+    {
+      "cpu_s": 11.0,
+      "rss_kib": 231144,
+      "t_s": 9.071
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 231208,
+      "t_s": 9.328
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 231208,
+      "t_s": 9.584
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 231208,
+      "t_s": 9.841
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 231208,
+      "t_s": 10.097
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 231208,
+      "t_s": 10.354
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 236004,
+      "t_s": 10.61
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 236004,
+      "t_s": 10.867
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 236580,
+      "t_s": 11.125
+    },
+    {
+      "cpu_s": 12.0,
+      "rss_kib": 245580,
+      "t_s": 11.381
+    },
+    {
+      "cpu_s": 13.0,
+      "rss_kib": 249592,
+      "t_s": 11.638
+    },
+    {
+      "cpu_s": 13.0,
+      "rss_kib": 256728,
+      "t_s": 11.894
+    },
+    {
+      "cpu_s": 13.0,
+      "rss_kib": 264760,
+      "t_s": 12.151
+    },
+    {
+      "cpu_s": 13.0,
+      "rss_kib": 267808,
+      "t_s": 12.407
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 281348,
+      "t_s": 12.664
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 281348,
+      "t_s": 12.92
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 281752,
+      "t_s": 13.177
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 281752,
+      "t_s": 13.433
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 281752,
+      "t_s": 13.69
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 281752,
+      "t_s": 13.946
+    },
+    {
+      "cpu_s": 14.0,
+      "rss_kib": 281752,
+      "t_s": 14.203
+    },
+    {
+      "cpu_s": 15.0,
+      "rss_kib": 281752,
+      "t_s": 14.459
+    },
+    {
+      "cpu_s": 15.0,
+      "rss_kib": 281752,
+      "t_s": 14.716
+    }
+  ],
+  "version": "2.1.17"
+}
