@@ -87,7 +87,7 @@ fn excess_positional_span(
     arg_expand: &[bool],
     positional_start: usize,
     max: usize,
-    source: &str,
+    source_map: &tcl_lexer::SourceMap<'_>,
     fallback_delete_from: u32,
 ) -> Option<ExcessArgs> {
     if (positional_start..arg_tokens.len()).any(|i| arg_expand.get(i).copied().unwrap_or(false)) {
@@ -97,11 +97,11 @@ fn excess_positional_span(
     let first = arg_tokens.get(first_excess)?;
     let last = arg_tokens.last()?;
     let delete_from = match first_excess.checked_sub(1).and_then(|i| arg_tokens.get(i)) {
-        Some(prev) => widen_token_end(*prev, source),
+        Some(prev) => widen_token_end_in(source_map, *prev),
         None => fallback_delete_from,
     };
     Some(ExcessArgs {
-        span: tcl_lexer::Span::new(first.span.start(), widen_token_end(*last, source)),
+        span: tcl_lexer::Span::new(first.span.start(), widen_token_end_in(source_map, *last)),
         delete_from,
     })
 }
@@ -142,6 +142,14 @@ fn first_distinct_option_conflict(
 /// delegates to the lexer's authoritative `word_span` helper.
 fn widen_token_end(tok: tcl_lexer::Token, source: &str) -> u32 {
     super::super::utils::full_word_span(tok, source).end()
+}
+
+/// [`widen_token_end`] against an already-built [`tcl_lexer::SourceMap`], for
+/// the per-command / per-word call sites — see
+/// [`super::super::utils::full_word_span_in`] for why the rebuild is
+/// quadratic there.
+fn widen_token_end_in(source_map: &tcl_lexer::SourceMap<'_>, tok: tcl_lexer::Token) -> u32 {
+    super::super::utils::full_word_span_in(source_map, tok).end()
 }
 
 /// Emit E006 for every registry-identified, statically-known formal-parameter
@@ -715,7 +723,11 @@ impl Analyser {
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
-        let source_map = tcl_lexer::SourceMap::new(&self.source);
+        let source_map = super::super::state::Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let words: Vec<_> = args
             .iter()
             .enumerate()
@@ -748,7 +760,11 @@ impl Analyser {
         let Some(token) = arg_tokens.get(issue.argument_index).copied() else {
             return;
         };
-        let source_map = tcl_lexer::SourceMap::new(&self.source);
+        let source_map = super::super::state::Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let span = tcl_lexer::word_span(&source_map, token);
         let allowed = issue.allowed_values.join(", ");
         let (message, invalid_description) = match &issue.reason {
@@ -1641,14 +1657,20 @@ impl Analyser {
         // A class / alias / ensemble / stub match suppresses regardless
         // of definition order; a *proc* match additionally honours
         // `enforce_order` (in-order/reachability gate).
-        let excess = excess_positional_span(
-            arg_tokens,
-            arg_expand,
-            positional_start,
-            usize::from(sig.arity.max),
-            &self.source,
-            widen_token_end(cmd_tok, &self.source),
-        );
+        let excess = {
+            // One hoisted map for all three word-span resolutions below: this
+            // runs once per command in the document (see
+            // `utils::full_word_span_in`).
+            let source_map = self.cached_source_map();
+            excess_positional_span(
+                arg_tokens,
+                arg_expand,
+                positional_start,
+                usize::from(sig.arity.max),
+                &source_map,
+                widen_token_end_in(&source_map, cmd_tok),
+            )
+        };
         if let Some(diag) = arity_verdict(
             display_name,
             sig.arity,
@@ -1719,14 +1741,17 @@ impl Analyser {
         };
         // Positional args (and so the surplus run) start after the lambda
         // literal at index 1.
-        let excess = excess_positional_span(
-            arg_tokens,
-            arg_expand,
-            1,
-            usize::from(arity.max),
-            &self.source,
-            widen_token_end(cmd_tok, &self.source),
-        );
+        let excess = {
+            let source_map = self.cached_source_map();
+            excess_positional_span(
+                arg_tokens,
+                arg_expand,
+                1,
+                usize::from(arity.max),
+                &source_map,
+                widen_token_end_in(&source_map, cmd_tok),
+            )
+        };
         if let Some(diag) = arity_verdict(
             "apply",
             arity,
@@ -2228,6 +2253,15 @@ impl Analyser {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
             None => cmd_tok.span,
         };
+        // One `SourceMap` for every word of this call: this runs once per
+        // command in the document and the loop below once per argument, so
+        // rebuilding the map per word made span resolution quadratic in
+        // document size (see `utils::full_word_span_in`).
+        let source_map = super::super::state::Analyser::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         // Argument-word spans for the flush-time E003 surplus anchor —
         // omitted under `{*}` expansion, where the surplus run is ambiguous.
         let arg_spans: Vec<tcl_lexer::Span> = if positional_any_expand {
@@ -2235,7 +2269,7 @@ impl Analyser {
         } else {
             arg_tokens
                 .iter()
-                .map(|t| super::super::utils::full_word_span(*t, &self.source))
+                .map(|t| super::super::utils::full_word_span_in(&source_map, *t))
                 .collect()
         };
         self.pending_user_call_arity.push(PendingUserCallArity {
@@ -2247,7 +2281,7 @@ impl Analyser {
             nargs_min,
             positional_any_expand,
             arg_spans,
-            head_end: widen_token_end(cmd_tok, &self.source),
+            head_end: widen_token_end_in(&source_map, cmd_tok),
         });
     }
 

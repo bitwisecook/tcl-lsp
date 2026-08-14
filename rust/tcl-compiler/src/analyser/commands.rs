@@ -2168,7 +2168,11 @@ impl Analyser {
         if body_tok.kind != TokenType::Var {
             return;
         }
-        let sm = tcl_lexer::SourceMap::new(&self.source);
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let raw = sm.token_text(body_tok);
         let var_name = raw
             .split_once('}')
@@ -2205,7 +2209,11 @@ impl Analyser {
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
-        let source_map = SourceMap::new(&self.source);
+        let source_map = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let words = CommandPrefixWords {
             texts: words.texts,
             tokens: words.tokens,
@@ -2896,7 +2904,11 @@ impl Analyser {
         // handler afterwards, once the immutable borrow has ended — the
         // same two-phase shape as `record_invocations_from_cmd_token`.
         let segs: Vec<SegmentedCommand> = {
-            let sm = SourceMap::new(&self.source);
+            let sm = Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let mut segs = Vec::new();
             for frag in self.cmd_fragments(body_tok, config) {
                 if frag.kind != TokenType::Cmd || sm.token_text(frag).is_empty() {

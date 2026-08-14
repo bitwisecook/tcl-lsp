@@ -127,9 +127,9 @@ fn deprecation_fix_payload(
     args: &[String],
     arg_tokens: &[Token],
     matched_word_index: usize,
-    source: &str,
+    source_map: &tcl_lexer::SourceMap<'_>,
 ) -> DeprecationFixPayload {
-    let command_span = super::super::utils::full_word_span(command_token, source);
+    let command_span = super::super::utils::full_word_span_in(source_map, command_token);
     let mut word_spans = vec![Some(command_span)];
     let mut words = vec![StoredDeprecationFixWord {
         spelling: command.to_owned(),
@@ -137,7 +137,8 @@ fn deprecation_fix_payload(
     }];
     for (index, arg) in args.iter().enumerate() {
         let token = arg_tokens.get(index).copied();
-        word_spans.push(token.map(|token| super::super::utils::full_word_span(token, source)));
+        word_spans
+            .push(token.map(|token| super::super::utils::full_word_span_in(source_map, token)));
         words.push(StoredDeprecationFixWord {
             spelling: arg.clone(),
             literal: token
@@ -288,22 +289,32 @@ impl Analyser {
             .first()
             .is_some_and(|tok| !matches!(tok.kind, TokenType::Var | TokenType::Cmd));
         if sub_is_literal {
+            // Span and payload are computed against one hoisted `SourceMap`
+            // and bound to locals before the `&mut self` call below, so the
+            // map's immutable borrow of `self.source` has already ended.
+            let (span, payload) = {
+                let source_map = self.cached_source_map();
+                (
+                    super::super::utils::full_word_span_in(&source_map, invocation.arg_tokens[0]),
+                    deprecation_fix_payload(
+                        invocation.command,
+                        invocation.command_token,
+                        invocation.args,
+                        invocation.arg_tokens,
+                        1,
+                        &source_map,
+                    ),
+                )
+            };
             self.record_lifecycle_site(
-                super::super::utils::full_word_span(invocation.arg_tokens[0], &self.source),
+                span,
                 invocation.axis,
                 sub.lifecycle,
                 VersionGateItem::Subcommand {
                     command: invocation.command.to_owned(),
                     subcommand: sub.name.to_owned(),
                 },
-                deprecation_fix_payload(
-                    invocation.command,
-                    invocation.command_token,
-                    invocation.args,
-                    invocation.arg_tokens,
-                    1,
-                    &self.source,
-                ),
+                payload,
             );
         }
         for gate in sub.versioned_arg_values {
@@ -317,8 +328,22 @@ impl Analyser {
             if arg != gate.value || matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
                 continue;
             }
+            let (span, payload) = {
+                let source_map = self.cached_source_map();
+                (
+                    super::super::utils::full_word_span_in(&source_map, *tok),
+                    deprecation_fix_payload(
+                        invocation.command,
+                        invocation.command_token,
+                        invocation.args,
+                        invocation.arg_tokens,
+                        arg_idx + 1,
+                        &source_map,
+                    ),
+                )
+            };
             self.record_lifecycle_site(
-                super::super::utils::full_word_span(*tok, &self.source),
+                span,
                 invocation.axis,
                 gate.lifecycle,
                 VersionGateItem::ArgumentValue {
@@ -326,14 +351,7 @@ impl Analyser {
                     subcommand: sub.name.to_owned(),
                     value: gate.value.to_owned(),
                 },
-                deprecation_fix_payload(
-                    invocation.command,
-                    invocation.command_token,
-                    invocation.args,
-                    invocation.arg_tokens,
-                    arg_idx + 1,
-                    &self.source,
-                ),
+                payload,
             );
         }
     }
@@ -356,22 +374,29 @@ impl Analyser {
             }
             if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
                 if let Some(tok) = invocation.arg_tokens.get(i) {
+                    let (span, payload) = {
+                        let source_map = self.cached_source_map();
+                        (
+                            super::super::utils::full_word_span_in(&source_map, *tok),
+                            deprecation_fix_payload(
+                                invocation.command,
+                                invocation.command_token,
+                                invocation.args,
+                                invocation.arg_tokens,
+                                i + 1,
+                                &source_map,
+                            ),
+                        )
+                    };
                     self.record_lifecycle_site(
-                        super::super::utils::full_word_span(*tok, &self.source),
+                        span,
                         invocation.axis,
                         opt.lifecycle,
                         VersionGateItem::Option {
                             command: invocation.command.to_owned(),
                             option: arg.to_owned(),
                         },
-                        deprecation_fix_payload(
-                            invocation.command,
-                            invocation.command_token,
-                            invocation.args,
-                            invocation.arg_tokens,
-                            i + 1,
-                            &self.source,
-                        ),
+                        payload,
                     );
                 }
                 i += 1 + opt.value_word_count(invocation.args, i);
@@ -440,12 +465,19 @@ impl Analyser {
             retired: max.or(spec.lifecycle.retired),
             deprecation_fix: spec.lifecycle.deprecation_fix,
         });
+        let (span, payload) = {
+            let source_map = self.cached_source_map();
+            (
+                super::super::utils::full_word_span_in(&source_map, cmd_tok),
+                deprecation_fix_payload(cmd_name, cmd_tok, args, arg_tokens, 0, &source_map),
+            )
+        };
         self.record_lifecycle_site(
-            super::super::utils::full_word_span(cmd_tok, &self.source),
+            span,
             axis,
             effective,
             VersionGateItem::Command(cmd_name.to_owned()),
-            deprecation_fix_payload(cmd_name, cmd_tok, args, arg_tokens, 0, &self.source),
+            payload,
         );
 
         // Option-level gates.  Resolve subcommand-scoped options when the first

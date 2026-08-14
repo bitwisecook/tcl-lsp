@@ -32,7 +32,7 @@
 //! alias resolution.
 
 use tcl_core_types::DiagCode;
-use tcl_lexer::{SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Span, Token, TokenType};
 use tcl_syntax::list::find_element;
 
 use crate::alias::{detect_interp_alias, resolve_alias};
@@ -2226,7 +2226,11 @@ impl Analyser {
                 )?;
                 return Some((word_tok, word_text.to_string()));
             }
-            let sm = tcl_lexer::SourceMap::new(&self.source);
+            let sm = Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let var_name = sm.token_text(word_tok);
             let (holder, base_name) = crate::naming::key_holder_and_tail(var_name);
             let (value, span) = if holder.is_empty() {
@@ -3682,7 +3686,11 @@ impl Analyser {
             return None;
         }
         let config = self.lexer_config();
-        let sm = SourceMap::new(&self.source);
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let descended = descend_token(&sm, value_tok, config);
         let segs = segments_from_tree(descended.tree(), &sm);
         let [seg] = segs.as_slice() else { return None };
@@ -4120,7 +4128,11 @@ impl Analyser {
         }
         let config = self.lexer_config();
         let segs: Vec<SegmentedCommand> = {
-            let sm = SourceMap::new(&self.source);
+            let sm = Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let descended = descend_token(&sm, body_tok, config);
             segments_from_tree(descended.tree(), &sm)
         };
@@ -8028,7 +8040,11 @@ impl Analyser {
         params: &[&str],
     ) -> Option<FactoryMember> {
         let registry = self.registry.as_ref()?;
-        let sm = SourceMap::new(&self.source);
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let descended = descend_token(&sm, group, self.lexer_config());
         let mut segs = segments_from_tree(descended.tree(), &sm).into_iter();
         let seg = segs.next()?;

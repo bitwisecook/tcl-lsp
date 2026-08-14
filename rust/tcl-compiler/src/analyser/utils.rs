@@ -937,9 +937,32 @@ pub fn argv_with_word_spans(argv: Vec<Token>, _all_tokens: &[Token]) -> Vec<Toke
 /// [`tcl_lexer::word_span`] is the authoritative delimiter policy: it handles
 /// braces, brackets, quotes, empty words, escaped closers, and recovery
 /// tokens without each analyser diagnostic reimplementing byte arithmetic.
+///
+/// Builds a [`SourceMap`] per call, and [`SourceMap::new`] rescans the whole
+/// document to construct its line index. That is fine for a one-off caller,
+/// but a caller that runs **per command or per word** must hoist the map and
+/// use [`full_word_span_in`] instead — see its doc comment.
 #[must_use]
 pub fn full_word_span(token: Token, source: &str) -> Span {
-    tcl_lexer::word_span(&SourceMap::new(source), token)
+    full_word_span_in(&SourceMap::new(source), token)
+}
+
+/// [`full_word_span`] against an already-built [`SourceMap`].
+///
+/// Same answer, without the rebuild. `SourceMap::new` scans the entire
+/// document to populate its line index, so calling [`full_word_span`] once per
+/// *word* makes span resolution `O(document size × word count)` — the same
+/// quadratic that [`crate::analyser::state::Analyser::cached_line_index`] was
+/// introduced to remove for the per-command `SourceMap::new(&self.source)`
+/// call sites (issue #996); the per-word helper was simply missed at the time.
+/// On a ~5k-line file the rebuilds dominated whole-file analysis.
+///
+/// Callers inside the analyser should build the map once with
+/// `Analyser::source_map(&self.source, &self.cached_line_index,
+/// self.cached_line_index_source_len)`, hoisted out of any loop over words.
+#[must_use]
+pub fn full_word_span_in(source_map: &SourceMap<'_>, token: Token) -> Span {
+    tcl_lexer::word_span(source_map, token)
 }
 
 /// The set of iRules commands that may only appear at the top

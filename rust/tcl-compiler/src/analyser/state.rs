@@ -1244,6 +1244,20 @@ impl Analyser {
         }
     }
 
+    /// [`Self::source_map`] as a `&self` method, for the call sites that can
+    /// confine the map to a scope that ends before they need `&mut self`
+    /// again (typically: compute the spans into locals, then push the
+    /// diagnostic). Borrowing all of `self` is why this cannot replace the
+    /// free function — see its doc comment — but where the borrow *is*
+    /// scoped this spelling keeps the three-argument call out of the way.
+    pub(in crate::analyser) fn cached_source_map(&self) -> tcl_lexer::SourceMap<'_> {
+        Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        )
+    }
+
     /// [`Self::source`] sliced by absolute byte offsets, or `None` when the
     /// range is inverted, out of bounds, **or lands inside a multi-byte UTF-8
     /// sequence**.
