@@ -521,7 +521,23 @@ thread_local! {
     /// `&mut`. This counter only **bounds** the nesting to cap native-stack growth
     /// (each cross-interp hop adds real frames).
     static CROSS_INTERP_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+
+    /// Depth of active alias redirects (`Command::Alias`). An alias whose target
+    /// resolves to another alias trampolines through `dispatch_alias` → `invoke`
+    /// → `dispatch_alias` in native frames, so an alias *cycle* would exhaust the
+    /// native stack (a WASM trap) rather than raise a Tcl error. The definition
+    /// gate (`Namespaces::alias_chain_loops`, C's `TclPreventAliasLoop`)
+    /// refuses every cycle at `interp alias` / `rename` time, so this counter is
+    /// defence in depth: it bounds the nesting so a cycle arriving by some other
+    /// route still surfaces as a catchable error.
+    static ALIAS_DISPATCH_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
+
+/// Maximum nested alias-redirect depth — the native-stack bound on
+/// alias-of-alias chains, matching [`NATIVE_EVAL_DEPTH_LIMIT`]'s budget. Real
+/// chains are a hop or two; only a cycle the definition gate somehow missed
+/// gets anywhere near it.
+const MAX_ALIAS_DISPATCH_DEPTH: u32 = 128;
 
 /// Maximum nested cross-interp call depth (the native-stack bound for the
 /// re-entrant parent⇄child recursion the Safe Base needs). Generous enough for
@@ -1418,6 +1434,16 @@ impl Interp {
     /// `rename old new` (or `rename old ""` to delete), relative to the current
     /// namespace. Drives the one command table; see [`Namespaces::rename`].
     pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
+        // C's `TclPreventAliasLoop` guards `rename` too, and refuses before
+        // anything observable happens — no rename trace fires for a rename that
+        // does not take place.
+        if self
+            .namespaces
+            .borrow_mut()
+            .rename_creates_alias_loop(self.current_ns.get(), old, new)
+        {
+            return RenameOutcome::AliasLoop;
+        }
         self.invalidate_command_environment();
         // Command traces fire *before* the table mutation (C's TclRenameCommand:
         // the command still exists under its old name during the callback), with
@@ -1477,18 +1503,38 @@ impl Interp {
                         self.oo_command_renamed(&of, None);
                     }
                 }
-                RenameOutcome::NoSuchCommand => {}
+                // `AliasLoop` returned above, before the table was touched.
+                RenameOutcome::NoSuchCommand | RenameOutcome::AliasLoop => {}
             }
         }
         outcome
     }
 
     /// Install an `interp alias` redirect named `name` → `target ?prefix...?`.
-    pub(crate) fn install_alias(&mut self, name: &[u8], target: Vec<u8>, prefix: Vec<Vec<u8>>) {
+    ///
+    /// A definition that would close an alias loop is refused the way C's
+    /// `TclPreventAliasLoop` refuses it: bind first, walk the chain, and unbind
+    /// again on a hit — which is why a refused definition also destroys the
+    /// command it displaced (`proc x …; interp alias {} x {} x` leaves no `x`
+    /// at all, tclsh 8.6/9.0-pinned). `Err` carries the alias's simple command
+    /// name for the caller's error message.
+    pub(crate) fn install_alias(
+        &mut self,
+        name: &[u8],
+        target: Vec<u8>,
+        prefix: Vec<Vec<u8>>,
+    ) -> Result<(), Vec<u8>> {
         self.invalidate_command_environment();
-        self.namespaces
-            .borrow_mut()
-            .register(name, Command::Alias { target, prefix });
+        let mut namespaces = self.namespaces.borrow_mut();
+        let Some((ns, simple)) = namespaces.register_at(name, Command::Alias { target, prefix })
+        else {
+            return Ok(()); // no tail to bind — nothing was registered
+        };
+        if namespaces.alias_chain_loops(ns, &simple) {
+            namespaces.unbind_in(ns, &simple);
+            return Err(simple);
+        }
+        Ok(())
     }
 
     /// Install a cross-interp alias in child `child`: `name` (in the child)
@@ -6471,13 +6517,18 @@ impl Interp {
     /// target deleted after the alias was created surfaces lazily here, but a
     /// *renamed* target is not followed), synthesise
     /// `[target, *prefix, *caller_tail]`, and invoke. Alias-of-alias chains fall
-    /// out naturally (the resolved target may itself be an `Alias`).
+    /// out naturally (the resolved target may itself be an `Alias`) and are
+    /// bounded by [`MAX_ALIAS_DISPATCH_DEPTH`], so a cycle that escaped the
+    /// definition-time gate errors instead of exhausting the native stack.
     fn dispatch_alias(&mut self, target: &[u8], prefix: &[Vec<u8>], argv: &[*mut TclObj]) -> Code {
         let target_cmd = self.namespaces.borrow().resolve(GLOBAL, target);
         let Some(target_cmd) = target_cmd else {
             // Lazily bound: the target was deleted (or never existed).
             return self.invalid_command(target);
         };
+        if ALIAS_DISPATCH_DEPTH.with(|d| d.get()) >= MAX_ALIAS_DISPATCH_DEPTH {
+            return self.error(b"too many nested alias invocations (infinite loop?)");
+        }
         // Build [target, *prefix, *argv[1..]] — each element owned (+1).
         let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len());
         let push_owned = |v: &mut Vec<*mut TclObj>, o: *mut TclObj| {
@@ -6492,7 +6543,9 @@ impl Interp {
         for &a in &argv[1..] {
             push_owned(&mut new_argv, a);
         }
+        ALIAS_DISPATCH_DEPTH.with(|d| d.set(d.get() + 1));
         let code = self.invoke(target_cmd, &new_argv);
+        ALIAS_DISPATCH_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
         release_all(&new_argv);
         code
     }
@@ -7409,6 +7462,37 @@ mod tests {
         });
     }
 
+    /// Defence in depth for the alias trampoline (issue #1447). `interp alias`
+    /// and `rename` both refuse a cycle at definition time, so plant one
+    /// straight into the command table — bypassing that gate the way only a
+    /// bug could — and confirm the dispatch bound turns what would otherwise be
+    /// unbounded native recursion (`invoke` → `dispatch_alias` → `invoke`, i.e.
+    /// stack exhaustion / a WASM trap) into a catchable Tcl error.
+    #[test]
+    fn a_planted_alias_cycle_errors_instead_of_exhausting_the_stack() {
+        leak_free(|i| {
+            let alias = |target: &[u8]| Command::Alias {
+                target: target.to_vec(),
+                prefix: Vec::new(),
+            };
+            {
+                let mut namespaces = i.namespaces.borrow_mut();
+                namespaces.register(b"loop_a", alias(b"loop_b"));
+                namespaces.register(b"loop_b", alias(b"loop_a"));
+            }
+            assert_eq!(i.eval_str(b"loop_a"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"too many nested alias invocations (infinite loop?)"
+            );
+            // The counter unwinds with the failed call, so a later alias call
+            // is unaffected.
+            assert_eq!(i.eval_str(b"interp alias {} = {} set"), Code::Ok);
+            assert_eq!(i.eval_str(b"= v 1"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+        });
+    }
+
     /// A moderately nested `foreach` (well under `NATIVE_EVAL_DEPTH_LIMIT`)
     /// still runs to completion — the safety net must not fire on realistic
     /// nesting depths.
@@ -7908,11 +7992,22 @@ mod tests {
         for version in [TclVersion::V8_4, TclVersion::V8_6, TclVersion::V9_0] {
             leak_free(|i| {
                 i.set_runtime_version(version);
-                assert_eq!(i.eval_str(b"set x {}; expr {$x + 1}"), Code::Error, "{version:?}");
-                assert_eq!(i.eval_str(b"set x { }; expr {$x + 1}"), Code::Error, "{version:?}");
-                assert_eq!(i.eval_str(b"set x -; expr {$x + 1}"), Code::Error, "{version:?}");
+                assert_eq!(
+                    i.eval_str(b"set x {}; expr {$x + 1}"),
+                    Code::Error,
+                    "{version:?}"
+                );
+                assert_eq!(
+                    i.eval_str(b"set x { }; expr {$x + 1}"),
+                    Code::Error,
+                    "{version:?}"
+                );
+                assert_eq!(
+                    i.eval_str(b"set x -; expr {$x + 1}"),
+                    Code::Error,
+                    "{version:?}"
+                );
             });
         }
     }
-
 }
