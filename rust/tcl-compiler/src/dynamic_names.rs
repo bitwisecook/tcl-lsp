@@ -536,8 +536,11 @@ fn scan_statement(
         Statement::Switch { subject, .. } => {
             scan_text(subject, registry, barrier, 0, config);
         }
-        // `Incr` names its target literally (the lowering declines a
-        // substituted name); every remaining statement carries no word text.
+        // `Incr` names its target literally: `try_lower_incr` declines the
+        // specialisation for a computed name word (issue #1487's gate,
+        // mirroring `lower_set`'s #1484 one) and falls back to `Call`, which
+        // the arm above already scans. Every remaining statement carries no
+        // word text.
         _ => {}
     }
 }
@@ -1253,6 +1256,44 @@ computed; got {b:?}"
             for body in ["set x 1", "set a($i) 1", "set x 1; set y $x"] {
                 let b = barrier_for_dialect(
                     &format!("proc f {{i}} {{ {body}; return ok }}\n"),
+                    dialect,
+                );
+                assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
+            }
+        }
+    }
+
+    /// Issue #1487 — `incr $n` is a computed name, not the literal target
+    /// `try_lower_incr` used to assume.  Before the gate, the lowering
+    /// specialised it to `Statement::Incr { name: "${n}" }`, whose name is
+    /// static by contract, so [`scan_statement`]'s `Incr` arm — which reads
+    /// no word text at all — never looked at it and the write barrier stayed
+    /// down, leaving the value-motion passes free to move stores across a
+    /// write that can land on any name. Unlike #1484's `{*}$n` shape, a bare
+    /// `$n` substitutes under every grammar, so all four dialects see the
+    /// same computed name.
+    #[test]
+    fn incr_of_a_computed_name_raises_the_write_barrier() {
+        for dialect in ["tcl8.4", "f5-irules", "tcl8.6", "tcl9.0"] {
+            let b = barrier_for_dialect("proc f {n} { incr $n; return ok }\n", dialect);
+            assert!(
+                b.writes,
+                "{dialect}: `incr $n` names `$n` — a computed name; got {b:?}",
+            );
+        }
+    }
+
+    /// TN control for #1487: a fully spelled-out `incr` names one variable,
+    /// and a computed array *element* (`incr a($i)`) is not a computed
+    /// *name* — the array is named statically, the same line
+    /// [`names_a_dynamic_variable`] draws for `set` — so neither shape may
+    /// blind a function that computes nothing.
+    #[test]
+    fn a_spelled_out_incr_stays_clear_under_every_dialect() {
+        for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
+            for body in ["incr x", "incr a($i)", "incr x 1"] {
+                let b = barrier_for_dialect(
+                    &format!("proc f {{i}} {{ set x 0; {body}; return ok }}\n"),
                     dialect,
                 );
                 assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
