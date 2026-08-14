@@ -27,7 +27,8 @@ use std::collections::HashMap;
 
 use crate::ir::{Module, Procedure, Script, Statement};
 use crate::lowering::Lowerer;
-use tcl_registry::CommandRegistry;
+use tcl_registry::frame_effect::{FrameArgLayout, FrameLevel};
+use tcl_registry::{CommandRegistry, FRAME_REACH_TRAITS, dialects::DialectSet};
 
 /// Recognised passthrough proc shape used by the rewriter.
 #[derive(Debug, Clone)]
@@ -57,10 +58,13 @@ pub enum PassthroughShape {
 ///
 /// Returns `{qualified_name -> shape}` for every passthrough proc.
 #[must_use]
-pub fn detect_passthrough_candidates(module: &Module) -> HashMap<String, PassthroughShape> {
+pub fn detect_passthrough_candidates(
+    module: &Module,
+    registry: &CommandRegistry,
+) -> HashMap<String, PassthroughShape> {
     let mut out = HashMap::new();
     for (qname, proc) in &module.procedures {
-        if let Some(shape) = classify_passthrough(proc) {
+        if let Some(shape) = classify_passthrough(proc, registry) {
             out.insert(qname.clone(), shape);
         }
     }
@@ -69,8 +73,11 @@ pub fn detect_passthrough_candidates(module: &Module) -> HashMap<String, Passthr
 
 /// Convenience: only the static (zero-param) shape, used by tests.
 #[must_use]
-pub fn detect_static_passthrough(module: &Module) -> HashMap<String, Script> {
-    detect_passthrough_candidates(module)
+pub fn detect_static_passthrough(
+    module: &Module,
+    registry: &CommandRegistry,
+) -> HashMap<String, Script> {
+    detect_passthrough_candidates(module, registry)
         .into_iter()
         .filter_map(|(k, v)| match v {
             PassthroughShape::Static { body } => Some((k, body)),
@@ -81,11 +88,11 @@ pub fn detect_static_passthrough(module: &Module) -> HashMap<String, Script> {
 
 /// Classify a single procedure as a passthrough candidate or
 /// return `None`.
-fn classify_passthrough(proc: &Procedure) -> Option<PassthroughShape> {
-    if let Some(body) = static_passthrough_body(proc) {
+fn classify_passthrough(proc: &Procedure, registry: &CommandRegistry) -> Option<PassthroughShape> {
+    if let Some(body) = static_passthrough_body(proc, registry) {
         return Some(PassthroughShape::Static { body });
     }
-    if let Some(param) = param_body_passthrough_param(proc) {
+    if let Some(param) = param_body_passthrough_param(proc, registry) {
         return Some(PassthroughShape::ParamBody { param_name: param });
     }
     None
@@ -97,7 +104,7 @@ fn classify_passthrough(proc: &Procedure) -> Option<PassthroughShape> {
 /// commands. The absolute `uplevel #1` names a frame counted down
 /// from the global one, so it is not the same-frame idiom and is
 /// rejected alongside `#0`.
-fn static_passthrough_body(proc: &Procedure) -> Option<Script> {
+fn static_passthrough_body(proc: &Procedure, registry: &CommandRegistry) -> Option<Script> {
     if !proc.params.is_empty() {
         return None;
     }
@@ -111,7 +118,7 @@ fn static_passthrough_body(proc: &Procedure) -> Option<Script> {
             body,
             ..
         } if !*absolute && *frame_shift == 1 => {
-            if body_has_frame_reach(body) || body_has_completion_escape(body) {
+            if body_has_frame_reach(body, registry) || body_has_completion_escape(body) {
                 None
             } else {
                 Some(body.clone())
@@ -132,7 +139,7 @@ fn static_passthrough_body(proc: &Procedure) -> Option<Script> {
 /// The actual frame-reach check still runs on the *callsite's*
 /// inlined body inside the rewriter — at detector time we only
 /// confirm the dispatcher's surface shape.
-fn param_body_passthrough_param(proc: &Procedure) -> Option<String> {
+fn param_body_passthrough_param(proc: &Procedure, registry: &CommandRegistry) -> Option<String> {
     if proc.params.len() != 1 {
         return None;
     }
@@ -146,23 +153,33 @@ fn param_body_passthrough_param(proc: &Procedure) -> Option<String> {
     // $body`` becomes ``Statement::Call`` (or ``Barrier`` when the
     // default lowering treats it as opaque); the explicit
     // ``uplevel 1 $body`` form goes through the same dispatch.
-    let (cmd, args) = match stmt {
-        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
-            (command.as_str(), args.as_slice())
-        }
-        _ => return None,
+    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
+        return None;
     };
-    if cmd != "uplevel" {
+
+    // The dispatcher must be a command whose registry frame-effect
+    // grammar runs a script in the frame the level word selects, and
+    // the level word must resolve to the immediate caller. Reading the
+    // grammar rather than the spelling covers every spelling of the
+    // command (``::uplevel``) and every spelling of the level word
+    // (``1``, ``+1``, ``0x1``, omitted) without enumerating either.
+    let spec = registry.get(stmt.canonical_command_or_source())?;
+    let frame_effect = spec.frame_effect?;
+    if frame_effect.layout != FrameArgLayout::ScriptInSelectedFrame {
         return None;
     }
-
-    let body_arg = match args.len() {
-        // Implicit level 1: ``uplevel $body``.
-        1 => &args[0],
-        // Explicit ``uplevel 1 $body`` — only level == 1 is
-        // recognised; deeper shifts can't be inlined the same way.
-        2 if args[0] == "1" => &args[1],
-        _ => return None,
+    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    let (level, rest) = frame_effect.resolve_for_version(&words, registry.runtime_version());
+    // Only the immediate caller's frame is the passthrough idiom;
+    // a deeper shift, an absolute frame, or a runtime-computed level
+    // can't be inlined the same way.
+    if level != FrameLevel::Relative(1) {
+        return None;
+    }
+    // The script is the whole argument tail, which `uplevel`
+    // concatenates — only a single body word is the passthrough shape.
+    let [body_arg] = rest else {
+        return None;
     };
 
     // Body word must be a pure ``$param`` reference to the sole
@@ -177,58 +194,92 @@ fn param_body_passthrough_param(proc: &Procedure) -> Option<String> {
     Some(param.clone())
 }
 
-/// True if *script* contains an `uplevel` / `upvar` / frame-
-/// inspecting command that would reach outside the inlined scope.
+/// True if *script* contains a command that reaches a stack frame other
+/// than the one it is written in, and would therefore change meaning
+/// once the script is spliced into the caller.
 ///
 /// After inlining the body runs in the caller's frame; if the body
 /// itself does `uplevel 1 {...}`, that now references the caller's
 /// *caller* — a frame the original author may not have anticipated.
 /// Reject conservatively.
+///
+/// Which commands those are comes from the registry — a spec's
+/// [`frame_effect`](tcl_registry::CommandSpec::frame_effect) grammar or any
+/// of [`FRAME_REACH_TRAITS`], composed over the resolved subcommand — so
+/// `argparse`, `tailcall`, `eval`, and `info level` are covered alongside
+/// `uplevel` / `upvar` without this pass naming a command.
 #[must_use]
-pub fn body_has_frame_reach(script: &Script) -> bool {
-    script.statements.iter().any(statement_has_frame_reach)
+pub fn body_has_frame_reach(script: &Script, registry: &CommandRegistry) -> bool {
+    script
+        .statements
+        .iter()
+        .any(|stmt| statement_has_frame_reach(stmt, registry))
 }
 
-fn statement_has_frame_reach(stmt: &Statement) -> bool {
+fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bool {
+    let reaches = |script: &Script| body_has_frame_reach(script, registry);
     match stmt {
         Statement::UpFrame { .. } => true,
-        Statement::Barrier { command, .. } | Statement::Call { command, .. }
-            if matches!(command.as_str(), "uplevel" | "upvar") =>
-        {
-            true
+        Statement::Barrier { .. } | Statement::Call { .. } => {
+            invocation_reaches_frame(stmt, registry)
         }
         Statement::If {
             clauses, else_body, ..
-        } => {
-            clauses.iter().any(|c| body_has_frame_reach(&c.body))
-                || else_body.as_ref().is_some_and(body_has_frame_reach)
-        }
+        } => clauses.iter().any(|c| reaches(&c.body)) || else_body.as_ref().is_some_and(&reaches),
         Statement::For {
             init, next, body, ..
-        } => body_has_frame_reach(init) || body_has_frame_reach(next) || body_has_frame_reach(body),
-        Statement::While { body, .. } | Statement::Foreach { body, .. } => {
-            body_has_frame_reach(body)
-        }
-        Statement::Catch { body, .. } | Statement::Block { body, .. } => body_has_frame_reach(body),
+        } => reaches(init) || reaches(next) || reaches(body),
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. }
+        | Statement::Block { body, .. } => reaches(body),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            body_has_frame_reach(body)
-                || handlers.iter().any(|h| body_has_frame_reach(&h.body))
-                || finally_body.as_ref().is_some_and(body_has_frame_reach)
+            reaches(body)
+                || handlers.iter().any(|h| reaches(&h.body))
+                || finally_body.as_ref().is_some_and(&reaches)
         }
         Statement::Switch {
             arms, default_body, ..
         } => {
-            arms.iter()
-                .any(|a| a.body.as_ref().is_some_and(body_has_frame_reach))
-                || default_body.as_ref().is_some_and(body_has_frame_reach)
+            arms.iter().any(|a| a.body.as_ref().is_some_and(&reaches))
+                || default_body.as_ref().is_some_and(&reaches)
         }
         _ => false,
     }
+}
+
+/// The registry's answer for one `Call` / `Barrier`: does this invocation
+/// reach a frame other than the one it is written in?
+///
+/// Keyed off [`Statement::canonical_command_or_source`], so a resolved
+/// `::uplevel` and a surface `uplevel` are the same command here.  Traits
+/// are composed over the resolved subcommand
+/// ([`CommandRegistry::invocation_traits`]) because `info level` /
+/// `info frame` carry [`tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION`]
+/// on the subcommand rather than on `info` itself.
+fn invocation_reaches_frame(stmt: &Statement, registry: &CommandRegistry) -> bool {
+    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
+        return false;
+    };
+    let command = stmt.canonical_command_or_source();
+    if command.is_empty() {
+        return false;
+    }
+    if registry
+        .get(command)
+        .is_some_and(|spec| spec.frame_effect.is_some())
+    {
+        return true;
+    }
+    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    registry
+        .invocation_traits(command, &words, DialectSet::empty())
+        .intersects(FRAME_REACH_TRAITS)
 }
 
 /// True if *script* can complete with a `return` / `break` / `continue`
@@ -344,7 +395,7 @@ fn statement_scripts_escape(scripts: &[&Script], in_loop: bool) -> bool {
 /// Safe to call multiple times — already-inlined callsites no
 /// longer match the pattern.
 pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistry) {
-    let candidates = detect_passthrough_candidates(module);
+    let candidates = detect_passthrough_candidates(module, registry);
     if candidates.is_empty() {
         return;
     }
@@ -484,7 +535,7 @@ fn try_inline_callsite(
             }
             let literal = &args[0];
             let inlined = lower_literal_script(literal, namespace, registry);
-            if body_has_frame_reach(&inlined) || body_has_completion_escape(&inlined) {
+            if body_has_frame_reach(&inlined, registry) || body_has_completion_escape(&inlined) {
                 return None;
             }
             Some(Statement::Block {
@@ -590,7 +641,7 @@ mod tests {
     #[test]
     fn zero_param_static_passthrough_detected() {
         let m = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }", &reg());
-        let candidates = detect_static_passthrough(&m);
+        let candidates = detect_static_passthrough(&m, &reg());
         assert_eq!(candidates.len(), 1);
         assert!(candidates.contains_key("::reset"));
     }
@@ -601,13 +652,13 @@ mod tests {
             "proc reset {} { uplevel 1 {set counter 0}\n puts done }",
             &reg(),
         );
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
     fn proc_with_params_is_not_static_passthrough() {
         let m = lower_to_ir("proc reset {x} { uplevel 1 {set counter 0} }", &reg());
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
@@ -616,13 +667,13 @@ mod tests {
             "proc reset {} { uplevel 1 {uplevel 1 {set counter 0}} }",
             &reg(),
         );
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
     fn nested_upvar_call_blocks_static_passthrough() {
         let m = lower_to_ir("proc bind {} { uplevel 1 {upvar foo bar} }", &reg());
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
@@ -630,7 +681,7 @@ mod tests {
         // ``uplevel #0`` shifts to absolute global frame — can't be
         // expressed as a same-frame inline.
         let m = lower_to_ir("proc reset {} { uplevel #0 {set counter 0} }", &reg());
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
@@ -639,10 +690,10 @@ mod tests {
         // caller's-frame idiom `uplevel 1` denotes. Both carry the magnitude
         // 1; only the `absolute` flag separates them.
         let m = lower_to_ir("proc reset {} { uplevel #1 {set counter 0} }", &reg());
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
         let relative = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }", &reg());
         assert!(
-            !detect_static_passthrough(&relative).is_empty(),
+            !detect_static_passthrough(&relative, &reg()).is_empty(),
             "the relative form is still recognised",
         );
     }
@@ -652,19 +703,19 @@ mod tests {
         // Splicing a `return` into the caller would return the CALLER's
         // proc; the erased passthrough boundary used to absorb it.
         let m = lower_to_ir("proc run {} { uplevel 1 {return 5} }", &reg());
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
     fn static_passthrough_with_bare_break_rejected() {
         let m = lower_to_ir("proc run {} { uplevel 1 {break} }", &reg());
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
     fn static_passthrough_with_bare_continue_rejected() {
         let m = lower_to_ir("proc run {} { uplevel 1 {continue} }", &reg());
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
@@ -675,7 +726,7 @@ mod tests {
             "proc run {} { uplevel 1 {foreach x {1 2} { break }} }",
             &reg(),
         );
-        assert_eq!(detect_static_passthrough(&m).len(), 1);
+        assert_eq!(detect_static_passthrough(&m, &reg()).len(), 1);
     }
 
     #[test]
@@ -683,7 +734,7 @@ mod tests {
         // `catch` intercepts every non-OK completion code, so a `return`
         // inside it cannot escape the body.
         let m = lower_to_ir("proc run {} { uplevel 1 {catch {return 5}} }", &reg());
-        assert_eq!(detect_static_passthrough(&m).len(), 1);
+        assert_eq!(detect_static_passthrough(&m, &reg()).len(), 1);
     }
 
     #[test]
@@ -694,7 +745,7 @@ mod tests {
             "proc run {} { uplevel 1 {foreach x {1 2} { return $x }} }",
             &reg(),
         );
-        assert!(detect_static_passthrough(&m).is_empty());
+        assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }
 
     #[test]
@@ -721,10 +772,93 @@ mod tests {
         assert_eq!(count_blocks(&m.top_level), 1);
     }
 
+    /// Inline `body` through `proc dispatcher {body} { uplevel 1 $body }` and
+    /// report how many callsites collapsed to a spliced `Block`.
+    fn dispatched_blocks(body: &str) -> usize {
+        let src = format!("proc dispatcher {{body}} {{ uplevel 1 $body }}\ndispatcher {{{body}}}");
+        let mut m = lower_to_ir(&src, &reg());
+        inline_uplevel_passthrough(&mut m, &reg());
+        count_blocks(&m.top_level)
+    }
+
+    #[test]
+    fn param_body_callsite_calling_argparse_not_inlined() {
+        // `argparse` injects locals into the frame of *its own* caller
+        // (`FrameArgLayout::OpaqueCallerVars`), so splicing the body one frame
+        // down redirects every injected name.
+        assert_eq!(dispatched_blocks("argparse {a b}"), 0);
+    }
+
+    #[test]
+    fn param_body_callsite_calling_tailcall_not_inlined() {
+        // `tailcall` (`Traits::REPLACES_FRAME`) replaces the frame it runs in;
+        // spliced into the caller it would replace the *caller's* frame.
+        assert_eq!(dispatched_blocks("tailcall other"), 0);
+    }
+
+    #[test]
+    fn param_body_callsite_calling_info_level_not_inlined() {
+        // `info level` reads the current frame's depth and words
+        // (`Traits::CURRENT_FRAME_INTROSPECTION`, carried on the *subcommand*
+        // — a parent-only trait test misses it).
+        assert_eq!(dispatched_blocks("info level"), 0);
+    }
+
+    #[test]
+    fn param_body_callsite_calling_qualified_uplevel_not_inlined() {
+        // The globally-qualified spelling is the same command; the old
+        // two-name surface test only knew the bare `uplevel`. A `$`-body
+        // keeps the call on the generic dispatch path, so the guard sees a
+        // `Call` whose surface word is `::uplevel` rather than a lowered
+        // `Statement::UpFrame`.
+        assert_eq!(dispatched_blocks("::uplevel 1 $script"), 0);
+        assert_eq!(dispatched_blocks("::upvar 1 outer inner"), 0);
+    }
+
+    #[test]
+    fn param_body_callsite_with_benign_body_still_inlined() {
+        // Control: a body that reaches no other frame still inlines, so the
+        // widened gate has not disabled the optimisation wholesale.
+        assert_eq!(dispatched_blocks("set counter 0"), 1);
+    }
+
+    #[test]
+    fn param_body_level_word_is_read_as_a_frame_not_a_literal() {
+        // The level word goes through the registry's frame-effect
+        // resolution, so every spelling of "the immediate caller" is
+        // recognised and nothing else is.
+        for (src, expected) in [
+            ("proc dispatcher {body} { uplevel 0x1 $body }", true),
+            ("proc dispatcher {body} { uplevel +1 $body }", true),
+            ("proc dispatcher {body} { uplevel 0 $body }", false),
+            ("proc dispatcher {body} { uplevel #1 $body }", false),
+            ("proc dispatcher {body} { uplevel #0 $body }", false),
+            ("proc dispatcher {body} { uplevel $lvl $body }", false),
+        ] {
+            let m = lower_to_ir(src, &reg());
+            let found = matches!(
+                detect_passthrough_candidates(&m, &reg()).get("::dispatcher"),
+                Some(PassthroughShape::ParamBody { .. })
+            );
+            assert_eq!(found, expected, "{src}");
+        }
+    }
+
+    #[test]
+    fn qualified_uplevel_dispatcher_is_still_a_candidate() {
+        // The dispatcher's own head resolves through the registry too, so
+        // `proc D {b} { ::uplevel 1 $b }` is the same passthrough shape.
+        let m = lower_to_ir("proc dispatcher {body} { ::uplevel 1 $body }", &reg());
+        assert!(matches!(
+            detect_passthrough_candidates(&m, &reg()).get("::dispatcher"),
+            Some(PassthroughShape::ParamBody { .. })
+        ));
+    }
+
     #[test]
     fn param_body_passthrough_detected() {
         let m = lower_to_ir("proc dispatcher {body} { uplevel 1 $body }", &reg());
-        let candidates = detect_passthrough_candidates(&m);
+        let candidates = detect_passthrough_candidates(&m, &reg());
         let shape = candidates.get("::dispatcher").expect("expected candidate");
         match shape {
             PassthroughShape::ParamBody { param_name } => assert_eq!(param_name, "body"),
@@ -737,7 +871,7 @@ mod tests {
         // ``uplevel $body`` (no explicit level) defaults to 1 so
         // it matches the same shape.
         let m = lower_to_ir("proc dispatcher {body} { uplevel $body }", &reg());
-        let candidates = detect_passthrough_candidates(&m);
+        let candidates = detect_passthrough_candidates(&m, &reg());
         assert!(matches!(
             candidates.get("::dispatcher"),
             Some(PassthroughShape::ParamBody { .. })
@@ -747,20 +881,20 @@ mod tests {
     #[test]
     fn param_body_passthrough_two_params_rejected() {
         let m = lower_to_ir("proc dispatcher {body extra} { uplevel 1 $body }", &reg());
-        assert!(detect_passthrough_candidates(&m).is_empty());
+        assert!(detect_passthrough_candidates(&m, &reg()).is_empty());
     }
 
     #[test]
     fn param_body_passthrough_wrong_param_rejected() {
         // ``$other`` isn't the proc's parameter — mismatch.
         let m = lower_to_ir("proc dispatcher {body} { uplevel 1 $other }", &reg());
-        assert!(detect_passthrough_candidates(&m).is_empty());
+        assert!(detect_passthrough_candidates(&m, &reg()).is_empty());
     }
 
     #[test]
     fn body_with_only_assignment_has_no_frame_reach() {
         let m = lower_to_ir("set x 1", &reg());
-        assert!(!body_has_frame_reach(&m.top_level));
+        assert!(!body_has_frame_reach(&m.top_level, &reg()));
     }
 
     fn count_blocks(script: &Script) -> usize {
