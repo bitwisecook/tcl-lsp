@@ -787,6 +787,19 @@ action?", "does this mutate state?"), add a field to `CommandSpec`, a query
 method to the registry, and set the flag on the relevant command specs. Do
 **not** create an ad-hoc set of command names in the consumer module.
 
+The same rule covers a command's **option** surface, and it has a drift gate:
+**`cargo xtask audit-option-dialects --check`** (wired into `make xtask-check`
+as `xtask-option-registry-drift`) fails when the tclsh dialect audit probes an
+option no `OptionSpec` declares. The audit and the registry described different
+surfaces once already — the audit probed `fconfigure -profile` (TIP 656) while
+the registry had never heard of it, and the gap was found by hand (issue
+#1396). The gate runs no tclsh, so it needs no built Tcl trees. A genuinely
+missing option goes on the `KNOWN_UNSPECIFIED` list in
+`rust/xtask/src/audit_option_dialects.rs` with its tracking issue, and the gate
+fails on a waiver whose gap has closed. See
+[`docs/design/compiler/command-registry.md`](docs/design/compiler/command-registry.md)
+§ *The audit-registry option-surface gate*.
+
 ### Argument role resolution order
 
 Three mechanisms assign argument roles (BODY, EXPR, VAR_READ, VAR_WRITE, etc.)

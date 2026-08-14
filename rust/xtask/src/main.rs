@@ -35,7 +35,9 @@
 //! - `tzdata-bundle` — pack the curated tzdata `TZBL` bundle for the WASM
 //!   runtime.
 //! - `audit-option-dialects` — probe `OptionSpec` dialect gates against real
-//!   tclsh 8.4/8.5/8.6/9.0.
+//!   tclsh 8.4/8.5/8.6/9.0 (`--check` instead cross-checks the audit's probe
+//!   table against the registry's declared options — the audit↔registry drift
+//!   gate, issue #1396).
 //! - `diag-tables` — generate the `docs/generated/` code tables from the
 //!   `DiagCode` catalogue (`--check` to verify instead of write).
 //! - `gen-editor-catalogs` — generate the Zed/VS Code command & iRules-event
@@ -105,7 +107,13 @@ enum Command {
     },
 
     /// Probe `OptionSpec` dialect gates against real tclsh 8.4/8.5/8.6/9.0.
-    AuditOptionDialects,
+    AuditOptionDialects {
+        /// Run the audit↔registry drift guard instead of probing tclsh: every
+        /// audited option must be declared by the registry's `OptionSpec`
+        /// tables. Exits non-zero on a disagreement (issue #1396).
+        #[arg(long)]
+        check: bool,
+    },
 
     /// Check the WASM runtime backs every core-Tcl registry command;
     /// regenerate `docs/generated/wasm-command-backing.md`.
@@ -275,7 +283,7 @@ fn main() -> anyhow::Result<ExitCode> {
             trim_from,
             trim_to,
         } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
-        Command::AuditOptionDialects => audit_option_dialects::run(),
+        Command::AuditOptionDialects { check } => audit_option_dialects::run(check),
         Command::WasmBacking { check } => command_backing::run(check),
         Command::DiagTables { check } => diag_tables::run(check),
         Command::DiagEmissionCheck => Ok(diag_emission::run()),
