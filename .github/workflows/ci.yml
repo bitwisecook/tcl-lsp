@@ -445,7 +445,13 @@ jobs:
     # healthy — a 2026-08 regression to 16 min turned out to be two oversized
     # `tcl-compiler` per_item tests, since fixed; if this job blows past ~5
     # min again, suspect a runaway test before suspecting the box or the
-    # cache).  It is the ONLY job routed to the self-hosted runner, and that
+    # cache).  No longer the longest pole: `lsp-e2e` now is (~390s vs ~150s
+    # here).  Note that neither is the workflow's critical path — the
+    # `build-tcl-lsp-server` -> `test-ext` chain is, finishing 40-80s after
+    # `lsp-e2e` does, so shortening the test jobs cuts cost and the local
+    # `make test-rust` loop rather than PR turnaround.
+    #
+    # It is the ONLY job routed to the self-hosted runner, and that
     # is deliberate: the box has one runner instance, so anything sent there
     # executes serially and queues behind this job.
     #
@@ -480,18 +486,22 @@ jobs:
       # Skipped entirely for docs-only changes and already-green tags;
       # downgraded to a cache-warming build (--no-run) on an already-green
       # merge push, because PR runs restore this job's cache from the base
-      # branch — see the channel job header for the full contract.
+      # branch — see the channel job header for the full contract.  --no-run
+      # drops --no-fail-fast rather than adding to it: nextest 0.9.143 rejects
+      # `--no-run --no-fail-fast` outright ("the argument '--no-run' cannot be
+      # used with '--no-fail-fast'"), and the flag is meaningless anyway when
+      # no tests are executed.
       - name: cargo nextest run (workspace minus VM-sim heavies and lsp-e2e)
         if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
         run: |
-          extra=""
+          extra="--no-fail-fast"
           if [ "$ALREADY_GREEN" = "true" ]; then
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             extra="--no-run"
           fi
-          cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features --no-fail-fast
+          cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
 
       # nextest does not run doctests; run them for the WHOLE workspace (incl.
       # the crates excluded above — doctests are cheap) so the other jobs need
@@ -537,12 +547,12 @@ jobs:
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
         run: |
-          extra=""
+          extra="--no-fail-fast"
           if [ "$ALREADY_GREEN" = "true" ]; then
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             extra="--no-run"
           fi
-          cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features --no-fail-fast
+          cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features
 
   # Native-server lsp_e2e suite.  Its own job (hence its own status check)
   # because it is a distinct, heavier surface: it builds the `tcl-lsp-server`
@@ -579,12 +589,12 @@ jobs:
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
         run: |
-          extra=""
+          extra="--no-fail-fast"
           if [ "$ALREADY_GREEN" = "true" ]; then
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             extra="--no-run"
           fi
-          cargo nextest run $extra -p tcl-lsp-server --no-fail-fast
+          cargo nextest run $extra -p tcl-lsp-server
 
   # Supply-chain audit (advisories / licenses / bans / sources) via the
   # committed deny.toml.  Its own job so a denial is attributable independently
