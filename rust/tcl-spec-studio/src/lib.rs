@@ -41,6 +41,8 @@
 //! - [`render_rs`] — draft → registry `.rs` source, copyright banner included.
 //! - [`render_stub`] — draft → `# tcl-lsp: stub` block or `.tcl.stubs` file.
 //! - [`render_spectcl`] — draft → `.tclspec` spec pack, the loader's inverse.
+//! - [`format_pack`] — `.tclspec` source → the shared Tcl formatter under the
+//!   Tcl 9 + `SpecTcl` profile used by the studio's code editors.
 //! - [`infer`] — Tcl package sources → draft specs, via the real analyser.
 //! - [`versions`] — the same, over several *releases* of one package, so the
 //!   lifecycle fields carry a range the releases actually witness rather than
@@ -82,6 +84,7 @@ pub use tcl_spectcl::catalogue;
 pub use tcl_spectcl::loader as spectcl;
 
 use serde_json::{Value, json};
+use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 use tcl_registry::cache::registry_for_dialect;
 
 /// Dialects the studio offers, as `(registry name, label)`.
@@ -90,6 +93,7 @@ use tcl_registry::cache::registry_for_dialect;
 /// primitive `DialectSet` bits — a profile is what decides which commands are
 /// actually visible.
 pub const BROWSABLE_DIALECTS: &[(&str, &str)] = &[
+    ("spectcl", "SpecTcl (Tcl 9.0)"),
     ("tcl9.1", "Tcl 9.1"),
     ("tcl9.0", "Tcl 9.0"),
     ("tcl8.6", "Tcl 8.6"),
@@ -100,6 +104,16 @@ pub const BROWSABLE_DIALECTS: &[(&str, &str)] = &[
     ("tk", "Tk"),
     ("expect", "Expect"),
 ];
+
+/// Format a `SpecTcl` pack with the same Tcl formatter used by the LSP and CLI.
+///
+/// A `.tclspec` file is Tcl 9 source extended by the `SpecTcl` command layer,
+/// so the formatter grammar and registry come from that resolved profile.
+#[must_use]
+pub fn format_pack(source: &str) -> String {
+    let config = FormatterConfig::for_dialect("spectcl");
+    format_tcl(source, &config, registry_for_dialect("spectcl"))
+}
 
 /// The command names available in `dialect`, sorted.
 #[must_use]
@@ -204,5 +218,14 @@ mod tests {
                 "{name} resolved to an empty registry"
             );
         }
+    }
+
+    #[test]
+    fn pack_formatting_uses_the_shared_spectcl_profile() {
+        let source = "speclib demo 1 {\ncommand foo {\nsynopsis {foo value}\narity 1\n}\n}";
+        assert_eq!(
+            format_pack(source),
+            "speclib demo 1 {\n    command foo {\n        synopsis {foo value}\n        arity 1\n    }\n}\n"
+        );
     }
 }

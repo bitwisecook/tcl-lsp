@@ -21,6 +21,7 @@
 // Usage: `npm run build` (from rust/tcl-spec-studio/web).
 
 import * as esbuild from "esbuild";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +30,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const distDir = join(here, "dist");
 const assetsDir = join(distDir, "assets");
 const testsDir = join(distDir, "tests");
+const version =
+  process.env.TCL_LSP_GIT_DESCRIBE ??
+  execFileSync("git", ["describe", "--tags", "--always", "--dirty"], {
+    cwd: here,
+    encoding: "utf8",
+  }).trim();
 
 // `node build.mjs --tests` bundles the unit tests instead of the app: they
 // import the same TypeScript sources the browser bundle does, and node's test
@@ -44,6 +51,7 @@ if (process.argv.includes("--tests")) {
     format: "esm",
     platform: "node",
     target: "node22",
+    define: { __SPEC_STUDIO_FRONTEND_VERSION__: JSON.stringify(version) },
     // node's own modules stay external — bundling them would be nonsense.
     packages: "external",
     logLevel: "info",
@@ -85,6 +93,7 @@ await esbuild.build({
   minify: false,
   legalComments: "none",
   banner: { js: banner },
+  define: { __SPEC_STUDIO_FRONTEND_VERSION__: JSON.stringify(version) },
   logLevel: "info",
 });
 
@@ -101,10 +110,13 @@ await esbuild.build({
   minify: true,
   legalComments: "none",
   banner: { js: vendorBanner },
+  define: { __SPEC_STUDIO_FRONTEND_VERSION__: JSON.stringify(version) },
   // Monaco's CSS pulls in the codicon font; inlining it as a data URI is what
   // keeps the dist to files that can be copied anywhere without a loader.
   loader: { ".ttf": "dataurl", ".woff": "dataurl", ".woff2": "dataurl", ".svg": "dataurl" },
   logLevel: "info",
 });
 
-console.log("spec studio front-end: built dist/studio.js + dist/assets/monaco-host.{js,css}");
+console.log(
+  `spec studio front-end ${version}: built dist/studio.js + dist/assets/monaco-host.{js,css}`,
+);

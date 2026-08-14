@@ -35,16 +35,19 @@ import {
   setStatus,
   type Child,
 } from "./dom.js";
+import { assetUrl, verifyAssetVersion, verifyBuildInfo, type BuildInfo } from "./buildInfo.js";
 import { renderDslHighlight, renderDslMarkers, syncDslScroll } from "./dslEditor.js";
 import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
 import type { EditorHost, MonacoHostModule } from "./editorHost.js";
 import * as idb from "./idb.js";
 import { initReleasesPanel } from "./importReleases.js";
+import { mapSelectionThroughFormat } from "./textSelection.js";
 import type {
   CommandIndex,
   DialectEntry,
   Draft,
   FieldSchema,
+  Formatted,
   ImportResult,
   IndexEntry,
   InferredCommand,
@@ -179,6 +182,8 @@ let formDirty = false;
 let editorHost: EditorHost | null = null;
 /** Set while the chunk is loading, so two tab clicks do not mount twice. */
 let editorMounting: Promise<void> | null = null;
+/** Provenance for this assembled page and every external asset it names. */
+let activeBuildInfo: BuildInfo;
 
 /* Drafts ---------------------------------------------------------------- */
 
@@ -425,23 +430,23 @@ function unwrap<T extends { error?: string }>(json: string): T {
 /**
  * Adopt `source` as the pack document and re-render every projection of it.
  *
- * `fromDsl` says the edit came from the DSL textarea, which is the one case
- * where the textarea must *not* be written back to — doing so would move the
- * author's caret to the end of the file on every keystroke.
+ * `fromDsl` preserves the active editor's selection while the formatter's
+ * full-document replacement is written back.
  */
 function setPackSource(
   source: string,
   opts: { fromDsl?: boolean; refreshForm?: boolean } = {},
 ): void {
-  state.pack.source = source;
+  const formatted = unwrap<Formatted>(wasm.format_pack(source)).source;
+  state.pack.source = formatted;
   try {
-    state.pack.view = unwrap<PackStoreView>(wasm.pack_load(source, state.dialect));
+    state.pack.view = unwrap<PackStoreView>(wasm.pack_load(formatted, state.dialect));
     setStatus("dslStatus", "");
   } catch (e) {
     state.pack.view = null;
     setStatus("dslStatus", `could not read the pack: ${message(e)}`, "err");
   }
-  if (!opts.fromDsl) writeDsl(source);
+  writeDsl(formatted, opts.fromDsl);
 
   // A command the document no longer declares cannot stay open.
   const names = new Set((state.pack.view?.commands ?? []).map((c) => c.name));
@@ -459,7 +464,7 @@ function setPackSource(
   // Repainting it anyway would cost a full re-tokenise per keystroke for
   // something nobody can see.
   if (!usingMonaco()) {
-    renderDslHighlight(wasm, source);
+    renderDslHighlight(wasm, formatted);
     renderDslMarkers(state.pack.view?.notices ?? []);
   }
   if (opts.refreshForm && state.pack.open) refreshOpenCommand();
@@ -912,6 +917,7 @@ function renderOutputs(): void {
     if (rs.error) throw new Error(rs.error);
     rendered.rs = rs;
     byId("rsOut").firstElementChild!.textContent = rs.source;
+    editorHost?.setRustText(rs.source);
     byId("rsPath").textContent = rs.path;
 
     const mode = byId<HTMLSelectElement>("stubMode").value;
@@ -921,6 +927,7 @@ function renderOutputs(): void {
     if (stub.error) throw new Error(stub.error);
     rendered.stub = stub;
     byId("stubOut").firstElementChild!.textContent = stub.source;
+    editorHost?.setStubText(stub.source);
     byId("stubPath").textContent = stub.path;
   } catch (e) {
     setStatus("status", `render failed: ${e instanceof Error ? e.message : String(e)}`, "err");
@@ -1746,10 +1753,12 @@ async function mountEditorHost(): Promise<void> {
   };
   editorMounting = (async () => {
     report("loading the editor…");
-    const specifier = new URL(EDITOR_CHUNK, document.baseURI).href;
+    const specifier = assetUrl(activeBuildInfo, "editor-controller", EDITOR_CHUNK);
     const chunk = (await import(specifier)) as MonacoHostModule;
+    if (!verifyAssetVersion(activeBuildInfo, "editor controller", chunk.buildVersion)) return;
     editorHost = await chunk.mountEditors({
-      workerDir: LSP_WORKER_DIR,
+      workerUrl: assetUrl(activeBuildInfo, "lsp-worker", `${LSP_WORKER_DIR}/worker.js`),
+      stylesheetUrl: assetUrl(activeBuildInfo, "editor-style", "assets/monaco-host.css"),
       dialect: state.dialect,
       report,
       dsl: {
@@ -1762,10 +1771,20 @@ async function mountEditorHost(): Promise<void> {
         textarea: byId<HTMLTextAreaElement>("testText"),
         onChange: () => runTest(),
       },
+      rust: {
+        container: byId("rsEditor"),
+        fallback: byId("rsOut"),
+      },
+      stub: {
+        container: byId("stubEditor"),
+        fallback: byId("stubOut"),
+      },
     });
     // The overlay was the text surface; now it is a hidden fallback that must
     // not keep painting over the editor that replaced it.
     byId("dslFallback").hidden = true;
+    byId("rsOut").hidden = true;
+    byId("stubOut").hidden = true;
   })();
   try {
     await editorMounting;
@@ -1782,8 +1801,17 @@ async function mountEditorHost(): Promise<void> {
 }
 
 /** Push text into whichever surface is live, without echoing a change back. */
-function writeDsl(source: string): void {
-  byId<HTMLTextAreaElement>("dslText").value = source;
+function writeDsl(source: string, preserveSelection = false): void {
+  const textarea = byId<HTMLTextAreaElement>("dslText");
+  const previous = textarea.value;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const direction = textarea.selectionDirection ?? "none";
+  textarea.value = source;
+  if (preserveSelection && !usingMonaco()) {
+    const mapped = mapSelectionThroughFormat(previous, source, { start, end });
+    textarea.setSelectionRange(mapped.start, mapped.end, direction);
+  }
   editorHost?.setDslText(source);
 }
 
@@ -1802,7 +1830,7 @@ function selectTab(name: Tab): void {
     byId(`tab-${tab}`).setAttribute("aria-selected", on ? "true" : "false");
     byId(`pane-${tab}`).hidden = !on;
   }
-  if (name === "dsl" || name === "test") {
+  if (name === "dsl" || name === "test" || name === "rs" || name === "stub") {
     void mountEditorHost().then(() => {
       // Monaco measures the container it was created in; a container inside a
       // `hidden` pane measures zero, so every reveal needs a re-layout.
@@ -2081,6 +2109,9 @@ async function restoreSession(): Promise<void> {
 }
 
 function boot(): void {
+  const buildInfo = verifyBuildInfo();
+  if (!buildInfo) return;
+  activeBuildInfo = buildInfo;
   const payload = byId("studio-wasm").textContent?.trim() ?? "";
   const binary = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
 
@@ -2096,7 +2127,7 @@ function boot(): void {
         schema,
         defaultCommand: JSON.parse(wasm.new_command()) as Draft,
         defaultSubcommand: JSON.parse(wasm.new_subcommand()) as Draft,
-        dialect: "tcl9.0",
+        dialect: "spectcl",
         index: [],
         draft: null,
         files: [],
@@ -2137,7 +2168,7 @@ function boot(): void {
       );
 
       byId("ver").textContent =
-        `${schema.command.length} spec fields · ${state.index.length} commands`;
+        `${buildInfo.version} · ${schema.command.length} spec fields · ${state.index.length} commands`;
       setStatus("status", "");
       void restoreSession();
     },

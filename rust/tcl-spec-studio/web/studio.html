@@ -3,7 +3,7 @@
      registry, compiled to one self-contained HTML file.
 
      Substitution tokens, filled in by rust/tcl-spec-studio-wasm/build-wasm.sh:
-     __CSP__, __STYLES__, __WASM_PAYLOAD__, __STUDIO_JS__, and the project marks
+     __CSP__, __STYLES__, __BUILD_INFO__, __WASM_PAYLOAD__, __STUDIO_JS__, and the project marks
      __LOGO_TCL_LSP__ / __LOGO_TCL_LSP_DARK__, each replaced with the contents of
      the matching `assets/logo-*.svg` so the mark inlines as <svg> — the same
      pattern the BIG-IP report builder page uses. -->
@@ -123,7 +123,7 @@ __STYLES__
               <button type="button" class="ghost" id="dslCanonical" title="Re-render the whole document from its commands — this discards your comments and layout">Re-render canonically</button>
               <span class="path" id="dslPath"></span>
             </div>
-            <div class="editorhost" id="dslEditor"></div>
+            <div class="editorhost" id="dslEditor" data-language="tcl" data-dialect="spectcl" data-tcl-version="9.0"></div>
             <div class="dsl-wrap" id="dslFallback">
               <pre class="dsl-hl" id="dslHl" aria-hidden="true"></pre>
               <div class="dsl-markers" id="dslMarkers" aria-hidden="true"></div>
@@ -153,7 +153,7 @@ __STYLES__
                  model: the document is opened under whichever dialect the
                  selector at the top of the page names, so the server analyses
                  it exactly as an editor configured for that dialect would. -->
-            <div class="editorhost short" id="testEditor"></div>
+            <div class="editorhost short" id="testEditor" data-language="tcl" data-dialect="spectcl" data-tcl-version="9.0"></div>
             <textarea id="testText" class="dsl" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Tcl to test the pack with"></textarea>
             <div class="status" id="testStatus"></div>
             <div class="testsplit">
@@ -183,6 +183,7 @@ __STYLES__
               </label>
               <span class="path" id="rsPath"></span>
             </div>
+            <div class="editorhost output" id="rsEditor" data-language="rust"></div>
             <pre id="rsOut"><code>—</code></pre>
           </div>
         </section>
@@ -202,6 +203,7 @@ __STYLES__
               </label>
               <span class="path" id="stubPath"></span>
             </div>
+            <div class="editorhost output" id="stubEditor" data-language="tcl" data-dialect="spectcl" data-tcl-version="9.0"></div>
             <pre id="stubOut"><code>—</code></pre>
           </div>
         </section>
@@ -339,6 +341,7 @@ __STYLES__
   </footer>
 </div>
 
+__BUILD_INFO__
 __WASM_PAYLOAD__
 __STUDIO_JS__
 </body>

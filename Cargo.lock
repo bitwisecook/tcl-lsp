@@ -4513,6 +4513,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-lsp-core",
  "tcl-registry",
  "tcl-spectcl",
  "tcl-syntax",
