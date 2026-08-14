@@ -161,7 +161,13 @@ fn a_command_added_in_the_second_release_is_introduced_there() {
         pack.contains("# Releases, oldest first: 1.0, 2.0"),
         "{pack}"
     );
-    assert!(pack.contains("speclib demo 1.0 {"), "{pack}");
+    // The pack declares the renderer's own vocabulary version, whatever it is
+    // today — hardcoding it here broke once already when 1.0 became 1.1.
+    let speclib_line = format!(
+        "speclib demo {} {{",
+        tcl_spec_studio::render_spectcl::DSL_VERSION
+    );
+    assert!(pack.contains(&speclib_line), "{pack}");
     // The human summary goes to stderr, never into the pack on stdout.
     assert!(
         stderr.contains("2 command(s) from 2 local release(s)"),
