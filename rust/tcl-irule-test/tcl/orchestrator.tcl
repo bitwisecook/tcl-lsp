@@ -57,7 +57,9 @@ namespace eval ::orch {
         variable _config_keys
         foreach {opt val} $args {
             set key [string trimleft $opt -]
-            if {$key ni $_config_keys} {
+            # ([lsearch] rather than `ni`: the membership operators are 8.5+
+            # and the harness compiles under the TMM's 8.4.)
+            if {[lsearch -exact $_config_keys $key] < 0} {
                 error "unknown configure option \"-$key\" (valid: [join $_config_keys {, }])"
             }
             set config($key) $val
@@ -1150,7 +1152,7 @@ namespace eval ::orch {
 
         # Check constraints
         foreach c $constraints {
-            if {$c ni $_test_constraints} {
+            if {[lsearch -exact $_test_constraints $c] < 0} {
                 incr _test_skipped
                 if {$_test_verbose >= 2} {
                     puts "---- $name SKIPPED ($c)"

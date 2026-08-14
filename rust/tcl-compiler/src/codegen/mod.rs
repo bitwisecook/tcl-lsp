@@ -92,6 +92,21 @@ pub struct CodegenCtx<'r> {
     /// `\x4142` is `B` when compiling for 8.5 and `A42` from 8.6 (issue #1479).
     /// Defaults to 9.0 for the hand-built contexts in tests.
     pub escapes: tcl_dialect::EscapeSyntax,
+    /// The dialect name of the release being compiled *for*, as the lowering
+    /// pass received it (`IrModule::dialect`), or `None` when the compile
+    /// named no dialect.
+    ///
+    /// This is the `expr` half of the same fact [`Self::numbers`] and
+    /// [`Self::escapes`] carry: it resolves the grammar a re-parsed `expr`
+    /// body is read under and, through
+    /// [`RuntimeExprSurface`](tcl_registry::expr_surface::RuntimeExprSurface),
+    /// which
+    /// operators the target release's `expr` actually has (issue #1435).
+    /// Kept as the dialect *name* rather than a resolved profile so a
+    /// dialect-less compile stays distinguishable from one that named plain
+    /// `tcl`: `parse_expr`'s numeral grammar follows the ambient runtime
+    /// syntax for the former and the profile's for the latter.
+    pub dialect: Option<&'r str>,
     /// Literal constant pool.
     pub literals: LiteralTable,
     /// Local variable table.
@@ -169,6 +184,7 @@ impl<'r> CodegenCtx<'r> {
         Self {
             numbers: tcl_dialect::NumberSyntax::default(),
             escapes: tcl_dialect::EscapeSyntax::default(),
+            dialect: None,
             literals: LiteralTable::new(),
             lvt: LocalVarTable::new(params),
             instructions: Vec::new(),

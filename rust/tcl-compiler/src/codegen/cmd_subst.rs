@@ -854,7 +854,12 @@ impl CodegenCtx<'_> {
         match self.inline_cmd_subst_hook(cmd, args) {
             Some(InlineCodegenHookId::Expr) if args.len() == 1 => {
                 let expr_body = &args[0].0;
-                let node = crate::expr_parser::parse_expr(expr_body, None);
+                // Re-parsed under the compile's own dialect, exactly as the
+                // lowering pass parses a statement-position `expr` — parsing
+                // it dialect-blind here left a dialect-only operator
+                // (`$x contains "a"`) unrecognised and pushed as a raw string
+                // (issue #1435).
+                let node = crate::expr_parser::parse_expr(expr_body, self.dialect);
                 self.emit_expr(&node);
             }
             Some(InlineCodegenHookId::Incr) if (1..=2).contains(&args.len()) => {
@@ -1525,6 +1530,44 @@ impl CodegenCtx<'_> {
 mod tests {
     use super::*;
     use tcl_registry::CommandRegistry;
+
+    /// A value-position `[expr {…}]` is re-parsed here, and until issue #1435
+    /// it was re-parsed dialect-blind: an iRules word operator lexed as a
+    /// function name, the parse fell back to `ExprNode::Raw`, and codegen
+    /// pushed the source text for a second dialect-blind parse in the VM —
+    /// which returned the text itself rather than evaluating the operator.
+    #[test]
+    fn inline_expr_subst_parses_under_the_compile_dialect() {
+        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let registry = tcl_registry::registry_for_profile(profile);
+        let mut ctx = CodegenCtx::new(true, &["x"], registry);
+        ctx.dialect = Some(profile.name);
+        ctx.emit_inline_cmd_subst("[expr {$x contains \"a\"}]");
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::IRULE_CONTAINS), "{ops:?}");
+    }
+
+    /// The same site's release axis: an operator the target release lacks is
+    /// not specialised at all, so the VM raises the interpreter's own
+    /// diagnostic instead of executing an opcode 8.4 has no grammar for.
+    #[test]
+    fn inline_expr_subst_respects_the_target_release() {
+        let registry = CommandRegistry::build_default();
+
+        let mut old = CodegenCtx::new(true, &[], &registry);
+        old.dialect = Some("tcl8.4");
+        old.emit_inline_cmd_subst("[expr {2 ** 3}]");
+        let ops: Vec<Op> = old.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::EXPR_STK), "{ops:?}");
+        assert!(old.literals.entries().iter().any(|l| l == "2 ** 3"));
+
+        let mut modern = CodegenCtx::new(true, &[], &registry);
+        modern.dialect = Some("tcl8.5");
+        modern.emit_inline_cmd_subst("[expr {2 ** 3}]");
+        let ops: Vec<Op> = modern.instructions.iter().map(|i| i.op).collect();
+        assert!(!ops.contains(&Op::EXPR_STK), "{ops:?}");
+        assert!(modern.literals.entries().iter().any(|l| l == "8"));
+    }
 
     // -- unroll_nested_set --
 

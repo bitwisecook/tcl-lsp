@@ -823,7 +823,9 @@ impl CodegenCtx<'_> {
             }
             Some(InlineCodegenHookId::Expr) if body_args.len() == 1 => {
                 let expr_text = &body_args[0].0;
-                let node = crate::expr_parser::parse_expr(expr_text, None);
+                // Parsed under the compile's dialect, as lowering parses a
+                // statement-position `expr` (issue #1435).
+                let node = crate::expr_parser::parse_expr(expr_text, self.dialect);
                 if let Some((msg, opts)) = detect_const_expr_error(&node) {
                     self.push_lit(&msg);
                     self.push_lit(&opts);
@@ -1319,6 +1321,30 @@ impl CodegenCtx<'_> {
 mod tests {
     use super::*;
     use tcl_registry::CommandRegistry;
+
+    /// The catch-body `expr` re-parse follows the compile's dialect, and its
+    /// operator set follows the target release (issue #1435): `catch {expr {2
+    /// ** 3}}` compiled for 8.4 used to fold to a push of `8` and report
+    /// success, while the same source evaluated through `exprStk` is rejected
+    /// as C Tcl 8.4 rejects it.
+    #[test]
+    fn catch_body_expr_follows_the_compile_target_release() {
+        let registry = CommandRegistry::build_default();
+
+        let mut old = CodegenCtx::new(true, &[], &registry);
+        old.dialect = Some("tcl8.4");
+        old.emit_catch_body("expr {2 ** 3}");
+        let ops: Vec<Op> = old.instructions.iter().map(|i| i.op).collect();
+        assert!(ops.contains(&Op::EXPR_STK), "{ops:?}");
+        assert!(old.literals.entries().iter().any(|l| l == "2 ** 3"));
+
+        let mut modern = CodegenCtx::new(true, &[], &registry);
+        modern.dialect = Some("tcl8.5");
+        modern.emit_catch_body("expr {2 ** 3}");
+        let ops: Vec<Op> = modern.instructions.iter().map(|i| i.op).collect();
+        assert!(!ops.contains(&Op::EXPR_STK), "{ops:?}");
+        assert!(modern.literals.entries().iter().any(|l| l == "8"));
+    }
 
     #[test]
     fn catch_inline_emits_begin_end_catch() {
