@@ -121,6 +121,12 @@ exclude = [
     # which the workspace `unsafe_code = "forbid"` lint bans. Built via
     # `make spec-studio-wasm`; see the Makefile.
     "rust/tcl-spec-studio-wasm",
+    # The browser transport for the real LSP server — a cdylib for
+    # wasm32-unknown-unknown that drives `LspService<Backend>` over
+    # `postMessage` from a Web Worker, the way `main.rs` drives it over stdio.
+    # wasm-bindgen's generated glue needs `unsafe`, which the workspace
+    # `unsafe_code = "forbid"` lint bans. Built via `make lsp-server-wasm`.
+    "rust/tcl-lsp-server-wasm",
     # The Rust runtime port (runtime/rust/) is a standalone crate: it requires
     # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
     # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it

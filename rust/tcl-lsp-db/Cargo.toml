@@ -31,7 +31,13 @@ workspace = true
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
-salsa = "0.28"
+# `default-features = false` drops salsa's `rayon` (its default `macros` +
+# `rayon` + `salsa_unstable`-adjacent set): the parallel query machinery needs
+# real threads, which wasm32-unknown-unknown does not have, and nothing in this
+# crate uses it. `macros` supplies `#[salsa::db]`/`#[salsa::tracked]` and
+# `inventory` the query registration this crate's `#[salsa::input]`s rely on —
+# the minimal pair that both builds need.
+salsa = { version = "0.28", default-features = false, features = ["macros", "inventory"] }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }

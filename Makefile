@@ -996,6 +996,13 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and the
 		cd $(ROOT)rust/tcl-spec-studio-wasm; \
 		cargo fmt --all --check; \
 		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(ROOT)rust/tcl-lsp-server-wasm/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
+		echo "==> Checking tcl-lsp-server-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
+		cd $(ROOT)rust/tcl-lsp-server-wasm; \
+		cargo fmt --all --check; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
 
 # Supply-chain audit for the Rust workspace: RustSec advisories, license
@@ -1399,6 +1406,21 @@ spec-studio-wasm: spec-studio-assets ## Build the command-registry spec studio (
 	@command -v wasm-bindgen >/dev/null 2>&1 || { \
 		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli'"; exit 1; }
 	bash $(ROOT)rust/tcl-spec-studio-wasm/build-wasm.sh
+
+LSP_SERVER_WASM_DIR := $(ROOT)rust/tcl-lsp-server-wasm
+
+.PHONY: lsp-server-wasm lsp-server-wasm-test
+lsp-server-wasm: ## Build the LSP server as a browser Web Worker (Rust → WASM) into rust/tcl-lsp-server-wasm/dist/
+	@rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \
+		|| rustup target add wasm32-unknown-unknown
+	@command -v wasm-bindgen >/dev/null 2>&1 || { \
+		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli'"; exit 1; }
+	bash $(LSP_SERVER_WASM_DIR)/build-wasm.sh
+
+lsp-server-wasm-test: lsp-server-wasm ## Drive the wasm LSP server through a scripted session under node
+	@command -v node >/dev/null 2>&1 || { \
+		echo "node not found — run 'make ensure-test-deps'"; exit 1; }
+	node $(LSP_SERVER_WASM_DIR)/test/e2e.mjs
 
 compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
 	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"

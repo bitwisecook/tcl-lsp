@@ -31,9 +31,15 @@
 #![forbid(unsafe_code)]
 
 pub mod config_ini;
+pub mod rt;
+pub mod service;
+/// The stdout decoupling pump the native binary serves through. Native only:
+/// it is `tokio::io::Stdout` end to end, and a browser worker has no stdio.
+#[cfg(not(target_family = "wasm"))]
 pub mod stdio_pump;
 pub mod transport_liveness;
 pub mod uri_norm;
+pub mod vfs;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::ControlFlow;
@@ -724,8 +730,8 @@ type SemanticTokensCache = Arc<Mutex<HashMap<Uri, (String, Vec<u32>)>>>;
 type RangeConvergencePending = (
     Option<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>,
     Option<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>,
-    tokio::task::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>,
-    tokio::task::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>,
+    crate::rt::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>,
+    crate::rt::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>,
 );
 
 /// The document-side inputs `spawn_range_convergence` needs to recompute the
@@ -831,8 +837,8 @@ impl SemanticTokensRefreshCtx {
         }
         let client = self.client.clone();
         let pending = Arc::clone(&self.refresh_pending);
-        tokio::spawn(async move {
-            tokio::time::sleep(SEMANTIC_TOKENS_REFRESH_DEBOUNCE).await;
+        crate::rt::spawn(async move {
+            crate::rt::sleep(SEMANTIC_TOKENS_REFRESH_DEBOUNCE).await;
             pending.store(false, std::sync::atomic::Ordering::Release);
             let _ = client.semantic_tokens_refresh().await;
         });
@@ -1104,6 +1110,9 @@ struct DiagInputs {
     /// the worker keeps the pull cache current and asks the client to re-pull
     /// instead of pushing — see that field for the rationale (#721).
     client_supports_pull: bool,
+    /// Where the recovery-widening package read gets its bytes — see
+    /// [`crate::vfs`].
+    store: Arc<dyn vfs::SourceStore>,
 }
 
 impl DiagInputs {
@@ -1328,7 +1337,7 @@ impl DeliveryCtx<'_> {
             // can't hold `documents` hostage for every other document's edits.
             // Dropping the parked `channel(1)` send on timeout is atomic — the push
             // is simply lost and the deep tier supersedes it.
-            let _ = tokio::time::timeout(
+            let _ = crate::rt::timeout(
                 DIAGNOSTICS_FAST_TIER_BUDGET,
                 self.client
                     .publish_diagnostics(self.uri.clone(), diags, self.version),
@@ -1485,7 +1494,7 @@ async fn report_analysis_worker_panic(
     client: &Client,
     uri: &Uri,
     stage: &str,
-    err: &tokio::task::JoinError,
+    err: &crate::rt::JoinError,
 ) {
     let message = format!(
         "tcl-lsp: the {stage} diagnostics worker panicked analysing {} (is_panic={}). \
@@ -1566,7 +1575,7 @@ async fn compute_base_analysis(
         let (a_text, a_dialect, a_disabled) =
             (text.to_owned(), dialect.to_owned(), disabled.clone());
         let a_packs = config.spec_pack_key(&*db.lock().await);
-        return match tokio::task::spawn_blocking(move || {
+        return match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 Backend::recovery_analyser(a_disabled, non_ascii_mode, widened, a_packs)
                     .analyse(&a_text, &a_dialect)
@@ -1588,7 +1597,7 @@ async fn compute_base_analysis(
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
         let snapshot = db.lock().await.clone();
-        match tokio::task::spawn_blocking(move || {
+        match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
                     tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
@@ -1631,7 +1640,7 @@ async fn compute_base_analysis(
                 config.spec_pack_key(&*db),
             )
         };
-        let analysis = tokio::task::spawn_blocking(move || {
+        let analysis = crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 Arc::new(
                     Backend::configured_analyser(a_disabled, non_ascii_mode, a_extra, a_packs)
@@ -1656,6 +1665,9 @@ struct RecoveryWidenCtx<'a> {
     registry: &'a CommandRegistry,
     workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
+    /// Where a resolved package's implementation files are read from — see
+    /// [`crate::vfs`].
+    store: &'a Arc<dyn vfs::SourceStore>,
 }
 
 /// The inputs [`RecoveryNameCache`] keys its entries on — everything the
@@ -1784,7 +1796,8 @@ async fn widen_recovery_extra_commands(
             &|path| {
                 // Shared decoder: a package implementation file with a stray
                 // high byte should still contribute its command names.
-                tcl_lsp_core::source_decode::read_source_file(path)
+                ctx.store
+                    .read_source(path)
                     .map(|(text, _)| defined_command_tails(&text, dialect))
                     .unwrap_or_default()
             },
@@ -1873,7 +1886,7 @@ async fn compute_project_diags(
         return ControlFlow::Continue(None);
     };
     let snapshot = db.lock().await.clone();
-    match tokio::task::spawn_blocking(move || {
+    match crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(|| {
             (*tcl_lsp_db::project_callback_diagnostics(&snapshot, file, config, project)).clone()
         })
@@ -1918,7 +1931,7 @@ async fn compute_compiler_diags(
     } = ctx;
     if let Some(file) = file {
         let snapshot = db.lock().await.clone();
-        match tokio::task::spawn_blocking(move || {
+        match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
                     tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
@@ -1947,7 +1960,7 @@ async fn compute_compiler_diags(
         let c_registry = Arc::clone(registry);
         let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
         ControlFlow::Continue(
-            tokio::task::spawn_blocking(move || {
+            crate::rt::spawn_blocking(move || {
                 with_pack_hooks(|| {
                     Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
                         &c_text,
@@ -2004,14 +2017,14 @@ fn retire_slot(slots: &mut HashMap<Uri, DiagSlot>, uri: &Uri) {
 /// evidence here can invalidate another file's diagnostics, and that file's
 /// own worker has to be (re)started to republish them.
 fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri) {
-    tokio::spawn(async move {
+    crate::rt::spawn(async move {
         loop {
             // Debounce, then claim the dirty flag *and* the freshest inputs.
             // A burst collapses to one run; with nothing dirty we retire the
             // worker (under the lock, so a concurrent edit either sees
             // `running` and skips the spawn while we run, or sees
             // `!running` and starts a fresh one).
-            tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
+            crate::rt::sleep(DIAGNOSTICS_DEBOUNCE).await;
             let inputs = {
                 let mut guard = slots.lock().await;
                 let Some(slot) = guard.get_mut(&uri) else {
@@ -2261,7 +2274,7 @@ async fn reindex_unopened_factory_consumers(
         return;
     }
     let oracle_for_task = oracle.clone();
-    let analysed = tokio::task::spawn_blocking(move || {
+    let analysed = crate::rt::spawn_blocking(move || {
         work.into_iter()
             .map(|(uri, text, dialect)| {
                 let analysis = Analyser::new()
@@ -2437,7 +2450,7 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
-    let pending = tokio::task::spawn_blocking(move || {
+    let pending = crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
             files
                 .into_iter()
@@ -2661,7 +2674,7 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
-    let computed = tokio::task::spawn_blocking(move || {
+    let computed = crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
             let index = tcl_lsp_db::project_class_factories(&snapshot, project);
             let want = (!index.is_empty()).then_some(index);
@@ -2875,34 +2888,11 @@ async fn files_with_covered_load_targets(
 /// cancelled mid-flight and the caller should retry the document's latest
 /// state.
 async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {
-    let DiagInputs {
-        client,
-        registry,
-        disabled,
-        severity_overrides,
-        extra_commands,
-        generic_variable_patterns,
-        style_line_length,
-        non_ascii_mode,
-        opt_disabled,
-        documents,
-        diag_slots,
-        workspace_index,
-        rehomed_source_seeds,
-        rehoming_gate,
-        package_resolver,
-        recovery_names,
-        entry_points,
-        folder_root,
-        db,
-        db_project,
-        pull_diag_cache,
-        closed_diag_gen,
-        toggles,
-        client_supports_pull,
-        // The worker captured the job from the remaining handles already.
-        ..
-    } = inputs;
+    // Read through `inputs` rather than destructuring it: the two context
+    // structs below borrow most of its fields, and a by-value destructure of
+    // two dozen names buys nothing but length. The salsa handles it also
+    // carries were already consumed by the worker to capture `job`.
+    let toggles = &inputs.toggles;
     let DiagJob {
         text,
         decode_report,
@@ -2924,15 +2914,15 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     let analysis_text = tcl_lexer::normalise_lone_cr(&text);
 
     let delivery = DeliveryCtx {
-        client: &client,
-        documents: &documents,
-        diag_slots: &diag_slots,
-        pull_diag_cache: &pull_diag_cache,
-        closed_diag_gen: &closed_diag_gen,
+        client: &inputs.client,
+        documents: &inputs.documents,
+        diag_slots: &inputs.diag_slots,
+        pull_diag_cache: &inputs.pull_diag_cache,
+        closed_diag_gen: &inputs.closed_diag_gen,
         uri,
         currency,
         version,
-        client_supports_pull,
+        client_supports_pull: inputs.client_supports_pull,
     };
 
     if !toggles.diagnostics_enabled {
@@ -2943,11 +2933,11 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         text: &text,
         decode_report,
         dialect: &dialect,
-        disabled: &disabled,
-        severity_overrides: &severity_overrides,
-        opt_disabled: &opt_disabled,
+        disabled: &inputs.disabled,
+        severity_overrides: &inputs.severity_overrides,
+        opt_disabled: &inputs.opt_disabled,
         optimiser_enabled: toggles.optimiser_enabled,
-        style_line_length,
+        style_line_length: inputs.style_line_length,
         xc_diagnostics: toggles.xc.xc_diagnostics,
     };
     if let Some(settled) =
@@ -2957,7 +2947,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     }
 
     let salsa_ctx = SalsaAnalysisCtx {
-        db: &db,
+        db: &inputs.db,
         uri,
         file,
         config,
@@ -2969,19 +2959,20 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         &salsa_ctx,
         &lift_inputs,
         &AnalyserPathInputs {
-            registry,
-            extra_commands: &extra_commands,
-            generic_variable_patterns: generic_variable_patterns.as_deref(),
-            non_ascii_mode,
-            db_project: &db_project,
-            workspace_index: &workspace_index,
-            rehomed_source_seeds: &rehomed_source_seeds,
-            rehoming_gate: &rehoming_gate,
-            package_resolver: &package_resolver,
-            recovery_names: &recovery_names,
-            entry_points: &entry_points,
-            folder_root: folder_root.as_deref(),
+            registry: Arc::clone(&inputs.registry),
+            extra_commands: &inputs.extra_commands,
+            generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
+            non_ascii_mode: inputs.non_ascii_mode,
+            db_project: &inputs.db_project,
+            workspace_index: &inputs.workspace_index,
+            rehomed_source_seeds: &inputs.rehomed_source_seeds,
+            rehoming_gate: &inputs.rehoming_gate,
+            package_resolver: &inputs.package_resolver,
+            recovery_names: &inputs.recovery_names,
+            entry_points: &inputs.entry_points,
+            folder_root: inputs.folder_root.as_deref(),
             cross_file_resolution: toggles.xc.cross_file_resolution,
+            store: &inputs.store,
         },
     )
     .await
@@ -3011,6 +3002,9 @@ struct AnalyserPathInputs<'a> {
     /// `LiftInputs::xc_diagnostics` (the unrelated f5-irules-specific
     /// XC100-301 translatability lints).
     cross_file_resolution: bool,
+    /// Where the recovery-widening package read gets its bytes — see
+    /// [`crate::vfs`].
+    store: &'a Arc<dyn vfs::SourceStore>,
 }
 
 /// The Tcl analyser path, made **progressive** (#844): the deep pass — base
@@ -3034,7 +3028,7 @@ async fn run_diagnostics_analyser_path(
     lift_inputs: &LiftInputs<'_>,
     inputs: &AnalyserPathInputs<'_>,
 ) -> bool {
-    let started = std::time::Instant::now();
+    let started = crate::rt::Instant::now();
     let uri_str = delivery.uri.to_string();
     let line_count = salsa_ctx.text.lines().count();
 
@@ -3064,6 +3058,7 @@ async fn run_diagnostics_analyser_path(
         registry: &inputs.registry,
         workspace_index: inputs.workspace_index,
         package_resolver: inputs.package_resolver,
+        store: inputs.store,
     };
     let base = compute_base_analysis(
         delivery.client,
@@ -3093,7 +3088,7 @@ async fn run_diagnostics_analyser_path(
 
     // The authoritative deep pass performs the full publish and reports whether
     // the version settled.  Race it against the fast-tier budget.
-    let fast_tier_deadline = tokio::time::Instant::now() + DIAGNOSTICS_FAST_TIER_BUDGET;
+    let fast_tier_deadline = crate::rt::Instant::now() + DIAGNOSTICS_FAST_TIER_BUDGET;
     let deep = run_deep_diagnostics(
         delivery,
         salsa_ctx,
@@ -3113,7 +3108,7 @@ async fn run_diagnostics_analyser_path(
         // out).  `biased` prefers this arm so a deep pass that lands right on the
         // deadline still skips the fast tier.
         settled = &mut deep => return settled,
-        () = tokio::time::sleep_until(fast_tier_deadline) => {}
+        () = crate::rt::sleep_until(fast_tier_deadline) => {}
     }
 
     // Budget elapsed with the deep pass still running: publish the flicker-safe
@@ -3315,7 +3310,7 @@ async fn publish_fast_tier(
     let decode_report = lift_inputs.decode_report;
     let severity_overrides = lift_inputs.severity_overrides.clone();
     let style_line_length = lift_inputs.style_line_length;
-    let lifted = tokio::task::spawn_blocking(move || {
+    let lifted = crate::rt::spawn_blocking(move || {
         let mut diagnostics = lift_analyser_diagnostics(&text, &fast);
         diagnostics.extend(lift_source_style_diagnostics(
             &text,
@@ -3398,7 +3393,7 @@ async fn refine_and_lift_diagnostics(
     compiler_diags: &Arc<tcl_lsp_db::CompilerDiagnostics>,
     refinement: &RefinementInputs<'_>,
     inputs: &LiftInputs<'_>,
-) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError> {
+) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError> {
     // #723 + #804: refine the analyser's single-file W120 against the workspace
     // package database and the requires inherited from entry points / `source`
     // ancestors (shared with the pull path via `refine_workspace_w120`).
@@ -3452,7 +3447,7 @@ async fn refine_and_lift_diagnostics(
     let style_line_length = inputs.style_line_length;
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect == "f5-irules";
     let compiler_diags = Arc::clone(compiler_diags);
-    tokio::task::spawn_blocking(move || {
+    crate::rt::spawn_blocking(move || {
         // `analyser_diags` includes opt-in callback checks when enabled; direct
         // cross-file verdicts have already been settled by the workspace index.
         let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analyser_diags);
@@ -3494,7 +3489,7 @@ async fn refine_and_lift_diagnostics(
 
 /// Timing for the `[timing] workspace_state.update` log line.
 struct PublishTiming<'a> {
-    started: std::time::Instant,
+    started: crate::rt::Instant,
     uri_str: &'a str,
     line_count: usize,
 }
@@ -3764,7 +3759,7 @@ async fn publish_diagnostics_result(
     rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
     rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
     analysis: &Arc<AnalysisResult>,
-    result: Result<Vec<tower_lsp_server::ls_types::Diagnostic>, tokio::task::JoinError>,
+    result: Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
     timing: PublishTiming<'_>,
 ) -> bool {
     let diags = match result {
@@ -4381,11 +4376,17 @@ pub struct Backend {
     /// `WORKSPACE_WARM_MAX_CONCURRENCY` snapshots, so the global snapshot bound
     /// would hold only per-warm. A `std::sync::Mutex`: locked only briefly (swap +
     /// abort) from the sync `spawn_workspace_warm`, never across an await.
-    warm_task: std::sync::Mutex<Option<tokio::task::AbortHandle>>,
+    warm_task: std::sync::Mutex<Option<crate::rt::AbortHandle>>,
     /// Sequences the document-sync notification handlers (`did_open` /
     /// `did_change` / `did_close`) so their buffer mutations apply in the exact
     /// order the client sent them. See [`EditOrder`].
     edit_order: EditOrder,
+    /// Where every *closed* file the server reads comes from — see
+    /// [`crate::vfs`]. Natively this is [`vfs::NativeStore`], a direct
+    /// delegation to `std::fs`; a browser worker supplies a
+    /// [`vfs::MemoryStore`] the host fills in over `postMessage`. `Arc` so a
+    /// blocking task can carry it.
+    store: Arc<dyn vfs::SourceStore>,
 }
 
 /// Every per-document-URI cache [`Backend`] holds, borrowed as one group.
@@ -4864,7 +4865,7 @@ where
     F: std::future::Future<Output = Option<R>> + Send + 'static,
 {
     let permits = Arc::new(Semaphore::new(concurrency.max(1)));
-    let mut tasks = tokio::task::JoinSet::new();
+    let mut tasks = crate::rt::JoinSet::new();
     for fut in futures {
         let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
             break;
@@ -5059,6 +5060,17 @@ impl Backend {
     /// providers when the document store has no override.
     #[must_use]
     pub fn new(client: Client) -> Self {
+        Self::with_store(client, Arc::new(vfs::NativeStore))
+    }
+
+    /// Build a fresh backend that reads every closed file through `store`.
+    ///
+    /// [`Backend::new`] is this with [`vfs::NativeStore`], which is the whole
+    /// of the native server. A host with no filesystem — a browser worker —
+    /// passes its own [`vfs::SourceStore`] here instead; see [`crate::vfs`]
+    /// for what that does and does not cover.
+    #[must_use]
+    pub fn with_store(client: Client, store: Arc<dyn vfs::SourceStore>) -> Self {
         let db = tcl_lsp_db::TclDatabase::default();
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
@@ -5129,6 +5141,7 @@ impl Backend {
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
+            store,
         }
     }
 
@@ -5530,7 +5543,7 @@ impl Backend {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = *self.db_config.lock().await;
         let snapshot = self.db.lock().await.clone();
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&snapshot, file, config)).ok()
         })
         .await
@@ -5553,7 +5566,7 @@ impl Backend {
     ) -> Option<Vec<tcl_lsp_core::folding::FoldingRange>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let snapshot = self.db.lock().await.clone();
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&snapshot, file)).ok()
         })
         .await
@@ -5614,11 +5627,11 @@ impl Backend {
     async fn db_file_analysis_handle(
         &self,
         uri: &Uri,
-    ) -> Option<tokio::task::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>> {
+    ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.lock().await.clone();
-        Some(tokio::task::spawn_blocking(move || {
+        Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
                 tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
             })
@@ -5632,11 +5645,11 @@ impl Backend {
     async fn db_compilation_unit_handle(
         &self,
         uri: &Uri,
-    ) -> Option<tokio::task::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
+    ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
     {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let snapshot = self.db.lock().await.clone();
-        Some(tokio::task::spawn_blocking(move || {
+        Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&snapshot, file)).ok()
         }))
     }
@@ -5672,8 +5685,7 @@ impl Backend {
     async fn db_semantic_tokens(
         &self,
         uri: &Uri,
-    ) -> Option<tokio::task::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>>
-    {
+    ) -> Option<crate::rt::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
         // When the workspace has been indexed into a `Project`, resolve object
@@ -5682,7 +5694,7 @@ impl Backend {
         // local (single-file) hierarchy.
         let project = *self.db_project.lock().await;
         let snapshot = self.db.lock().await.clone();
-        Some(tokio::task::spawn_blocking(move || {
+        Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
                 Some(project) => tcl_lsp_db::semantic_tokens_project(&snapshot, file, project),
                 None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
@@ -5737,7 +5749,7 @@ impl Backend {
                 config.spec_pack_key(&*db),
             )
         };
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             let mut analyser = Self::configured_analyser(disabled, na_mode, extra, pack_key);
             Arc::new(analyser.analyse(&text, &dialect))
         })
@@ -6125,12 +6137,11 @@ impl Backend {
         // Through the shared decoder, not `read_to_string`: a closed file with
         // one ill-formed byte must still resolve its spans rather than vanish
         // from cross-document navigation (issue #1326).
-        let (text, _) = tokio::task::spawn_blocking(move || {
-            tcl_lsp_core::source_decode::read_source_file(&path)
-        })
-        .await
-        .ok()?
-        .ok()?;
+        let store = Arc::clone(&self.store);
+        let (text, _) = crate::rt::spawn_blocking(move || store.read_source(&path))
+            .await
+            .ok()?
+            .ok()?;
         let dialect = match self.resolve_folder_dialect(url).await {
             Some(d) => d,
             None => self.session_dialect().await,
@@ -6143,16 +6154,16 @@ impl Backend {
     /// transports Unicode text rather than those bytes, so this equality is
     /// the boundary between a fact (safe to diagnose) and a guess (not safe).
     async fn decode_report_for_matching_disk_text(
+        store: &Arc<dyn vfs::SourceStore>,
         uri: &Uri,
         text: &str,
     ) -> Option<tcl_lsp_core::source_decode::DecodeReport> {
         let path = uri.to_file_path()?.into_owned();
-        let (decoded, report) = tokio::task::spawn_blocking(move || {
-            tcl_lsp_core::source_decode::read_source_file(&path)
-        })
-        .await
-        .ok()?
-        .ok()?;
+        let store = Arc::clone(store);
+        let (decoded, report) = crate::rt::spawn_blocking(move || store.read_source(&path))
+            .await
+            .ok()?
+            .ok()?;
         (decoded == text).then_some(report)
     }
 
@@ -6224,7 +6235,7 @@ impl Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         let class_name_for_blk = class_name.clone();
-        let items = tokio::task::spawn_blocking(move || {
+        let items = crate::rt::spawn_blocking(move || {
             if subtypes {
                 core_type_hierarchy::subtypes(&class_name_for_blk, &doc.text, &analysis)
             } else {
@@ -6398,7 +6409,7 @@ impl Backend {
             // unit and analysis fresh so regex-source highlighting and
             // user-class object-method resolution still apply, matching the
             // salsa path below.
-            let data = tokio::task::spawn_blocking(move || {
+            let data = crate::rt::spawn_blocking(move || {
                 let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
                     &text, &registry, false, &dialect,
                 );
@@ -6458,7 +6469,7 @@ impl Backend {
                 )
                 .await;
             }
-            () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
+            () = crate::rt::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => {
                 // Too slow for a synchronous first paint: hand the still-running
                 // enriched read to a detached continuation rather than blocking
                 // this response on it, and serve the coarse tier below.
@@ -6468,7 +6479,7 @@ impl Backend {
 
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             core_semantic_tokens::full(&text, &dialect, &registry).data
         })
         .await
@@ -6493,7 +6504,7 @@ impl Backend {
     async fn spawn_full_convergence(
         &self,
         uri: &Uri,
-        enriched: tokio::task::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>,
+        enriched: crate::rt::JoinHandle<Option<tcl_lsp_core::semantic_tokens::SemanticTokens>>,
     ) {
         let Some(guard) = ConvergenceGuard::claim(&self.semantic_tokens_convergence, uri) else {
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::Coalesced)
@@ -6508,7 +6519,7 @@ impl Backend {
         };
         let uri = uri.clone();
         let mut guard = guard;
-        tokio::spawn(async move {
+        crate::rt::spawn(async move {
             // Settle either way — including on a cancelled read — so a waiter can
             // key on the marker instead of racing the debounced refresh that only
             // *sometimes* follows.
@@ -6632,11 +6643,13 @@ impl Backend {
     /// reindex (#1161), so both agree on exactly how a disk-backed file is
     /// turned into an index/salsa entry.
     async fn scan_disk_file(
+        store: &Arc<dyn vfs::SourceStore>,
         uri: Uri,
         folder_dialects: Arc<Vec<(Uri, String)>>,
         default_dialect: Arc<String>,
     ) -> Option<(Uri, String, String, AnalysisResult)> {
-        tokio::task::spawn_blocking(move || {
+        let store = Arc::clone(store);
+        crate::rt::spawn_blocking(move || {
             let path = uri.to_file_path()?;
             // Normalise on the way in, exactly as `read_document` does for the
             // interactive path, so a disk-backed file's index entry, salsa
@@ -6647,7 +6660,7 @@ impl Backend {
             // would fail on ill-formed UTF-8 and `.ok()?` would then drop the
             // whole file — its procs, its `source` edges, its symbols — out of
             // the index with nothing said about it.
-            let (raw, _) = tcl_lsp_core::source_decode::read_source_file(&path).ok()?;
+            let (raw, _) = store.read_source(&path).ok()?;
             let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
             let dialect =
                 Self::dialect_for_closed_sync(&uri, &text, &folder_dialects, &default_dialect);
@@ -6682,18 +6695,19 @@ impl Backend {
         }
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        let concurrency = std::thread::available_parallelism()
-            .map_or(4, std::num::NonZeroUsize::get)
-            .min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
+        let concurrency =
+            crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let futures: Vec<_> = uris
             .iter()
             .cloned()
             .map(|uri| {
                 let folder_dialects = Arc::clone(&folder_dialects);
                 let default_dialect = Arc::clone(&default_dialect);
+                let store = Arc::clone(&self.store);
                 async move {
                     let scanned =
-                        Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
+                        Self::scan_disk_file(&store, uri.clone(), folder_dialects, default_dialect)
+                            .await;
                     Some((uri, scanned))
                 }
             })
@@ -6759,7 +6773,8 @@ impl Backend {
         // error in its siblings.
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        let scanned = Self::scan_disk_file(uri.clone(), folder_dialects, default_dialect).await;
+        let scanned =
+            Self::scan_disk_file(&self.store, uri.clone(), folder_dialects, default_dialect).await;
         // Serialise the standalone replacement with source-site reconciliation,
         // then hold `documents` across the still-closed re-check and both
         // updates. Global order: rehoming_gate → documents → db →
@@ -6832,7 +6847,8 @@ impl Backend {
         let dialect = self.dialect_for_closed(uri, &text).await;
         // Closed diagnostics are also backed by the exact on-disk text, so the
         // same byte-evidence contract used at `didOpen` applies here.
-        let decode_report = Self::decode_report_for_matching_disk_text(uri, &text).await;
+        let decode_report =
+            Self::decode_report_for_matching_disk_text(&self.store, uri, &text).await;
         // Bump this URI's closed-run generation and capture it, so a newer close
         // / watched-change refresh supersedes this run at publish time.
         let generation = self.next_closed_diag_generation(uri).await;
@@ -7041,6 +7057,7 @@ impl Backend {
             semantic_tokens_refresh_pending: _,
             warm_task: _,
             edit_order: _,
+            store: _,
         } = self;
         PerUriCaches {
             autoloaded_library_uris,
@@ -7279,7 +7296,7 @@ impl Backend {
         // released.
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let in_doc = tokio::task::spawn_blocking(move || {
+        let in_doc = crate::rt::spawn_blocking(move || {
             core_definition::definition_with(
                 &text,
                 pos.line,
@@ -8560,7 +8577,7 @@ impl Backend {
         // cursor.
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let ranges = tokio::task::spawn_blocking(move || {
+        let ranges = crate::rt::spawn_blocking(move || {
             core_references::references_in_program(
                 &text,
                 &dialect,
@@ -8738,7 +8755,7 @@ impl Backend {
         }
         let owned_source = source.to_owned();
         let owned_dialect = dialect.to_owned();
-        let analysis: Arc<AnalysisResult> = tokio::task::spawn_blocking(move || {
+        let analysis: Arc<AnalysisResult> = crate::rt::spawn_blocking(move || {
             Arc::new(
                 tcl_compiler::analyser::Analyser::new()
                     .with_workspace_classes(workspace_classes)
@@ -9116,7 +9133,7 @@ impl Backend {
         let family = plan.family.clone();
         let method_owned = method.to_owned();
         let classmethod_cmd_names = plan.classmethod_cmd_names.clone();
-        let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
+        let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
             let mut all: Vec<tcl_lexer::Span> = Vec::new();
             for cq in &family {
                 all.extend(core_references::obj_method_call_sites(
@@ -9290,7 +9307,7 @@ impl Backend {
         // The worker owns a clone of the handle: it outlives this frame, and
         // the generation it names must outlive the worker.
         let registry_worker = Arc::clone(registry);
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             core_rename::rename_in_program(
                 &text,
                 &dialect,
@@ -9791,7 +9808,7 @@ impl Backend {
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
             let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
-            let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
+            let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
                 let mut all: Vec<tcl_lexer::Span> = Vec::new();
                 for cq in &definers {
                     all.extend(core_rename::method_spans_in_document(
@@ -9915,7 +9932,7 @@ impl Backend {
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
             let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
-            let spans: Vec<tcl_lexer::Span> = tokio::task::spawn_blocking(move || {
+            let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
                 let mut all: Vec<tcl_lexer::Span> = Vec::new();
                 for cq in &definers {
                     all.extend(core_references::method_reference_spans_in_document(
@@ -10434,7 +10451,7 @@ impl Backend {
             let analysis = analysis.clone();
             let exports = self.export_snapshot().await;
             let uri_key = current_uri.as_str().to_owned();
-            tokio::task::spawn_blocking(move || {
+            crate::rt::spawn_blocking(move || {
                 core_call_hierarchy::unresolved_outgoing_calls_in_program(
                     &source,
                     &dialect,
@@ -10558,7 +10575,7 @@ impl Backend {
         // Pure-CPU work; run off the LSP event loop.
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
-        let value = tokio::task::spawn_blocking(move || {
+        let value = crate::rt::spawn_blocking(move || {
             if aggressive {
                 let res = core_minify::minify_tcl_aggressive(&text, &dialect, isolated, &registry);
                 serde_json::json!({
@@ -10624,7 +10641,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
-        let value = tokio::task::spawn_blocking(move || {
+        let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = Some(dialect.as_str());
             let (source, opts) = if profile == "full" {
@@ -10860,7 +10877,7 @@ impl Backend {
         // byte-length preserving, so a fix span resolved against one applies
         // unchanged to the other.
         let mut source = doc.raw().to_owned();
-        let value = tokio::task::spawn_blocking(move || {
+        let value = crate::rt::spawn_blocking(move || {
             let mut applied: Vec<serde_json::Value> = Vec::new();
             for _ in 0..FIX_ALL_MAX_PASSES {
                 let mut analyser =
@@ -11195,7 +11212,7 @@ impl Backend {
         // The pipeline is heavy pure-CPU work — run it off the LSP event loop.
         // A parser panic is contained and surfaced as an `{error}` object
         // rather than tearing down the worker.
-        let value = tokio::task::spawn_blocking(move || {
+        let value = crate::rt::spawn_blocking(move || {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let result = tcl_explorer::run_pipeline(&source, &dialect);
                 tcl_explorer::serialise_result(&result)
@@ -11255,7 +11272,7 @@ impl Backend {
         &self,
         items: Vec<ConfigurationItem>,
     ) -> Result<Vec<serde_json::Value>, ()> {
-        match tokio::time::timeout(CLIENT_REQUEST_TIMEOUT, self.client.configuration(items)).await {
+        match crate::rt::timeout(CLIENT_REQUEST_TIMEOUT, self.client.configuration(items)).await {
             Ok(Ok(values)) => Ok(values),
             Ok(Err(_)) => Err(()),
             Err(_elapsed) => {
@@ -11293,6 +11310,7 @@ impl Backend {
         // and the project `.tcl-lsp.ini` `[project]` (highest), applying the
         // documented precedence and merge rules.
         let global_ini = read_ini_layer(
+            self.store.as_ref(),
             core_tcl_install::user_config_path(),
             config_ini::Layer::Global,
         );
@@ -11301,6 +11319,7 @@ impl Backend {
         // story for a single-root workspace; per-folder applies below refine
         // the analyser knobs for multi-root).
         let primary_project = read_ini_layer(
+            self.store.as_ref(),
             folders
                 .first()
                 .and_then(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
@@ -11343,6 +11362,7 @@ impl Backend {
                     .zip(values)
                     .filter_map(|(folder, editor_cfg)| {
                         let project = read_ini_layer(
+                            self.store.as_ref(),
                             folder
                                 .to_file_path()
                                 .map(std::borrow::Cow::into_owned)
@@ -11397,7 +11417,7 @@ impl Backend {
             return;
         }
         loop {
-            tokio::time::sleep(CONFIG_RELOAD_DEBOUNCE).await;
+            crate::rt::sleep(CONFIG_RELOAD_DEBOUNCE).await;
             {
                 let mut slot = self.config_reload.lock().await;
                 if !slot.dirty {
@@ -11940,7 +11960,7 @@ impl Backend {
             .iter()
             .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             let installs = discovered.get_or_init(|| {
                 core_tcl_install::discover(&core_tcl_install::default_search_bases())
             });
@@ -11987,12 +12007,17 @@ impl Backend {
         let contents = self.render_config_ini().await;
         let result = path.parent().map_or_else(
             || Err(std::io::Error::other("no config directory")),
-            std::fs::create_dir_all,
+            |parent| self.store.create_dir_all(parent),
         );
-        match result.and_then(|()| std::fs::write(&path, contents)) {
+        match result.and_then(|()| self.store.write(&path, contents.as_bytes())) {
+            // The rendered text comes back with the path. On a host whose
+            // store is in memory there is no file for the user to open, so the
+            // contents are the only useful half of the answer; natively it is
+            // an extra field a client may ignore.
             Ok(()) => serde_json::json!({
                 "success": true,
                 "path": path.to_string_lossy(),
+                "contents": contents,
             }),
             Err(err) => serde_json::json!({
                 "success": false,
@@ -12405,6 +12430,7 @@ impl Backend {
             client_supports_pull: self
                 .client_supports_pull_diagnostics
                 .load(std::sync::atomic::Ordering::Relaxed),
+            store: Arc::clone(&self.store),
         }
     }
 
@@ -12473,7 +12499,7 @@ impl Backend {
         let project = *self.db_project.lock().await;
         match project {
             Some(p) => {
-                tokio::task::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+                crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
                     .await
                     .ok()
             }
@@ -12499,7 +12525,7 @@ impl Backend {
         // project's call-site evidence explicitly — the tracked query's own
         // read of `SourceFile::external_call_sites` never reaches here.
         let c_evidence = self.cross_file_evidence_for(uri).await;
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             tcl_lsp_db::compiler_check_diagnostics_uncached(
                 &c_text,
                 &c_registry,
@@ -12598,7 +12624,7 @@ impl Backend {
             .published_analyser_diagnostics(uri, &analysis, &dialect, &registry, &disabled)
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             let mut diagnostics = lift_analyser_diagnostics(&analysis_text, &analyser_diags);
             append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
             diagnostics.extend(lift_compiler_diagnostics(
@@ -13021,7 +13047,7 @@ impl Backend {
             }
             _ => (std::time::Duration::ZERO, None, None),
         };
-        let load = tokio::task::spawn_blocking(move || {
+        let load = crate::rt::spawn_blocking(move || {
             let files = tcl_spectcl::discover(&options);
             // `load_discovered`, not `pack::load`: a bare `tcl-lsp-server`
             // release binary (Zed, the standalone-editor instructions) has no
@@ -13122,7 +13148,7 @@ impl Backend {
             // dialect anyway. It runs on a worker: it is parse-free but not
             // free.
             let for_worker = Arc::clone(&packs);
-            let _ = tokio::task::spawn_blocking(move || {
+            let _ = crate::rt::spawn_blocking(move || {
                 for profile in tcl_dialect::DialectProfile::all() {
                     let _ = tcl_spectcl::install::registry_with_packs(profile, &for_worker);
                 }
@@ -13145,7 +13171,7 @@ impl Backend {
         // dialect of its own.
         let dialect = self.session_dialect().await;
         let for_collisions = Arc::clone(&packs);
-        let collisions = tokio::task::spawn_blocking(move || {
+        let collisions = crate::rt::spawn_blocking(move || {
             tcl_spectcl::pack::collision_notices(
                 &for_collisions,
                 tcl_registry::registry_for_dialect(&dialect),
@@ -13327,7 +13353,7 @@ impl Backend {
                 tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
             };
             by_uri.entry(uri).or_default().push(Diagnostic {
-                range: whole_line_range(&notice.path, notice.line),
+                range: whole_line_range(self.store.as_ref(), &notice.path, notice.line),
                 severity: Some(severity),
                 code: Some(NumberOrString::String(SPEC_PACK_DIAGNOSTIC_CODE.to_owned())),
                 source: Some("tcl-lsp".to_owned()),
@@ -13488,7 +13514,7 @@ impl Backend {
                 let text = doc.text.clone();
                 let dialect = doc.dialect.clone();
                 let seeds_for_worker = seeds.clone();
-                let Ok(analyses) = tokio::task::spawn_blocking(move || {
+                let Ok(analyses) = crate::rt::spawn_blocking(move || {
                     seeds_for_worker
                         .iter()
                         .map(|seed| {
@@ -13581,7 +13607,7 @@ impl Backend {
         {
             return;
         }
-        let _ = tokio::time::timeout(INITIAL_WORKSPACE_SCAN_WAIT, async {
+        let _ = crate::rt::timeout(INITIAL_WORKSPACE_SCAN_WAIT, async {
             self.workspace_scan_ready.wait().await;
             drop(self.workspace_scan_gate.lock().await);
         })
@@ -13633,7 +13659,7 @@ impl Backend {
         // an in-flight scan instead of racing it — see the field doc on
         // `workspace_scan_gate` (issue #1003).
         let _scan_guard = self.workspace_scan_gate.lock().await;
-        let scan_started = std::time::Instant::now();
+        let scan_started = crate::rt::Instant::now();
         let folders = self.workspace_folder_urls().await;
         let roots: Vec<PathBuf> = folders
             .iter()
@@ -13681,7 +13707,7 @@ impl Backend {
         // `Analyser::analyse` here, serially, one root cause of the 38.7s/883-file
         // startup cost).
         let resolver_roots = roots.clone();
-        let (resolver, files) = tokio::task::spawn_blocking(move || {
+        let (resolver, files) = crate::rt::spawn_blocking(move || {
             let discovered = discovered_cell.get_or_init(|| {
                 core_tcl_install::discover(&core_tcl_install::default_search_bases())
             });
@@ -13814,11 +13840,10 @@ impl Backend {
     ) -> (PackageResolver, usize) {
         let open = Arc::new(open);
         let folder_dialects = Arc::new(folder_dialects);
-        let concurrency = std::thread::available_parallelism()
-            .map_or(4, std::num::NonZeroUsize::get)
-            .min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
+        let concurrency =
+            crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let permits = Arc::new(Semaphore::new(concurrency));
-        let mut tasks = tokio::task::JoinSet::new();
+        let mut tasks = crate::rt::JoinSet::new();
         for path in files {
             let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
                 break;
@@ -13828,7 +13853,7 @@ impl Backend {
             let default_dialect = default_dialect.clone();
             tasks.spawn(async move {
                 let _permit = permit;
-                tokio::task::spawn_blocking(move || {
+                crate::rt::spawn_blocking(move || {
                     let uri = canonical_file_uri(&path)?;
                     if open.contains(&uri) {
                         return None;
@@ -13969,7 +13994,7 @@ impl Backend {
         let documents = Arc::clone(&self.documents);
         let db_config = Arc::clone(&self.db_config);
         let folder_db_configs = Arc::clone(&self.folder_db_configs);
-        let task = tokio::spawn(Self::warm_open_documents(
+        let task = crate::rt::spawn(Self::warm_open_documents(
             db,
             db_files,
             documents,
@@ -14022,11 +14047,9 @@ impl Backend {
         if work.is_empty() {
             return;
         }
-        let concurrency = std::thread::available_parallelism()
-            .map_or(4, std::num::NonZeroUsize::get)
-            .min(WORKSPACE_WARM_MAX_CONCURRENCY);
+        let concurrency = crate::rt::available_parallelism().min(WORKSPACE_WARM_MAX_CONCURRENCY);
         let permits = Arc::new(Semaphore::new(concurrency));
-        let mut warms = tokio::task::JoinSet::new();
+        let mut warms = crate::rt::JoinSet::new();
         for (file, config) in work {
             // Acquire the permit *before* spawning so at most `concurrency`
             // warm tasks (and thus snapshots) exist at once: the loop
@@ -14043,7 +14066,7 @@ impl Backend {
                 // `set_text` never waits on more than `concurrency` in-flight
                 // reads.
                 let snapshot = db.lock().await.clone();
-                let _ = tokio::task::spawn_blocking(move || {
+                let _ = crate::rt::spawn_blocking(move || {
                     let _ = salsa::Cancelled::catch(|| {
                         tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
                     });
@@ -14120,7 +14143,7 @@ impl Backend {
                             },
                         );
                     } => true,
-                    () = tokio::time::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => false,
+                    () = crate::rt::sleep(SEMANTIC_TOKENS_FAST_PATH_BUDGET) => false,
                 };
                 if both_ready {
                     // Both landed inside the budget — serve the enriched viewport.
@@ -14176,7 +14199,7 @@ impl Backend {
             refresh_pending: Arc::clone(&self.semantic_tokens_refresh_pending),
             refresh_asked: Arc::clone(&self.semantic_tokens_refresh_asked),
         };
-        tokio::spawn(async move {
+        crate::rt::spawn(async move {
             // Reuse a result that already landed within the budget; otherwise await
             // the still-running read. A `None` slot means the handle was never
             // awaited to completion, so awaiting it here is safe — never a re-poll
@@ -14196,7 +14219,7 @@ impl Backend {
             let refreshed = if cancelled {
                 false
             } else {
-                let enriched = tokio::task::spawn_blocking(move || {
+                let enriched = crate::rt::spawn_blocking(move || {
                     core_semantic_tokens::range_with_cu_and_analysis(
                         &text,
                         &dialect,
@@ -14540,7 +14563,8 @@ impl LanguageServer for Backend {
         // change lands while this runs, the version/text check below refuses
         // to attach facts about the file that was opened to the edited buffer.
         drop(turn);
-        let decode_report = Self::decode_report_for_matching_disk_text(&uri, &text).await;
+        let decode_report =
+            Self::decode_report_for_matching_disk_text(&self.store, &uri, &text).await;
         if let Some(decode_report) = decode_report {
             let mut docs = self.documents.lock().await;
             if let Some(doc) = docs.get_mut(&uri)
@@ -15129,7 +15153,7 @@ impl LanguageServer for Backend {
         // error rather than unwinding the event loop, matching every sibling
         // handler.
         let text = doc.raw().to_owned();
-        let edits = tokio::task::spawn_blocking(move || {
+        let edits = crate::rt::spawn_blocking(move || {
             core_formatting::formatting_with(&text, &config, &registry)
         })
         .await
@@ -15185,7 +15209,7 @@ impl LanguageServer for Backend {
             // Pure-CPU tokenise/segment work; run on a worker so a parser
             // panic is contained as a JSON-RPC error rather than unwinding
             // the event loop (defence in depth).
-            tokio::task::spawn_blocking(move || core_bigip::folding_ranges(&text))
+            crate::rt::spawn_blocking(move || core_bigip::folding_ranges(&text))
                 .await
                 .map_err(|err| jsonrpc::Error {
                     code: jsonrpc::ErrorCode::InternalError,
@@ -15201,7 +15225,7 @@ impl LanguageServer for Backend {
             // never returns empty due to a concurrent edit (behaviour
             // preserved).
             let registry = self.registry_for_dialect(&doc.dialect).await;
-            tokio::task::spawn_blocking(move || {
+            crate::rt::spawn_blocking(move || {
                 tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry)
             })
             .await
@@ -15239,7 +15263,7 @@ impl LanguageServer for Backend {
         // panic is contained as a JSON-RPC error.
         let symbols = if Self::is_bigip_dialect(&doc.dialect) {
             let text = doc.text.clone();
-            tokio::task::spawn_blocking(move || core_bigip::document_symbols(&text))
+            crate::rt::spawn_blocking(move || core_bigip::document_symbols(&text))
                 .await
                 .map_err(|err| jsonrpc::Error {
                     code: jsonrpc::ErrorCode::InternalError,
@@ -15261,7 +15285,7 @@ impl LanguageServer for Backend {
                 )
                 .await;
             let text = doc.text.clone();
-            tokio::task::spawn_blocking(move || {
+            crate::rt::spawn_blocking(move || {
                 core_symbols::document_symbols_from_analysis(&text, &analysis)
             })
             .await
@@ -15310,7 +15334,7 @@ impl LanguageServer for Backend {
         // other readers proceed concurrently while only writers wait.
         let workspace_index = Arc::clone(&self.workspace_index);
         // Pure-CPU work; spawn_blocking off the LSP event loop.
-        let items = tokio::task::spawn_blocking(move || {
+        let items = crate::rt::spawn_blocking(move || {
             let workspace = workspace_index.blocking_read();
             core_completion::completions(
                 &doc.text,
@@ -15393,7 +15417,7 @@ impl LanguageServer for Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
-        let ranges = tokio::task::spawn_blocking(move || {
+        let ranges = crate::rt::spawn_blocking(move || {
             core_declaration::declaration(
                 &text,
                 pos.line,
@@ -15458,7 +15482,7 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         let text = doc.text.clone();
-        let ranges = tokio::task::spawn_blocking(move || {
+        let ranges = crate::rt::spawn_blocking(move || {
             core_type_definition::type_definition(&text, pos.line, pos.character, &analysis)
         })
         .await
@@ -15509,7 +15533,7 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         let text = doc.text.clone();
-        let ranges = tokio::task::spawn_blocking(move || {
+        let ranges = crate::rt::spawn_blocking(move || {
             core_implementation::implementation(&text, pos.line, pos.character, &analysis)
         })
         .await
@@ -15554,7 +15578,7 @@ impl LanguageServer for Backend {
         // workspace config index.
         if Self::is_bigip_dialect(&doc.dialect) {
             let text = doc.text.clone();
-            let bigip_ranges = tokio::task::spawn_blocking(move || {
+            let bigip_ranges = crate::rt::spawn_blocking(move || {
                 tcl_bigip::refs::references_at(&text, pos.line, pos.character, include_decl)
             })
             .await
@@ -15618,7 +15642,7 @@ impl LanguageServer for Backend {
         // definition go-to-definition refuses to open.
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let entries = tokio::task::spawn_blocking(move || {
+        let entries = crate::rt::spawn_blocking(move || {
             // The kinded entry
             // point tags variable defining spans as `Write` and
             // their reads as `Read`; command-invocation heads
@@ -15689,7 +15713,7 @@ impl LanguageServer for Backend {
         // export view definition uses (issue #1116 item 1).
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let items = tokio::task::spawn_blocking(move || {
+        let items = crate::rt::spawn_blocking(move || {
             core_call_hierarchy::prepare_in_program(
                 &doc.text,
                 pos.line,
@@ -15769,7 +15793,7 @@ impl LanguageServer for Backend {
         let local_analysis = analysis.clone();
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let local = tokio::task::spawn_blocking(move || {
+        let local = crate::rt::spawn_blocking(move || {
             core_call_hierarchy::incoming_calls_in_program(
                 &doc_text,
                 &doc_dialect,
@@ -15856,7 +15880,7 @@ impl LanguageServer for Backend {
         let local_analysis = analysis.clone();
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let outgoing = tokio::task::spawn_blocking(move || {
+        let outgoing = crate::rt::spawn_blocking(move || {
             core_call_hierarchy::outgoing_calls_in_program(
                 &doc.text,
                 &doc.dialect,
@@ -15912,7 +15936,7 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let items = tokio::task::spawn_blocking(move || {
+        let items = crate::rt::spawn_blocking(move || {
             core_type_hierarchy::prepare(&doc.text, pos.line, pos.character, &analysis)
         })
         .await
@@ -15986,7 +16010,7 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let result = tokio::task::spawn_blocking(move || {
+        let result = crate::rt::spawn_blocking(move || {
             core_linked_editing_range::linked_editing_ranges(
                 &doc.text,
                 pos.line,
@@ -16319,7 +16343,7 @@ impl LanguageServer for Backend {
         let serve_text = Arc::clone(&text);
         let serve_dialect = dialect.clone();
         let serve_registry = Arc::clone(&registry);
-        let core_data = tokio::task::spawn_blocking(move || {
+        let core_data = crate::rt::spawn_blocking(move || {
             core_semantic_tokens::range_with_cu_and_analysis(
                 &serve_text,
                 &serve_dialect,
@@ -16529,7 +16553,7 @@ impl LanguageServer for Backend {
         if Self::is_bigip_dialect(&doc.dialect) {
             let text = doc.text.clone();
             let bigip_links =
-                tokio::task::spawn_blocking(move || tcl_bigip::links::document_links(&text))
+                crate::rt::spawn_blocking(move || tcl_bigip::links::document_links(&text))
                     .await
                     .map_err(|err| jsonrpc::Error {
                         code: jsonrpc::ErrorCode::InternalError,
@@ -16582,7 +16606,7 @@ impl LanguageServer for Backend {
         // Pure-CPU segmentation on a worker so a parser panic is contained
         // as a JSON-RPC error.
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
-        let links = tokio::task::spawn_blocking(move || {
+        let links = crate::rt::spawn_blocking(move || {
             core_document_links::document_links_in_context(
                 &text,
                 &dialect,
@@ -16660,7 +16684,7 @@ impl LanguageServer for Backend {
         // (issue #1116 item 1).
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let hints = tokio::task::spawn_blocking(move || {
+        let hints = crate::rt::spawn_blocking(move || {
             core_inlay_hints::inlay_hints_in_program(
                 &doc.text,
                 &doc.dialect,
@@ -16733,7 +16757,7 @@ impl LanguageServer for Backend {
         let workspace_index = Arc::clone(&self.workspace_index);
         let uri_str = uri.to_string();
         let worker_uri = uri_str.clone();
-        let lenses = tokio::task::spawn_blocking(move || {
+        let lenses = crate::rt::spawn_blocking(move || {
             let workspace = workspace_index.blocking_read();
             core_code_lens::code_lenses(
                 &doc.text,
@@ -16934,7 +16958,7 @@ impl LanguageServer for Backend {
         // whether) a generated stub is inserted.
         let docstring_style = self.resolved_docstring_style(&uri).await;
         let uri_key = uri.as_str().to_owned();
-        let actions = tokio::task::spawn_blocking(move || {
+        let actions = crate::rt::spawn_blocking(move || {
             let program = core_definition::ProgramExports {
                 uri: &uri_key,
                 oracle: exports.as_ref(),
@@ -17051,7 +17075,7 @@ impl LanguageServer for Backend {
         // sniffs them, and the whole-document replace range is measured
         // against them) — see `DocumentState::raw`.
         let text = doc.raw().to_owned();
-        let edits = tokio::task::spawn_blocking(move || {
+        let edits = crate::rt::spawn_blocking(move || {
             core_formatting::formatting_with(&text, &config, &registry)
         })
         .await
@@ -17093,7 +17117,7 @@ impl LanguageServer for Backend {
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
         let text = doc.raw().to_owned();
-        let edits = tokio::task::spawn_blocking(move || {
+        let edits = crate::rt::spawn_blocking(move || {
             core_formatting::range_formatting(&text, range, &config, &registry)
         })
         .await
@@ -17134,7 +17158,7 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let result = tokio::task::spawn_blocking(move || {
+        let result = crate::rt::spawn_blocking(move || {
             positions
                 .into_iter()
                 .map(|pos| {
@@ -17194,7 +17218,7 @@ impl LanguageServer for Backend {
         // (issue #1116 item 1) — the same view definition uses.
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let result = tokio::task::spawn_blocking(move || {
+        let result = crate::rt::spawn_blocking(move || {
             core_rename::prepare_rename_in_program(
                 &text,
                 pos.line,
@@ -17471,7 +17495,7 @@ impl LanguageServer for Backend {
         // (issue #1116 item 1).
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let result = tokio::task::spawn_blocking(move || {
+        let result = crate::rt::spawn_blocking(move || {
             core_sig::signature_help_in_program(
                 &doc.text,
                 pos.line,
@@ -17544,7 +17568,7 @@ impl LanguageServer for Backend {
         let analysis_worker = Arc::clone(&analysis);
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
-        let result = tokio::task::spawn_blocking(move || {
+        let result = crate::rt::spawn_blocking(move || {
             core_hover::hover_in_program(
                 &text,
                 pos.line,
@@ -18381,8 +18405,12 @@ struct WatchedFileChanges {
 /// Read an INI config file at `path` (if present/readable) into the
 /// editor-shape `tclLsp` settings JSON for its `layer`. Missing or unreadable
 /// files yield an empty object, so a layer simply contributes nothing.
-fn read_ini_layer(path: Option<PathBuf>, layer: config_ini::Layer) -> serde_json::Value {
-    path.and_then(|p| std::fs::read_to_string(p).ok())
+fn read_ini_layer(
+    store: &dyn vfs::SourceStore,
+    path: Option<PathBuf>,
+    layer: config_ini::Layer,
+) -> serde_json::Value {
+    path.and_then(|p| store.read_to_string(&p).ok())
         .map_or_else(
             || serde_json::json!({}),
             |content| config_ini::settings_from_ini(&content, layer),
@@ -19278,7 +19306,7 @@ async fn f5_dialect_diagnostics(
 ) -> Option<Vec<tower_lsp_server::ls_types::Diagnostic>> {
     if Backend::is_bigip_dialect(dialect) {
         let (t, dis) = (text.to_owned(), disabled.clone());
-        let diags = tokio::task::spawn_blocking(move || bigip_config_diagnostics(&t, &dis))
+        let diags = crate::rt::spawn_blocking(move || bigip_config_diagnostics(&t, &dis))
             .await
             .unwrap_or_default();
         return Some(diags);
@@ -19286,7 +19314,7 @@ async fn f5_dialect_diagnostics(
     if is_apl_source(uri, language_id) {
         let impl_refs = find_sibling_impl_vars(uri, documents).await;
         let (t, dis) = (text.to_owned(), disabled.clone());
-        let diags = tokio::task::spawn_blocking(move || {
+        let diags = crate::rt::spawn_blocking(move || {
             apl_presentation_diagnostics(&t, impl_refs.as_deref(), &dis)
         })
         .await
@@ -20282,10 +20310,15 @@ const SPEC_PACK_DIAGNOSTIC_CODE: &str = "SPECTCL";
 /// statement rather than a single character. A file that has changed or gone
 /// since the notice was raised degrades to the start of the line — the notice
 /// is still worth showing, and an approximate range beats dropping it.
-fn whole_line_range(path: &Path, line: u32) -> tower_lsp_server::ls_types::Range {
+fn whole_line_range(
+    store: &dyn vfs::SourceStore,
+    path: &Path,
+    line: u32,
+) -> tower_lsp_server::ls_types::Range {
     use tower_lsp_server::ls_types::{Position, Range};
     let zero_based = line.saturating_sub(1);
-    let end = std::fs::read_to_string(path)
+    let end = store
+        .read_to_string(path)
         .ok()
         .and_then(|text| {
             text.lines()
@@ -22038,7 +22071,7 @@ mod tests {
             "[global]\ndialect = tcl9.0\n[optimiser]\nenabled = false\n",
         )
         .unwrap();
-        let global = read_ini_layer(Some(path), config_ini::Layer::Global);
+        let global = read_ini_layer(&vfs::NativeStore, Some(path), config_ini::Layer::Global);
         backend.apply_global_config(&global).await;
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         assert!(!*backend.optimiser_enabled.lock().await);
@@ -26118,6 +26151,7 @@ mod tests {
             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
             warm_task: std::sync::Mutex::new(None),
             edit_order: EditOrder::default(),
+            store: Arc::new(vfs::NativeStore),
         }
     }
 
@@ -26951,6 +26985,7 @@ mod tests {
             registry,
             workspace_index: &backend.workspace_index,
             package_resolver: &backend.package_resolver,
+            store: &backend.store,
         };
         let base: HashSet<String> = ["mycmd".to_owned()].into_iter().collect();
 
@@ -27638,7 +27673,7 @@ mod tests {
         // `did_change_configuration` ends by pulling config from the client,
         // which errors fast against the test's detached socket; the timeout is
         // a backstop so a future transport change can't hang the suite.
-        tokio::time::timeout(
+        crate::rt::timeout(
             std::time::Duration::from_secs(10),
             backend.did_change_configuration(params),
         )
@@ -27670,7 +27705,7 @@ mod tests {
         let dialects = ["tcl8.5", "tcl8.6", "tcl9.0"];
         let followers = async {
             // Let the leader claim the slot before the followers arrive.
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            crate::rt::sleep(std::time::Duration::from_millis(10)).await;
             let start = std::time::Instant::now();
             for i in 0..15 {
                 backend
@@ -30079,7 +30114,7 @@ mod tests {
             if cond().await {
                 return true;
             }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            crate::rt::sleep(std::time::Duration::from_millis(10)).await;
         }
         false
     }
@@ -30665,7 +30700,7 @@ mod tests {
         for _ in 0..32 {
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
-            tasks.push(tokio::spawn(async move {
+            tasks.push(crate::rt::spawn(async move {
                 backend.read_document(&uri).await.expect("open document")
             }));
         }
@@ -30797,7 +30832,7 @@ mod tests {
         let ticket = backend.edit_order.take_ticket();
         let edit_in_flight = backend.edit_order.wait_turn(ticket).await;
 
-        let mut reader = tokio::spawn({
+        let mut reader = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             async move { backend.read_document(&uri).await.map(|d| d.text) }
@@ -30805,7 +30840,7 @@ mod tests {
 
         // While the edit is in flight the read must not resolve.
         let elapsed = std::time::Duration::from_millis(300);
-        if let Ok(done) = tokio::time::timeout(elapsed, &mut reader).await {
+        if let Ok(done) = crate::rt::timeout(elapsed, &mut reader).await {
             panic!("read_document returned {done:?} while an edit was still in flight");
         }
 
@@ -30816,7 +30851,7 @@ mod tests {
             DocumentState::new("set x 2\n".to_owned(), "tcl8.6".to_owned()),
         );
         drop(edit_in_flight);
-        let text = tokio::time::timeout(std::time::Duration::from_secs(5), reader)
+        let text = crate::rt::timeout(std::time::Duration::from_secs(5), reader)
             .await
             .expect("read_document must resolve once the edit lands")
             .expect("reader task panicked");
@@ -30831,7 +30866,7 @@ mod tests {
     /// is on the counters directly.
     async fn one_edit_turn_released(backend: &Backend) -> bool {
         use std::sync::atomic::Ordering;
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 let order = &backend.edit_order;
                 if order.next_ticket.load(Ordering::Acquire) == 1
@@ -30839,7 +30874,7 @@ mod tests {
                 {
                     return;
                 }
-                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                crate::rt::sleep(std::time::Duration::from_millis(5)).await;
             }
         })
         .await
@@ -30870,7 +30905,7 @@ mod tests {
         register(&backend, &uri, "proc foo {} {}\n").await;
 
         let rehoming_held = backend.rehoming_gate.lock().await;
-        let closing = tokio::spawn({
+        let closing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             async move {
@@ -30897,7 +30932,7 @@ mod tests {
         );
 
         drop(rehoming_held);
-        tokio::time::timeout(std::time::Duration::from_secs(30), closing)
+        crate::rt::timeout(std::time::Duration::from_secs(30), closing)
             .await
             .expect("the close must finish once its tail can take the rehoming gate")
             .expect("did_close panicked");
@@ -30925,7 +30960,7 @@ mod tests {
         register(&backend, &uri, "set x 1\n").await;
 
         let slots_held = backend.diag_slots.lock().await;
-        let editing = tokio::spawn({
+        let editing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             async move {
@@ -30959,7 +30994,7 @@ mod tests {
         );
 
         drop(slots_held);
-        tokio::time::timeout(std::time::Duration::from_secs(30), editing)
+        crate::rt::timeout(std::time::Duration::from_secs(30), editing)
             .await
             .expect("the edit must finish once its tail can take the diag_slots lock")
             .expect("did_change panicked");
@@ -30985,7 +31020,7 @@ mod tests {
         register(&backend, &uri, "proc published {} {}\n").await;
 
         let slots_held = backend.diag_slots.lock().await;
-        let editing = tokio::spawn({
+        let editing = crate::rt::spawn({
             let backend = Arc::clone(&backend);
             let uri = uri.clone();
             async move {
@@ -31017,7 +31052,7 @@ mod tests {
         );
 
         drop(slots_held);
-        tokio::time::timeout(std::time::Duration::from_secs(30), editing)
+        crate::rt::timeout(std::time::Duration::from_secs(30), editing)
             .await
             .expect("the edit must finish once its tail can take the diag_slots lock")
             .expect("did_change panicked");
@@ -31533,12 +31568,12 @@ mod tests {
         seed_autoload_library(&backend, "autoload-race").await;
         let guard = backend.workspace_scan_gate.lock().await;
         let query_backend = Arc::clone(&backend);
-        let query = tokio::spawn(async move {
+        let query = crate::rt::spawn(async move {
             query_backend
                 .ensure_autoload_indexed("Rbc_ActiveLegend", "::")
                 .await
         });
-        tokio::task::yield_now().await;
+        crate::rt::yield_now().await;
         assert!(
             !query.is_finished(),
             "must wait for the in-flight scan rather than racing it"
@@ -31567,20 +31602,20 @@ mod tests {
         let scan_guard = backend.workspace_scan_gate.lock().await;
         let query_backend = Arc::clone(&backend);
         let query_app = app.clone();
-        let query = tokio::spawn(async move {
+        let query = crate::rt::spawn(async move {
             let (guard, symbols) = query_backend
                 .resolved_symbol_index_snapshot(&query_app, app_src, &analysis, Position::new(0, 3))
                 .await;
             drop(guard);
             symbols
         });
-        tokio::task::yield_now().await;
+        crate::rt::yield_now().await;
         assert!(
             !query.is_finished(),
             "autoload preflight must wait for the in-flight workspace scan"
         );
 
-        let rehoming_guard = tokio::time::timeout(
+        let rehoming_guard = crate::rt::timeout(
             std::time::Duration::from_secs(1),
             backend.rehoming_gate.lock(),
         )
@@ -31589,7 +31624,7 @@ mod tests {
         drop(rehoming_guard);
         drop(scan_guard);
 
-        let symbols = tokio::time::timeout(std::time::Duration::from_secs(2), query)
+        let symbols = crate::rt::timeout(std::time::Duration::from_secs(2), query)
             .await
             .expect("query must complete after the scan releases its gate")
             .expect("query task panicked");
@@ -31976,8 +32011,8 @@ mod tests {
         let before = backend.workspace_index.read().await.generation();
         let (b1, b2) = (Arc::clone(&backend), Arc::clone(&backend));
         let (r1, r2) = tokio::join!(
-            tokio::spawn(async move { b1.refresh_source_rehoming().await }),
-            tokio::spawn(async move { b2.refresh_source_rehoming().await }),
+            crate::rt::spawn(async move { b1.refresh_source_rehoming().await }),
+            crate::rt::spawn(async move { b2.refresh_source_rehoming().await }),
         );
         r1.expect("first pass must not panic");
         r2.expect("second pass must not panic");
@@ -32031,7 +32066,7 @@ mod tests {
         let publisher_started = Arc::clone(&query_started);
         let publisher_finished = Arc::clone(&publish_finished);
         let standalone = Arc::new(Analyser::new().analyse(b_src, "tcl8.6").clone());
-        let publisher = tokio::spawn(async move {
+        let publisher = crate::rt::spawn(async move {
             let revision = publisher_backend
                 .documents
                 .lock()
@@ -32060,7 +32095,7 @@ mod tests {
                 &standalone,
                 Ok(Vec::new()),
                 PublishTiming {
-                    started: std::time::Instant::now(),
+                    started: crate::rt::Instant::now(),
                     uri_str: &uri_string,
                     line_count: 1,
                 },
@@ -32072,7 +32107,7 @@ mod tests {
 
         query_started.notified().await;
         assert!(
-            tokio::time::timeout(
+            crate::rt::timeout(
                 std::time::Duration::from_millis(100),
                 publish_finished.notified(),
             )
@@ -32093,7 +32128,7 @@ mod tests {
         drop(query_guard);
 
         assert!(
-            tokio::time::timeout(std::time::Duration::from_secs(5), publisher)
+            crate::rt::timeout(std::time::Duration::from_secs(5), publisher)
                 .await
                 .expect("publisher must resume after the query releases the gate")
                 .expect("publisher task must not panic"),
@@ -33995,7 +34030,7 @@ mod tests {
 
         // Once the debounce window elapses and the fire completes, the flag
         // must clear so a later change can schedule the next one.
-        tokio::time::sleep(SEMANTIC_TOKENS_REFRESH_DEBOUNCE * 2).await;
+        crate::rt::sleep(SEMANTIC_TOKENS_REFRESH_DEBOUNCE * 2).await;
         assert!(
             !backend
                 .semantic_tokens_refresh_pending
@@ -34197,10 +34232,10 @@ mod tests {
         let uri = Uri::from_str("file:///aborted.tcl").unwrap();
         let guard = ConvergenceGuard::claim(&in_flight, &uri).expect("claimed");
 
-        let task = tokio::spawn(async move {
+        let task = crate::rt::spawn(async move {
             // Never completes; the abort below drops the future — and the guard
             // it owns — instead.
-            tokio::time::sleep(std::time::Duration::from_hours(1)).await;
+            crate::rt::sleep(std::time::Duration::from_hours(1)).await;
             drop(guard);
         });
         task.abort();
