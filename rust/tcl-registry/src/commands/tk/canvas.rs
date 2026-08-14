@@ -36,7 +36,7 @@ fn canvas_bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// The command's subcommands.
-const SUBCOMMANDS: &[SubCommand] = &[
+static SUBCOMMANDS: [SubCommand; 30] = [
     SubCommand {
         name: "addtag",
         arity: Arity::at_least(2),
@@ -530,7 +530,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `docs/design/tk-widget-instance-typing.md`).
 static CANVAS_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "canvas",
-    instance_methods: SUBCOMMANDS,
+    instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
 };
@@ -553,7 +553,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
-        subcommands: SUBCOMMANDS,
+        subcommands: &SUBCOMMANDS,
         object_class: Some(&CANVAS_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT

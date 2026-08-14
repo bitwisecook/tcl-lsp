@@ -32,7 +32,7 @@ fn text_tag_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 /// The command's subcommands.
-const SUBCOMMANDS: &[SubCommand] = &[
+static SUBCOMMANDS: [SubCommand; 24] = [
     SubCommand {
         name: "bbox",
         arity: Arity::exact(1),
@@ -587,7 +587,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `docs/design/tk-widget-instance-typing.md`).
 static TEXT_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "text",
-    instance_methods: SUBCOMMANDS,
+    instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
 };
@@ -610,7 +610,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
-        subcommands: SUBCOMMANDS,
+        subcommands: &SUBCOMMANDS,
         object_class: Some(&TEXT_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT

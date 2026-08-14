@@ -231,16 +231,18 @@ debug = "line-tables-only"
 # These crates change far less often than the server, so their (one-time,
 # cached) build cost is paid rarely.
 #
-# `tcl-registry` is deliberately NOT in this list.  Its widget tables are
-# declared as `const SUBCOMMANDS: &[SubCommand]` (e.g. commands/tk/entry.rs),
-# and a `const` reference has no stable address — each use site may materialise
-# its own copy.  `registry_commands::tk_widgets_with_subcommands_self_reference
-# _their_object_class` asserts `ptr::eq(class.instance_methods,
-# spec.subcommands)`, which holds at opt-level 0 only by accident of codegen and
-# fails at 2.  The assertion's intent (the two must never drift apart) is worth
-# keeping; making it actually guaranteed means turning those tables into
-# `static`s, which is its own change.  Until then this crate stays unoptimised —
-# it is lookup tables, not hot compute, so the loss is small.
+# `tcl-registry` was excluded when this list was introduced: its Tk widget
+# tables were `const SUBCOMMANDS: &[SubCommand]`, a `const` reference has no
+# stable address (each use site may materialise its own copy), and
+# `registry_commands::tk_widgets_with_subcommands_self_reference_their_object_class`
+# asserts `ptr::eq(class.instance_methods, spec.subcommands)` — which held at
+# opt-level 0 only by accident of codegen and failed at 2.  Those tables are
+# now `static SUBCOMMANDS: [SubCommand; N]` referenced as `&SUBCOMMANDS` at both
+# use sites, so there is exactly one address and the assertion is guaranteed
+# rather than lucky.  The crate is back in the list.
+[profile.dev.package.tcl-registry]
+opt-level = 2
+
 [profile.dev.package.tcl-lsp-db]
 opt-level = 2
 

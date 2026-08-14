@@ -107,7 +107,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
 ];
 
 /// The command's subcommands.
-const SUBCOMMANDS: &[SubCommand] = &[
+static SUBCOMMANDS: [SubCommand; 15] = [
     SubCommand {
         name: "activate",
         arity: Arity::exact(1),
@@ -481,7 +481,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `docs/design/tk-widget-instance-typing.md`).
 static MENU_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "menu",
-    instance_methods: SUBCOMMANDS,
+    instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
 };
@@ -504,7 +504,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
-        subcommands: SUBCOMMANDS,
+        subcommands: &SUBCOMMANDS,
         object_class: Some(&MENU_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT

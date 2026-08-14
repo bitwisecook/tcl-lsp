@@ -1850,6 +1850,15 @@ fn tk_widgets_with_subcommands_self_reference_their_object_class() {
             class.class_name, name,
             "{name}'s object class is self-referential"
         );
+        // This is a pointer-identity check, and it is only meaningful because
+        // each widget's table is a `static SUBCOMMANDS: [SubCommand; N]` that
+        // both use sites reach via `&SUBCOMMANDS` — one static, one address.
+        // It used to be a `const`, whose referent has NO stable address (every
+        // use site may materialise its own copy); the assertion then passed at
+        // opt-level 0 purely by accident of codegen and failed the moment the
+        // crate was built at opt-level 2.  If you turn these tables back into
+        // `const`s, this assertion becomes a coin flip again — keep them
+        // `static`.
         assert!(
             std::ptr::eq(class.instance_methods, spec.subcommands),
             "{name}'s instance_methods must be the literal same slice as its \
