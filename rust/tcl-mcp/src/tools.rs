@@ -356,7 +356,10 @@ fn event_order(args: &Value) -> Value {
 fn format_source(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let mut config = tcl_lsp_core::formatting::FormatterConfig::default();
+    // The tool's resolved dialect drives the formatter as one fact (issue
+    // #1465): lexer grammar, rewrite-candidate release, and forward range.
+    // The default config formatted every dialect as modern Tcl.
+    let mut config = tcl_lsp_core::formatting::FormatterConfig::for_dialect(&dialect);
     if let Some(n) = args.get("indent_size").and_then(Value::as_u64) {
         config.indent_size = usize::try_from(n).unwrap_or(config.indent_size);
     }
@@ -602,6 +605,42 @@ fn find_legacy(args: &Value) -> Value {
         })
         .collect();
     json!({ "total": patterns.len(), "patterns": patterns })
+}
+
+#[cfg(test)]
+mod format_dialect_tests {
+    use super::*;
+
+    /// TMM accepts the `}{` ghost separator (`if {expr}{body}`); stock Tcl
+    /// does not, so the two dialects format these bytes differently.
+    const GHOST_SEPARATOR_IRULE: &str =
+        "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
+
+    #[test]
+    fn the_format_tool_resolves_the_requested_dialect() {
+        // Issue #1465: `format_source` started from `FormatterConfig::default()`
+        // and never projected the tool's resolved dialect onto it, so an iRule
+        // was tokenised with the Tcl 9 lexer.
+        for dialect in ["f5-irules", "irules"] {
+            let result = format_source(&json!({
+                "source": GHOST_SEPARATOR_IRULE,
+                "dialect": dialect,
+            }));
+            let formatted = result["formatted"].as_str().expect("formatted string");
+            assert!(formatted.contains("} {"), "{dialect}: {formatted}");
+            assert!(!formatted.contains("}{"), "{dialect}: {formatted}");
+        }
+    }
+
+    #[test]
+    fn the_format_tool_leaves_the_ghost_separator_alone_under_core_tcl() {
+        let result = format_source(&json!({
+            "source": GHOST_SEPARATOR_IRULE,
+            "dialect": "tcl9.0",
+        }));
+        let formatted = result["formatted"].as_str().expect("formatted string");
+        assert!(formatted.contains("}{"), "{formatted}");
+    }
 }
 
 #[cfg(test)]

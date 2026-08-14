@@ -45,9 +45,10 @@
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
 
-use tcl_lexer::{Token, TokenType};
+use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::events::{EventProps, EventRegistry, EventRequires};
 use tcl_registry::profiles::ProfileRegistry;
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use super::state::Analyser;
 use super::types::{CodeFix, Diagnostic, Severity};
@@ -140,15 +141,19 @@ fn is_deprecated_event(event: &str, target: Option<&str>) -> bool {
         .is_some_and(|p| p.is_deprecated(target))
 }
 
-/// Maps a command name to the argument index that names the written
-/// variable.
-fn var_write_index(cmd_name: &str) -> Option<usize> {
-    match cmd_name {
-        "append" | "const" | "global" | "incr" | "lappend" | "ledit" | "lpop" | "lset" | "set"
-        | "unset" | "variable" => Some(0),
-        "array" | "gets" => Some(1),
-        _ => None,
-    }
+/// Every argument index this call writes as a variable, as the registry
+/// resolves it for *these* arguments — `arg_role_resolver` first, then the
+/// static `arg_roles` table and any repeated tail
+/// ([`tcl_registry::CommandRegistry::arg_indices_for_role`]).
+///
+/// The registry answer replaces a hardcoded 13-name table that named a single
+/// index per command (issue #1381).  It reaches every multi-name writer the
+/// table missed (`catch {…} ::err`, `lassign $l ::a ::b`, `regexp … ::m`,
+/// `scan … ::v`) and stops reading `array names ::x` — whose subcommand
+/// declares [`ArgRole::VarRead`] — as a write.
+fn var_write_indices(registry: &CommandRegistry, cmd_name: &str, args: &[String]) -> Vec<usize> {
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    registry.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::VarWrite)
 }
 
 /// Return the `static::` variable name a command
@@ -164,40 +169,21 @@ fn static_var_from_set<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str
     None
 }
 
-/// Return the `::`-qualified global variable
-/// name a command writes, or `None`.
-fn global_var_from_command<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
-    let idx = var_write_index(cmd_name)?;
-    let var = args.get(idx)?;
-    if var.starts_with("::") {
-        Some(var.as_str())
-    } else {
-        None
-    }
-}
-
-/// A plain variable name that is
-/// implicitly global when written in `RULE_INIT`.
-fn implicit_global_var_from_command<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
-    let idx = var_write_index(cmd_name)?;
-    // `set var` with one arg is a read, not a write.
-    if cmd_name == "set" && args.len() < 2 {
-        return None;
-    }
-    // `unset` destroys variables; it doesn't create implicit globals.
-    if cmd_name == "unset" {
-        return None;
-    }
-    // `array` only creates implicit globals via `array set`.
-    if cmd_name == "array" && args.first().map(String::as_str) != Some("set") {
-        return None;
-    }
-    let var = args.get(idx)?;
-    if !var.starts_with("::") && !var.starts_with("static::") {
-        Some(var.as_str())
-    } else {
-        None
-    }
+/// Whether this call destroys the variables it names rather than assigning
+/// them — [`Traits::DESTROYS_VARIABLE`] on the command (`unset`), or the
+/// resolved subcommand's `destructive` flag (`array unset`, `dict unset`).
+/// A destroyer never *creates* the implicit global that IRULE6001's `RULE_INIT`
+/// variant reports, which is what the old `cmd_name == "unset"` and
+/// `args[0] != "set"` special cases said by name.
+fn destroys_variables(registry: &CommandRegistry, cmd_name: &str, args: &[String]) -> bool {
+    let Some(spec) = registry.get(cmd_name) else {
+        return false;
+    };
+    spec.traits.contains(Traits::DESTROYS_VARIABLE)
+        || args
+            .first()
+            .and_then(|sub| spec.resolve_subcommand(sub))
+            .is_some_and(|sub| sub.destructive)
 }
 
 impl Analyser {
@@ -475,6 +461,43 @@ impl Analyser {
         });
     }
 
+    /// Whether `cmd_name` is the dialect's event-handler command — the
+    /// registry's [`Traits::IS_EVENT_HANDLER`], never the literal `when`.
+    ///
+    /// The same fact `super::commands` already keys the `current_event` push
+    /// on: "the event handler is whatever carries `IS_EVENT_HANDLER` — `when`
+    /// today, but a dialect that adds another gets the same treatment without
+    /// an edit here" (issue #1390).  Reading it here also picks up the
+    /// `::`-qualified spelling, which the registry normalises on look-up and a
+    /// `cmd_name != "when"` gate rejected.
+    fn is_event_handler_command(&self, cmd_name: &str) -> bool {
+        self.registry.as_deref().is_some_and(|registry| {
+            registry
+                .get(cmd_name)
+                .is_some_and(|spec| spec.traits.contains(Traits::IS_EVENT_HANDLER))
+        })
+    }
+
+    /// The document's `(event, body texts)` index for IRULE4003, built once
+    /// per analysis run.
+    ///
+    /// Structural, not textual: [`collect_event_bodies`] segments the source
+    /// and asks the registry which command opens an event body
+    /// ([`Traits::IS_EVENT_HANDLER`]) and which of its words *are* bodies
+    /// ([`ArgRole::Body`]).  The byte scan it replaces matched
+    /// `\bwhen\s+[A-Z_][A-Z0-9_]*` anywhere in the file, so a `when` inside a
+    /// `#` comment or a string literal invented a phantom event block, and it
+    /// carried its own `priority` / `timing` skip and brace matcher that the
+    /// registry's argument roles already describe (issue #1390).
+    fn irules_event_bodies(&mut self) -> &[(String, Vec<String>)] {
+        if self.irules_event_bodies.is_none() {
+            let bodies =
+                collect_event_bodies(&self.source, self.registry.as_deref(), self.lexer_config());
+            self.irules_event_bodies = Some(bodies);
+        }
+        self.irules_event_bodies.as_deref().unwrap_or_default()
+    }
+
     /// **IRULE1002.** `when` references an unknown iRules event name.
     /// Only literal event names are validated (`$var` / `[cmd]` skipped).
     fn emit_irule1002_unknown_event(
@@ -483,7 +506,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        if cmd_name != "when" {
+        if !self.is_event_handler_command(cmd_name) {
             return;
         }
         let (Some(event_name), Some(tok)) = (args.first(), arg_tokens.first()) else {
@@ -594,7 +617,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        if cmd_name != "when" {
+        if !self.is_event_handler_command(cmd_name) {
             return;
         }
         let (Some(event_name), Some(tok)) = (args.first(), arg_tokens.first()) else {
@@ -746,22 +769,22 @@ impl Analyser {
             return;
         }
 
-        let registry = event_registry();
-        let blocks = scan_when_blocks(&self.source);
-        let mut concerns: Vec<String> = Vec::new();
-        for (other_event, bodies) in &blocks {
-            if other_event == event {
-                continue;
-            }
-            for body in bodies {
-                if var_referenced_in(var_name, body) {
-                    if let Some(note) = registry.variable_scope_note(event, other_event) {
-                        concerns.push(note);
-                    }
-                    break;
+        let events = event_registry();
+        let concerns: Vec<String> = {
+            let blocks = self.irules_event_bodies();
+            let mut concerns: Vec<String> = Vec::new();
+            for (other_event, bodies) in blocks {
+                if other_event == event {
+                    continue;
+                }
+                if bodies.iter().any(|body| var_referenced_in(var_name, body))
+                    && let Some(note) = events.variable_scope_note(event, other_event)
+                {
+                    concerns.push(note);
                 }
             }
-        }
+            concerns
+        };
         if concerns.is_empty() {
             return;
         }
@@ -806,44 +829,50 @@ impl Analyser {
             return;
         }
 
-        // `set ::var`, `incr ::var`, etc.
-        if let Some(var_name) = global_var_from_command(cmd_name, args) {
-            let bare = &var_name[2..];
-            let static_name = format!("static::{bare}");
-            let fix_span = var_write_index(cmd_name)
-                .and_then(|idx| arg_tokens.get(idx))
-                .map_or(cmd_tok.span, |t| t.span);
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::Irule6001,
-                span: fix_span,
-                message: format!(
-                    "Global namespace variable '{var_name}' forces CMP compatibility \
-                     mode, pinning the virtual server to a single TMM. \
-                     Use '{static_name}' instead."
-                ),
-                severity: Severity::Warning,
-                fixes: vec![CodeFix {
-                    span: fix_span,
-                    new_text: static_name.clone(),
-                    description: format!("Replace '{var_name}' with '{static_name}'"),
-                    // IRULE6001: `static::` variables have per-TMM storage and a
-                    // different lifetime from a global — the CMP fix, and a change of
-                    // where the value lives.
-                    safety: crate::irules_checks::FixSafety::RequiresReview,
-                }],
-            });
+        // Every argument the registry resolves as a variable *write* for this
+        // concrete call — `set ::var`, `incr ::var`, `catch {…} ::err`,
+        // `lassign $l ::a ::b`, `regexp $re $s ::m`, `scan $s $f ::v`, …
+        let Some(registry) = self.registry.clone() else {
             return;
-        }
-
-        // Implicit globals in RULE_INIT: `set var value` (no `::`) is global
-        // because RULE_INIT executes at the global namespace scope.
-        if event == Some("RULE_INIT")
-            && let Some(bare) = implicit_global_var_from_command(cmd_name, args)
-        {
+        };
+        let writes = var_write_indices(&registry, cmd_name, args);
+        let destroys = destroys_variables(&registry, cmd_name, args);
+        for idx in writes {
+            let Some(word) = args.get(idx) else { continue };
+            let fix_span = arg_tokens.get(idx).map_or(cmd_tok.span, |t| t.span);
+            if let Some(bare) = word.strip_prefix("::") {
+                let var_name = word.as_str();
+                let static_name = format!("static::{bare}");
+                self.result.diagnostics.push(Diagnostic {
+                    code: DiagCode::Irule6001,
+                    span: fix_span,
+                    message: format!(
+                        "Global namespace variable '{var_name}' forces CMP compatibility \
+                         mode, pinning the virtual server to a single TMM. \
+                         Use '{static_name}' instead."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: vec![CodeFix {
+                        span: fix_span,
+                        new_text: static_name.clone(),
+                        description: format!("Replace '{var_name}' with '{static_name}'"),
+                        // IRULE6001: `static::` variables have per-TMM storage and a
+                        // different lifetime from a global — the CMP fix, and a change of
+                        // where the value lives.
+                        safety: crate::irules_checks::FixSafety::RequiresReview,
+                    }],
+                });
+                continue;
+            }
+            // Implicit globals in RULE_INIT: `set var value` (no `::`) is
+            // global because RULE_INIT executes at the global namespace
+            // scope.  A destroyer names a variable it removes, so it creates
+            // no implicit global.
+            if event != Some("RULE_INIT") || destroys || word.starts_with("static::") {
+                continue;
+            }
+            let bare = word.as_str();
             let static_name = format!("static::{bare}");
-            let fix_span = var_write_index(cmd_name)
-                .and_then(|idx| arg_tokens.get(idx))
-                .map_or(cmd_tok.span, |t| t.span);
             self.result.diagnostics.push(Diagnostic {
                 code: DiagCode::Irule6001,
                 span: fix_span,
@@ -866,90 +895,81 @@ impl Analyser {
     }
 }
 
-/// Return `{event_name: [body_text, ...]}` for all `when` blocks via
-/// balanced-brace scanning.
-fn scan_when_blocks(source: &str) -> Vec<(String, Vec<String>)> {
-    let bytes = source.as_bytes();
-    let mut result: Vec<(String, Vec<String>)> = Vec::new();
-    let mut search = 0usize;
-    while let Some(rel) = source[search..].find("when") {
-        let kw = search + rel;
-        search = kw + 4;
-        // `\bwhen\s+` — require a word boundary before `when`.
-        if kw > 0 && is_word_byte(bytes[kw - 1]) {
-            continue;
-        }
-        let mut pos = kw + 4;
-        // Require at least one whitespace separator after `when`.
-        if pos >= bytes.len() || !is_ws(bytes[pos]) {
-            continue;
-        }
-        while pos < bytes.len() && is_ws(bytes[pos]) {
-            pos += 1;
-        }
-        // Event name: [A-Z_][A-Z0-9_]*
-        let name_start = pos;
-        if pos >= bytes.len() || !(bytes[pos] == b'_' || bytes[pos].is_ascii_uppercase()) {
-            continue;
-        }
-        pos += 1;
-        while pos < bytes.len()
-            && (bytes[pos] == b'_'
-                || bytes[pos].is_ascii_uppercase()
-                || bytes[pos].is_ascii_digit())
-        {
-            pos += 1;
-        }
-        let event = source[name_start..pos].to_string();
-        // Skip optional `priority N` / `timing enable|disable` before `{`.
-        while pos < bytes.len() && bytes[pos] != b'{' {
-            if is_ws(bytes[pos]) {
-                pos += 1;
-            } else if source[pos..].starts_with("priority") {
-                pos += 8;
-                while pos < bytes.len() && is_ws(bytes[pos]) {
-                    pos += 1;
-                }
-                while pos < bytes.len() && bytes[pos].is_ascii_digit() {
-                    pos += 1;
-                }
-            } else if source[pos..].starts_with("timing") {
-                pos += 6;
-                while pos < bytes.len() && is_ws(bytes[pos]) {
-                    pos += 1;
-                }
-                while pos < bytes.len() && bytes[pos].is_ascii_alphabetic() {
-                    pos += 1;
-                }
-            } else {
-                break;
-            }
-        }
-        if pos >= bytes.len() || bytes[pos] != b'{' {
-            continue;
-        }
-        // Balanced-brace scan.
-        let mut depth = 1i32;
-        let start = pos + 1;
-        pos += 1;
-        while pos < bytes.len() && depth > 0 {
-            match bytes[pos] {
-                b'{' => depth += 1,
-                b'}' => depth -= 1,
-                b'\\' => pos += 1,
-                _ => {}
-            }
-            pos += 1;
-        }
-        let body = source[start..pos.saturating_sub(1).min(source.len())].to_string();
-        if let Some(entry) = result.iter_mut().find(|(e, _)| e == &event) {
-            entry.1.push(body);
-        } else {
-            result.push((event, vec![body]));
-        }
-        search = pos;
+/// Every `(event name, body texts)` pair in `source`, keyed by the registry
+/// rather than by the word `when`.
+///
+/// A command opens an event body when its spec carries
+/// [`Traits::IS_EVENT_HANDLER`]; its event name is the first argument and its
+/// bodies are the words the registry resolves to [`ArgRole::Body`] — the same
+/// two facts `super::commands` uses to push `current_event` and descend the
+/// handler's body.  Because the walk is segmenter-driven, a `when` written in
+/// a comment or inside a string literal is not a command and contributes
+/// nothing, and `priority` / `timing` words need no bespoke skip: they are
+/// ordinary arguments the role resolver already places.
+///
+/// Bodies are descended so a handler nested in another command's body is
+/// still indexed.  Non-literal event names (`when $ev { … }`) are skipped —
+/// as they were before — because the cross-event note needs a name to look
+/// up.
+///
+/// `config` is the document's own dialect [`LexerConfig`]
+/// ([`super::Analyser::lexer_config`]) and is threaded through every recursive
+/// scan.  Segmenting with the default config instead dropped the profile at
+/// the first nested body — and, at the top level, dropped the TMM `}{` ghost
+/// separator, so `when {HTTP_REQUEST}{ … }` was not seen as an event handler
+/// at all and IRULE4003 silently lost every handler written that way
+/// (PR #1481 review of issue #1390).
+fn collect_event_bodies(
+    source: &str,
+    registry: Option<&CommandRegistry>,
+    config: LexerConfig,
+) -> Vec<(String, Vec<String>)> {
+    let mut out: Vec<(String, Vec<String>)> = Vec::new();
+    if let Some(registry) = registry {
+        collect_event_bodies_into(source, registry, config, &mut out, 0);
     }
-    result
+    out
+}
+
+/// Recursive worker for [`collect_event_bodies`], descending body arguments
+/// under the caller's dialect `config`.
+fn collect_event_bodies_into(
+    script: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    out: &mut Vec<(String, Vec<String>)>,
+    depth: u32,
+) {
+    if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        return;
+    }
+    for cmd in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
+        let args = cmd.args();
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let body_indices = registry.arg_indices_for_role(cmd.name(), &arg_refs, ArgRole::Body);
+        let is_handler = registry
+            .get(cmd.name())
+            .is_some_and(|spec| spec.traits.contains(Traits::IS_EVENT_HANDLER));
+        if is_handler
+            && let Some(event) = args.first()
+            && cmd
+                .arg_tokens()
+                .first()
+                .is_some_and(|tok| !matches!(tok.kind, TokenType::Var | TokenType::Cmd))
+        {
+            let bodies = body_indices.iter().filter_map(|&i| args.get(i)).cloned();
+            if let Some(entry) = out.iter_mut().find(|(name, _)| name == event) {
+                entry.1.extend(bodies);
+            } else {
+                out.push((event.clone(), bodies.collect()));
+            }
+        }
+        for &idx in &body_indices {
+            if let Some(body) = args.get(idx) {
+                collect_event_bodies_into(body, registry, config, out, depth + 1);
+            }
+        }
+    }
 }
 
 /// Is `$var_name` referenced in *body*?  Matches
@@ -1153,6 +1173,12 @@ mod tests {
         codes(source).iter().any(|(c, _)| c == code)
     }
 
+    /// The lexer config an `f5-irules` document analyses under — the one
+    /// [`Analyser::lexer_config`] hands the event-body collector.
+    fn irules_config() -> LexerConfig {
+        LexerConfig::for_dialect("f5-irules")
+    }
+
     #[test]
     fn irule1004_is_quiet_for_bigip_default_priority() {
         // BIG-IP gives every `when` handler priority 500 when the clause is
@@ -1262,6 +1288,95 @@ mod tests {
         );
     }
 
+    fn irule6001_count(source: &str) -> usize {
+        codes(source)
+            .iter()
+            .filter(|(c, _)| c == "IRULE6001")
+            .count()
+    }
+
+    /// Issue #1381: the writer set is the registry's `ArgRole::VarWrite`
+    /// answer for the concrete call, so the multi-name and switch-skipping
+    /// writers a 13-name / one-index-per-command table could not express are
+    /// now seen.
+    #[test]
+    fn irule6001_fires_for_registry_writers_the_name_table_missed() {
+        for (source, expected) in [
+            ("when HTTP_REQUEST { catch {HTTP::collect} ::err }", 1),
+            ("when HTTP_REQUEST { lassign $l ::a ::b }", 2),
+            ("when HTTP_REQUEST { regexp {(a)} $s ::m ::one }", 2),
+            ("when HTTP_REQUEST { scan $s %d%d ::v ::w }", 2),
+            ("when HTTP_REQUEST { binary scan $d H2 ::v }", 1),
+        ] {
+            assert_eq!(
+                irule6001_count(source),
+                expected,
+                "{source} must report {expected} IRULE6001; got {:?}",
+                codes(source)
+            );
+        }
+    }
+
+    /// `array names` declares [`ArgRole::VarRead`], not `VarWrite`, so the
+    /// old unconditional `"array" => Some(1)` arm that read it as a write —
+    /// and offered a code fix rewriting the *read* to `static::x` — is gone.
+    #[test]
+    fn irule6001_quiet_for_array_names_read() {
+        assert!(!has("when HTTP_REQUEST { array names ::x }", "IRULE6001"));
+        assert!(has(
+            "when HTTP_REQUEST { array set ::x {a 1} }",
+            "IRULE6001"
+        ));
+    }
+
+    /// Every command the old 13-name table listed still reports.
+    #[test]
+    fn irule6001_still_fires_for_every_name_the_old_table_listed() {
+        for source in [
+            "when HTTP_REQUEST { append ::c x }",
+            "when HTTP_REQUEST { const ::c 1 }",
+            "when HTTP_REQUEST { incr ::c }",
+            "when HTTP_REQUEST { lappend ::c x }",
+            "when HTTP_REQUEST { ledit ::c 0 0 x }",
+            "when HTTP_REQUEST { lpop ::c }",
+            "when HTTP_REQUEST { lset ::c 0 x }",
+            "when HTTP_REQUEST { set ::c 0 }",
+            "when HTTP_REQUEST { unset ::c }",
+            "when HTTP_REQUEST { variable ::c }",
+            "when HTTP_REQUEST { array set ::c {a 1} }",
+            "when HTTP_REQUEST { gets $ch ::c }",
+        ] {
+            assert!(
+                has(source, "IRULE6001"),
+                "{source} must still report IRULE6001; got {:?}",
+                codes(source)
+            );
+        }
+        // `global` keeps its own message and its own branch.
+        assert!(has("when HTTP_REQUEST { global shared }", "IRULE6001"));
+    }
+
+    /// The `RULE_INIT` implicit-global variant reaches the same registry
+    /// writers, and its three hand-written carve-outs are now registry facts:
+    /// `set var` with one argument resolves as `VarRead`, and a destroyer
+    /// (`unset`, `array unset`) removes a variable rather than creating an
+    /// implicit global.
+    #[test]
+    fn irule6001_implicit_global_in_rule_init_follows_the_registry() {
+        assert_eq!(irule6001_count("when RULE_INIT { lassign {1 2} a b }"), 2);
+        assert!(has("when RULE_INIT { catch {foo} err }", "IRULE6001"));
+        assert!(has("when RULE_INIT { set greeting hi }", "IRULE6001"));
+        // `set var` (one argument) is a read.
+        assert!(!has("when RULE_INIT { set greeting }", "IRULE6001"));
+        // Destroyers create nothing.
+        assert!(!has("when RULE_INIT { unset foo }", "IRULE6001"));
+        assert!(!has("when RULE_INIT { array unset foo }", "IRULE6001"));
+        // `array names` is a read here too.
+        assert!(!has("when RULE_INIT { array names foo }", "IRULE6001"));
+        // A `static::` target is already per-TMM.
+        assert!(!has("when RULE_INIT { set static::c 1 }", "IRULE6001"));
+    }
+
     #[test]
     fn irule5006_fires_for_proc_in_nested_body() {
         assert!(has(
@@ -1289,6 +1404,23 @@ mod tests {
     fn irule4003_fires_for_cross_event_variable() {
         let src = "when HTTP_REQUEST { set token abc }\nwhen CLIENT_DATA { log local0. $token }";
         assert!(has(src, "IRULE4003"));
+    }
+
+    #[test]
+    fn irule4003_quiet_for_commented_out_second_event() {
+        // The "other event" exists only in a comment, so there is no second
+        // handler and no cross-event concern.  The byte scan this replaced
+        // read the comment as a `when` block and invented the hint
+        // (issue #1390).
+        let src = "when HTTP_REQUEST { set token abc }\n# when CLIENT_DATA { log local0. $token }";
+        assert!(!has(src, "IRULE4003"));
+    }
+
+    #[test]
+    fn irule4003_quiet_for_second_event_inside_a_string_literal() {
+        let src = "when HTTP_REQUEST { set token abc }\n\
+                   log local0. \"when CLIENT_DATA { log local0. $token }\"";
+        assert!(!has(src, "IRULE4003"));
     }
 
     #[test]
@@ -1342,11 +1474,72 @@ mod tests {
     }
 
     #[test]
-    fn scan_when_blocks_extracts_priority_form() {
-        let blocks = scan_when_blocks("when HTTP_REQUEST priority 5 { body1 }");
+    fn collect_event_bodies_extracts_priority_form() {
+        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let blocks = super::collect_event_bodies(
+            "when HTTP_REQUEST priority 5 { body1 }",
+            Some(registry),
+            irules_config(),
+        );
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].0, "HTTP_REQUEST");
         assert_eq!(blocks[0].1[0].trim(), "body1");
+    }
+
+    #[test]
+    fn collect_event_bodies_ignores_comments_and_string_literals() {
+        // Neither a commented-out handler nor one quoted inside a string is a
+        // command, so neither contributes an event body — the byte scan this
+        // replaced invented both (issue #1390).
+        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let source = "# when HTTP_REQUEST { log local0. $x }\n\
+                      log local0. \"when LB_SELECTED { set y 1 }\"\n\
+                      when CLIENT_ACCEPTED { set z 1 }\n";
+        let blocks = super::collect_event_bodies(source, Some(registry), irules_config());
+        let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
+        assert_eq!(names, vec!["CLIENT_ACCEPTED"]);
+    }
+
+    /// TMM accepts a handler written with no separator before its body —
+    /// `when {HTTP_REQUEST}{ … }` — because the `}{` sequence acts as a
+    /// command-word separator in the iRules grammar.  The collector must
+    /// segment with the *document's* dialect config to see it; segmenting
+    /// with `LexerConfig::default()` read the whole line as one malformed
+    /// word, found no event handler, and silently dropped every handler
+    /// written that way from IRULE4003's index (PR #1481 review of
+    /// issue #1390).
+    #[test]
+    fn collect_event_bodies_honours_the_tmm_ghost_separator() {
+        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let source = "when {HTTP_REQUEST}{ set token abc }\n\
+                      when {CLIENT_DATA}{ log local0. $token }\n";
+        let blocks = super::collect_event_bodies(source, Some(registry), irules_config());
+        let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
+        assert_eq!(names, vec!["HTTP_REQUEST", "CLIENT_DATA"]);
+    }
+
+    #[test]
+    fn irule4003_fires_across_ghost_separated_events() {
+        let src = "when {HTTP_REQUEST}{ set token abc }\n\
+                   when {CLIENT_DATA}{ log local0. $token }";
+        assert!(
+            has(src, "IRULE4003"),
+            "the `}}{{` ghost separator must not hide the second handler; got {:?}",
+            codes(src)
+        );
+    }
+
+    #[test]
+    fn irule4003_fires_across_spaced_events_the_same_way() {
+        // Control: the spaced spelling of the same two handlers, which the
+        // default-config segmentation already saw.
+        let src = "when {HTTP_REQUEST} { set token abc }\n\
+                   when {CLIENT_DATA} { log local0. $token }";
+        assert!(
+            has(src, "IRULE4003"),
+            "the spaced spelling must keep reporting; got {:?}",
+            codes(src)
+        );
     }
 
     #[test]

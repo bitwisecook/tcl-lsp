@@ -1231,6 +1231,19 @@ mod diagnostics {
         assert!(dead[0].1.contains('x'));
     }
 
+    // Issue #1377 — the trace names `::g`, the top-level store is spelled
+    // `g`, and both name the same global variable; the write trace observes
+    // every store (tclsh prints `trace` on each `set`), so W220 must stay
+    // suppressed for the unqualified spelling exactly as it already is for
+    // `set ::g …`.
+    #[test]
+    fn traced_global_unqualified_store_suppresses_w220() {
+        let unqualified = "proc onw {a b c} { puts trace }\ntrace add variable ::g write ::onw\nset g 1\nset g 2\nputs $g";
+        assert!(!fires(unqualified, D, "W220"));
+        let qualified = "proc onw {a b c} { puts trace }\ntrace add variable ::g write ::onw\nset ::g 1\nset ::g 2\nputs $::g";
+        assert!(!fires(qualified, D, "W220"));
+    }
+
     #[test]
     fn paste_error_hint_for_duplicate_static_assignment_h300() {
         // Heuristic: repeated assignment of the *same* literal value.

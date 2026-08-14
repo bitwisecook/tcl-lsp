@@ -446,6 +446,17 @@ fn emit_dead_stores_and_unused(
     if fu.dynamic_names.reads {
         return HashSet::new();
     }
+    // Whole-module variable-trace facts (issue #1377) — the same
+    // canonicalised (`::`-stripped) fact SCCP and O102 consult. A write
+    // trace fires its callback on every store, so no store to a traced
+    // name is provably dead even when the `trace add variable` lives in a
+    // different proc or spells the target `::var` while the store is
+    // unqualified; a dynamic trace target makes *every* name potentially
+    // traced, so the whole function abstains.
+    if ctx.ir_module.is_some_and(|m| m.has_dynamic_variable_trace) {
+        return HashSet::new();
+    }
+    let module_traced = ctx.ir_module.map(|m| &m.traced_variables);
     let unreachable = unreachable_blocks(&fu.cfg, &fu.sccp);
     // Alias recognition is registry-driven; a registry-less context (unit
     // tests) falls back to the cached default so `global`/`upvar` bindings
@@ -537,6 +548,12 @@ fn emit_dead_stores_and_unused(
         if scope_aliases.contains(var) || scope_aliases.contains(var_base) {
             continue;
         }
+        // Traced anywhere in the module, under the canonical `::`-stripped
+        // spelling (issue #1377) — the store is observed by the trace
+        // callback, so it is neither dead nor unused.
+        if module_traced.is_some_and(|t| t.contains(var_base.trim_start_matches("::"))) {
+            continue;
+        }
         // Skip `::`-qualified globals: a direct write to a
         // fully-qualified global (`set ::counter 42`) inside a proc is
         // visible to every other scope, so it is never a dead/unused
@@ -566,35 +583,10 @@ fn emit_dead_stores_and_unused(
         {
             continue;
         }
-        let any_other_live = fu
-            .def_use
-            .chains
-            .iter()
-            .any(|(k, c)| k.0 == *var && k.1 != chain.key.1 && !c.is_dead());
-
-        let (code, msg): (DiagCode, &'static str) = if any_other_live {
-            // Dead store — overwritten before read (another
-            // version has live consumers). This fires regardless
-            // of textual mentions: a later version handles the
-            // reads.
-            (DiagCode::O109, "Eliminate dead store")
-        } else if !is_top_level {
-            // Unused variable — apply the textual-scan keep-live
-            // check. The def-use builder does not track reads
-            // from `Return` terminators or `"$x"` string
-            // interpolations, so a conservative over-approximation
-            // of names referenced anywhere in the source text
-            // suppresses spurious O126 for legitimately-consumed
-            // variables.
-            if textually_referenced.contains(var) {
-                continue;
-            }
-            (DiagCode::O126, "Remove unused variable assignment")
-        } else {
-            // Top-level never emits O126.
+        let Some((code, msg)) = dead_chain_code(fu, chain, is_top_level, &textually_referenced)
+        else {
             continue;
         };
-        let _ = var;
         entries.push(DseEntry {
             // CFG statement span is relative to the unit's `base_offset`.
             span: fu.abs_span(stmt.span()),
@@ -607,6 +599,42 @@ fn emit_dead_stores_and_unused(
     }
 
     emit_dse_entries(ctx, fu, entries)
+}
+
+/// Classify one dead def-use chain as O109 (dead store) or O126 (unused
+/// variable), or `None` when it must not be reported. Extracted from
+/// [`emit_dead_stores_and_unused`].
+fn dead_chain_code(
+    fu: &FunctionUnit,
+    chain: &crate::def_use::DefUseChain,
+    is_top_level: bool,
+    textually_referenced: &HashSet<String>,
+) -> Option<(DiagCode, &'static str)> {
+    let var = &chain.key.0;
+    let any_other_live = fu
+        .def_use
+        .chains
+        .iter()
+        .any(|(k, c)| k.0 == *var && k.1 != chain.key.1 && !c.is_dead());
+    if any_other_live {
+        // Dead store — overwritten before read (another version has live
+        // consumers). This fires regardless of textual mentions: a later
+        // version handles the reads.
+        return Some((DiagCode::O109, "Eliminate dead store"));
+    }
+    if is_top_level {
+        // Top-level never emits O126.
+        return None;
+    }
+    // Unused variable — apply the textual-scan keep-live check. The def-use
+    // builder does not track reads from `Return` terminators or `"$x"`
+    // string interpolations, so a conservative over-approximation of names
+    // referenced anywhere in the source text suppresses spurious O126 for
+    // legitimately-consumed variables.
+    if textually_referenced.contains(var) {
+        return None;
+    }
+    Some((DiagCode::O126, "Remove unused variable assignment"))
 }
 
 /// Sort the collected dead-store / unused entries by span, record each O109
@@ -1436,6 +1464,53 @@ mod tests {
     fn empty_source_produces_nothing() {
         let opts = run_pass("");
         assert!(opts.is_empty());
+    }
+
+    /// Like [`run_pass`] but with `ctx.ir_module` wired the way the
+    /// production entry points wire it, so the whole-module variable-trace
+    /// facts reach the O109 / O126 gate (issue #1377).
+    fn run_pass_with_module(source: &str) -> Vec<Optimisation> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.ir_module = Some(&cu.ir_module);
+        run(&mut ctx, &cu);
+        ctx.optimisations
+    }
+
+    /// Issue #1377 — the trace names `::g`, the store is spelled `g`, and
+    /// both name the same top-level global; the write trace observes
+    /// `set g 1`, so it is not a dead store.
+    #[test]
+    fn traced_global_unqualified_store_is_not_dead() {
+        let src = "proc onw {a b c} { puts trace }\ntrace add variable ::g write ::onw\nset g 1\nset g 2\nputs $g";
+        let opts = run_pass_with_module(src);
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O109),
+            "traced global's store must not be a dead store, got {opts:?}",
+        );
+    }
+
+    /// Issue #1377 — a dynamic trace target makes every name potentially
+    /// traced, so no store anywhere in the module is provably dead.
+    #[test]
+    fn dynamic_trace_target_blocks_dead_stores() {
+        let src = "proc onw {a b c} { puts trace }\ntrace add variable $n write ::onw\nset g 1\nset g 2\nputs $g";
+        let opts = run_pass_with_module(src);
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O109),
+            "dynamic trace target must block dead-store elimination, got {opts:?}",
+        );
+    }
+
+    /// Control for the two tests above: without any trace the overwritten
+    /// store still reports O109.
+    #[test]
+    fn untraced_overwritten_store_still_reports_o109() {
+        let opts = run_pass_with_module("set g 1\nset g 2\nputs $g");
+        assert!(
+            opts.iter().any(|o| o.code == DiagCode::O109),
+            "control: untraced overwritten store must still fire, got {opts:?}",
+        );
     }
 
     #[test]

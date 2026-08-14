@@ -50,7 +50,6 @@ use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::sccp::ConstantBranch;
-use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{
     OperandTypes, instcombine_expr_typed, operand_types, substitute_expr_constants,
@@ -86,32 +85,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         fold_constant_branches(ctx, fu);
         propagate_into_branches(ctx, fu);
     }
-}
-
-/// Recover the whole braced condition word when the CFG `while` / `for`
-/// loop-condition `Branch` span omits the closing brace.
-///
-/// The loop-condition lowering span can end one byte short of the closing
-/// `}` (so a braced `while {1 < 2}` slices as `{1 < 2`). Left uncorrected,
-/// the brace-balance check in the fold paths fails and a rewrite replaces
-/// `{1 < 2` with `1`, leaving a stray `}` (`while 1}` — a malformation).
-/// When the slice has an unmatched leading `{` and the byte just past it is
-/// `}`, return the span extended by one so the braced word is whole;
-/// otherwise return `span` unchanged. (Workaround for an off-by-one in the
-/// loop-condition CFG span; the codegen path is unaffected.)
-fn brace_corrected_span(source: &str, span: Span) -> Span {
-    let range = span.as_range();
-    if range.end >= source.len() {
-        return span;
-    }
-    let text = &source[range.clone()];
-    if text.starts_with('{')
-        && !text.ends_with('}')
-        && source.as_bytes().get(range.end) == Some(&b'}')
-    {
-        return Span::new(span.start(), span.end() + 1);
-    }
-    span
 }
 
 /// For every branch the SCCP pass *did not* fold, project the
@@ -160,7 +133,14 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // Terminator span is relative to the unit's `base_offset`; absolutise
         // before slicing `ctx.source` / emitting.
         let span = fu.abs_span(*span);
-        let span = brace_corrected_span(ctx.source, span);
+        // The condition span is the lexer's own word span, so a braced
+        // condition stops one byte short of its closing `}` (`while {1 < 2}`
+        // slices as `{1 < 2`), and the brace unwrap below would then strip an
+        // opener with no matching closer. `word_span_at` owns that widening:
+        // deciding it here from the slice's last byte read `{$x eq {}}` —
+        // which already ends in the *inner* pair's `}` — as already whole and
+        // dropped the outer brace from the rewrite target (issue #1423).
+        let span = tcl_lexer::word_span_at(ctx.source, span);
         let range = span.as_range();
         if range.end > ctx.source.len() {
             continue;
@@ -325,7 +305,14 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // a memoised offset-0 unit); recover the absolute span before slicing
         // `ctx.source` or emitting.
         let span = fu.abs_span(*span);
-        let span = brace_corrected_span(ctx.source, span);
+        // The condition span is the lexer's own word span, so a braced
+        // condition stops one byte short of its closing `}` (`while {1 < 2}`
+        // slices as `{1 < 2`), and the brace unwrap below would then strip an
+        // opener with no matching closer. `word_span_at` owns that widening:
+        // deciding it here from the slice's last byte read `{$x eq {}}` —
+        // which already ends in the *inner* pair's `}` — as already whole and
+        // dropped the outer brace from the rewrite target (issue #1423).
+        let span = tcl_lexer::word_span_at(ctx.source, span);
         let source = ctx.source;
         let range = span.as_range();
         if range.end > source.len() {
@@ -602,6 +589,67 @@ mod tests {
         assert_eq!(opt.span, cond_span);
         assert!(opt.group.is_none());
         assert!(!opt.hint_only);
+    }
+
+    #[test]
+    fn constant_condition_ending_in_a_nested_empty_pair_keeps_its_own_closer() {
+        // Issue #1423. The condition span is the lexer's word span, so it
+        // stops one byte short of the outer `}`. Deciding the widening from
+        // the slice's last byte read `{$x eq {}` as already whole — it does
+        // end in a `}`, the *inner* empty pair's — and the fold rewrote a
+        // span missing the outer brace, leaving `while {0}} { … }`.
+        let source = "while {$x eq {}} { set x done }";
+        // `{$x eq {}` — the lexer's own inner-end span for the condition.
+        let cond_span = Span::new(6, 15);
+        assert_eq!(&source[cond_span.as_range()], "{$x eq {}");
+        let whole_word = Span::new(6, 16);
+        assert_eq!(&source[whole_word.as_range()], "{$x eq {}}");
+
+        let mut cfg = CfgFunction::new("::top", "entry");
+        let entry = cfg.entry;
+        let t = cfg.intern_block("t");
+        let e = cfg.intern_block("e");
+        cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Branch {
+            condition: literal("0"),
+            true_target: t,
+            false_target: e,
+            span: Some(cond_span),
+            condition_base: None,
+        });
+        cfg.blocks.insert(t, ret_block("t"));
+        cfg.blocks.insert(e, ret_block("e"));
+
+        let ssa = make_ssa(&cfg);
+        let sccp = SccpResult {
+            values: HashMap::new(),
+            executable_blocks: id_set(&cfg, &["entry", "e"]),
+            executable_edges: HashSet::default(),
+            constant_branches: vec![ConstantBranch {
+                block: "entry".into(),
+                span: Some(cond_span),
+                condition: "0".into(),
+                value: false,
+                taken_target: "e".into(),
+                not_taken_target: "t".into(),
+            }],
+        };
+        let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
+
+        let mut ctx = build_ctx(&cu.source);
+        run(&mut ctx, &cu);
+
+        assert_eq!(ctx.optimisations.len(), 1);
+        let opt = &ctx.optimisations[0];
+        assert_eq!(opt.code, DiagCode::O101);
+        assert_eq!(
+            opt.span, whole_word,
+            "rewrite target must be the whole word"
+        );
+        assert_eq!(opt.replacement, "{0}");
+        // Applying it must leave a balanced script, not `while {0}} { … }`.
+        let mut rewritten = source.to_owned();
+        rewritten.replace_range(opt.span.as_range(), &opt.replacement);
+        assert_eq!(rewritten, "while {0} { set x done }");
     }
 
     #[test]

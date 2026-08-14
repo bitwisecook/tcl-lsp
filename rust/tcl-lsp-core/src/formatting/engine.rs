@@ -538,7 +538,7 @@ fn format_switch_body(
 ) -> String {
     let sm = SourceMap::new(body_text);
     let Ok(tokens) =
-        Lexer::with_source_map(SourceMap::new(body_text), config.lexer_config).tokenise_all()
+        Lexer::with_source_map(SourceMap::new(body_text), config.lexer_config()).tokenise_all()
     else {
         return body_text.to_owned();
     };
@@ -1259,17 +1259,13 @@ fn keyword_rewrites_for(
     // later Tcl adds is not counted against a prefix the target resolves
     // uniquely.  The forward-compatibility half — "and it must still mean the
     // same thing in every later release of the target range" — is enforced
-    // inside `rewrites_for_command` from `config.target_range` (issue #1257).
-    // With no dialect declared this falls back to `None`, the pre-#1257
-    // conservative direction: every declared keyword stays a candidate, which
-    // can only make a prefix *less* unique.
-    let dialect = config
-        .dialect
-        .as_deref()
-        .and_then(tcl_registry::prelude::DialectSet::parse);
+    // inside `rewrites_for_command` from `config.target_range()` (issue
+    // #1257).  With no dialect declared this falls back to `None`, the
+    // pre-#1257 conservative direction: every declared keyword stays a
+    // candidate, which can only make a prefix *less* unique.
     super::keywords::rewrites_for_command(
         registry,
-        dialect,
+        config.dialect_bits(),
         config,
         &cmd.resolved_name,
         &words,
@@ -1504,7 +1500,7 @@ pub(crate) fn format_body(
     }
     let sm = SourceMap::new(source);
     let Ok(tokens) =
-        Lexer::with_source_map(SourceMap::new(source), config.lexer_config).tokenise_all()
+        Lexer::with_source_map(SourceMap::new(source), config.lexer_config()).tokenise_all()
     else {
         return source.to_owned();
     };
@@ -1683,7 +1679,7 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
     // something.
     let identities = tcl_compiler::head_identity::command_head_identities_with_config(
         source,
-        config.lexer_config,
+        config.lexer_config(),
         registry,
     );
     let mut result = format_body(source, config, registry, &identities, 0);
@@ -1966,10 +1962,7 @@ mod tests {
         // TMM accepts `}{` (e.g. `if {expr}{body}`); with the f5-irules lexer
         // preset the formatter parses it as two words and re-emits `} {`.
         let registry = CommandRegistry::build_default();
-        let config = FormatterConfig {
-            lexer_config: tcl_lexer::LexerConfig::for_dialect("f5-irules"),
-            ..FormatterConfig::default()
-        };
+        let config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::irules());
         let out = format_tcl("if { 1 }{\n    pool p\n}\n", &config, &registry);
         assert!(!out.contains("}{"), "left `}}{{` unfixed:\n{out}");
         assert!(out.contains("} {"), "no `}} {{`:\n{out}");
@@ -1985,6 +1978,32 @@ mod tests {
         assert!(
             plain.contains("}{"),
             "default preset should not rewrite `}}{{`"
+        );
+    }
+
+    #[test]
+    fn the_irules_profile_alone_decides_the_ghost_separator() {
+        // Issue #1465: the dialect reaches the formatter as one resolved
+        // profile, so a caller that names iRules — under either spelling —
+        // gets the iRules lexer, and one that names a Tcl release does not.
+        // `}{` is the discriminator: TMM parses it as two words, stock Tcl
+        // does not.
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let source = "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
+        for spelling in ["f5-irules", "irules", "tcl-irule"] {
+            let out = format_tcl(source, &FormatterConfig::for_dialect(spelling), registry);
+            assert!(out.contains("} {"), "{spelling} emitted no `}} {{`:\n{out}");
+            assert!(
+                !out.contains("}{"),
+                "{spelling} left `}}{{` unfixed:\n{out}"
+            );
+        }
+        // The mismatched modern-Tcl profile — what a caller that forgot the
+        // dialect used to get — leaves the same bytes alone.
+        let tcl9 = format_tcl(source, &FormatterConfig::for_dialect("tcl9.0"), registry);
+        assert!(
+            tcl9.contains("}{"),
+            "the Tcl 9 profile must not synthesise the separator:\n{tcl9}"
         );
     }
 

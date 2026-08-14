@@ -1217,14 +1217,34 @@ fn o110_whitespace_noise_suppressed() {
 
 #[test]
 fn o110_self_comparison_tautologies() {
-    // tclsh sweep (any defined $x, string or numeric — `==`/`<` use the string
-    // fallback): x==x ⇒ 1, x!=x ⇒ 0, x<=x ⇒ 1, x>=x ⇒ 1, x<x ⇒ 0, x>x ⇒ 0.
-    assert!(optimised("set v [expr {$x == $x}]", TCL).contains("set v 1"));
-    assert!(optimised("set v [expr {$x != $x}]", TCL).contains("set v 0"));
-    assert!(optimised("set v [expr {$x <= $x}]", TCL).contains("set v 1"));
-    assert!(optimised("set v [expr {$x >= $x}]", TCL).contains("set v 1"));
+    // tclsh sweep (any defined $x, string or numeric — `<`/`>` use the string
+    // fallback): x<x ⇒ 0, x>x ⇒ 0 — false for every value, NaN included, so
+    // these fold with no type proof at all.
     assert!(optimised("set v [expr {$x < $x}]", TCL).contains("set v 0"));
     assert!(optimised("set v [expr {$x > $x}]", TCL).contains("set v 0"));
+
+    // FIXED (was a miscompile, issue #1437): the *reflexive* rows are wrong for
+    // a NaN operand — tclsh proves `set x NaN; expr {$x == $x}` ⇒ 0 and
+    // `expr {$x != $x}` ⇒ 1, the opposite of the fold. So they no longer fire on
+    // an untyped $x…
+    for src in [
+        "set v [expr {$x == $x}]",
+        "set v [expr {$x != $x}]",
+        "set v [expr {$x <= $x}]",
+        "set v [expr {$x >= $x}]",
+    ] {
+        let out = optimised(src, TCL);
+        assert!(
+            out.contains("$x"),
+            "untyped self-comparison must not fold (NaN): {src} ⇒ {out}"
+        );
+    }
+    // …but an INT-proven $x cannot be NaN, so there the folds stand. tclsh
+    // sweep (x≥0): x==x ⇒ 1, x!=x ⇒ 0, x<=x ⇒ 1, x>=x ⇒ 1.
+    assert!(optimised(&int_x("set v [expr {$x == $x}]"), TCL).contains("set v 1"));
+    assert!(optimised(&int_x("set v [expr {$x != $x}]"), TCL).contains("set v 0"));
+    assert!(optimised(&int_x("set v [expr {$x <= $x}]"), TCL).contains("set v 1"));
+    assert!(optimised(&int_x("set v [expr {$x >= $x}]"), TCL).contains("set v 1"));
     // String self-comparison. tclsh: x eq x ⇒ 1, x ne x ⇒ 0 (any $x).
     assert!(optimised("set v [expr {$x eq $x}]", TCL).contains("set v 1"));
     assert!(optimised("set v [expr {$x ne $x}]", TCL).contains("set v 0"));
@@ -1253,14 +1273,30 @@ fn o110_self_comparison_tautologies() {
 fn o110_unary_and_not_inversions() {
     // tclsh: !!(bool) collapses (==/!=/< are already boolean).
     assert!(optimised("set v [expr {!!($a == $b)}]", TCL).contains("$a == $b"));
-    // tclsh sweep: !(a==b) ⇒ a!=b, !(a<b) ⇒ a>=b, !(a>=b) ⇒ a<b, !(a>b) ⇒ a<=b,
-    // !(a<=b) ⇒ a>b, !(a!=b) ⇒ a==b.
+    // tclsh sweep: !(a==b) ⇒ a!=b, !(a!=b) ⇒ a==b. `!=` is the exact complement
+    // of `==` for every value, NaN included, so these need no type proof.
     assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("$a != $b"));
-    assert!(optimised("set v [expr {!($a < $b)}]", TCL).contains("$a >= $b"));
-    assert!(optimised("set v [expr {!($a >= $b)}]", TCL).contains("$a < $b"));
-    assert!(optimised("set v [expr {!($a > $b)}]", TCL).contains("$a <= $b"));
-    assert!(optimised("set v [expr {!($a <= $b)}]", TCL).contains("$a > $b"));
     assert!(optimised("set v [expr {!($a != $b)}]", TCL).contains("$a == $b"));
+
+    // FIXED (was a miscompile, issue #1437): the ordered four are NOT their own
+    // negations on a NaN operand — tclsh proves `set a NaN; expr {!($a < 1)}` ⇒ 1
+    // while `expr {$a >= 1}` ⇒ 0. Untyped operands are left as written…
+    for src in [
+        "set v [expr {!($a < $b)}]",
+        "set v [expr {!($a >= $b)}]",
+        "set v [expr {!($a > $b)}]",
+        "set v [expr {!($a <= $b)}]",
+    ] {
+        let out = optimised(src, TCL);
+        assert!(out.contains('!'), "untyped {src} must keep its `!`: {out}");
+    }
+    // …and fire again once the operands are INT-proven (an integer is never
+    // NaN). tclsh sweep (x ≥ 0): !(x<1) ⇒ x>=1, !(x>=1) ⇒ x<1, !(x>1) ⇒ x<=1,
+    // !(x<=1) ⇒ x>1.
+    assert!(optimised(&int_x("set v [expr {!($x < 1)}]"), TCL).contains("$x >= 1"));
+    assert!(optimised(&int_x("set v [expr {!($x >= 1)}]"), TCL).contains("$x < 1"));
+    assert!(optimised(&int_x("set v [expr {!($x > 1)}]"), TCL).contains("$x <= 1"));
+    assert!(optimised(&int_x("set v [expr {!($x <= 1)}]"), TCL).contains("$x > 1"));
     // String comparison inversions. tclsh: !(a eq b) ⇒ a ne b, !(a ne b) ⇒ a eq b.
     assert!(optimised("set v [expr {!($a eq $b)}]", TCL).contains("$a ne $b"));
     assert!(optimised("set v [expr {!($a ne $b)}]", TCL).contains("$a eq $b"));
@@ -1286,8 +1322,11 @@ fn o110_de_morgan() {
     // !$a && !$b; the 4-var chain matches its inversion (tclsh-proven).
     assert!(optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b"));
     assert!(optimised("set v [expr {!($a || $b)}]", TCL).contains("!$a && !$b"));
+    // De Morgan itself still distributes over the chain; the `$a == $b` half
+    // inverts, while the ordered `$c < $d` half keeps its `!` because neither
+    // operand is proved non-NaN (issue #1437).
     assert!(
-        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || $c >= $d")
+        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || !($c < $d)")
     );
 
     // De Morgan inside an `if` condition is carried under O110 or O113 (the
@@ -1751,13 +1790,15 @@ fn demorgan_logic_via_o110() {
 fn invert_logic_via_o110() {
     // The inversion logic surfaces as the `!(...)` O110 rewrite. tclsh-swept.
     assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("$a != $b"));
-    assert!(optimised("set v [expr {!($a < $b)}]", TCL).contains("$a >= $b"));
-    assert!(optimised("set v [expr {!($a >= $b)}]", TCL).contains("$a < $b"));
+    // The ordered rows need both operands proved non-NaN (issue #1437).
+    assert!(optimised(&int_x("set v [expr {!($x < 1)}]"), TCL).contains("$x >= 1"));
+    assert!(optimised(&int_x("set v [expr {!($x >= 1)}]"), TCL).contains("$x < 1"));
     assert!(optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b"));
     assert!(optimised("set v [expr {!($a || $b)}]", TCL).contains("!$a && !$b"));
-    // Complex chain. tclsh sweep: !(a==b && c<d) == (a!=b || c>=d).
+    // Complex chain: De Morgan distributes and `==` inverts; the ordered half
+    // keeps its `!` on untyped operands.
     assert!(
-        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || $c >= $d")
+        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || !($c < $d)")
     );
     // Double-not removal in a boolean context. tclsh: !!x in `if` == x.
     assert!(optimised("if {!!$x} { puts yes }", TCL).contains("if {$x}"));

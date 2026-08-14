@@ -193,8 +193,17 @@ per-function summary, `DynamicNameBarrier`, carried on `FunctionUnit`:
 | `destroys` | the same, on a `DESTROYS_VARIABLE` command (`unset $n`) | "this parameter certainly exists" |
 | `reads` | a `VarRead`-role argument whose name substitutes (`[set $v]`, `parray $a`), or a `PERFORMS_SUBSTITUTION` command over a non-braced template (`subst $tmpl`) | "this store is never read" |
 
-Three points of design matter:
+Several points of design matter:
 
+- **One splitter, the document's dialect.**  The walk re-reads the script
+  text inside a `[…]` substitution, and it splits that text with the
+  segmenter under the *same* `LexerConfig` the lowering used
+  (`dynamic_names::lexer_config_for` derives it from the profile-built
+  registry).  Word boundaries are dialect data — `{*}` expands only where the
+  dialect has it, and only iRules treats `}{` as a separator — so a
+  differently-configured tokenisation would disagree with the IR about which
+  argument sits in a name role, and a dynamic write could fail to raise its
+  flag (issue #1393).
 - **Flags, not a name set.**  A computed name can land anywhere, so
   enumerating candidates would be both unsound and unbounded.  The whole
   lattice is three bits, computed in one flow-insensitive walk, so each

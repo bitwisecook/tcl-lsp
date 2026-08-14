@@ -37,8 +37,9 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_traced;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
+use tcl_compiler::lowering::lower_to_ir_traced_with_config;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Vm};
 
@@ -81,20 +82,50 @@ impl std::fmt::Display for SessionError {
 impl std::error::Error for SessionError {}
 
 /// The `CompileService` the VM uses to compile the orchestrator Tcl and any
-/// runtime `eval` / command substitution: the real Rust compiler pipeline.
-struct Svc(CommandRegistry);
+/// runtime `eval` / command substitution: the real Rust compiler pipeline,
+/// built from the iRules profile (issue #1462) so everything the harness
+/// compiles — the framework and the iRule under test alike — parses under
+/// the TMM's genuine Tcl 8.4.6 grammar: no `{*}` expansion (a hard `extra
+/// characters after close-brace`, exactly as on a real BIG-IP), the 8.x
+/// first-close `${…}` rule, and the iRules-only `}{` ghost word separator.
+struct Svc {
+    registry: &'static CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: &'static str,
+}
+
+impl Svc {
+    /// A compile service targeting `profile`'s grammar, registry, and dialect.
+    fn for_profile(profile: &'static DialectProfile) -> Self {
+        Self {
+            registry: tcl_registry::registry_for_profile(profile),
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: profile.name,
+        }
+    }
+}
 
 impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, &self.0);
+        if let Some(msg) =
+            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
         let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+        Ok(codegen_module(&cfg, &ir, self.registry))
     }
     fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir_traced(src, &self.0);
+        if let Some(msg) =
+            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir_traced_with_config(src, self.registry, self.config);
         let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+        Ok(codegen_module(&cfg, &ir, self.registry))
     }
 }
 
@@ -133,11 +164,19 @@ impl LiveSession {
         }
         let output = Rc::new(RefCell::new(Vec::new()));
         let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&output))));
-        // The harness VM emulates the release the iRules profile pins for
-        // VM execution (dialect-profile model §5.4) — the orchestrator's
-        // own Tcl, not the TMM's embedded 8.4.
-        vm.set_runtime_version(tcl_dialect::DialectProfile::irules().vm_runtime_version);
-        vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+        // The iRules profile is resolved once and drives both halves
+        // (issue #1462): the compiler parses under the TMM's 8.4.6 grammar
+        // (`Svc::for_profile`), and the VM runs the release that profile
+        // pins (dialect-profile model §5.4). The VM's availability gate is
+        // the plain tcl8.4 profile rather than the bare-IRULES vendor mask:
+        // the orchestrator is host Tcl, not sandboxed iRule code — it needs
+        // `source`/`file`/`exec` (which the TMM sandbox bans) while still
+        // losing the 8.5+ surface (`dict`/`lassign`/…, issue #1463), which
+        // compat84.tcl then polyfills; the TMM sandbox itself is emulated in
+        // Tcl by tmm_shim.tcl.
+        let profile = DialectProfile::irules();
+        vm.set_runtime_version(profile.vm_runtime_version);
+        vm.set_compiler(Box::new(Svc::for_profile(profile)));
         let mut session = Self { vm, output };
         session.bootstrap(lib_dir)?;
         session.eval("::orch::init")?;
@@ -667,6 +706,82 @@ mod tests {
             Err(SessionError::MissingLib(_)) => {}
             Err(other) => panic!("wrong error: {other}"),
             Ok(_) => panic!("expected a MissingLib error"),
+        }
+    }
+
+    /// Issues #1462/#1463 on the harness itself, sharing one session for the
+    /// bootstrap cost like the suites above.
+    ///
+    /// The harness VM now really is an 8.4 surface: the 8.5+ builtins
+    /// (`dict`, `lassign`, `lrepeat`, `lreverse`) are hidden by the
+    /// availability gate, so `compat84.tcl`'s Tcl-level polyfill *procs* are
+    /// what the framework (and these probes) actually run — a user-defined
+    /// proc must always win over a hidden builtin. And the compiler parses
+    /// under the TMM's 8.4.6 grammar, so `{*}` is a hard `extra characters
+    /// after close-brace` exactly as a real BIG-IP reports it.
+    #[test]
+    fn harness_runs_the_tmm_84_surface() {
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+
+        // compat84_polyfills_function: with the natives hidden by the
+        // availability gate, `compat84.tcl` installed its polyfill *procs*,
+        // and the TMM shim then renamed them to `::tmm::_orig_*` for
+        // framework-internal use (the sandbox blockers own the plain names).
+        // Calling the preserved polyfills proves a user proc wins over a
+        // hidden builtin and answers correctly.
+        scenario(&mut s);
+        assert_eq!(
+            s.eval("::tmm::_orig_dict get [::tmm::_orig_dict create a 1 b 2] b")
+                .unwrap(),
+            "2",
+            "compat84_polyfills_function: the dict polyfill must answer"
+        );
+        assert_eq!(
+            s.eval("::tmm::_orig_lassign {a b c} x y").unwrap(),
+            "c",
+            "compat84_polyfills_function: the lassign polyfill must answer"
+        );
+
+        // sandbox_blocks_hidden_dict: at iRule scope the sandbox blocker owns
+        // `dict`, so the 8.5+ spelling stays invalid exactly as on a TMM.
+        match s.eval("dict create a 1") {
+            Err(SessionError::Eval(m)) => assert_eq!(
+                m, "invalid command name \"dict\"",
+                "sandbox_blocks_hidden_dict: dict must not exist at iRule scope"
+            ),
+            other => panic!("sandbox_blocks_hidden_dict: dict must be invalid, got {other:?}"),
+        }
+
+        // tmm_grammar_has_no_expansion: `{*}` is 8.5+ syntax the embedded
+        // 8.4.6 does not have. Under the iRules grammar `{*}{a b}` is not an
+        // expansion (and, unlike plain tclsh8.4, not an error either): the
+        // TMM's `}{` ghost word separator splits it into the two literal
+        // words `*` and `a b`. TIP-157 expansion would instead yield the
+        // elements `a` and `b` — pin the first element to tell them apart.
+        scenario(&mut s);
+        assert_eq!(
+            s.eval("llength [list {*}{a b}]").unwrap(),
+            "2",
+            "tmm_grammar_has_no_expansion: `}}{{` splits into two words"
+        );
+        assert_eq!(
+            s.eval("lindex [list {*}{a b}] 0").unwrap(),
+            "*",
+            "tmm_grammar_has_no_expansion: the first word is the literal `*`, not an expanded `a`"
+        );
+
+        // surface_hides_86_builtins: an 8.6+-only builtin with no polyfill
+        // (lmap) does not exist at 8.4 — the miss reports through the
+        // sandbox's resolution chain (which has also hidden the `unknown`
+        // fallback, so the message names `unknown` rather than `lmap`;
+        // either way the engine builtin must not run).
+        scenario(&mut s);
+        match s.eval("lmap v {1 2} {expr {$v * 2}}") {
+            Err(SessionError::Eval(m)) => assert!(
+                m.starts_with("invalid command name"),
+                "surface_hides_86_builtins: lmap must not exist at 8.4: {m}"
+            ),
+            other => panic!("surface_hides_86_builtins: lmap must be invalid, got {other:?}"),
         }
     }
 }

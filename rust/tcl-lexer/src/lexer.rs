@@ -170,6 +170,17 @@ pub struct LexerConfig {
     /// What a UTF-8 byte-order mark at byte 0 of this buffer *is* — script
     /// prologue or ordinary content.  See [`LeadingBom`].
     pub leading_bom: LeadingBom,
+    /// Which backslash-escape grammar text lexed under this config decodes
+    /// with — see [`tcl_dialect::EscapeSyntax`].
+    ///
+    /// The lexer itself never decodes an escape: `\X` is an inert two-byte
+    /// pair for token-boundary purposes, and no release's escape grammar moves
+    /// a boundary (every form's payload is hex or octal digits, which separate
+    /// nothing). It rides here because the consumers that *do* decode — a
+    /// runtime's word builder, its `subst` — already thread a `LexerConfig`
+    /// from the dialect profile, so this is the same seam rather than a second
+    /// one.
+    pub escapes: tcl_dialect::EscapeSyntax,
 }
 
 /// How the lexer reads a UTF-8 byte-order mark (U+FEFF) sitting at byte 0 of
@@ -206,6 +217,7 @@ impl Default for LexerConfig {
             base_line: 0,
             base_col: 0,
             leading_bom: LeadingBom::Content,
+            escapes: tcl_dialect::EscapeSyntax::Tcl90,
         }
     }
 }
@@ -223,6 +235,7 @@ impl LexerConfig {
             expand_syntax: grammar.expand_syntax,
             irules_brace_separator: grammar.irules_brace_separator,
             braced_var: grammar.braced_var,
+            escapes: grammar.escapes,
             ..Self::default()
         }
     }

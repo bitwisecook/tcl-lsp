@@ -43,6 +43,27 @@ pub fn try_lower_incr(cmd: &LoweringCommand<'_>) -> Statement {
     if has_expansion(cmd) || cmd.args.is_empty() || cmd.args.len() > 2 {
         return make_call(cmd);
     }
+    // A *compound* name word computes the name too, and the arg-kind check
+    // below cannot see it: only the word's representative token is
+    // consulted, so under a grammar with no `{*}` expansion (8.4, iRules)
+    // `incr {*}$n` reads as a `Str` word while its value is the literal `*`
+    // welded to whatever `$n` holds — the same #1484 hole `lower_set` closed.
+    // `Statement::Incr`'s `name` is static by contract and
+    // `dynamic_names::scan_statement` never inspects it, so a computed name
+    // must stay a generic `Call`, the form `scan_command` does inspect and
+    // which raises the dynamic-write barrier the value-motion passes need.
+    //
+    // Only a word that really substitutes is examined, because
+    // `names_a_dynamic_variable` reads text alone: `incr \$x` is one literal
+    // token naming the variable `$x`, and `incr {$n}` names `$n`, neither of
+    // which substitutes anything. Conversely a computed array *key*
+    // (`incr a($i)`) is not a computed name — the array is named statically
+    // and codegen builds the key at run time — the same line
+    // `names_a_dynamic_variable` already draws for `scan_command`.
+    if !cmd.arg_is_static_literal(0) && crate::dynamic_names::names_a_dynamic_variable(&cmd.args[0])
+    {
+        return make_call(cmd);
+    }
     // A brace-string name (`incr {a($x)} 3`) suppresses substitution of an
     // array-element key — thread it through like `set` does.
     let name_braced = matches!(cmd.arg_kinds.first(), Some(ArgTokenKind::Str))
@@ -134,6 +155,77 @@ mod tests {
             &m.top_level.statements[0],
             Statement::Call { command, .. } if command == "incr"
         ));
+    }
+
+    /// The statement `src` lowers to under `dialect` — the configuration a
+    /// real host builds, so the `{*}` grammar matches the document's.
+    fn first_stmt_for_dialect(src: &str, dialect: &str) -> Statement {
+        let registry = tcl_registry::registry_for_dialect(dialect);
+        let m = crate::lowering::lower_to_ir_with_config(
+            src,
+            registry,
+            tcl_lexer::LexerConfig::for_dialect(dialect),
+        );
+        m.top_level.statements[0].clone()
+    }
+
+    /// Issue #1487 — a computed name may not wear a static `Incr` shape.
+    ///
+    /// Under a grammar with no `{*}` expansion the word `{*}$n` is the
+    /// literal `*` welded to `$n`, whose *representative* token is the
+    /// braced `{*}` — literal enough to slip past the arg-kind check,
+    /// computed enough that `Statement::Incr`'s static-name contract is a
+    /// lie. It must stay a `Call`, the form `dynamic_names::scan_command`
+    /// inspects.
+    #[test]
+    fn try_lower_incr_refuses_a_computed_name_under_an_expansionless_grammar() {
+        for dialect in ["tcl8.4", "f5-irules"] {
+            for src in ["incr {*}$n", "incr x$n", "incr pre[f]"] {
+                let stmt = first_stmt_for_dialect(src, dialect);
+                assert!(
+                    matches!(&stmt, Statement::Call { command, .. } if command == "incr"),
+                    "{dialect}: {src:?} must stay a Call, got {stmt:?}",
+                );
+            }
+        }
+    }
+
+    /// The gate reads the *word*, not just its text: these names are
+    /// spelled out (a backslash-escaped `$`, a brace-quoted `$n`) or name a
+    /// static array whose key alone is computed, so they keep their typed
+    /// `Statement::Incr`.
+    #[test]
+    fn try_lower_incr_keeps_the_specialisation_for_a_spelled_out_name() {
+        for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
+            for src in ["incr x", "incr {$n}", "incr \\$x", "incr a($i)"] {
+                let stmt = first_stmt_for_dialect(src, dialect);
+                assert!(
+                    matches!(&stmt, Statement::Incr { .. }),
+                    "{dialect}: {src:?} must keep its typed Incr, got {stmt:?}",
+                );
+            }
+        }
+    }
+
+    /// Under 9.0/8.6 `{*}$n` is a real expansion, which `has_expansion` has
+    /// always rejected — the #1487 gate must not be what decides this case.
+    #[test]
+    fn try_lower_incr_leaves_the_expanded_name_word_on_its_existing_path() {
+        for dialect in ["tcl9.0", "tcl8.6"] {
+            let stmt = first_stmt_for_dialect("incr {*}$n", dialect);
+            let Statement::Call {
+                command, tokens, ..
+            } = &stmt
+            else {
+                panic!("{dialect}: expected Call, got {stmt:?}");
+            };
+            assert_eq!(command, "incr");
+            assert_eq!(
+                tokens.as_ref().and_then(|t| t.expand_word.clone()),
+                Some(vec![false, true]),
+                "{dialect}: the word must still be marked as expanded",
+            );
+        }
     }
 
     #[test]

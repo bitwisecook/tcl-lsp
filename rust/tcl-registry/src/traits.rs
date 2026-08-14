@@ -1022,6 +1022,22 @@ declare_traits! {
     /// reason this is a trait rather than a subcommand-name check in the
     /// handler: it references an existing namespace and never declares one.
     DeclaresNamespace => DECLARES_NAMESPACE;
+
+    /// A Tk **geometry manager** — a command that claims a widget's
+    /// container and takes over the placement of the widgets given to it
+    /// (`pack`, `grid`, `place`).
+    ///
+    /// Tk allows exactly one manager per container: `TkSetGeometryContainer`
+    /// (9.0.4 `generic/tkGeometry.c`) raises *"cannot use geometry manager
+    /// … inside … which already has slaves managed by …"* the moment a
+    /// second one claims the same parent, so a file mixing two of them on
+    /// one container is a runtime error (TK1001).
+    ///
+    /// A trait rather than a name list in the analyser because the set is
+    /// open: a `ttk::` megawidget or a vendor Tk fork can ship another
+    /// manager, and its spec should switch TK1001 on without an analyser
+    /// edit (issue #1390).
+    TkGeometryManager => TK_GEOMETRY_MANAGER;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the
@@ -1033,6 +1049,28 @@ declare_traits! {
 pub const UNIT_LINKAGE_TRAITS: Traits = Traits::PROVIDES_PACKAGE
     .union(Traits::LOADS_EXTERNAL_UNIT)
     .union(Traits::EXPORTS_COMMAND);
+
+/// Every trait that makes an invocation reach a stack frame other than the
+/// one it is written in — it aliases the caller's variables
+/// ([`Traits::ALIASES_CALLER_FRAME`]), observes the current frame
+/// ([`Traits::CURRENT_FRAME_INTROSPECTION`]), evaluates a script somewhere
+/// else ([`Traits::EVALUATES_IN_SHIFTED_FRAME`]), or replaces the frame
+/// outright ([`Traits::REPLACES_FRAME`]).
+///
+/// A transform that moves a script from one frame into another — the
+/// `uplevel`-passthrough inliner in `tcl_compiler::inline_uplevel` — must
+/// refuse a body carrying any of them, because the frame the body was
+/// written against is exactly what the move changes.  Composed over the
+/// resolved subcommand as well as the command
+/// ([`crate::CommandRegistry::invocation_traits`]): `info level` carries the
+/// introspection trait on the subcommand, not on `info`.
+///
+/// Kept beside the declarations so a newly-stamped frame trait joins the
+/// union here rather than needing a second edit in the consumer.
+pub const FRAME_REACH_TRAITS: Traits = Traits::ALIASES_CALLER_FRAME
+    .union(Traits::CURRENT_FRAME_INTROSPECTION)
+    .union(Traits::EVALUATES_IN_SHIFTED_FRAME)
+    .union(Traits::REPLACES_FRAME);
 
 /// A `Trait`'s bit is `1 << discriminant`, so the set must fit the `u128`.
 /// Unlike a collision — which the enum makes unrepresentable — running out of

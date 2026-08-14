@@ -69,7 +69,31 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.extend_from_slice(b"\": command doesn't exist");
             interp.set_error(&m)
         }
+        // C names the refused alias by the simple command name it would have
+        // been bound under (`Tcl_GetCommandName`), not by the written path.
+        RenameOutcome::AliasLoop => alias_loop_error(interp, &simple_tail(&new)),
     }
+}
+
+/// The simple (unqualified) tail of a written command name — `::a::b` → `b`,
+/// and the empty-string `{}` command for a name ending in a separator run
+/// (#934), matching where the command table binds it.
+fn simple_tail(name: &[u8]) -> Vec<u8> {
+    if tcl_syntax::naming::ends_with_separator(name) {
+        return Vec::new();
+    }
+    tcl_syntax::naming::qualifier_segments(name)
+        .last()
+        .map_or_else(Vec::new, |tail| (*tail).to_vec())
+}
+
+/// C's `TclPreventAliasLoop` refusal (`tclInterp.c`), shared by the `interp
+/// alias` and `rename` gates.
+fn alias_loop_error(interp: &mut Interp, simple: &[u8]) -> Code {
+    let mut m = b"cannot define or rename alias \"".to_vec();
+    m.extend_from_slice(simple);
+    m.extend_from_slice(b"\": would create a loop");
+    interp.error_with_code(&m, b"TCL OPERATION INTERP ALIASLOOP")
 }
 
 // -- interp ----------------------------------------------------------------
@@ -611,9 +635,13 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Create: `interp alias {} aliasName {} target ?arg ...?`.
     let target = obj_bytes(argv[5]);
     let prefix: Vec<Vec<u8>> = argv[6..].iter().map(|&a| obj_bytes(a)).collect();
-    interp.install_alias(&name, target, prefix);
-    interp.set_result(obj::new_string_bytes(&name));
-    Code::Ok
+    match interp.install_alias(&name, target, prefix) {
+        Ok(()) => {
+            interp.set_result(obj::new_string_bytes(&name));
+            Code::Ok
+        }
+        Err(simple) => alias_loop_error(interp, &simple),
+    }
 }
 
 /// `interp aliases ?path?` — every alias command's name in the named interp (the
@@ -909,6 +937,138 @@ mod tests {
             assert_eq!(i.eval_str(b"rename set put"), Code::Ok);
             assert_eq!(i.eval_str(b"= x 1"), Code::Error);
             assert_eq!(i.result_bytes(), b"invalid command name \"set\"");
+        });
+    }
+
+    /// C's `TclPreventAliasLoop` (`tclInterp.c`) refuses the alias that closes
+    /// a cycle at *definition* time — the pair installs fine in neither order
+    /// (tclsh 8.6.16 / 9.0.4-pinned wording, shared with the VM's
+    /// `cross_interp_alias_e2e` vectors).
+    #[test]
+    fn a_mutual_alias_pair_is_refused_at_the_closing_alias() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"interp alias {} a {} b"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} b {} a"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"cannot define or rename alias \"b\": would create a loop"
+            );
+            // The refused alias is not left behind …
+            assert_eq!(i.eval_str(b"info commands b"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            // … so the surviving one still just misses its (absent) target
+            // instead of recursing without bound.
+            assert_eq!(i.eval_str(b"a"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"b\"");
+        });
+    }
+
+    /// A self-alias is refused too — and, as in C, the command it displaced is
+    /// *not* restored (the alias is created first, then unbound on the loop).
+    #[test]
+    fn a_self_alias_is_refused_and_destroys_the_command_it_displaced() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"proc x {} {return REAL}"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} x {} x"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"cannot define or rename alias \"x\": would create a loop"
+            );
+            assert_eq!(i.eval_str(b"x"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"x\"");
+            // A qualified self-spelling is caught by *resolution*, not by a
+            // string compare of the two names.
+            assert_eq!(i.eval_str(b"interp alias {} q {} ::q"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"cannot define or rename alias \"q\": would create a loop"
+            );
+        });
+    }
+
+    /// The walk follows the whole chain, not just one hop, and a frozen prefix
+    /// on the closing alias does not hide the cycle.
+    #[test]
+    fn a_longer_alias_cycle_is_refused_at_its_closing_hop() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"interp alias {} c {} d"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} d {} e"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} e {} c extra"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"cannot define or rename alias \"e\": would create a loop"
+            );
+            // A namespaced cycle is refused the same way, named by the alias's
+            // simple command name (C's `Tcl_GetCommandName`), not its path.
+            assert_eq!(i.eval_str(b"namespace eval ns {}"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} ns::p {} ns::q"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} ns::q {} ns::p"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"cannot define or rename alias \"q\": would create a loop"
+            );
+        });
+    }
+
+    /// C guards `rename` with the same check: moving an alias onto a name its
+    /// own target chain resolves back to is refused, and the table is left
+    /// exactly as it was.
+    #[test]
+    fn a_rename_that_would_close_a_loop_is_refused_and_rolled_back() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"interp alias {} a {} b"), Code::Ok);
+            assert_eq!(i.eval_str(b"rename a b"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"cannot define or rename alias \"b\": would create a loop"
+            );
+            assert_eq!(i.eval_str(b"info commands a"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"a");
+            assert_eq!(i.eval_str(b"info commands b"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+        });
+    }
+
+    /// The refused rename must not damage the command sitting at the
+    /// destination either: the tentative move the gate makes is undone
+    /// completely. (tclsh refuses this one earlier still, with `can't rename
+    /// to "bb": command already exists` — this runtime's `rename` has no
+    /// destination-exists check, so it reports the loop instead; the surviving
+    /// table state is the same either way.)
+    #[test]
+    fn a_refused_rename_leaves_the_destination_command_intact() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"proc bb {} {return REAL}"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} aa {} bb"), Code::Ok);
+            assert_eq!(i.eval_str(b"rename aa bb"), Code::Error);
+            assert_eq!(i.eval_str(b"bb"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"REAL");
+            assert_eq!(i.eval_str(b"aa"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"REAL");
+        });
+    }
+
+    /// The gate refuses cycles only: a legitimate alias-of-alias chain still
+    /// dispatches, and an alias to a target that does not exist yet is legal
+    /// (aliases late-bind).
+    #[test]
+    fn legitimate_alias_chains_and_late_binding_still_work() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"interp alias {} = {} set"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp alias {} := {} ="), Code::Ok);
+            assert_eq!(i.eval_str(b":= zz 42"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"42");
+            assert_eq!(i.eval_str(b"set out $zz"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"42");
+            assert_eq!(i.eval_str(b"interp alias {} lb {} no_such_yet"), Code::Ok);
+            assert_eq!(i.eval_str(b"proc no_such_yet {} {return LATE}"), Code::Ok);
+            assert_eq!(i.eval_str(b"lb"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"LATE");
+            // Renaming a non-alias, and renaming an alias somewhere harmless,
+            // are both unaffected by the gate.
+            assert_eq!(i.eval_str(b"rename := assign"), Code::Ok);
+            assert_eq!(i.eval_str(b"assign zz 7"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"7");
         });
     }
 

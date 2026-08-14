@@ -52,7 +52,7 @@
 use std::borrow::Cow;
 
 use tcl_core_types::RecursionLimit;
-use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
+use tcl_lexer::{EscapeSyntax, Lexer, SourceMap, Token, TokenType};
 
 /// How a word was delimited in the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -212,8 +212,14 @@ const MAX_SCAN_PARTS_DEPTH: RecursionLimit = RecursionLimit(64);
 /// Shared by the word parser (bare/quoted words: all three enabled) and
 /// [`crate::subst`]. Does **not** evaluate — `Variable`/`Command` parts carry
 /// spans for the eval loop (T1.3/T1.4) to resolve.
-pub fn scan_parts(src: &[u8], do_vars: bool, do_cmds: bool, do_bs: bool) -> WordBody<'_> {
-    scan_parts_at_depth(src, do_vars, do_cmds, do_bs, 0)
+pub fn scan_parts(
+    src: &[u8],
+    do_vars: bool,
+    do_cmds: bool,
+    do_bs: bool,
+    escapes: EscapeSyntax,
+) -> WordBody<'_> {
+    scan_parts_at_depth(src, do_vars, do_cmds, do_bs, escapes, 0)
 }
 
 /// [`scan_parts`]'s implementation, threading the `$name(index)` nesting
@@ -228,6 +234,7 @@ fn scan_parts_at_depth(
     do_vars: bool,
     do_cmds: bool,
     do_bs: bool,
+    escapes: EscapeSyntax,
     depth: u32,
 ) -> WordBody<'_> {
     let len = src.len();
@@ -253,7 +260,7 @@ fn scan_parts_at_depth(
             && i + 1 < len
             && (src[i + 1] == b'{' || is_var_name_byte(src[i + 1]))
         {
-            flush_text(&mut parts, src, lit_start, i, do_bs);
+            flush_text(&mut parts, src, lit_start, i, do_bs, escapes);
             i += 1;
             if src[i] == b'{' {
                 // ${name}
@@ -291,8 +298,14 @@ fn scan_parts_at_depth(
                     let index = if past_cap {
                         vec![WordPart::Text(Cow::Borrowed(&src[ks..ke]))]
                     } else {
-                        match scan_parts_at_depth(&src[ks..ke], do_vars, do_cmds, do_bs, depth + 1)
-                        {
+                        match scan_parts_at_depth(
+                            &src[ks..ke],
+                            do_vars,
+                            do_cmds,
+                            do_bs,
+                            escapes,
+                            depth + 1,
+                        ) {
                             WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                             WordBody::Parts(p) => p,
                         }
@@ -307,7 +320,7 @@ fn scan_parts_at_depth(
             }
             lit_start = i;
         } else if do_cmds && c == b'[' {
-            flush_text(&mut parts, src, lit_start, i, do_bs);
+            flush_text(&mut parts, src, lit_start, i, do_bs, escapes);
             let end = skip_command_subst(src, i);
             // inner script = between the brackets; `end` is one past `]`
             let inner_end = if end > i + 1 && src[end - 1] == b']' {
@@ -328,23 +341,25 @@ fn scan_parts_at_depth(
             i += 1;
         }
     }
-    flush_text(&mut parts, src, lit_start, len, do_bs);
+    flush_text(&mut parts, src, lit_start, len, do_bs, escapes);
     WordBody::Parts(parts)
 }
 
 /// Push the literal run `src[start..end]` as a [`WordPart::Text`], decoding its
-/// backslash escapes via the shared decoder when `do_bs` (borrowing otherwise).
+/// backslash escapes via the shared decoder under the emulated release's
+/// grammar when `do_bs` (borrowing otherwise).
 fn flush_text<'s>(
     parts: &mut Vec<WordPart<'s>>,
     src: &'s [u8],
     start: usize,
     end: usize,
     do_bs: bool,
+    escapes: EscapeSyntax,
 ) {
     if end > start {
         let run = &src[start..end];
         let text = if do_bs {
-            tcl_syntax::backslash::decode_bytes(run)
+            tcl_syntax::backslash::decode_bytes_in(run, escapes)
         } else {
             Cow::Borrowed(run)
         };
@@ -392,11 +407,23 @@ fn token_content<'s>(sm: &SourceMap<'s>, src: &'s [u8], t: Token) -> &'s [u8] {
 /// lines, comments) are dropped. Non-UTF-8 input or a lex error yields no
 /// commands (the UTF-8 internal-rep invariant; richer parse-error surfacing is
 /// tracked with the convergence).
+///
+/// Lexes with the default (Tcl-8.5+) config; a version-pinned interpreter
+/// parses through [`parse_script_with_config`] instead so the grammar follows
+/// the emulated release (issue #1462).
 pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
+    parse_script_with_config(src, tcl_lexer::LexerConfig::default())
+}
+
+/// [`parse_script`] under an explicit dialect [`tcl_lexer::LexerConfig`] —
+/// the seam [`crate::interp::Interp`] threads its runtime release's grammar
+/// through (issue #1462), so `{*}` expansion is off and the first-close
+/// `${…}` rule applies when the interpreter emulates Tcl 8.4.
+pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> Vec<Command<'_>> {
     let Ok(s) = std::str::from_utf8(src) else {
         return Vec::new();
     };
-    let toks = match Lexer::new(s).tokenise_all() {
+    let toks = match Lexer::with_source_map(SourceMap::new(s), config).tokenise_all() {
         Ok(t) => t,
         Err(_) => return Vec::new(),
     };
@@ -410,14 +437,28 @@ pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
     let mut cmd_start: Option<usize> = None;
     for t in toks {
         match t.kind {
-            TokenType::Sep => flush_word(&sm, src, &mut words, &mut word_toks, &mut expand),
+            TokenType::Sep => flush_word(
+                &sm,
+                src,
+                &mut words,
+                &mut word_toks,
+                &mut expand,
+                config.escapes,
+            ),
             TokenType::Comment => {} // a comment is an empty command
             TokenType::Expand => {
                 expand = true; // the next word is expanded
                 cmd_start.get_or_insert(t.span.start() as usize);
             }
             TokenType::Eol | TokenType::Eof => {
-                flush_word(&sm, src, &mut words, &mut word_toks, &mut expand);
+                flush_word(
+                    &sm,
+                    src,
+                    &mut words,
+                    &mut word_toks,
+                    &mut expand,
+                    config.escapes,
+                );
                 if !words.is_empty() {
                     cmds.push(Command {
                         words: core::mem::take(&mut words),
@@ -469,17 +510,24 @@ fn flush_word<'s>(
     words: &mut Vec<Word<'s>>,
     word_toks: &mut Vec<Token>,
     expand: &mut bool,
+    escapes: EscapeSyntax,
 ) {
     if word_toks.is_empty() {
         *expand = false; // a stray `{*}` with no following word (shouldn't happen)
         return;
     }
-    words.push(build_word(sm, src, word_toks, *expand));
+    words.push(build_word(sm, src, word_toks, *expand, escapes));
     word_toks.clear();
     *expand = false;
 }
 
-fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: bool) -> Word<'s> {
+fn build_word<'s>(
+    sm: &SourceMap<'s>,
+    src: &'s [u8],
+    toks: &[Token],
+    expand: bool,
+    escapes: EscapeSyntax,
+) -> Word<'s> {
     // A single braced token is a literal word (no substitution) — except a
     // backslash-newline line continuation, the one backslash sequence a braced
     // word collapses (to a single space, swallowing following spaces/tabs), as
@@ -515,7 +563,9 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
             // already separate tokens), so decode it in one shot via the shared
             // decoder — no per-escape splitting.
             TokenType::Esc if !bytes.is_empty() => {
-                parts.push(WordPart::Text(tcl_syntax::backslash::decode_bytes(bytes)));
+                parts.push(WordPart::Text(tcl_syntax::backslash::decode_bytes_in(
+                    bytes, escapes,
+                )));
             }
             // An empty (quote-marker) `Esc` contributes nothing.
             TokenType::Esc => {}
@@ -529,6 +579,7 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
             TokenType::Var => parts.push(WordPart::Variable(parse_var_ref(
                 bytes,
                 t.content_offset == 2,
+                escapes,
             ))),
             TokenType::Cmd => parts.push(WordPart::Command(bytes)),
             _ => {}
@@ -565,12 +616,12 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
 /// Parse a `Var` token's content into name + optional array index. `braced`
 /// (the `${name}` form) suppresses index parsing (the whole content is the
 /// name); for `$arr(idx)` the index is itself substituted.
-fn parse_var_ref(bytes: &[u8], braced: bool) -> VarRef<'_> {
+fn parse_var_ref(bytes: &[u8], braced: bool, escapes: EscapeSyntax) -> VarRef<'_> {
     if !braced && bytes.last() == Some(&b')') {
         if let Some(open) = bytes.iter().position(|&c| c == b'(') {
             let name = &bytes[..open];
             let idx = &bytes[open + 1..bytes.len() - 1];
-            let index = match scan_parts(idx, true, true, true) {
+            let index = match scan_parts(idx, true, true, true, escapes) {
                 WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                 WordBody::Parts(p) => p,
             };
@@ -768,6 +819,44 @@ mod tests {
         assert!(!c.words[0].expand);
     }
 
+    /// The word parser decodes literal runs under the *emulated release's*
+    /// escape grammar, threaded on the `LexerConfig` the interpreter already
+    /// builds from its dialect profile (issue #1479).
+    #[test]
+    fn word_escapes_decode_for_the_emulated_release() {
+        // `\x4142`: all trailing hex digits keeping the low byte up to 8.5
+        // (`B`), TIP 388's two-digit cap from 8.6 (`A42`). `\U` is 8.6+.
+        for (dialect, hex, wide) in [
+            ("tcl8.4", &b"B"[..], &b"U0001F600"[..]),
+            ("tcl8.5", b"B", b"U0001F600"),
+            ("tcl8.6", b"A42", "\u{FFFD}".as_bytes()),
+            ("tcl9.0", b"A42", "\u{1F600}".as_bytes()),
+            ("tcl9.1", b"A42", "\u{1F600}".as_bytes()),
+        ] {
+            let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+            let cmds = parse_script_with_config(b"puts \\x4142", config);
+            let word = &cmds[0].words[1];
+            assert_eq!(word_bytes(word), hex, "\\x4142 under {dialect}");
+            let cmds = parse_script_with_config(b"puts \\U0001F600", config);
+            let word = &cmds[0].words[1];
+            assert_eq!(word_bytes(word), wide, "\\U0001F600 under {dialect}");
+        }
+    }
+
+    /// A word's bytes whether it came back borrowed or decoded.
+    fn word_bytes(w: &Word<'_>) -> Vec<u8> {
+        match &w.body {
+            WordBody::Literal(b) => (*b).to_vec(),
+            WordBody::Parts(parts) => parts
+                .iter()
+                .flat_map(|p| match p {
+                    WordPart::Text(t) => t.to_vec(),
+                    other => panic!("expected only Text parts, got {other:?}"),
+                })
+                .collect(),
+        }
+    }
+
     #[test]
     fn braced_word_is_literal() {
         let c = parse_command(b"set x {hello world}", 0);
@@ -958,7 +1047,7 @@ mod tests {
         for _ in 0..DEPTH {
             src.push(')');
         }
-        let _ = scan_parts(src.as_bytes(), true, true, true);
+        let _ = scan_parts(src.as_bytes(), true, true, true, EscapeSyntax::default());
     }
 
     /// A moderately nested array index (well under `MAX_SCAN_PARTS_DEPTH`)
@@ -973,7 +1062,7 @@ mod tests {
     #[test]
     fn moderately_nested_array_index_still_scans_fully() {
         // $a($b($c(1)))
-        let body = scan_parts(b"$a($b($c(1)))", true, true, true);
+        let body = scan_parts(b"$a($b($c(1)))", true, true, true, EscapeSyntax::default());
         assert_eq!(
             body,
             WordBody::Parts(vec![

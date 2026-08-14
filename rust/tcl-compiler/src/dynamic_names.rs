@@ -126,6 +126,7 @@
 //!   over-broad fact kills real diagnostics just as surely as a wrong one
 //!   invents false positives.
 
+use tcl_lexer::LexerConfig;
 use tcl_registry::frame_effect::{FrameArgLayout, FrameEffectSpec};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -394,40 +395,75 @@ fn pattern_matches(pattern: &[NamePiece], candidate: &str) -> bool {
     free || rest.is_empty()
 }
 
+/// The lexer config a **profile-built** registry implies — the dialect
+/// [`dynamic_name_barrier`] must split its `[…]` texts under.
+///
+/// `registry_for_dialect` / `registry_for_profile` stamp the dialect profile
+/// on the registry, and that profile's `grammar` is the very field
+/// [`LexerConfig::for_dialect`] reads, so the two cannot drift.  A
+/// hand-assembled registry carries no profile and answers the default
+/// (Tcl-8.5+) config, which is what a caller with no dialect view had anyway.
+/// A caller that already holds the document's own config (the compile
+/// pipeline's [`crate::compilation_unit::UnitBuildOptions::config`]) should
+/// pass that instead.
+#[must_use]
+pub fn lexer_config_for(registry: &CommandRegistry) -> LexerConfig {
+    registry
+        .profile()
+        .map_or_else(LexerConfig::default, |profile| {
+            LexerConfig::from_grammar(profile.grammar)
+        })
+}
+
 /// Compute the [`DynamicNameBarrier`] for `cfg`.
 ///
 /// One flow-insensitive walk over every statement, terminator condition, and
 /// nested `[…]` command substitution in the function.  Flow-insensitivity is
 /// the conservative choice: a read *before* the dynamic write is blinded too,
 /// which only ever silences, never invents, a fact.
+///
+/// `config` is the **document's** lexer config, and it is load-bearing rather
+/// than cosmetic: the `[…]` texts this walk re-splits must break into words
+/// the same way the IR did, or the two disagree about which argument sits in a
+/// variable-name role.  Under `f5-irules` the segmenter splits `cmd {a}{b}`
+/// into three words and a Tcl-configured split into two; under `tcl8.4` a
+/// `{*}` is a literal word rather than an expansion marker.  A boundary
+/// disagreement can drop a dynamic write off the name-role index, leaving the
+/// barrier clear and letting SCCP propagate a constant across it (issue
+/// #1393).  Build it from the same dialect the lowering used —
+/// [`lexer_config_for`] does that from a profile-built registry.
 #[must_use]
-pub fn dynamic_name_barrier(cfg: &CfgFunction, registry: &CommandRegistry) -> DynamicNameBarrier {
+pub fn dynamic_name_barrier(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
     // Caller-frame injection the CFG builder already resolved against the
     // module-wide proc summaries — the same three bits, joined in.
     let mut barrier = cfg.caller_frame_barrier;
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
-            scan_statement(stmt, registry, &mut barrier);
+            scan_statement(stmt, registry, &mut barrier, config);
             // The CFG builder flattens structured control flow, but a
             // non-lowered (glob / regexp / fall-through) `switch` keeps its
             // arm bodies inline; descend through whatever nests.
             for script in crate::ir_helpers::nested_bodies(stmt) {
                 crate::ir::for_each_statement(script, &mut |inner| {
-                    scan_statement(inner, registry, &mut barrier);
+                    scan_statement(inner, registry, &mut barrier, config);
                 });
             }
         }
         match &block.terminator {
             Some(Terminator::Branch { condition, .. }) => {
-                scan_expr(condition, registry, &mut barrier);
+                scan_expr(condition, registry, &mut barrier, config);
             }
             // `return [set $n]` lowers to a terminator, not a statement.
             Some(Terminator::Return { value, expr, .. }) => {
                 if let Some(v) = value {
-                    scan_text(v, registry, &mut barrier, 0);
+                    scan_text(v, registry, &mut barrier, 0, config);
                 }
                 if let Some(e) = expr {
-                    scan_expr(e, registry, &mut barrier);
+                    scan_expr(e, registry, &mut barrier, config);
                 }
             }
             _ => {}
@@ -436,7 +472,12 @@ pub fn dynamic_name_barrier(cfg: &CfgFunction, registry: &CommandRegistry) -> Dy
     barrier
 }
 
-fn scan_statement(stmt: &Statement, registry: &CommandRegistry, barrier: &mut DynamicNameBarrier) {
+fn scan_statement(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    barrier: &mut DynamicNameBarrier,
+    config: LexerConfig,
+) {
     match stmt {
         Statement::Call {
             command,
@@ -473,35 +514,43 @@ fn scan_statement(stmt: &Statement, registry: &CommandRegistry, barrier: &mut Dy
                 scan_command(command, args, braced.as_deref(), registry, barrier);
             }
             for arg in args {
-                scan_text(arg, registry, barrier, 0);
+                scan_text(arg, registry, barrier, 0, config);
             }
         }
         Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
-            scan_text(value, registry, barrier, 0);
+            scan_text(value, registry, barrier, 0, config);
         }
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
-            scan_expr(expr, registry, barrier);
+            scan_expr(expr, registry, barrier, config);
         }
         Statement::Return { value, expr, .. } => {
             if let Some(v) = value {
-                scan_text(v, registry, barrier, 0);
+                scan_text(v, registry, barrier, 0, config);
             }
             if let Some(e) = expr {
-                scan_expr(e, registry, barrier);
+                scan_expr(e, registry, barrier, config);
             }
         }
         // A non-lowered `switch`'s subject is a word; its arm bodies are
         // reached by the caller's `nested_bodies` descent.
         Statement::Switch { subject, .. } => {
-            scan_text(subject, registry, barrier, 0);
+            scan_text(subject, registry, barrier, 0, config);
         }
-        // `Incr` names its target literally (the lowering declines a
-        // substituted name); every remaining statement carries no word text.
+        // `Incr` names its target literally: `try_lower_incr` declines the
+        // specialisation for a computed name word (issue #1487's gate,
+        // mirroring `lower_set`'s #1484 one) and falls back to `Call`, which
+        // the arm above already scans. Every remaining statement carries no
+        // word text.
         _ => {}
     }
 }
 
-fn scan_expr(expr: &ExprNode, registry: &CommandRegistry, barrier: &mut DynamicNameBarrier) {
+fn scan_expr(
+    expr: &ExprNode,
+    registry: &CommandRegistry,
+    barrier: &mut DynamicNameBarrier,
+    config: LexerConfig,
+) {
     let mut cmds = Vec::new();
     crate::ir_helpers::collect_expr_commands(expr, &mut cmds);
     for cmd_text in &cmds {
@@ -510,12 +559,18 @@ fn scan_expr(expr: &ExprNode, registry: &CommandRegistry, barrier: &mut DynamicN
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
             .unwrap_or(trimmed);
-        scan_script_text(inner, registry, barrier, 0);
+        scan_script_text(inner, registry, barrier, 0, config);
     }
 }
 
 /// Scan a word's raw text for nested `[…]` command substitutions.
-fn scan_text(text: &str, registry: &CommandRegistry, barrier: &mut DynamicNameBarrier, depth: u32) {
+fn scan_text(
+    text: &str,
+    registry: &CommandRegistry,
+    barrier: &mut DynamicNameBarrier,
+    depth: u32,
+    config: LexerConfig,
+) {
     // Native-stack safety net (issue #996): `[a [b [c …]]]` nests inside one
     // word. Past the cap, stop descending — an unset flag is the "no barrier
     // proved" fallback, which matches every other bounded walk's contract of
@@ -524,7 +579,7 @@ fn scan_text(text: &str, registry: &CommandRegistry, barrier: &mut DynamicNameBa
         return;
     }
     for inner in crate::var_refs::command_subst_texts(text) {
-        scan_script_text(&inner, registry, barrier, depth + 1);
+        scan_script_text(&inner, registry, barrier, depth + 1, config);
     }
 }
 
@@ -535,11 +590,12 @@ fn scan_script_text(
     registry: &CommandRegistry,
     barrier: &mut DynamicNameBarrier,
     depth: u32,
+    config: LexerConfig,
 ) {
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         return;
     }
-    for words in crate::ir_helpers::tokenise_command_words(text) {
+    for words in crate::ir_helpers::tokenise_command_words(text, config) {
         let Some((command, args)) = words.split_first() else {
             continue;
         };
@@ -556,7 +612,7 @@ fn scan_script_text(
     // The script's own words may nest further substitutions; `text` still has
     // their brackets intact (a word's raw spelling does not — a delimited
     // token's closer sits one past its span), so recurse from here.
-    scan_text(text, registry, barrier, depth);
+    scan_text(text, registry, barrier, depth, config);
 }
 
 /// Whether a template word handed to a substituting command was itself
@@ -741,10 +797,19 @@ mod tests {
     use super::*;
 
     fn barrier_for(src: &str) -> DynamicNameBarrier {
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
-        let cu = crate::compilation_unit::CompilationUnit::build_for(src, registry, false);
+        barrier_for_dialect(src, "tcl8.6")
+    }
+
+    /// The barrier for `src` analysed **as** `dialect` — registry, lexer
+    /// config, and expression grammar all that dialect's, which is the
+    /// configuration a real host builds (issue #1393).
+    fn barrier_for_dialect(src: &str, dialect: &str) -> DynamicNameBarrier {
+        let registry = tcl_registry::registry_for_dialect(dialect);
+        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            src, registry, false, dialect,
+        );
         let fu = cu.procedures.values().next().unwrap_or(&cu.top_level);
-        dynamic_name_barrier(&fu.cfg, registry)
+        dynamic_name_barrier(&fu.cfg, registry, lexer_config_for(registry))
     }
 
     #[test]
@@ -981,5 +1046,258 @@ computed; got {b:?}"
         // genuine dynamic write.
         let b = barrier_for("proc f {n} { set $n 1; return ok }\n");
         assert!(b.writes, "got {b:?}");
+    }
+
+    // Issue #1393 — the barrier is computed under the *document's* dialect.
+    //
+    // It used to come from a hand-rolled tokenisation pinned to
+    // `LexerConfig::default()`, so under a non-default dialect the word
+    // boundaries it saw were not the ones the IR was built from.  The barrier
+    // is an optimisation-soundness fact — SCCP and, since #1374, every
+    // value-motion pass abstain on it — so a boundary disagreement that hides
+    // a dynamic write lets a constant propagate across one.
+
+    /// The two shapes the dialects disagree about, as facts about the
+    /// splitter now shared with the lowering.
+    #[test]
+    fn word_splitting_follows_the_dialect() {
+        let words = |src: &str, dialect: &str| -> Vec<Vec<String>> {
+            crate::ir_helpers::tokenise_command_words(
+                src,
+                tcl_lexer::LexerConfig::for_dialect(dialect),
+            )
+            .into_iter()
+            .map(|command| command.into_iter().map(|word| word.text).collect())
+            .collect()
+        };
+
+        // iRules treats `}{` as a word separator; Tcl concatenates the two
+        // braced groups into one word.
+        assert_eq!(
+            words("cmd {a}{b}", "f5-irules"),
+            vec![vec!["cmd", "a", "b"]],
+            "an iRule splits `{{a}}{{b}}` into two words",
+        );
+        assert_eq!(
+            words("cmd {a}{b}", "tcl8.6"),
+            vec![vec!["cmd", "ab"]],
+            "Tcl welds them into one",
+        );
+
+        // `{*}` expands only where the dialect has it — never in 8.4 or an
+        // iRule, where it is an ordinary (literal) word.
+        assert_eq!(
+            words("cmd {*}$args x", "tcl8.6"),
+            vec![vec!["cmd", "${args}", "x"]],
+            "8.5+ reads `{{*}}` as the expansion marker",
+        );
+        for dialect in ["tcl8.4", "f5-irules"] {
+            assert_eq!(
+                words("cmd {*}$args x", dialect),
+                vec![vec!["cmd", "*${args}", "x"]],
+                "{dialect} has no `{{*}}` expansion",
+            );
+        }
+    }
+
+    /// The per-word facts `scan_command` reads, as the segmenter now supplies
+    /// them: the written spelling (which carries the name-position `$`), the
+    /// brace-literal flag (which says a `$` is *not* a substitution), and the
+    /// substitution flag (which disqualifies a computed command head).
+    #[test]
+    fn word_facts_survive_the_segmenter_mapping() {
+        let words = crate::ir_helpers::tokenise_command_words(
+            "set $x {a $b}",
+            tcl_lexer::LexerConfig::default(),
+        )
+        .remove(0);
+        assert_eq!(
+            words.iter().map(|w| w.text.as_str()).collect::<Vec<_>>(),
+            vec!["set", "${x}", "a $b"],
+        );
+        assert_eq!(
+            words.iter().map(|w| w.raw.as_str()).collect::<Vec<_>>(),
+            vec!["set", "$x", "{a $b"],
+        );
+        assert_eq!(
+            words.iter().map(|w| w.substituted).collect::<Vec<_>>(),
+            vec![false, true, false],
+        );
+        assert_eq!(
+            words.iter().map(|w| w.braced_literal).collect::<Vec<_>>(),
+            vec![false, false, true],
+        );
+
+        // A compound word substitutes as a whole and is no longer a brace
+        // literal, whichever fragment carries the `$`.
+        for src in ["cmd a$b", "cmd {a}$b", "cmd $b-a"] {
+            let word =
+                crate::ir_helpers::tokenise_command_words(src, tcl_lexer::LexerConfig::default())
+                    .remove(0)
+                    .remove(1);
+            assert!(word.substituted, "{src}");
+            assert!(!word.braced_literal, "{src}");
+        }
+    }
+
+    /// The soundness pin: a dynamic write inside a shape whose word
+    /// boundaries are dialect-dependent still raises the write flag.
+    #[test]
+    fn a_dynamic_write_raises_the_barrier_under_every_dialect() {
+        for dialect in ["tcl8.6", "tcl8.4", "f5-irules"] {
+            let b = barrier_for_dialect("proc f {n} { set $n 1; return ok }\n", dialect);
+            assert!(b.writes, "`set $n 1` is a dynamic write under {dialect}");
+
+            // …and through a `[…]` substitution, which is where the barrier
+            // walk re-splits script text itself.
+            let b = barrier_for_dialect(
+                "proc f {n} { set out {}; lappend out [set $n 1]; return $out }\n",
+                dialect,
+            );
+            assert!(b.writes, "nested dynamic write missed under {dialect}");
+        }
+    }
+
+    /// The dialect-dependent word shapes themselves: a `}{` weld (which only
+    /// an iRule splits) and a `{*}` (which only 8.5+ expands), each wrapped
+    /// around a nested dynamic write.  Whichever way the words fall, the
+    /// write inside the `[…]` is still there and the barrier must find it —
+    /// this is the walk re-splitting script text under the document's own
+    /// config, the fact #1393 is about.
+    #[test]
+    fn dialect_specific_word_shapes_do_not_hide_a_dynamic_write() {
+        for dialect in ["tcl8.6", "tcl8.4", "f5-irules"] {
+            for body in [
+                "set out [list {a}{b} [set $n 1]]",
+                "set out [list {*}$n [set $n 1]]",
+                "set out [concat {a}{b} {*}$n [set $n 1]]",
+            ] {
+                let b = barrier_for_dialect(
+                    &format!("proc f {{n}} {{ {body}; return $out }}\n"),
+                    dialect,
+                );
+                assert!(b.writes, "{dialect}: `{body}` hides a dynamic write");
+            }
+        }
+    }
+
+    /// The discriminating case, and the reason the config is threaded at all:
+    /// a `{*}` welded to a braced name.  Under **tcl8.4** there is no
+    /// expansion, so the word is the computed name `*$n` and the `[…]` holds a
+    /// dynamic write; read under the default (8.5+) grammar the very same text
+    /// is an expansion marker plus the brace-literal name `{$n}`, which is
+    /// *static* — so a barrier computed from a differently-configured
+    /// tokenisation reports "no dynamic write" for a script that has one, and
+    /// SCCP then propagates constants across it (issue #1393).
+    #[test]
+    fn an_84_expansionless_name_word_is_still_a_dynamic_write() {
+        let b = barrier_for_dialect(
+            "proc f {n} { set out [list [set {*}{$n} 1]]; return $out }\n",
+            "tcl8.4",
+        );
+        assert!(
+            b.writes,
+            "`{{*}}{{$n}}` names `*$n` under 8.4 — a computed name; got {b:?}",
+        );
+    }
+
+    /// TN control: a brace-literal name is static under every dialect, so the
+    /// dialect threading cannot be over-applied into blanket blindness.
+    #[test]
+    fn a_literal_name_stays_clear_under_every_dialect() {
+        for dialect in ["tcl8.6", "tcl8.4", "f5-irules"] {
+            let b = barrier_for_dialect("proc f {} { set {$n} 1; return ok }\n", dialect);
+            assert!(b.is_clear(), "{dialect}: got {b:?}");
+        }
+    }
+
+    /// Issue #1484 — the same expansionless `{*}` word as a *statement* of its
+    /// own, not buried in a `[…]` the text walk re-segments.
+    ///
+    /// Under 8.4 / iRules `set {*}$n 1` is the literal `*` welded to `$n`: a
+    /// computed name.  The lowering used to specialise it to `AssignConst`,
+    /// whose name is static by contract, so [`scan_statement`] never looked at
+    /// it and the write barrier stayed down — leaving the value-motion passes
+    /// free to move stores across a write that can land on any name.
+    #[test]
+    fn an_expansionless_computed_name_statement_raises_the_write_barrier() {
+        for dialect in ["tcl8.4", "f5-irules"] {
+            let b = barrier_for_dialect("proc f {n} { set {*}$n 1; return ok }\n", dialect);
+            assert!(
+                b.writes,
+                "{dialect}: `set {{*}}$n 1` names `*$n` — a computed name; got {b:?}",
+            );
+        }
+    }
+
+    /// The 9.0 grammar reaches the same answer by the path it always did:
+    /// `{*}$n` really is an expansion there, so the word is a plain `$n`
+    /// substitution and `set` was never specialised in the first place.  Pinned
+    /// so the #1484 gate cannot be credited with a result the old path already
+    /// produced — or quietly change it.
+    #[test]
+    fn an_expanded_computed_name_statement_still_raises_the_write_barrier() {
+        for dialect in ["tcl9.0", "tcl8.6"] {
+            let b = barrier_for_dialect("proc f {n} { set {*}$n 1; return ok }\n", dialect);
+            assert!(
+                b.writes,
+                "{dialect}: expanded `{{*}}$n` write missed; got {b:?}"
+            );
+        }
+    }
+
+    /// TN control for #1484: a fully spelled-out `set` names one variable, so
+    /// the gate must not blind a function that computes nothing.  The array
+    /// element with a computed *key* is the near miss — its array is named
+    /// statically, which is the line [`names_a_dynamic_variable`] draws.
+    #[test]
+    fn a_spelled_out_set_stays_clear_under_every_dialect() {
+        for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
+            for body in ["set x 1", "set a($i) 1", "set x 1; set y $x"] {
+                let b = barrier_for_dialect(
+                    &format!("proc f {{i}} {{ {body}; return ok }}\n"),
+                    dialect,
+                );
+                assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
+            }
+        }
+    }
+
+    /// Issue #1487 — `incr $n` is a computed name, not the literal target
+    /// `try_lower_incr` used to assume.  Before the gate, the lowering
+    /// specialised it to `Statement::Incr { name: "${n}" }`, whose name is
+    /// static by contract, so [`scan_statement`]'s `Incr` arm — which reads
+    /// no word text at all — never looked at it and the write barrier stayed
+    /// down, leaving the value-motion passes free to move stores across a
+    /// write that can land on any name. Unlike #1484's `{*}$n` shape, a bare
+    /// `$n` substitutes under every grammar, so all four dialects see the
+    /// same computed name.
+    #[test]
+    fn incr_of_a_computed_name_raises_the_write_barrier() {
+        for dialect in ["tcl8.4", "f5-irules", "tcl8.6", "tcl9.0"] {
+            let b = barrier_for_dialect("proc f {n} { incr $n; return ok }\n", dialect);
+            assert!(
+                b.writes,
+                "{dialect}: `incr $n` names `$n` — a computed name; got {b:?}",
+            );
+        }
+    }
+
+    /// TN control for #1487: a fully spelled-out `incr` names one variable,
+    /// and a computed array *element* (`incr a($i)`) is not a computed
+    /// *name* — the array is named statically, the same line
+    /// [`names_a_dynamic_variable`] draws for `set` — so neither shape may
+    /// blind a function that computes nothing.
+    #[test]
+    fn a_spelled_out_incr_stays_clear_under_every_dialect() {
+        for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
+            for body in ["incr x", "incr a($i)", "incr x 1"] {
+                let b = barrier_for_dialect(
+                    &format!("proc f {{i}} {{ set x 0; {body}; return ok }}\n"),
+                    dialect,
+                );
+                assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
+            }
+        }
     }
 }

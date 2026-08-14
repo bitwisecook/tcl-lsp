@@ -70,7 +70,7 @@ use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
-use super::helpers::spans::{full_quoted_string_span, full_word_span};
+use super::helpers::spans::{full_quoted_string_span, quoted_word_rewrite_span};
 use super::{Optimisation, PassContext};
 
 /// Run the propagation pass across every function.
@@ -228,6 +228,15 @@ fn run_load_forwarding(
 ) {
     use crate::def_use::{DefKind, UseKind};
     use crate::ir::Statement;
+
+    // A computed variable name (`set $name …`) in this frame can rewrite
+    // any variable between a "sole" reaching definition and its use, under
+    // a spelling neither the def-use chains nor `has_intervening_barrier`
+    // can see — so the whole function abstains (issue #1374), the same
+    // barrier O109 / O126 elimination and SCCP already consult.
+    if fu.dynamic_barrier_blocks_value_motion() {
+        return;
+    }
 
     // Independent of the SCCP lattice (see the doc comment on the call
     // site in `run`), this pass must apply the same externally-mutable
@@ -427,7 +436,7 @@ fn report_load_forward(
             ctx.report(Optimisation::new(
                 DiagCode::O102,
                 message.to_owned(),
-                full_word_span(ctx.source, fu.abs_span(*argv_span)),
+                tcl_lexer::word_span_at(ctx.source, fu.abs_span(*argv_span)),
                 literal.to_owned(),
             ));
             emitted_applicable = true;
@@ -762,7 +771,7 @@ fn build_forward_edits(
     if de as usize > source.len() || ds >= de {
         return None;
     }
-    let target = full_word_span(source, var_span);
+    let target = tcl_lexer::word_span_at(source, var_span);
     // Don't collide with an earlier pass's rewrite (def line or use word).
     if ranges_overlap(rewritten, ds, de) || ranges_overlap(rewritten, target.start(), target.end())
     {
@@ -1008,6 +1017,13 @@ fn oo_method_constants(
     if fu.complexity_guarded {
         return std::collections::HashMap::new();
     }
+    // This re-run bypasses the unit build's dynamic-name widening of the
+    // SCCP escaping switch, so apply the same abstention here: a computed
+    // variable name in the body makes no method-local constant trustworthy
+    // (issue #1374).
+    if fu.dynamic_barrier_blocks_value_motion() {
+        return std::collections::HashMap::new();
+    }
     // The re-run also carries the registry builtin-fold context (issue
     // #1134): `set base [self class]; set ns [namespace qualifiers $base]`
     // folds to fixpoint *inside* the lattice, so `base` and `ns` both
@@ -1222,7 +1238,7 @@ fn visit_oo_frame_folds(
         ctx.report(Optimisation::new(
             DiagCode::O129,
             "Fold constant builtin command substitution",
-            full_word_span(ctx.source, span),
+            tcl_lexer::word_span_at(ctx.source, span),
             folded,
         ));
     }
@@ -2292,7 +2308,7 @@ fn visit_call_cmd_subst_folds(
             ctx.report(Optimisation::new(
                 DiagCode::O115,
                 "Remove redundant nested expr",
-                full_word_span(ctx.source, *argv_span),
+                tcl_lexer::word_span_at(ctx.source, *argv_span),
                 collapsed,
             ));
             continue;
@@ -2307,7 +2323,7 @@ fn visit_call_cmd_subst_folds(
             ctx.report(Optimisation::new(
                 DiagCode::O101,
                 "Fold constant expression",
-                full_word_span(ctx.source, *argv_span),
+                tcl_lexer::word_span_at(ctx.source, *argv_span),
                 folded,
             ));
             continue;
@@ -2337,7 +2353,7 @@ fn visit_call_cmd_subst_folds(
             ctx.report(Optimisation::new(
                 code,
                 message,
-                full_word_span(ctx.source, *argv_span),
+                tcl_lexer::word_span_at(ctx.source, *argv_span),
                 folded,
             ));
             continue;
@@ -2349,7 +2365,7 @@ fn visit_call_cmd_subst_folds(
             ctx.report(Optimisation::new(
                 DiagCode::O103,
                 format!("Fold pure-proc call to '{qualified_name}' to its constant return"),
-                full_word_span(ctx.source, *argv_span),
+                tcl_lexer::word_span_at(ctx.source, *argv_span),
                 replacement,
             ));
         }
@@ -2691,7 +2707,11 @@ fn visit_string_interpolation_cmd_subs(
         return;
     }
     out.push_str(&inside[last..]);
-    let rewrite_span = full_quoted_string_span(ctx.source, span);
+    // The replacement is `inside` with the folds applied, so it may only be
+    // spliced over source the segmenter reported as exactly `inside`.
+    let Some(rewrite_span) = quoted_word_rewrite_span(ctx.source, span, inside) else {
+        return;
+    };
     ctx.report(Optimisation::new(
         DiagCode::O129,
         "Fold constant builtin command substitution in interpolation",
@@ -3608,6 +3628,21 @@ mod tests {
         );
     }
 
+    // Issue #1374 — a computed variable name (`set $name 2`) between the
+    // "sole" reaching def and the use can rewrite `x` under a spelling the
+    // def-use chains cannot see: `f x` prints 2 in tclsh, so forwarding the
+    // literal 1 (via O102's chain scan or O100's SCCP projection) is a
+    // miscompile. The whole function abstains.
+    #[test]
+    fn dynamic_name_write_blocks_load_forwarding() {
+        let opts = run_pass("proc ::f {name} { set x 1; set $name 2; puts $x }");
+        assert!(
+            opts.iter()
+                .all(|o| !matches!(o.code, DiagCode::O100 | DiagCode::O102)),
+            "must not forward the pre-dynamic-write literal 1, got {opts:?}",
+        );
+    }
+
     // Regression: a top-level `global` name reassigned by a proc call must
     // never be folded as if its "sole reaching def" were stable — confirmed
     // against tclsh 8.6/9.0 as a real miscompile before this guard existed
@@ -4354,6 +4389,60 @@ mod tests {
         assert!(fold("puts [string toupper foo 0 0]").is_empty());
         // A non-builtin head (a user proc) is not an O129 candidate.
         assert!(fold("proc ::p {} { return 1 }\nputs [::p]").is_empty());
+    }
+
+    /// Issue #1424: the folded command substitution carries its own quoted
+    /// argument, so the rewrite span has to cross that inner `"b"`. A
+    /// scanner that stopped at the first unescaped `"` produced a span
+    /// covering only `"a[string toupper "`, and applying the fix left the
+    /// tail `b"]c"` behind as a stray fragment. Applying the rewrite must
+    /// yield well-formed source.
+    #[test]
+    fn o129_interpolation_fold_replaces_the_whole_quoted_word() {
+        let src = "puts \"a[string toupper \"b\"]c\"\n";
+        let opts = crate::optimiser::optimise_raw(src, &registry(), None);
+        let fold = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O129 && !o.hint_only)
+            .unwrap_or_else(|| panic!("expected an applicable O129, got {opts:?}"));
+        let mut rewritten = src.to_owned();
+        rewritten.replace_range(
+            fold.span.start() as usize..fold.span.end() as usize,
+            &fold.replacement,
+        );
+        assert_eq!(rewritten, "puts \"aBc\"\n");
+    }
+
+    /// Review on PR #1481, same #1424 lineage: a `"…"` word holding a
+    /// command-position comment reached across a backslash-newline
+    /// continuation. `tclsh` prints `x3abc`; the O129 rewrite printed
+    /// `x3ab""b"c`.
+    ///
+    /// Two scanners have to agree for the splice to be sound. The rewrite
+    /// *span* comes from `close_quote_offset`, which now keeps command
+    /// position across the continuation and so reaches the final `"`. The
+    /// replacement *text* comes from the segmenter, whose own bracket scan
+    /// still has no comment state and stops at the commented-out `]`. While
+    /// they disagree the pass must decline rather than splice a short word
+    /// over a long span — so no applicable O129 is offered here.
+    #[test]
+    fn o129_fold_declines_when_the_word_text_does_not_match_the_span() {
+        let src = "puts \"x[string length abc]a[\n\\\n# ] comment\nset y \"b\"\n]c\"\n";
+        let opts = crate::optimiser::optimise_raw(src, &registry(), None);
+        for opt in opts
+            .iter()
+            .filter(|o| o.code == DiagCode::O129 && !o.hint_only)
+        {
+            let mut rewritten = src.to_owned();
+            rewritten.replace_range(
+                opt.span.start() as usize..opt.span.end() as usize,
+                &opt.replacement,
+            );
+            assert_eq!(
+                rewritten, src,
+                "an applicable O129 here corrupts the source: {opt:?}",
+            );
+        }
     }
 
     #[test]

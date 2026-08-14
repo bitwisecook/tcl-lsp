@@ -875,10 +875,12 @@ fn cfg_result_eval_body_upvar_records_source_and_reason() {
 // ════════════════════════════════════════════════════════════════════════════
 // PART 9 — CFG handle_statement: dynamic-name AssignExpr / Incr arms
 //
-// `handle_stmt_assign_or_incr`'s AssignExpr and Incr arms with a *dynamic* name
-// run `dynamic_name_escape` (resolve-literal-or-spill). `var_escape_cfg.rs`
+// `handle_stmt_assign_or_incr`'s AssignExpr arm with a *dynamic* name runs
+// `dynamic_name_escape` (resolve-literal-or-spill). `var_escape_cfg.rs`
 // covers `set $n …` (AssignConst/AssignValue); the AssignExpr (`set $n [expr …]`)
-// and Incr (`incr $n`) dynamic-name arms are uncovered.
+// dynamic-name arm is uncovered here. Since issue #1487 the lowering never
+// emits `Statement::Incr` with a computed name (it declines to the generic
+// Call), so the Incr test below pins the Call-form contract instead.
 // ════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -904,25 +906,28 @@ fn cu_dynamic_assignexpr_name_spills_all_known() {
 
 #[test]
 fn cu_dynamic_incr_name_spills_all_known() {
-    // `incr $n` with an unresolved `$n` — handle_stmt_assign_or_incr's Incr arm →
-    // dynamic_name_escape → escape_all_known. tclsh: `incr $n` increments
-    // whichever local `$n` names, so every local is frame-resident:
+    // `incr $n` with an unresolved `$n`. tclsh: `incr $n` increments whichever
+    // local `$n` names, so every local is frame-resident:
     //   proc f {n} { set a 1; incr $n; return $a }
     //   f a -> 2 (incremented a) ;  f b -> 1 (a untouched)
-    // The structured `Statement::Incr` spills every known local to Frame, but —
-    // unlike the `set $n …` Call form — does NOT raise the whole-proc barrier:
-    // the spill (escape_all_known) is a bounded, name-precise frame requirement.
+    // Since issue #1487 the lowering declines the `Statement::Incr`
+    // specialisation for a computed name and emits the generic Call — the same
+    // path as `set $n …` — so the dynamic-name barrier rises for the whole
+    // proc, exactly as the `set` form does. The old name-precise Incr arm was
+    // invisible to `dynamic_names::scan_statement`, which is what #1487 fixed;
+    // the precision loss is the deliberate trade.
     let s = escape_cu("proc ::p {n} { set a 1\n incr $n }");
     let p = summary(&s, "::p");
     assert!(p.is_frame("a"), "a is spilled by the dynamic incr name");
     assert!(p.is_frame("n"), "the name var n is spilled too");
     assert!(
-        !p.dynamic_barrier(),
-        "the Incr dynamic-name spill is name-precise, not a whole-proc barrier"
+        p.dynamic_barrier(),
+        "a computed incr name is the generic Call form since #1487, so the \
+         whole-proc barrier rises exactly as it does for `set $n …`"
     );
     assert!(
         p.frame_needed,
-        "but the proc still needs a frame for the spilled locals"
+        "and the proc still needs a frame for the spilled locals"
     );
 }
 

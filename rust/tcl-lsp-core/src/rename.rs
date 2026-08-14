@@ -1965,23 +1965,12 @@ fn cell_rename_spans(
 /// idiom badly enough to fail to parse post-rename). Mirrors
 /// `token_text`'s own degenerate-`${}`-empty-name check so this never
 /// mis-fires on a span that already legitimately includes the brace.
+///
+/// The widening itself is not decided here: [`tcl_lexer::word_span_at`]
+/// owns the closer arithmetic for every delimited word shape, `${name}`
+/// included, and this is a two-line delegate to it (issue #1423).
 fn var_ref_edit_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
-    let start = span.start() as usize;
-    let end = span.end() as usize;
-    let bytes = source.as_bytes();
-    if start >= bytes.len() || end > bytes.len() {
-        return span;
-    }
-    let Some(after_prefix) = source[start..end].strip_prefix("${") else {
-        return span;
-    };
-    if after_prefix == "}" {
-        return span;
-    }
-    if bytes.get(end) == Some(&b'}') {
-        return tcl_lexer::Span::new(span.start(), span.end() + 1);
-    }
-    span
+    tcl_lexer::word_span_at(source, span)
 }
 
 /// Build a replacement string for a variable reference span.
@@ -2722,6 +2711,31 @@ mod tests {
         assert_eq!(
             var_ref_edit_span(src, tcl_lexer::Span::new(0, 6)),
             tcl_lexer::Span::new(0, 7)
+        );
+    }
+
+    #[test]
+    fn var_ref_edit_span_covers_a_braced_name_word() {
+        // Issue #1423: the `${`-only hand-roll recognised one word shape.
+        // A braced *name* word (`set {a b} 1`) follows the same inner-end
+        // convention, so the edit range stopped short and left the `}`
+        // orphaned after the replacement. The owner covers every shape.
+        let src = "set {a b} 1";
+        assert_eq!(&src[4..8], "{a b");
+        assert_eq!(
+            var_ref_edit_span(src, tcl_lexer::Span::new(4, 8)),
+            tcl_lexer::Span::new(4, 9)
+        );
+    }
+
+    #[test]
+    fn var_ref_edit_span_leaves_an_empty_braced_word_untouched() {
+        // The universal discriminator: an empty `{}` whose span already
+        // covers its own closer, with the enclosing body's `}` right after.
+        let src = "proc p {} {}";
+        assert_eq!(
+            var_ref_edit_span(src, tcl_lexer::Span::new(7, 9)),
+            tcl_lexer::Span::new(7, 9)
         );
     }
 

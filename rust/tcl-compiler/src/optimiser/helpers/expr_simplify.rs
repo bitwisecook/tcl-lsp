@@ -187,6 +187,57 @@ fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     }
 }
 
+/// Whether `node`'s value provably cannot be the IEEE NaN — the precondition
+/// of [`BinOp::inverse`]'s ordered-comparison rows and of the `$x == $x`
+/// self-comparison folds.
+///
+/// Tcl follows C's rule (`tclExecute.c`): with a NaN operand `!=` is true and
+/// every other comparison is false. That breaks both `!(a < b) == (a >= b)`
+/// and `$x == $x == 1`, so those rewrites need this proof.
+///
+/// Proof sources, deliberately narrow:
+///
+/// * a literal or string whose text is not a NaN spelling under **any** release
+///   — either a non-NaN number, or not a number at all (a plain string can no
+///   more be NaN than it can be `inf`);
+/// * a variable the type lattice proves `Int`. *Numeric* is not enough: the
+///   numeric set also holds `Double` and the catch-all `Numeric`, and a double
+///   may perfectly well be NaN.
+///
+/// Everything else — a command substitution, an arithmetic subexpression, any
+/// variable with no type context at all — is unproven, so the caller abstains.
+/// Unlike [`node_provably_numeric`] / [`node_provably_integer`] this does *not*
+/// fall back to "assume the best" when the context is `None`: a caller with no
+/// lattice has proved nothing, and the rewrites this gates are unsound without
+/// the proof.
+fn node_cannot_be_nan(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
+    match node {
+        ExprNode::Literal { text, .. } | ExprNode::String { text, .. } => {
+            !is_nan_string_in_any_release(text)
+        }
+        ExprNode::Var { name, .. } => {
+            numeric.is_some_and(|ctx| ctx.integer.contains(name.as_str()))
+        }
+        _ => false,
+    }
+}
+
+/// Whether the (delimiter-stripped) text spells NaN under **any** release —
+/// the sound direction for a gate that *refuses* a rewrite because a value
+/// "could still be NaN", mirroring [`is_numeric_string_in_any_release`].
+fn is_nan_string_in_any_release(text: &str) -> bool {
+    use tcl_syntax::number::{Number, ParseFlags};
+    tcl_syntax::number::NumberSyntax::any(|n| {
+        matches!(
+            tcl_syntax::number::parse_whole_with(
+                strip_literal_delims(text),
+                ParseFlags::for_syntax(n),
+            ),
+            Some(Number::Nan { .. })
+        )
+    })
+}
+
 /// Strip the surrounding `"…"` / `{…}` delimiters (if any) from an `expr`
 /// literal or a propagated constant's value text, for the numeric
 /// classifiers below.
@@ -1000,6 +1051,13 @@ fn reduce_unary(
     // (`in`/`ni`), so `!(x lt y)`/`!(x in list)` never simplified even
     // though the same total-order/negation identity holds for them as for
     // the numeric/string-eq forms already covered.
+    //
+    // The four *ordered numeric* rows (`<`/`<=`/`>`/`>=`) carry a NaN
+    // precondition (`BinOp::inverse_needs_non_nan`): `expr {!(NaN < 1)}` is 1
+    // but `expr {NaN >= 1}` is 0, so they fire only when both operands are
+    // proved non-NaN. `==`/`!=` are exact complements even for NaN, and the
+    // string / membership operators have no NaN rule, so those stay
+    // unconditional (issue #1437).
     if matches!(op, UnaryOp::Not | UnaryOp::WordNot)
         && let ExprNode::Binary {
             op: inner_op,
@@ -1007,7 +1065,9 @@ fn reduce_unary(
             right,
         } = operand
     {
-        if let Some(new_op) = inner_op.inverse() {
+        let nan_safe = !inner_op.inverse_needs_non_nan()
+            || (node_cannot_be_nan(left, numeric) && node_cannot_be_nan(right, numeric));
+        if nan_safe && let Some(new_op) = inner_op.inverse() {
             return Some(ExprNode::Binary {
                 op: new_op,
                 left: left.clone(),
@@ -1072,6 +1132,9 @@ fn reduce_binary(
 /// Only fires for pure variable references because commands or literal
 /// expressions could have side effects (`[f] == [f]` might not be 1 if
 /// `f` mutates state).
+///
+/// The *reflexive* rows (`==`, `<=`, `>=` → 1 and `!=` → 0) additionally need
+/// `$x` proved non-NaN — see [`node_cannot_be_nan`].
 fn reduce_self_comparison(
     op: BinOp,
     left: &ExprNode,
@@ -1086,9 +1149,18 @@ fn reduce_self_comparison(
     }
     let k = match op {
         // Comparison operators have a string fallback in `expr` (`$x == $x`,
-        // `$x < $x`, `$x eq $x` never raise), so they fold for any defined $x.
-        BinOp::Eq | BinOp::Le | BinOp::Ge | BinOp::StrEq => 1,
-        BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::StrNe => 0,
+        // `$x < $x`, `$x eq $x` never raise), so these fold for any defined $x.
+        // `$x < $x` / `$x > $x` are false for *every* value, NaN included (a
+        // NaN operand makes every ordered comparison false), and string
+        // identity has no NaN notion at all.
+        BinOp::Lt | BinOp::Gt | BinOp::StrNe => 0,
+        BinOp::StrEq => 1,
+        // The reflexive folds are the ones NaN breaks: `expr {NaN == NaN}` is
+        // 0, `expr {NaN <= NaN}` is 0, and `expr {NaN != NaN}` is 1 — the
+        // opposite of every answer below. So they need $x proved non-NaN
+        // (issue #1437); without the proof the expression stays as written.
+        BinOp::Eq | BinOp::Le | BinOp::Ge if node_cannot_be_nan(left, numeric) => 1,
+        BinOp::Ne if node_cannot_be_nan(left, numeric) => 0,
         // `$x - $x` / `$x ^ $x` fold to the *integer* literal 0, so `$x` must
         // be a provable integer, not merely numeric: for a double `$x`,
         // `expr {1.5 - 1.5}` is `0.0` (not `0`), and `^` is integer-only
@@ -1894,6 +1966,140 @@ mod tests {
                 "integer `$x`: {e:?} → {want:?}, got {out:?}"
             );
         }
+    }
+
+    /// Issue #1437: `!($x < 1)` → `$x >= 1` is wrong when `$x` may be NaN
+    /// (`expr {!(NaN < 1)}` is 1, `expr {NaN >= 1}` is 0), so the four ordered
+    /// comparisons invert only on operands proved NaN-free.
+    #[test]
+    fn ordered_comparison_inversion_needs_non_nan_operands() {
+        // No proof available — with no type context at all, and with a context
+        // that knows nothing about `$x`.
+        let empty = OperandTypes::default();
+        for e in ["!($x < 1)", "!($x <= 1)", "!($x > 1)", "!($x >= 1)"] {
+            let (out, changed) = instcombine_expr(e, false);
+            assert!(!changed, "untyped `$x`: {e:?} must not invert, got {out:?}");
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            assert!(
+                !changed,
+                "unproven `$x`: {e:?} must not invert, got {out:?}"
+            );
+        }
+        // A provably-integer `$x` cannot be NaN, so the inversion fires.
+        let integer = OperandTypes::integer(&["x"]);
+        for (e, want) in [
+            ("!($x < 1)", "$x >= 1"),
+            ("!($x <= 1)", "$x > 1"),
+            ("!($x > 1)", "$x <= 1"),
+            ("!($x >= 1)", "$x < 1"),
+        ] {
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer));
+            assert!(
+                changed && out.trim() == want,
+                "integer `$x`: {e:?} → {want:?}, got {out:?}"
+            );
+        }
+        // A `Double`-typed operand is numeric but may still be NaN.
+        let double = OperandTypes::numeric_only(&["x"]);
+        let (out, changed) = instcombine_expr_typed("!($x < 1)", false, Some(&double));
+        assert!(!changed, "double `$x`: must not invert, got {out:?}");
+        // A NaN *literal* is no proof either, in any spelling.
+        for e in ["!(NaN < 1)", "!(nan < 1)", "!(1 < NaN)"] {
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            assert!(!changed, "{e:?} must not invert, got {out:?}");
+        }
+        // Two ordinary numeric literals are proof enough.
+        let (out, changed) = instcombine_expr_typed("!(2 < 1)", false, Some(&empty));
+        assert!(changed && out.trim() == "2 >= 1", "got {out:?}");
+    }
+
+    /// `==`/`!=` are exact complements even for NaN, and the string / membership
+    /// operators never compare numerically — those rows keep inverting with no
+    /// type facts at all (issue #1437).
+    #[test]
+    fn equality_and_string_comparison_inversion_stays_unconditional() {
+        let empty = OperandTypes::default();
+        for (e, want) in [
+            ("!($x == $y)", "$x != $y"),
+            ("!($x != $y)", "$x == $y"),
+            ("!($x eq $y)", "$x ne $y"),
+            ("!($x ne $y)", "$x eq $y"),
+            ("!($x lt $y)", "$x ge $y"),
+            ("!($x in $y)", "$x ni $y"),
+            ("!($x ni $y)", "$x in $y"),
+        ] {
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            assert!(
+                changed && out.trim() == want,
+                "{e:?} → {want:?}, got {out:?}"
+            );
+        }
+    }
+
+    /// Issue #1437: `$x == $x` is 0 and `$x != $x` is 1 for a NaN `$x`, so the
+    /// reflexive folds need the same non-NaN proof. `$x < $x` / `$x > $x` are
+    /// false for every value including NaN, and `eq`/`ne` have no NaN notion, so
+    /// those keep folding unconditionally.
+    #[test]
+    fn reflexive_self_comparison_folds_need_non_nan() {
+        let empty = OperandTypes::default();
+        for e in ["$x == $x", "$x != $x", "$x <= $x", "$x >= $x"] {
+            let (out, changed) = instcombine_expr(e, false);
+            assert!(!changed, "untyped `$x`: {e:?} must not fold, got {out:?}");
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            assert!(!changed, "unproven `$x`: {e:?} must not fold, got {out:?}");
+        }
+        // Always-false and string-identity rows fold with no proof.
+        for (e, want) in [
+            ("$x < $x", "0"),
+            ("$x > $x", "0"),
+            ("$x eq $x", "1"),
+            ("$x ne $x", "0"),
+        ] {
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            assert!(
+                changed && out.trim() == want,
+                "{e:?} → {want:?}, got {out:?}"
+            );
+        }
+        // A provably-integer `$x` unlocks the reflexive rows.
+        let integer = OperandTypes::integer(&["x"]);
+        for (e, want) in [
+            ("$x == $x", "1"),
+            ("$x != $x", "0"),
+            ("$x <= $x", "1"),
+            ("$x >= $x", "1"),
+        ] {
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&integer));
+            assert!(
+                changed && out.trim() == want,
+                "integer `$x`: {e:?} → {want:?}, got {out:?}"
+            );
+        }
+        // A `Double` is numeric but not NaN-free.
+        let double = OperandTypes::numeric_only(&["x"]);
+        let (out, changed) = instcombine_expr_typed("$x == $x", false, Some(&double));
+        assert!(!changed, "double `$x == $x` must not fold, got {out:?}");
+    }
+
+    /// The NaN gate's proof sources, direct.
+    #[test]
+    fn node_cannot_be_nan_proof_sources() {
+        let integer = OperandTypes::integer(&["i"]);
+        let double = OperandTypes::numeric_only(&["d"]);
+        let node = |src: &str| parse_expr(src, None);
+        assert!(node_cannot_be_nan(&node("1"), Some(&integer)));
+        assert!(node_cannot_be_nan(&node("1.5"), Some(&integer)));
+        assert!(node_cannot_be_nan(&node("\"abc\""), Some(&integer)));
+        assert!(node_cannot_be_nan(&node("$i"), Some(&integer)));
+        assert!(!node_cannot_be_nan(&node("$d"), Some(&double)));
+        assert!(!node_cannot_be_nan(&node("$i"), None));
+        assert!(!node_cannot_be_nan(&node("NaN"), Some(&integer)));
+        assert!(!node_cannot_be_nan(&node("[f]"), Some(&integer)));
+        assert!(is_nan_string_in_any_release("NaN"));
+        assert!(is_nan_string_in_any_release("-nan"));
+        assert!(!is_nan_string_in_any_release("42"));
+        assert!(!is_nan_string_in_any_release("banana"));
     }
 
     #[test]

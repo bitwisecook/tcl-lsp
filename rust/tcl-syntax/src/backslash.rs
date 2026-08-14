@@ -19,7 +19,7 @@
 //! Tcl backslash-escape decoding — the canonical decoder.
 //!
 //! Re-exports [`tcl_lexer::backslash_subst`] (the one byte-exact implementation
-//! of reference Tcl 9.0's `TclParseBackslash`, shared with the LSP/compiler) as
+//! of reference Tcl's `TclParseBackslash`, shared with the LSP/compiler) as
 //! [`decode`], its extent rule [`tcl_lexer::backslash_escape_end`] as
 //! [`escape_end`] (so scanners that decode one escape at a time advance by the
 //! same widths the decoder consumes), and adds a byte-slice convenience for the
@@ -28,22 +28,43 @@
 //! a raw `0xFF` byte for `\xff`, invalid UTF-8) is retired in favour of this
 //! one (which yields `U+00FF`, matching Tcl 9 and the UTF-8-internal-rep
 //! invariant).
+//!
+//! The grammar is **release-variant** ([`EscapeSyntax`]): TIP 388 (8.6) capped
+//! `\x` at two hex digits, added `\U`, and guarded the octal third digit, so
+//! `\x4142` is `B` under 8.5 and `A42` from 8.6. Each entry point comes in two
+//! forms — a bare name pinned to Tcl 9.0, for consumers with no release in
+//! scope, and an `_in` form taking the release. Decode and extent must always
+//! use the *same* form: an escape's width and its value come from one scan.
 
 use std::borrow::Cow;
 
+pub use tcl_dialect::EscapeSyntax;
 pub use tcl_lexer::backslash_escape_end as escape_end;
+pub use tcl_lexer::backslash_escape_end_in as escape_end_in;
 pub use tcl_lexer::backslash_subst as decode;
+pub use tcl_lexer::backslash_subst_in as decode_in;
 
 /// Decode Tcl backslash escapes in a byte slice that is a valid UTF-8 Tcl string
-/// rep (the runtime invariant). Borrows when there is nothing to decode (no
-/// backslash, or — defensively — non-UTF-8 input, which cannot occur for a
-/// well-formed internal rep). Otherwise returns freshly decoded bytes.
+/// rep (the runtime invariant), under **Tcl 9.0's** grammar. Borrows when there
+/// is nothing to decode (no backslash, or — defensively — non-UTF-8 input, which
+/// cannot occur for a well-formed internal rep). Otherwise returns freshly
+/// decoded bytes.
+///
+/// A caller that knows which release it evaluates for uses [`decode_bytes_in`];
+/// the grammar is release-variant (see [`EscapeSyntax`]) and 9.0 is the
+/// documented default for consumers with no release in scope.
 #[must_use]
 pub fn decode_bytes(raw: &[u8]) -> Cow<'_, [u8]> {
+    decode_bytes_in(raw, EscapeSyntax::default())
+}
+
+/// [`decode_bytes`] under `escapes` — the release-aware form.
+#[must_use]
+pub fn decode_bytes_in(raw: &[u8], escapes: EscapeSyntax) -> Cow<'_, [u8]> {
     let Ok(s) = core::str::from_utf8(raw) else {
         return Cow::Borrowed(raw);
     };
-    match decode(s) {
+    match decode_in(s, escapes) {
         Cow::Borrowed(b) => Cow::Borrowed(b.as_bytes()),
         Cow::Owned(o) => Cow::Owned(o.into_bytes()),
     }
@@ -266,6 +287,48 @@ mod tests {
         assert_eq!(&*decode("\\xff"), "\u{FF}");
         // \u with fewer than 4 hex digits still decodes (\u41 → A).
         assert_eq!(&*decode("\\u41"), "A");
+    }
+
+    #[test]
+    fn decode_bytes_follows_the_release() {
+        // The user-visible symptom of issue #1479: a script pinned to 8.4/8.5
+        // reads `\x4142` as `B` (all trailing hex digits, low byte), 8.6+ as
+        // `A42` (TIP 388's two-digit cap). `\U` exists only from 8.6, and 8.6's
+        // stock UTF-16-internal build degrades an astral scalar to U+FFFD.
+        assert_eq!(&*decode_bytes_in(b"\\x4142", EscapeSyntax::Tcl84), b"B");
+        assert_eq!(&*decode_bytes_in(b"\\x4142", EscapeSyntax::Tcl86), b"A42");
+        assert_eq!(&*decode_bytes_in(b"\\x4142", EscapeSyntax::Tcl90), b"A42");
+        assert_eq!(
+            &*decode_bytes_in(b"\\U0001F600", EscapeSyntax::Tcl84),
+            b"U0001F600"
+        );
+        assert_eq!(
+            &*decode_bytes_in(b"\\U0001F600", EscapeSyntax::Tcl86),
+            "\u{FFFD}".as_bytes()
+        );
+        assert_eq!(
+            &*decode_bytes_in(b"\\U0001F600", EscapeSyntax::Tcl90),
+            "\u{1F600}".as_bytes()
+        );
+        // The release-blind entry point is the 9.0 one.
+        assert_eq!(
+            &*decode_bytes(b"\\x4142"),
+            &*decode_bytes_in(b"\\x4142", EscapeSyntax::Tcl90)
+        );
+    }
+
+    #[test]
+    fn escape_extent_follows_the_release() {
+        // Width and value must agree per release, or a per-escape scanner
+        // slices mid-escape.
+        assert_eq!(escape_end_in("\\x4142", 0, EscapeSyntax::Tcl84), 6);
+        assert_eq!(escape_end_in("\\x4142", 0, EscapeSyntax::Tcl90), 4);
+        assert_eq!(escape_end_in("\\U0001F600", 0, EscapeSyntax::Tcl84), 2);
+        assert_eq!(escape_end_in("\\U0001F600", 0, EscapeSyntax::Tcl90), 10);
+        assert_eq!(
+            escape_end("\\x4142", 0),
+            escape_end_in("\\x4142", 0, EscapeSyntax::Tcl90)
+        );
     }
 
     #[test]

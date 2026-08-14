@@ -638,6 +638,7 @@ pub(crate) fn lset_index_diagnostics(
     args: &[String],
     arg_tokens: &[Token],
     source: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
 ) -> Vec<Diagnostic> {
     if cmd_name != "lset" || args.len() < 3 || arg_tokens.len() < 3 {
         return Vec::new();
@@ -650,7 +651,7 @@ pub(crate) fn lset_index_diagnostics(
     let list_len = if nested {
         None
     } else {
-        infer_list_length_from_recent_set(source, &args[0], arg_tokens[0].span.start())
+        infer_list_length_from_recent_set(source, &args[0], arg_tokens[0].span.start(), registry)
     };
 
     let mut out = Vec::new();
@@ -703,196 +704,123 @@ pub(crate) fn lset_index_diagnostics(
     out
 }
 
-/// Recover the literal length of `var_name` from the most recent
-/// `set var {flat-literal}` before `before_offset`, when that assignment
-/// shares the `lset`'s (flat) scope.  A cheap line-anchored scan for
-/// `set <var> {literal}` (the pattern
-/// `(?:^|\n)\s*set\s+(\w+)\s+(\{[^{}]*\})\s*(?=\n|$|;)`), accepted only
-/// when the text *between* the `set` and the `lset` stays at brace depth
-/// zero and crosses no `proc` / `namespace eval` / `apply` / `try`
-/// boundary.  Unlike top-level segmentation this also recovers a `set`
-/// nested in the *same* `proc` body as the `lset` (both inside one brace
-/// scope, with nothing scope-introducing between them).
+/// The literal length of the list `var_name` holds when the `lset` at
+/// `before_offset` runs, or `None` when it is not statically recoverable.
+///
+/// Structural, not textual (issue #1391).  The walk segments the document,
+/// descends the braced word that *contains* the `lset` one level at a time,
+/// and takes the length from the last literal assignment to `var_name` in the
+/// innermost script the `lset` shares.  Descending resets the accumulator,
+/// which is the structural spelling of the brace-depth-zero rule the byte
+/// scan enforced: a `set` in an enclosing (or sibling) script is never
+/// trusted for a nested `lset`.
+///
+/// What that buys over the byte scan it replaces:
+///
+/// * a `set` written inside a comment or a string literal is not a command,
+///   so it no longer supplies a length (the false positive);
+/// * an intervening `proc` / `apply` / `try` / `namespace eval` *sibling* no
+///   longer blocks recovery — only actually descending into a body does — so
+///   the `set x {a b c}` … `proc p {} {…}` … `lset x 9 v` shape reports again
+///   (the false negative from the four-name marker list);
+/// * a `set` not written at a line start, or one whose literal contains a
+///   nested `{…}` sublist, now counts, because the segmenter reports words
+///   rather than a line-anchored `\{[^{}]*\}` regex.
 fn infer_list_length_from_recent_set(
     source: &str,
     var_name: &str,
     before_offset: u32,
+    registry: Option<&tcl_registry::CommandRegistry>,
 ) -> Option<i64> {
-    let before = before_offset as usize;
-    if before == 0 || before > source.len() || var_name.is_empty() {
+    if before_offset == 0 || before_offset as usize > source.len() || var_name.is_empty() {
         return None;
     }
-    let bytes = source.as_bytes();
+    let registry = registry.unwrap_or_else(|| tcl_registry::cache::registry_for_dialect("tcl8.6"));
+    let mut script: &str = source;
+    let mut base: u32 = 0;
     let mut best: Option<i64> = None;
-    let mut i = 0usize;
-    while i < before {
-        // Anchor each candidate at a line start (`(?:^|\n)`): offset 0,
-        // or immediately after a newline.
-        if i != 0 && bytes[i - 1] != b'\n' {
-            i += 1;
-            continue;
-        }
-        if let Some(m) = match_set_literal(bytes, i, before) {
-            if &source[m.var_start..m.var_end] == var_name && scope_is_flat(&source[m.end..before])
-            {
-                let inner = &source[m.inner_start..m.inner_end];
-                best = Some(
-                    i64::try_from(crate::tcl_expr_eval::split_tcl_list(inner).len())
-                        .unwrap_or(i64::MAX),
-                );
+    for _ in 0..MAX_SCOPE_DESCENT.0 {
+        best = None;
+        let mut inner: Option<(&str, u32)> = None;
+        for cmd in crate::segmenter::segment_commands_with_offset(script, base) {
+            if cmd.span.start() >= before_offset {
+                break;
             }
-            i = m.end.max(i + 1);
-            continue;
+            if cmd.span.end() >= before_offset {
+                // The `lset` lives inside this command; continue in the
+                // braced word that holds it, starting a fresh scope.
+                inner = cmd
+                    .argv
+                    .iter()
+                    .find(|tok| {
+                        tok.kind == TokenType::Str
+                            && tok.span.start() < before_offset
+                            && before_offset < tok.span.end()
+                    })
+                    .and_then(|tok| super::scope::inner_of(source, *tok));
+                break;
+            }
+            if let Some(length) = literal_list_assignment(registry, &cmd, var_name) {
+                best = Some(length);
+            }
         }
-        i += 1;
+        match inner {
+            Some((text, text_base)) => {
+                script = text;
+                base = text_base;
+            }
+            None => return best,
+        }
     }
     best
 }
 
-/// A successful `set <var> {flat-literal}` match: byte offsets of the var
-/// name, the brace-inner text, and the match end (just past the `}`).
-struct SetLiteralMatch {
-    var_start: usize,
-    var_end: usize,
-    inner_start: usize,
-    inner_end: usize,
-    end: usize,
-}
+/// Native-stack safety net for [`infer_list_length_from_recent_set`]'s
+/// descent through nested braced bodies.
+const MAX_SCOPE_DESCENT: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
-/// Try to match `\s*set\s+(\w+)\s+\{[^{}]*\}\s*(?=\n|$|;)` starting at
-/// `start` within `bytes[..end]`.  Returns the captured spans on success.
-fn match_set_literal(bytes: &[u8], start: usize, end: usize) -> Option<SetLiteralMatch> {
-    let is_ws = |c: u8| matches!(c, b' ' | b'\t' | b'\r' | b'\n' | 0x0b | 0x0c);
-    let is_word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
-    let mut p = start;
-    while p < end && is_ws(bytes[p]) {
-        p += 1;
-    }
-    if end - p < 3 || &bytes[p..p + 3] != b"set" {
+/// The literal list length `cmd` assigns to `var_name`, or `None`.
+///
+/// Registry-driven throughout: which argument is written comes from
+/// [`tcl_registry::ArgRole::VarWrite`] (so `set`, `variable`, and any
+/// spec-declared setter answer alike, and `::set` answers like `set`), and
+/// two trait guards keep the answer honest —
+/// [`tcl_registry::Traits::READS_BEFORE_WRITE`] excludes `append` / `incr` /
+/// `lappend`, whose trailing word is *not* the resulting value, and
+/// [`tcl_registry::Traits::WHOLE_ARRAY_ARG`] excludes `array set`, whose
+/// target is an array rather than a list-valued scalar.
+///
+/// The value must be a single braced word, which is what makes it a literal:
+/// the segmenter has already stripped the delimiter, so the text splits
+/// directly as a Tcl list.
+fn literal_list_assignment(
+    registry: &tcl_registry::CommandRegistry,
+    cmd: &SegmentedCommand,
+    var_name: &str,
+) -> Option<i64> {
+    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    let spec = registry.get(head)?;
+    if spec.traits.intersects(
+        tcl_registry::Traits::READS_BEFORE_WRITE.union(tcl_registry::Traits::WHOLE_ARRAY_ARG),
+    ) {
         return None;
     }
-    p += 3;
-    if p >= end || !is_ws(bytes[p]) {
+    let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+    let writes = registry.arg_indices_for_role(head, &args, tcl_registry::ArgRole::VarWrite);
+    let [name_index] = writes.as_slice() else {
+        return None;
+    };
+    if args.get(*name_index) != Some(&var_name) || args.len() != name_index + 2 {
         return None;
     }
-    while p < end && is_ws(bytes[p]) {
-        p += 1;
-    }
-    let var_start = p;
-    while p < end && is_word(bytes[p]) {
-        p += 1;
-    }
-    if p == var_start {
+    let value_index = name_index + 1;
+    if cmd.arg_tokens().get(value_index)?.kind != TokenType::Str
+        || cmd.arg_single_token().get(value_index) != Some(&true)
+    {
         return None;
     }
-    let var_end = p;
-    if p >= end || !is_ws(bytes[p]) {
-        return None;
-    }
-    while p < end && is_ws(bytes[p]) {
-        p += 1;
-    }
-    if p >= end || bytes[p] != b'{' {
-        return None;
-    }
-    let inner_start = p + 1;
-    p = inner_start;
-    while p < end && bytes[p] != b'{' && bytes[p] != b'}' {
-        p += 1;
-    }
-    if p >= end || bytes[p] != b'}' {
-        return None; // ran out, or hit a nested `{` (the `[^{}]*` class)
-    }
-    let inner_end = p;
-    let match_end = p + 1;
-    // `\s*(?=\n|$|;)` — skip non-newline horizontal whitespace; the match
-    // is valid only when it lands on a newline, a `;`, or end-of-region.
-    let mut q = match_end;
-    while q < end && matches!(bytes[q], b' ' | b'\t' | b'\r' | 0x0b | 0x0c) {
-        q += 1;
-    }
-    if !(q >= end || bytes[q] == b'\n' || bytes[q] == b';') {
-        return None;
-    }
-    Some(SetLiteralMatch {
-        var_start,
-        var_end,
-        inner_start,
-        inner_end,
-        end: match_end,
-    })
-}
-
-/// True when *between* stays at brace depth zero and introduces no
-/// `proc` / `namespace eval` / `apply` / `try` scope — i.e. a trailing
-/// `lset` shares the originating `set`'s scope.
-fn scope_is_flat(between: &str) -> bool {
-    if has_scope_marker(between) {
-        return false;
-    }
-    let b = between.as_bytes();
-    let n = b.len();
-    let mut depth: i32 = 0;
-    let mut i = 0;
-    while i < n {
-        match b[i] {
-            b'\\' if i + 1 < n => {
-                i += 2;
-                continue;
-            }
-            b'{' => depth += 1,
-            b'}' => {
-                depth -= 1;
-                if depth < 0 {
-                    return false;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    depth == 0
-}
-
-/// Whether *s* contains a `proc` / `apply` / `try` / `namespace eval`
-/// keyword at a word boundary
-/// (`\b(?:proc|namespace\s+eval|apply|try)\b`).
-fn has_scope_marker(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    let len = bytes.len();
-    let is_word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
-    let is_ws = |c: u8| matches!(c, b' ' | b'\t' | b'\r' | b'\n' | 0x0b | 0x0c);
-    let mut i = 0;
-    while i < len {
-        if (i == 0 || !is_word(bytes[i - 1])) && is_word(bytes[i]) {
-            let start = i;
-            while i < len && is_word(bytes[i]) {
-                i += 1;
-            }
-            match &text[start..i] {
-                "proc" | "apply" | "try" => return true,
-                "namespace" => {
-                    let mut j = i;
-                    while j < len && is_ws(bytes[j]) {
-                        j += 1;
-                    }
-                    if j > i {
-                        let estart = j;
-                        while j < len && is_word(bytes[j]) {
-                            j += 1;
-                        }
-                        if &text[estart..j] == "eval" {
-                            return true;
-                        }
-                    }
-                }
-                _ => {}
-            }
-            continue;
-        }
-        i += 1;
-    }
-    false
+    let value = cmd.args().get(value_index)?;
+    Some(i64::try_from(crate::tcl_expr_eval::split_tcl_list(value).len()).unwrap_or(i64::MAX))
 }
 
 /// True when a `(first, last)` index pair resolves to a provably-empty
@@ -1643,12 +1571,49 @@ mod tests {
     #[test]
     fn w231_length_not_recovered_across_scope_boundary() {
         // A `set` in a *different* proc body must not leak its length to a
-        // top-level `lset` — `scope_is_flat` rejects the proc crossing.
+        // top-level `lset` — it belongs to a script the `lset` never enters.
         assert_eq!(w231("proc other {} { set l {a b c} }\nlset l 99 X\n"), 0);
-        // An intervening unclosed brace scope likewise blocks recovery.
+        // Descending into a body starts a fresh scope, so an outer `set` is
+        // not trusted for an `lset` written inside one.
         assert_eq!(
             w231("set l {a b c}\nnamespace eval ns {\n    lset l 99 X\n}\n"),
             0
         );
+        // Nor across an `oo::define` member body, which the four-name
+        // scope-marker scan never knew about (issue #1391).
+        assert_eq!(
+            w231("set l {a b c}\noo::define C {\n    method m {} { lset l 99 X }\n}\n"),
+            0
+        );
+    }
+
+    #[test]
+    fn w231_ignores_a_set_that_is_not_a_command() {
+        // The `set` inside the quoted word is text, not an assignment, so it
+        // supplies no length and cannot shorten the real one.  The
+        // line-anchored byte scan matched it and reported index 4 as out of
+        // range for a two-element list (issue #1391).
+        let src = "set l {a b c d e f}\nputs \"\nset l {a b}\n\"\nlset l 4 X\n";
+        assert_eq!(w231(src), 0);
+    }
+
+    #[test]
+    fn w231_reports_across_a_sibling_definition() {
+        // `proc` here is a *sibling* command, not a scope the `lset` is
+        // inside, so the top-level `set`'s length still reaches it.  The
+        // `\\b(?:proc|namespace\\s+eval|apply|try)\\b` marker scan saw the
+        // word `proc` between the two and went silent (issue #1391).
+        assert_eq!(
+            w231("set l {a b c}\nproc helper {} { return 1 }\nlset l 9 X\n"),
+            1
+        );
+    }
+
+    #[test]
+    fn w231_recovers_a_length_the_line_anchored_scan_missed() {
+        // Not at a line start, and a literal carrying a nested sublist:
+        // both are ordinary words to the segmenter and neither matched
+        // `(?:^|\\n)\\s*set\\s+(\\w+)\\s+(\\{[^{}]*\\})` (issue #1391).
+        assert_eq!(w231("puts hi; set l {a {b c} d}\nlset l 9 X\n"), 1);
     }
 }

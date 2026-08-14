@@ -4222,6 +4222,7 @@ dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-lexer",
  "tcl-registry",
  "tcl-vm",
 ]
@@ -4315,6 +4316,7 @@ dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
  "tcl-vm",

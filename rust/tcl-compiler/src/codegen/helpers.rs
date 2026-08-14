@@ -120,6 +120,8 @@ pub fn tcl_hash_table_order(entries: &[(String, String)]) -> Vec<(String, String
 
 use std::collections::HashMap;
 
+use tcl_dialect::EscapeSyntax;
+
 /// Format a string as a canonical Tcl list element (`Tcl_ConvertElement`).
 ///
 /// Delegates to the shared [`tcl_syntax::list::list_element`] (now also used by
@@ -166,26 +168,60 @@ fn consume_array_index(bytes: &[u8], mut i: usize) -> usize {
     i
 }
 
+/// Flush the raw literal run `template[lit_start..end]` (if non-empty) as a
+/// [`SubstPart::Lit`], decoding it through the shared full backslash decoder
+/// [`tcl_lexer::backslash_subst_in`] — the same decoder `expressions.rs`'s
+/// no-substitution literal branch uses. That decoder is UTF-8-aware and
+/// handles every escape form (`\xNN`, `\uNNNN`, `\UNNNNNNNN`, octal `\NNN`,
+/// line continuation) under the release being compiled for, unlike the
+/// seven-letter-escape hand-roll this replaced.
+fn flush_subst_lit(
+    parts: &mut Vec<SubstPart>,
+    template: &str,
+    lit_start: usize,
+    end: usize,
+    escapes: EscapeSyntax,
+) {
+    if lit_start < end {
+        parts.push(SubstPart::Lit(
+            tcl_lexer::backslash_subst_in(&template[lit_start..end], escapes).into_owned(),
+        ));
+    }
+}
+
 /// Parse a substitution template into parts.
 ///
 /// Returns `None` if the template contains constructs we cannot
 /// inline (unbalanced brackets, bare `$` without a name, etc.).
+///
+/// Only scans for `$`/`[` substitution triggers; literal text (including any
+/// backslash escapes within it) is left raw in the source and decoded in one
+/// pass by [`flush_subst_lit`] when a literal run ends. A backslash escape is
+/// always skipped as a unit via [`tcl_lexer::backslash_escape_end_in`] before
+/// the trigger check runs, so an escaped `\$`/`\[` decodes to a literal `$`/`[`
+/// and never starts a substitution.
+///
+/// `escapes` is the target release's backslash grammar — the skip width and the
+/// decoded value must come from the same release, so both take it.
 #[must_use]
-pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
+pub fn parse_subst_template(template: &str, escapes: EscapeSyntax) -> Option<Vec<SubstPart>> {
     let bytes = template.as_bytes();
     let n = bytes.len();
     let mut parts = Vec::new();
     let mut i = 0;
-    let mut buf = String::new();
+    let mut lit_start = 0;
 
     while i < n {
         let ch = bytes[i];
 
+        if ch == b'\\' {
+            i = tcl_lexer::backslash_escape_end_in(template, i, escapes);
+            continue;
+        }
+
         if ch == b'[' {
             // Command substitution
-            if !buf.is_empty() {
-                parts.push(SubstPart::Lit(std::mem::take(&mut buf)));
-            }
+            flush_subst_lit(&mut parts, template, lit_start, i, escapes);
             let mut depth: u32 = 0;
             let start = i;
             while i < n {
@@ -204,36 +240,12 @@ pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
                 return None;
             }
             parts.push(SubstPart::Cmd(template[start..i].to_owned()));
-            continue;
-        }
-
-        if ch == b'\\' {
-            if i + 1 < n {
-                let next_ch = bytes[i + 1];
-                let replacement = match next_ch {
-                    b'a' => '\x07',
-                    b'b' => '\x08',
-                    b'f' => '\x0c',
-                    b'n' => '\n',
-                    b'r' => '\r',
-                    b't' => '\t',
-                    b'v' => '\x0b',
-                    b'\\' => '\\',
-                    _ => char::from(next_ch),
-                };
-                buf.push(replacement);
-                i += 2;
-            } else {
-                buf.push('\\');
-                i += 1;
-            }
+            lit_start = i;
             continue;
         }
 
         if ch == b'$' {
-            if !buf.is_empty() {
-                parts.push(SubstPart::Lit(std::mem::take(&mut buf)));
-            }
+            flush_subst_lit(&mut parts, template, lit_start, i, escapes);
             i += 1;
             if i >= n {
                 return None;
@@ -274,16 +286,14 @@ pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
                 i = consume_array_index(bytes, i);
                 parts.push(SubstPart::Var(template[start..i].to_owned()));
             }
+            lit_start = i;
             continue;
         }
 
-        buf.push(char::from(ch));
         i += 1;
     }
 
-    if !buf.is_empty() {
-        parts.push(SubstPart::Lit(buf));
-    }
+    flush_subst_lit(&mut parts, template, lit_start, n, escapes);
 
     if parts.is_empty() { None } else { Some(parts) }
 }
@@ -524,6 +534,13 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
                 // backslash sequences it still carries (`\"`, `\\`, `\t`, escaped
                 // `\$`/`\[`, …) must be substituted to get the folded value —
                 // otherwise `[format "x\"y"]` would freeze the literal `x\"y`.
+                //
+                // Release-blind by necessity: `try_format_fold` is also an SCCP
+                // const-folder, which has no target release in hand, so this
+                // reads under Tcl 9.0 — the documented `Unknown` posture. The
+                // release-variant forms (`\x` with three or more hex digits,
+                // `\U`, three-digit octal at or above `\40`) are the ones it
+                // therefore folds under 9.0 for every dialect (issue #1479).
                 parts.push(tcl_lexer::backslash_subst(&buf).into_owned());
             }
             b'{' => {
@@ -565,6 +582,33 @@ fn parse_format_parts(inner: &str) -> Option<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`parse_subst_template`] under the release-blind Tcl 9.0 grammar — what
+    /// these tests assert unless they name a release.
+    fn template(text: &str) -> Option<Vec<SubstPart>> {
+        parse_subst_template(text, EscapeSyntax::default())
+    }
+
+    #[test]
+    fn subst_template_literals_decode_for_the_target_release() {
+        // The compile target's escape grammar reaches the template parser, so
+        // an 8.5 build freezes `B` where a 9.0 build freezes `A42`, and the
+        // skip width used to find the next `$`/`[` trigger matches (#1479).
+        let lit = |text: &str, escapes| match parse_subst_template(text, escapes)
+            .expect("template parses")
+            .as_slice()
+        {
+            [SubstPart::Lit(s)] => s.clone(),
+            other => panic!("expected one literal part, got {other:?}"),
+        };
+        assert_eq!(lit(r"\x4142", EscapeSyntax::Tcl84), "B");
+        assert_eq!(lit(r"\x4142", EscapeSyntax::Tcl86), "A42");
+        assert_eq!(lit(r"\x4142", EscapeSyntax::Tcl90), "A42");
+        assert_eq!(lit(r"\U0001F600", EscapeSyntax::Tcl84), "U0001F600");
+        assert_eq!(lit(r"\U0001F600", EscapeSyntax::Tcl90), "\u{1F600}");
+        assert_eq!(lit(r"\400", EscapeSyntax::Tcl84), "\0");
+        assert_eq!(lit(r"\400", EscapeSyntax::Tcl90), " 0");
+    }
 
     // -- split_list_simple --
 
@@ -680,13 +724,13 @@ mod tests {
 
     #[test]
     fn subst_template_lit_only() {
-        let parts = parse_subst_template("hello").unwrap();
+        let parts = template("hello").unwrap();
         assert_eq!(parts, vec![SubstPart::Lit("hello".into())]);
     }
 
     #[test]
     fn subst_template_var() {
-        let parts = parse_subst_template("Hello, $name!").unwrap();
+        let parts = template("Hello, $name!").unwrap();
         assert_eq!(parts.len(), 3);
         assert_eq!(parts[0], SubstPart::Lit("Hello, ".into()));
         assert_eq!(parts[1], SubstPart::Var("name".into()));
@@ -695,7 +739,7 @@ mod tests {
 
     #[test]
     fn subst_template_braced_var() {
-        let parts = parse_subst_template("${foo}bar").unwrap();
+        let parts = template("${foo}bar").unwrap();
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[0], SubstPart::Var("foo".into()));
         assert_eq!(parts[1], SubstPart::Lit("bar".into()));
@@ -703,7 +747,7 @@ mod tests {
 
     #[test]
     fn subst_template_cmd() {
-        let parts = parse_subst_template("x[cmd arg]y").unwrap();
+        let parts = template("x[cmd arg]y").unwrap();
         assert_eq!(parts.len(), 3);
         assert_eq!(parts[0], SubstPart::Lit("x".into()));
         assert_eq!(parts[1], SubstPart::Cmd("[cmd arg]".into()));
@@ -712,13 +756,13 @@ mod tests {
 
     #[test]
     fn subst_template_backslash() {
-        let parts = parse_subst_template(r"a\nb").unwrap();
+        let parts = template(r"a\nb").unwrap();
         assert_eq!(parts, vec![SubstPart::Lit("a\nb".into())]);
     }
 
     #[test]
     fn subst_template_bare_dollar() {
-        assert!(parse_subst_template("$").is_none());
+        assert!(template("$").is_none());
     }
 
     #[test]
@@ -728,7 +772,7 @@ mod tests {
         // `action:`. Regression for the whole-word command-substitution inline
         // path reading `can't read "action:"` (tcl-irule-test's orchestrator).
         assert_eq!(
-            parse_subst_template("$action:"),
+            template("$action:"),
             Some(vec![
                 SubstPart::Var("action".into()),
                 SubstPart::Lit(":".into()),
@@ -741,26 +785,102 @@ mod tests {
         // `::` separators (and a `::`-run) stay part of the name, matching the
         // lexer / `Tcl_ParseVarName`.
         assert_eq!(
-            parse_subst_template("$ns::v"),
+            template("$ns::v"),
             Some(vec![SubstPart::Var("ns::v".into())])
         );
-        assert_eq!(
-            parse_subst_template("$::g"),
-            Some(vec![SubstPart::Var("::g".into())])
-        );
+        assert_eq!(template("$::g"), Some(vec![SubstPart::Var("::g".into())]));
     }
 
     #[test]
     fn subst_template_empty() {
-        assert!(parse_subst_template("").is_none());
+        assert!(template("").is_none());
     }
 
     #[test]
     fn subst_template_scalar() {
-        let parts = parse_subst_template("$={a(1)}rest").unwrap();
+        let parts = template("$={a(1)}rest").unwrap();
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[0], SubstPart::Scalar("a(1)".into()));
         assert_eq!(parts[1], SubstPart::Lit("rest".into()));
+    }
+
+    // -- parse_subst_template: full backslash decoding (issue #1441) --
+
+    #[test]
+    fn subst_template_hex_escape_then_var() {
+        // Regression for issue #1441: `\x41` was emitted as the literal text
+        // `x41` instead of decoding to `A`.
+        let parts = template(r"\x41$v").unwrap();
+        assert_eq!(
+            parts,
+            vec![SubstPart::Lit("A".into()), SubstPart::Var("v".into())]
+        );
+    }
+
+    #[test]
+    fn subst_template_hex_escape_then_array_var() {
+        // The exact issue #1441 reproducer shape: `"\x41$arr(0)"`.
+        let parts = template(r"\x41$arr(0)").unwrap();
+        assert_eq!(
+            parts,
+            vec![SubstPart::Lit("A".into()), SubstPart::Var("arr(0)".into()),]
+        );
+    }
+
+    #[test]
+    fn subst_template_octal_escape() {
+        // Regression for issue #1441: `\101` was emitted as the literal text
+        // `101` instead of decoding to `A`.
+        let parts = template(r"\101").unwrap();
+        assert_eq!(parts, vec![SubstPart::Lit("A".into())]);
+    }
+
+    #[test]
+    fn subst_template_unicode_escape() {
+        // Regression for issue #1441: `\uNNNN` fell to the `_ =>
+        // char::from(next_ch)` branch and was emitted as literal `u00e9`
+        // instead of decoding to `é`.
+        let parts = template("\\u00e9").unwrap();
+        assert_eq!(parts, vec![SubstPart::Lit("é".into())]);
+    }
+
+    #[test]
+    fn subst_template_wide_unicode_escape() {
+        let parts = template(r"\U0001F600").unwrap();
+        assert_eq!(parts, vec![SubstPart::Lit("\u{1F600}".into())]);
+    }
+
+    #[test]
+    fn subst_template_multibyte_literal_text_with_var() {
+        // Regression for issue #1441: non-escape bytes were pushed one at a
+        // time via `char::from(byte)`, mangling multi-byte UTF-8 (e.g. `é`)
+        // into separate Latin-1 code points.
+        let parts = template("café $name").unwrap();
+        assert_eq!(
+            parts,
+            vec![
+                SubstPart::Lit("café ".into()),
+                SubstPart::Var("name".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn subst_template_escaped_dollar_and_bracket_stay_literal() {
+        // `\$` and `\[` must decode to a literal `$`/`[` and must NOT be
+        // treated as a variable/command substitution trigger.
+        let parts = template(r"\$foo \[bar\]").unwrap();
+        assert_eq!(parts, vec![SubstPart::Lit("$foo [bar]".into())]);
+    }
+
+    #[test]
+    fn subst_template_escaped_dollar_before_real_var() {
+        // A real substitution after an escaped one still triggers correctly.
+        let parts = template(r"\$$name").unwrap();
+        assert_eq!(
+            parts,
+            vec![SubstPart::Lit("$".into()), SubstPart::Var("name".into())]
+        );
     }
 
     // -- regexp_to_glob --

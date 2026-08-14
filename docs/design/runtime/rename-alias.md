@@ -32,6 +32,9 @@ In:
   namespace — this lazily observes deletion of the target but does
   NOT follow ``rename`` of the target (the stored name stops
   resolving).  Matches C Tcl's semantics.
+- C's ``TclPreventAliasLoop`` gate on both alias creation and
+  ``rename``: an alias that would close a cycle is refused with
+  ``cannot define or rename alias "X": would create a loop`` (§4.6).
 
 Covered by sibling documents:
 
@@ -194,8 +197,13 @@ under their simple name, namespaced ones fully qualified.
    (each element `+1`; released as a block after the call).  There is
    no word-count ceiling — the argv is a `Vec`.
 4. `invoke` the resolved handle.  Alias-of-alias chains fall out
-   naturally: the resolved target may itself be an `Alias`, and the
-   recursion terminates when it resolves to something else.
+   naturally: the resolved target may itself be an `Alias`, so the
+   trampoline re-enters itself until a hop resolves to something that is
+   not an alias.  A *cycle* would never reach such a hop, which is why
+   the definition-time gate in §4.6 exists; `ALIAS_DISPATCH_DEPTH`
+   bounds the nesting as well, so a cycle that somehow bypassed the gate
+   raises ``too many nested alias invocations (infinite loop?)`` instead
+   of exhausting the native stack (a WASM trap).
 
 ### 4.3 Create / query / delete
 
@@ -206,7 +214,7 @@ is live too and is documented in [`child-interp.md`](child-interp.md).
 
 | Form                                           | Action                                            |
 |------------------------------------------------|---------------------------------------------------|
-| ``interp alias {} new {} target ?arg…?``       | Register `Command::Alias`; result is ``new``      |
+| ``interp alias {} new {} target ?arg…?``       | Register `Command::Alias`; result is ``new`` (refused when it would close a loop — §4.6) |
 | ``interp alias {} new``                        | Result is the ``target ?arg…?`` list; ``alias "new" not found`` if it is not an alias |
 | ``interp alias {} new {}``                     | Delete the binding; empty result                  |
 | ``interp aliases ?path?``                      | Tcl list of every alias name in the addressed interp |
@@ -252,6 +260,57 @@ Two forms are not implemented: querying a child alias
 not yet supported``), and any non-empty *target* path, which reports
 the ``only single-interp aliases`` error from §1.
 
+### 4.6 Alias loops (`TclPreventAliasLoop`)
+
+``interp alias {} a {} b`` followed by ``interp alias {} b {} a`` is a
+closed cycle: dispatching either one would trampoline for ever.  C
+refuses the alias that closes it, at *definition* time, in
+`TclPreventAliasLoop` (``tclInterp.c``); this runtime does the same, and
+so does the bytecode VM (issue #1447 — before the fix the pair installed
+happily and recursed natively until the stack ran out).
+
+The algorithm is C's, ported: **create first, walk the chain, roll back
+on a hit.**
+
+- `Interp::install_alias` binds the `Command::Alias` through
+  `Namespaces::register_at`, which reports the ``(namespace, simple
+  name)`` it bound at, then calls `Namespaces::alias_chain_loops` on
+  that binding.  Each hop resolves the alias's stored target name
+  anchored at the global namespace — exactly what dispatch does, so the
+  walk follows the chain dispatch would take.  An unresolvable target
+  ends the walk (legal: aliases late-bind), a non-alias target ends it,
+  and a hop landing back on the binding we started from is the loop.
+- On a loop the binding is removed again and the command reports
+  ``cannot define or rename alias "b": would create a loop``
+  (``-errorcode TCL OPERATION INTERP ALIASLOOP``), naming the alias by
+  its *simple* command name the way C's `Tcl_GetCommandName` does.
+  Because the alias is bound before the check, a refused definition also
+  destroys the command it displaced — ``proc x …; interp alias {} x {}
+  x`` leaves no ``x`` at all.  C does not restore it either, and that is
+  tclsh 8.6.16 / 9.0.4-pinned.
+- The walk terminates because every alias already in the table passed
+  this same gate, so no chain can hold a pre-existing cycle; a visited
+  list bounds it regardless.
+
+`rename` is gated too, since moving an alias onto a name its own target
+chain resolves back to closes the same cycle
+(``interp alias {} a {} b; rename a b``).  The chain can only close on
+the alias once the alias is visible at its *destination*, so
+`Namespaces::rename_creates_alias_loop` makes the move tentatively,
+walks, and undoes it — restoring any command the tentative move
+displaced — leaving `Interp::rename_command` to perform the real rename
+only when the answer is "no loop".  The refusal therefore happens before
+anything observable: no rename trace fires for a rename that does not
+take place, and the table is byte-for-byte unchanged (``a`` survives,
+``b`` stays free).  `RenameOutcome::AliasLoop` carries that answer up to
+the `rename` builtin, which formats the same message.
+
+Cross-interp (`ParentAlias`) bindings are not walked: a child-side alias
+targets a command in the *parent*, and this runtime has no parent-side
+alias into a child, so the alias graph cannot leave an interpreter and
+come back.  Genuine parent⇄child re-entrancy is real recursion, not a
+name cycle, and is bounded by `CROSS_INTERP_DEPTH` (§4.5).
+
 ## 5. Compiler surface
 
 The compiler has no per-command table entry for ``rename`` or
@@ -275,8 +334,12 @@ Two layers:
 
 1. **Unit tests co-located with the implementation** —
    `runtime/rust/src/cmd_alias.rs`'s own `mod tests` exercises alias create /
-   query / delete and the dispatch trampoline directly against a live
-   interpreter.
+   query / delete, the dispatch trampoline, and the alias-loop gate
+   (mutual pair, self-alias, longer cycle, rename-into-a-loop, and the
+   legitimate chains that must still work) directly against a live
+   interpreter; `interp.rs`'s `mod tests` plants a cycle straight into
+   the command table to prove the dispatch bound catches what the gate
+   cannot see.
 2. **Upstream `.test` coverage** (``rename.test``, the single-interp subset of
    ``interp.test``) runs through the tcltest harness; where it sits on the
    capability ladder is [`tcl-test-tiers.md`](tcl-test-tiers.md), and the
@@ -289,15 +352,20 @@ Two layers:
 | `rename` and the `interp` ensemble entry point | `runtime/rust/src/cmd_alias.rs` |
 | `Command` enum, `dispatch_alias`, `dispatch_parent_alias`, `rename_command` | `runtime/rust/src/interp.rs` |
 | The table operations (`Namespaces::rename` / `delete` / `register` / `resolve` / `retarget_imports` / `alias_names`) | `runtime/rust/src/namespace.rs` |
+| The alias-loop gate (`Namespaces::alias_chain_loops` / `rename_creates_alias_loop`) | `runtime/rust/src/namespace.rs` |
 | Command traces fired on rename and delete | `runtime/rust/src/cmd_trace.rs` |
 
 The bytecode VM (`rust/tcl-vm`) implements the same two commands with a
 comparable `Command` enum (`Alias(Rc<Vec<Value>>)` and a `CrossAlias`
-carrying an `InterpId`), and goes further on two points C Tcl also
-covers: it refuses a rename onto an existing name
-(``can't rename to "X": command already exists``), and it runs C's
-``TclPreventAliasLoop`` check on both alias creation and rename,
-restoring the command under its old key when the move would close an
-alias cycle.  It also re-homes a renamed proc — the `ProcDef`'s
-namespace and name follow the move, so ``namespace current`` inside the
-body reports the destination.
+carrying an `InterpId`), and runs the same ``TclPreventAliasLoop`` gate
+on alias creation and rename (§4.6), walking its alias graph across the
+whole interpreter tree by `InterpId` because its aliases really can span
+interpreters.  It still goes further on one point C Tcl also covers and
+this runtime does not: it refuses a rename onto an existing name
+(``can't rename to "X": command already exists``), where this runtime's
+`rename` overwrites the destination instead — so
+``proc b …; interp alias {} a {} b; rename a b`` is refused here by the
+alias-loop gate rather than by the destination check, with the same
+surviving table state but a different message.  The VM also re-homes a
+renamed proc — the `ProcDef`'s namespace and name follow the move, so
+``namespace current`` inside the body reports the destination.

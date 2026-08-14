@@ -32,7 +32,7 @@ use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 
-use super::{Lowerer, parse_param_names};
+use super::{Lowerer, parse_var_list_names};
 
 /// A single pattern/body pair collected by
 /// [`lower_switch`](super::Lowerer::lower_switch) before the
@@ -329,7 +329,17 @@ impl Lowerer<'_> {
         if args.len() != 4 || arg_tokens.len() < 4 {
             return Self::barrier(seg, "malformed for");
         }
-        if !(arg_single[0] && arg_single[1] && arg_single[2] && arg_single[3]) {
+        // `init`, `next`, and `body` are all lowered via `lower_body_from_tok`,
+        // which rebases the segmenter-reconstructed word text at the token's
+        // span — safe only for a substitution-free literal (`seg_word_is_static_literal`,
+        // matching `TclCompileForCmd`'s `TCL_TOKEN_SIMPLE_WORD` check). A single-token
+        // but dynamic word (`$body`, `[cmd]`) must barrier rather than be
+        // lowered as if it were the literal text (issue #1375).
+        if !arg_single[1]
+            || !super::seg_word_is_static_literal(seg, 1)
+            || !super::seg_word_is_static_literal(seg, 3)
+            || !super::seg_word_is_static_literal(seg, 4)
+        {
             return Self::barrier(seg, "for with dynamic arguments");
         }
         // A body/next that redefines break/continue must run through the runtime
@@ -380,7 +390,13 @@ impl Lowerer<'_> {
         if args.len() != 2 || arg_tokens.len() < 2 {
             return Self::barrier(seg, "malformed while");
         }
-        if !(arg_single[0] && arg_single[1]) {
+        // The body is lowered via `lower_body_from_tok`, which rebases the
+        // segmenter-reconstructed word text at the token's span — safe only
+        // for a substitution-free literal (matching `TclCompileWhileCmd`'s
+        // `TCL_TOKEN_SIMPLE_WORD` check on the body). A single-token but
+        // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
+        // as if it were the literal text (issue #1375).
+        if !arg_single[0] || !super::seg_word_is_static_literal(seg, 2) {
             return Self::barrier(seg, "while with dynamic arguments");
         }
         // See `lower_for`: a body redefining break/continue must use the runtime
@@ -421,7 +437,6 @@ impl Lowerer<'_> {
     ) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
 
         if args.len() < 3 || args.len().is_multiple_of(2) {
             return Self::barrier(seg, "malformed foreach");
@@ -429,7 +444,13 @@ impl Lowerer<'_> {
 
         let body_idx = args.len() - 1;
         let body_tok = arg_tokens.get(body_idx);
-        if body_tok.is_none() || body_idx >= arg_single.len() || !arg_single[body_idx] {
+        // The body is lowered via `lower_body_from_tok`, which rebases the
+        // segmenter-reconstructed word text at the token's span — safe only
+        // for a substitution-free literal (matching `TclCompileForeachCmd`'s
+        // `TCL_TOKEN_SIMPLE_WORD` check on the body). A single-token but
+        // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
+        // as if it were the literal text (issue #1375).
+        if body_tok.is_none() || !super::seg_word_is_static_literal(seg, body_idx + 1) {
             return Self::barrier(seg, "foreach with dynamic body");
         }
 
@@ -442,7 +463,11 @@ impl Lowerer<'_> {
         let cmd_tokens = Self::cmd_tokens(seg);
         let mut iterators = Vec::new();
         for i in (0..body_idx).step_by(2) {
-            let var_names = parse_param_names(&args[i]);
+            // A varList that is not a well-formed Tcl list binds nothing we can
+            // name; the runtime `foreach` raises Tcl's own error.
+            let Some(var_names) = parse_var_list_names(&args[i]) else {
+                return Self::barrier(seg, "foreach with malformed variable list");
+            };
             iterators.push(ForeachIterator {
                 vars: var_names,
                 list_arg: args[i + 1].clone(),
@@ -546,7 +571,6 @@ impl Lowerer<'_> {
     ) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
 
         // `foreachLine varName filename body` — exactly three args.
         if args.len() != 3 {
@@ -560,8 +584,7 @@ impl Lowerer<'_> {
         // word is still dynamic and must not be compiled as a
         // static loop body.
         let body_tok = arg_tokens.get(2);
-        let body_is_braced_literal = body_tok.is_some_and(|t| t.kind == TokenType::Str);
-        if !body_is_braced_literal || arg_single.get(2).copied() != Some(true) {
+        if !super::seg_word_is_static_braced(seg, 3) {
             return Self::barrier(seg, "foreachLine with dynamic body");
         }
 
@@ -573,8 +596,11 @@ impl Lowerer<'_> {
         // not the literal value.  See the type-level doc-comment
         // above for the runtime-semantics caveat.
         let cmd_tokens = Self::cmd_tokens(seg);
+        let Some(vars) = parse_var_list_names(&args[0]) else {
+            return Self::barrier(seg, "foreachLine with malformed variable list");
+        };
         let iterators = vec![ForeachIterator {
-            vars: parse_param_names(&args[0]),
+            vars,
             list_arg: args[1].clone(),
             list_braced: cmd_tokens.arg_is_braced_literal(1),
         }];
@@ -600,7 +626,6 @@ impl Lowerer<'_> {
     pub(super) fn lower_catch(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
 
         if args.is_empty() {
             return Self::barrier(seg, "malformed catch");
@@ -612,10 +637,7 @@ impl Lowerer<'_> {
         // `eval_catch`, which calls `eval_script` on the substituted
         // value.  Without the kind check, ``catch $cmd res`` would
         // be compiled as "call the proc named by ``$cmd``" — wrong.
-        if arg_tokens.is_empty()
-            || !arg_single.first().copied().unwrap_or(false)
-            || arg_tokens[0].kind != TokenType::Str
-        {
+        if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
             return Self::barrier(seg, "catch with dynamic body");
         }
 
@@ -653,7 +675,13 @@ impl Lowerer<'_> {
         if args.is_empty() {
             return Self::barrier(seg, "malformed try");
         }
-        if arg_tokens.is_empty() || !arg_single.first().copied().unwrap_or(false) {
+        // The body is lowered via `lower_body_from_tok`, which rebases the
+        // segmenter-reconstructed word text at the token's span — safe only
+        // for a brace-literal (`Str`) token, matching `lower_catch`'s body
+        // guard. A single-token but dynamic body (`$body`, `[cmd]`) must
+        // barrier rather than be lowered as if it were the literal text
+        // (issue #1375).
+        if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
             return Self::barrier(seg, "try with dynamic body");
         }
 
@@ -668,11 +696,20 @@ impl Lowerer<'_> {
 
             if keyword == "finally" && i + 1 < args.len() {
                 let fin_tok = arg_tokens.get(i + 1);
-                let fin_single = arg_single.get(i + 1).copied().unwrap_or(false);
-                if fin_tok.is_some() && fin_single {
-                    finally_body = Some(self.lower_body_from_tok(&args[i + 1], fin_tok, namespace));
-                    finally_span = fin_tok.map(|t| t.span);
+                // The `finally` word is a body like any other, so it needs the
+                // same static gate as the primary body above: single-token-ness
+                // alone let `try {} finally $body` through, and rebasing the
+                // reconstructed `${body}` text at the `$body` token's span put
+                // the inner statement off the end of the source (issue #1375,
+                // missed here; PR #1481 review).  C's `TclCompileTryCmd` makes
+                // the same call — a `finally` word that is not a
+                // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile`, deferring
+                // the whole `try` to the runtime command.
+                if fin_tok.is_none() || !super::seg_word_is_static_braced(seg, i + 2) {
+                    return Self::barrier(seg, "try with dynamic finally body");
                 }
+                finally_body = Some(self.lower_body_from_tok(&args[i + 1], fin_tok, namespace));
+                finally_span = fin_tok.map(|t| t.span);
                 i += 2;
                 continue;
             }
@@ -683,7 +720,9 @@ impl Lowerer<'_> {
                 let handler_tok = arg_tokens.get(i + 3);
                 let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
 
-                let var_names = parse_param_names(var_list);
+                let Some(var_names) = parse_var_list_names(var_list) else {
+                    return Self::barrier(seg, "try with malformed handler variable list");
+                };
                 let result_var = var_names.first().map(|v| normalise_var_name(v).to_owned());
                 let options_var = var_names.get(1).map(|v| normalise_var_name(v).to_owned());
 
@@ -709,6 +748,20 @@ impl Lowerer<'_> {
                     tcl_lexer::backslash_subst(&args[i + 3])
                 };
                 let is_fallthrough = handler_single && body_value == "-";
+                // Every handler body that is *not* the fallthrough marker gets
+                // the primary body's static gate: `on error {} $body` is a
+                // single VAR token, so the old unconditional walk rebased the
+                // reconstructed `${body}` text at that token and emitted a span
+                // past the end of the source (issue #1375, missed here; PR
+                // #1481 review).  C's `TclCompileTryCmd` refuses the same shape
+                // — a handler body that is not a `TCL_TOKEN_SIMPLE_WORD` is
+                // `goto failedToCompile` — so the whole `try` defers to the
+                // runtime command, exactly as the primary-body gate does.
+                if !is_fallthrough
+                    && (handler_tok.is_none() || !super::seg_word_is_static_braced(seg, i + 4))
+                {
+                    return Self::barrier(seg, "try with dynamic handler body");
+                }
                 let handler_body = if is_fallthrough {
                     crate::ir::Script::new()
                 } else {
@@ -974,16 +1027,24 @@ impl Lowerer<'_> {
     pub(super) fn lower_dict(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
         let sub = &args[0];
         let sub_args = &args[1..];
 
         match sub.as_str() {
             "for" | "map" if sub_args.len() >= 3 => {
-                let var_names = parse_param_names(&sub_args[0]);
+                let Some(var_names) = parse_var_list_names(&sub_args[0]) else {
+                    return Self::barrier(seg, &format!("dict {sub} with malformed variable list"));
+                };
                 let body_idx = 3; // index in original args
                 let body_tok = arg_tokens.get(body_idx);
-                if body_tok.is_none() || body_idx >= arg_single.len() || !arg_single[body_idx] {
+                // The body is lowered via `lower_body_from_tok`, which
+                // rebases the segmenter-reconstructed word text at the
+                // token's span — safe only for a brace-literal (`Str`)
+                // token, matching `lower_catch`'s body guard. A
+                // single-token but dynamic body (`$body`, `[cmd]`) must
+                // barrier rather than be lowered as if it were the literal
+                // text (issue #1375).
+                if body_tok.is_none() || !super::seg_word_is_static_braced(seg, body_idx + 1) {
                     return Self::barrier(seg, &format!("dict {sub} with dynamic body"));
                 }
                 let body = self.lower_body_from_tok(&sub_args[2], body_tok, namespace);
@@ -1072,6 +1133,17 @@ impl Lowerer<'_> {
     }
 
     /// Lower a body argument using token offset info.
+    ///
+    /// Rebasing the body's spans by one offset is truthful only while `text`
+    /// maps 1:1 onto the source region `tok` covers.  A compound `{body}x`
+    /// word does not: its value is the brace content welded to the trailing
+    /// fragment with the `}` dropped, so every token past the drop slides one
+    /// byte left — an off-by-one span on ASCII, an offset inside a UTF-8
+    /// sequence on anything else (issue #1325).  Clamp to the part that does
+    /// map, exactly as the analyser's `analyse_body` does, so the welded tail
+    /// — which is not a script in the first place — is dropped rather than
+    /// lowered at fictional offsets.  An ordinary braced body fills its
+    /// region and passes through untouched.
     pub(super) fn lower_body_from_tok(
         &mut self,
         text: &str,
@@ -1082,6 +1154,7 @@ impl Lowerer<'_> {
             return Script::new();
         };
         let offset = tok.span.start() + u32::from(tok.content_offset);
+        let text = self.guarded_body_text(*tok, text);
         self.lower_body(text, offset, namespace)
     }
 }
@@ -1425,6 +1498,193 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    // issue #1375: `while`/`for`/`foreach`/`try`/`dict for` gated their body
+    // word on single-token-ness alone, not the token's kind. `$body` is a
+    // single VAR token, so it passed the old gate and was lowered as if its
+    // reconstructed text (`${body}`) were the literal script — miscompiling,
+    // or (when the reconstruction lengthened the word, as `${body}` does
+    // over `$body`) panicking in codegen on an out-of-bounds span. Each must
+    // now barrier instead, mirroring `catch_dollar_var_body_falls_through_to_barrier`.
+
+    #[test]
+    fn while_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("while {1} $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "while with dynamic arguments"
+        ));
+    }
+
+    #[test]
+    fn for_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("for {} {1} {} $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "for with dynamic arguments"
+        ));
+    }
+
+    #[test]
+    fn foreach_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("foreach x $l $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "foreach with dynamic body"
+        ));
+    }
+
+    #[test]
+    fn try_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("try $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "try with dynamic body"
+        ));
+    }
+
+    // …and the `try` bodies #1375 missed (PR #1481 review): the gate landed on
+    // the primary body only, so `finally` and every non-`-` `on`/`trap`
+    // handler still walked a `$body` word and rebased its reconstructed text
+    // off the end of the source. tclsh 8.6.16 / 9.0.4 run both spellings fine
+    // (`set body {puts hi}; try {} finally $body` prints `hi`), so the
+    // degraded path must be a barrier — the runtime `try` — not a panic.
+    // C's `TclCompileTryCmd` bails on the same words for the same reason.
+
+    #[test]
+    fn try_dollar_var_finally_body_falls_through_to_barrier() {
+        let m = lower_to_ir("try {} finally $body", &reg());
+        assert!(
+            matches!(
+                &m.top_level.statements[0],
+                Statement::Barrier { reason, .. } if reason == "try with dynamic finally body"
+            ),
+            "got {:?}",
+            m.top_level.statements[0],
+        );
+    }
+
+    #[test]
+    fn try_dollar_var_handler_body_falls_through_to_barrier() {
+        for src in [
+            "try {error x} on error {} $body",
+            "try {error x} trap NONE {} $body",
+            "try {error x} on error {} [subst $body]",
+            "try {error x} on error {} $body finally {puts bye}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(
+                    &m.top_level.statements[0],
+                    Statement::Barrier { reason, .. } if reason == "try with dynamic handler body"
+                ),
+                "expected a dynamic-handler-body barrier for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
+    }
+
+    #[test]
+    fn try_static_finally_and_handler_bodies_still_lower() {
+        // FP-guard: the gate narrows the walk, it does not switch it off.
+        for src in [
+            "try {error x} finally {puts bye}",
+            "try {error x} on error {} {puts bad}",
+            "try {error x} trap NONE {m o} {puts $m} finally {puts bye}",
+            // The `-` fallthrough marker is not a body and keeps its own path.
+            "try {set x 1} on ok a - trap NONE b {return $b}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Try { .. }),
+                "expected a structured Try for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
+    }
+
+    #[test]
+    fn dict_for_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("dict for {k v} $d $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "dict for with dynamic body"
+        ));
+    }
+
+    // issue #1431: a varList word is a Tcl list, not a whitespace split. The
+    // hand-rolled splitter took only the first word of a braced element and cut
+    // a backslash-escaped space in two, so both spellings of a one-variable
+    // binding bound the wrong names.
+
+    /// Loop-variable names of the single-iterator `foreach` at statement 0.
+    fn foreach_vars(src: &str) -> Vec<String> {
+        let m = lower_to_ir(src, &reg());
+        let Statement::Foreach { iterators, .. } = &m.top_level.statements[0] else {
+            panic!("expected Foreach for {src:?}, got {:?}", m.top_level);
+        };
+        assert_eq!(iterators.len(), 1, "one iterator for {src:?}");
+        iterators[0].vars.clone()
+    }
+
+    #[test]
+    fn foreach_grouped_var_element_binds_one_name() {
+        // tclsh 9.0: `proc s {} { foreach {{x y}} {1} {}; info locals }`
+        // reports the single local named `x y`.
+        assert_eq!(foreach_vars("foreach {{x y}} {1} {puts hi}"), vec!["x y"]);
+    }
+
+    #[test]
+    fn foreach_escaped_space_var_binds_one_name() {
+        // Same oracle for the escaped spelling: `foreach {a\ b} {1} {}` binds
+        // the one local `a b`, not the two names `a\` and `b`.
+        assert_eq!(foreach_vars("foreach {a\\ b} {1} {puts hi}"), vec!["a b"]);
+    }
+
+    #[test]
+    fn foreach_plain_var_list_still_binds_every_name() {
+        // FP-guard: the ordinary multi-variable list is unchanged.
+        assert_eq!(
+            foreach_vars("foreach {m n} {1 2} {puts hi}"),
+            vec!["m", "n"]
+        );
+        assert_eq!(foreach_vars("foreach x {1 2} {puts hi}"), vec!["x"]);
+    }
+
+    #[test]
+    fn dict_for_grouped_var_element_binds_one_name() {
+        assert_eq!(
+            foreach_vars("dict for {{k 1} v} $d {puts hi}"),
+            vec!["k 1", "v"],
+        );
+    }
+
+    #[test]
+    fn malformed_var_list_falls_through_to_barrier() {
+        // An unbalanced varList names no binding, so each loop defers to its
+        // runtime command, which raises Tcl's own list error.
+        for (src, expected) in [
+            (
+                "foreach {a \"b} {1} {puts hi}",
+                "foreach with malformed variable list",
+            ),
+            (
+                "dict for {k \"v} $d {puts hi}",
+                "dict for with malformed variable list",
+            ),
+            (
+                "try {puts hi} on error {m \"o} {puts bad}",
+                "try with malformed handler variable list",
+            ),
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if reason == expected),
+                "expected {expected:?} barrier for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
     }
 }
 

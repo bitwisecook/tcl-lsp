@@ -240,10 +240,15 @@ fn extract_event_summary(event: &str, fu: &FunctionUnit) -> EventVarSummary {
 
     for block in fu.ssa.blocks.values() {
         for stmt in &block.statements {
-            let is_unset = matches!(
-                &stmt.statement,
-                Statement::Call { command, .. } if command == "unset"
-            );
+            // Accept both the source surface and the resolved canonical
+            // name: lowering stamps `::unset` on a resolved call, and a
+            // surface-only test silently misses every `::unset` spelling.
+            let is_unset = match &stmt.statement {
+                Statement::Call { command, .. } => {
+                    command == "unset" || stmt.statement.canonical_command_or_source() == "::unset"
+                }
+                _ => false,
+            };
 
             for &sym in stmt.defs.keys() {
                 let name = fu.ssa.var_name(sym);
@@ -415,6 +420,29 @@ mod tests {
         let cu = cu(source);
         let cs = build_connection_scope(&when_procs(&cu));
         assert!(!cs.racy_static_defs.contains("static::config"));
+    }
+
+    #[test]
+    fn build_connection_scope_reads_unset_through_its_canonical_name() {
+        // Lowering stamps the resolved `::unset` on the statement, so a
+        // surface-only `command == "unset"` test misses the globally
+        // qualified spelling and mistakes the unset for a live def.
+        let unsets_for = |source: &str| {
+            let cu = cu(source);
+            build_connection_scope(&when_procs(&cu))
+                .summaries
+                .get("HTTP_REQUEST")
+                .expect("HTTP_REQUEST summary")
+                .unsets
+                .clone()
+        };
+        let bare = unsets_for("when HTTP_REQUEST { set static::c 1\nunset static::c }");
+        let qualified = unsets_for("when HTTP_REQUEST { set static::c 1\n::unset static::c }");
+        assert!(
+            bare.contains("static::c"),
+            "bare spelling records the unset"
+        );
+        assert_eq!(bare, qualified, "both spellings are the same command");
     }
 
     #[test]

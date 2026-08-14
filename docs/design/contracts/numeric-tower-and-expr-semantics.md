@@ -314,6 +314,17 @@ with the identical shape: strip two characters, call `from_str_radix`.
   for an 8.6 target and 756 for a 9.0 one.
 * Route `mathfunc` calls through the command table so user overrides win,
   even in compiled `expr`.
+* Emit an operator only when the **target release's `expr` grammar has it**.
+  The opcode tables are total — every `BinOp` maps to an instruction — so
+  nothing stops a compile for 8.4 from emitting `expon` or `strLt` and the
+  emulating VM from executing it, while the same source reaching the
+  interpreted `exprStk` path is rejected by
+  `RuntimeExprSurface::validate`. Codegen asks the same registry surface
+  before specialising and, when the answer is no, refuses to specialise:
+  the whole expression falls back to `exprStk` and the engines' one gate
+  produces C Tcl's own diagnostic. Constant folding is downstream of that
+  check, or `expr {2 ** 3}` folds to `8` for an 8.4 target that cannot parse
+  `**` (issue #1435).
 
 ## See also
 

@@ -26,7 +26,6 @@
 //! codegen-hook resolution. The compiler still owns the per-variant
 //! emitter; the registry decides which variant applies.
 
-use tcl_dialect::DialectSet;
 use tcl_registry::hooks::CodegenHookId;
 
 use super::super::CodegenCtx;
@@ -50,9 +49,13 @@ pub fn try_bytecoded(
     used_generic_invoke: &mut bool,
 ) -> bool {
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let Some(resolved) = ctx
-        .registry
-        .resolve_call(cmd, &arg_refs, DialectSet::empty())
+    // The registry's own availability mask (issues #1462/#1463): a
+    // profile-built registry suppresses the specialised emission of a
+    // command its release does not have, keeping it on the generic invoke
+    // where the runtime's availability gate can reject it.
+    let Some(resolved) =
+        ctx.registry
+            .resolve_call(cmd, &arg_refs, ctx.registry.own_availability_mask())
     else {
         return false;
     };

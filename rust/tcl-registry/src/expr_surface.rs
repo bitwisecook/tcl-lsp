@@ -108,7 +108,20 @@ impl RuntimeExprSurface {
     /// Get the registry-backed `expr` surface for `version`.
     #[must_use]
     pub fn for_tcl_version(version: TclVersion) -> Self {
-        let profile = DialectProfile::by_name(version.dialect_profile_name());
+        Self::for_profile(DialectProfile::by_name(version.dialect_profile_name()))
+    }
+
+    /// Get the registry-backed `expr` surface for `profile`.
+    ///
+    /// The profile-keyed entry point. A consumer that already holds the
+    /// compilation's [`DialectProfile`] — the compiler's codegen, whose
+    /// target dialect is a whole-module fact — must not round-trip it
+    /// through a [`TclVersion`]: that step maps every dialect onto its
+    /// plain-Tcl release profile and so drops the dialect-identity half of
+    /// [`Self::supports_operator`]'s gate, hiding the iRules word operators
+    /// from an iRules compile.
+    #[must_use]
+    pub fn for_profile(profile: &'static DialectProfile) -> Self {
         Self {
             profile,
             registry: registry_for_profile(profile),

@@ -30,7 +30,7 @@
 //! axis.
 
 use crate::dialect_set::DialectSet;
-use crate::grammar::{BracedVarStyle, ExprCommentStyle, LexerGrammar, NumberSyntax};
+use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar, NumberSyntax};
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 use crate::version::{StringCharacterModel, TclVersion, Ternary};
 
@@ -79,18 +79,28 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl84,
+    escapes: EscapeSyntax::Tcl84,
 };
 
-/// The 8.5/8.6-family lexing grammar (plain 8.5/8.6, iApps, tmsh, Expect,
-/// the EDA shells): `{*}` expansion, the 8.x first-close `${…}` rule, no
-/// `expr` comments (TIP 582 is 9.0).
-const GRAMMAR_TCL8X: LexerGrammar = LexerGrammar {
+/// The Tcl 8.5 lexing grammar (plain 8.5, iApps, tmsh, the 8.5-based EDA
+/// shells): `{*}` expansion, the 8.x first-close `${…}` rule, no `expr`
+/// comments (TIP 582 is 9.0), and 8.4's pre-TIP-388 escape grammar.
+const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl85,
+    escapes: EscapeSyntax::Tcl84,
+};
+
+/// The Tcl 8.6 lexing grammar (plain 8.6, Expect, the 8.6-based EDA shells):
+/// 8.5's, except that TIP 388 caps `\x` at two digits and adds `\U` — the one
+/// axis on which 8.5 and 8.6 differ.
+const GRAMMAR_TCL86: LexerGrammar = LexerGrammar {
+    escapes: EscapeSyntax::Tcl86,
+    ..GRAMMAR_TCL85
 };
 
 /// The modern 9.x grammar (also the permissive default): `{*}` expansion,
@@ -102,6 +112,7 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     script_skips_leading_bom: true,
     expr_comments: ExprCommentStyle::Hash,
     numbers: NumberSyntax::Tcl90,
+    escapes: EscapeSyntax::Tcl90,
 };
 
 /// The iRules lexing grammar: a Tcl 8.4 base (no `{*}`, no `expr` comments)
@@ -113,6 +124,7 @@ const GRAMMAR_IRULES: LexerGrammar = LexerGrammar {
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl84,
+    escapes: EscapeSyntax::Tcl84,
 };
 
 /// One resolved dialect. `'static`, interned in [`DialectProfile::all`],
@@ -257,6 +269,20 @@ pub struct DialectProfile {
     pub help_terms: &'static [&'static str],
 }
 
+/// Profile equality **is** pointer identity, as the type's contract states:
+/// every profile a consumer holds came from the interned catalog (or the
+/// [`DialectProfile::plain_tcl`] sink), so two handles name the same dialect
+/// exactly when they are the same allocation. Spelling it as a trait impl
+/// lets a config type that carries a resolved profile keep deriving
+/// `PartialEq`.
+impl PartialEq for DialectProfile {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl Eq for DialectProfile {}
+
 /// The catalog: one profile per canonical dialect, in
 /// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
 ///
@@ -360,7 +386,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_6),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL86,
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
@@ -418,7 +444,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_5),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL85,
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: true,
@@ -482,7 +508,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_5),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL85,
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: false,
@@ -506,7 +532,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_5),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL85,
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: false,
@@ -570,7 +596,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_6),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL86,
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
@@ -638,7 +664,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_6),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL86,
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
@@ -728,7 +754,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_5),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL85,
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: false,
@@ -752,7 +778,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_6),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_6),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL86,
         operators_as_commands: true,
         tcloo: true,
         has_fixed_ensembles: false,
@@ -822,7 +848,7 @@ static CATALOG: [DialectProfile; 17] = [
         runtime_base: Some(TclVersion::V8_5),
         leading_zero_is_octal: Ternary::Yes,
         expr_grammar_base: Some(TclVersion::V8_5),
-        grammar: GRAMMAR_TCL8X,
+        grammar: GRAMMAR_TCL85,
         operators_as_commands: true,
         tcloo: false,
         has_fixed_ensembles: false,
@@ -1061,7 +1087,7 @@ impl DialectProfile {
 mod tests {
     use super::DialectProfile;
     use crate::dialect_set::{DialectSet, KNOWN_DIALECTS};
-    use crate::grammar::{BracedVarStyle, ExprCommentStyle, NumberSyntax};
+    use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
     use crate::version::{TclVersion, Ternary};
 
@@ -1625,7 +1651,42 @@ mod tests {
                 _ => NumberSyntax::Tcl90,
             };
             assert_eq!(p.grammar.numbers, expected_numbers, "{}", p.name);
+            // Backslash-escape grammar: TIP 388 (8.6) capped `\x` at two hex
+            // digits, added `\U`, and guarded the octal third digit, so 8.4 and
+            // 8.5 share one rule and 8.6 starts another. 9.0 keeps 8.6's
+            // widths and raises `TCL_UTF_MAX` to 4, so a decoded scalar past
+            // U+FFFF stops degrading to U+FFFD.
+            let expected_escapes = match p.runtime_base {
+                Some(TclVersion::V8_4 | TclVersion::V8_5) => EscapeSyntax::Tcl84,
+                Some(TclVersion::V8_6) => EscapeSyntax::Tcl86,
+                _ => EscapeSyntax::Tcl90,
+            };
+            assert_eq!(p.grammar.escapes, expected_escapes, "{}", p.name);
         }
+    }
+
+    #[test]
+    fn escape_grammar_splits_85_from_86() {
+        // The one axis on which 8.5 and 8.6 differ — they share a numeral
+        // grammar, a `${…}` rule, and an `expr` grammar, so a single shared
+        // 8.x `LexerGrammar` constant would silently give 8.5 TIP 388's rules.
+        assert_eq!(
+            DialectProfile::by_name("tcl8.5").grammar.escapes,
+            EscapeSyntax::Tcl84
+        );
+        assert_eq!(
+            DialectProfile::by_name("tcl8.6").grammar.escapes,
+            EscapeSyntax::Tcl86
+        );
+        assert_eq!(
+            DialectProfile::by_name("tcl8.5").grammar.numbers,
+            DialectProfile::by_name("tcl8.6").grammar.numbers
+        );
+        // iRules is a genuine embedded 8.4.6, so it takes the 8.4 escapes.
+        assert_eq!(
+            DialectProfile::by_name("f5-irules").grammar.escapes,
+            EscapeSyntax::Tcl84
+        );
     }
 
     #[test]

@@ -440,6 +440,24 @@ impl BinOp {
     ///
     /// Used by refactors like "invert comparison" so they emit `$x >= $y`
     /// rather than `!($x < $y)`.
+    ///
+    /// # NaN precondition
+    ///
+    /// For the four **ordered numeric** comparisons (`<`, `<=`, `>`, `>=`)
+    /// the identity `!(a OP b) == (a INV b)` holds only when neither operand
+    /// can be the IEEE NaN. Tcl inherits C's rule (`tclExecute.c`: "NaN arg:
+    /// NaN != to everything, other compares are false"), which
+    /// [`crate::expr::eval`] models: with a NaN operand `!=` is true and every
+    /// other comparison is false. So `expr {!(NaN < 1)}` is `1` while
+    /// `expr {NaN >= 1}` is `0` — a rewriter that cannot prove both operands
+    /// non-NaN must leave those four alone.
+    ///
+    /// Every other row is unconditional: `==`/`!=` are exact complements even
+    /// under the NaN rule (`!=` is defined as the negation of `==`), and the
+    /// string comparisons (`eq`/`ne`/`lt`/`le`/`gt`/`ge`) and membership tests
+    /// (`in`/`ni`) never compare numerically, so no NaN rule reaches them.
+    /// [`Self::inverse_needs_non_nan`] is the machine-readable form of this
+    /// paragraph — consumers gate on it rather than re-deriving the split.
     #[must_use]
     pub const fn inverse(self) -> Option<Self> {
         match self {
@@ -459,6 +477,19 @@ impl BinOp {
             Self::Ni => Some(Self::In),
             _ => None,
         }
+    }
+
+    /// Whether [`Self::inverse`]'s identity for this operator is conditional on
+    /// both operands being provably non-NaN.
+    ///
+    /// True for exactly the four ordered numeric comparisons `<`, `<=`, `>`,
+    /// `>=` — see [`Self::inverse`] for the rule. A consumer that cannot
+    /// establish NaN-freedom (a source-text rewriter, an optimiser with no type
+    /// facts for the operands) must decline the inversion for these, and may
+    /// apply it unconditionally to every other operator the table covers.
+    #[must_use]
+    pub const fn inverse_needs_non_nan(self) -> bool {
+        matches!(self, Self::Lt | Self::Le | Self::Gt | Self::Ge)
     }
 }
 
@@ -795,6 +826,55 @@ mod tests {
                 "{op:?}.inverse().inverse() != {op:?}"
             );
             assert_ne!(inv, op);
+        }
+    }
+
+    /// The NaN split of [`BinOp::inverse`]: only the four ordered numeric
+    /// comparisons carry the precondition, and the rows that do not are pinned
+    /// to their exact inverses so a future edit cannot quietly widen either set.
+    #[test]
+    fn inverse_needs_non_nan_only_for_ordered_numeric_comparisons() {
+        for op in [BinOp::Lt, BinOp::Le, BinOp::Gt, BinOp::Ge] {
+            assert!(
+                op.inverse_needs_non_nan(),
+                "{op:?} inverts only under a non-NaN precondition"
+            );
+        }
+        // `==`/`!=` are exact complements even with a NaN operand; the string
+        // and membership operators have no NaN rule at all. Their table rows
+        // are unconditional, and are pinned here.
+        let unconditional = [
+            (BinOp::Eq, BinOp::Ne),
+            (BinOp::Ne, BinOp::Eq),
+            (BinOp::StrEq, BinOp::StrNe),
+            (BinOp::StrNe, BinOp::StrEq),
+            (BinOp::StrLt, BinOp::StrGe),
+            (BinOp::StrLe, BinOp::StrGt),
+            (BinOp::StrGt, BinOp::StrLe),
+            (BinOp::StrGe, BinOp::StrLt),
+            (BinOp::In, BinOp::Ni),
+            (BinOp::Ni, BinOp::In),
+        ];
+        for (op, inv) in unconditional {
+            assert!(
+                !op.inverse_needs_non_nan(),
+                "{op:?} has no NaN rule, so its inverse is unconditional"
+            );
+            assert_eq!(op.inverse(), Some(inv), "{op:?} inverse table drifted");
+        }
+    }
+
+    /// An operator with no inverse never claims a NaN precondition — the flag
+    /// is meaningless without a table row to guard.
+    #[test]
+    fn ops_without_an_inverse_claim_no_nan_precondition() {
+        for op in ALL_BIN_OPS {
+            if op.inverse().is_none() {
+                assert!(
+                    !op.inverse_needs_non_nan(),
+                    "{op:?} has no inverse but claims a NaN precondition"
+                );
+            }
         }
     }
 

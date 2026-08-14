@@ -194,3 +194,257 @@ fn body_text_in_region_leaves_a_position_preserving_overlay_alone() {
     let src = "if {1} {puts hi}\n";
     assert_eq!(body_text_in_region(src, 8, 15, "puts hi"), "puts hi");
 }
+
+// The lowering side of the same guard (issue #1393).
+//
+// IR spans are the contract every downstream consumer trusts — codegen slices
+// the source with them, the LSP turns them into editor ranges — so the
+// lowerer has to be as truthful a span producer as the analyser.  It rebases a
+// body word's tokens by one offset in the same places and for the same
+// reasons, and until #1393 it did so with no guard at all: the shapes that
+// still reach a body rebase past #1375's literal gates (`namespace eval`,
+// `eval`, `uplevel`, `apply`, `when`) slid every token of a compound `{body}x`
+// word one byte left, exactly as `analyse_body` used to.
+
+/// Every statement span the lowering emits for `src`, checked against `src`.
+///
+/// `str::get` is the whole assertion: it returns `None` both for a span that
+/// runs past the end and for one that lands inside a UTF-8 sequence — the two
+/// failure modes of an unguarded rebase.  The lowering's own
+/// `debug_assert_spans_in_source` fires first on a test build; this catches
+/// the same fault from the outside, and names the statement when it does.
+fn assert_lowered_spans_are_sliceable(src: &str, dialect: &str) {
+    use tcl_compiler::ir::for_each_statement;
+
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let module = tcl_compiler::lowering::lower_to_ir_with_config(
+        src,
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
+    let check = |label: &str, script: &tcl_compiler::ir::Script| {
+        for_each_statement(script, &mut |stmt| {
+            let span = stmt.span();
+            assert!(
+                src.get(span.as_range()).is_some(),
+                "{label}: {}..{} is not a sliceable range of {src:?}",
+                span.start(),
+                span.end(),
+            );
+        });
+    };
+    check("top level", &module.top_level);
+    for (name, procedure) in &module.procedures {
+        check(name, &procedure.body);
+    }
+    for (name, unit) in &module.body_units {
+        check(name, &unit.body);
+    }
+}
+
+/// The shapes that still reach a body rebase after #1375's literal gates, each
+/// with a compound body word — the `{body}x` weld that slides the rebase.
+fn compound_body_shapes(tail: &str) -> Vec<(String, &'static str)> {
+    vec![
+        (format!("namespace eval n {{set x 1}}{tail}\n"), "tcl8.6"),
+        (
+            format!("namespace eval n {{ proc p {{}} {{set x 1}} }}{tail}\n"),
+            "tcl8.6",
+        ),
+        (format!("eval {{set x 1}}{tail}\n"), "tcl8.6"),
+        (format!("uplevel 1 {{set x 1}}{tail}\n"), "tcl8.6"),
+        (format!("uplevel #0 {{set x 1}}{tail}\n"), "tcl8.6"),
+        (format!("apply {{{{}} {{set x 1}}}}{tail}\n"), "tcl8.6"),
+        (format!("apply {{{{}} {{set x 1}}{tail}}}\n"), "tcl8.6"),
+        (
+            format!("when HTTP_REQUEST {{set x 1}}{tail}\n"),
+            "f5-irules",
+        ),
+        // …and the gated forms, which must stay in bounds however they are
+        // resolved (barrier or lowered body).
+        (format!("if {{1}} {{puts hi}}{tail}\n"), "tcl8.6"),
+        (format!("while {{1}} {{puts hi}}{tail}\n"), "tcl8.6"),
+        (format!("foreach i {{a b}} {{puts $i}}{tail}\n"), "tcl8.4"),
+        (format!("proc p {{}} {{set x 1}}{tail}\n"), "tcl8.6"),
+        (format!("catch {{set x 1}}{tail} msg\n"), "tcl8.6"),
+        (format!("switch $x {{ a {{puts hi}}{tail} }}\n"), "tcl8.6"),
+        (
+            format!("oo::class create C {{ method m {{}} {{set x 1}}{tail} }}\n"),
+            "tcl8.6",
+        ),
+    ]
+}
+
+#[test]
+fn lowered_spans_survive_a_compound_body_word() {
+    // The ASCII weld is the quiet half of #1325: every span past the dropped
+    // `}` is one byte out, which `str::get` cannot see. It is here so the
+    // matrix covers both halves; the multi-byte tails below are what turn the
+    // same slide into an unsliceable span.
+    for tail in ["x", "\u{200b}", "é", "→", "🎈"] {
+        for (src, dialect) in compound_body_shapes(tail) {
+            assert_lowered_spans_are_sliceable(&src, dialect);
+        }
+    }
+}
+
+#[test]
+fn lowered_spans_survive_the_zero_width_irule() {
+    // The corpus shape from #1325, lowered rather than analysed.
+    assert_lowered_spans_are_sliceable(NESTED, "f5-irules");
+    assert_lowered_spans_are_sliceable(MINIMAL, "tcl8.6");
+}
+
+#[test]
+fn a_compound_body_lowers_at_the_offsets_it_is_written_at() {
+    // The sliceability audit above catches the mid-character half of the bug.
+    // This is the quiet half: with the welded `}` dropped and no clamp, the
+    // inner `set x 1` used to lower one byte wide (`set x 1}`) on ASCII and
+    // one byte left of its written position on anything wider.
+    for (src, body_unit) in [
+        ("namespace eval n {set x 1}x\n", true),
+        ("namespace eval n {set x 1}\u{200b}\n", true),
+        ("apply {{} {set x 1}}x\n", true),
+        ("uplevel 1 {set x 1}x\n", false),
+        ("eval {set x 1}x\n", false),
+    ] {
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        let scripts: Vec<&tcl_compiler::ir::Script> = if body_unit {
+            module.body_units.values().map(|unit| &unit.body).collect()
+        } else {
+            vec![&module.top_level]
+        };
+        let mut inner = Vec::new();
+        for script in scripts {
+            tcl_compiler::ir::for_each_statement(script, &mut |stmt| {
+                if let Some(text) = src.get(stmt.span().as_range())
+                    && text.starts_with("set")
+                {
+                    inner.push(text.to_owned());
+                }
+            });
+        }
+        assert_eq!(
+            inner,
+            vec!["set x 1".to_owned()],
+            "the welded tail must be dropped, not lowered, in {src:?}",
+        );
+    }
+}
+
+/// The other half of #1375's literal gate: a body word that *substitutes*.
+///
+/// Its value is run-time data that appears nowhere in the document, so its
+/// written spelling is not a script sitting at those offsets.  `namespace eval`
+/// walked one anyway and rebased the whole `[list $o fw]` text past the opening
+/// `[`, putting the inner statement one byte off the end of the source — the
+/// shape `tcl-vm`'s `forward_target_resolves_in_object_namespace_not_caller`
+/// tripped `debug_assert_spans_in_source` on.
+#[test]
+fn a_substituted_body_word_is_not_lowered_at_its_written_offsets() {
+    for src in [
+        "namespace eval ::ns [list $o fw]",
+        "namespace eval ::ns [list $o fw]\n",
+        "namespace eval ::ns $body",
+        "namespace eval ::ns $body\n",
+        "set o x\nnamespace eval ::ns [list $o fw]",
+        "namespace eval ::ns [list $o fw]\u{200b}",
+    ] {
+        assert_lowered_spans_are_sliceable(src, "tcl8.6");
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        assert!(
+            module.body_units.is_empty(),
+            "a run-time body must register no body unit; {src:?} produced {:?}",
+            module.body_units.keys().collect::<Vec<_>>(),
+        );
+    }
+}
+
+/// `try`'s *other* bodies — the ones #1375's gate missed (PR #1481 review).
+///
+/// The gate landed on the primary body alone.  `finally` only required its
+/// word to be a single token, and every non-`-` `on` / `trap` handler body was
+/// walked unconditionally, so both still rebased a substituted word's
+/// reconstructed text at the token's span and emitted a statement off the end
+/// of the source — `[36,42]` in a 40-byte file for the `finally` spelling,
+/// `[47,53]` in a 51-byte one for the handler spelling.
+///
+/// Both scripts are perfectly good Tcl: tclsh 8.6.16 and 9.0.4 print `hi` and
+/// exit 0 for each.  So the compiler must degrade, not die — it defers the
+/// whole `try` to the runtime command, which is the call C's
+/// `TclCompileTryCmd` makes for the same words (`goto failedToCompile` on any
+/// handler / `finally` body that is not a `TCL_TOKEN_SIMPLE_WORD`).
+#[test]
+fn a_substituted_try_finally_or_handler_body_is_not_lowered_at_its_written_offsets() {
+    for src in [
+        // The two reproducers from the review, byte-for-byte.
+        "set body {puts hi}; try {} finally $body",
+        "set body {puts hi}; try {error x} on error {} $body",
+        // …and the shapes around them: `trap`, a command substitution, a
+        // dynamic handler in front of a static `finally`, and the multi-byte
+        // tail that turns a slide into an unsliceable span.
+        "set body {puts hi}; try {error x} trap NONE {} $body",
+        "set body {puts hi}; try {error x} on error {} [subst $body]",
+        "set body {puts hi}; try {error x} on error {} $body finally {puts bye}",
+        "set body {puts hi}; try {} finally $body\n",
+        "set body {puts hi}; try {} finally $body\u{200b}",
+    ] {
+        assert_lowered_spans_are_sliceable(src, "tcl8.6");
+
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        let mut structured_try = false;
+        tcl_compiler::ir::for_each_statement(&module.top_level, &mut |stmt| {
+            structured_try |= matches!(stmt, tcl_compiler::ir::Statement::Try { .. });
+        });
+        assert!(
+            !structured_try,
+            "a run-time `try` body must not lower to a structured Try; {src:?} did",
+        );
+    }
+}
+
+/// The static spellings keep lowering — the gate narrows the walk, it does not
+/// switch it off.
+#[test]
+fn a_literal_try_finally_or_handler_body_still_lowers() {
+    for src in [
+        "set body {puts hi}; try {} finally {puts hi}",
+        "set body {puts hi}; try {error x} on error {} {puts hi}",
+        "try {error x} trap NONE {m o} {puts $m} finally {puts bye}",
+    ] {
+        assert_lowered_spans_are_sliceable(src, "tcl8.6");
+
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        let mut structured_try = false;
+        tcl_compiler::ir::for_each_statement(&module.top_level, &mut |stmt| {
+            structured_try |= matches!(stmt, tcl_compiler::ir::Statement::Try { .. });
+        });
+        assert!(
+            structured_try,
+            "a literal `try` must still lower to a structured Try; {src:?} did not",
+        );
+    }
+}
+
+/// The literal bodies must keep their body unit — the gate above narrows the
+/// walk, it does not switch it off.
+#[test]
+fn a_literal_namespace_eval_body_still_registers_its_unit() {
+    for src in [
+        "namespace eval ::ns {set x 1}",
+        "namespace eval ::ns {set x 1}\n",
+    ] {
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        assert_eq!(
+            module.body_units.len(),
+            1,
+            "expected one body unit for {src:?}, got {:?}",
+            module.body_units.keys().collect::<Vec<_>>(),
+        );
+    }
+}

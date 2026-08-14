@@ -32,7 +32,7 @@
 //! alias resolution.
 
 use tcl_core_types::DiagCode;
-use tcl_lexer::{SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Span, Token, TokenType};
 use tcl_syntax::list::find_element;
 
 use crate::alias::{detect_interp_alias, resolve_alias};
@@ -2226,7 +2226,11 @@ impl Analyser {
                 )?;
                 return Some((word_tok, word_text.to_string()));
             }
-            let sm = tcl_lexer::SourceMap::new(&self.source);
+            let sm = Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let var_name = sm.token_text(word_tok);
             let (holder, base_name) = crate::naming::key_holder_and_tail(var_name);
             let (value, span) = if holder.is_empty() {
@@ -3682,7 +3686,11 @@ impl Analyser {
             return None;
         }
         let config = self.lexer_config();
-        let sm = SourceMap::new(&self.source);
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let descended = descend_token(&sm, value_tok, config);
         let segs = segments_from_tree(descended.tree(), &sm);
         let [seg] = segs.as_slice() else { return None };
@@ -4120,7 +4128,11 @@ impl Analyser {
         }
         let config = self.lexer_config();
         let segs: Vec<SegmentedCommand> = {
-            let sm = SourceMap::new(&self.source);
+            let sm = Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let descended = descend_token(&sm, body_tok, config);
             segments_from_tree(descended.tree(), &sm)
         };
@@ -8028,7 +8040,11 @@ impl Analyser {
         params: &[&str],
     ) -> Option<FactoryMember> {
         let registry = self.registry.as_ref()?;
-        let sm = SourceMap::new(&self.source);
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let descended = descend_token(&sm, group, self.lexer_config());
         let mut segs = segments_from_tree(descended.tree(), &sm).into_iter();
         let seg = segs.next()?;
@@ -14761,6 +14777,27 @@ mod tests {
             "tcl",
         );
         assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_for_every_chain_spelling_of_the_handler() {
+        // `chains_original` is the registry's
+        // `Traits::UNRESOLVED_COMMAND_HANDLER`, so every spelling of the
+        // handler counts.  The old `CHAIN_TARGETS` list named the `tcl::`
+        // pair by hand and omitted `unknown` / `::unknown` entirely, so a
+        // handler chaining through the plain spelling read as
+        // self-contained and every unresolved command in the file collected
+        // a spurious W123 (issue #1390).
+        for chain in ["unknown", "::unknown", "::tcl::unknown", "_orig_unknown"] {
+            let mut a = crate::analyser::Analyser::new();
+            let src =
+                format!("proc unknown {{cmd args}} {{ {chain} $cmd {{*}}$args }}\nbogus_cmd arg");
+            let r = a.analyse(&src, "tcl");
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+                "chaining through {chain} should suppress W123",
+            );
+        }
     }
 
     #[test]

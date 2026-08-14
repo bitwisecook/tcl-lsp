@@ -858,6 +858,10 @@ file; this call falls through to the 'unknown' handler."
         if ir_proc.body.statements.is_empty() {
             return;
         }
+        // Per-parameter name spans (index-aligned with `ir_proc.params`); an
+        // empty result means we couldn't isolate the list and fall back to the
+        // whole-definition span below.
+        let param_spans = self.param_name_spans_for(ir_proc);
         let mut unused: Vec<(usize, String)> = Vec::new();
         for (idx, param) in ir_proc.params.iter().enumerate() {
             // Tcl's variadic ``args`` parameter is conventionally
@@ -866,12 +870,21 @@ file; this call falls through to the 'unknown' handler."
             if param == "args" {
                 continue;
             }
-            // Positional keyword markers: a param whose name is itself a
-            // quoted literal (snit-style ``{"as" ""}``) is a syntactic
-            // placeholder consumed by being PRESENT in the call form, not
-            // read as a variable.  Flagging it is noise.  Conservative:
-            // only suppress params whose name starts AND ends with ``"``.
-            if param.len() >= 2 && param.starts_with('"') && param.ends_with('"') {
+            // Positional keyword markers: a param *written* as a quoted
+            // literal (snit-style ``{"as" ""}``) is a syntactic placeholder
+            // consumed by being PRESENT in the call form, not read as a
+            // variable.  Flagging it is noise.  The marker lives in the source
+            // spelling, not the name: Tcl decodes the quotes away (tclsh 9.0
+            // — ``proc p {"as" v} {}`` → ``info args p`` is ``as v``), so the
+            // test is on the declaration text the name span covers.
+            // Conservative: only a spelling that starts AND ends with ``"``.
+            if param_spans
+                .get(idx)
+                .and_then(|span| self.source.get(span.as_range()))
+                .is_some_and(|spelling| {
+                    spelling.len() >= 2 && spelling.starts_with('"') && spelling.ends_with('"')
+                })
+            {
                 continue;
             }
             let any_live = fu
@@ -900,10 +913,6 @@ file; this call falls through to the 'unknown' handler."
         if unused.is_empty() {
             return;
         }
-        // Per-parameter name spans (index-aligned with `ir_proc.params`); an
-        // empty result means we couldn't isolate the list and fall back to the
-        // whole-definition span below.
-        let param_spans = self.param_name_spans_for(ir_proc);
         // Dispatch-protocol suppression: when ≥3 peer procs in this
         // namespace share this proc's leading-param signature AND an
         // arity-compatible variable-command dispatcher exists, the leading

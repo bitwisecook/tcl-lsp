@@ -322,9 +322,12 @@ deliberate divergences; everything else matches C per the parity suites.
 - The `Op` enum also carries opcodes that are **not** C Tcl instructions and
   are intentionally outside this checklist: the `irule*` dialect operators
   (all nine now executed — they are emitted for iRules expressions), and five
-  extras (`land`/`lor`/`lnot`/`strreverse`/`strrepeat`); `land`/`lor` are
-  never emitted and have no dispatch arms (dead), the other three are
-  executed VM conveniences.
+  extras (`land`/`lor`/`lnot`/`strreverse`/`strrepeat`) — all five are
+  executed VM conveniences. `land`/`lor` are never emitted by codegen
+  (`&&`/`||` compile to short-circuit jump sequences instead), but the VM's
+  dispatch `match` is exhaustive over the whole `Op` enum (issue #1411's
+  gate — see `rust/tcl-vm/tests/opcode_dispatch_coverage.rs`), so they carry
+  real eager-boolean dispatch arms rather than being dead.
 - Variable opcodes come in `Scalar1/Scalar4/ScalarStk/Array1/Array4/ArrayStk/Stk`
   families — every family member C Tcl emits is covered.
 - `foreach_start`/`foreach_step`/`foreach_end` carry the `ForeachInfo` aux

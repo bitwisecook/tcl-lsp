@@ -30,9 +30,18 @@
 //! to target the full word / statement extent; otherwise the
 //! rewrite leaves orphan closing delimiters in the output.
 //!
-//! This module owns the extension helpers used by the optimiser
-//! passes. Centralising them here keeps the fix consistent across
-//! `propagation`, `tail_call`, `structure_elimination`, etc.
+//! This module owns the *multi-word* / statement-level extension
+//! helpers used by the optimiser passes. Centralising them here keeps
+//! the fix consistent across `propagation`, `tail_call`,
+//! `structure_elimination`, etc.
+//!
+//! Widening a **single** word to its own closing delimiter is not owned
+//! here: that is [`tcl_lexer::word_span_at`] (the token-free sibling of
+//! `tcl_lexer::word_span`), which the passes call directly. This module
+//! used to carry a `full_word_span` byte-counter of its own — a second
+//! implementation under the same name as the analyser's correct
+//! delegate, and one that recognised only `[…]` and `${…}` (issue
+//! #1423).
 
 use tcl_lexer::Span;
 
@@ -146,98 +155,64 @@ pub fn statement_delete_rewrite_range(
 /// A composite word like `"$a $b $c"` segments into many tokens
 /// and `CommandTokens::argv[i]` holds only the representative
 /// token (the opening `"`). To rewrite the *whole* string we need
-/// the span to reach the closing quote — this helper scans the
-/// source forward from the argv start through `\"` escapes until
-/// the matching close quote. Returns the input span unchanged
-/// when the first byte isn't `"` or no close quote is found.
+/// the span to reach the closing quote — this is the span assembly
+/// around [`tcl_lexer::close_quote_offset`], the shared scanner that
+/// skips `\`-escapes and whole `[…]` command substitutions.
+///
+/// Returns the input span unchanged when the first byte isn't `"` or
+/// no close quote is found, so a rewrite anchored on the result either
+/// covers the whole string or does not fire. Scanning without the
+/// command-substitution rule stopped `"a[foo "b"]c"` at the quote
+/// opening the inner `"b"`, and O129's auto-fix then replaced that
+/// truncated prefix and left `]c"` behind (issue #1424).
 #[must_use]
 pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
-    let bytes = source.as_bytes();
-    let start = argv_span.start() as usize;
-    if start >= bytes.len() || bytes[start] != b'"' {
-        return argv_span;
-    }
-    let mut i = start + 1;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' && i + 1 < bytes.len() {
-            i += 2;
-            continue;
-        }
-        if bytes[i] == b'"' {
-            return Span::new(
-                argv_span.start(),
-                u32::try_from(i + 1).unwrap_or(argv_span.end()),
-            );
-        }
-        i += 1;
-    }
-    argv_span
-}
-
-/// Simpler variant for single-word argv spans. The lexer reports
-/// the representative token for `${name}` / `[cmd]` words without
-/// the trailing `}` / `]`; this helper extends by exactly one
-/// byte when the next source byte is the expected closer.
-///
-/// Used by passes that rewrite a single argv word (not a full
-/// statement). Equivalent to [`full_rewrite_span`] on those shapes
-/// but faster — no bracket/brace counting.
-#[must_use]
-pub fn full_word_span(source: &str, argv_span: Span) -> Span {
-    let bytes = source.as_bytes();
-    let start = argv_span.start() as usize;
-    let end = argv_span.end() as usize;
-    if start >= bytes.len() || end >= bytes.len() || start > end {
-        return argv_span;
-    }
-    let Some(&first) = bytes.get(start) else {
+    let Some(close) = tcl_lexer::close_quote_offset(source, argv_span.start() as usize) else {
         return argv_span;
     };
-    if end == start {
+    let Ok(end) = u32::try_from(close + 1) else {
         return argv_span;
+    };
+    Span::new(argv_span.start(), end)
+}
+
+/// The rewrite span for a `"…"` word whose replacement was built from
+/// *`inside`* — the word's interior as the segmenter reported it — or `None`
+/// when the two disagree.
+///
+/// A rewrite that splices `"<inside, edited>"` over
+/// [`full_quoted_string_span`] is only sound while `"<inside>"` *is* the
+/// source that span covers. The span comes from a source scan and `inside`
+/// from the token stream, so a lexer that mis-measures the word hands the
+/// pass a short interior to splice over a long span, silently deleting the
+/// tail. That is what corrupts `"a[<newline># ] c<newline>set y "b"<newline>]c"`:
+/// the lexer's own bracket scan has no comment state, so the word it reports
+/// stops at the commented-out `]` while the span correctly reaches the final
+/// `"`, and the rewrite drops `"\n]c`.
+///
+/// Declining is the conservative answer — the optimisation is lost, the
+/// source is not.
+///
+/// A word that is not written `"…"` has no closing quote to scan for and its
+/// span is the argv span untouched, so there is nothing to cross-check and it
+/// passes through.
+#[must_use]
+pub fn quoted_word_rewrite_span(source: &str, argv_span: Span, inside: &str) -> Option<Span> {
+    let span = full_quoted_string_span(source, argv_span);
+    if source.as_bytes().get(argv_span.start() as usize) != Some(&b'"') {
+        return Some(span);
     }
-    let second = bytes.get(start + 1).copied();
-    let next = bytes[end];
-    let needs_extend =
-        (first == b'[' && next == b']') || (first == b'$' && second == Some(b'{') && next == b'}');
-    if needs_extend {
-        Span::new(argv_span.start(), argv_span.end() + 1)
-    } else {
-        argv_span
+    let covered = source.get(span.as_range())?;
+    let mut written = covered.chars();
+    if written.next() != Some('"') || written.next_back() != Some('"') {
+        return None;
     }
+    (written.as_str() == inside).then_some(span)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn full_word_span_bare_var() {
-        // `$x` — no extension.
-        assert_eq!(full_word_span("$x", Span::new(0, 2)), Span::new(0, 2));
-    }
-
-    #[test]
-    fn full_word_span_braced_var_extends_closing_brace() {
-        // `${x}` — argv span 0..3 covers `${x`, extend to 0..4.
-        assert_eq!(full_word_span("${x}", Span::new(0, 3)), Span::new(0, 4));
-    }
-
-    #[test]
-    fn full_word_span_cmd_subst_extends_closing_bracket() {
-        // `[cmd]` — argv span 0..4 covers `[cmd`, extend to 0..5.
-        assert_eq!(full_word_span("[cmd]", Span::new(0, 4)), Span::new(0, 5));
-    }
-
-    #[test]
-    fn full_word_span_plain_identifier_no_extension() {
-        assert_eq!(full_word_span("plain ", Span::new(0, 5)), Span::new(0, 5));
-    }
-
-    #[test]
-    fn full_word_span_at_eof_no_extension() {
-        assert_eq!(full_word_span("[x", Span::new(0, 2)), Span::new(0, 2));
-    }
 
     #[test]
     fn full_rewrite_span_balanced_span_unchanged() {
@@ -331,6 +306,106 @@ mod tests {
         assert_eq!(
             full_quoted_string_span(source, Span::new(0, 3)),
             Span::new(0, 3),
+        );
+    }
+
+    #[test]
+    fn full_quoted_string_span_spans_quote_inside_command_substitution() {
+        // Issue #1424: the `"b"` belongs to the substituted command, so
+        // the span must reach the *final* `"` — stopping at the inner
+        // quote would make O129's auto-fix replace `"a[foo "` and leave
+        // `b"]c"` behind as a stray fragment.
+        let source = "set x \"a[foo \"b\"]c\"";
+        let span = full_quoted_string_span(source, Span::new(6, 8));
+        assert_eq!(
+            span,
+            Span::new(6, u32::try_from(source.len()).unwrap()),
+            "span must cover the whole quoted word",
+        );
+        assert_eq!(&source[span.as_range()], "\"a[foo \"b\"]c\"");
+    }
+
+    #[test]
+    fn full_quoted_string_span_spans_a_comment_inside_a_substitution() {
+        // The `]` in the command-position comment is inert in C Tcl, so the
+        // word closes at the final `"`.  Stopping at the quote opening the
+        // inner `"b"` would give O129 a truncated rewrite span and corrupt
+        // otherwise valid source.
+        let source = "set x \"a[\n# ] comment\nset y \"b\"\n]c\"";
+        let span = full_quoted_string_span(source, Span::new(6, 8));
+        assert_eq!(
+            span,
+            Span::new(6, u32::try_from(source.len()).unwrap()),
+            "span must cover the whole multiline quoted word",
+        );
+    }
+
+    #[test]
+    fn full_quoted_string_span_spans_a_comment_reached_by_a_continuation() {
+        // The comment is reached across a backslash-newline, which C Tcl
+        // absorbs as whitespace before it looks for the `#`.  The word still
+        // closes at the final `"`; anchoring on the inner `"b"` instead made
+        // O129 rewrite `set y "b"` into `set y b""b"`.
+        let source = "set x \"a[\n\\\n# ] comment\nset y \"b\"\n]c\"";
+        let span = full_quoted_string_span(source, Span::new(6, 8));
+        assert_eq!(
+            span,
+            Span::new(6, u32::try_from(source.len()).unwrap()),
+            "a line continuation must not lose command position",
+        );
+    }
+
+    #[test]
+    fn quoted_word_rewrite_span_agreeing_text_is_accepted() {
+        let source = "set x \"a[foo \"b\"]c\"";
+        assert_eq!(
+            quoted_word_rewrite_span(source, Span::new(6, 8), "a[foo \"b\"]c"),
+            Some(Span::new(6, u32::try_from(source.len()).unwrap())),
+        );
+    }
+
+    #[test]
+    fn quoted_word_rewrite_span_short_word_text_is_declined() {
+        // The segmenter's bracket scan has no comment state, so it reports the
+        // word as ending at the commented-out `]` while the span reaches the
+        // final `"`. Splicing the short interior over the long span deletes
+        // the tail, so the caller must be told to decline.
+        let source = "set x \"a[\n# ] c\nset y \"b\"\n]c\"";
+        assert_eq!(
+            quoted_word_rewrite_span(source, Span::new(6, 8), "a[\n# ] c\nset y b\""),
+            None,
+        );
+    }
+
+    #[test]
+    fn quoted_word_rewrite_span_unquoted_word_passes_through() {
+        // A bare word carries no quotes to cross-check; the caller supplies
+        // them itself, so the span is returned as `full_quoted_string_span`
+        // computed it.
+        let source = "puts a$b";
+        assert_eq!(
+            quoted_word_rewrite_span(source, Span::new(5, 8), "a$b"),
+            Some(Span::new(5, 8)),
+        );
+    }
+
+    #[test]
+    fn quoted_word_rewrite_span_empty_word_is_accepted() {
+        let source = "puts \"\"";
+        assert_eq!(
+            quoted_word_rewrite_span(source, Span::new(5, 7), ""),
+            Some(Span::new(5, 7)),
+        );
+    }
+
+    #[test]
+    fn full_quoted_string_span_unterminated_unchanged() {
+        // No close quote at all — the span is returned untouched so no
+        // rewrite anchors on a guessed offset.
+        let source = "puts \"abc";
+        assert_eq!(
+            full_quoted_string_span(source, Span::new(5, 7)),
+            Span::new(5, 7),
         );
     }
 

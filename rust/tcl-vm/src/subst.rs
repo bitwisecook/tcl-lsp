@@ -151,12 +151,15 @@ pub fn subst_command(
         match b[i] {
             b'\\' if backslashes => {
                 // Decode exactly one backslash escape and advance past it. The
-                // extent is the canonical `TclParseBackslash` rule (Tcl 9 caps
-                // `\x` at two hex digits; the `\<newline>` continuation — LF,
+                // extent is the canonical `TclParseBackslash` rule *of the
+                // emulated release* (8.6+ caps `\x` at two hex digits, 8.4/8.5
+                // take every trailing one; the `\<newline>` continuation — LF,
                 // CR, or CRLF — absorbs the following spaces/tabs), so the
-                // decode always sees one whole escape.
-                let end = tcl_syntax::backslash::escape_end(s, i);
-                out.push_str(&tcl_syntax::backslash::decode(&s[i..end]));
+                // decode always sees one whole escape and reads it the way the
+                // pinned release would (issue #1479).
+                let escapes = vm.escape_syntax();
+                let end = tcl_syntax::backslash::escape_end_in(s, i, escapes);
+                out.push_str(&tcl_syntax::backslash::decode_in(&s[i..end], escapes));
                 i = end;
             }
             b'[' if commands => {
@@ -261,8 +264,12 @@ pub(crate) fn subst_scan_step(vm: &mut Vm, st: &mut SubstState) -> SubstStep {
     while i < n {
         match b[i] {
             b'\\' if st.backslashes => {
-                let end = tcl_syntax::backslash::escape_end(&template, i);
-                out.push_str(&tcl_syntax::backslash::decode(&template[i..end]));
+                let escapes = vm.escape_syntax();
+                let end = tcl_syntax::backslash::escape_end_in(&template, i, escapes);
+                out.push_str(&tcl_syntax::backslash::decode_in(
+                    &template[i..end],
+                    escapes,
+                ));
                 i = end;
             }
             b'[' if st.commands => {
@@ -363,8 +370,9 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
     while i < n {
         match b[i] {
             b'\\' => {
-                let end = tcl_syntax::backslash::escape_end(idx, i);
-                out.push_str(&tcl_syntax::backslash::decode(&idx[i..end]));
+                let escapes = vm.escape_syntax();
+                let end = tcl_syntax::backslash::escape_end_in(idx, i, escapes);
+                out.push_str(&tcl_syntax::backslash::decode_in(&idx[i..end], escapes));
                 i = end;
             }
             b'[' => {
@@ -517,6 +525,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // General scan: copy literal runs (backslash-decoded), substituting `${…}`
     // and `[…]`. Literal runs carry escapes the codegen left to prevent re-
     // substitution (`\$`/`\[`) or genuine escapes (`\n`, `\t`, …); decode them.
+    let escapes = vm.escape_syntax();
     let mut out = String::with_capacity(n);
     let mut i = 0usize;
     let mut lit = 0usize;
@@ -526,7 +535,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
             // is decoded with the surrounding literal run when copied).
             b'\\' => i = (i + 2).min(n),
             b'$' if i + 1 < n && b[i + 1] == b'{' => {
-                out.push_str(&tcl_syntax::backslash::decode(&word[lit..i]));
+                out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..i], escapes));
                 if let Some(rel) = word[i + 2..].find('}') {
                     let close = i + 2 + rel;
                     let v = read_var(vm, &word[i + 2..close])?;
@@ -540,7 +549,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
             }
             b'[' => {
                 if let Some(end) = command_end(b, i) {
-                    out.push_str(&tcl_syntax::backslash::decode(&word[lit..i]));
+                    out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..i], escapes));
                     let v = eval_subst(vm, &word[i + 1..end])?;
                     out.push_str(&v.to_str());
                     i = end + 1;
@@ -552,7 +561,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
             _ => i += 1,
         }
     }
-    out.push_str(&tcl_syntax::backslash::decode(&word[lit..n]));
+    out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..n], escapes));
     Ok(Value::string(out))
 }
 

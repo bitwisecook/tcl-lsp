@@ -181,7 +181,7 @@ pub fn range_formatting(
     // are (issue #1275).
     let identities = tcl_compiler::head_identity::command_head_identities_with_config(
         source,
-        config.lexer_config,
+        config.lexer_config(),
         registry,
     );
     let formatted_slice = finalise_slice(

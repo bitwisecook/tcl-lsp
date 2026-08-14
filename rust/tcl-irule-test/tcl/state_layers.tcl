@@ -226,7 +226,10 @@ namespace eval ::state {
                 variable uri
                 variable path
                 variable query
-                if {"-uri" in $args && "-path" ni $args} {
+                # ([lsearch] rather than `in`/`ni`: the membership operators
+                # are 8.5+ and the harness compiles under the TMM's 8.4.)
+                if {[lsearch -exact $args "-uri"] >= 0
+                    && [lsearch -exact $args "-path"] < 0} {
                     set qpos [string first "?" $uri]
                     if {$qpos >= 0} {
                         set path [string range $uri 0 $qpos-1]
@@ -584,13 +587,13 @@ namespace eval ::state {
 
             # An empty operator (older call form) defaults to exact equality.
             if {$operator eq ""} { set operator "equals" }
-            set nocase [expr {"-nocase" in $args}]
+            set nocase [expr {[lsearch -exact $args "-nocase"] >= 0}]
 
             # -name flag: check if key matches
             set check_name 0
             set check_value 0
-            if {"-name" in $args} { set check_name 1 }
-            if {"-value" in $args} { set check_value 1 }
+            if {[lsearch -exact $args "-name"] >= 0} { set check_name 1 }
+            if {[lsearch -exact $args "-value"] >= 0} { set check_value 1 }
             if {!$check_name && !$check_value} { set check_name 1 }
 
             switch -exact -- $type {

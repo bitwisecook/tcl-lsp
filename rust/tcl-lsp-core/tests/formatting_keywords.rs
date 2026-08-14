@@ -300,11 +300,7 @@ fn an_irules_document_gets_the_same_rewrite() {
     // the vendor dialect exactly as under a core one, with no core version
     // range to widen over.
     let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let config = FormatterConfig {
-        dialect: Some("f5-irules".to_owned()),
-        target_range: tcl_registry::version_range::forward_range("f5-irules"),
-        ..FormatterConfig::default()
-    };
+    let config = FormatterConfig::for_dialect("f5-irules");
     let out = format_tcl("clock format $t -gmt yes\n", &config, registry);
     assert!(out.contains("-gmt true"), "{out}");
 }
@@ -381,11 +377,7 @@ fn a_dynamic_boolean_option_value_abstains() {
 /// that release and every later one.
 fn fmt_over_range(src: &str, dialect: &str) -> String {
     let registry = tcl_registry::registry_for_dialect(dialect);
-    let config = FormatterConfig {
-        dialect: Some(dialect.to_owned()),
-        target_range: tcl_registry::version_range::forward_range(dialect),
-        ..FormatterConfig::default()
-    };
+    let config = FormatterConfig::for_dialect(dialect);
     format_tcl(src, &config, registry)
 }
 
@@ -399,8 +391,9 @@ fn fmt_no_range(src: &str, dialect: &str) -> String {
 #[test]
 fn the_default_config_declares_no_range() {
     let cfg = FormatterConfig::default();
-    assert_eq!(cfg.dialect, None);
-    assert!(cfg.target_range.is_empty());
+    assert!(cfg.profile.is_fallback());
+    assert_eq!(cfg.dialect_bits(), None);
+    assert!(cfg.target_range().is_empty());
     // No dialect and no range: every declared keyword stays a candidate, the
     // pre-#1257 conservative direction. `string c` is ambiguous under that
     // rule (8.6's `cat` is in the table whatever the target), so it is left
@@ -458,9 +451,8 @@ fn an_option_prefix_is_checked_over_the_range_too() {
 fn fmt_in_range(src: &str, dialect: &str, range: DialectSet) -> String {
     let registry = tcl_registry::registry_for_dialect(dialect);
     let config = FormatterConfig {
-        dialect: Some(dialect.to_owned()),
-        target_range: range,
-        ..FormatterConfig::default()
+        target_range_override: Some(range),
+        ..FormatterConfig::for_dialect(dialect)
     };
     format_tcl(src, &config, registry)
 }

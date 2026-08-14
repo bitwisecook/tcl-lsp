@@ -182,7 +182,14 @@ numbering).
 `find_loop_invariants` derives its own header → block-set map from a back-edge
 scan over the executable blocks, resolving dominance through
 `SsaFunction::dominator_intervals` (O(1) per query), because it needs
-`BlockId`-keyed sets rather than the name-keyed `LoopForest`.  Only
+`BlockId`-keyed sets rather than the name-keyed `LoopForest`.  "Executable"
+there is `SccpResult::executable_blocks` — the same set the deletion passes
+read (`optimiser/elimination.rs`'s `unreachable_blocks`, the O107 source) —
+passed in by the caller, never re-derived as raw CFG reachability: a hoist
+offered into a block behind a constant-false branch would target code the
+optimiser is simultaneously offering to delete (issue #1385).
+`find_partial_redundancies` takes the same set, and both `*_for_function`
+entries seed it from `FunctionUnit::sccp`.  Only
 side-effect-free expressions are numbered/hoisted — purity is decided by
 `side_effects::classify_side_effects` through `gvn::is_pure_command` /
 `is_pure_with_procs`, with `find_pure_procs` extending it to user procedures —

@@ -22,7 +22,9 @@
 //! [`ExprNode`] tree and produces the corresponding bytecode
 //! instructions.
 
-use tcl_lexer::backslash_subst;
+use tcl_dialect::DialectProfile;
+use tcl_lexer::backslash_subst_in;
+use tcl_registry::expr_surface::RuntimeExprSurface;
 
 use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
@@ -211,19 +213,19 @@ impl CodegenCtx<'_> {
             // (`\xNN`, `\NNN`, `\uNNNN`, …), which the template parser's simplified
             // literal decoding does not cover (expr-8.13's `"\374"`).
             if !inner.contains('$') && !inner.contains('[') {
-                self.push_lit(&backslash_subst(inner));
+                self.push_lit(&backslash_subst_in(inner, self.escapes));
                 return false;
             }
-            match super::helpers::parse_subst_template(inner) {
+            match super::helpers::parse_subst_template(inner, self.escapes) {
                 Some(parts) => self.emit_subst_parts(&parts),
                 // Unparseable template (e.g. a bare `$` with no name): literal.
-                None => self.push_lit(&backslash_subst(inner)),
+                None => self.push_lit(&backslash_subst_in(inner, self.escapes)),
             }
             return false;
         }
         // Bare text (no delimiters): a literal, backslash-decoded.
         if text.contains('\\') {
-            let processed = backslash_subst(text);
+            let processed = backslash_subst_in(text, self.escapes);
             self.push_lit(&processed);
         } else {
             self.push_lit(text);
@@ -315,11 +317,57 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// `false` and the context requires numeric coercion.
+    /// The `expr` operator surface of the release being compiled for, or
+    /// `None` when the compile named no dialect — or named one the catalog
+    /// does not know.
+    ///
+    /// Resolved from [`CodegenCtx::dialect`] — the compile's own dialect, the
+    /// same fact `numbers`/`escapes` come from — rather than from the
+    /// registry's profile, which a caller may not have set (the VM's compile
+    /// service passes a default-built registry beside a pinned dialect).
+    ///
+    /// The `None` is an abstention, not a permissive default resolved to
+    /// plain `tcl`. That fallback profile is *not* silent on the question: its
+    /// availability mask is `ALL_TCL`, which excludes the iRules bit, so
+    /// asking it would answer "this dialect has no `contains`" for a compile
+    /// that never said which dialect it was. With no dialect in hand the
+    /// operator set is unknown, so nothing is gated and a dialect-less compile
+    /// keeps exactly the surface it had.
+    fn expr_surface(&self) -> Option<RuntimeExprSurface> {
+        DialectProfile::find(self.dialect?).map(RuntimeExprSurface::for_profile)
+    }
+
+    /// Emit an expression tree, reporting whether the value it leaves on the
+    /// stack is already canonically numeric — the caller emits
+    /// `tryCvtToNumeric` when this is `false` and the context requires numeric
+    /// coercion.
     ///
     /// Public entry point: the top of an expression tree is nesting depth
     /// `0` (issue #996 — the recursion cap lives in [`Self::emit_expr_at`]).
+    ///
+    /// An operator the target release's `expr` grammar does not have is not
+    /// specialised at all (issue #1435). The compiled and interpreted paths
+    /// otherwise apply opposite dialect discipline: `Op::from_binop` is total
+    /// over `BinOp`, so `expr {2 ** 3}` compiled *for* 8.4 would emit `expon`
+    /// and the emulating VM would execute it, while the same source reached
+    /// through `exprStk` is rejected by [`RuntimeExprSurface::validate`] as C
+    /// Tcl rejects it. Refusing to specialise routes the whole expression back
+    /// through `exprStk`, so the one gate — the registry's, on the release's
+    /// own operator table — decides both, and the failure is the interpreter's
+    /// (`invalid bareword "**"`, `TCL PARSE EXPR BAREWORD`) rather than a
+    /// second diagnostic invented here. It is the lowering fallback pattern:
+    /// codegen inlines only what the target release can run. A compile that
+    /// named no dialect has no release to gate against and is left alone —
+    /// see [`Self::expr_surface`].
     pub fn emit_expr(&mut self, node: &ExprNode) -> bool {
+        if self
+            .expr_surface()
+            .is_some_and(|surface| surface.validate(node).is_err())
+        {
+            self.push_lit(&render_expr(node));
+            self.emit(Op::EXPR_STK, vec![]);
+            return false;
+        }
         self.emit_expr_at(node, 0)
     }
 
@@ -493,6 +541,24 @@ mod tests {
             start: 0,
             end: 0,
         }
+    }
+
+    /// `$x <op> $y`, whose variable operands keep the operator's opcode out of
+    /// the constant folder.
+    fn binary(op: BinOp) -> ExprNode {
+        ExprNode::Binary {
+            op,
+            left: Box::new(var("x")),
+            right: Box::new(var("y")),
+        }
+    }
+
+    /// A context compiling *for* `dialect`, as `codegen_module` builds one from
+    /// the IR module's dialect.
+    fn ctx_for<'r>(registry: &'r CommandRegistry, dialect: &'static str) -> CodegenCtx<'r> {
+        let mut ctx = CodegenCtx::new(true, &["x", "y"], registry);
+        ctx.dialect = Some(dialect);
+        ctx
     }
 
     // -- Literal --
@@ -1185,5 +1251,137 @@ mod tests {
         ctx.emit_expr(&node);
         assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
         assert_eq!(ctx.literals.entries()[0], "9");
+    }
+
+    // -- The versioned `expr` operator surface (issue #1435) --
+
+    /// The refusal shape: the whole expression is pushed as source text and
+    /// handed to `exprStk`, so the emulating VM's own
+    /// `RuntimeExprSurface::validate` raises C Tcl's diagnostic. Nothing is
+    /// specialised and nothing is folded.
+    fn assert_refused(ctx: &CodegenCtx, rendered: &str) {
+        assert_eq!(opcodes(ctx), vec![Op::PUSH1, Op::EXPR_STK], "{rendered}");
+        assert_eq!(ctx.literals.entries()[0], rendered);
+    }
+
+    /// Operators whose *release* floor the compile target must respect.
+    ///
+    /// Verified against the C sources: 8.4's `operatorTable`
+    /// (`tmp/tcl8.4.20/generic/tclCompExpr.c:112-136`) has `eq`/`ne` and
+    /// neither `**` nor `in`/`ni`; `EXPON` and `INST_LIST_IN` arrive with
+    /// 8.5's rewritten parser (`tmp/tcl8.5.19/generic/tclCompExpr.c:260,417`,
+    /// TIP 123/201); `STR_LT` and its three companions arrive in 9.0
+    /// (`tmp/tcl9.0.4/generic/tclCompExpr.c:273,413`, TIP 461) and are absent
+    /// from 8.6's table. The registry's own tables say the same
+    /// (`BinOp::expr_grammar_min_version`,
+    /// `tcl_dialect::EXPR_WORD_OPERATORS`), which is what the gate reads.
+    #[test]
+    fn expr_operators_are_specialised_only_from_their_release_floor() {
+        let registry = CommandRegistry::build_default();
+        // (operator, rendered form, the newest release that lacks it, the
+        // oldest that has it, the opcode that release specialises it to).
+        let vectors = [
+            (BinOp::Pow, "$x ** $y", "tcl8.4", "tcl8.5", Op::EXPON),
+            (BinOp::In, "$x in $y", "tcl8.4", "tcl8.5", Op::LIST_IN),
+            (BinOp::Ni, "$x ni $y", "tcl8.4", "tcl8.5", Op::LIST_NOT_IN),
+            (BinOp::StrLt, "$x lt $y", "tcl8.6", "tcl9.0", Op::STR_LT),
+            (BinOp::StrLe, "$x le $y", "tcl8.6", "tcl9.0", Op::STR_LE),
+            (BinOp::StrGt, "$x gt $y", "tcl8.6", "tcl9.0", Op::STR_GT),
+            (BinOp::StrGe, "$x ge $y", "tcl8.6", "tcl9.0", Op::STR_GE),
+        ];
+        for (op, rendered, before, since, opcode) in vectors {
+            // FN: before the floor the operator is not specialised.
+            let mut old = ctx_for(&registry, before);
+            old.emit_expr(&binary(op));
+            assert_refused(&old, rendered);
+
+            // TP: from the floor it compiles to its own opcode.
+            let mut modern = ctx_for(&registry, since);
+            modern.emit_expr(&binary(op));
+            assert_eq!(
+                opcodes(&modern),
+                vec![Op::LOAD_SCALAR1, Op::LOAD_SCALAR1, opcode],
+                "{rendered} at {since}"
+            );
+        }
+
+        // TN: `eq`/`ne` are in 8.4's operator table, so the gate must not
+        // sweep them up with the operators that are not.
+        for (op, opcode) in [(BinOp::StrEq, Op::STR_EQ), (BinOp::StrNe, Op::STR_NEQ)] {
+            let mut ctx = ctx_for(&registry, "tcl8.4");
+            ctx.emit_expr(&binary(op));
+            assert_eq!(
+                opcodes(&ctx),
+                vec![Op::LOAD_SCALAR1, Op::LOAD_SCALAR1, opcode]
+            );
+        }
+
+        // FP guard: a dialect-less compile keeps the permissive surface, so
+        // every Tcl operator still compiles inline.
+        let mut plain = CodegenCtx::new(true, &["x", "y"], &registry);
+        plain.emit_expr(&binary(BinOp::Pow));
+        assert_eq!(
+            opcodes(&plain),
+            vec![Op::LOAD_SCALAR1, Op::LOAD_SCALAR1, Op::EXPON]
+        );
+    }
+
+    /// The constant folder runs before the operand walk, so the gate has to
+    /// sit in front of it: `expr {2 ** 3}` compiled for 8.4 folded to a push
+    /// of `8` — a valid answer from an operator the release cannot parse.
+    #[test]
+    fn a_pre_floor_operator_is_not_constant_folded_either() {
+        let registry = CommandRegistry::build_default();
+        let node = ExprNode::Binary {
+            op: BinOp::Pow,
+            left: Box::new(lit("2")),
+            right: Box::new(lit("3")),
+        };
+
+        let mut old = ctx_for(&registry, "tcl8.4");
+        old.emit_expr(&node);
+        assert_refused(&old, "2 ** 3");
+
+        let mut modern = ctx_for(&registry, "tcl8.5");
+        modern.emit_expr(&node);
+        assert_eq!(opcodes(&modern), vec![Op::PUSH1]);
+        assert_eq!(modern.literals.entries()[0], "8");
+    }
+
+    /// The other axis: the iRules word operators are gated by dialect
+    /// *identity*, not by a version floor, and iRules is a Tcl 8.4 runtime —
+    /// so a release-only gate would either lose them or admit 8.5 operators
+    /// alongside them.
+    #[test]
+    fn irules_word_operators_need_the_irules_dialect() {
+        let registry = CommandRegistry::build_default();
+        let contains = ExprNode::Binary {
+            op: BinOp::Contains,
+            left: Box::new(var("x")),
+            right: Box::new(var("y")),
+        };
+
+        // TP: available under the dialect that defines them.
+        let mut irules = ctx_for(&registry, "f5-irules");
+        irules.emit_expr(&contains);
+        assert!(opcodes(&irules).contains(&Op::IRULE_CONTAINS));
+
+        // FN: not part of any plain-Tcl release's grammar.
+        let mut plain = ctx_for(&registry, "tcl8.6");
+        plain.emit_expr(&contains);
+        assert_refused(&plain, "$x contains $y");
+
+        // TN: iRules is an 8.4 runtime, so the 8.5 membership operator is
+        // absent there too, dialect bit notwithstanding.
+        let mut membership = ctx_for(&registry, "f5-irules");
+        membership.emit_expr(&binary(BinOp::In));
+        assert_refused(&membership, "$x in $y");
+
+        // FP guard: a compile that named no dialect abstains rather than
+        // answering from the permissive `tcl` profile, whose `ALL_TCL` mask
+        // would reject the iRules bit it never had an opinion about.
+        let mut unnamed = CodegenCtx::new(true, &["x", "y"], &registry);
+        unnamed.emit_expr(&contains);
+        assert!(opcodes(&unnamed).contains(&Op::IRULE_CONTAINS));
     }
 }
