@@ -2293,7 +2293,7 @@ register_mcp_claude() {
     if ! have_claude_cli; then
         warn "claude CLI not on PATH — add the MCP server manually:"
         warn "  claude mcp add tcl-lsp -- $*"
-        return
+        return 0
     fi
     prior=""
     if claude mcp list 2>/dev/null | awk '{print $1}' | grep -qx 'tcl-lsp'; then

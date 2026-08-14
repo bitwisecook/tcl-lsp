@@ -3,24 +3,37 @@
 > **Audience:** User
 > **Type:** How-To
 
+## Applies to
+
+all-editors, MCP, claude-skill
+
+## Question
+
+How do I build and install tcl-lsp on a platform without an installer build?
+
+## Before you start
+
+- Install Git, GNU Make, and the current stable Rust toolchain from `rustup`.
+- Install the platform's native linker and C build tools. This is usually Xcode
+  Command Line Tools on macOS, `build-essential` on Debian or Ubuntu, the
+  Development Tools group on Fedora or RHEL, or the equivalent for your
+  platform.
+
+## Answer
+
 The shell installer supports macOS on x86-64 and Arm64, and Linux on x86-64,
 Arm64, and RISC-V 64. Releases also contain x86-64 and Arm64 Windows binaries,
 which Windows users can download and install manually. On another platform,
 build the native programs you need from source. You do not need the
 dependencies for features you will not build.
 
-## Build the native programs
+### Build the native programs
 
 Every native program needs:
 
-- Git;
-- GNU Make;
 - the current stable Rust toolchain from `rustup`, including `cargo` and
   `rustc`; and
-- the platform's native linker and C build tools. This is usually Xcode
-  Command Line Tools on macOS, `build-essential` on Debian or Ubuntu, the
-  Development Tools group on Fedora or RHEL, or the equivalent for your
-  platform.
+- the native build tools listed above.
 
 Clone the `rust` branch, then build only the programs you want:
 
@@ -57,7 +70,7 @@ claude mcp add tcl-lsp -- "$HOME/.local/bin/tcl-mcp"
 codex mcp add tcl_lsp -- "$HOME/.local/bin/tcl-mcp"
 ```
 
-## Extra dependencies by feature
+### Extra dependencies by feature
 
 | Feature to build | Additional dependencies | Build command or note |
 |---|---|---|
@@ -70,7 +83,7 @@ codex mcp add tcl_lsp -- "$HOME/.local/bin/tcl-mcp"
 | Compiler Explorer browser module | `wasm-pack`, the Rust `wasm32-unknown-unknown` target, and Node.js for verification | Run `rustup target add wasm32-unknown-unknown`, install `wasm-pack`, then run `make explorer-wasm`. |
 | Rust WebAssembly runtime and linked WebAssembly tests | the Rust `wasm32-wasip1` target, wasi-sdk, Binaryen (`wasm-merge` and `wasm-opt`), and Wasmtime | These are not needed for the native server or command-line programs. wasi-sdk supplies the WebAssembly C compiler and system root used for the numeric runtime. Wasmtime executes the result; it is not needed merely to compile the native tools. |
 
-## Full contributor test suite
+### Full contributor test suite
 
 The complete test suite has a wider dependency set than a product build. Run
 this check to see what the repository would install without changing the
@@ -84,3 +97,13 @@ The full suite additionally uses Tcl 8.6 and 9.0 shells, tcllib, Emacs, Xvfb
 on headless Linux, `tshark`, OpenSSL, `ping`, `rgxg`, Python with Tk, and `uv`.
 Those tools support tests and reports; none is a runtime dependency of the
 native tcl-lsp programs.
+
+## How to tell it worked
+
+Run each installed program with `--help`. For the MCP server, start the client
+you registered and confirm that its tcl-lsp tools are available.
+
+## Related
+
+- [KCS index](README.md)
+- [Build the multi-platform VS Code extension](kcs-howto-build-multiplatform-vsix.md)
