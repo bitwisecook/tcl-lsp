@@ -13,15 +13,15 @@ default
 
 ## Question
 
-Why does the analyser warn that a command requires a newer package version than my `package require` provides?
+Why does the analyser warn that a command, subcommand, or argument value requires a newer package version than my `package require` provides?
 
 ## Why
 
-Some commands only exist from a given version of their package onward (for example, the `ttk::` themed widgets require Tk 8.5). The registry records that minimum as the command's `min_version`. When the document `package require`s the package at a version whose guaranteed floor is *below* that minimum, the command will not exist at runtime and the call fails. Raising the requirement — or dropping the command — avoids a runtime error.
+Some commands only exist from a given version of their package onward (for example, the `ttk::` themed widgets require Tk 8.5). The same can be true one level deeper: a subcommand, a second-level operation of a two-level ensemble (`info object class`), or a specific literal argument value can each arrive later than the command that hosts them. The registry records the minimum for whichever of these applies as part of its version [lifecycle](../../GLOSSARY.md#lifecycle-registry). When the document `package require`s the package at a version whose guaranteed [floor](../../GLOSSARY.md#version-floor) is *below* that minimum, the item will not exist at runtime and the call fails. Raising the requirement — or dropping the item — avoids a runtime error. `W136` is the sibling code for the same situation on a command **option**.
 
 ## Symptoms
 
-- A yellow squiggle under the command head, with a message like "`ttk::button` requires Tk 8.5 but `package require` guarantees only 8.4".
+- A yellow squiggle under the command, subcommand, or argument value, with a message like "`ttk::button` requires Tk 8.5 but `package require` guarantees only 8.4", or "Argument value 'read' on 'close' requires Tcl 8.6 but tcl8.5 targets Tcl 8.5".
 
 ## Example that triggers it
 

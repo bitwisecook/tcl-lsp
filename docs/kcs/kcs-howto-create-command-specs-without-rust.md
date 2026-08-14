@@ -42,24 +42,25 @@ this for you). It loads the pack through the real parser and reports, per
 command, which fields your declaration set, every dropped or misspelled
 word, and any name clash with a shipped command.
 
-The [Spec Studio](features/kcs-feature-spec-studio.md) still renders a
-drop-in `.rs` module or a stub from its form, which is what a **shipped**
-contribution needs today; reading and writing a `.tclspec` pack directly in
-the studio is designed but not built yet.
+The [Spec Studio](features/kcs-feature-spec-studio.md) renders a drop-in
+`.rs` module or a stub from its form, which is what a **shipped**
+contribution needs; its Pack DSL tab also reads and writes a `.tclspec`
+pack directly, with syntax highlighting, hover, and loader-notice markers
+on the source text.
 
 **Contributing** a pack is the same file you wrote for yourself: attach it
 to a GitHub issue instead of dropping it in your config directory.
 
 Loading a pack automatically — so it lights your commands up in the editor
-the moment you save it — is still landing; see [how to write a SpecTcl
-pack](kcs-howto-write-a-tclspec-pack.md) for exactly what works today.
+the moment you save it — already works: see [how to write a SpecTcl
+pack](kcs-howto-write-a-tclspec-pack.md) for how discovery and reload
+work.
 
 ## How to tell it worked
 
 `mcp__tcl-lsp__spectcl_check` reports each command with the fields you
-expect set and no unexpected notices. Once runtime loading ships, the
-signal moves to the editor: the command stops being flagged unknown and
-hover shows your documentation.
+expect set and no unexpected notices. In the editor, the command stops
+being flagged unknown and hover shows your documentation.
 
 ## Related
 

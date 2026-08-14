@@ -239,6 +239,48 @@ assertion.**
 Procedures are deduplicated by qualified name across files, last definition
 winning, matching what the interpreter would end up with.
 
+### Multi-snapshot import: `import_package_versions`
+
+`import_package_versions` (`rust/tcl-spec-studio/src/versions.rs`) is the
+multi-release sibling of `import_package` above: given several labelled
+`VersionedSnapshot`s of one package, it derives the version ranges the
+releases actually witness instead of stamping every command with
+whichever version the newest sources declare. It is the shared engine
+behind `tcl spec import` and the MCP `spec_import` tool (see [how to
+derive version ranges from release
+history](../../kcs/kcs-howto-derive-version-ranges-from-releases.md)).
+
+| Rule | What it means |
+|---|---|
+| Snapshot ordering | Labels are sorted with `tcl_registry::version::compare`, never trusted in caller order; a disagreement is a warning, and a duplicate label is a warning too. |
+| Base shape | Each snapshot is drafted independently by the ordinary single-snapshot importer; a command's merged draft is the draft from the **newest** snapshot defining it. |
+| `introduced_version` | The first snapshot defining the command — but only written when that appearance is *definitive*: either an earlier snapshot lacks the command, or the caller declared `complete_history` so the earliest snapshot really is the package's first release. Otherwise left unset with a note. |
+| `retired_version` | The first snapshot where a previously-present command is gone — an exclusive bound, matching `tcl_registry::lifecycle` exactly. |
+| `deprecated_version` | Never derived structurally. The first snapshot whose doc comment says "deprecated" becomes a *suggested* version recorded only in the notes. |
+| Option rows | Diffed by name across the snapshots in which the command exists; an option that later disappears keeps its row, carrying its `retired_version`, rather than being dropped. |
+| Closed value sets | Diffed by membership. On a subcommand-shaped draft the result lands in `versioned_arg_values`, the draft vocabulary's existing per-value gate; a command-level value has no field yet, so it becomes a structured `version-gate:` note instead (below). |
+| Arity / role changes | Reported as a note naming both releases and both shapes, never invented — the registry cannot express a versioned arity. |
+| A present → absent → present pattern | Leaves the lifecycle unbounded and raises a warning naming the gap; a range cannot describe a hole. |
+
+`VersionedImportOptions::complete_history` is the one caller-supplied fact
+the derivation cannot infer for itself — see `tcl spec import`'s paired
+`--complete-history`/`--partial-history` flags, off by default.
+
+**`version-gate:` notes.** A fact the draft model has no field for yet —
+today, a command-level closed-value gate — is emitted as a note carrying
+the stable `VERSION_GATE_NOTE` prefix (`version-gate:`) so a later pass
+can mechanically upgrade it into a field once the registry extension
+lands:
+
+```text
+version-gate: command=encode arg=0 value=utf-8 introduced=1.2
+```
+
+`tcl_cli_support::spec_import` renders every derived range and every
+`version-gate:` note into the pack's `#` comment header, so the evidence
+travels with the pack rather than only living in the CLI's stderr
+summary.
+
 ## Trait names come from the registry
 
 `catalogue::trait_keys` renders a spec's traits by asking the registry for

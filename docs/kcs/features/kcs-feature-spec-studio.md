@@ -97,15 +97,27 @@ every `proc` it finds becomes a draft specification:
 Every guess is listed with the evidence behind it, so you can accept it or
 overrule it. They are a starting point, not an assertion.
 
-### A DSL tab is coming
+### The Pack DSL tab
 
-Today the studio reads and writes the live registry as a form, a `.rs`
-module, and a stub. A fourth surface — open an existing `.tclspec`
-[SpecTcl pack](../../design/spec-packs.md) and edit it the same way, then
-save your changes back as SpecTcl instead of Rust — is designed but not
-yet built. Until it lands, write a pack by hand or with the spec-author
-Claude Code skill; see [how to write a SpecTcl
-pack](../kcs-howto-write-a-tclspec-pack.md).
+Beside the form, `.rs` module, and stub, the **Pack DSL** tab holds the
+[SpecTcl pack](../../design/spec-packs.md)'s `.tclspec` source directly —
+the studio's one authoritative document for a pack you are building.
+Edit a field in the form and the DSL text updates; edit the text and the
+form, the command list, and the collision report all follow. Open an
+existing `.tclspec` with **Open a .tclspec…**, or start one from scratch
+and **Download** or **Add to files** when you are done. **Re-render
+canonically** rebuilds the whole document from its commands — useful
+after a lot of form editing, at the cost of your own comments and layout.
+
+The tab paints real syntax highlighting over the source, shows hover text
+for a property word or catalogue spelling (the same schema and help text
+the form's **?** buttons use), and marks the lines a load notice applies
+to in a gutter strip — entirely client-side, so nothing you type leaves
+the page. This widget is deliberately the minimum viable editor, not a
+full code-editing surface: it is slated for replacement by an embedded
+Monaco editor with the language server itself, compiled to WebAssembly,
+attached as its language server, so pack authoring in the browser gets
+the identical SpecTcl experience an editor gets.
 
 ### What a stub cannot carry
 
@@ -168,6 +180,6 @@ reasoning that produced it.
 - [Dialect command stubs](../../design/contracts/dialect-stubs.md) — the stub
   language the studio emits.
 - [SpecTcl pack design](../../design/spec-packs.md) — the `.tclspec`
-  authoring format the studio's coming DSL tab reads and writes.
+  authoring format the studio's Pack DSL tab reads and writes.
 - [How to write a SpecTcl pack](../kcs-howto-write-a-tclspec-pack.md) —
   write one by hand today.

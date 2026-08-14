@@ -295,11 +295,13 @@ are its rules, and what are the failure modes". One contract per file.
   and inline stub blocks.
 - [command-spec-studio.md](contracts/command-spec-studio.md) — the spec
   studio's schema / draft / renderer layering, the invariants that keep it
-  in step with `CommandSpec`, and the rules its rendered `.rs` must satisfy.
-- [spec-packs.md](spec-packs.md) — **proposal**: a Tcl-DSL command
-  database for private libraries, statically parsed by our own
-  toolchain, with the vocabulary-tolerance policy that avoids
-  per-release rebuilds (issue #1363).
+  in step with `CommandSpec`, the rules its rendered `.rs` must satisfy,
+  and the multi-snapshot version-range importer behind `tcl spec import`.
+- [spec-packs.md](spec-packs.md) — SpecTcl, the Tcl-DSL command database
+  for private libraries: the runtime loader, discovery, and hook
+  execution that have landed; the version-ranges lifecycle model at every
+  gateable level; and the vocabulary-tolerance policy that avoids
+  per-release rebuilds.
 - [spec-dsl-examples/tricky-surfaces.md](spec-dsl-examples/tricky-surfaces.md)
   — the DSL's acceptance rubric: the tricky Tcl surfaces (operator
   aliasing, TclOO corners, real-world options, paired tails, hooks)

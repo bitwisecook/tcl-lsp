@@ -965,6 +965,17 @@ validation rules keyed by dialect.  Switching the dialect profile changes
 which commands are known, which are deprecated, and which event/layer
 constraints apply.
 
+Version-aware diagnostics reach every gateable level of a call, not just
+the command: a subcommand, a second-level operation of a two-level
+ensemble (`info object class`), an option, and a literal argument value —
+each independently reports "not introduced yet" (`W135`/`W136`),
+"deprecated" (`W144`), or "removed" (`W139`) against the resolved version
+floor. A `package require Foo A-B` **range** whose upper bound reaches
+past a retirement is caught too: the floor alone can be satisfied while
+part of the accepted range is not, so `W139` fires with a hedged "not
+available in every version satisfying requirement `A-B`" message rather
+than staying silent.
+
 ### Automatic dialect detection
 
 The dialect is selected automatically using the following priority chain
@@ -1247,6 +1258,14 @@ the evidence behind it.
 Browse the list to pick a command, or type a name you already know and press
 **Load** (Enter works too, and the box suggests matching names as you type).
 
+The **Pack DSL** tab holds a [SpecTcl pack](docs/design/spec-packs.md)'s
+`.tclspec` source directly as its own authoritative document — edit the
+form and the text follows, edit the text and the form follows. It paints
+real syntax highlighting, shows hover text for a property word from the
+same schema and help catalogue the form's **?** buttons use, and marks
+the lines a loader notice applies to in a gutter strip, entirely
+client-side.
+
 It works on a phone as well as a desktop: the toolbar unwraps to full-width
 controls, the tab strip scrolls sideways, and touch targets meet the 44px
 minimum.  On a narrow screen the command list moves below the editor, which is
@@ -1511,6 +1530,7 @@ A single verb-based CLI that aggregates common local workflows:
 - `help` — search bundled KCS feature docs from the SQLite help index
 - `pkg` — package management: `init`, `add`, `remove`, `install`, `list`, `tree`, `verify`, `info`, `search`, `update`, `sync`, `outdated`, `why`, `vendor`, `run`
 - `venv` — virtual environments: `create`, `delete`, `info`, `activate`, `deactivate`, `list`, `update`, `run`
+- `spec` — author SpecTcl (`.tclspec`) command packs: `import` derives `introduced_version`/`retired_version` ranges for a package's commands from several labelled release snapshots
 
 ```sh
 # Optimise everything under src/ into one output script
@@ -1581,6 +1601,15 @@ tcl help --help
 
 # Emit help search results as JSON
 tcl help taint --json
+
+# Derive version ranges for a package's commands from three local release
+# snapshots, and validate the result
+tcl spec import --snapshot 1.0=rel/1.0 --snapshot 1.2=rel/1.2 --snapshot 2.0=rel/2.0 \
+  --dialect tcl8.6 --out mylib.tclspec
+
+# ...or from a GitHub repository's release tags
+tcl spec import --github tcltk/tcllib --tag-pattern 'tcllib-*' --limit 8 \
+  --complete-history --out tcllib.tclspec
 ```
 
 For iRules input, pass `--dialect f5-irules` explicitly:

@@ -17,8 +17,7 @@ I write, where does it go, and what happens once I save it?
 If you have not chosen an authoring route yet, start with [creating a
 command spec without knowing Rust](kcs-howto-create-command-specs-without-rust.md).
 This note is the quickstart once you have: the minimal shape, the three
-places a pack can live, and — because the loader is still landing — what
-works today versus what is coming.
+places a pack can live, and what happens once the server picks it up.
 
 ## Answer
 
@@ -69,39 +68,35 @@ collision with a shipped command. Fix every notice — a dropped word is
 otherwise silent. A `tcl spec check` command-line equivalent is planned;
 the MCP tool is what exists today.
 
-### What works today versus what is landing
+### The server loads your pack automatically
 
-- **Today.** Writing and validating a pack works exactly as described
-  above. The three-tier discovery and the "nearest wins" merge exist and
-  are tested as a library, but nothing in the running language server, and
-  no editor setting, reads from your workspace or config directory yet.
-  Dropping a pack in `.tcl-lsp/` does not, today, change what your editor
-  shows.
-- **Landing.** Wiring that discovery into the running server, so a saved
-  pack lights your commands up without a restart, is in progress — see
-  [issue #1363](https://github.com/bitwisecook/tcl-lsp/issues/1363). Until
-  it ships, use [stubs](kcs-howto-annotate-commands-with-stubs.md) for
-  live effect in your editor, and keep the pack you validated now: nothing
-  about it changes when the loader lands.
+Dropping a `.tclspec` file in one of the three tiers above lights its
+commands up without a restart. The server discovers and installs your
+packs when a workspace opens, and again whenever a `.tclspec` file
+changes on disk or `tclLsp.specPacks` moves — your editor's watched-files
+mechanism tells it, so saving the file is enough. Discovery, the
+nearest-wins merge, and installation into the running command registry
+all happen on the live server, not only in the library's own tests.
 
 ### One bad pack cannot take the server down
 
-This is a design requirement, stated plainly rather than assumed. A pack's
-declarations — arity, roles, hover text, and the rest — are read as plain
-data; nothing executes. The one part of a pack that is code is a hook
-body, and a hook body is designed to run in a sandboxed interpreter with
-its own time and memory budget, isolated per pack: a crash or a runaway
-hook is contained, and only that pack's hook switches off for the
-session — never the server. Hook execution ships alongside the runtime
-loader above, so today no pack code runs at all during editing; the
-guarantee describes what ships together, not a claim about today's code
-path.
+A pack's declarations — arity, roles, hover text, and the rest — are read
+as plain data; nothing executes. The one part of a pack that is code is a
+hook body — a resolver, a const-folder, a predicate gate — and it runs in
+a sandboxed interpreter with its own time and memory budget, isolated per
+pack. This is live on every load and reload, not aspirational: a crash or
+a runaway hook is contained, and only that pack's hook switches off for
+the session — never the server.
 
 ## How to tell it worked
 
 `spectcl_check` reports your commands with the fields you expect set and
-no notices. That is the whole test today. Once runtime loading ships, the
-signal moves to the editor: the command stops being flagged unknown.
+no notices — check this first, since a dropped word is otherwise silent.
+Then look at the editor itself: a command your pack declares stops being
+flagged unknown, and hover on it shows the summary and return text you
+wrote. If it does not, check the server's log channel for a `SpecTcl:`
+load line — it names how many packs and commands were found, and any
+notice or shipped-command collision.
 
 ## Related
 

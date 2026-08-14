@@ -32,9 +32,12 @@ dormant-to-distant enough in this space that the pun wins.)
 > read the pack-carrying entry, without which an EDA document's every command
 > reported as unknown.
 >
-> **Not yet:** hook bodies do not run — every pack-declared hook installs as an
-> abstaining function pointer, so the cache has no bytecode to hold and stores
-> only the parsed statement tree. See "Hot-path budget" and phase 5 below.
+> **Landed (hook execution):** hook bodies run — see "What exists today"
+> below for the crates that do it and the measured cost.
+>
+> **Not yet:** the Pack DSL tab's own editing surface is a highlighted
+> textarea with hover and notice markers (`docs/kcs/features/kcs-feature-spec-studio.md`),
+> not the Monaco-plus-wasm-LSP pack workbench phase 2 below describes.
 
 ## The problem
 
@@ -421,6 +424,110 @@ let packs survive releases without rebuilds:
 - The studio schema-coverage gates already force every new `CommandSpec`
   field to a named key; that key is the DSL property name, so the format
   cannot silently fall behind the registry.
+
+## Version ranges: introduced, deprecated, retired
+
+Every entity the registry can gate carries the same `Lifecycle` triple —
+an introducing release, a deprecating release, and a retiring release, on
+either the owning package's version axis or the core Tcl axis. Registry
+work has closed the parity holes between what a compiled-in spec could
+say and what a pack can say: the triple now exists at **every** gateable
+level, not just the command:
+
+- the command itself (`CommandSpec::lifecycle`),
+- a subcommand, and a second-level operation of a two-level ensemble
+  (`SubSubCommand`, e.g. `info object class`),
+- an option, at command or subcommand scope,
+- an option constraint (a mutual-exclusion or requires-together rule
+  between options),
+- a side effect,
+- an invocation form (`FormSpec`), and
+- a literal argument value in a closed set (`ArgValue::lifecycle`), which
+  rides the owning-package axis and is a separate fact from
+  `ArgValue::min_tcl` (the Tcl-core-gated argument-DSL rung, `W137`).
+
+`CommandSpec` also gained `versioned_arg_values`: a command-level mirror
+of the per-subcommand literal-value gate, for a value that sits directly
+on the command rather than behind a subcommand word (`HTTP::respond
+<status> noserver`, `close $chan read`). A value gated by both its own
+`ArgValue::lifecycle` and a `versioned_arg_values` entry is narrowed by
+`Lifecycle::intersect` and recorded once, so a doubly-gated value never
+draws two diagnostics for one word.
+
+Only three of these levels are wired into the analyser's diagnostics
+today — the command, the subcommand and sub-subcommand, options, and
+argument values (command- and subcommand-scoped) all feed `W135`/`W136`/
+`W139`/`W144` via `version_gate.rs`. Option constraint, side effect, and
+form lifecycles are registry data and are validated by the registry
+sweep (below) but are not yet read by a diagnostic — a pack or a shipped
+spec can declare them, and the field round-trips through the studio, but
+nothing in the editor reports a use of a deprecated or retired *form* or
+*side effect* yet.
+
+### Ordering and containment: notice-only for packs, a hard gate for shipped specs
+
+A `Lifecycle` must be internally ordered (introduced ≤ deprecated <
+retired, where each is present) and a child's declared releases must fall
+inside its parent's window — a subcommand cannot claim an introduction
+before the command that hosts it existed. Both properties are checked at
+two different strengths, on purpose:
+
+- **Shipped specs — a hard gate.** `rust/tcl-registry/tests/registry_sweep.rs`
+  walks every compiled-in command, recursing into every level above, and
+  asserts both properties (`Lifecycle::validate`, `Lifecycle::intersect`
+  for containment) for each one. A shipped spec with an invalid or
+  non-contained lifecycle fails the test suite outright.
+- **Packs — notice-only.** The loader (`rust/tcl-spectcl/src/loader.rs`)
+  runs the same two checks on every `-introduced`/`-deprecated`/
+  `-retired` lifecycle it parses, at every level. An invalid ordering
+  drops the lifecycle back to `Lifecycle::UNSPECIFIED` with a logged
+  notice naming the field and the reason; a lifecycle that reaches
+  outside its parent's window is reported the same way but **kept** — the
+  declaration still loads, unlike the ordering failure. This follows the
+  format's own compatibility policy above: a pack degrades gracefully
+  where a shipped spec is held to a hard gate, because only the shipped
+  registry is what the rest of the toolchain treats as ground truth.
+
+### The requirement-range straddle rule
+
+`package require Foo A-B` guarantees only that the loaded `Foo` is
+somewhere in `[A, B)` — the version-gate floor check asks about `A`
+alone, so a range that runs past a retirement can pass the floor while
+still failing for part of the accepted window. `version::requirement_upper_bound`
+extracts that ceiling from a **stated** range only: `A-B` participates,
+but a bare `A` or an open `A-` states no ceiling and is silently exempt
+from the straddle check — there is nothing to straddle. `A-A` is a
+degenerate pin the floor check alone already decides.
+
+When the ceiling reaches strictly past a retirement, `Analyser::requirement_straddle_diagnostic`
+emits the same `W139` the plain retirement check would, but hedged:
+
+```text
+'trace variable' is not available in every version satisfying requirement
+`8.5-9.1`: removed in Tcl 9.0.
+```
+
+rather than the ordinary "was removed in … but …" phrasing, because the
+floor itself is satisfied — the item really is available at the low end
+of the requirement, just not everywhere the requirement admits. The
+straddle diagnostic only fires while the floor's own verdict is
+`Available`; a floor that already fails keeps its own, more specific
+message. See [W139](../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version.md).
+
+### `speclib` 1.1: an additive vocabulary revision
+
+`speclib` 1.1 unifies the lifecycle spelling to `-introduced`/
+`-deprecated`/`-retired` flags at every level described above, including
+the command and subcommand levels, which previously took
+`introduced_version`/`deprecated_version`/`retired_version` as separate
+dict-style properties. This is additive, not a breaking change — the
+older spellings keep working, and 1.1 only adds a consistent shorthand —
+so `VOCABULARY_VERSION` (`rust/tcl-spectcl/src/lib.rs`) stays `"1"` per
+the compatibility policy above: a version pragma bump is reserved for a
+word whose *meaning* changes, and no word's meaning changed here. The
+authoritative spelling table for every level lives in
+[`spec-dsl-examples/README.md`](spec-dsl-examples/README.md); this
+document does not duplicate it.
 
 ## Loading and tooling
 
