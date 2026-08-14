@@ -44,9 +44,8 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "CATEGORY::result (('category' ('-display' | '-id')? ('custom' | 'request_default' | 'request_default_and_custom')?) | 'safesearch')",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -73,9 +72,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

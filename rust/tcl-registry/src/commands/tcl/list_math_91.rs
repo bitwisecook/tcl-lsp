@@ -87,9 +87,8 @@ fn make(
 /// `divmod x y` — integer quotient and remainder as a two-element list.
 pub fn divmod() -> CommandSpec {
     const FORMS: &[FormSpec] = &[FormSpec {
-        kind: FormKind::Default,
         synopsis: "divmod x y",
-        dialects: None,
+        ..FormSpec::DEFAULT
     }];
     make(
         "divmod",
@@ -109,9 +108,8 @@ pub fn divmod() -> CommandSpec {
 /// `frexp value` — fraction and exponent parts of a float as a list.
 pub fn frexp() -> CommandSpec {
     const FORMS: &[FormSpec] = &[FormSpec {
-        kind: FormKind::Default,
         synopsis: "frexp value",
-        dialects: None,
+        ..FormSpec::DEFAULT
     }];
     make(
         "frexp",
@@ -131,9 +129,8 @@ pub fn frexp() -> CommandSpec {
 /// `modf value` — integer and fraction parts of a float as a list.
 pub fn modf() -> CommandSpec {
     const FORMS: &[FormSpec] = &[FormSpec {
-        kind: FormKind::Default,
         synopsis: "modf value",
-        dialects: None,
+        ..FormSpec::DEFAULT
     }];
     make(
         "modf",
@@ -165,9 +162,8 @@ pub fn modf() -> CommandSpec {
 /// instead, if the project owner prefers.
 pub fn remquo() -> CommandSpec {
     const FORMS: &[FormSpec] = &[FormSpec {
-        kind: FormKind::Default,
         synopsis: "remquo x y",
-        dialects: None,
+        ..FormSpec::DEFAULT
     }];
     make(
         "remquo",

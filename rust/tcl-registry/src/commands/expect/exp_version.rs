@@ -19,9 +19,8 @@
 //! `exp_version` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "exp_version ?version?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

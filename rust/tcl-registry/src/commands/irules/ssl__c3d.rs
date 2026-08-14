@@ -29,10 +29,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -44,10 +43,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -59,10 +57,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -83,10 +80,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -109,14 +105,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "override",
                     detail: "Use the certificate forging time.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "original",
                     detail: "Retain the original certificate's notBefore value.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
             ],
         )],
@@ -124,10 +118,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -153,9 +146,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "SSL::c3d extension <oid oid-value> inserts an extension. SSL::c3d cert <certificate in DER> sets the C3D client certificate. SSL::c3d subject <nid value> sets the forged certificate subject. SSL::c3d cert_lifespan <hours> sets its lifespan. SSL::c3d cert_start_date [override | original] controls its notBefore value.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::c3d <subcommand> <args>",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -163,7 +155,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a method/command from the current RTSP request.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "RTSP::method",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

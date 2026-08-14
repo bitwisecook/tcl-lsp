@@ -19,9 +19,8 @@
 //! `dns::name` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "dns::name token",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

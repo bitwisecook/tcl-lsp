@@ -34,9 +34,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "CRYPTO::sign (('-alg' ('hmac-md5' | 'hmac-ripemd160' | 'hmac-sha1' | 'hmac-sha224'",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -88,11 +87,9 @@ pub const fn spec() -> CommandSpec {
             ]
         },
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -43,9 +43,8 @@ use crate::prelude::*;
 // value are identical either way), so it is not reflected as a spec field
 // here.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tailcall command ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `tailcall`.
@@ -93,7 +92,6 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             // Scheduling (or clearing) the frame's deferred replacement
             // call and forcing the current evaluation to complete
             // TCL_RETURN is `tailcall`'s own, always-true effect,
@@ -102,8 +100,7 @@ pub fn spec() -> CommandSpec {
             // this directory (`return`, `break`, `continue`, `throw`,
             // `exit`), all of which declare `writes: true` here too.
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Replace the currently executing procedure, lambda, or method with a tail call to another command.",

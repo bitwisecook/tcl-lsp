@@ -25,26 +25,22 @@ const RESPOND_OPTION_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "content",
         detail: "Inline response body.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "noserver",
         detail: "Suppress Server header.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "reset",
         detail: "Reset server-side connection.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "version",
         detail: "Response HTTP version.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -141,16 +137,15 @@ pub const fn spec() -> CommandSpec {
         // (`HTTP::respond 302 content|noserver|reset|version`).
         arg_values: &[(1, RESPOND_OPTION_VALUES)],
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "HTTP::respond <status> ?option value ...?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ResponseCommit,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

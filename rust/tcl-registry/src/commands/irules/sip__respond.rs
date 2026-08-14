@@ -42,16 +42,14 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SIP::respond RESPONSE_CODE (PHRASE (HEADER_NAME HEADER_VALUE)*)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

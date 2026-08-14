@@ -19,9 +19,8 @@
 //! `math::statistics::pvar` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "math::statistics::pvar values",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

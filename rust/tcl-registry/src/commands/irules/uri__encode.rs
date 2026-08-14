@@ -36,16 +36,14 @@ pub const fn spec() -> CommandSpec {
         taint_transform: Some(TaintColour::URL_ENCODED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::URL_ENCODED),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "URI::encode URI_STRING",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

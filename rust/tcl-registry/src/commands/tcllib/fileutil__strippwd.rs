@@ -19,9 +19,8 @@
 //! `fileutil::stripPwd` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "fileutil::stripPwd path",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

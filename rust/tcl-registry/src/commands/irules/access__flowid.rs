@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The flow id is returned",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ACCESS::flowid (FID)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

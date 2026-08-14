@@ -22,9 +22,8 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "close channelId",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     // The two-argument half-close form was added in 8.6: the 8.4 and 8.5
     // close.n synopses are just `close channelId`, with no direction
@@ -33,9 +32,9 @@ const FORMS: &[FormSpec] = &[
     // `close channel ?r(ead)|w(rite)?` synopsis while deferring to chan(n)
     // for prose, stating close "supports the same syntax and options".
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "close channelId ?r(ead)|w(rite)?",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -47,6 +46,9 @@ const FORMS: &[FormSpec] = &[
 /// write`) — a flat per-word closed set can't express unique-prefix
 /// matching, so like `open`'s `ACCESS_VALUES` this is completion/hover data
 /// only; `close` has no `closed_value_args` entry for this position.
+/// `min_tcl` therefore never reaches W137 (which only inspects closed value
+/// sets), so the 8.6 introduction is also stated as a [`Lifecycle`] — the
+/// general version-gate rung, which matches any literal value word.
 /// (`chan close`'s twin subcommand spec models the identical fact via
 /// `arg_values_accept_prefix`, a field only `SubCommand` carries —
 /// top-level `CommandSpec`, which `close` is, has no such flag.)
@@ -55,12 +57,14 @@ const DIRECTION_VALUES: &[ArgValue] = &[
         value: "read",
         detail: "Half-close only the read side of a bidirectional channel (socket or command pipeline). Any unique abbreviation down to \"r\" is also accepted.",
         min_tcl: Some(TclVersion::V8_6),
+        lifecycle: Lifecycle::introduced_in("8.6"),
         ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "write",
         detail: "Half-close only the write side of a bidirectional channel (socket or command pipeline). Any unique abbreviation down to \"w\" is also accepted.",
         min_tcl: Some(TclVersion::V8_6),
+        lifecycle: Lifecycle::introduced_in("8.6"),
         ..ArgValue::DEFAULT
     },
 ];
@@ -95,10 +99,8 @@ pub fn spec() -> CommandSpec {
         // rather than spawning one itself.
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         arg_values: &[(1, DIRECTION_VALUES)],
         hover: Some(HoverSnippet {

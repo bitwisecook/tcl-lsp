@@ -33,29 +33,25 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "app",
                     detail: "Client application traffic secret.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "hs",
                     detail: "Client handshake traffic secret.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "early",
                     detail: "Client early traffic secret.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
             ],
         )],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -71,23 +67,20 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "app",
                     detail: "Server application traffic secret.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "hs",
                     detail: "Server handshake traffic secret.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
             ],
         )],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Server,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -120,17 +113,15 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::tls13_secret <side> <secret_type>",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

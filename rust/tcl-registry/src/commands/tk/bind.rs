@@ -20,10 +20,8 @@
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Dynamic arg-role resolver for `bind`.
@@ -44,9 +42,8 @@ fn bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "bind tag ?sequence? ?+??command?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

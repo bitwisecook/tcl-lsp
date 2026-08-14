@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The ClientRandom value.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::clientrandom",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

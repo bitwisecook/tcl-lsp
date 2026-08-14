@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the current value of the specified setting in the assigned persistence profile.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "PROFILE::persist ((instance PROFILE_PERSIST ATTR) | (mode MODE ATTR))",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

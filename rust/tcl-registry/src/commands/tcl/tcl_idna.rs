@@ -45,9 +45,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tcl::idna subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Second-level dispatch of `tcl::idna puny`. Real Tcl documents exactly
@@ -59,13 +58,13 @@ const IDNA_PUNY_SUBS: &[SubSubCommand] = &[
         name: "decode",
         detail: "Decode a punycode-encoded string, optionally case-folding the result.",
         synopsis: "tcl::idna puny decode string ?case?",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "encode",
         detail: "Encode a string as punycode, optionally case-folding the result.",
         synopsis: "tcl::idna puny encode string ?case?",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
 ];
 

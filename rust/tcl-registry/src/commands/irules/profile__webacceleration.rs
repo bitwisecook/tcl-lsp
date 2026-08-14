@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the value of an web acceleration profile setting",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "PROFILE::webacceleration ATTR",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

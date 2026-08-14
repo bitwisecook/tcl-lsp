@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a unique identifier for the current connection.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::flow_id",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

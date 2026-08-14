@@ -21,7 +21,6 @@ use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     // Suspending the running coroutine — saving its continuation and
     // handing control back to whichever call resumes it — is yield's own,
     // always-true effect on the interpreter's execution state, independent
@@ -29,14 +28,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     // commands in this directory (`return`, `break`, `continue`, `throw`,
     // `exit`, `tailcall`), all of which declare `writes: true` here too.
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "yield ?value?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `yield`.

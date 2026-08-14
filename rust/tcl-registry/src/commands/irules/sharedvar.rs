@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "sharedvar VARIABLE",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         arg_roles: &[(0, ArgRole::VarWrite)],
         ..CommandSpec::DEFAULT

@@ -32,9 +32,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "The return value is the argument passed to response.reply() call on the extension side (eg. an array, a string, etc).",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ILX::call HANDLE ?-timeout ms? ?--? METHOD ?args ...?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -60,10 +59,9 @@ pub const fn spec() -> CommandSpec {
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

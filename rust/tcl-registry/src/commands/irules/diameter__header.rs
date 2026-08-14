@@ -33,7 +33,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -46,9 +46,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -64,7 +63,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -80,7 +79,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -96,7 +95,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -112,7 +111,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -128,7 +127,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -144,7 +143,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -160,7 +159,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -176,7 +175,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -210,17 +209,15 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DIAMETER::header <field> ?value?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

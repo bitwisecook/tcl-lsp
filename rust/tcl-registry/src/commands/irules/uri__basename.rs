@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return the basename part of a given uri string.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "URI::basename URI_STRING",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

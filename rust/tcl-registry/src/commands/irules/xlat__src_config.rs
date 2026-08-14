@@ -33,16 +33,14 @@ pub const fn spec() -> CommandSpec {
         }),
         excluded_events: &["RULE_INIT"],
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "XLAT::src_config",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

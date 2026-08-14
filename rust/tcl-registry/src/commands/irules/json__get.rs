@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the content held within the JSON element, according to the types listed in the above description.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "JSON::get JSON_ELEMENT (JSON_TYPE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -19,9 +19,8 @@
 //! `math::statistics::mean-histogram-limits` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "math::statistics::mean-histogram-limits mean stdev ?number?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

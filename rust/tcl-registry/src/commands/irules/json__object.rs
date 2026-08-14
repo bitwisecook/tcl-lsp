@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return depends on subcommand. See syntax description for detail.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "JSON::object (",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

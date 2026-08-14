@@ -32,9 +32,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "JSON Web Signature string.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ACCESS::oauth sign ((-payload VALUE) (-key JWK_OBJECT)",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -88,9 +87,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

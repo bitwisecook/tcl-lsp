@@ -73,20 +73,19 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::uri ?-normalized?",
-                dialects: None,
+                ..FormSpec::DEFAULT
             },
             FormSpec {
                 kind: FormKind::Setter,
                 synopsis: "HTTP::uri <URI>",
-                dialects: None,
+                ..FormSpec::DEFAULT
             },
         ],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED.union(TaintColour::PATH_PREFIXED)),
         ..CommandSpec::DEFAULT

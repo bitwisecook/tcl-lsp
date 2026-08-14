@@ -32,16 +32,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "sha256 <string> Returns the Secure Hash Algorithm version 2.0 (SHA2) message digest of the specified string using 256 bit digest length. If an error occurs, an empty string is returned.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "sha256 ANY_CHARS",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

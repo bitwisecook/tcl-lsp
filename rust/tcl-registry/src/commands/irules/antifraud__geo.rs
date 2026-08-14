@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns L3 geoIP and geolocation collected by client.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ANTIFRAUD::geo",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

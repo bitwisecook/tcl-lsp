@@ -55,14 +55,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "option option ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

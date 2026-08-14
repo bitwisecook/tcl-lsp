@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the IP address of the host on the far end of the connection.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "remote_addr",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("IP::remote_addr"),
         deprecated_replacement_drop_in: true,

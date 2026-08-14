@@ -34,7 +34,6 @@ use crate::prelude::*;
 // line-number IDs are discounted.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         // -level is Tcl 8.5+ (see the per-option gate on the `-level`
         // OptionSpec below, and the 8.4 SYNOPSIS split immediately
         // below this entry) — this form's own `dialects` must say so
@@ -45,9 +44,9 @@ const FORMS: &[FormSpec] = &[
         // -code/-errorinfo/-errorcode.
         synopsis: "return ?-code code? ?-level level? ?result?",
         dialects: Some(DialectSet::TCL85_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         // `TCL84 | IRULES`, not bare `TCL84`: these are separate
         // `DialectSet` bits (iRules' own embedded-8.4.6 base doesn't
         // imply the `TCL84` bit), and this form — return used inside a
@@ -61,6 +60,7 @@ const FORMS: &[FormSpec] = &[
         // iRules proc actually uses.
         synopsis: "return ?-code code? ?-errorinfo info? ?-errorcode code? ?string?",
         dialects: Some(DialectSet::TCL84.union(DialectSet::IRULES)),
+        ..FormSpec::DEFAULT
     },
     // F5 `return(1)`: directly inside a `when EVENT { … }` body, `return`
     // takes no arguments — `return_context_gate` below enforces this
@@ -77,9 +77,9 @@ const FORMS: &[FormSpec] = &[
     // entry narrows the *form*, not the command's own Tcl-version gating
     // — return itself stays universal (`dialects: None` below).
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "return",
         dialects: Some(DialectSet::IRULES),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -180,17 +180,14 @@ fn return_context_gate(args: &[&str], in_event_body: bool) -> Option<&'static st
 const SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
         target: SideEffectTarget::InterpState,
-        reads: false,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
         target: SideEffectTarget::EventControl,
-        reads: false,
         writes: true,
-        connection_side: ConnectionSide::None,
         dialects: Some(DialectSet::IRULES),
+        ..SideEffect::DEFAULT
     },
 ];
 

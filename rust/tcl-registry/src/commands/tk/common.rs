@@ -28,38 +28,32 @@ pub(crate) const RELIEF: &[ArgValue] = &[
     ArgValue {
         value: "flat",
         detail: "No 3-D border.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "groove",
         detail: "Grooved (incised) border.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "raised",
         detail: "Raised 3-D border.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "ridge",
         detail: "Ridged (embossed) border.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "solid",
         detail: "Solid one-pixel border.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "sunken",
         detail: "Sunken 3-D border.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -68,56 +62,47 @@ pub(crate) const ANCHOR: &[ArgValue] = &[
     ArgValue {
         value: "n",
         detail: "North (top center).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "ne",
         detail: "North-east (top right).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "e",
         detail: "East (right center).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "se",
         detail: "South-east (bottom right).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "s",
         detail: "South (bottom center).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "sw",
         detail: "South-west (bottom left).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "w",
         detail: "West (left center).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "nw",
         detail: "North-west (top left).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "center",
         detail: "Centered.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -126,19 +111,16 @@ pub(crate) const JUSTIFY: &[ArgValue] = &[
     ArgValue {
         value: "left",
         detail: "Left-justify lines.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "right",
         detail: "Right-justify lines.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "center",
         detail: "Center lines.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];

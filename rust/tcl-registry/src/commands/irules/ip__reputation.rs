@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return a TCL list containing reputation categories.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "IP::reputation (IP_ADDR)+",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

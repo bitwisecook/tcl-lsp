@@ -33,16 +33,14 @@ pub const fn spec() -> CommandSpec {
         }),
         excluded_events: &["SERVER_INIT"],
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::rcv_scale",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

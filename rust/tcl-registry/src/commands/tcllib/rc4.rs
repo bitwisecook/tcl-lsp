@@ -26,11 +26,9 @@ use crate::prelude::*;
 
 /// `-in` / `-out` channels perform I/O on the one-shot command.
 const IO: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Options for the one-shot `rc4::rc4` command.

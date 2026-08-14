@@ -19,9 +19,8 @@
 //! `csv::split2queue` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "csv::split2queue ?-alternate? q line ?sepChar?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

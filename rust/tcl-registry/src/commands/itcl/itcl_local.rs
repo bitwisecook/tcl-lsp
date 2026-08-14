@@ -20,9 +20,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "itcl::local class name ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

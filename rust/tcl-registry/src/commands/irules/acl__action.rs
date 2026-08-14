@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "When no argument is provided, the command will return an integer value corresponding to an action that will be taken: + 0 is a drop + 1 is reset (or reject) + 2 is allow (or accept) + 3 is allow-final (or accept-decisively)",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ACL::action (default |",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

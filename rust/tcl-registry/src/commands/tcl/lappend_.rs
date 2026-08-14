@@ -22,9 +22,8 @@ use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "lappend varName ?value value value ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `lappend`.
@@ -57,8 +56,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Append list elements to a variable, creating it if it does not already exist.",

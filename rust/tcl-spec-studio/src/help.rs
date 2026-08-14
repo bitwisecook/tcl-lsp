@@ -863,10 +863,11 @@ longer than uniqueness requires. Leave unset almost always.",
     ),
     (
         "versioned_arg_values",
-        "Version gates for individual literal values of this subcommand's \
-arguments — when one mode word appeared in (or left) a specific package \
-release, like a persistence mode added mid-release-train. The value list \
-itself lives under argument values; this adds the since/until per \
+        "Version gates for individual literal argument values — when one mode \
+word appeared in (or left) a specific package release, like a persistence \
+mode added mid-release-train. Indices count from after the command name at \
+command level and from after the subcommand word at subcommand level. The \
+value list itself lives under argument values; this adds the since/until per \
 value.",
     ),
     (

@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "This command returns peer address field from DHCPv6 RELAY message",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DHCPv6::peer_address",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

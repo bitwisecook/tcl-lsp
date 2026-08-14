@@ -34,14 +34,14 @@ use crate::prelude::*;
 // consults the global `auto_path`, never its own formal parameters.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "tclPkgUnknown name ?arg arg ...?",
         dialects: Some(DialectSet::TCL85_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "tclPkgUnknown name version ?exact?",
         dialects: Some(DialectSet::TCL84),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -57,17 +57,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[
         // own indirect writes through sourced `tclIndex` files.
         reads: true,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
         target: SideEffectTarget::FileIo,
         // `glob`, `file exists`/`dirname`/`join`, and `source` all read
         // the filesystem; the proc itself never writes a file.
         reads: true,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
         target: SideEffectTarget::InterpState,
@@ -78,8 +75,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
         // same `InterpState` target).
         reads: false,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
 ];
 

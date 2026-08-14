@@ -25,11 +25,9 @@ use crate::prelude::*;
 
 /// Commands that touch persistent state (file handles, counters).
 const STATEFUL: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// One command in a flat tcllib package.  `stateful` marks a state-mutating

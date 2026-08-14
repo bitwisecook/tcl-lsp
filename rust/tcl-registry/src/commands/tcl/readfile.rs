@@ -43,9 +43,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "readFile filename ?text|binary?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `mode` (position 1) is `text` (the default) or `binary`, or any
@@ -99,9 +98,7 @@ pub fn spec() -> CommandSpec {
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // Pipe-form: see the `TAINT_SINK` trait comment above — a
             // `|command` filename spawns a child process and reads its
@@ -110,9 +107,7 @@ pub fn spec() -> CommandSpec {
             SideEffect {
                 target: SideEffectTarget::Process,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

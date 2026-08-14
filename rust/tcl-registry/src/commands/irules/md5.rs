@@ -32,16 +32,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "md5 <string> Returns the RSA Data Security, Inc. MD5 Message Digest Algorithm (md5) message digest of the specified string, or if an error occurs, an empty string.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "md5 ANY_CHARS",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

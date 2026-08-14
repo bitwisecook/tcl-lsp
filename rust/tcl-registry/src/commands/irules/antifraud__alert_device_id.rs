@@ -42,16 +42,14 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ANTIFRAUD::alert_device_id",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("ANTIFRAUD::device_id"),
         ..CommandSpec::DEFAULT

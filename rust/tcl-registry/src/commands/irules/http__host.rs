@@ -48,20 +48,19 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::host",
-                dialects: None,
+                ..FormSpec::DEFAULT
             },
             FormSpec {
                 kind: FormKind::Setter,
                 synopsis: "HTTP::host <name>",
-                dialects: None,
+                ..FormSpec::DEFAULT
             },
         ],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

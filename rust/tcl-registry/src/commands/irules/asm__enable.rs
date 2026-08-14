@@ -42,16 +42,14 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ASM::enable ASM_POLICY",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         xc_translatable: Some(true),
         ..CommandSpec::DEFAULT

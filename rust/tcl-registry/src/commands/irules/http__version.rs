@@ -46,9 +46,8 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "HTTP::version ('0.9' | '1.0' | '1.1')?\nHTTP::version -string ?value?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         arg_values: &[(
             0,
@@ -56,20 +55,17 @@ pub const fn spec() -> CommandSpec {
                 ArgValue {
                     value: "0.9",
                     detail: "HTTP/0.9",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "1.0",
                     detail: "HTTP/1.0",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "1.1",
                     detail: "HTTP/1.1",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
             ],
         )],
@@ -88,9 +84,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

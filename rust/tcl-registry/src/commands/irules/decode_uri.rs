@@ -32,16 +32,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "decode_uri ANY_CHARS",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("URI::decode"),
         deprecated_replacement_drop_in: true,

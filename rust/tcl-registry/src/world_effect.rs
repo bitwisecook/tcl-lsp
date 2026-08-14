@@ -1164,10 +1164,9 @@ mod tests {
             None,
             &[SideEffect {
                 target: SideEffectTarget::Variable,
-                reads: false,
                 writes: true,
                 connection_side: crate::side_effects::ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             }],
             &coverage,
         );

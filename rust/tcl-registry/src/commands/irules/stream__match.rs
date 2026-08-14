@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the matching characters.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "STREAM::match",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::StreamProfile,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -30,11 +30,9 @@ use crate::prelude::*;
 /// keep an unknown-but-present effect (`if`, `for`, `foreach`, `catch`)
 /// rather than a no-effect placeholder.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 // `-nobackslashes`/`-nocommands`/`-novariables` are the only recognised
@@ -123,14 +121,13 @@ const OPTIONS: &[OptionSpec] = &[
 // `TCL85_PLUS`.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "subst ?-nobackslashes? ?-nocommands? ?-novariables? string",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "subst ?-backslashes? ?-commands? ?-variables? string",
         dialects: Some(DialectSet::TCL91),
+        ..FormSpec::DEFAULT
     },
 ];
 

@@ -79,9 +79,8 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "arg index ?-role R? ?-type T? ?-values {…}? ?-closed? ?-layout L? …",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

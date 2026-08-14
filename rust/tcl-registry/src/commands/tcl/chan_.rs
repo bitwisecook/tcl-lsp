@@ -29,14 +29,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::FileIo,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "chan subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `-translation`'s flat mode values — completion/hover data only
@@ -435,9 +433,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -460,10 +456,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -479,8 +473,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -496,8 +489,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -514,10 +506,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefixes: &[(1, AppendedArity::AtLeast(2))],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -533,9 +523,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -557,8 +545,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -573,10 +560,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -593,16 +578,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             SideEffect {
                 target: SideEffectTarget::Variable,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         ..SubCommand::DEFAULT
@@ -619,9 +600,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -638,9 +617,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -655,10 +632,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::List),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -674,10 +649,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -697,10 +670,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefixes: &[(1, AppendedArity::AtLeast(2))],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -714,10 +685,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -732,9 +701,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -751,10 +718,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -770,9 +735,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -785,10 +748,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -806,9 +767,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -822,10 +781,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },

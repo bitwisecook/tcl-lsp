@@ -19,9 +19,8 @@
 //! `yaml::huddle2yaml` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "yaml::huddle2yaml huddle ?indent? ?wordwrap?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

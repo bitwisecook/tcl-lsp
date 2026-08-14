@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns an X509 certificate error string.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "X509::verify_cert_error_string ERROR_CODE",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

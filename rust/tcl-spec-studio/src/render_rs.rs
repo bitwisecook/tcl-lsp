@@ -1386,7 +1386,7 @@ mod tests {
     fn registry_owned_diagnostic_and_representation_metadata_round_trips() {
         const CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
             options: &["-encoding", "-nopkg"],
-            dialects: None,
+            ..OptionConstraint::DEFAULT
         }];
         let spec = CommandSpec {
             name: "source",

@@ -31,14 +31,12 @@ use crate::prelude::*;
 // own `FormSpec` entry.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "regexp ?switches? exp string ?matchVar? ?subMatchVar subMatchVar ...?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "regexp -about ?switches? exp",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -189,10 +187,8 @@ pub fn spec() -> CommandSpec {
         var_write_typing: VarWriteTyping::Destructured,
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         options: REGEXP_OPTIONS,
         hover: Some(REGEXP_HOVER),

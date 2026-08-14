@@ -22,9 +22,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "::pkg::create -name packageName -version packageVersion ?-load filespec? ... ?-source filespec? ...",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `pkg::create`.

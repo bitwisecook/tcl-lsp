@@ -32,9 +32,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "IPFIX::msg create returns an IPFIX_MESSAGE object that is used by the IPFIX::msg set|delete and IPFIX::destination send commands.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "IPFIX::msg <subcommand> ?options? args...",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[OptionSpec {
@@ -50,9 +49,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

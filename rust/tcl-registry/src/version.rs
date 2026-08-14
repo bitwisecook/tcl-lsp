@@ -129,6 +129,28 @@ pub fn requirement_lower_bound(requirement: &str) -> &str {
     req
 }
 
+/// Return the **exclusive** upper bound a *requirement* admits, when it
+/// states one.
+///
+/// `8.6-9.0` -> `Some("9.0")`; `8.6-` -> `None` (unbounded above); `8.6` ->
+/// `None`. The bare form's implicit `[min, major+1)` ceiling is deliberately
+/// *not* reported: it is Tcl's shorthand rather than an author-stated
+/// intention, and treating it as a declared ceiling would make every
+/// unadorned `package require` claim a range it never meant.
+///
+/// The companion of [`requirement_lower_bound`]: together they describe the
+/// whole window a `package require pkg <requirement>` may resolve to, which
+/// is what a straddle check (does the window cross a retirement?) needs.
+#[must_use]
+pub fn requirement_upper_bound(requirement: &str) -> Option<&str> {
+    let req = requirement.trim();
+    if req.ends_with('-') {
+        return None;
+    }
+    let (_lo, hi) = req.split_once('-')?;
+    (!hi.is_empty()).then_some(hi)
+}
+
 /// Whether `version` falls inside the closed range `[min, max]` (either
 /// bound absent = unbounded on that side). The versioned-library axis's
 /// range test: `min` is the introducing release (or the axis baseline),
@@ -210,5 +232,22 @@ mod tests {
         assert!(meets_min("8.7", "8.7"));
         assert!(meets_min("9.0", "8.7"));
         assert!(!meets_min("8.6", "8.7"));
+    }
+
+    #[test]
+    fn upper_bound_is_stated_only_by_a_real_range() {
+        // Only `a-b` states a ceiling, and it is the exclusive `b`.
+        assert_eq!(requirement_upper_bound("8.6-9.0"), Some("9.0"));
+        assert_eq!(requirement_upper_bound("1.0-3.0"), Some("3.0"));
+        // The degenerate exact pin still reports its (equal) upper end, so a
+        // straddle check sees the same window `satisfies_one` accepts.
+        assert_eq!(requirement_upper_bound("8.4-8.4"), Some("8.4"));
+        // `a-` is unbounded above; a bare `a` states no ceiling of its own
+        // (its `[a, major+1)` window is Tcl shorthand, not an author claim).
+        assert_eq!(requirement_upper_bound("8.5-"), None);
+        assert_eq!(requirement_upper_bound("8.7"), None);
+        // Surrounding whitespace is trimmed exactly as the lower bound does.
+        assert_eq!(requirement_upper_bound("  8.6-9.0  "), Some("9.0"));
+        assert_eq!(requirement_lower_bound("  8.6-9.0  "), "8.6");
     }
 }

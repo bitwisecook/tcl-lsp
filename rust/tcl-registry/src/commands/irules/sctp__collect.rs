@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SCTP::collect (COLLECT_BYTES)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         data_collection: Some(SCTP_COLLECT),
         ..CommandSpec::DEFAULT

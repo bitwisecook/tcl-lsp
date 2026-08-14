@@ -26,9 +26,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "const varName value",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `const`.
@@ -46,10 +45,8 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Create and initialize an unmodifiable constant variable.",

@@ -34,9 +34,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a list of categories returned by the categorization engine depending on the category type specified (custom, request_default, or request_default_and_custom). If no type is specified, it will return request_default.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "CATEGORY::lookup URL ('-display' | '-id')? ('custom' | 'request_default' | 'request_default_and_custom')? ('-ip' IP)? ('-custom_cat_match' ANY_CHARS)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -81,9 +80,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

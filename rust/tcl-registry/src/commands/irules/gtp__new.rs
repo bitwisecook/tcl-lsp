@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a TCL object of type \"GTP-Message\"",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "GTP::new VERSION TYPE",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

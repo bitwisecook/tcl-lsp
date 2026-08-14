@@ -19,9 +19,8 @@
 //! `csv::split2matrix` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "csv::split2matrix ?-alternate? m line ?sepChar? ?quoteChar?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

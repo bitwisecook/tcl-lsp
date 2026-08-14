@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return the session lease time.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "PSC::lease_time IP_ADDR (LEASE_TIME)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

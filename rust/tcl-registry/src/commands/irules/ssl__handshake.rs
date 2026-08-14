@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "SSL::handshake hold Halts any SSL activity. Typically used when an authentication request is made.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::handshake (hold | resume)",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

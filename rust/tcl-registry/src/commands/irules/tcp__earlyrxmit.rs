@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "TCP::earlyrxmit returns whether TCP early retransmit is enabled.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::earlyrxmit (BOOL_VALUE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

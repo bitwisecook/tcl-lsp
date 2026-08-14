@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "returns the number of retries allowed",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::max_retries",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -33,7 +33,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -49,7 +49,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -65,7 +65,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -81,7 +81,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -97,7 +97,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -113,7 +113,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -126,9 +126,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -141,9 +140,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -156,9 +154,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -171,9 +168,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -557,9 +553,8 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "table <subcommand> ?options? ?--? key ?value? ?lifetime? ?timeout?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: OPTIONS_1,
         subcommands: SUBCOMMANDS,
@@ -568,7 +563,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

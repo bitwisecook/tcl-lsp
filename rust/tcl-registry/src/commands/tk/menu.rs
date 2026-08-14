@@ -126,32 +126,27 @@ static SUBCOMMANDS: [SubCommand; 15] = [
                 ArgValue {
                     value: "cascade",
                     detail: "A cascade entry that posts another menu.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "checkbutton",
                     detail: "A checkbutton entry with an on/off indicator.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "command",
                     detail: "A command entry that invokes a Tcl command.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "radiobutton",
                     detail: "A radiobutton entry with a mutual-exclusion indicator.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "separator",
                     detail: "A separator line between groups of entries.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
             ],
         )],
@@ -205,32 +200,27 @@ static SUBCOMMANDS: [SubCommand; 15] = [
                 ArgValue {
                     value: "cascade",
                     detail: "A cascade entry that posts another menu.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "checkbutton",
                     detail: "A checkbutton entry with an on/off indicator.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "command",
                     detail: "A command entry that invokes a Tcl command.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "radiobutton",
                     detail: "A radiobutton entry with a mutual-exclusion indicator.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "separator",
                     detail: "A separator line between groups of entries.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
             ],
         )],
@@ -290,10 +280,8 @@ static SUBCOMMANDS: [SubCommand; 15] = [
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const OPTIONS: &[OptionSpec] = &[
@@ -471,9 +459,8 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "menu pathName ?option value ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `menu`'s instance command dispatches through the same subcommand

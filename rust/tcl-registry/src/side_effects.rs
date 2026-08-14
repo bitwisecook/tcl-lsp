@@ -19,6 +19,7 @@
 //! Side-effect metadata for structured effect analysis.
 
 use crate::dialects::DialectSet;
+use crate::lifecycle::{Lifecycle, LifecycleState};
 
 /// What kind of external state a command affects.
 ///
@@ -240,19 +241,42 @@ pub struct SideEffect {
     /// command's own dialect gating, so every effect declared before this
     /// field existed keeps its meaning unchanged.
     pub dialects: Option<DialectSet>,
+    /// Introduction / deprecation / retirement releases of *this effect* on
+    /// the owning command's package version axis — an effect a later release
+    /// added or stopped having. [`Lifecycle::UNSPECIFIED`] means the effect
+    /// holds in every package version; orthogonal to [`Self::dialects`],
+    /// which gates on the Tcl *core* version.
+    pub lifecycle: Lifecycle,
 }
 
 impl SideEffect {
     /// Baseline: [`SideEffectTarget::Unknown`], no reads/writes, no
-    /// connection side, no extra dialect restriction — used with
-    /// `..SideEffect::DEFAULT`.
+    /// connection side, no extra dialect restriction, no lifecycle — used
+    /// with `..SideEffect::DEFAULT`.
     pub const DEFAULT: Self = Self {
         target: SideEffectTarget::Unknown,
         reads: false,
         writes: false,
         connection_side: ConnectionSide::None,
         dialects: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     };
+
+    /// Whether this effect applies given the resolved *`package_version`*.
+    ///
+    /// *`package_version`* is the guaranteed-available floor from a
+    /// `package require` (see [`crate::version::requirement_lower_bound`]).
+    /// `None` is permissive.
+    #[must_use]
+    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This effect's lifecycle state at the resolved *`package_version`*.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
+    }
 }
 
 /// Inferred storage type for a command's target variable.

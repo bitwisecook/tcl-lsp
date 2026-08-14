@@ -33,16 +33,14 @@ pub const fn spec() -> CommandSpec {
         }),
         excluded_events: &["RULE_INIT"],
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "HA::status (active | standby)",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

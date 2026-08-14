@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "LB::snat",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "LB::snat",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SnatSelection,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

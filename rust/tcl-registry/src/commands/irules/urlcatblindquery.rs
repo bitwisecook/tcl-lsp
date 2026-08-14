@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "urlcatblindquery ENCRYPTED_URL_STRING",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DataGroup,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("CATEGORY::lookup"),
         ..CommandSpec::DEFAULT

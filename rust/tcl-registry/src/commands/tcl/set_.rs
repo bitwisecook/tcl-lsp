@@ -48,8 +48,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 // `value` (not `newValue`) is the parameter name in every fetched
@@ -66,9 +65,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // the runtime error string; `tcl-vm`'s hardcoded message is unaffected by
 // this file and still prints `newValue` verbatim, matching real tclsh.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "set varName ?value?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Dynamic arg role resolver: getter (1 arg) vs setter (2 args).

@@ -21,16 +21,13 @@ use super::oo_class::{CLASS_FACTORY_SUBCOMMANDS, oo_class_arg_roles};
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "oo::abstract method ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

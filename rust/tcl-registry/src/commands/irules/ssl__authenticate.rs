@@ -29,10 +29,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -44,10 +43,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -59,10 +57,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -82,17 +79,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::authenticate <once | always | depth <number>>",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

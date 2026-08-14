@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "file option name ?arg arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 static SUBCOMMANDS: &[SubCommand] = &[
@@ -38,8 +37,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -54,8 +52,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -103,8 +100,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -144,10 +140,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         destructive: true,
         ..SubCommand::DEFAULT
@@ -171,9 +165,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -186,9 +178,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -223,9 +213,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -238,9 +226,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -293,8 +279,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -316,16 +301,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             SideEffect {
                 target: SideEffectTarget::Variable,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         ..SubCommand::DEFAULT
@@ -341,10 +322,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         destructive: true,
         ..SubCommand::DEFAULT
@@ -360,8 +339,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -388,9 +366,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -403,9 +379,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -427,9 +401,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -443,9 +415,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -483,10 +453,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         destructive: true,
         ..SubCommand::DEFAULT
@@ -519,9 +487,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -554,16 +520,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             SideEffect {
                 target: SideEffectTarget::Variable,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         ..SubCommand::DEFAULT
@@ -577,9 +539,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -606,10 +566,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         dialects: Some(DialectSet::TCL90_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         returns_path: true,
         ..SubCommand::DEFAULT
@@ -626,10 +584,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         dialects: Some(DialectSet::TCL86_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         returns_path: true,
         ..SubCommand::DEFAULT
@@ -657,9 +613,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -672,9 +626,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -687,9 +639,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -718,8 +668,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Manipulate file names and attributes",

@@ -648,12 +648,25 @@ pub struct ArgValue {
     pub value: &'static str,
     /// Short description for the completion list.
     pub detail: &'static str,
-    /// The lowest Tcl release that accepts this value, or `None` for
+    /// The lowest **Tcl core** release that accepts this value, or `None` for
     /// every release — the argument-DSL rung of the granularity ladder
     /// (dialect-profile-model.md §6: `string is dict` raises before 9.0
     /// even though the `is` subcommand itself is universal). Checked
-    /// against the profile's `effective_tcl_version`.
+    /// against the profile's `effective_tcl_version`, and reported by W137.
+    ///
+    /// This is the Tcl-core axis. The owning-package axis is
+    /// [`Self::lifecycle`]; the two are orthogonal and a value may carry
+    /// either, both, or neither.
     pub min_tcl: Option<tcl_dialect::TclVersion>,
+    /// Introduction / deprecation / retirement releases of this value on the
+    /// owning *package*'s version axis — the same axis every other registry
+    /// entity's [`Lifecycle`] sits on, resolved from `package require` (or an
+    /// ambient profile pin) and reported by W135 / W139 / W144.
+    /// [`Lifecycle::UNSPECIFIED`] means "present in every version of the
+    /// owning package".
+    ///
+    /// Distinct from [`Self::min_tcl`], which is the Tcl-core-version floor.
+    pub lifecycle: Lifecycle,
     /// Canonical integer equivalent, when this value has one (`"ok"` →
     /// `Some(0)`). `None` for a plain enum member with no numeric
     /// pairing — every pre-existing `ArgValue` literal, unchanged in
@@ -667,8 +680,26 @@ impl ArgValue {
         value: "",
         detail: "",
         min_tcl: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
         code: None,
     };
+
+    /// Whether this value exists given the resolved *`package_version`*.
+    ///
+    /// *`package_version`* is the guaranteed-available floor from a
+    /// `package require` (see [`crate::version::requirement_lower_bound`]).
+    /// `None` is permissive. This tests the owning-package axis only — the
+    /// Tcl-core floor is [`Self::min_tcl`].
+    #[must_use]
+    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This value's lifecycle state at the resolved *`package_version`*.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
+    }
 }
 
 /// Classification of a command invocation form.
@@ -697,16 +728,40 @@ pub struct FormSpec {
     /// declared before this field existed keeps its meaning unchanged.
     /// Mirrors [`crate::forms::CommandForm::dialects`].
     pub dialects: Option<DialectSet>,
+    /// Introduction / deprecation / retirement releases of this invocation
+    /// form on the owning command's package version axis — a synopsis a later
+    /// release added or withdrew. [`Lifecycle::UNSPECIFIED`] means the form is
+    /// documented in every package version; orthogonal to [`Self::dialects`],
+    /// which gates on the Tcl *core* version.
+    pub lifecycle: Lifecycle,
 }
 
 impl FormSpec {
     /// Baseline: [`FormKind::Default`], empty synopsis, no dialect
-    /// restriction — used with `..FormSpec::DEFAULT`.
+    /// restriction, no lifecycle — used with `..FormSpec::DEFAULT`.
     pub const DEFAULT: Self = Self {
         kind: FormKind::Default,
         synopsis: "",
         dialects: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
     };
+
+    /// Whether this form is documented given the resolved
+    /// *`package_version`*.
+    ///
+    /// *`package_version`* is the guaranteed-available floor from a
+    /// `package require` (see [`crate::version::requirement_lower_bound`]).
+    /// `None` is permissive.
+    #[must_use]
+    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This form's lifecycle state at the resolved *`package_version`*.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
+    }
 }
 
 #[cfg(test)]

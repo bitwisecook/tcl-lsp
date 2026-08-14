@@ -39,7 +39,8 @@
 //!
 //! A descriptor that is **plain data** is a different case and does round-trip:
 //! `repeated_args`, `binds_handle`, `byte_array_payload`, `defines_symbol`,
-//! `oo_context_facts`, and a subcommand's `versioned_arg_values` are rendered
+//! `oo_context_facts`, and a command's or subcommand's `versioned_arg_values`
+//! are rendered
 //! back out as full struct literals (every field spelled, never a defaulting
 //! constructor), so drafting and re-rendering a command that sets one loses
 //! nothing. [`crate::coverage`] is what keeps those literals complete.
@@ -1288,6 +1289,15 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         json!(spec.reserved_trailing_words),
     );
     d.insert("arg_values".into(), arg_value_map(spec.arg_values));
+    let versioned_arg_values = if spec.versioned_arg_values.is_empty() {
+        Value::Null
+    } else {
+        versioned_arg_values_expr(spec.versioned_arg_values).map_or_else(
+            || lost.expr("versioned_arg_values", true),
+            |expr| json!(expr),
+        )
+    };
+    d.insert("versioned_arg_values".into(), versioned_arg_values);
     d.insert(
         "body_kind".into(),
         json!(catalogue::variant_name(&spec.body_kind)),

@@ -36,9 +36,8 @@ pub const fn spec() -> CommandSpec {
         taint_transform: Some(TaintColour::HTML_ESCAPED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::HTML_ESCAPED),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "html_encode STRING",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

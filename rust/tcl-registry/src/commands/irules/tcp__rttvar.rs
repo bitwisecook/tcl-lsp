@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The measured RTT variance in units of \"1/16 of a millisecond\". Divide the returned value by 16 to get the actual variance in milliseconds.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::rttvar",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

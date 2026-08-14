@@ -33,14 +33,14 @@ use crate::prelude::*;
 // split-by-dialect shape mirrors `return_.rs`'s TCL84-only legacy form.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "package option ?arg ...?",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "package option ?arg arg ...?",
         dialects: Some(DialectSet::TCL84.union(DialectSet::TCL85)),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -110,10 +110,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // enough to override the command-level (read+write) fallback.
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -336,8 +334,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Facilities for package loading and version control",

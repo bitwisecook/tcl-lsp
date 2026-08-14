@@ -22,10 +22,9 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
-        synopsis: "fcopy inputChan outputChan ?-size size? ?-command callback?",
-        dialects: None,
-    },
+synopsis: "fcopy inputChan outputChan ?-size size? ?-command callback?",
+..FormSpec::DEFAULT
+},
 ];
 
 /// Command spec for `fcopy`.
@@ -40,12 +39,11 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],
         return_type: Some(TclType::Int),
         side_effects: &[SideEffect {
-            target: SideEffectTarget::FileIo,
-            reads: true,
-            writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
-        }],
+target: SideEffectTarget::FileIo,
+reads: true,
+writes: true,
+..SideEffect::DEFAULT
+}],
 hover: Some(HoverSnippet {
             summary: "Copy data from one channel to another",
             synopsis: &["fcopy inputChan outputChan ?-size size? ?-command callback?"],

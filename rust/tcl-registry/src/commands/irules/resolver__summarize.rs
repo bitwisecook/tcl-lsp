@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The summary will be a TCL list of resource record objects of the type specified in the query. Individual resource record objects are usable by the DNSMSG::record iRule command.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "RESOLVER::summarize DNS_MESSAGE",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

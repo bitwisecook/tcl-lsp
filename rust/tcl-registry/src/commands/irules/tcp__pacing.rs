@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "TCP::pacing returns whether TCP rate pacing is enabled.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::pacing (BOOL_VALUE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

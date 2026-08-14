@@ -32,16 +32,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "b64decode <string> Returns a string that is base-64 decoded",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "b64decode ANY_CHARS",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         traits: Traits::IS_UNESCAPE,
         ..CommandSpec::DEFAULT

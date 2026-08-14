@@ -103,9 +103,8 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "spawn ?-option ...? program ?args ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

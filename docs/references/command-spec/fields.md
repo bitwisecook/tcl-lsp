@@ -49,6 +49,12 @@ The package a script must `package require` before this command exists — `sqli
 
 iRules only: event contexts where this command must not be used, by event name (`HTTP_REQUEST`, `CLIENT_ACCEPTED`, …). The validity check reports a use inside any listed event.
 
+### `versioned_arg_values` — Versioned argument values
+
+*command and subcommand* — Package-version gates for literal positional argument values.
+
+Version gates for individual literal argument values — when one mode word appeared in (or left) a specific package release, like a persistence mode added mid-release-train. Indices count from after the command name at command level and from after the subcommand word at subcommand level. The value list itself lives under argument values; this adds the since/until per value.
+
 ### `tcllib_package` — Tcllib package
 
 *command only* — Tcllib package providing the command, for per-document activation.
@@ -90,12 +96,6 @@ Whether using the command without its `package require` draws the missing-import
 *command only* — Whether the source namespace exports the bare name.
 
 Whether the owning namespace exports the bare name, so `namespace import` can bring it in — i.e. whether `string` alone can ever mean `::textutil::string`. Affects how unqualified uses resolve after an import.
-
-### `versioned_arg_values` — Versioned argument values
-
-*subcommand only* — Package-version gates for literal positional argument values.
-
-Version gates for individual literal values of this subcommand's arguments — when one mode word appeared in (or left) a specific package release, like a persistence mode added mid-release-train. The value list itself lives under argument values; this adds the since/until per value.
 
 ## Arity and arguments
 

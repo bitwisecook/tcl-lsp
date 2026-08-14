@@ -19,9 +19,8 @@
 //! `math::statistics::histogram-alt` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "math::statistics::histogram-alt limits values ?weights?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

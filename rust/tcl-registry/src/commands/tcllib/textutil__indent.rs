@@ -30,9 +30,8 @@
 //! 9.0.4 + real tcllib-2.0).
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "textutil::indent text prefix ?skip?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

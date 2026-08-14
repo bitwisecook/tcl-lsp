@@ -67,9 +67,8 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "log_file ?-option ...? ?file?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

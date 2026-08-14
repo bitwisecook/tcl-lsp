@@ -109,17 +109,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "CRYPTO::encrypt (('-padding' (pkcs | oaep | none) )",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: OPTIONS,
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

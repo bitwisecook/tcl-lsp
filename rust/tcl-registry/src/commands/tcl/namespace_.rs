@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "namespace subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `namespace upvar` changed its zero-pair arity at Tcl 8.6: 8.5 requires at
@@ -218,19 +217,19 @@ const ENSEMBLE_SUB_SUBCOMMANDS: &[SubSubCommand] = &[
         name: "create",
         detail: "Create an ensemble command for the current namespace.",
         synopsis: "namespace ensemble create ?-option value ...?",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "configure",
         detail: "Query or update an existing ensemble command.",
         synopsis: "namespace ensemble configure command ?-option? ?value ...?",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "exists",
         detail: "Return whether command is an ensemble command.",
         synopsis: "namespace ensemble exists command",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
 ];
 
@@ -1097,18 +1096,14 @@ pub fn spec() -> CommandSpec {
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::InterpState,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // NAMESPACE_STATE.
             SideEffect {
                 target: SideEffectTarget::NamespaceState,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

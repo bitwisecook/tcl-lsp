@@ -360,16 +360,14 @@ fn subcommand_arg_value_completion(
     let sub_name = nth_word_on_line(source, line, 1)?;
     let sub = spec.resolve_subcommand(&sub_name)?;
     let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
-    let values = sub.arg_values_at(sub_arg_idx);
-    if values.is_empty() {
+    if sub.arg_values_at(sub_arg_idx).is_empty() {
         return None;
     }
     let floor = package_version_floor(analysis, spec, profile);
-    let available = values
-        .iter()
-        .filter(|value| sub.arg_value_available_for_version(sub_arg_idx, value.value, floor))
-        .collect();
-    Some(arg_value_completions_from(available, partial))
+    Some(arg_value_completions_from(
+        sub.available_arg_values_at(sub_arg_idx, floor),
+        partial,
+    ))
 }
 
 /// Registry-driven, context-aware completion: switch / event-name /
@@ -498,7 +496,11 @@ fn context_aware_completions(
         && let Some(sub) = spec.resolve_subcommand(&sub_name)
         && !sub.sub_subcommands.is_empty()
     {
-        return Some(sub_subcommand_completions(sub, partial));
+        let floor = package_version_floor(analysis, spec, profile);
+        return Some(sub_subcommand_completions(
+            profile.available_sub_subcommands(spec, sub, floor),
+            partial,
+        ));
     }
     // Subcommand argument-value completion — e.g.
     // `string is <class>`.  When the cursor is at
@@ -510,57 +512,99 @@ fn context_aware_completions(
     {
         return Some(items);
     }
-    // Option-value completion — when the word immediately before the cursor is
-    // a value-taking option that declares an enumerable value set, offer those
-    // values (e.g. `button .b -relief <cursor>` → flat|raised|…).  Matches by
-    // name or alias; arity-`One` covered (the value follows the switch).
-    if word_idx >= 2
-        && let Some(prev) = nth_word_on_line(source, line, word_idx - 1)
-        && prev.starts_with('-')
-        && let Some(opt) = spec
-            .options
-            .iter()
-            .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
-            .find(|o| o.matches(prev.as_str()))
+    if let Some(items) =
+        option_value_completion(spec, source, line, word_idx, analysis, partial, profile)
     {
-        let values = opt.value_values();
-        if !values.is_empty() {
-            return Some(arg_value_completions(values, partial));
-        }
-        // A boolean-valued option has no enumerable `values` — Tcl accepts
-        // every spelling `abbrev::boolean_table` resolves, prefixes included,
-        // which a closed set cannot express. The registry says so with
-        // `ArgRole::Boolean` (issue #1256), and the vocabulary comes from the
-        // one place that models it.
-        if opt.value_is_boolean() {
-            return Some(boolean_value_completions(partial));
-        }
+        return Some(items);
     }
-    // Command-level positional arg-value completion — the
-    // bareword value sets declared directly on the command
-    // (not a subcommand).  Covers iRules `when EVENT timing
-    // enable|disable` and `HTTP::respond <status>
-    // content|noserver|version`.  The argument index is the
-    // 0-based position after the command name (`word_idx - 1`).
-    if word_idx >= 1 {
-        let arg_idx = u8::try_from(word_idx - 1).unwrap_or(u8::MAX);
-        let mut values = spec.arg_values_at(arg_idx);
-        // `when`'s keyword tail carries an enumerable value
-        // slot only after the `timing` keyword (the `priority`
-        // keyword takes a numeric argument).  Even-index
-        // value slots are gated on the preceding literal being
-        // `timing`.
-        if spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
-            && arg_idx >= 2
-            && nth_word_on_line(source, line, word_idx - 1).as_deref() != Some("timing")
-        {
-            values = &[];
-        }
-        if !values.is_empty() {
-            return Some(arg_value_completions(values, partial));
-        }
+    if let Some(items) =
+        command_arg_value_completion(spec, source, line, word_idx, analysis, partial, profile)
+    {
+        return Some(items);
     }
     None
+}
+
+/// Option-value completion — when the word immediately before the cursor is a
+/// value-taking option that declares an enumerable value set, offer those
+/// values (e.g. `button .b -relief <cursor>` → flat|raised|…).  Matches by
+/// name or alias; arity-`One` covered (the value follows the switch).
+fn option_value_completion(
+    spec: &tcl_registry::CommandSpec,
+    source: &str,
+    line: u32,
+    word_idx: usize,
+    analysis: &AnalysisResult,
+    partial: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Vec<CompletionItem>> {
+    if word_idx < 2 {
+        return None;
+    }
+    let prev = nth_word_on_line(source, line, word_idx - 1)?;
+    if !prev.starts_with('-') {
+        return None;
+    }
+    let opt = spec
+        .options
+        .iter()
+        .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
+        .find(|o| o.matches(prev.as_str()))?;
+    // A value a later package release introduced (or retired) is not offered
+    // against an older floor — the same gate the switch names themselves get.
+    let floor = package_version_floor(analysis, spec, profile);
+    let values: Vec<&tcl_registry::ArgValue> = opt
+        .value_values()
+        .iter()
+        .filter(|value| value.available_for_version(floor))
+        .collect();
+    if !values.is_empty() {
+        return Some(arg_value_completions_from(values, partial));
+    }
+    // A boolean-valued option has no enumerable `values` — Tcl accepts every
+    // spelling `abbrev::boolean_table` resolves, prefixes included, which a
+    // closed set cannot express. The registry says so with `ArgRole::Boolean`
+    // (issue #1256), and the vocabulary comes from the one place that models
+    // it.
+    opt.value_is_boolean()
+        .then(|| boolean_value_completions(partial))
+}
+
+/// Command-level positional arg-value completion — the bareword value sets
+/// declared directly on the command (not a subcommand).  Covers iRules `when
+/// EVENT timing enable|disable` and `HTTP::respond <status>
+/// content|noserver|version`.  The argument index is the 0-based position
+/// after the command name (`word_idx - 1`).
+fn command_arg_value_completion(
+    spec: &tcl_registry::CommandSpec,
+    source: &str,
+    line: u32,
+    word_idx: usize,
+    analysis: &AnalysisResult,
+    partial: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Vec<CompletionItem>> {
+    if word_idx < 1 {
+        return None;
+    }
+    let arg_idx = u8::try_from(word_idx - 1).unwrap_or(u8::MAX);
+    // `when`'s keyword tail carries an enumerable value slot only after the
+    // `timing` keyword (the `priority` keyword takes a numeric argument).
+    // Even-index value slots are gated on the preceding literal being
+    // `timing`.
+    if spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
+        && arg_idx >= 2
+        && nth_word_on_line(source, line, word_idx - 1).as_deref() != Some("timing")
+    {
+        return None;
+    }
+    // Both version gates apply: the value's own lifecycle and any
+    // command-level `versioned_arg_values` entry naming it, so a literal a
+    // later package release introduced (or retired) is not offered against an
+    // older floor.
+    let floor = package_version_floor(analysis, spec, profile);
+    let values = spec.available_arg_values_at(arg_idx, floor);
+    (!values.is_empty()).then(|| arg_value_completions_from(values, partial))
 }
 
 /// [`completions`]'s `$var` / `${var}` trigger branch, split out so the
@@ -1799,10 +1843,9 @@ fn scoped_op_completions(
 /// (`info object <op>` / `info class <op>`), filtered by `partial`.  Each
 /// item's detail is the operation's one-line description (issue #798).
 fn sub_subcommand_completions(
-    sub: &tcl_registry::SubCommand,
+    mut subs: Vec<&'static tcl_registry::SubSubCommand>,
     partial: &str,
 ) -> Vec<CompletionItem> {
-    let mut subs: Vec<&tcl_registry::SubSubCommand> = sub.sub_subcommands.iter().collect();
     subs.sort_unstable_by_key(|s| s.name);
     let FilteredCandidates {
         candidates: subs,
@@ -1839,12 +1882,6 @@ fn nth_word_on_line(source: &str, line: u32, n: usize) -> Option<String> {
         .split_whitespace()
         .nth(n)
         .map(str::to_owned)
-}
-
-/// Build completions for a fixed set of enumerable argument
-/// values (e.g. `string is <class>`), filtered by `partial`.
-fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Vec<CompletionItem> {
-    arg_value_completions_from(values.iter().collect(), partial)
 }
 
 /// Build completions for a value position the registry declares boolean

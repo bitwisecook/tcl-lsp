@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the encrypted data.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "AES::encrypt KEY DATA",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

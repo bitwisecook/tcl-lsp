@@ -38,14 +38,12 @@ const WHEN_KEYWORD_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "priority",
         detail: "Declare handler priority.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "timing",
         detail: "Enable/disable timing metrics for this handler.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -54,14 +52,12 @@ const WHEN_TIMING_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "enable",
         detail: "Enable timing metrics for this handler.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "disable",
         detail: "Disable timing metrics for this handler.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -100,14 +96,12 @@ pub const fn spec() -> CommandSpec {
         }),
         forms: &[
             FormSpec {
-                kind: FormKind::Default,
                 synopsis: "when EVENT { body }",
-                dialects: None,
+                ..FormSpec::DEFAULT
             },
             FormSpec {
-                kind: FormKind::Default,
                 synopsis: "when EVENT priority N { body }",
-                dialects: None,
+                ..FormSpec::DEFAULT
             },
         ],
         // Command-level arg-value completion for the keyword tail:
@@ -124,10 +118,9 @@ pub const fn spec() -> CommandSpec {
         ],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

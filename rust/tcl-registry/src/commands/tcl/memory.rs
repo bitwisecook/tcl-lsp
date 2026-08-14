@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "memory option ?arg arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command-level default side effect: most `memory` subcommands flip a
@@ -33,10 +32,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// entry; `info` (a pure query) overrides it with an empty list.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Values for the `on`/`off` toggle subcommands (`init`, `trace`,
@@ -93,10 +90,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "memory active file",
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -137,10 +132,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         dialects: Some(DialectSet::TCL85_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -151,10 +144,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "memory onexit file",
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },

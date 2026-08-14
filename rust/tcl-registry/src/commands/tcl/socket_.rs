@@ -79,14 +79,12 @@ const OPTIONS: &[OptionSpec] = &[
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "socket ?options? host port",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "socket -server command ?options? port",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -160,8 +158,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::NetworkIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Open a TCP client connection or listening server socket as a channel.",

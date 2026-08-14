@@ -20,9 +20,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "clock subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 // Calendar conversions can observe the host time-zone/locale database, Tcl's

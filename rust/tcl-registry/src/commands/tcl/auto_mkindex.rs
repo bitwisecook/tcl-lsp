@@ -22,9 +22,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "auto_mkindex dir ?pattern pattern ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `auto_mkindex`.
@@ -101,8 +100,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Generate a tclIndex file from Tcl source files in a directory.",

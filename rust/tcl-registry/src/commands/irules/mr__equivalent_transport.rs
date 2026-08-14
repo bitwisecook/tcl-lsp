@@ -36,16 +36,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the current equivalent transport. This will contain the transport type and transport name. For example: 'config /Common/inbound_tc'.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::equivalent_transport",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

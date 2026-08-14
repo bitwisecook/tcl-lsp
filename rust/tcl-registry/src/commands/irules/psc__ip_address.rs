@@ -36,16 +36,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return the list of PSC ip addresses when no argument is given.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "PSC::ip_address (IP_ADDR)*",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

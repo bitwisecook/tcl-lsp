@@ -40,16 +40,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "close <connection> closes an existing connection",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "close CONNECTION",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

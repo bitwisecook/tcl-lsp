@@ -71,14 +71,12 @@ use crate::prelude::*;
 // `puts_.rs` / `flush_.rs` make.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "read ?-nonewline? channelId",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "read channelId numChars",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -125,9 +123,7 @@ pub fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         // `-nonewline` is documented identically — name, shape, and
         // behaviour — in every fetched version, 8.4 through 9.1.

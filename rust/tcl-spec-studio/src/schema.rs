@@ -742,6 +742,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Enumerable positional values per argument index, for completion.",
     ),
     f(
+        "versioned_arg_values",
+        "Versioned argument values",
+        AVAILABILITY,
+        FieldKind::RustExpr {
+            hint: "VERSIONED_ARG_VALUES",
+        },
+        "Package-version gates for literal positional argument values.",
+    ),
+    f(
         "body_kind",
         "Body kind",
         BEHAVIOUR,

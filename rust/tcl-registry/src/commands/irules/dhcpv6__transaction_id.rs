@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "This command returns transaction id field from DHCPv6 message",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DHCPv6::transaction_id",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

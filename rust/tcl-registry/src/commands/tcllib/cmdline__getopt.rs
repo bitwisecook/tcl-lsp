@@ -19,17 +19,13 @@
 //! `cmdline::getopt` command.
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "cmdline::getopt argvVar optstring optVar valVar",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

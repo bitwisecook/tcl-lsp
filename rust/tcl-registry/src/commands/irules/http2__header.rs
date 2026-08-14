@@ -74,7 +74,7 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Getter,
             synopsis: "HTTP2::header <name>",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -82,7 +82,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

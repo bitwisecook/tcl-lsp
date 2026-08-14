@@ -30,10 +30,8 @@ use crate::prelude::*;
 
 const WRITES: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// One additional Tk command: name, arity, synopsis, summary, and the argument

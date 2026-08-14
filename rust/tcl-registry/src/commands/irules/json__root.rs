@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the JSON element at the root of the JSON cache instance.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "JSON::root (JSON_CACHE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

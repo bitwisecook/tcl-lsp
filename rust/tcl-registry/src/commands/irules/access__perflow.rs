@@ -30,9 +30,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -48,32 +47,27 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "perflow.custom",
                     detail: "Custom perflow variable.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "perflow.scratchpad",
                     detail: "Scratchpad perflow variable.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "perflow.custom.flow",
                     detail: "Custom flow perflow variable.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "perflow.scratchpad.flow",
                     detail: "Scratchpad flow perflow variable.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "perflow.l7_protocol_lookup.result",
                     detail: "L7 protocol lookup result.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
             ],
         )],
@@ -82,7 +76,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -105,17 +99,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "ACCESS::perflow get will return the string of perflow variable; empty if value isn't set",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ACCESS::perflow <get|set> <key> ?value?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

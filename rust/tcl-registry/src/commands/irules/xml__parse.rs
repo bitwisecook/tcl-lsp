@@ -33,10 +33,9 @@ pub const fn spec() -> CommandSpec {
         }),
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("(removed — XML profile deprecated)"),
         ..CommandSpec::DEFAULT

@@ -42,9 +42,8 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "CATEGORY::safesearch URL ('-ip' IP)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[OptionSpec {
@@ -60,9 +59,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

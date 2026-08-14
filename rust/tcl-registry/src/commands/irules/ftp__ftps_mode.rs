@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the current activation mode.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "FTP::ftps_mode (disallow | allow | require)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::FtpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "CONNECTOR::profile Return the connector profile name.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "CONNECTOR::profile",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -76,15 +76,13 @@
 use crate::prelude::*;
 
 const CALLBACK_FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "callback methodName ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const MYMETHOD_FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "mymethod methodName ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const SNIPPET: &str = "Used within the body of a method, constructor, or destructor to generate a script fragment (a proper list) that will invoke methodName on the current object — as reported by self — when it is later executed. Any additional arguments are supplied as leading arguments to that callback. mymethod is an alias of callback, named for compatibility with Tcllib's ooutil and snit packages. The generated prefix keeps working from outside any method (that is its purpose: file events, traces, after scripts), and it keeps naming the right object even if the object is renamed. methodName may be any exported or unexported method, but not a private one; if no such method exists when the callback fires, the object's unknown method handler is called.";

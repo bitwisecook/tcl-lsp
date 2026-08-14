@@ -146,17 +146,14 @@ fn walk_if(args: &[&str]) -> IfWalk {
 }
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else? ?bodyN?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Dynamic arg role resolver for `if`/`elseif`/`else` chains.

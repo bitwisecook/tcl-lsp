@@ -34,9 +34,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "timer subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Unit spellings accepted by the `timer` subcommands — `us`/`ms`/`s` or
@@ -172,9 +171,7 @@ static SUBCOMMANDS: [SubCommand; 6] = [
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -224,11 +221,7 @@ static SUBCOMMANDS: [SubCommand; 6] = [
         // ("While the command is sleeping the application does not
         // respond to events").
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
-            reads: false,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -236,10 +229,8 @@ static SUBCOMMANDS: [SubCommand; 6] = [
 
 static SIDE_EFFECTS: [SideEffect; 1] = [SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Command spec for `timer` (Tcl 9.1 only — confirmed absent from the

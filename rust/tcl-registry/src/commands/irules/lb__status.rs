@@ -30,9 +30,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Server,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -45,9 +44,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Server,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -71,17 +69,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "LB::status Returns the status of the currently-selected node (after LB_SELECTED event only). Possible values are: up | down | session_enabled | session_disabled",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "LB::status ?node <addr> | pool <pool> member <addr> <port>? ?status?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Server,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

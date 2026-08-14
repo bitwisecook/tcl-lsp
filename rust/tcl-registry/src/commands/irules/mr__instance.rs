@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "returns the name of the current mr_router instance",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::instance",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

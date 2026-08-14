@@ -36,14 +36,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     // read/write mix.
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "interp subcommand ?arg arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const INTERP_ALIAS_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
@@ -916,8 +914,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },

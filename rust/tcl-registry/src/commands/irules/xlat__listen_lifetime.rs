@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return the listener lifetime value.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "XLAT::listen_lifetime (HANDLE)+ (XLAT_LIFETIME)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::LsnState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

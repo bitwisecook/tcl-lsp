@@ -45,9 +45,8 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "HTTP2::push <uri> ?options? ?request headers ...? ?-- response headers ...?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -100,10 +99,9 @@ pub const fn spec() -> CommandSpec {
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::Http2State,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

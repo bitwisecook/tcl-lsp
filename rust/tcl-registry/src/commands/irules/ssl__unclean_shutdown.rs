@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "SSL::unclean_shutdown <\"enable\" | \"disable\"> sets the current client-side or server-side SSL connection's Unclean Shutdown setting.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::unclean_shutdown (enable | disable)",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

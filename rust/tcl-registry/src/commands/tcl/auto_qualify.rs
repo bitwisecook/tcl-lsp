@@ -22,9 +22,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "auto_qualify cmd namespace",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `auto_qualify`.

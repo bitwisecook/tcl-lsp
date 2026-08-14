@@ -22,14 +22,12 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "open fileName ?access? ?permissions?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "open |command ?access?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -148,15 +146,13 @@ pub fn spec() -> CommandSpec {
                 target: SideEffectTarget::FileIo,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             SideEffect {
                 target: SideEffectTarget::Process,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

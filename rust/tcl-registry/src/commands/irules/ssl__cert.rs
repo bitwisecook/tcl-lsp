@@ -30,9 +30,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -45,9 +44,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -64,20 +62,17 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ArgValue {
                     value: "ignore",
                     detail: "Do not request client cert.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "request",
                     detail: "Request client cert.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
                 ArgValue {
                     value: "require",
                     detail: "Require client cert.",
-                    min_tcl: None,
-                    code: None,
+                    ..ArgValue::DEFAULT
                 },
             ],
         )],
@@ -86,7 +81,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -112,17 +107,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "SSL::cert <index> returns the X509 SSL certificate at the specified peer-chain index. SSL::cert issuer <index> returns its issuer certificate. SSL::cert count returns the number of peer certificates. SSL::cert mode gets or sets the certificate mode; only require and ignore are valid in a server-side context.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::cert <subcommand|index> ?args?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

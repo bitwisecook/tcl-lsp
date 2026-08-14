@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "SSL::allow_dynamic_record_sizing Returns the currently set dynamic record sizing value. SSL::allow_dynamic_record_sizing [0|1] There is no return value.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::allow_dynamic_record_sizing (ZERO_ONE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

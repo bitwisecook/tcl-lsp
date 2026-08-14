@@ -45,9 +45,8 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ACCESS::respond STATUS_CODE (ifile | -ifile) IFILE_OBJ",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -73,10 +72,9 @@ pub const fn spec() -> CommandSpec {
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

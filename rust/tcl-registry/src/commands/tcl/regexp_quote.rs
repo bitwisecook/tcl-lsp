@@ -22,9 +22,8 @@
 //! shorter `regex::quote` spelling).
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "regexp::quote STRING",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `regexp::quote`, one of four recognised spellings of

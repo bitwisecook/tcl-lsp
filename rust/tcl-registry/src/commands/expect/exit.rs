@@ -48,18 +48,17 @@ const OPTIONS: &[OptionSpec] = &[
 const FORMS: &[FormSpec] = &[
     // The universal core-Tcl form (exit(n)): available in every dialect.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "exit ?returnCode?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     // The Expect-extended form — `-onexit`/`-noexit` only exist under
     // Expect, so this synopsis is gated to the EXPECT dialect (mirrors the
     // per-option `Some(EXPECT)` gates above) rather than being advertised
     // as a plain-Tcl `exit` form.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "exit ?-onexit command | -noexit? ?status?",
         dialects: Some(DialectSet::EXPECT),
+        ..FormSpec::DEFAULT
     },
 ];
 

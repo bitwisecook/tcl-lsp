@@ -37,16 +37,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "LB::queue limit depth|time [<pool name>] Returns queue limit info (depth is per-tmm)",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "LB::queue queued",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Server,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

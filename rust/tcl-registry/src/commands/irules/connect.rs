@@ -114,17 +114,15 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "connect ?options? destination",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: OPTIONS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

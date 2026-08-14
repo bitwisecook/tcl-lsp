@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The string \"disabled\" or \"enabled\"",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::naglestate",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

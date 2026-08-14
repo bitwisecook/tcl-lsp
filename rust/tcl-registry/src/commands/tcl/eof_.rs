@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "eof channel",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `eof`.
@@ -38,9 +37,7 @@ pub fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Check for end of file condition on channel",

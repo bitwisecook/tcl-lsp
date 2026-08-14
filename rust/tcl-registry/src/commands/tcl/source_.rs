@@ -75,29 +75,28 @@ use crate::prelude::*;
 // below).
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "source fileName",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "source -encoding encodingName fileName",
         dialects: Some(DialectSet::TCL85_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "source -nopkg fileName",
         dialects: Some(DialectSet::TCL90_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "source -rsrc resourceName ?fileName?",
         dialects: Some(DialectSet::TCL84),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "source -rsrcid resourceId ?fileName?",
         dialects: Some(DialectSet::TCL84),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -112,22 +111,17 @@ const SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
         target: SideEffectTarget::FileIo,
         reads: true,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
-        target: SideEffectTarget::Unknown,
-        reads: false,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
 ];
 
 const OPTION_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
     options: &["-encoding", "-nopkg"],
     dialects: Some(DialectSet::TCL90_PLUS),
+    ..OptionConstraint::DEFAULT
 }];
 
 /// Command spec for `source`.

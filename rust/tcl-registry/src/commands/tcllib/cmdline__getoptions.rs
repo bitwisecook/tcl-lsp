@@ -19,9 +19,8 @@
 //! `cmdline::getoptions` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "cmdline::getoptions argvVar optlist ?usage?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

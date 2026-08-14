@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The bandwidth estimate to the destination and/or gateway in kbps.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ROUTE::bandwidth DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

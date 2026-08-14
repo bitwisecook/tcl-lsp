@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The cached congestion window in bytes.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ROUTE::cwnd DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

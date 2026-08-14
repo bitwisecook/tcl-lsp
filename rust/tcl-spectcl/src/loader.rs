@@ -712,9 +712,7 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
         }
         let mut row = ArgValue {
             value: leak_str(stmt.word_text(1)),
-            detail: "",
-            min_tcl: None,
-            code: None,
+            ..ArgValue::DEFAULT
         };
         let mut i = 2;
         let words = &stmt.words;
@@ -1798,9 +1796,7 @@ impl ArgRows {
                         .iter()
                         .map(|value| ArgValue {
                             value: leak_str(value),
-                            detail: "",
-                            min_tcl: None,
-                            code: None,
+                            ..ArgValue::DEFAULT
                         })
                         .collect();
                     self.values.push((index, leak_slice(values)));
@@ -1962,9 +1958,7 @@ fn option_row(
                     .iter()
                     .map(|value| ArgValue {
                         value: leak_str(value),
-                        detail: "",
-                        min_tcl: None,
-                        code: None,
+                        ..ArgValue::DEFAULT
                     })
                     .collect();
                 arg.get_or_insert(OptionArg::DEFAULT).values = leak_slice(values);
@@ -3119,7 +3113,7 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
     let mut form = FormSpec {
         kind,
         synopsis: leak_str(stmt.word_text(2)),
-        dialects: None,
+        ..FormSpec::DEFAULT
     };
     let words = &stmt.words;
     let mut i = 3;
@@ -3146,10 +3140,7 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
     )?;
     let mut effect = SideEffect {
         target,
-        reads: false,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     };
     let words = &stmt.words;
     let mut i = 2;
@@ -3179,7 +3170,7 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
 fn option_conflict_row(stmt: &Stmt, log: &mut Log) -> tcl_registry::spec::OptionConstraint {
     let mut constraint = tcl_registry::spec::OptionConstraint {
         options: leak_strs(&list_words(stmt.word_text(1))),
-        dialects: None,
+        ..tcl_registry::spec::OptionConstraint::DEFAULT
     };
     let words = &stmt.words;
     let mut i = 2;
@@ -3623,9 +3614,7 @@ fn apply_subcommand_stmt(
 fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
     let mut row = SubSubCommand {
         name: leak_str(stmt.word_text(1)),
-        detail: "",
-        synopsis: "",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     };
     let words = &stmt.words;
     let mut i = 2;

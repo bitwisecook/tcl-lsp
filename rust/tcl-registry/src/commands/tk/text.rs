@@ -207,10 +207,8 @@ static SUBCOMMANDS: [SubCommand; 24] = [
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const OPTIONS: &[OptionSpec] = &[
@@ -577,9 +575,8 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "text pathName ?option value ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `text`'s instance command dispatches through the same subcommand table

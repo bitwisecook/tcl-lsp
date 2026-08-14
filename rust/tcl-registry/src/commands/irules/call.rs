@@ -33,9 +33,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the value(s) that return (if any).",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "call ?-debug? <proc_name> ?arg ...?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[OptionSpec {
@@ -51,9 +50,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::ProcDefinition,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         arg_roles: &[(0, ArgRole::Name)],
         ..CommandSpec::DEFAULT

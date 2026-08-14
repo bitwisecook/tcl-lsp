@@ -30,9 +30,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -47,7 +46,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -62,7 +61,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -77,7 +76,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -149,17 +148,15 @@ pub const fn spec() -> CommandSpec {
         event_requires: Some(MQTT_REQUIREMENTS),
         event_requirement_forms: EVENT_REQUIREMENT_FORMS,
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MQTT::payload ?subcommand? ?args?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         byte_array_payload: Some(BytePayloadSpec {

@@ -20,9 +20,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tcl::mathop::op ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for the `tcl::mathop` namespace itself — not a callable

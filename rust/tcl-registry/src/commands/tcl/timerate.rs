@@ -28,19 +28,16 @@ use crate::prelude::*;
 // own `dialects: None` inherits the command-level `TCL86_PLUS` gate.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "timerate script ?time? ?max-count?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "timerate ?-direct? ?-overhead estimate? script ?time? ?max-count?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "timerate ?-calibrate? ?-direct? script ?time? ?max-count?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -68,18 +65,15 @@ const FORMS: &[FormSpec] = &[
 /// `open_.rs`'s two-entry `side_effects` already follows.
 const SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
-        target: SideEffectTarget::Unknown,
         reads: true,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
         target: SideEffectTarget::InterpState,
         reads: true,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
 ];
 

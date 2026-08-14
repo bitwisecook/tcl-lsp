@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the name and type (virtual or config) of the transport used to configure the current connection.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::transport",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

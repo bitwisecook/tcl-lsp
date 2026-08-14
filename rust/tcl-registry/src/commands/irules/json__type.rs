@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a string representing the JSON type ('null' | 'boolean' | 'integer' | 'literal' | 'string' | 'object' | 'array' | 'invalid').",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "JSON::type JSON_ELEMENT",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -31,20 +31,17 @@ use crate::prelude::*;
 /// `eval`/`uplevel`'s "the whole call is dynamic code" shape (see the
 /// `traits` field on `spec` below).
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// `time script ?count?` is `time`'s only form, unchanged in SYNOPSIS,
 /// arity, and argument handling across Tcl 8.4 through 9.1 — see the
 /// `spec` doc comment below for the version research this reflects.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "time script ?count?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `time`.

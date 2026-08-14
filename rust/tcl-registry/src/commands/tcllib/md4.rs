@@ -28,11 +28,8 @@ use crate::prelude::*;
 /// `-file` / `-channel` inputs read external data; the digest itself is
 /// otherwise a pure function of its input.
 const READS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Options for the one-shot `md4::md4` digest command.

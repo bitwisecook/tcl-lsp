@@ -28,10 +28,8 @@ use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 static CONSOLE_SUBCOMMANDS: &[SubCommand] = &[
@@ -73,9 +71,8 @@ static CONSOLE_SUBCOMMANDS: &[SubCommand] = &[
 ];
 
 const CONSOLE_FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "console subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `console` — control the Tk debugging console window.
@@ -135,9 +132,8 @@ static CONSOLEINTERP_SUBCOMMANDS: &[SubCommand] = &[
 ];
 
 const CONSOLEINTERP_FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "consoleinterp subcommand script",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `consoleinterp` — available inside the console interpreter created by

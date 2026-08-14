@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the value of the specified field of the specified Statistics profile",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "STATS::get PROFILE_NAME FIELD_NAME",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::IStats,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

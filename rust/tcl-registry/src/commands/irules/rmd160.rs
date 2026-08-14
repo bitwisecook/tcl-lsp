@@ -32,16 +32,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "rmd160 <string> Returns the RIPEMD-160 message digest of the specified string, or an empty string if an error occurs.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "rmd160 ANY_CHARS",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

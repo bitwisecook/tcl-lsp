@@ -29,12 +29,10 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
-            target: SideEffectTarget::FileIo,
-            reads: false,
-            writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
-        }],
+target: SideEffectTarget::FileIo,
+writes: true,
+..SideEffect::DEFAULT
+}],
         hover: Some(HoverSnippet::brief(
             "Execute a script when a channel becomes readable or writable.",
             &[

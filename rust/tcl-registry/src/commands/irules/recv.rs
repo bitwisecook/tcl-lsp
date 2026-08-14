@@ -32,9 +32,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "Receives some data (up to numChars bytes) from a sideband connection. If varname is specified, the response is stored in that variable, and recv returns the amount of data received. Otherwise, recv returns the response data.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "recv ?options? ?numChars? connection ?varname?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -79,9 +78,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

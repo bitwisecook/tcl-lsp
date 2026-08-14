@@ -110,16 +110,13 @@ fn object_new_state_transitions(_arguments: InvocationArguments<'_>) -> StateTra
 // `oo::configurable`, `oo::singleton`, `oo::copy`).
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "oo::object method ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// The universal object-method surface every `TclOO` object (class or

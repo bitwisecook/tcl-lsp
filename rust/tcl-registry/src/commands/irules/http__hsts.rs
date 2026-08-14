@@ -87,15 +87,14 @@ pub const fn spec() -> CommandSpec {
         forms: &[FormSpec {
             kind: FormKind::Getter,
             synopsis: "HTTP::hsts",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpHeader,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

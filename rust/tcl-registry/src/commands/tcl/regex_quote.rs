@@ -19,9 +19,8 @@
 //! `regex_quote` — regex quoting helper alias (underscore spelling).
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "regex_quote STRING",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `regex_quote`, one of four recognised spellings of the

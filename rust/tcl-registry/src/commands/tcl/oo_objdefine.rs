@@ -79,25 +79,21 @@ fn oo_objdefine_state_transitions(arguments: InvocationArguments<'_>) -> StateTr
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "oo::objdefine object defScript",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     // Present alongside the script form in every version that has
     // `oo::objdefine` at all (8.6, 9.0, 9.1) — the two-form SYNOPSIS is
     // identical across all three fetched manpages.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "oo::objdefine object subcommand arg ?arg ...?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 

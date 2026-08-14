@@ -20,17 +20,14 @@
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "control::do body ?option test?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `while` / `until` — the loop-sense keyword between `body` and `test`.
@@ -38,14 +35,12 @@ const OPTION_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "while",
         detail: "Repeat while test is true.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "until",
         detail: "Repeat until test becomes true.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 

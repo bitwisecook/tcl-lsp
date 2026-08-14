@@ -23,68 +23,57 @@ const TABLE_MODES: &[ArgValue] = &[
     ArgValue {
         value: "source_addr",
         detail: "Source-address persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "simple",
         detail: "Simple persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "dest_addr",
         detail: "Destination-address persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "host",
         detail: "Host persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "sticky",
         detail: "Sticky persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "ssl",
         detail: "SSL persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "uie",
         detail: "Universal inspection engine persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "universal",
         detail: "Universal persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "hash",
         detail: "Hash persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "sip",
         detail: "SIP persistence.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "mcp",
         detail: "MCP persistence (BIG-IP 21.1.0+).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -271,17 +260,15 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "persist <mode> ?args?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
             target: SideEffectTarget::PersistenceTable,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

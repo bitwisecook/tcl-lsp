@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "There are 4 possible return values for this command (All STRING type): \"OK\" - User was successfully authenticated \"FAIL\" - Authentication failed \"INPROGRESS\" - the request is still in progress (asyncronous). \"ERROR\" - there was an error during the request.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "AAA::auth_result AAA_REQUEST_ID",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

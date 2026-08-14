@@ -61,14 +61,14 @@ use crate::prelude::*;
 // identical reasoning.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "parray arrayName ?pattern?",
         dialects: Some(DialectSet::TCL85_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "parray arrayName",
         dialects: Some(DialectSet::TCL84),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -95,18 +95,14 @@ pub fn spec() -> CommandSpec {
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // Reads the array VARIABLE.
             SideEffect {
                 target: SideEffectTarget::Variable,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

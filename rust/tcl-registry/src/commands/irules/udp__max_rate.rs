@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "UDP::max_rate returns the maximum transmission rate (bytes per second) of a UDP connection.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "UDP::max_rate (UDP_MAX_RATE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::UdpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

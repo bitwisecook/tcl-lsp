@@ -153,22 +153,16 @@ const SIDE_EFFECTS: &[SideEffect] = &[
         target: SideEffectTarget::InterpState,
         reads: true,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
-        target: SideEffectTarget::Unknown,
-        reads: false,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "oo::copy sourceObject ?targetObject? ?targetNamespace?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

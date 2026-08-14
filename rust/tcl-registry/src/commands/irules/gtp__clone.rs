@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a cloned copy of the GTP message.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "GTP::clone (MESSAGE_VAR)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

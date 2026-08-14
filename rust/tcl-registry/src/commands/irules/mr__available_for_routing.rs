@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the current value of the available_for_routing flag. This will be 'true' or 'false'.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::available_for_routing (BOOLEAN)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

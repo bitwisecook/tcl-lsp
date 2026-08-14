@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the IP address being used in the connection. In the clientside context, this is the destination IP address from the client request (not necessarily the virtual IP address).",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "local_addr",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("IP::local_addr"),
         deprecated_replacement_drop_in: true,

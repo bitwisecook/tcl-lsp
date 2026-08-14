@@ -48,9 +48,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "::tcl::unsupported::corotype coroName",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 // Pure introspection: looks up the named coroutine's parked/running state
@@ -60,9 +59,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: true,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 fn make_spec(name: &'static str) -> CommandSpec {

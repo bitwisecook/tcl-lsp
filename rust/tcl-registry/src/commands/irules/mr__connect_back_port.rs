@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns current connect_back_port value.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::connect_back_port (NONNEGATIVE_INTEGER)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

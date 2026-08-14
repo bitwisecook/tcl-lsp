@@ -68,9 +68,9 @@ use crate::prelude::*;
 // carries no `IRULES` bit, so `tcl::build-info` is excluded from iRules by
 // its version gate alone, not by any disable list.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tcl::build-info ?field?",
     dialects: Some(DialectSet::TCL90_PLUS),
+    ..FormSpec::DEFAULT
 }];
 
 /// `field` (position 0) accepts any word — an unrecognised field is not an

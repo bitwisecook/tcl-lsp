@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "TCP::rexmt_thresh returns the retransmission threshold of a TCP connection.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::rexmt_thresh (TCP_REXMT_THRESH_VALUE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

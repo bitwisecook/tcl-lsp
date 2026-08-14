@@ -19,9 +19,8 @@
 //! `yaml::list2yaml` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "yaml::list2yaml listValue ?indent? ?wordwrap?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

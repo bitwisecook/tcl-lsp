@@ -166,9 +166,8 @@ const OPTIONS: &[OptionSpec] = &[
 /// The single invocation form — `lsort ?options? list` is unchanged
 /// across Tcl 8.4 through 9.1.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "lsort ?options? list",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

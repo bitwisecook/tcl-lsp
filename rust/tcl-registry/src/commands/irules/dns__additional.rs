@@ -29,10 +29,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -44,10 +43,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -59,10 +57,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -92,9 +89,8 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DNS::additional ?clear | insert <rr> | remove <rr>?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
@@ -102,7 +98,7 @@ pub const fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

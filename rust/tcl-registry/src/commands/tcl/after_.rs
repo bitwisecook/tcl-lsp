@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "after ms ?script script script ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Mark the sole script word of `after ms script` as [`ArgRole::Body`], so
@@ -114,9 +113,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -151,10 +148,8 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Delay execution, or schedule a script to run later.",

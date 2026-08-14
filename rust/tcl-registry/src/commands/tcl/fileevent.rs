@@ -22,14 +22,12 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "fileevent channelId readable ?script?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "fileevent channelId writable ?script?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -97,8 +95,7 @@ pub fn spec() -> CommandSpec {
             // are declared, matching `chan event`'s own side effects.
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Execute a script when a channel becomes readable or writable.",

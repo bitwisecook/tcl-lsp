@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns an X509 certificate in DER format.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "X509::pem2der <cert-in-pem>",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -45,9 +45,8 @@ pub const fn spec() -> CommandSpec {
             capability: None,
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::message clone (CLONE_ID)+",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[OptionSpec {
@@ -62,10 +61,9 @@ pub const fn spec() -> CommandSpec {
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

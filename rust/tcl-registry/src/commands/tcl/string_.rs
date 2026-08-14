@@ -22,9 +22,8 @@ use crate::prelude::*;
 use tcl_syntax::number::{Number, parse_whole};
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "string option arg ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const OK_COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Ok];
@@ -782,74 +781,64 @@ static IS_CLASSES: &[ArgValue] = &[
     ArgValue {
         value: "alnum",
         detail: "Any Unicode alphabet or digit character.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "alpha",
         detail: "Any Unicode alphabet character.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "ascii",
         detail: "Any character with a value less than U+0080 (7-bit ASCII).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "boolean",
         detail: "Any valid boolean value (true/false/yes/no/on/off/0/1).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "control",
         detail: "Any Unicode control character.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "dict",
         detail: "Any proper dict structure, with optional surrounding whitespace.",
         min_tcl: Some(TclVersion::V9_0),
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "digit",
         detail: "Any Unicode digit character.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "double",
         detail: "Any valid floating-point number.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "entier",
         detail: "An arbitrary-size integer. On Tcl 8.6, where integer itself was still 32-bit-bounded, entier was the only arbitrary-size class; from Tcl 9.0, where integer itself became arbitrary-size, entier is a plain synonym for it.",
         min_tcl: Some(TclVersion::V8_6),
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "false",
         detail: "Any valid boolean false value.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "graph",
         detail: "Any Unicode printing character, except space.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "integer",
         detail: "Any valid integer, with optional surrounding whitespace. Bounded to 32 bits through Tcl 8.6; arbitrary size from Tcl 9.0 onward.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "list",
@@ -859,61 +848,53 @@ static IS_CLASSES: &[ArgValue] = &[
         // list ...` raises "bad class" under an 8.4 dialect rather than
         // returning 0/1.
         min_tcl: Some(TclVersion::V8_5),
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "lower",
         detail: "Any Unicode lower case alphabet character.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "print",
         detail: "Any Unicode printing character, including space.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "punct",
         detail: "Any Unicode punctuation character.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "space",
         detail: "Any Unicode whitespace character.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "true",
         detail: "Any valid boolean true value.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "upper",
         detail: "Any upper case alphabet character.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "wideinteger",
         detail: "Any valid wide integer, with optional surrounding whitespace. From Tcl 9.0 this is bounded to the signed 64-bit range; Tcl 8.5/8.6 accept a wider positive magnitude (up to 2^64-1).",
         min_tcl: Some(TclVersion::V8_5),
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "wordchar",
         detail: "Any Unicode word character (alphanumeric + connector punctuation).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "xdigit",
         detail: "Any hexadecimal digit character (0-9, A-F, a-f).",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -1159,10 +1140,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // real variable write.
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         options: const {
             &[

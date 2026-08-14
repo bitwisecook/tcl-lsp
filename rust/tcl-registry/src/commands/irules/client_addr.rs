@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "client_addr Returns the client IP address of a connection.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "client_addr",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("IP::client_addr"),
         deprecated_replacement_drop_in: true,

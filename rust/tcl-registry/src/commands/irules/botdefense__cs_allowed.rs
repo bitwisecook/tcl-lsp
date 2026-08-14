@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "* When called without any arguments: Returns whether a client-side action is allowed to be taken by Bot Defense. If the value was overridden, the returned value is the overridden one. * When called with an argument for overriding the value of cs_allowed, no value is returned.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "BOTDEFENSE::cs_allowed (BOOLEAN)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

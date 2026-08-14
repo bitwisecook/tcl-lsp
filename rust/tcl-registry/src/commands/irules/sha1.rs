@@ -32,16 +32,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "sha1 <string> Returns the Secure Hash Algorithm version 1.0 (SHA1) message digest of the specified string, or if an error occurs, an empty string.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "sha1 ANY_CHARS",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

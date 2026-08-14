@@ -19,10 +19,11 @@
 //! Version-aware diagnostics (**W135** / **W136**, and the argument-DSL
 //! rung **W137** / **W138** / **W200**).
 //!
-//! A command, subcommand, option, or literal argument value carries a
-//! [`Lifecycle`] on either its owning package's version axis (Tk, a tcllib
-//! package, `argparse`, …) or the core Tcl axis: the introducing release, the
-//! deprecating release, and the retiring release. The resolved floor — the
+//! A command, subcommand, second-level subcommand, option, or literal
+//! argument value carries a [`Lifecycle`] on either its owning package's
+//! version axis (Tk, a tcllib package, `argparse`, …) or the core Tcl axis:
+//! the introducing release, the deprecating release, and the retiring
+//! release. The resolved floor — the
 //! profile's library pin raised by any versioned `package require`, or the
 //! active Tcl profile raised by `package require Tcl` — is checked against all
 //! three:
@@ -44,6 +45,17 @@
 //! every `package require` is known.  An unpinned package required *without*
 //! a version is permissive, and a package not required at all is the domain
 //! of W120 (missing `package require`).
+//!
+//! A `package require` that states a **range** (`1.0-3.0`) guarantees only
+//! that the loaded version is somewhere inside it, so the floor alone can be
+//! satisfied while part of the accepted range is not. When the window's far
+//! end reaches a retirement the same W139 is emitted with a hedged message —
+//! *not available in every version satisfying the requirement* — rather than
+//! a new code (see [`Analyser::requirement_straddle_diagnostic`]).
+//!
+//! One word draws one diagnostic. A subcommand the active profile does not
+//! have at all belongs to W002, exactly as a missing `package require`
+//! belongs to W120, so the version gate skips it and its inner gates.
 //!
 //! [`ArgValue::min_tcl`]: tcl_registry::ArgValue
 
@@ -165,15 +177,64 @@ enum VersionGateItem {
         command: String,
         subcommand: String,
     },
+    /// A second-level operation of a two-level ensemble (`info object class`).
+    SubSubCommand {
+        command: String,
+        subcommand: String,
+        sub_subcommand: String,
+    },
     Option {
         command: String,
         option: String,
     },
+    /// A literal positional value. `subcommand` is `None` for a value gated
+    /// directly on the command (`CommandSpec::versioned_arg_values` and the
+    /// command's own `arg_values`), `Some` for one scoped to a subcommand.
     ArgumentValue {
         command: String,
-        subcommand: String,
+        subcommand: Option<String>,
         value: String,
     },
+}
+
+/// The per-value lifecycle gates of one `arg_values` table, merged with the
+/// positional `versioned_arg_values` gates that apply to the same table.
+///
+/// Both fields describe the same axis, so a value carrying each is gated by
+/// the stricter of the two ([`Lifecycle::intersect`]) and recorded once —
+/// exactly what `arg_value_available_for_version` answers. Values with no
+/// lifecycle at all are dropped here so the walk only visits real gates.
+fn arg_value_gates(
+    arg_values: &'static [(u8, &'static [tcl_registry::ArgValue])],
+    versioned: &'static [tcl_registry::spec::VersionedArgValue],
+) -> Vec<(u8, &'static str, Lifecycle)> {
+    // The overwhelmingly common case is a command with no gated values at
+    // all; recording runs per dispatch site, so bail before allocating.
+    if versioned.is_empty()
+        && !arg_values
+            .iter()
+            .any(|(_, values)| values.iter().any(|v| !v.lifecycle.is_unspecified()))
+    {
+        return Vec::new();
+    }
+    let mut gates: Vec<(u8, &'static str, Lifecycle)> = Vec::new();
+    for (index, values) in arg_values {
+        for value in *values {
+            if !value.lifecycle.is_unspecified() {
+                gates.push((*index, value.value, value.lifecycle));
+            }
+        }
+    }
+    for gate in versioned {
+        match gates
+            .iter_mut()
+            .find(|(index, value, _)| *index == gate.index && *value == gate.value)
+        {
+            Some((_, _, lifecycle)) => *lifecycle = lifecycle.intersect(gate.lifecycle),
+            None => gates.push((gate.index, gate.value, gate.lifecycle)),
+        }
+    }
+    gates
 }
 
 fn is_literal_option(arg: &str, token: Option<&Token>) -> bool {
@@ -201,11 +262,19 @@ fn item_phrase(item: &VersionGateItem) -> String {
         VersionGateItem::Option { command, option } => {
             format!("Option '{option}' on '{command}'")
         }
+        VersionGateItem::SubSubCommand {
+            command,
+            subcommand,
+            sub_subcommand,
+        } => format!("Subcommand '{sub_subcommand}' on '{command} {subcommand}'"),
         VersionGateItem::ArgumentValue {
             command,
             subcommand,
             value,
-        } => format!("Argument value '{value}' on '{command} {subcommand}'"),
+        } => match subcommand {
+            Some(subcommand) => format!("Argument value '{value}' on '{command} {subcommand}'"),
+            None => format!("Argument value '{value}' on '{command}'"),
+        },
     }
 }
 
@@ -281,8 +350,15 @@ impl Analyser {
     fn record_subcommand_version_sites(
         &mut self,
         invocation: LifecycleInvocation<'_>,
+        spec: &tcl_registry::CommandSpec,
         sub: &tcl_registry::SubCommand,
     ) {
+        // A subcommand the active profile does not have at all is W002's,
+        // exactly as a missing `package require` is W120's: one word, one
+        // diagnostic. Its inner gates are moot for the same reason.
+        if !self.profile.is_subcommand_available(spec, sub) {
+            return;
+        }
         let sub_is_literal = invocation
             .arg_tokens
             .first()
@@ -306,25 +382,92 @@ impl Analyser {
                 ),
             );
         }
-        for gate in sub.versioned_arg_values {
-            let arg_idx = 1usize + usize::from(gate.index);
+        if sub_is_literal && !sub.sub_subcommands.is_empty() {
+            self.record_sub_subcommand_version_site(invocation, sub);
+        }
+        self.record_arg_value_version_sites(
+            invocation,
+            &arg_value_gates(sub.arg_values, sub.versioned_arg_values),
+            1,
+            Some(sub.name),
+        );
+    }
+
+    /// Buffer the third-level word of a two-level ensemble (`info object
+    /// class`) against its [`SubSubCommand`]'s lifecycle.
+    ///
+    /// Resolution is the registry's own — exact match or unique prefix — so an
+    /// abbreviated `info object prop` is gated exactly as the spelt-out word
+    /// is.
+    ///
+    /// [`SubSubCommand`]: tcl_registry::SubSubCommand
+    fn record_sub_subcommand_version_site(
+        &mut self,
+        invocation: LifecycleInvocation<'_>,
+        sub: &tcl_registry::SubCommand,
+    ) {
+        let (Some(word), Some(tok)) = (invocation.args.get(1), invocation.arg_tokens.get(1)) else {
+            return;
+        };
+        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+            return;
+        }
+        let Some(sub_sub) = sub.resolve_sub_subcommand(word) else {
+            return;
+        };
+        self.record_lifecycle_site(
+            super::super::utils::full_word_span(*tok, &self.source),
+            invocation.axis,
+            sub_sub.lifecycle,
+            VersionGateItem::SubSubCommand {
+                command: invocation.command.to_owned(),
+                subcommand: sub.name.to_owned(),
+                sub_subcommand: sub_sub.name.to_owned(),
+            },
+            deprecation_fix_payload(
+                invocation.command,
+                invocation.command_token,
+                invocation.args,
+                invocation.arg_tokens,
+                2,
+                &self.source,
+            ),
+        );
+    }
+
+    /// Buffer every literal positional word that matches a lifecycle-bearing
+    /// declared value.
+    ///
+    /// `arg_offset` is where the gated positions start in `args` — 0 for a
+    /// command-level table, 1 for a subcommand's (whose indices are relative
+    /// to the word after the subcommand). `subcommand` names the owning
+    /// subcommand for the message, or `None` at command level.
+    fn record_arg_value_version_sites(
+        &mut self,
+        invocation: LifecycleInvocation<'_>,
+        gates: &[(u8, &'static str, Lifecycle)],
+        arg_offset: usize,
+        subcommand: Option<&str>,
+    ) {
+        for &(index, value, lifecycle) in gates {
+            let arg_idx = arg_offset + usize::from(index);
             let (Some(arg), Some(tok)) = (
                 invocation.args.get(arg_idx),
                 invocation.arg_tokens.get(arg_idx),
             ) else {
                 continue;
             };
-            if arg != gate.value || matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+            if arg != value || matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
                 continue;
             }
             self.record_lifecycle_site(
                 super::super::utils::full_word_span(*tok, &self.source),
                 invocation.axis,
-                gate.lifecycle,
+                lifecycle,
                 VersionGateItem::ArgumentValue {
                     command: invocation.command.to_owned(),
-                    subcommand: sub.name.to_owned(),
-                    value: gate.value.to_owned(),
+                    subcommand: subcommand.map(ToOwned::to_owned),
+                    value: value.to_owned(),
                 },
                 deprecation_fix_payload(
                     invocation.command,
@@ -448,6 +591,16 @@ impl Analyser {
             deprecation_fix_payload(cmd_name, cmd_tok, args, arg_tokens, 0, &self.source),
         );
 
+        // Command-level literal argument values (`HTTP::respond <status>
+        // noserver`, a vendor mode word) — the same gate the subcommand arm
+        // applies, one level up.
+        self.record_arg_value_version_sites(
+            invocation,
+            &arg_value_gates(spec.arg_values, spec.versioned_arg_values),
+            0,
+            None,
+        );
+
         // Option-level gates.  Resolve subcommand-scoped options when the first
         // argument names a subcommand.
         let sub_match = (!spec.subcommands.is_empty())
@@ -458,7 +611,7 @@ impl Analyser {
             .flatten();
 
         if let Some(sub) = sub_match {
-            self.record_subcommand_version_sites(invocation, sub);
+            self.record_subcommand_version_sites(invocation, spec, sub);
         }
         let (options, start_idx) = match sub_match {
             Some(sub) => (sub.options, 1usize),
@@ -511,7 +664,14 @@ impl Analyser {
             let Some((floor, guarantee)) = floor_and_guarantee else {
                 continue;
             };
-            let Some((code, message)) = version_gate_diagnostic(&site, &floor, &guarantee) else {
+            // A range that reaches a retirement outranks the floor's own
+            // verdict *while the floor is satisfied*: "gone in part of the
+            // accepted range" is the stronger fact than "deprecated here".
+            // A floor that already fails keeps its own, more specific message.
+            let Some((code, message)) = self
+                .requirement_straddle_diagnostic(&site, &floor)
+                .or_else(|| version_gate_diagnostic(&site, &floor, &guarantee))
+            else {
                 continue;
             };
             let fixes = (code == DiagCode::W144)
@@ -528,6 +688,74 @@ impl Analyser {
             });
         }
         self.result.diagnostics.extend(new_diags);
+    }
+
+    /// The hedged diagnostic for a site whose floor passes but whose
+    /// `package require` **range** does not stay inside the lifecycle.
+    ///
+    /// `package require Foo 1.0-3.0` guarantees only that the loaded Foo is
+    /// somewhere in `[1.0, 3.0)`; the floor check asks about `1.0` alone. When
+    /// the window's far end reaches a retirement the item is missing from part
+    /// of the accepted range, which is a real portability fault the floor
+    /// check cannot see — so it is reported with the ordinary
+    /// [`DiagCode::W139`] and a message that says *not in every version*
+    /// rather than claiming the item is gone.
+    ///
+    /// Only a stated `a-b` range participates ([`requirement_upper_bound`]);
+    /// `a` and `a-` state no ceiling, and a degenerate `a-a` pin is a single
+    /// version the floor check already decided.
+    ///
+    /// [`requirement_upper_bound`]: tcl_registry::version::requirement_upper_bound
+    fn requirement_straddle_diagnostic(
+        &self,
+        site: &VersionGateSite,
+        floor: &str,
+    ) -> Option<(DiagCode, String)> {
+        if !site.lifecycle.state_at(Some(floor)).is_available() {
+            return None;
+        }
+        let package = site.axis.name();
+        let retired = site.lifecycle.retired?;
+        let (requirement, ceiling) = self.package_requirement_ceiling(package)?;
+        // A window that never opens above its floor is a pin, not a range.
+        if tcl_registry::version::compare(&ceiling, floor).is_le() {
+            return None;
+        }
+        // The ceiling is exclusive, so the window reaches the retirement only
+        // when it extends strictly past it.
+        if tcl_registry::version::compare(&ceiling, retired).is_le() {
+            return None;
+        }
+        let what = item_phrase(&site.item);
+        Some((
+            DiagCode::W139,
+            format!(
+                "{what} is not available in every version satisfying \
+                 requirement `{requirement}`: removed in {package} {retired}."
+            ),
+        ))
+    }
+
+    /// The tightest **stated** upper bound over this file's unconditional
+    /// `package require <pkg> <req>` lines, with the requirement that stated
+    /// it.
+    ///
+    /// Several requires must all hold of the one loaded version, so the
+    /// accepted window is their intersection and the lowest stated ceiling
+    /// wins. Requirements stating no ceiling (`a`, `a-`) contribute nothing.
+    /// Conditional probes are excluded for the same reason the floor excludes
+    /// them: they guarantee nothing on every path.
+    fn package_requirement_ceiling(&self, pkg: &str) -> Option<(String, String)> {
+        self.result
+            .package_requires
+            .iter()
+            .filter(|r| r.name == pkg && !r.conditional)
+            .filter_map(|r| {
+                let requirement = r.version.as_deref()?;
+                let ceiling = tcl_registry::version::requirement_upper_bound(requirement)?;
+                Some((requirement.to_owned(), ceiling.to_owned()))
+            })
+            .min_by(|a, b| tcl_registry::version::compare(&a.1, &b.1))
     }
 
     /// The resolved version floor for `pkg`, and where it came from.
@@ -1242,5 +1470,142 @@ mod tests {
                    catch {package require Tk 8.7}\n\
                    entry .e -placeholder hi\n";
         assert!(fires(src, "W136"), "{:?}", version_diags(src));
+    }
+
+    /// Every version-gate code for `source` under `dialect`, including the
+    /// retirement (W139) and deprecation (W144) rungs the narrower helpers
+    /// above filter out.
+    fn lifecycle_diags(source: &str, dialect: &str) -> Vec<(String, String)> {
+        Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W135" | "W136" | "W139" | "W144"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn command_level_argument_value_follows_the_core_floor() {
+        // `close chan ?read|write?` — the half-close direction word is TIP
+        // 332, Tcl 8.6.  It sits at a command-level `arg_values` position
+        // that is deliberately *not* a closed value set, so W137 never sees
+        // it; the command-level version gate is what reports it.
+        let src = "close $s read\n";
+        for dialect in ["tcl8.4", "tcl8.5"] {
+            let diags = lifecycle_diags(src, dialect);
+            assert!(
+                diags.iter().any(|(code, message)| code == "W135"
+                    && message.contains("Argument value 'read' on 'close'")
+                    && message.contains("requires Tcl 8.6")),
+                "{dialect}: half-close needs 8.6, got {diags:?}"
+            );
+        }
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            assert!(
+                lifecycle_diags(src, dialect).is_empty(),
+                "{dialect}: half-close is real from 8.6"
+            );
+        }
+        // FP-guards: the plain one-argument form has no direction word at
+        // all, and a dynamic direction is not a literal value.
+        assert!(lifecycle_diags("close $s\n", "tcl8.5").is_empty());
+        assert!(lifecycle_diags("close $s $dir\n", "tcl8.5").is_empty());
+    }
+
+    #[test]
+    fn sub_subcommand_follows_the_core_floor() {
+        // `info object properties` / `info class definitionnamespace` are the
+        // 9.0 TclOO introspection additions (TIP 558 / TIP 524).
+        for src in [
+            "info object properties $o\n",
+            "info class definitionnamespace $c\n",
+        ] {
+            let diags = lifecycle_diags(src, "tcl8.6");
+            assert!(
+                diags
+                    .iter()
+                    .any(|(code, message)| code == "W135" && message.contains("requires Tcl 9.0")),
+                "8.6 must reject {src:?}: {diags:?}"
+            );
+            assert!(
+                lifecycle_diags(src, "tcl9.0").is_empty(),
+                "9.0 must admit {src:?}"
+            );
+        }
+        // The 8.6 operations of the same ensembles stay silent, and a unique
+        // prefix of a gated operation is gated exactly as the full word is.
+        assert!(lifecycle_diags("info object class $o\n", "tcl8.6").is_empty());
+        assert!(
+            lifecycle_diags("info class definitionn $c\n", "tcl8.6")
+                .iter()
+                .any(|(code, _)| code == "W135"),
+            "an abbreviation resolves to the same gated operation"
+        );
+    }
+
+    #[test]
+    fn deprecated_subcommand_reports_once_on_the_axis_that_still_has_it() {
+        // `trace variable` is deprecated from 8.4 and removed in 9.0.
+        let src = "trace variable v w handler\n";
+        let diags = lifecycle_diags(src, "tcl8.6");
+        assert!(
+            diags.iter().any(|(code, message)| code == "W144"
+                && message.contains("Subcommand 'variable' on 'trace'")
+                && message.contains("deprecated as of Tcl 8.4")),
+            "8.6 still has the legacy form, deprecated: {diags:?}"
+        );
+        // On 9.0 the form is gone from the profile entirely — that is W002's
+        // word, and the version gate must not flag it a second time.
+        assert!(
+            lifecycle_diags(src, "tcl9.0").is_empty(),
+            "a dialect-absent subcommand stays W002's alone"
+        );
+    }
+
+    #[test]
+    fn a_require_range_that_reaches_a_retirement_is_hedged() {
+        // The floor (8.6) still has `trace variable`, but the range admits
+        // every version up to 9.1 — including the 9.0 that removed it.
+        let src = "package require Tcl 8.5-9.1\ntrace variable v w handler\n";
+        let diags = lifecycle_diags(src, "tcl8.6");
+        assert!(
+            diags.iter().any(|(code, message)| code == "W139"
+                && message
+                    .contains("not available in every version satisfying requirement `8.5-9.1`")
+                && message.contains("removed in Tcl 9.0")),
+            "a straddling range is hedged, not asserted: {diags:?}"
+        );
+        // A range that stops below the retirement keeps the ordinary
+        // floor verdict …
+        let inside = "package require Tcl 8.5-8.7\ntrace variable v w handler\n";
+        assert!(
+            lifecycle_diags(inside, "tcl8.6")
+                .iter()
+                .all(|(code, _)| code == "W144"),
+            "a range inside the window reports only the deprecation"
+        );
+        // … and so does an open-ended or bare requirement, which states no
+        // ceiling at all.
+        for req in ["8.5-", "8.5"] {
+            let src = format!("package require Tcl {req}\ntrace variable v w handler\n");
+            assert!(
+                lifecycle_diags(&src, "tcl8.6")
+                    .iter()
+                    .all(|(code, _)| code == "W144"),
+                "`{req}` states no ceiling"
+            );
+        }
+        // A conditional probe guarantees nothing, so it cannot widen the
+        // window either.
+        let probed = "package require Tcl 8.5\n\
+                      catch {package require Tcl 8.5-9.1}\n\
+                      trace variable v w handler\n";
+        assert!(
+            lifecycle_diags(probed, "tcl8.6")
+                .iter()
+                .all(|(code, _)| code == "W144"),
+            "a conditional require is not a guarantee"
+        );
     }
 }

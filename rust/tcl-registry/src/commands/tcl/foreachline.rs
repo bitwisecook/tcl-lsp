@@ -39,9 +39,8 @@ use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "foreachLine varName filename body",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `foreachLine`.
@@ -81,17 +80,13 @@ pub fn spec() -> CommandSpec {
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // Binds `varName` in the caller's scope on every iteration.
             SideEffect {
                 target: SideEffectTarget::Variable,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

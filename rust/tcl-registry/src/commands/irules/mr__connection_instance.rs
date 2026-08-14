@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "returns the connection instance number and the number of connections formatted as \"<instance> of <num_connections>\".",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::connection_instance",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

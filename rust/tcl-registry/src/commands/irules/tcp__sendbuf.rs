@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "TCP::sendbuf returns the number of bytes that can be stored at the send buffer.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::sendbuf ('auto' | BUFFER_SIZE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

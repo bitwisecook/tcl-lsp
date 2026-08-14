@@ -132,6 +132,12 @@ const fn f(name: &'static str, surface: Surface) -> Field {
     Field { name, surface }
 }
 
+/// The reason a freshly landed lifecycle field is not surfaced yet: the
+/// registry now carries it everywhere, and the studio's draft/schema/editor
+/// surfaces for the new nesting levels land in the follow-up change that
+/// flips these entries to `Surface::Keys(LIFECYCLE_KEYS)`.
+const LANDING_LIFECYCLE: &str = "landing — surfaced by the follow-up studio change";
+
 /// The reason a `&'static` descriptor reference is not editable field by field.
 const NAMED_CONSTANT: &str = "the studio edits the whole descriptor as one Rust expression naming a shared \
      registry constant (`Some(&definer::SNIT_GRAMMAR)`); authoring a new one is an edit \
@@ -150,6 +156,14 @@ const NAMED_CONSTANT: &str = "the studio edits the whole descriptor as one Rust 
 /// `src/schema.rs` plus a seeder line in `src/draft.rs` — and add it to the
 /// pattern and to [`COMMAND_SPEC`].  If it should not be author-editable, add
 /// it as [`Surface::Excluded`] with the reason instead.
+///
+/// `rustfmt` is held off this one item: `CommandSpec` has enough fields that
+/// one pattern line each pushes the body past `clippy::pedantic`'s
+/// hundred-line budget, and an exhaustive pattern is the whole point — so a
+/// few closely-related fields share a line to keep the gate and the lint both
+/// satisfied. Keep new fields one per line until the budget forces another
+/// pairing.
+#[rustfmt::skip]
 pub fn witness_command_spec(spec: &CommandSpec) {
     // THE GATE.  Do NOT add `..` to silence this — that is the drift it exists
     // to catch.  A new field belongs in FOUR places: `schema::COMMAND_FIELDS`
@@ -214,7 +228,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         options: _,
         option_constraints: _,
         reserved_trailing_words: _,
-        arg_values: _,
+        arg_values: _, versioned_arg_values: _,
         body_kind: _,
         body_arg_implicit_args: _,
         taint_output_sink: _,
@@ -224,8 +238,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         taint_code_sink_args: _,
         taint_interp_eval_subcommands: _,
         taint_source: _,
-        taint_transform: _,
-        taint_double_encode_colour: _,
+        taint_transform: _, taint_double_encode_colour: _,
         taint_sink_safe_colour: _,
         taint_sink_gate: _,
         credential_options: _,
@@ -349,6 +362,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("reserved_trailing_words"),
     ),
     f("arg_values", Surface::Key("arg_values")),
+    f("versioned_arg_values", Surface::Key("versioned_arg_values")),
     f("body_kind", Surface::Key("body_kind")),
     f(
         "body_arg_implicit_args",
@@ -620,6 +634,7 @@ pub fn witness_sub_sub_command(sub: &SubSubCommand) {
         detail: _,
         synopsis: _,
         dialects: _,
+        lifecycle: _,
     } = sub;
 }
 
@@ -629,6 +644,7 @@ pub const SUB_SUB_COMMAND: &[Field] = &[
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
     f("dialects", Surface::Key("dialects")),
+    f("lifecycle", Surface::Excluded(LANDING_LIFECYCLE)),
 ];
 
 /// Compile-time witness for [`OPTION_SPEC`].
@@ -690,6 +706,7 @@ pub fn witness_arg_value(value: &ArgValue) {
         value: _,
         detail: _,
         min_tcl: _,
+        lifecycle: _,
         code: _,
     } = value;
 }
@@ -699,6 +716,7 @@ pub const ARG_VALUE: &[Field] = &[
     f("value", Surface::Key("value")),
     f("detail", Surface::Key("detail")),
     f("min_tcl", Surface::Key("min_tcl")),
+    f("lifecycle", Surface::Excluded(LANDING_LIFECYCLE)),
     f("code", Surface::Key("code")),
 ];
 
@@ -708,6 +726,7 @@ pub fn witness_form_spec(form: &FormSpec) {
         kind: _,
         synopsis: _,
         dialects: _,
+        lifecycle: _,
     } = form;
 }
 
@@ -716,6 +735,7 @@ pub const FORM_SPEC: &[Field] = &[
     f("kind", Surface::Key("kind")),
     f("synopsis", Surface::Key("synopsis")),
     f("dialects", Surface::Key("dialects")),
+    f("lifecycle", Surface::Excluded(LANDING_LIFECYCLE)),
 ];
 
 /// Compile-time witness for [`HOVER_SNIPPET`].
@@ -748,6 +768,7 @@ pub fn witness_side_effect(effect: &SideEffect) {
         writes: _,
         connection_side: _,
         dialects: _,
+        lifecycle: _,
     } = effect;
 }
 
@@ -758,6 +779,7 @@ pub const SIDE_EFFECT: &[Field] = &[
     f("writes", Surface::Key("writes")),
     f("connection_side", Surface::Key("connection_side")),
     f("dialects", Surface::Key("dialects")),
+    f("lifecycle", Surface::Excluded(LANDING_LIFECYCLE)),
 ];
 
 /// Compile-time witness for [`SETTER_CONSTRAINT`].
@@ -1254,18 +1276,8 @@ mod tests {
     /// draft's JSON object for the type carries a key per field.
     #[test]
     fn the_nested_row_types_are_fully_surfaced() {
-        witness_sub_sub_command(&SubSubCommand {
-            name: "",
-            detail: "",
-            synopsis: "",
-            dialects: None,
-        });
-        let sub_sub = draft::sub_subcommand(&SubSubCommand {
-            name: "",
-            detail: "",
-            synopsis: "",
-            dialects: None,
-        });
+        witness_sub_sub_command(&SubSubCommand::DEFAULT);
+        let sub_sub = draft::sub_subcommand(&SubSubCommand::DEFAULT);
         assert_carried(
             "SubSubCommand",
             SUB_SUB_COMMAND,

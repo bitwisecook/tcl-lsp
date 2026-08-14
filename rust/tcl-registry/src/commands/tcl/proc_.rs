@@ -23,10 +23,8 @@ use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::ProcDefinition,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const PROC_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
@@ -92,9 +90,8 @@ fn proc_state_transitions(arguments: InvocationArguments<'_>) -> StateTransition
 /// are folded into the hover snippet below as plain current-truth prose
 /// rather than as dialect gates.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "proc name args body",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `proc`.

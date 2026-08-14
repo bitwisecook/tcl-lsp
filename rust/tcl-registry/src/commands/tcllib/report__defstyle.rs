@@ -28,9 +28,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "report::defstyle styleName arguments script",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `report::defstyle`.

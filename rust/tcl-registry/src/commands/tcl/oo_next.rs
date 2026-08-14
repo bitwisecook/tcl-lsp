@@ -36,9 +36,8 @@ use crate::prelude::*;
 /// `nextto.rs`, which documents the identical finding for its sibling
 /// command on the same manpage.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "next ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `next` invokes a method implementation the registry cannot see into —
@@ -54,11 +53,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// unknown-write fallback. Mirrors `nextto.rs`'s identical declaration for
 /// its sibling command.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

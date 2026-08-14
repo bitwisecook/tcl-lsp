@@ -19,9 +19,8 @@
 //! `math::statistics::test-Wilcoxon` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "math::statistics::test-Wilcoxon sample_a sample_b",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

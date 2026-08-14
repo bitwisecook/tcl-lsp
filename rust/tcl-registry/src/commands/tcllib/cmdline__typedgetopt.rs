@@ -19,9 +19,8 @@
 //! `cmdline::typedGetopt` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "cmdline::typedGetopt argvVar optstring optVar valVar",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {
