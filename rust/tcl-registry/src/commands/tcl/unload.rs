@@ -42,9 +42,9 @@ use crate::prelude::*;
 // unload procedure to free its own commands/callbacks/handlers/
 // resources, again with no Tcl-level command behaviour it changes.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "unload ?switches? fileName ?prefix? ?interp?",
     dialects: Some(DialectSet::TCL85_PLUS),
+    ..FormSpec::DEFAULT
 }];
 
 // All three switches exist, unchanged, in every Tcl version that has
@@ -83,10 +83,8 @@ const OPTIONS: &[OptionSpec] = &[
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Command spec for `unload`.

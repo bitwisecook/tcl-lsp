@@ -35,16 +35,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "clone pool <pool_name> Specifies the pool to which you want to send the cloned traffic.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "clone pool POOL_OBJ (member IP_ADDR (PORT)?)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

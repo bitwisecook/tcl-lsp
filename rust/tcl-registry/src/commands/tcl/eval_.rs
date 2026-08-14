@@ -28,11 +28,7 @@ use crate::prelude::*;
 /// doesn't actually have. `apply`'s spec cites this exact idiom (its
 /// lambda body is equally opaque) back to this constant.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
-    reads: false,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// `eval arg ?arg ...?` — synopsis, arity, and return-value wording
@@ -51,9 +47,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 /// grammar, arity, or semantics, so both are reflected as plain prose in
 /// the hover snippet below rather than as dialect gates here.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "eval arg ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `eval`.

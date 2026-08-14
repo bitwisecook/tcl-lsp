@@ -36,9 +36,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "fconfigure channelId ?optionName? ?value ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `-buffering`'s values — always a single flat word in every fetched
@@ -290,8 +289,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         options: OPTIONS,
         hover: Some(HoverSnippet {

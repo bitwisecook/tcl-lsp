@@ -84,10 +84,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     // `argparse` sets variables in the caller's frame (or builds an
     // `-inline` dict); classify as interp-state mutation.
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 macro_rules! opt {
@@ -229,9 +227,8 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "argparse ?switch ...? ?--? definition ?arguments?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// The `argparse` command spec.

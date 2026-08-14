@@ -30,14 +30,14 @@ use crate::prelude::*;
 /// misflagged; these two forms carry the precise per-era synopsis instead.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "glob ?switches? ?pattern ...?",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "glob ?switches? pattern ?pattern ...?",
         dialects: Some(DialectSet::TCL84.union(DialectSet::TCL85)),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -124,7 +124,7 @@ const TYPES_VALUES: &[ArgValue] = &[
 
 const OPTION_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
     options: &["-directory", "-path"],
-    dialects: None,
+    ..OptionConstraint::DEFAULT
 }];
 
 /// Command spec for `glob`.
@@ -159,9 +159,7 @@ pub fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         options: const {
             &[

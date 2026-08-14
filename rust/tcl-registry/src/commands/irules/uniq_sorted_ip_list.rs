@@ -35,16 +35,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "A Tcl list of unique, sorted IP address strings.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "uniq_sorted_ip_list ?arg ...?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "TCP::recvwnd returns the number of bytes that can be stored at the receive window.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::recvwnd ('auto' | WINDOW_SIZE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

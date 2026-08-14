@@ -26,14 +26,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "incr varName ?increment?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `incr varName` — implicit increment of 1.

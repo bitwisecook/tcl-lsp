@@ -45,9 +45,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "unicode function ?options? string",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `-profile`'s values (per `unicode.n`, which for details defers to

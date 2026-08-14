@@ -22,9 +22,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "auto_import pattern",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `auto_import`.
@@ -64,16 +63,12 @@ pub fn spec() -> CommandSpec {
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             SideEffect {
                 target: SideEffectTarget::ProcDefinition,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

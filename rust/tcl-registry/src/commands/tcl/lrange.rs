@@ -75,9 +75,8 @@
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "lrange list first last",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

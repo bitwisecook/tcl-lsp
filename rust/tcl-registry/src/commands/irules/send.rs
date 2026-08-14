@@ -32,9 +32,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "Sends data on a specified sideband connection, and returns an integer representing the amount of data that was sent.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "send ?options? ?--? connection data",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -69,10 +68,9 @@ pub const fn spec() -> CommandSpec {
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

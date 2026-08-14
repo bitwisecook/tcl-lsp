@@ -42,16 +42,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "clientside Returns 1 if the current event is in the clientside context or 0 if not.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "clientside (NESTING_SCRIPT)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ConnectionControl,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

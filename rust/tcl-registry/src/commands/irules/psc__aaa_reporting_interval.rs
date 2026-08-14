@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return AAA reporting interval when no argument is given.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "PSC::aaa_reporting_interval (INTERVAL)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

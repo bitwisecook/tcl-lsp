@@ -34,16 +34,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the specified field from the resource record object.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DNSMSG::record RESOURCE_RECORD ('owner' | 'type' | 'ttl' | 'class' | 'rdata')",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

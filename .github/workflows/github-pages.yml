@@ -40,9 +40,15 @@ name: Deploy GitHub Pages (BIG-IP report + compiler explorer + spec studio)
 #   /spec-studio/        — the command-registry spec studio: browse and edit any
 #                          CommandSpec, render it back to a registry .rs file or
 #                          a Tcl stub, and infer signatures from an imported
-#                          package. One self-contained file (registry + compiler
-#                          analyser inlined as WASM), built by
-#                          `make spec-studio-wasm`.
+#                          package (one snapshot, or several releases for a
+#                          version range). Its Pack DSL and Test panes are
+#                          Monaco backed by the REAL Tcl language server,
+#                          compiled to WASM and running in a Web Worker. A
+#                          multi-file dist — index.html (registry + compiler
+#                          analyser inlined as WASM), assets/ (the lazily
+#                          loaded editor chunk), lsp/ (the server worker) —
+#                          built by `make spec-studio-wasm`, which now also
+#                          builds `make lsp-server-wasm` as a prerequisite.
 #
 # This supersedes the old `pages.yml` (Python `make explorer-build-cdn`), which
 # no longer exists on the Python-free `rust` line.
@@ -69,6 +75,10 @@ on:
       # shared with the explorer and already listed.
       - "rust/tcl-spec-studio/**"
       - "rust/tcl-spec-studio-wasm/**"
+      # The studio's editors are driven by the language server built here, and
+      # its dist carries that server's worker + wasm.
+      - "rust/tcl-lsp-server-wasm/**"
+      - "rust/tcl-lsp-server/**"
       - "rust/tcl-cli/gui/**"
       - "rust/tcl-lexer/**"
       - "rust/tcl-syntax/**"
@@ -127,6 +137,7 @@ jobs:
             rust/bigip-report-gen/python
             rust/tcl-explorer-wasm
             rust/tcl-spec-studio-wasm
+            rust/tcl-lsp-server-wasm
 
       # ── Compiler Explorer (Rust → WASM, client-side, no backend) ──────────
       - name: Add wasm target
@@ -168,12 +179,41 @@ jobs:
         run: bash rust/bigip-report-gen/wasm/build-wasm.sh
 
       # ── Command-registry spec studio (TypeScript + Rust → WASM) ───────────
-      # `spec-studio-wasm` builds the TypeScript front-end first, then inlines
-      # it — with the wasm, the stylesheet, and the project mark — into a single
-      # self-contained rust/tcl-spec-studio-wasm/dist/index.html. Same
+      # The front-end's DOM-free logic first: the GitHub release fetcher's
+      # pagination, rate-limit reporting and failure messages are covered by
+      # stubs here, which is the only place they can be — the live API is not
+      # something a build should depend on.
+      - name: Test the spec studio front-end
+        run: make spec-studio-test
+
+      # `spec-studio-wasm` builds, in order: the TypeScript front-end (the
+      # controller bundle plus the lazily-loaded Monaco/language-client chunk),
+      # the language server worker via its `lsp-server-wasm` prerequisite, and
+      # the studio wasm — then assembles them into a multi-file
+      # rust/tcl-spec-studio-wasm/dist/ (index.html + assets/ + lsp/). Same
       # no-wasm-opt + externref-growability handling as the two apps above.
+      #
+      # This is the heaviest build on the page: the language server links the
+      # whole analyser and comes to ~21 MB of wasm (~5.6 MB gzipped, which is
+      # what Pages actually serves).
       - name: Build the command-registry spec studio (TypeScript + Rust → WASM)
         run: make spec-studio-wasm
+
+      # A dist that boots nowhere is worse than a build failure, because it
+      # deploys. Playwright drives the assembled directory over HTTP exactly as
+      # Pages serves it: the page loads under its own CSP, Monaco mounts, and
+      # the language server worker answers `initialize`. The check skips itself
+      # where chromium is unavailable rather than failing.
+      - name: Install playwright chromium
+        run: |
+          cd rust/tcl-spec-studio/web
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Boot the assembled spec studio in headless chromium
+        run: |
+          cd rust/tcl-spec-studio/web
+          NODE_PATH="$PWD/node_modules" node ../../tcl-spec-studio-wasm/test/boot.mjs
 
       # ── BIG-IP report (PyO3 + maturin) ────────────────────────────────────
       - name: Set up Python 3.14
@@ -213,16 +253,22 @@ jobs:
           cp -r rust/tcl-cli/gui/. site/compiler-explorer/
           rm -f site/compiler-explorer/.gitignore
 
-          # Command-registry spec studio → /spec-studio/. Copy the whole dist
-          # directory, not `index.html` by name: the studio is one
-          # self-contained file today, but the single-file constraint has been
-          # relaxed, so a build that emits a separate .wasm/.js (Monaco, a
-          # split bundle) must deploy whole rather than silently losing every
-          # file but the entry point. Same treatment as the explorer above.
+          # Command-registry spec studio → /spec-studio/. The dist IS a
+          # directory now — index.html, the lazily-loaded editor chunk under
+          # assets/, and the language server worker under lsp/ — and every path
+          # the page uses is computed at run time from `document.baseURI` /
+          # `import.meta.url`, so it works under this subdirectory without any
+          # rewriting. Copy it whole; losing any one file breaks a feature
+          # silently rather than loudly, so assert the set afterwards.
           mkdir -p site/spec-studio
           cp -r rust/tcl-spec-studio-wasm/dist/. site/spec-studio/
-          test -f site/spec-studio/index.html \
-            || { echo "spec-studio: dist produced no index.html"; exit 1; }
+          for required in index.html assets/monaco-host.js assets/monaco-host.css \
+                          lsp/worker.js lsp/tcl_lsp_server_wasm.js \
+                          lsp/tcl_lsp_server_wasm_bg.wasm; do
+            test -f "site/spec-studio/$required" \
+              || { echo "spec-studio: dist is missing $required"; exit 1; }
+          done
+          du -sh site/spec-studio
 
           # Root landing page linking both apps (the shared Pages root).
           cat > site/index.html <<'HTML'
@@ -259,7 +305,10 @@ jobs:
                   <code>CommandSpec</code>, and render it back out as a
                   registry <code>.rs</code> file or a Tcl dialect stub. Import
                   a package's Tcl and the compiler infers a starting signature
-                  for each <code>proc</code>.</li>
+                  for each <code>proc</code>; import several releases and it
+                  derives each command's version range. Edits happen in Monaco,
+                  driven by the real Tcl language server running in your
+                  browser.</li>
             </ul>
           </body>
           </html>

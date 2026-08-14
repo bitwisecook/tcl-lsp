@@ -52,8 +52,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::NetworkIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Client-side implementation of the HTTP/1.x protocol, built around http::geturl and a per-transaction state token.",

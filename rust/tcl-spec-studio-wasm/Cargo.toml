@@ -58,11 +58,23 @@ repository = "https://github.com/bitwisecook/tcl-lsp"
 authors = ["tcl-lsp contributors"]
 
 [lib]
-crate-type = ["cdylib"]
+# `rlib` alongside the `cdylib` so the marshalling helpers (`archive.rs`'s zip
+# reader, `snapshots.rs`'s release parser) carry host-runnable `#[test]`s —
+# `cargo test` cannot link a test harness against a bare cdylib.
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 tcl-spec-studio = { path = "../tcl-spec-studio" }
+# For the Pack DSL editor's client-side highlight/hover (`dsl_highlight.rs`):
+# the real Tcl lexer, so the `.tclspec` overlay editor tokenises with the same
+# lexer the rest of the toolchain does rather than a hand-rolled scanner.
+tcl-lexer = { path = "../tcl-lexer" }
 serde_json = { version = "1", features = ["preserve_order"] }
+# Release archives, read entirely in memory (`archive.rs`). Same crate and same
+# feature set the package manager uses (rust/tcl-pkg): deflate only, no default
+# features, so nothing pulls in a native compressor that will not build for
+# wasm32.
+zip = { version = "8", default-features = false, features = ["deflate"] }
 wasm-bindgen = "0.2"
 console_error_panic_hook = "0.1"
 

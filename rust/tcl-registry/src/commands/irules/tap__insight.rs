@@ -35,16 +35,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns one of the following actions: allow, block, captcha, conviction, deception, timeout.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TAP::insight set (TAP_INSIGHT_KEY TAP_INSIGHT_VALUE)*",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

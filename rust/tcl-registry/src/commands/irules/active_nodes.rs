@@ -32,9 +32,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "active_nodes <pool name> Returns the number of active members of the specified pool (for BIG-IP version 4.X compatibility).",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "active_nodes ('-list')? POOL_OBJ",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[OptionSpec {
@@ -50,9 +49,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("active_members"),
         deprecated_replacement_drop_in: true,

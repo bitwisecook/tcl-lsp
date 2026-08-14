@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return a Tcl list of IP intelligence category names for a given IP address",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "IP::intelligence IP_ADDR",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

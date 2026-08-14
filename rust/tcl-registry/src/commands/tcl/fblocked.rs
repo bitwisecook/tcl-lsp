@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "fblocked channel",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `fblocked`.
@@ -60,9 +59,7 @@ pub fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Test whether the last input operation on a channel was blocked by exhausted input.",

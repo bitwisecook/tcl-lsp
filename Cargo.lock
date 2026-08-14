@@ -201,6 +201,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-codec-lite"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2527c30e3972d8ff366b353125dae828c4252a154dbe6063684f6c5e014760a3"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "futures-core",
+ "futures-io",
+ "futures-sink",
+ "log",
+ "pin-project-lite",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1684,6 +1700,18 @@ dependencies = [
  "hashbrown 0.16.1",
  "indexmap",
  "stable_deref_trait",
+]
+
+[[package]]
+name = "gloo-timers"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbb143cf96099802033e0d4f4963b19fd2e0b728bcf076cd9cf7f6634f092994"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -3312,7 +3340,7 @@ dependencies = [
  "bytes",
  "chrono",
  "dashmap",
- "gloo-timers",
+ "gloo-timers 0.4.0",
  "log",
  "serde",
  "serde_bytes",
@@ -4125,7 +4153,9 @@ dependencies = [
  "tcl-pkg",
  "tcl-registry",
  "tcl-sandbox",
+ "tcl-spec-studio",
  "tcl-version",
+ "zip",
 ]
 
 [[package]]
@@ -4135,11 +4165,14 @@ dependencies = [
  "anstream",
  "anstyle",
  "rpassword",
+ "serde_json",
  "tabled",
  "tcl-compiler",
  "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-pkg",
  "tcl-registry",
+ "tcl-spec-studio",
  "tcl-spectcl",
  "temp-env",
  "thiserror 2.0.20",
@@ -4349,6 +4382,8 @@ version = "0.1.0"
 dependencies = [
  "f5-xc",
  "futures-util",
+ "gloo-timers 0.3.0",
+ "js-sys",
  "salsa",
  "serde_json",
  "tcl-bigip",
@@ -4366,6 +4401,7 @@ dependencies = [
  "tokio",
  "tower",
  "tower-lsp-server",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -4379,6 +4415,7 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-cli",
+ "tcl-cli-support",
  "tcl-compiler",
  "tcl-diagram",
  "tcl-dialect",
@@ -4850,6 +4887,7 @@ version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f0e711655c89181a6bc6a2cc348131fcd9680085f5b06b6af13427a393a6e72"
 dependencies = [
+ "async-codec-lite",
  "bytes",
  "dashmap",
  "futures",

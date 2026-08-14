@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "TCP::keepalive without an argument returns the keep-alive interval value of a TCP connection.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::keepalive (KEEP_ALIVE_INTERVAL)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

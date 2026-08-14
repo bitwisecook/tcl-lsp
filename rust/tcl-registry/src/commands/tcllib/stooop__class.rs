@@ -28,9 +28,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "stooop::class name body",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `stooop::class`.

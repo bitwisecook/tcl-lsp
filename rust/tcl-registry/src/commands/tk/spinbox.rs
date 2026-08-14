@@ -20,10 +20,8 @@
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const OPTIONS: &[OptionSpec] = &[
@@ -512,9 +510,8 @@ static SUBCOMMANDS: [SubCommand; 13] = [
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "spinbox pathName ?option value ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `spinbox`'s instance command dispatches through the same subcommand

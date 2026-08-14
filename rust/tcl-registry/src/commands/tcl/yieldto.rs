@@ -71,9 +71,8 @@ use crate::prelude::*;
 // eBPF program, which is a single bounded run to a verdict — so no
 // additional dialect exclusion belongs on this spec.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "yieldto command ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 // `yieldto`'s own effect — parking the coroutine and scheduling `command`
@@ -88,10 +87,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 // `command_prefixes` below, not text this spec re-evaluates itself.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Command spec for `yieldto`.

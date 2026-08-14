@@ -29,17 +29,14 @@
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "encoding subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `-profile`'s values (`encoding(n)` PROFILES section) — Tcl 9.0+ only
@@ -156,10 +153,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             // the static spec can't see whether a given call uses it, so
             // conservatively declare the write rather than staying `pure`.
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
             dialects: Some(DialectSet::TCL90_PLUS),
+            ..SideEffect::DEFAULT
         }],
         is_unescape: true,
         ..SubCommand::DEFAULT
@@ -185,10 +181,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             // -failindex (Tcl 9.0+) optionally writes its `var` argument;
             // see the identical note on `convertfrom` above.
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
             dialects: Some(DialectSet::TCL90_PLUS),
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -207,8 +202,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         // Added in Tcl 8.5 — absent from the 8.4 synopsis and DESCRIPTION;
         // present, unchanged, in 8.5 through 9.1.
@@ -237,8 +231,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },

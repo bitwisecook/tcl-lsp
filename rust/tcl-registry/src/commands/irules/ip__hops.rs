@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Number of hops",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "IP::hops",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

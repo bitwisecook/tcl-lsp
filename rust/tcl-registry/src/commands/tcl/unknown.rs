@@ -78,10 +78,9 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     // Identical synopsis in every fetched manpage, Tcl 8.4 through 9.1.
     synopsis: "unknown cmdName ?arg arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 // `unknown`'s own documented steps touch interpreter state directly: it
@@ -101,37 +100,26 @@ const SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
         target: SideEffectTarget::InterpState,
         reads: true,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
         target: SideEffectTarget::FileIo,
         reads: true,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
         target: SideEffectTarget::ProcDefinition,
-        reads: false,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
         target: SideEffectTarget::Process,
         reads: true,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     SideEffect {
-        target: SideEffectTarget::Unknown,
-        reads: false,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
 ];
 

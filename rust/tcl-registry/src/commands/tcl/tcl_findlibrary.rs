@@ -60,9 +60,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tcl_findLibrary basename version patch initScript enVarName varName",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `tcl_findLibrary`.
@@ -145,9 +144,7 @@ pub fn spec() -> CommandSpec {
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // Reads the `enVarName`-named entry of the global `env`
             // array, and writes the `varName`-named global — see the
@@ -156,19 +153,14 @@ pub fn spec() -> CommandSpec {
                 target: SideEffectTarget::Variable,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // What the located `initScript` itself does once sourced is
             // unenumerable from `tcl_findLibrary`'s own argument words —
             // the same "unknowable statically" gap `source`'s own spec
             // leaves as a placeholder rather than inventing a write.
             SideEffect {
-                target: SideEffectTarget::Unknown,
-                reads: false,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "cd ?dirName?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `cd`.
@@ -54,10 +53,8 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Change the process's current working directory.",

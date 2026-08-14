@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "ANTIFRAUD::enable Applies the default anti-fraud profile attached to the virtual server.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ANTIFRAUD::enable (ANTIFRAUD_PROFILE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

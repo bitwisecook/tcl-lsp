@@ -43,14 +43,14 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "linsert list index ?element element ...?",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "linsert list index element ?element element ...?",
         dialects: Some(DialectSet::TCL84.union(DialectSet::TCL85)),
+        ..FormSpec::DEFAULT
     },
 ];
 

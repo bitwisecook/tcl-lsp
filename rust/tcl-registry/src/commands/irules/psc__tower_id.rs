@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return the tower id when no argument is given.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "PSC::tower_id (TOWER_ID)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

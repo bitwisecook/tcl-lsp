@@ -78,8 +78,8 @@ use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, SubCommand, SubSubCommand,
-    VersionedArgValue,
+    BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, OptionConstraint, SubCommand,
+    SubSubCommand, VersionedArgValue,
 };
 use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::SetterConstraint;
@@ -150,6 +150,14 @@ const NAMED_CONSTANT: &str = "the studio edits the whole descriptor as one Rust 
 /// `src/schema.rs` plus a seeder line in `src/draft.rs` — and add it to the
 /// pattern and to [`COMMAND_SPEC`].  If it should not be author-editable, add
 /// it as [`Surface::Excluded`] with the reason instead.
+///
+/// `rustfmt` is held off this one item: `CommandSpec` has enough fields that
+/// one pattern line each pushes the body past `clippy::pedantic`'s
+/// hundred-line budget, and an exhaustive pattern is the whole point — so a
+/// few closely-related fields share a line to keep the gate and the lint both
+/// satisfied. Keep new fields one per line until the budget forces another
+/// pairing.
+#[rustfmt::skip]
 pub fn witness_command_spec(spec: &CommandSpec) {
     // THE GATE.  Do NOT add `..` to silence this — that is the drift it exists
     // to catch.  A new field belongs in FOUR places: `schema::COMMAND_FIELDS`
@@ -214,7 +222,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         options: _,
         option_constraints: _,
         reserved_trailing_words: _,
-        arg_values: _,
+        arg_values: _, versioned_arg_values: _,
         body_kind: _,
         body_arg_implicit_args: _,
         taint_output_sink: _,
@@ -224,8 +232,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         taint_code_sink_args: _,
         taint_interp_eval_subcommands: _,
         taint_source: _,
-        taint_transform: _,
-        taint_double_encode_colour: _,
+        taint_transform: _, taint_double_encode_colour: _,
         taint_sink_safe_colour: _,
         taint_sink_gate: _,
         credential_options: _,
@@ -349,6 +356,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("reserved_trailing_words"),
     ),
     f("arg_values", Surface::Key("arg_values")),
+    f("versioned_arg_values", Surface::Key("versioned_arg_values")),
     f("body_kind", Surface::Key("body_kind")),
     f(
         "body_arg_implicit_args",
@@ -620,6 +628,7 @@ pub fn witness_sub_sub_command(sub: &SubSubCommand) {
         detail: _,
         synopsis: _,
         dialects: _,
+        lifecycle: _,
     } = sub;
 }
 
@@ -629,6 +638,7 @@ pub const SUB_SUB_COMMAND: &[Field] = &[
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
     f("dialects", Surface::Key("dialects")),
+    f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
 ];
 
 /// Compile-time witness for [`OPTION_SPEC`].
@@ -690,6 +700,7 @@ pub fn witness_arg_value(value: &ArgValue) {
         value: _,
         detail: _,
         min_tcl: _,
+        lifecycle: _,
         code: _,
     } = value;
 }
@@ -699,6 +710,7 @@ pub const ARG_VALUE: &[Field] = &[
     f("value", Surface::Key("value")),
     f("detail", Surface::Key("detail")),
     f("min_tcl", Surface::Key("min_tcl")),
+    f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("code", Surface::Key("code")),
 ];
 
@@ -708,6 +720,7 @@ pub fn witness_form_spec(form: &FormSpec) {
         kind: _,
         synopsis: _,
         dialects: _,
+        lifecycle: _,
     } = form;
 }
 
@@ -716,6 +729,7 @@ pub const FORM_SPEC: &[Field] = &[
     f("kind", Surface::Key("kind")),
     f("synopsis", Surface::Key("synopsis")),
     f("dialects", Surface::Key("dialects")),
+    f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
 ];
 
 /// Compile-time witness for [`HOVER_SNIPPET`].
@@ -748,6 +762,7 @@ pub fn witness_side_effect(effect: &SideEffect) {
         writes: _,
         connection_side: _,
         dialects: _,
+        lifecycle: _,
     } = effect;
 }
 
@@ -758,6 +773,7 @@ pub const SIDE_EFFECT: &[Field] = &[
     f("writes", Surface::Key("writes")),
     f("connection_side", Surface::Key("connection_side")),
     f("dialects", Surface::Key("dialects")),
+    f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
 ];
 
 /// Compile-time witness for [`SETTER_CONSTRAINT`].
@@ -928,6 +944,26 @@ pub const BYTE_PAYLOAD_SPEC: &[Field] = &[
         "message_flag_shift",
         Surface::Expression("byte_array_payload"),
     ),
+];
+
+/// Compile-time witness for [`OPTION_CONSTRAINT`].
+pub fn witness_option_constraint(constraint: &OptionConstraint) {
+    let OptionConstraint {
+        options: _,
+        dialects: _,
+        lifecycle: _,
+    } = constraint;
+}
+
+/// Where the studio surfaces each [`OptionConstraint`] field.
+///
+/// The whole constraint is one `RustExpr` — `option_constraints` holds a
+/// rendered `&[OptionConstraint { … }]` — so every field is spelled in that
+/// literal rather than getting a picker of its own.
+pub const OPTION_CONSTRAINT: &[Field] = &[
+    f("options", Surface::Expression("option_constraints")),
+    f("dialects", Surface::Expression("option_constraints")),
+    f("lifecycle", Surface::Expression("option_constraints")),
 ];
 
 /// Compile-time witness for [`VERSIONED_ARG_VALUE`].
@@ -1254,18 +1290,8 @@ mod tests {
     /// draft's JSON object for the type carries a key per field.
     #[test]
     fn the_nested_row_types_are_fully_surfaced() {
-        witness_sub_sub_command(&SubSubCommand {
-            name: "",
-            detail: "",
-            synopsis: "",
-            dialects: None,
-        });
-        let sub_sub = draft::sub_subcommand(&SubSubCommand {
-            name: "",
-            detail: "",
-            synopsis: "",
-            dialects: None,
-        });
+        witness_sub_sub_command(&SubSubCommand::DEFAULT);
+        let (sub_sub, _) = draft::sub_subcommand(&SubSubCommand::DEFAULT);
         assert_carried(
             "SubSubCommand",
             SUB_SUB_COMMAND,
@@ -1291,11 +1317,11 @@ mod tests {
         );
 
         witness_arg_value(&ArgValue::DEFAULT);
-        let value = draft::arg_value(&ArgValue::DEFAULT);
+        let (value, _) = draft::arg_value(&ArgValue::DEFAULT);
         assert_carried("ArgValue", ARG_VALUE, &object_keys("ArgValue", &value));
 
         witness_form_spec(&FormSpec::DEFAULT);
-        let form = draft::form_spec(&FormSpec::DEFAULT);
+        let (form, _) = draft::form_spec(&FormSpec::DEFAULT);
         assert_carried("FormSpec", FORM_SPEC, &object_keys("FormSpec", &form));
 
         let snippet = HoverSnippet::brief("", &[], "");
@@ -1308,13 +1334,14 @@ mod tests {
         );
 
         witness_side_effect(&SideEffect::DEFAULT);
-        let effect = draft::side_effect(&SideEffect::DEFAULT);
+        let (effect, _) = draft::side_effect(&SideEffect::DEFAULT);
         assert_carried(
             "SideEffect",
             SIDE_EFFECT,
             &object_keys("SideEffect", &effect),
         );
 
+        witness_option_constraint(&OptionConstraint::DEFAULT);
         witness_setter_constraint(&SETTER);
         let constraint = draft::setter_constraint(&SETTER);
         assert_carried(
@@ -1458,6 +1485,11 @@ mod tests {
         lifecycle: Lifecycle::UNSPECIFIED,
     };
 
+    const WITNESS_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
+        options: &["-glob", "-regexp"],
+        ..OptionConstraint::DEFAULT
+    }];
+
     const WITNESS_SUBS: &[SubCommand] = &[SubCommand {
         name: "encoding",
         versioned_arg_values: &[WITNESS_GATE],
@@ -1481,6 +1513,7 @@ mod tests {
             defines_symbol: Some(WITNESS_SYMBOL),
             oo_context_facts: &[("class", OoContextFactWitness::FACT)],
             manufacturer_methods: WITNESS_MANUFACTURERS,
+            option_constraints: WITNESS_CONSTRAINTS,
             subcommands: WITNESS_SUBS,
             ..CommandSpec::DEFAULT
         }
@@ -1581,6 +1614,7 @@ mod tests {
             ("SymbolDef", SYMBOL_DEF),
             ("BytePayloadSpec", BYTE_PAYLOAD_SPEC),
             ("VersionedArgValue", VERSIONED_ARG_VALUE),
+            ("OptionConstraint", OPTION_CONSTRAINT),
             ("ManufacturerMethod", MANUFACTURER_METHOD),
         ] {
             for field in table {

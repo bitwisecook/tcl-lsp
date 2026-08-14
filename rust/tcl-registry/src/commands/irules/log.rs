@@ -42,9 +42,8 @@ pub const fn spec() -> CommandSpec {
         // forging (IRULE3003).
         taint_log_sink: Some("IRULE3003"),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "log ?-noname? ?facility.level? message",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[OptionSpec {
@@ -59,10 +58,9 @@ pub const fn spec() -> CommandSpec {
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::LogIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

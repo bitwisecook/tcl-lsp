@@ -22,9 +22,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "auto_mkindex_old dir ?pattern pattern ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `auto_mkindex_old`.
@@ -90,8 +89,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         // The `error $msg $info $code` bug described in the hover text
         // below is narrower than "the shipped Tcl 8.6 implementation": it

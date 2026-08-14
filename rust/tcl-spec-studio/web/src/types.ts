@@ -328,6 +328,28 @@ export interface TestInspection {
 }
 
 /**
+ * One classified byte span of a `.tclspec` document, from `dsl_highlight`.
+ *
+ * `start`/`end` are **byte** offsets, not JavaScript string indices — see
+ * `dslEditor.ts`'s `byteChunks` for why a plain `String.slice` is the wrong
+ * tool. `text` is included so the caller never needs to slice by byte offset
+ * at all for the common case of painting the token itself.
+ */
+export interface DslToken {
+  start: number;
+  end: number;
+  class: string;
+  text: string;
+}
+
+/** `dsl_hover`'s reply: the DSL vocabulary note for the word at an offset. */
+export interface DslHover {
+  found: boolean;
+  title: string;
+  body: string;
+}
+
+/**
  * The wasm module's exports.
  *
  * Every call takes and returns a JSON string: the Rust side marshals, so the
@@ -343,6 +365,15 @@ export interface StudioWasm {
   render_rs(draftJson: string, pack: string): string;
   render_stub(draftsJson: string, mode: string, dialect: string): string;
   import_package(filesJson: string, dialect: string): string;
+
+  /* Release archives, read entirely in this page. `unzip_entries` takes the
+     archive's bytes and returns its Tcl members as text (plus what it skipped
+     and why); `import_package_versions` takes one entry per release and returns
+     the merged drafts with the version ranges the releases actually witness.
+     `completeHistory` is the caller's claim that the releases given are *all*
+     of them, which is what licenses an `introduced_version` on the earliest. */
+  unzip_entries(bytes: Uint8Array): string;
+  import_package_versions(snapshotsJson: string, dialect: string, completeHistory: boolean): string;
 
   /* The pack store. Every one of these takes the `.tclspec` document, so the
      browser holds exactly one piece of state and Rust stays a pure function
@@ -361,6 +392,12 @@ export interface StudioWasm {
      what a token carries — never a JavaScript string index. */
   pack_test_analyse(source: string, sample: string, dialect: string): string;
   pack_test_inspect(source: string, sample: string, dialect: string, offset: number): string;
+
+  /* The Pack DSL tab's overlay editor: client-side highlight and hover for
+     the `.tclspec` grammar itself. `offset` in `dsl_hover` is a **byte**
+     offset into `source`, same convention as the Test tab above. */
+  dsl_highlight(source: string): string;
+  dsl_hover(source: string, offset: number): string;
 }
 
 /**

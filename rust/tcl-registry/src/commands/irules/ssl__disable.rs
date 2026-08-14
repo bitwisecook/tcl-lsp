@@ -33,16 +33,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "SSL::disable [clientside | serverside] Disables SSL processing on one side of the LTM. Sends an SSL alert to the peer requesting termination of SSL processing.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::disable (clientside | serverside)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

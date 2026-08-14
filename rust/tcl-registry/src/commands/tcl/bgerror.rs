@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "bgerror message",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `bgerror`.

@@ -158,5 +158,8 @@ influence, with the field that causes or suppresses it.
   command-pack architecture, discovery tiers, and crash containment, under
   active design for issue #1363.
 - [How to write a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md)
-  — the quickstart, and what runtime loading does today versus what is
-  landing.
+  — the quickstart: the minimal shape, the three discovery tiers, and how
+  the running server picks a saved pack up.
+- [How to derive version ranges from release history](../../kcs/kcs-howto-derive-version-ranges-from-releases.md)
+  — deriving `introduced_version`/`retired_version` facts with `tcl spec
+  import`.

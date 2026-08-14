@@ -27,17 +27,12 @@ use crate::prelude::*;
 /// "unknowable statically" placeholder `eval`'s spec declares, rather
 /// than asserting a specific effect the command doesn't actually have.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
-    reads: false,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "apply func ?arg1 arg2 ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

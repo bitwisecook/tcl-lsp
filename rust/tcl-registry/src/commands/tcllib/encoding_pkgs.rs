@@ -26,11 +26,8 @@ use crate::prelude::*;
 
 /// The `-file` form of the high-level encoders reads a file.
 const READS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Options for `ascii85::encode`.

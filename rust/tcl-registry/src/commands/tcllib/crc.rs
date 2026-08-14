@@ -26,11 +26,8 @@ use crate::prelude::*;
 
 /// `-channel` / `-filename` inputs read external data.
 const READS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Options shared by every `crc16`-family checksum command.

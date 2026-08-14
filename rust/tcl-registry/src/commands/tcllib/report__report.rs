@@ -36,9 +36,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "report::report reportName columns ?style \"style arg...\"?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 // ---------------------------------------------------------------------------
@@ -50,20 +49,17 @@ const PAD_WHERE_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "left",
         detail: "pad on the left of the cell",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "right",
         detail: "pad on the right of the cell",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "both",
         detail: "pad on both sides of the cell",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -72,20 +68,17 @@ const JUSTIFY_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "left",
         detail: "left-justify the column",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "right",
         detail: "right-justify the column",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "center",
         detail: "centre the column",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 
@@ -93,8 +86,7 @@ const JUSTIFY_VALUES: &[ArgValue] = &[
 const SIZE_VALUES: &[ArgValue] = &[ArgValue {
     value: "dyn",
     detail: "size the column dynamically to its widest cell",
-    min_tcl: None,
-    code: None,
+    ..ArgValue::DEFAULT
 }];
 
 /// Operations of a separator line code (`enable` / `disable` / `enabled`
@@ -104,31 +96,31 @@ const SEPARATOR_OPS: &[SubSubCommand] = &[
         name: "set",
         detail: "install the line template",
         synopsis: "<code> set templatedata",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "get",
         detail: "return the line template",
         synopsis: "<code> get",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "enable",
         detail: "draw this separator line",
         synopsis: "<code> enable",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "disable",
         detail: "do not draw this separator line",
         synopsis: "<code> disable",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "enabled",
         detail: "query whether the separator is drawn",
         synopsis: "<code> enabled",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
 ];
 
@@ -138,13 +130,13 @@ const DATA_OPS: &[SubSubCommand] = &[
         name: "set",
         detail: "install the line template",
         synopsis: "<code> set templatedata",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "get",
         detail: "return the line template",
         synopsis: "<code> get",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     },
 ];
 

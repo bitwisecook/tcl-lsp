@@ -19,9 +19,8 @@
 //! `math::statistics::analyse-Kruskal-Wallis` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "math::statistics::analyse-Kruskal-Wallis args",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

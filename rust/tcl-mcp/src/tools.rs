@@ -1814,6 +1814,34 @@ const TOOLS: &[ToolDef] = &[
         required: &["source"],
         handler: crate::spectcl::spectcl_check,
     },
+    ToolDef {
+        name: "spec_import",
+        description: "Derive real version ranges for a Tcl package's commands from several LOCAL release snapshots (directories, .zip or .tar.gz archives already on this machine — this tool never fetches anything): drafts each release, diffs them, and returns the rendered .tclspec pack (evidence in its comment header) plus each command's introduced_version/retired_version and every contradiction the releases raise. Use `tcl spec import --github OWNER/REPO`, or git, to obtain release sources first; hand the returned pack to spectcl_check.",
+        params: &[
+            (
+                "snapshots",
+                "array",
+                "One entry per release, each {\"version\": \"1.2\", \"path\": \"/path/to/that/release\"} where path is a local directory, .zip or .tar.gz; order does not matter",
+            ),
+            (
+                "dialect",
+                "string",
+                "Dialect every snapshot is analysed as; defaults to the session dialect",
+            ),
+            (
+                "package",
+                "string",
+                "Pack name for the rendered speclib block; defaults to the name the sources `package provide`",
+            ),
+            (
+                "complete_history",
+                "boolean",
+                "True only when the snapshots are EVERY release: presence in the earliest one is then an introduction. Defaults to false, which leaves introduced_version unset there",
+            ),
+        ],
+        required: &["snapshots"],
+        handler: crate::spec_import::spec_import,
+    },
 ];
 
 /// The JSON-Schema input-schema object (`{type, properties, required}`) for a

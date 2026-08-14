@@ -21,16 +21,13 @@ use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "scan string format ?varName varName ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `scan string format ?varName ...?` accepts variable-name args from

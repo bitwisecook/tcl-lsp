@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns client id collected on client side.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ANTIFRAUD::client_id",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -152,14 +152,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "trace option ?arg arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const TRACE_ADD_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
@@ -1051,10 +1049,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values_accept_prefix: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         world_effects: Some(TRACE_ADD_EFFECTS),
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
@@ -1080,9 +1076,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         world_effects: Some(TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
@@ -1109,8 +1103,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         world_effects: Some(TRACE_REMOVE_EFFECTS),
         state_transitions: Some(TRACE_REMOVE_TRANSITIONS),
@@ -1130,10 +1123,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(1, TRACE_LEGACY_OPS_VALUES)],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         world_effects: Some(LEGACY_TRACE_ADD_EFFECTS),
         state_transitions: Some(LEGACY_TRACE_ADD_TRANSITIONS),
@@ -1141,7 +1132,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — the
         // 9.0/9.1 trace.n manpages drop both the SYNOPSIS line and the
         // entire "For backwards compatibility..." paragraph describing it.
+        // `dialects` is the membership mask; `lifecycle` states the same two
+        // boundaries as ordered releases on the Tcl core axis, so a file
+        // targeting 8.x is told the form is deprecated (W144) and a
+        // `package require Tcl` range spanning 9.0 is told it does not hold
+        // across the whole range.
         dialects: Some(DialectSet::TCL8X),
+        lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1159,14 +1156,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         world_effects: Some(LEGACY_TRACE_REMOVE_EFFECTS),
         state_transitions: Some(LEGACY_TRACE_REMOVE_TRANSITIONS),
         literal_argument_validator: Some(validate_legacy_trace_operations),
-        // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
+        // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
+        // `variable` above for why both `dialects` and `lifecycle` state it.
         dialects: Some(DialectSet::TCL8X),
+        lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1183,14 +1181,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         world_effects: Some(LEGACY_TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
-        // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only).
+        // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
+        // `variable` above for why both `dialects` and `lifecycle` state it.
         dialects: Some(DialectSet::TCL8X),
+        lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
 ];

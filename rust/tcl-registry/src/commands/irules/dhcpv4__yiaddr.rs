@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "This command returns yiaddr(your IP) field from DHCPv4 message",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DHCPv4::yiaddr",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

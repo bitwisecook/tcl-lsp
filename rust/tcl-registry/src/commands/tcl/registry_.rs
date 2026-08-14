@@ -24,9 +24,8 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "registry option keyName ?arg arg ...?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     // The optional leading `-32bit`/`-64bit` mode flag was added to the
     // SYNOPSIS in Tcl 8.6 (registry.n, 8.6/9.0/9.1: "registry ?-mode?
@@ -35,9 +34,9 @@ const FORMS: &[FormSpec] = &[
     // and 8.5 SYNOPSIS, which document only the bare form above with no
     // leading flag mentioned anywhere in their DESCRIPTION either.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "registry ?-32bit|-64bit? option keyName ?arg arg ...?",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
     // Tcl 9.1 adds `tcl::registry` as a second, always-present spelling of
     // the same command — usable without `package require registry` first
@@ -46,9 +45,9 @@ const FORMS: &[FormSpec] = &[
     // to be loaded"). Confirmed absent from the 8.4, 8.5, 8.6, and 9.0
     // SYNOPSIS sections, which document only the bare `registry` spelling.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "tcl::registry ?-32bit|-64bit? option keyName ?arg arg ...?",
         dialects: Some(DialectSet::TCL91),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -111,8 +110,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Manipulate the Windows registry (Windows-only).",

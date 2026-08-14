@@ -29,9 +29,8 @@ use crate::prelude::*;
 // the `IRULES` bit and never intersects the bare `IRULES` availability
 // mask — deliberate, not an oversight.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "flush channelId",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `flush`.
@@ -45,10 +44,8 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Flush buffered output for a channel.",

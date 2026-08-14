@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "This command returns hop-count field from DHCPv6 relay message",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DHCPv6::hop_count",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

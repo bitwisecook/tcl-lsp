@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "client_port Returns the TCP port number/service of the specified client.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "client_port",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("TCP::client_port"),
         deprecated_replacement_drop_in: true,

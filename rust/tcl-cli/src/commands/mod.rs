@@ -37,5 +37,6 @@ pub mod minimize;
 pub mod misc;
 pub mod pkg;
 pub mod registry;
+pub mod spec;
 pub mod transform;
 pub mod venv;

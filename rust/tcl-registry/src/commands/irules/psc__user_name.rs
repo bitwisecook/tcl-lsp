@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return the user name when no argument is given.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "PSC::user_name (USERNAME)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

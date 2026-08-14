@@ -32,9 +32,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "classvariable variableName ?...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const HOVER: HoverSnippet = HoverSnippet {
@@ -53,10 +52,8 @@ const TRAITS: Traits = Traits::LANGUAGE_KEYWORD
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// The core Tcl 9.0+ `oo::Helpers::classvariable` — no package needed.

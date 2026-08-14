@@ -453,7 +453,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Invocation forms",
         DOCS,
         FieldKind::Forms,
-        "Synopsis per invocation form, for completion and arity-dependent lookup.",
+        "Synopsis per invocation form, for completion and arity-dependent lookup; each form has its own release window.",
     ),
     f(
         "command_forms",
@@ -581,7 +581,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Side effects",
         EFFECTS,
         FieldKind::SideEffects,
-        "Structured declarations of the state the command reads and writes.",
+        "Structured declarations of the state the command reads and writes, each with its own release window.",
     ),
     f(
         "world_effects",
@@ -723,7 +723,8 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Option constraints",
         OPTS,
         FieldKind::RustExpr {
-            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None }]",
+            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None, \
+                   lifecycle: Lifecycle::UNSPECIFIED }]",
         },
         "Registry-declared sets of leading options that may not occur together.",
     ),
@@ -739,7 +740,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Argument values",
         OPTS,
         FieldKind::ArgValueMap,
-        "Enumerable positional values per argument index, for completion.",
+        "Enumerable positional values per argument index, for completion; each carries its own Tcl floor and release window.",
+    ),
+    f(
+        "versioned_arg_values",
+        "Versioned argument values",
+        AVAILABILITY,
+        FieldKind::RustExpr {
+            hint: "VERSIONED_ARG_VALUES",
+        },
+        "Package-version gates for literal positional argument values.",
     ),
     f(
         "body_kind",
@@ -1337,7 +1347,8 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Option constraints",
         OPTS,
         FieldKind::RustExpr {
-            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None }]",
+            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None, \
+                   lifecycle: Lifecycle::UNSPECIFIED }]",
         },
         "Subcommand-specific sets of leading options that may not occur together.",
     ),
@@ -1671,7 +1682,7 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Second-level subcommands",
         SUBS,
         FieldKind::SubSubCommands,
-        "Operations selected by the word after this subcommand (`info object <op>`).",
+        "Operations selected by the word after this subcommand (`info object <op>`), each with its own release window.",
     ),
     f(
         "defines_command_at",

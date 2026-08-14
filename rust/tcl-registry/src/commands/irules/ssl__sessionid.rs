@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "SSL::sessionid Returns the current connection's SSL session ID if it exists in the session cache. In version 10.x and higher, if the session ID does not exist in the cache, returns a null string. In version 9.x, if the session ID does not exist in the cache, returns a string of 64 zeroes.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::sessionid (desired)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

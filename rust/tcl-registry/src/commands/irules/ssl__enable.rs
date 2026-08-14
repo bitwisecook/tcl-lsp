@@ -33,16 +33,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "SSL::enable [clientside | serverside] Re-enables SSL processing on one side of the LTM. serverside parameter may optionally be specified to indicate the context in which SSL will be enabled. By default, it will be enabled in the current context (i.e.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::enable (clientside | serverside)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

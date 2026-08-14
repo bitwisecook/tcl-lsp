@@ -81,10 +81,8 @@ static SUBCOMMANDS: [SubCommand; 8] = [
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const OPTIONS: &[OptionSpec] = &[
@@ -271,9 +269,8 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "panedwindow pathName ?option value ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `panedwindow`'s instance command dispatches through the same subcommand

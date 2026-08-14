@@ -34,16 +34,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a TCL list of resource records from the specified section.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DNSMSG::section DNS_MESSAGE ('question' | 'answer' | 'authority' | 'additional' )",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

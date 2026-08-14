@@ -97,6 +97,7 @@ use tcl_registry::hover::{
     OptionValue, OptionValueOutcome,
 };
 use tcl_registry::intrinsic::IntrinsicId;
+use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::literal_validation::LiteralArgumentValidation;
 use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::patterns::{FormatType, PatternType};
@@ -577,6 +578,7 @@ pub fn load_pack(source: &str) -> Pack {
     }
     speclib.word_text(1).clone_into(&mut pack.name);
     speclib.word_text(2).clone_into(&mut pack.dsl_version);
+    check_vocabulary_version(&pack.dsl_version, speclib.line, &mut log);
     let Some(body) = speclib.arg(3) else {
         log.say(speclib.line, "`speclib` has no body block");
         pack.notices = log.notices;
@@ -606,6 +608,44 @@ pub fn load_pack(source: &str) -> Pack {
 
     pack.notices = log.notices;
     pack
+}
+
+/// The `SpecTcl` **vocabulary** versions this loader reads, newest last.
+///
+/// Additive words never bump the vocabulary version
+/// (`docs/design/spec-packs.md`, "Compatibility policy"), so `1`, `1.0` and
+/// `1.1` all name a vocabulary this build understands in full. A pack naming
+/// anything else still loads: the words it uses that this build knows are read,
+/// and the rest hit the ordinary unknown-property rule.
+const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1"];
+
+/// The newest vocabulary this loader speaks, for the notice below.
+const NEWEST_VOCABULARY_VERSION: &str = "1.1";
+
+/// Warn when `speclib`'s version word is not a vocabulary this build knows.
+fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) {
+    if declared.is_empty() || KNOWN_VOCABULARY_VERSIONS.contains(&declared) {
+        return;
+    }
+    // "Newer words may be dropped" is only true of a vocabulary this loader
+    // postdates. Anything else in the slot — most often a pack that wrote its
+    // *library's* version there (`speclib tclinterp 0.15`) — never named a
+    // vocabulary at all, and the notice says so instead of implying the
+    // loader is behind.
+    let msg = if tcl_registry::version::compare(declared, NEWEST_VOCABULARY_VERSION).is_gt() {
+        format!(
+            "pack declares SpecTcl vocabulary {declared}; this loader knows \
+             {NEWEST_VOCABULARY_VERSION} — newer words may be dropped"
+        )
+    } else {
+        format!(
+            "`{declared}` is not a SpecTcl vocabulary version (this loader \
+             knows {NEWEST_VOCABULARY_VERSION}); if it is the library's own \
+             version, it belongs in `introduced_version`, not the `speclib` \
+             slot"
+        )
+    };
+    log.say(line, msg);
 }
 
 // ---------------------------------------------------------------------------
@@ -702,7 +742,12 @@ impl PackTables {
     }
 }
 
-/// `value V ?-detail {…}? ?-min-tcl VER? ?-code N?` rows.
+/// `value V ?-detail {…}? ?-min-tcl VER? ?-code N?` rows, plus the three
+/// lifecycle flags.
+///
+/// The two version axes are independent: `-min-tcl` is the Tcl-core rung the
+/// value needs, `-introduced` / `-deprecated` / `-retired` are the owning
+/// package's releases.
 fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
     let mut out = Vec::new();
     for stmt in stmts {
@@ -712,9 +757,7 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
         }
         let mut row = ArgValue {
             value: leak_str(stmt.word_text(1)),
-            detail: "",
-            min_tcl: None,
-            code: None,
+            ..ArgValue::DEFAULT
         };
         let mut i = 2;
         let words = &stmt.words;
@@ -737,10 +780,20 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
                         Err(_) => log.say(stmt.line, format!("`-code {raw}` is not an integer")),
                     }
                 }
-                other => log.unknown_flag("value", stmt.line, other),
+                other => {
+                    if !lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                        log.unknown_flag("value", stmt.line, other);
+                    }
+                }
             }
             i += 1;
         }
+        row.lifecycle = checked_lifecycle(
+            row.lifecycle,
+            &format!("value `{}`", row.value),
+            stmt.line,
+            log,
+        );
         out.push(row);
     }
     out
@@ -754,6 +807,76 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
 fn next_text(words: &[Word], i: &mut usize) -> String {
     *i += 1;
     words.get(*i).map(|w| w.text.clone()).unwrap_or_default()
+}
+
+/// The three lifecycle flags every gateable row shares — `-introduced`,
+/// `-deprecated`, `-retired`, each taking one version word.
+///
+/// Returns whether `flag` was one of them, so a row's own flag reader keeps
+/// its `other => unknown_flag(…)` arm for everything else. The releases are on
+/// the entity's own package axis; `-min-tcl` stays the Tcl-core axis and the
+/// two are independent (`ArgValue`'s two axes, `hover.rs`).
+fn lifecycle_flag(lifecycle: &mut Lifecycle, flag: &str, words: &[Word], i: &mut usize) -> bool {
+    match flag {
+        "-introduced" => lifecycle.introduced = Some(leak_str(&next_text(words, i))),
+        "-deprecated" => lifecycle.deprecated = Some(leak_str(&next_text(words, i))),
+        "-retired" => lifecycle.retired = Some(leak_str(&next_text(words, i))),
+        _ => return false,
+    }
+    true
+}
+
+/// A parsed lifecycle, or nothing when its releases are impossibly ordered.
+///
+/// An entity whose lifecycle is rejected still loads: the declaration is a
+/// degradation like any other, so the pack keeps the option / form / value and
+/// loses only the gate it could not have meant.
+fn checked_lifecycle(lifecycle: Lifecycle, what: &str, line: u32, log: &mut Log) -> Lifecycle {
+    match lifecycle.validate() {
+        Ok(()) => lifecycle,
+        Err(error) => {
+            log.say(line, format!("{what}: {error}; lifecycle dropped"));
+            Lifecycle::UNSPECIFIED
+        }
+    }
+}
+
+/// Report a child lifecycle that reaches outside its parent's window.
+///
+/// Notice-only, and the declaration is kept: the hard gate is the shipped-spec
+/// sweep (`tcl-registry/tests/registry_sweep.rs`), which asserts the same
+/// containment. Only releases the child declares **for itself** are compared —
+/// one it leaves open is the inherited one — and the narrowed window must
+/// still be a legal ordering, since a child introduced after its parent
+/// retired is unreachable.
+fn check_contained(what: &str, child: Lifecycle, parent: Lifecycle, line: u32, log: &mut Log) {
+    if child.is_unspecified() || parent.is_unspecified() {
+        return;
+    }
+    let merged = child.intersect(parent);
+    for (release, own, narrowed) in [
+        ("introduced", child.introduced, merged.introduced),
+        ("deprecated", child.deprecated, merged.deprecated),
+        ("retired", child.retired, merged.retired),
+    ] {
+        if let Some(own) = own
+            && Some(own) != narrowed
+        {
+            log.say(
+                line,
+                format!(
+                    "{what}: {release} {own} reaches outside the enclosing declaration's \
+                     window; kept as declared"
+                ),
+            );
+        }
+    }
+    if merged.validate().is_err() {
+        log.say(
+            line,
+            format!("{what}: narrowed by the enclosing declaration it is never available"),
+        );
+    }
 }
 
 /// The Tcl list elements of a word, braces stripped, tolerating a malformed
@@ -1361,14 +1484,25 @@ fn parse_byte_array_effect(text: &str, line: u32, log: &mut Log) -> Option<ByteA
 /// callback, which `README.md` marks reference-only, and the two positional
 /// variants take the index they replace as `-replace-arg N`.
 fn parse_deprecation_fix(stmt: &Stmt, log: &mut Log) -> Option<DeprecationFixHook> {
+    deprecation_fix_from(&stmt.words, 1, stmt.line, log)
+}
+
+/// The flag reader both spellings share: the command / subcommand statement
+/// (`deprecation_fix …`, whose own name word is skipped) and the option row's
+/// `-deprecation-fix {…}` block, whose words are the block's own.
+fn deprecation_fix_from(
+    words: &[Word],
+    start: usize,
+    line: u32,
+    log: &mut Log,
+) -> Option<DeprecationFixHook> {
     let mut replacement: Option<&'static str> = None;
     let mut replace_arg: Option<u8> = None;
     let mut whole_invocation = false;
     let mut description: &'static str = "";
     let mut safety = DeprecationFixSafety::RequiresReview;
 
-    let words = &stmt.words;
-    let mut i = 1;
+    let mut i = start;
     while i < words.len() {
         let flag = words[i].text.clone();
         match flag.as_str() {
@@ -1389,18 +1523,18 @@ fn parse_deprecation_fix(stmt: &Stmt, log: &mut Log) -> Option<DeprecationFixHoo
                     SAFETY,
                     &next_text(words, &mut i),
                     "deprecation fix safety",
-                    stmt.line,
+                    line,
                     log,
                 ) {
                     safety = chosen;
                 }
             }
-            other => log.unknown_flag("deprecation_fix", stmt.line, other),
+            other => log.unknown_flag("deprecation_fix", line, other),
         }
         i += 1;
     }
     let Some(replacement) = replacement else {
-        log.say(stmt.line, "`deprecation_fix` needs `-replace WORD`");
+        log.say(line, "`deprecation_fix` needs `-replace WORD`");
         return None;
     };
     Some(match (replace_arg, whole_invocation) {
@@ -1798,9 +1932,7 @@ impl ArgRows {
                         .iter()
                         .map(|value| ArgValue {
                             value: leak_str(value),
-                            detail: "",
-                            min_tcl: None,
-                            code: None,
+                            ..ArgValue::DEFAULT
                         })
                         .collect();
                     self.values.push((index, leak_slice(values)));
@@ -1883,13 +2015,24 @@ fn option_row(
                 option.dialects = parse_dialects(&text, stmt.line, log);
             }
             "-min-abbrev" => option.min_abbrev = next_text(words, &mut i).parse().ok(),
-            "-introduced" => {
-                option.lifecycle.introduced = Some(leak_str(&next_text(words, &mut i)));
+            // The data form only: `{-replace WORD ?-replace-arg N? …}`, read by
+            // the same flag reader the command-level `deprecation_fix`
+            // statement uses. The contextual-callback variant stays
+            // reference-only.
+            "-deprecation-fix" => {
+                i += 1;
+                match words.get(i) {
+                    Some(value) => {
+                        let block: Vec<Word> = block(value)
+                            .into_iter()
+                            .flat_map(|stmt| stmt.words)
+                            .collect();
+                        option.lifecycle.deprecation_fix =
+                            deprecation_fix_from(&block, 0, stmt.line, log);
+                    }
+                    None => log.say(stmt.line, "`-deprecation-fix` needs a `{…}` block"),
+                }
             }
-            "-deprecated" => {
-                option.lifecycle.deprecated = Some(leak_str(&next_text(words, &mut i)));
-            }
-            "-retired" => option.lifecycle.retired = Some(leak_str(&next_text(words, &mut i))),
             "-arity" => {
                 let text = next_text(words, &mut i);
                 let parts = list_words(&text);
@@ -1962,9 +2105,7 @@ fn option_row(
                     .iter()
                     .map(|value| ArgValue {
                         value: leak_str(value),
-                        detail: "",
-                        min_tcl: None,
-                        code: None,
+                        ..ArgValue::DEFAULT
                     })
                     .collect();
                 arg.get_or_insert(OptionArg::DEFAULT).values = leak_slice(values);
@@ -1993,7 +2134,11 @@ fn option_row(
                     arg.get_or_insert(OptionArg::DEFAULT).appended_arity = appended;
                 }
             }
-            other => log.unknown_flag("option", stmt.line, other),
+            other => {
+                if !lifecycle_flag(&mut option.lifecycle, other, words, &mut i) {
+                    log.unknown_flag("option", stmt.line, other);
+                }
+            }
         }
         i += 1;
     }
@@ -2001,6 +2146,12 @@ fn option_row(
     if let Some(arg) = arg {
         option.value = OptionValue::Takes(arg);
     }
+    option.lifecycle = checked_lifecycle(
+        option.lifecycle,
+        &format!("option `{}`", option.name),
+        stmt.line,
+        log,
+    );
     (option, hook)
 }
 
@@ -2613,6 +2764,7 @@ struct CommandAcc {
     manufacturers: Vec<ManufacturerMethod>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
     option_constraints: Vec<tcl_registry::spec::OptionConstraint>,
+    versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     setter_constraints: Vec<tcl_registry::taint::SetterConstraint>,
     oo_context_facts: Vec<(&'static str, tcl_registry::spec::OoContextFact)>,
     hooks: Vec<HookDecl>,
@@ -2696,8 +2848,17 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         spec.manufacturer_methods = leak_slice(acc.manufacturers);
         spec.repeated_args = leak_slice(acc.repeats);
         spec.option_constraints = leak_slice(acc.option_constraints);
+        spec.versioned_arg_values = leak_slice(acc.versioned_arg_values);
         spec.setter_constraints = leak_slice(acc.setter_constraints);
         spec.oo_context_facts = leak_slice(acc.oo_context_facts);
+
+        spec.lifecycle = checked_lifecycle(
+            spec.lifecycle,
+            &format!("command `{}`", spec.name),
+            stmt.line,
+            log,
+        );
+        check_command_containment(&spec, stmt.line, log);
 
         Some(PackCommand {
             spec: leak_one(spec),
@@ -2706,6 +2867,147 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
             clause_grammar: acc.clause_grammar,
         })
     })
+}
+
+/// Report every lifecycle in a finished command that reaches outside the
+/// window of the declaration enclosing it.
+///
+/// Run once the whole body is read, because a `command` may state its own
+/// releases *after* the rows they gate — which is also why every notice
+/// carries the `command` statement's line rather than the row's.
+fn check_command_containment(spec: &CommandSpec, line: u32, log: &mut Log) {
+    let parent = spec.lifecycle;
+    for option in spec.options {
+        check_contained(
+            &format!("option `{}`", option.name),
+            option.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for constraint in spec.option_constraints {
+        check_contained(
+            &format!("option_conflict `{}`", constraint.options.join(" ")),
+            constraint.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for form in spec.forms {
+        check_contained(
+            &format!("form `{}`", form.synopsis),
+            form.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for effect in spec.side_effects {
+        check_contained(
+            &format!("side_effect `{:?}`", effect.target),
+            effect.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for (index, values) in spec.arg_values {
+        for value in *values {
+            check_contained(
+                &format!("value `{}` of arg {index}", value.value),
+                value.lifecycle,
+                parent,
+                line,
+                log,
+            );
+        }
+    }
+    for gate in spec.versioned_arg_values {
+        check_contained(
+            &format!("versioned_arg_value `{}`", gate.value),
+            gate.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for sub in spec.subcommands {
+        check_contained(
+            &format!("subcommand `{}`", sub.name),
+            sub.lifecycle,
+            parent,
+            line,
+            log,
+        );
+        check_subcommand_containment(sub, line, log);
+    }
+}
+
+/// The same pass for one subcommand's own children.
+fn check_subcommand_containment(sub: &SubCommand, line: u32, log: &mut Log) {
+    let parent = sub.lifecycle;
+    let path = sub.name;
+    for option in sub.options {
+        check_contained(
+            &format!("subcommand `{path}` option `{}`", option.name),
+            option.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for constraint in sub.option_constraints {
+        check_contained(
+            &format!(
+                "subcommand `{path}` option_conflict `{}`",
+                constraint.options.join(" ")
+            ),
+            constraint.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for effect in sub.side_effects {
+        check_contained(
+            &format!("subcommand `{path}` side_effect `{:?}`", effect.target),
+            effect.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for row in sub.sub_subcommands {
+        check_contained(
+            &format!("sub_subcommand `{path} {}`", row.name),
+            row.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for (index, values) in sub.arg_values {
+        for value in *values {
+            check_contained(
+                &format!("subcommand `{path}` value `{}` of arg {index}", value.value),
+                value.lifecycle,
+                parent,
+                line,
+                log,
+            );
+        }
+    }
+    for gate in sub.versioned_arg_values {
+        check_contained(
+            &format!("subcommand `{path}` versioned_arg_value `{}`", gate.value),
+            gate.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
 }
 
 /// Read a hook property statement: a body, a `-native` id, or a derivation
@@ -2939,6 +3241,13 @@ fn apply_command_stmt(
         "option_conflict" => {
             acc.option_constraints.push(option_conflict_row(stmt, log));
         }
+        // The command-level mirror of the subcommand row, sharing its parser:
+        // a literal value of one argument gated on the package's own axis.
+        "versioned_arg_value" => {
+            if let Some(gate) = versioned_arg_value_row(stmt, log) {
+                acc.versioned_arg_values.push(gate);
+            }
+        }
 
         // --- descriptors --------------------------------------------------
         "case_list" => spec.case_list = case_list_value(stmt, tables, log),
@@ -3119,7 +3428,7 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
     let mut form = FormSpec {
         kind,
         synopsis: leak_str(stmt.word_text(2)),
-        dialects: None,
+        ..FormSpec::DEFAULT
     };
     let words = &stmt.words;
     let mut i = 3;
@@ -3129,10 +3438,20 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
                 let text = next_text(words, &mut i);
                 form.dialects = parse_dialects(&text, stmt.line, log);
             }
-            other => log.unknown_flag("form", stmt.line, other),
+            other => {
+                if !lifecycle_flag(&mut form.lifecycle, other, words, &mut i) {
+                    log.unknown_flag("form", stmt.line, other);
+                }
+            }
         }
         i += 1;
     }
+    form.lifecycle = checked_lifecycle(
+        form.lifecycle,
+        &format!("form `{}`", form.synopsis),
+        stmt.line,
+        log,
+    );
     form
 }
 
@@ -3146,10 +3465,7 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
     )?;
     let mut effect = SideEffect {
         target,
-        reads: false,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     };
     let words = &stmt.words;
     let mut i = 2;
@@ -3169,17 +3485,27 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
                 let text = next_text(words, &mut i);
                 effect.dialects = parse_dialects(&text, stmt.line, log);
             }
-            other => log.unknown_flag("side_effect", stmt.line, other),
+            other => {
+                if !lifecycle_flag(&mut effect.lifecycle, other, words, &mut i) {
+                    log.unknown_flag("side_effect", stmt.line, other);
+                }
+            }
         }
         i += 1;
     }
+    effect.lifecycle = checked_lifecycle(
+        effect.lifecycle,
+        &format!("side_effect `{}`", stmt.word_text(1)),
+        stmt.line,
+        log,
+    );
     Some(effect)
 }
 
 fn option_conflict_row(stmt: &Stmt, log: &mut Log) -> tcl_registry::spec::OptionConstraint {
     let mut constraint = tcl_registry::spec::OptionConstraint {
         options: leak_strs(&list_words(stmt.word_text(1))),
-        dialects: None,
+        ..tcl_registry::spec::OptionConstraint::DEFAULT
     };
     let words = &stmt.words;
     let mut i = 2;
@@ -3189,10 +3515,20 @@ fn option_conflict_row(stmt: &Stmt, log: &mut Log) -> tcl_registry::spec::Option
                 let text = next_text(words, &mut i);
                 constraint.dialects = parse_dialects(&text, stmt.line, log);
             }
-            other => log.unknown_flag("option_conflict", stmt.line, other),
+            other => {
+                if !lifecycle_flag(&mut constraint.lifecycle, other, words, &mut i) {
+                    log.unknown_flag("option_conflict", stmt.line, other);
+                }
+            }
         }
         i += 1;
     }
+    constraint.lifecycle = checked_lifecycle(
+        constraint.lifecycle,
+        &format!("option_conflict `{}`", stmt.word_text(1)),
+        stmt.line,
+        log,
+    );
     constraint
 }
 
@@ -3417,6 +3753,8 @@ fn load_subcommand(
         sub.repeated_args = leak_slice(acc.repeats);
         sub.option_constraints = leak_slice(acc.option_constraints);
         sub.versioned_arg_values = leak_slice(acc.versioned_arg_values);
+        sub.lifecycle =
+            checked_lifecycle(sub.lifecycle, &format!("{kind} `{name}`"), stmt.line, log);
         Some(sub)
     })
 }
@@ -3623,9 +3961,7 @@ fn apply_subcommand_stmt(
 fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
     let mut row = SubSubCommand {
         name: leak_str(stmt.word_text(1)),
-        detail: "",
-        synopsis: "",
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     };
     let words = &stmt.words;
     let mut i = 2;
@@ -3637,10 +3973,20 @@ fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
                 let text = next_text(words, &mut i);
                 row.dialects = parse_dialects(&text, stmt.line, log);
             }
-            other => log.unknown_flag("sub_subcommand", stmt.line, other),
+            other => {
+                if !lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                    log.unknown_flag("sub_subcommand", stmt.line, other);
+                }
+            }
         }
         i += 1;
     }
+    row.lifecycle = checked_lifecycle(
+        row.lifecycle,
+        &format!("sub_subcommand `{}`", row.name),
+        stmt.line,
+        log,
+    );
     row
 }
 
@@ -3652,19 +3998,23 @@ fn versioned_arg_value_row(
     let mut gate = tcl_registry::spec::VersionedArgValue {
         index,
         value: leak_str(stmt.word_text(2)),
-        lifecycle: tcl_registry::lifecycle::Lifecycle::UNSPECIFIED,
+        lifecycle: Lifecycle::UNSPECIFIED,
     };
     let words = &stmt.words;
     let mut i = 3;
     while i < words.len() {
-        match words[i].text.as_str() {
-            "-introduced" => gate.lifecycle.introduced = Some(leak_str(&next_text(words, &mut i))),
-            "-deprecated" => gate.lifecycle.deprecated = Some(leak_str(&next_text(words, &mut i))),
-            "-retired" => gate.lifecycle.retired = Some(leak_str(&next_text(words, &mut i))),
-            other => log.unknown_flag("versioned_arg_value", stmt.line, other),
+        let flag = words[i].text.clone();
+        if !lifecycle_flag(&mut gate.lifecycle, &flag, words, &mut i) {
+            log.unknown_flag("versioned_arg_value", stmt.line, &flag);
         }
         i += 1;
     }
+    gate.lifecycle = checked_lifecycle(
+        gate.lifecycle,
+        &format!("versioned_arg_value `{}`", gate.value),
+        stmt.line,
+        log,
+    );
     Some(gate)
 }
 
@@ -3897,5 +4247,205 @@ mod tests {
         assert!(class.instance_methods.is_empty());
         assert!(said("unknown flag `-mixin` on `object_class` dropped"));
         assert!(said("unknown property `subcommand` dropped"));
+    }
+
+    /// Every level the registry can gate reads the same three flags, so one
+    /// pack exercises the whole 1.1 vocabulary at once.
+    #[test]
+    fn every_gateable_row_reads_the_three_lifecycle_flags() {
+        let pack = load_pack(
+            "speclib probe 1.1 {\n\
+             values probe-codes {\n\
+               value fast -detail {Quick path.} -min-tcl tcl8.6 -introduced 1.2 \
+                 -deprecated 1.6 -retired 2.0\n\
+             }\n\
+             command demo {\n\
+               introduced_version 1.0\n\
+               form Default {demo ?-x? word} -introduced 1.1 -retired 2.0\n\
+               side_effect FileIo -reads -introduced 1.1\n\
+               option_conflict {-a -b} -introduced 1.1 -retired 2.0\n\
+               arg 0 -values-from probe-codes\n\
+               versioned_arg_value 0 fast -introduced 1.2 -retired 2.0\n\
+               subcommand run {\n\
+                 arity 1\n\
+                 sub_subcommand now -detail {Right away.} -introduced 1.3 -deprecated 1.9\n\
+               }\n\
+             }\n\
+             }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("demo").expect("demo loads").spec;
+
+        let form = spec.forms.first().expect("the form row loads");
+        assert_eq!(form.lifecycle.introduced, Some("1.1"));
+        assert_eq!(form.lifecycle.retired, Some("2.0"));
+
+        let effect = spec.side_effects.first().expect("the side_effect loads");
+        assert_eq!(effect.lifecycle.introduced, Some("1.1"));
+
+        let constraint = spec
+            .option_constraints
+            .first()
+            .expect("the option_conflict loads");
+        assert_eq!(constraint.lifecycle.introduced, Some("1.1"));
+        assert_eq!(constraint.lifecycle.retired, Some("2.0"));
+
+        let value = spec.arg_values[0].1[0];
+        assert_eq!(value.min_tcl, Some(TclVersion::V8_6));
+        assert_eq!(value.lifecycle.introduced, Some("1.2"));
+        assert_eq!(value.lifecycle.deprecated, Some("1.6"));
+        assert_eq!(value.lifecycle.retired, Some("2.0"));
+
+        let gate = spec
+            .versioned_arg_values
+            .first()
+            .expect("a command-level versioned_arg_value loads");
+        assert_eq!((gate.index, gate.value), (0, "fast"));
+        assert_eq!(gate.lifecycle.introduced, Some("1.2"));
+
+        let row = spec.subcommands[0].sub_subcommands[0];
+        assert_eq!(row.lifecycle.introduced, Some("1.3"));
+        assert_eq!(row.lifecycle.deprecated, Some("1.9"));
+    }
+
+    /// The data form of the option's quick-fix hook, read by the same flag
+    /// reader as the command-level `deprecation_fix` statement.
+    #[test]
+    fn an_option_row_reads_a_deprecation_fix_block() {
+        let pack = load_pack(
+            "speclib probe 1.1 {\n\
+             command demo {\n\
+               option -old -deprecated 1.4 -deprecation-fix {-replace -new \
+                 -description {Renamed in 1.4.} -safety SemanticsEquivalent}\n\
+             }\n\
+             }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let option = &pack.command("demo").expect("demo loads").spec.options[0];
+        assert_eq!(option.lifecycle.deprecated, Some("1.4"));
+        match option.lifecycle.deprecation_fix {
+            Some(DeprecationFixHook::ReplaceMatchedWord {
+                replacement,
+                description,
+                safety,
+            }) => {
+                assert_eq!(replacement, "-new");
+                assert_eq!(description, "Renamed in 1.4.");
+                assert_eq!(safety, DeprecationFixSafety::SemanticsEquivalent);
+            }
+            other => panic!("expected a matched-word replacement, got {other:?}"),
+        }
+    }
+
+    /// An impossible ordering drops the lifecycle and keeps the entity: a pack
+    /// is never refused for a fact it got wrong.
+    #[test]
+    fn an_impossible_lifecycle_is_dropped_with_a_notice() {
+        let pack = load_pack(
+            "speclib probe 1.1 {\n\
+             command demo {\n\
+               option -x -introduced 2.0 -retired 1.0\n\
+               form Default {demo} -deprecated 2.0 -retired 1.0\n\
+             }\n\
+             }",
+        );
+        let spec = pack.command("demo").expect("demo still loads").spec;
+        assert_eq!(spec.options[0].name, "-x");
+        assert!(spec.options[0].lifecycle.is_unspecified());
+        assert!(spec.forms[0].lifecycle.is_unspecified());
+        let said = |needle: &str| {
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains(needle))
+        };
+        assert!(
+            said(
+                "option `-x`: retired release predates the introducing release; lifecycle dropped"
+            ),
+            "{:?}",
+            pack.notices
+        );
+        assert!(
+            said("retired release predates the deprecating release"),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// Containment is notice-only: the declaration stays, and the author is
+    /// told it claims availability its parent does not have.
+    #[test]
+    fn a_child_reaching_outside_its_parent_is_a_notice_not_a_drop() {
+        let pack = load_pack(
+            "speclib probe 1.1 {\n\
+             command demo {\n\
+               introduced_version 1.5\n\
+               retired_version 3.0\n\
+               option -early -introduced 1.0\n\
+               subcommand run { arity 1 ; retired_version 4.0 }\n\
+             }\n\
+             }",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.options[0].lifecycle.introduced, Some("1.0"));
+        assert_eq!(spec.subcommands[0].lifecycle.retired, Some("4.0"));
+        let said = |needle: &str| {
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains(needle))
+        };
+        assert!(
+            said("option `-early`: introduced 1.0 reaches outside"),
+            "{:?}",
+            pack.notices
+        );
+        assert!(
+            said("subcommand `run`: retired 4.0 reaches outside"),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// `1`, `1.0` and `1.1` are all this vocabulary; anything else loads with
+    /// a notice rather than being refused.
+    #[test]
+    fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
+        for known in ["1", "1.0", "1.1"] {
+            let pack = load_pack(&format!(
+                "speclib probe {known} {{\n command demo {{ arity 1 }}\n}}"
+            ));
+            assert!(pack.notices.is_empty(), "{known}: {:?}", pack.notices);
+            assert_eq!(pack.dsl_version, known);
+        }
+        let pack = load_pack("speclib probe 4.9 {\n command demo { arity 1 }\n}");
+        assert!(pack.command("demo").is_some(), "the pack still loads");
+        assert_eq!(pack.dsl_version, "4.9");
+        assert_eq!(
+            pack.notices
+                .iter()
+                .map(|notice| notice.message.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "pack declares SpecTcl vocabulary 4.9; this loader knows 1.1 — \
+                 newer words may be dropped"
+            ]
+        );
+        // A number *below* every vocabulary this loader knows never named a
+        // vocabulary at all — the classic slip is writing the library's own
+        // release in the slot — so the notice points at `introduced_version`
+        // instead of claiming the loader is behind.
+        let pack = load_pack("speclib probe 0.15 {\n command demo { arity 1 }\n}");
+        assert!(pack.command("demo").is_some(), "the pack still loads");
+        assert_eq!(
+            pack.notices
+                .iter()
+                .map(|notice| notice.message.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "`0.15` is not a SpecTcl vocabulary version (this loader knows \
+                 1.1); if it is the library's own version, it belongs in \
+                 `introduced_version`, not the `speclib` slot"
+            ]
+        );
     }
 }

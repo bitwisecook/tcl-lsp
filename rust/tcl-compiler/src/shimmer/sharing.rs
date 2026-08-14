@@ -445,7 +445,7 @@ fn use_span(ctx: &SharingCtx<'_>, u: &UseSite) -> Option<Span> {
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
-    use tcl_registry::side_effects::{ConnectionSide, SideEffect, SideEffectTarget};
+    use tcl_registry::side_effects::{SideEffect, SideEffectTarget};
     use tcl_registry::{ArgRole, Arity, CommandSpec, RepresentationEffect, Traits};
 
     fn registry() -> CommandRegistry {
@@ -511,8 +511,7 @@ mod tests {
                 target: SideEffectTarget::Variable,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             }],
             ..CommandSpec::DEFAULT
         });

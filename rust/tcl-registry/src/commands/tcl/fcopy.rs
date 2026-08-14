@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "fcopy inputChan outputChan ?-size size? ?-command callback?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `fcopy`'s two switches, present unchanged by name/shape in every Tcl
@@ -67,8 +66,7 @@ pub fn spec() -> CommandSpec {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Copy data from one channel to another, synchronously or in the background.",

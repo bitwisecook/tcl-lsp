@@ -19,9 +19,8 @@
 //! `csv::read2matrix` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "csv::read2matrix ?-alternate? chan m ?sepChar? ?expand?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

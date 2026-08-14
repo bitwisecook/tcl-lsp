@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a handle to the running extension to call into.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ILX::init (EXTENSION | (PLUGIN EXTENSION))",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

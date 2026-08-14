@@ -75,9 +75,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tclLog string",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 // The default body's only effect is the stderr write inside `catch {puts
@@ -86,10 +85,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 // `SideEffectTarget` names `puts stderr` as the textbook example.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::LogIo,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Command spec for `tclLog`.

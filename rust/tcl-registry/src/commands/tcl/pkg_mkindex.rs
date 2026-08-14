@@ -54,9 +54,8 @@ use crate::prelude::*;
 // only, not a functional one — the fully-spelled form below is accurate
 // for all five versions.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "pkg_mkIndex ?-direct? ?-lazy? ?-load pkgPat? ?-verbose? dir ?pattern pattern ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const OPTIONS: &[OptionSpec] = &[
@@ -165,15 +164,13 @@ pub fn spec() -> CommandSpec {
                 target: SideEffectTarget::FileIo,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             SideEffect {
                 target: SideEffectTarget::InterpState,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         // Two behavioural facts below are not documented in any of the

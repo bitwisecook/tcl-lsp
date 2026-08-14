@@ -33,6 +33,10 @@
 use serde_json::{Value, json};
 use wasm_bindgen::prelude::*;
 
+mod archive;
+mod dsl_highlight;
+mod snapshots;
+
 /// Install a panic hook that routes Rust panics to `console.error` (panics
 /// abort under wasm, so this is the only way to see them).
 #[wasm_bindgen(start)]
@@ -208,6 +212,56 @@ pub fn import_package(files_json: &str, dialect: &str) -> String {
         return error("no files to import");
     }
     to_string(&tcl_spec_studio::infer::import_package(&files, dialect).to_json())
+}
+
+/// Read the Tcl sources out of a `.zip` held in the browser.
+///
+/// `bytes` is the archive verbatim (a `File`'s `arrayBuffer`, a fetched release
+/// zipball). Returns
+/// `{"entries": [{"name", "text"}], "skipped": […], "members": n, "bytes": n}`
+/// — every `.tcl` / `.tm` / `.test` / `.itcl` / `.itk` member decoded as text,
+/// plus a line per member the caps or a read error kept out, so the page can
+/// say what it did not look at rather than quietly analysing less than the
+/// author thinks. Unreadable container bytes come back as `{"error": …}`.
+///
+/// Nothing is written anywhere: the entries exist only as JSON strings handed
+/// straight back to the caller.
+#[wasm_bindgen]
+#[must_use]
+pub fn unzip_entries(bytes: &[u8]) -> String {
+    to_string(&archive::extract_json(bytes))
+}
+
+/// Derive each command's version range from several releases of one package.
+///
+/// `snapshots_json` is `[{"version": "1.2", "files": [{"name", "text"}, …]}, …]`
+/// — one entry per release, in any order (they are sorted by version, and a
+/// caller order that disagrees is reported as a warning rather than obeyed).
+/// `complete_history` says the snapshots cover *every* release, which is what
+/// licenses an `introduced_version` on the earliest one; with a partial history
+/// the earliest release only witnesses "present as far back as we looked" and
+/// the field is left unset with a note saying so.
+///
+/// Returns the [`VersionedImport`](tcl_spec_studio::versions::VersionedImport)
+/// JSON: the package name, the labels analysed in ascending order, one merged
+/// draft per command with the evidence behind every derived bound, and the
+/// warnings — including every fact the releases contradict each other about.
+#[wasm_bindgen]
+#[must_use]
+pub fn import_package_versions(
+    snapshots_json: &str,
+    dialect: &str,
+    complete_history: bool,
+) -> String {
+    let snapshots = match snapshots::parse(snapshots_json) {
+        Ok(snapshots) => snapshots,
+        Err(message) => return error(&message),
+    };
+    let options = tcl_spec_studio::versions::VersionedImportOptions { complete_history };
+    to_string(
+        &tcl_spec_studio::versions::import_package_versions(&snapshots, dialect, &options)
+            .to_json(),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -414,4 +468,38 @@ pub fn pack_test_inspect(source: &str, sample: &str, dialect: &str, offset: usiz
             None => error("no word at that position"),
         }
     })
+}
+
+// ---------------------------------------------------------------------------
+// The Pack DSL tab — client-side highlight and hover for the DSL itself
+// ---------------------------------------------------------------------------
+
+/// Classified byte-span tokens for `.tclspec` `source` — what the Pack DSL
+/// editor's overlay paints. `[{start, end, class, text}, …]`, non-overlapping
+/// and in source order.
+///
+/// Classes: `comment`, `command-word` (a statement head — `command`,
+/// `arity`, `option`, `hover`, …), `property-flag` (a `-flag` word),
+/// `value` (an ordinary bare word), `number`, `variable` (`$name`), and
+/// `punctuation` (`;` and `{*}`). See `dsl_highlight` for how a block's
+/// contents are told apart as further DSL statements versus a flat word
+/// list versus foreign/prose content.
+#[wasm_bindgen]
+#[must_use]
+pub fn dsl_highlight(source: &str) -> String {
+    to_string(&dsl_highlight::highlight_json(source))
+}
+
+/// The hover for the DSL word covering byte `offset` of `source`.
+///
+/// `{"found": true, "title": …, "body": …}` when `offset` lands on a
+/// recognised statement head or property flag (backed by
+/// `tcl_spec_studio::schema` / `help`, a catalogue variant, or the DSL's own
+/// grammar keywords); `{"found": false, ...}` otherwise — including when the
+/// word under the cursor is ordinary pack-author data (a value, a number, a
+/// variable) rather than DSL vocabulary.
+#[wasm_bindgen]
+#[must_use]
+pub fn dsl_hover(source: &str, offset: usize) -> String {
+    to_string(&dsl_highlight::hover_json(source, offset))
 }

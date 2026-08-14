@@ -26,9 +26,8 @@ use crate::prelude::*;
 // documented in identical DESCRIPTION prose in every version 8.4 through
 // 9.1. That makes this a single universal form, not a version-gated one.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "exec ?switches? arg ?arg ...? ?&?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {
@@ -57,8 +56,7 @@ pub fn spec() -> CommandSpec {
                 target: SideEffectTarget::Process,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // A failing subprocess populates the errorCode global with a
             // structured CHILDSTATUS/CHILDKILLED/CHILDSUSPENDED value and
@@ -66,10 +64,8 @@ pub fn spec() -> CommandSpec {
             // interpreter state beyond the raised error itself.
             SideEffect {
                 target: SideEffectTarget::InterpState,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         // ``--`` is the option terminator that drives W304's

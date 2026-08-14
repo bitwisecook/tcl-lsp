@@ -48,16 +48,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the value in the return command, if any, in the proc script.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ProcDefinition,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
         command_table_effect: Some(crate::command_table::CommandTableEffect::DefinesProcedure),

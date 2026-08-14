@@ -20,16 +20,13 @@
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::NetworkIo,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "smtp::sendmessage token ?options?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const OPTIONS: &[OptionSpec] = &[

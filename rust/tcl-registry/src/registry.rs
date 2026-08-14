@@ -3086,6 +3086,18 @@ impl ResolvedCall<'_> {
     }
 }
 
+/// The first [`CommandForm`] whose arity accepts `argument_count` and whose
+/// dialect gate admits `dialect`.
+///
+/// **No lifecycle filter, because there is nothing to filter on.**
+/// [`CommandForm`] — the *semantic* form, which routes lowering / codegen
+/// hooks and per-form descriptors — carries no [`crate::lifecycle::Lifecycle`]
+/// field; only its documentation counterpart [`crate::hover::FormSpec`] does,
+/// and that is what [`CommandSpec::primary_synopsis`] and
+/// [`CommandSpec::optional_trailing_arg_names`] gate. If a semantic form ever
+/// gains a lifecycle, this is where the same `package_version: Option<&str>`
+/// parameter belongs — every caller here already threads a `dialect` through
+/// and could thread a floor beside it.
 fn pick_form(
     forms: &[CommandForm],
     argument_count: usize,

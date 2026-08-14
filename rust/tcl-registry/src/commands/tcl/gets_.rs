@@ -55,9 +55,8 @@ use crate::prelude::*;
 // reduction), so `channelId` is kept here to match the fuller,
 // canonical wording every other version uses.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "gets channelId ?varName?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `gets`.
@@ -93,16 +92,12 @@ pub fn spec() -> CommandSpec {
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
-                writes: false,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             SideEffect {
                 target: SideEffectTarget::Variable,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

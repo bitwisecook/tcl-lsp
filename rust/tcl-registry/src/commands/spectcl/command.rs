@@ -27,15 +27,13 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
 }];
 
 const COMMAND_FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "command name ?-override? { declarations }",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const SUBCOMMAND_FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "subcommand name { declarations }",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `command NAME ?-override? { … }` — the block sits after the name and any

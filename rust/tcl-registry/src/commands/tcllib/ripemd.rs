@@ -29,11 +29,8 @@ use crate::prelude::*;
 
 /// `-file` / `-channel` inputs read external data.
 const READS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// The one-shot digest / HMAC command (`ripemd128`, `hmac128`, …).

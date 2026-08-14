@@ -104,9 +104,8 @@ fn upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitio
 // themselves byte-for-byte identical, bar the doc-anchor version string
 // in the page banner).
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "upvar ?level? otherVar myVar ?otherVar myVar ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `upvar`.
@@ -165,10 +164,8 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Create link to variable in a different stack frame",

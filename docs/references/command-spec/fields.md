@@ -49,6 +49,12 @@ The package a script must `package require` before this command exists — `sqli
 
 iRules only: event contexts where this command must not be used, by event name (`HTTP_REQUEST`, `CLIENT_ACCEPTED`, …). The validity check reports a use inside any listed event.
 
+### `versioned_arg_values` — Versioned argument values
+
+*command and subcommand* — Package-version gates for literal positional argument values.
+
+Version gates for individual literal argument values — when one mode word appeared in (or left) a specific package release, like a persistence mode added mid-release-train. Indices count from after the command name at command level and from after the subcommand word at subcommand level. The value list itself lives under argument values; this adds the since/until per value.
+
 ### `tcllib_package` — Tcllib package
 
 *command only* — Tcllib package providing the command, for per-document activation.
@@ -60,6 +66,8 @@ When the command comes from a tcllib module, the module name (`json`, `struct::l
 *command and subcommand* — Dotted version of the owning package that introduced the command.
 
 The version of the owning package (or of Tcl itself, for core commands) that first shipped the command — `8.5` for `dict`, `8.6` for `try`. Using the command under an older target dialect is then reported, which is how "this needs Tcl 8.6" warnings work.
+
+The same three releases sit on everything a version can gate, not just the command: an option, a subcommand, a second-level subcommand, an invocation form, a side effect, an option conflict, and a single enumerable argument value each carry their own, edited in their own row.
 
 ### `deprecated_version` — Deprecated in
 
@@ -79,6 +87,8 @@ The first version *without* the command — exclusive, so "retired: 9.0" means g
 
 The quick fix the editor offers on a deprecated call — typically "replace this word with the new spelling", with a safety level saying whether the replacement is semantically identical. Carried as an expression; name the replacement and whether arguments change in the issue notes.
 
+An option row carries its own, so a renamed flag can offer the new spelling without the whole command being deprecated. A fix that is a registry callback rather than a replacement word cannot be written down here — the studio says so rather than dropping it.
+
 ### `warn_missing_import` — Warn on missing import
 
 *command only* — Whether W120 fires when the command is used without a `package require`.
@@ -90,12 +100,6 @@ Whether using the command without its `package require` draws the missing-import
 *command only* — Whether the source namespace exports the bare name.
 
 Whether the owning namespace exports the bare name, so `namespace import` can bring it in — i.e. whether `string` alone can ever mean `::textutil::string`. Affects how unqualified uses resolve after an import.
-
-### `versioned_arg_values` — Versioned argument values
-
-*subcommand only* — Package-version gates for literal positional argument values.
-
-Version gates for individual literal values of this subcommand's arguments — when one mode word appeared in (or left) a specific package release, like a persistence mode added mid-release-train. The value list itself lives under argument values; this adds the since/until per value.
 
 ## Arity and arguments
 
@@ -249,7 +253,7 @@ For ensembles whose subcommands are also reachable as plain commands in a namesp
 
 ### `sub_subcommands` — Second-level subcommands
 
-*subcommand only* — Operations selected by the word after this subcommand (`info object <op>`).
+*subcommand only* — Operations selected by the word after this subcommand (`info object <op>`), each with its own release window.
 
 A third level of keywords — operations selected by the word *after* this subcommand, as in `info object isa`. Deliberately lighter than a full subcommand: each carries only its name, a one-line detail, a synopsis, and an optional dialect gate — enough for highlighting, hover, and completion. Arity stays on the owning subcommand.
 
@@ -267,9 +271,11 @@ Write the summary like the first line of a man page — one sentence, present te
 
 ### `forms` — Invocation forms
 
-*command only* — Synopsis per invocation form, for completion and arity-dependent lookup.
+*command only* — Synopsis per invocation form, for completion and arity-dependent lookup; each form has its own release window.
 
 The distinct ways the command can be called, each with its own synopsis and argument count — most usefully a read form and a write form: `$w cget -opt` versus `$w configure -opt value`, or `testConstraint NAME` (getter) versus `testConstraint NAME value` (setter). The right form is picked by argument count, so each can carry its own purity and effects: a getter is harmless where its setter is not.
+
+A form can also come and go with the package: each row carries the same three releases the command does, so a form added in 1.4 and dropped in 2.0 says so on its own row.
 
 ### `detail` — Detail
 
@@ -315,7 +321,7 @@ How many words at the *end* of the call are never option candidates, matching ho
 
 ### `arg_values` — Argument values
 
-*command and subcommand* — Enumerable positional values per argument index, for completion.
+*command and subcommand* — Enumerable positional values per argument index, for completion; each carries its own Tcl floor and release window.
 
 The completable values for specific argument positions — the mode words of `binary scan`, the event names for an iRules command, the subcommand-like keywords of a mode argument. Purely additive for completion and hover unless the position is also listed under closed value arguments, which upgrades it to "only these".
 
@@ -439,7 +445,7 @@ Whether the command changes which commands *exist*: `proc` defines one, `rename`
 
 ### `side_effects` — Side effects
 
-*command and subcommand* — Structured declarations of the state the command reads and writes.
+*command and subcommand* — Structured declarations of the state the command reads and writes, each with its own release window.
 
 What state the command touches, as structured reads and writes: variables, channels, files, the network, logs, HTTP headers, session tables, and so on — each with whether it reads, writes, or both, and (for iRules) which connection side. `puts` writes channel I/O; `file delete` writes filesystem state; `HTTP::header insert` writes HTTP headers on the current side.
 

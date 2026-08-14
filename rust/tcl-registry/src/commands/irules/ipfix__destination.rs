@@ -32,9 +32,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "IPFIX::destination open returns an IPFIX_DESTINATION object that is used by the IPFIX::destination close or send command.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "IPFIX::destination ((open (-publisher LOG_PUBLISHER)) |",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[OptionSpec {
@@ -50,9 +49,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

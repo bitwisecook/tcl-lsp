@@ -48,24 +48,60 @@ tcl-lsp-db = { path = "../tcl-lsp-db" }
 # Powers the `tcl-lsp.compilerExplorer` workspace command (same pipeline +
 # JSON serialisation the `tcl explore` CLI uses).
 tcl-explorer = { path = "../tcl-explorer" }
-salsa = "0.28"
+# Same minimal set as `tcl-lsp-db`, and for the same reason: salsa's
+# defaults pull in `rayon`, whose thread pool cannot start in a browser
+# worker. Trimming it in `tcl-lsp-db` alone would achieve nothing — cargo
+# unions features across the graph, so a defaults-on dependant puts rayon
+# straight back.
+salsa = { version = "0.28", default-features = false, features = ["macros", "inventory"] }
 serde_json = "1"
-tokio = { version = "1", features = ["io-std", "io-util", "rt-multi-thread", "sync", "macros", "time"] }
 # `FutureExt::shared` (progressive diagnostics, #844): the base per-file analysis
 # is computed once and awaited by both the deep pass's `join!` and the fast-tier
 # publish, so the coarse tier reuses the in-flight read rather than issuing a
 # second one. Already in the tree via `tower-lsp-server`'s transport.
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# NOTE: `tower-lsp-server` and `tokio` are declared per-target below.
+#
 # Bounded, backpressured client transport (`futures::mpsc::channel(1)` +
 # `FramedWrite(stdout)`) is what guarantees diagnostics are never dropped or
 # unboundedly buffered under a slow client. An upgrade that changes its
 # transport is a diagnostics-delivery review gate — see the invariant in
 # `main.rs` and `deliver_diagnostics`.
-tower-lsp-server = "0.23"
 # `util` gives us `ServiceExt::map_response`, used in `main.rs` to inject the
 # `typeHierarchyProvider` capability into the `initialize` response (ls-types
 # 0.0.6 has no struct field for it). Same tower 0.5 that tower-lsp-server pins.
 tower = { version = "0.5", features = ["util"] }
+
+# The two runtime halves. `tokio::sync`, `select!`, `join!` and `pin!` are the
+# only Tokio surface the library itself still names — everything that needs a
+# scheduler goes through `crate::rt` — but the two targets can enable very
+# different feature sets behind that, and `tower-lsp-server` forces the split.
+#
+# `tower-lsp-server`'s `runtime-tokio` and `runtime-agnostic` are MUTUALLY
+# EXCLUSIVE, not additive: each supplies its own `Encoder`/`Decoder` impls and
+# its own `to_jsonrpc_error`, so enabling both is a duplicate-definition
+# compile error. Declaring them per-target rather than behind a cargo feature
+# is what keeps that safe under feature unification: resolver v2+ ignores the
+# features of a platform dependency whose `cfg` does not match the target being
+# built, so a native build sees only `runtime-tokio` and a wasm build only
+# `runtime-agnostic`. No workspace member can turn on the wrong one, because
+# no cargo feature selects it.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { version = "1", features = ["io-std", "io-util", "rt-multi-thread", "sync", "macros", "time"] }
+tower-lsp-server = "0.23"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+# `io-std` and `rt-multi-thread` are hard compile errors on wasm32; `sync` and
+# `macros` are all the library needs, and both are runtime-free.
+tokio = { version = "1", default-features = false, features = ["sync", "macros"] }
+# Transport built on the `futures` AsyncRead/AsyncWrite traits instead of
+# Tokio's — the browser worker never uses `Server`, but the crate does not
+# compile at all without one of the two runtime features.
+tower-lsp-server = { version = "0.23", default-features = false, features = ["runtime-agnostic"] }
+# `crate::rt`'s wasm arm: `spawn_local`, `setTimeout` futures, and `Date.now()`.
+wasm-bindgen-futures = "0.4"
+gloo-timers = { version = "0.3", features = ["futures"] }
+js-sys = "0.3"
 
 [dev-dependencies]
 temp-env = "0.3"

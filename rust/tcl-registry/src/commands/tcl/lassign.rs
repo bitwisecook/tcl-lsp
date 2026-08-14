@@ -21,10 +21,8 @@ use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 // Tcl 8.5's SYNOPSIS is `lassign list varName ?varName ...?` — at least one
@@ -42,14 +40,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // `lassign` with a list but no varName at all.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lassign list ?varName ...?",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lassign list varName ?varName ...?",
         dialects: Some(DialectSet::TCL85),
+        ..FormSpec::DEFAULT
     },
 ];
 

@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return health value as integer. Lower values are good health. Bad health is value > 1^23.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "DOSL7::health",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::Dosl7State,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

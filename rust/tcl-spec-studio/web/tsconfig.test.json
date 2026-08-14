@@ -1,0 +1,16 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// The unit tests typecheck against node's own libraries; `tsconfig.json` keeps
+// `types: []` so the browser sources cannot accidentally use a node API that
+// will not exist at run time. Keeping the two configurations apart is what lets
+// both properties hold at once.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": ["test/**/*.ts", "src/**/*.ts"]
+}

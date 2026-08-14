@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "The bare and initial forms return an SSLClientSessionId header containing the session ID requested by the client. The current form returns an SSLClientCurrentSessionId header containing the session ID actually selected by the server.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::modssl_sessionid_headers (initial | current)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

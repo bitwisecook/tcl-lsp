@@ -100,26 +100,22 @@ const AXIS_TYPE_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "value",
         detail: "Numerical axis.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "category",
         detail: "Category axis.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "time",
         detail: "Time axis.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
     ArgValue {
         value: "log",
         detail: "Logarithmic axis.",
-        min_tcl: None,
-        code: None,
+        ..ArgValue::DEFAULT
     },
 ];
 

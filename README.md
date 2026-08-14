@@ -965,6 +965,17 @@ validation rules keyed by dialect.  Switching the dialect profile changes
 which commands are known, which are deprecated, and which event/layer
 constraints apply.
 
+Version-aware diagnostics reach every gateable level of a call, not just
+the command: a subcommand, a second-level operation of a two-level
+ensemble (`info object class`), an option, and a literal argument value —
+each independently reports "not introduced yet" (`W135`/`W136`),
+"deprecated" (`W144`), or "removed" (`W139`) against the resolved version
+floor. A `package require Foo A-B` **range** whose upper bound reaches
+past a retirement is caught too: the floor alone can be satisfied while
+part of the accepted range is not, so `W139` fires with a hedged "not
+available in every version satisfying requirement `A-B`" message rather
+than staying silent.
+
 ### Automatic dialect detection
 
 The dialect is selected automatically using the following priority chain
@@ -1224,10 +1235,10 @@ tcl explore --serve --port 8080
 
 ## Command registry spec studio
 
-A single self-contained web page for exploring the command registry: browse
-every command tcl-lsp knows for a chosen dialect, edit any field of its
-`CommandSpec`, and render the result back out as a drop-in registry `.rs`
-module (copyright banner included) or a Tcl dialect stub.  Live at
+A web page for exploring the command registry: browse every command tcl-lsp
+knows for a chosen dialect, edit any field of its `CommandSpec`, and render the
+result back out as a drop-in registry `.rs` module (copyright banner included)
+or a Tcl dialect stub.  Live at
 [bitwisecook.github.io/tcl-lsp/spec-studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/),
 or build it locally with `make spec-studio-wasm`.
 
@@ -1244,18 +1255,42 @@ written, iterated as a list), hover text from the doc comment, and a
 `package require` gate from `package provide`.  Every guess is listed with
 the evidence behind it.
 
+Import **several releases** instead of one — a `.zip` per release, uploaded or
+fetched from GitHub — and it derives each command's *version range* from what
+the releases actually witness: `introduced_version` from the first release the
+command appears in, `retired_version` from the first it is gone from, with the
+reasoning shown beside every bound.  The same derivation backs `tcl spec
+import` on the command line.
+
 Browse the list to pick a command, or type a name you already know and press
 **Load** (Enter works too, and the box suggests matching names as you type).
+
+The **Pack DSL** tab holds a [SpecTcl pack](docs/design/spec-packs.md)'s
+`.tclspec` source directly as its own authoritative document — edit the
+form and the text follows, edit the text and the form follows.  It is a
+Monaco editor driven by **the actual Tcl language server**, compiled to
+WebAssembly and running in a Web Worker in your browser: the same server
+binary your editor talks to, so the semantic colouring, hovers,
+completions, diagnostics, and formatting are the ones your editor shows,
+not an approximation of them.  The **Test** tab's Tcl sample gets the same
+editor, opened under whichever dialect you have selected.  If the server
+cannot start the page says so and falls back to a plain text editor with
+the pack's own highlighting.
 
 It works on a phone as well as a desktop: the toolbar unwraps to full-width
 controls, the tab strip scrolls sideways, and touch targets meet the 44px
 minimum.  On a narrow screen the command list moves below the editor, which is
 why loading by name matters there.
 
-The registry, the compiler's analyser, and both renderers are compiled to
-WebAssembly and embedded in the page, which carries `connect-src 'none'` —
-so nothing you type or import can leave your browser.  Copy the output,
-download it, or open a pre-filled GitHub issue proposing the spec.
+The registry, the compiler's analyser, both renderers, and the language server
+are all compiled to WebAssembly and served from the page's own directory.  Its
+content security policy lets the page reach exactly two outside hosts,
+`api.github.com` and `codeload.github.com`, and one clearly-labelled opt-in
+panel is the only thing that can use them — the release fetcher above, which
+acts only when you fill it in and press the button, and which has an offline
+`.zip` upload path that does the same job.  Nothing else you type or import can
+leave your browser.  Copy the output, download it, or open a pre-filled GitHub
+issue proposing the spec.
 
 ![Spec studio — editing a command spec](docs/screenshots/spec-studio-editor.png)
 
@@ -1511,6 +1546,7 @@ A single verb-based CLI that aggregates common local workflows:
 - `help` — search bundled KCS feature docs from the SQLite help index
 - `pkg` — package management: `init`, `add`, `remove`, `install`, `list`, `tree`, `verify`, `info`, `search`, `update`, `sync`, `outdated`, `why`, `vendor`, `run`
 - `venv` — virtual environments: `create`, `delete`, `info`, `activate`, `deactivate`, `list`, `update`, `run`
+- `spec` — author SpecTcl (`.tclspec`) command packs: `import` derives `introduced_version`/`retired_version` ranges for a package's commands from several labelled release snapshots
 
 ```sh
 # Optimise everything under src/ into one output script
@@ -1581,6 +1617,15 @@ tcl help --help
 
 # Emit help search results as JSON
 tcl help taint --json
+
+# Derive version ranges for a package's commands from three local release
+# snapshots, and validate the result
+tcl spec import --snapshot 1.0=rel/1.0 --snapshot 1.2=rel/1.2 --snapshot 2.0=rel/2.0 \
+  --dialect tcl8.6 --out mylib.tclspec
+
+# ...or from a GitHub repository's release tags
+tcl spec import --github tcltk/tcllib --tag-pattern 'tcllib-*' --limit 8 \
+  --complete-history --out tcllib.tclspec
 ```
 
 For iRules input, pass `--dialect f5-irules` explicitly:

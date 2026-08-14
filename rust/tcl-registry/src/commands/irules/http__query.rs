@@ -59,20 +59,19 @@ pub const fn spec() -> CommandSpec {
             FormSpec {
                 kind: FormKind::Getter,
                 synopsis: "HTTP::query ?-normalized?",
-                dialects: None,
+                ..FormSpec::DEFAULT
             },
             FormSpec {
                 kind: FormKind::Setter,
                 synopsis: "HTTP::query <QUERY_STRING>",
-                dialects: None,
+                ..FormSpec::DEFAULT
             },
         ],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

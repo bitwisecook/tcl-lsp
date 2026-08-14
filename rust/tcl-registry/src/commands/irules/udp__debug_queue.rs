@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "None.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "UDP::debug_queue BOOL_VALUE",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::UdpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

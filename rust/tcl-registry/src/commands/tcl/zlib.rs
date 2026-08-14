@@ -71,9 +71,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "zlib subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `push`'s `mode` positional argument (index 0, after the `push` word) —
@@ -322,10 +321,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         var_write_typing: VarWriteTyping::Fixed(TclType::Dict),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -360,10 +357,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::Channel),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -378,10 +373,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -428,11 +421,9 @@ pub fn spec() -> CommandSpec {
         // fallback for the same reason (a genuinely mixed-effect
         // ensemble, unlike `chan`'s uniformly-FileIo one).
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Compress, decompress, and checksum data using zlib; also attaches a compression transform to a channel.",

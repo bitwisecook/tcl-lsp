@@ -32,7 +32,7 @@ use tcl_dialect::{DialectProfile, DialectSet};
 
 use crate::hover::OptionSpec;
 use crate::registry::CommandRegistry;
-use crate::spec::{CommandSpec, SubCommand};
+use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
 use crate::traits::Traits;
 
 /// Availability queries a resolved [`DialectProfile`] answers against
@@ -81,6 +81,33 @@ pub trait ProfileQueries {
     /// declaration order — the filtered iterator completion was missing
     /// (§5.1's `available_subcommands`).
     fn available_subcommands<'r>(&self, spec: &'r CommandSpec) -> Vec<&'r SubCommand>;
+
+    /// Whether `sub_sub` (a second-level operation of `sub`, itself a
+    /// subcommand of `spec`) is available under this profile at the resolved
+    /// `package_version`.
+    ///
+    /// Both axes apply, exactly as they do one level up: the dialect gate
+    /// `sub_sub.dialects` inherits from `sub.dialects.or(spec.dialects)` and
+    /// is intersected with the availability mask, and the owning package's
+    /// [`crate::lifecycle::Lifecycle`] must admit `package_version`
+    /// (`None` = permissive).
+    fn is_sub_subcommand_available(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        sub_sub: &SubSubCommand,
+        package_version: Option<&str>,
+    ) -> bool;
+
+    /// The second-level operations of `sub` available under this profile at
+    /// `package_version`, in declaration order — the sub-subcommand twin of
+    /// [`Self::available_subcommands`].
+    fn available_sub_subcommands(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        package_version: Option<&str>,
+    ) -> Vec<&'static SubSubCommand>;
 
     /// Whether `opt` is available under this profile, given the gate it
     /// inherits from its parent (`spec.dialects`, or
@@ -248,6 +275,33 @@ impl ProfileQueries for DialectProfile {
         spec.subcommands
             .iter()
             .filter(|sub| self.is_subcommand_available(spec, sub))
+            .collect()
+    }
+
+    fn is_sub_subcommand_available(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        sub_sub: &SubSubCommand,
+        package_version: Option<&str>,
+    ) -> bool {
+        sub_sub
+            .dialects
+            .or(sub.dialects)
+            .or(spec.dialects)
+            .is_none_or(|gate| gate.intersects(self.availability_mask))
+            && sub_sub.available_for_version(package_version)
+    }
+
+    fn available_sub_subcommands(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        package_version: Option<&str>,
+    ) -> Vec<&'static SubSubCommand> {
+        sub.sub_subcommands
+            .iter()
+            .filter(|sub_sub| self.is_sub_subcommand_available(spec, sub, sub_sub, package_version))
             .collect()
     }
 

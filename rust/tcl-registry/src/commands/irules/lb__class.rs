@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return the name of the traffic class that matched the connection",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "LB::class",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Server,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

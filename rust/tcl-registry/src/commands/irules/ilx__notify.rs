@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "None",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ILX::notify HANDLE METHOD (ARGS)*",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

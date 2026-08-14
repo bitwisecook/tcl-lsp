@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the size of the subject’s public RSA key of an X509 certificate.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "X509::subject_public_key_RSA_bits CERTIFICATE",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

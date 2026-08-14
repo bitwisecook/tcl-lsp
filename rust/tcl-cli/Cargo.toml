@@ -45,6 +45,9 @@ tcl-explorer = { path = "../tcl-explorer" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-pkg = { path = "../tcl-pkg" }
+# `tcl spec import` labels its release snapshots with the studio's versioned
+# importer types; the derivation and the render live in `tcl-cli-support`.
+tcl-spec-studio = { path = "../tcl-spec-studio" }
 tcl-sandbox = { path = "../tcl-sandbox" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
@@ -68,6 +71,10 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # Normalise the absolute fixtures path baked into `minimize`/`symbols` output
 # so the goldens compare portably (see cli_parity.rs).
 regex = "1"
+# `spec_verbs.rs` builds a release `.zip` in a tempdir to exercise the archive
+# path of `tcl spec import` without a committed binary fixture. Writing stored
+# entries needs no compression feature.
+zip = { version = "8", default-features = false }
 
 [features]
 # The interactive `tcl explore --tui` shell. Off by default so the lean CLI

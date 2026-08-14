@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the current value of the field which was incremented.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "STATS::incr PROFILE_NAME FIELD_NAME (VALUE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::IStats,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "returns the connection mode",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::connection_mode",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

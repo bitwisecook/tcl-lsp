@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "IPFIX::template create TEMPLATE_STRING returns an IPFIX template object that is used by the IPFIX::msg create command and IPFIX::template delete command.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "IPFIX::template ( (create TEMPLATE_STRING) |",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

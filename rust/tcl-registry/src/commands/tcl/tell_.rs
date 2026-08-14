@@ -37,9 +37,8 @@ use crate::prelude::*;
 // `tell` keeps working exactly as described below in every version
 // through 9.1.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tell channelId",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `tell`.
@@ -87,9 +86,7 @@ pub fn spec() -> CommandSpec {
             // moves it — contrast `seek`, which is `writes: true` for the
             // identical FileIo target.
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Return the current access position for an open channel.",

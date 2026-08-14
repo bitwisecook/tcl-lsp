@@ -72,9 +72,9 @@ const FORMS: &[FormSpec] = &[
     // 8.6-based Tcl core (`DialectSet::expr_grammar_base_version`), so
     // they follow this form too.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "global ?varname ...?",
         dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
+        ..FormSpec::DEFAULT
     },
     // Tcl 8.4 and 8.5 require at least one varname: `Tcl_GlobalObjCmd`
     // opens with `if (objc < 2) Tcl_WrongNumArgs(...)` in both versions,
@@ -84,7 +84,6 @@ const FORMS: &[FormSpec] = &[
     // an 8.4- or 8.5-based Tcl core (`DialectSet::expr_grammar_base_version`),
     // so they inherit the same requirement.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "global varname ?varname ...?",
         dialects: Some(
             DialectSet::TCL84
@@ -93,6 +92,7 @@ const FORMS: &[FormSpec] = &[
                 .union(DialectSet::IAPPS)
                 .union(DialectSet::TMSH),
         ),
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -135,10 +135,8 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Access global variables",

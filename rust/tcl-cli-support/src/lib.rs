@@ -36,6 +36,7 @@ mod input;
 mod output;
 pub mod prompt;
 pub mod secret_input;
+pub mod spec_import;
 
 pub use highlight::{highlight_ansi, highlight_html};
 pub use input::{

@@ -208,8 +208,13 @@ symptom with several possible causes worth telling apart. See rule 13 in
   without writing any Rust.
 - [kcs-howto-write-a-tclspec-pack.md](kcs-howto-write-a-tclspec-pack.md)
   — the SpecTcl pack quickstart: the minimal `.tclspec` shape, the
-  three discovery tiers, validation, and what runtime loading does
-  today versus what is landing.
+  three discovery tiers, validation, and how the running server picks
+  a saved pack up.
+- [kcs-howto-derive-version-ranges-from-releases.md](kcs-howto-derive-version-ranges-from-releases.md)
+  — derive `introduced_version` / `retired_version` facts from several
+  package releases with `tcl spec import`, read the evidence header it
+  writes, and the offline `git archive` fallback when there is no
+  network.
 - [kcs-howto-add-command-registry-package.md](kcs-howto-add-command-registry-package.md)
   — add first-class registry support for a Tcl package (sqlite3,
   tcllib, etc.) so the shipped distribution recognises its commands

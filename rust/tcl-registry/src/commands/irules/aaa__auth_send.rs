@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "request_id - the id of the current connection that can be used to check the status later with AAA::auth_result command",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "AAA::auth_send VIRTUAL_SERVER USERNAME (PASSWORD)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::ApmState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "None for set, value of path id for get.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "NSH::path_id DIRECTION (NSH_PATH_ID)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

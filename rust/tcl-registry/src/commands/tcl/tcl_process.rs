@@ -35,9 +35,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tcl::process subcommand ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
@@ -51,8 +50,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Process,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 fn make_spec(name: &'static str) -> CommandSpec {
@@ -166,8 +164,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
             // whether a call passes one, so declare the union.
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -180,9 +177,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         side_effects: &[SideEffect {
             target: SideEffectTarget::Process,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -199,8 +194,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
             // decide what to delete.
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -222,8 +216,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
             // just read.
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },

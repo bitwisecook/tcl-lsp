@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "RTT in units of 100ns.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ROUTE::rtt DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

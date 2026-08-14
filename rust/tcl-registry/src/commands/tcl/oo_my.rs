@@ -19,9 +19,8 @@
 //! `my` — invoke a method on the current object.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "my methodName ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Every argument after the `variable` subcommand word is a variable name to
@@ -81,10 +80,8 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
     creates_scope_alias: true,
     side_effects: &[SideEffect {
         target: SideEffectTarget::Variable,
-        reads: false,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     }],
     dialects: Some(DialectSet::TCL86_PLUS),
     ..SubCommand::DEFAULT
@@ -109,11 +106,9 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
 /// `SUBCOMMANDS`'s own more precise `Variable`-write entry above, never by
 /// this `Unknown` one.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// `my` is the one family member that is **not**

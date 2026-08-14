@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the string containing the rendered JSON content.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "JSON::render (JSON_CACHE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

@@ -64,9 +64,8 @@ use crate::prelude::*;
 // cosmetic channelId/channel rename noted above), across every fetched
 // version, 8.4 through 9.1.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "puts ?-nonewline? ?channelId? string",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Dynamic arg-role resolver: `puts` takes one positional arg (`string`,
@@ -102,10 +101,8 @@ pub fn spec() -> CommandSpec {
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         // `-nonewline` is documented identically — name, shape, and
         // behaviour — in every fetched version, 8.4 through 9.1.

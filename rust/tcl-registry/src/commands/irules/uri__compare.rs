@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns 1 if URIs match; 0 otherwise.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "URI::compare URI_STRING URI_STRING",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

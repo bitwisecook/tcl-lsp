@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "returns generic, sip or diameter",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "MR::protocol",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::MessageState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

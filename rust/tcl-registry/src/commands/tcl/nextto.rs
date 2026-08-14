@@ -30,11 +30,9 @@ use crate::prelude::*;
 /// stated explicitly rather than left to fall through to the conservative
 /// unknown-write fallback.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// `next`/`nextto` are `TclOO` commands: the Tcl 8.4 and 8.5 `TclCmd`
@@ -55,9 +53,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 /// convention — so `nextto` carries a single, version-ungated form
 /// under its command-level `TCL86_PLUS` gate.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "nextto class ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

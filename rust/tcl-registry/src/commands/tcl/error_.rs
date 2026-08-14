@@ -22,9 +22,8 @@ use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "error message ?info? ?code?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
@@ -74,10 +73,8 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Generate an error",

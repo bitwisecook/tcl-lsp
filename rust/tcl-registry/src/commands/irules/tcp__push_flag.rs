@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "TCP::push_flag returns the PUSH flag mode.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TCP::push_flag ('default' | 'none' | 'one' | 'auto')?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

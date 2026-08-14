@@ -455,6 +455,99 @@ pub enum Command {
         #[command(subcommand)]
         action: DockerCommand,
     },
+
+    /// Author `SpecTcl` (.tclspec) command packs.
+    Spec {
+        #[command(subcommand)]
+        action: SpecCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SpecCommand {
+    /// Derive version ranges for a package's commands from several releases.
+    ///
+    /// Each release is drafted on its own and the drafts are diffed, so
+    /// `introduced_version` / `retired_version` say what the releases witness
+    /// instead of repeating whatever version the newest sources declare.
+    Import(SpecImportArgs),
+}
+
+/// Flags of `tcl spec import`.
+#[derive(Debug, Args)]
+pub struct SpecImportArgs {
+    /// One release's sources as VERSION=PATH, where PATH is a directory, a
+    /// .zip, or a .tar.gz (repeatable; order does not matter).
+    #[arg(long = "snapshot", value_name = "VERSION=PATH")]
+    pub snapshot: Vec<String>,
+
+    /// Enumerate a GitHub repository's release tags and fetch each one
+    /// instead of reading local snapshots. Honours `GITHUB_TOKEN` (sent as a
+    /// bearer token) and the standard proxy environment variables.
+    #[arg(
+        long = "github",
+        value_name = "OWNER/REPO",
+        conflicts_with = "snapshot"
+    )]
+    pub github: Option<String>,
+
+    /// Keep only tags matching this glob: `*` matches any run of characters,
+    /// `?` exactly one, and the whole tag must match.
+    #[arg(long = "tag-pattern", value_name = "GLOB", requires = "github")]
+    pub tag_pattern: Option<String>,
+
+    /// Import only the newest N matching releases.
+    #[arg(long = "limit", value_name = "N", requires = "github")]
+    pub limit: Option<usize>,
+
+    /// Print the tags that would be fetched and stop (a dry run).
+    #[arg(long = "list-tags", requires = "github")]
+    pub list_tags: bool,
+
+    /// Dialect profile every snapshot is analysed as.
+    #[arg(long, default_value = "tcl8.6", value_name = "DIALECT")]
+    pub dialect: String,
+
+    /// Pack name for the rendered `speclib` block (default: the name the
+    /// sources `package provide`).
+    #[arg(long, value_name = "NAME")]
+    pub package: Option<String>,
+
+    /// Write the pack here instead of stdout.
+    #[arg(long = "out", short = 'o', value_name = "FILE")]
+    pub out: Option<PathBuf>,
+
+    #[command(flatten)]
+    pub history: HistoryArgs,
+
+    /// Network timeout in seconds for the GitHub API and codeload fetches.
+    #[arg(long, default_value_t = 60, value_name = "SECONDS")]
+    pub timeout: u64,
+
+    /// Emit the derivation as JSON (pack source, per-command ranges,
+    /// warnings) instead of the pack alone.
+    #[arg(long)]
+    pub json: bool,
+}
+
+/// Paired `--complete-history` / `--partial-history` claim about how much of
+/// a package's release history a set of snapshots covers.
+///
+/// Modelled the way `--colour` / `--no-colour` is: the pair is one decision,
+/// and giving both is a contradiction rather than a last-one-wins.
+#[derive(Debug, Args)]
+pub struct HistoryArgs {
+    /// Declare that the snapshots are *every* release of the package, which
+    /// makes presence in the earliest one an introduction. Off by default:
+    /// unclaimed history is the safe assumption, and a wrongly-claimed
+    /// `introduced_version` cannot be told from a derived one afterwards.
+    #[arg(long = "complete-history", conflicts_with = "partial_history")]
+    pub complete_history: bool,
+
+    /// Declare the snapshots are only *some* releases. This is the default;
+    /// the flag exists so a script can say so explicitly.
+    #[arg(long = "partial-history")]
+    pub partial_history: bool,
 }
 
 /// Diagnostic-filtering flags shared by `diag` / `lint` / `validate`.

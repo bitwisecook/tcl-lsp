@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "exit ?returnCode?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `exit`.
@@ -55,10 +54,8 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(0, 1),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "End the application",

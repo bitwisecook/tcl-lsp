@@ -35,16 +35,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns 1 if the profile is configured on the current virtual server. Returns 0 if the profile is not configured on the current virtual server.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "PROFILE::exists TYPE (NAME)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::BigipConfig,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

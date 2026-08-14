@@ -25,17 +25,13 @@ const SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
         target: SideEffectTarget::FileIo,
         reads: true,
-        writes: false,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
     // Registers the library's new commands with the target interpreter.
     SideEffect {
         target: SideEffectTarget::InterpState,
-        reads: false,
         writes: true,
-        connection_side: ConnectionSide::None,
-        dialects: None,
+        ..SideEffect::DEFAULT
     },
 ];
 
@@ -51,14 +47,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 // doesn't touch the Tcl-level command).
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "load fileName ?packageName? ?interp?",
         dialects: Some(DialectSet::TCL84.union(DialectSet::TCL85)),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "load ?-global? ?-lazy? ?--? fileName ?prefix? ?interp?",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
 ];
 

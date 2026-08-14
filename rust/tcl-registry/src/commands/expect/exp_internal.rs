@@ -29,9 +29,8 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "exp_internal ?-f file? 0|1",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

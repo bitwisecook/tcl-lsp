@@ -105,6 +105,10 @@ pub struct AnalyserSnapshot {
     /// (flushed post-walk alongside `pending_arity`). Snapshotted for the
     /// same rollback reason.
     pub pending_next_arity: Vec<super::types::PendingNextArity>,
+    /// Pending version-gated W147 option conflicts (promoted onto
+    /// `pending_arity` post-walk). Snapshotted for the same rollback reason.
+    pub(in crate::analyser) pending_option_conflicts:
+        Vec<super::diagnostics::version_gate::GatedOptionConflict>,
 }
 
 impl Analyser {
@@ -140,6 +144,7 @@ impl Analyser {
             pending_user_call_arity: self.pending_user_call_arity.clone(),
             pending_ctor_arity: self.pending_ctor_arity.clone(),
             pending_next_arity: self.pending_next_arity.clone(),
+            pending_option_conflicts: self.pending_option_conflicts.clone(),
         }
     }
 
@@ -173,6 +178,7 @@ impl Analyser {
         self.pending_user_call_arity = snap.pending_user_call_arity;
         self.pending_ctor_arity = snap.pending_ctor_arity;
         self.pending_next_arity = snap.pending_next_arity;
+        self.pending_option_conflicts = snap.pending_option_conflicts;
     }
 }
 

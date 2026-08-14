@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a decoded version of a given URI.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "URI::decode URI_STRING",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         traits: Traits::IS_UNESCAPE,
         ..CommandSpec::DEFAULT

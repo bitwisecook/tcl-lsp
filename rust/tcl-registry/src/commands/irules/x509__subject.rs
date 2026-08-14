@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the subject of an X509 certificate. If commonName RDN is specified, returns the Subject CN in UTF8 format.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "X509::subject CERTIFICATE (commonName)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

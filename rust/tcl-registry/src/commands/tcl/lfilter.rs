@@ -57,11 +57,9 @@ use crate::prelude::*;
 // same reason `writes: false` was. The predicate/body's own effects are
 // tracked separately by recursing into its `Body` arg role.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 // Both forms are documented side by side in `doc/lfilter.n`'s SYNOPSIS (and
@@ -71,14 +69,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // a one-element varlist), so both share the same `arity` below.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lfilter varname list expression",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lfilter varlist1 list1 ?varlist2 list2 ...? body",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 

@@ -76,10 +76,8 @@ use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const OPTIONS: &[OptionSpec] = &[
@@ -174,7 +172,6 @@ const FORMS: &[FormSpec] = &[
     // there (see the module doc comment), so no form of it is legal
     // syntax under `f5-irules` at all.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "vwait varName",
         dialects: Some(
             DialectSet::TCL8X
@@ -182,13 +179,14 @@ const FORMS: &[FormSpec] = &[
                 .union(DialectSet::IAPPS)
                 .union(DialectSet::TMSH),
         ),
+        ..FormSpec::DEFAULT
     },
     // Tcl 9.0+ (and `bpf`, whose mask reaches Tcl 9.0 automatically
     // through the `TCL90_PLUS` overlap — see the module doc comment).
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "vwait ?options? ?varName ...?",
         dialects: Some(DialectSet::TCL90_PLUS),
+        ..FormSpec::DEFAULT
     },
 ];
 

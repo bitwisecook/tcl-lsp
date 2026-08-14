@@ -13,22 +13,27 @@ default
 
 ## Question
 
-Why does the analyser warn that a command, subcommand, option, or argument
-value is deprecated, when the code still runs?
+Why does the analyser warn that a command, subcommand, second-level
+subcommand, option, or argument value is deprecated, when the code still
+runs?
 
 ## Why
 
-Every versioned thing in the registry carries the same three releases: the
-release that **introduced** it, the release that **deprecated** it, and the
-release that **retired** it. They are independent, so a deprecated item is
-still perfectly usable — it is simply on notice.
+Every versioned thing in the registry carries the same three releases —
+its [lifecycle](../../GLOSSARY.md#lifecycle-registry): the release that
+**introduced** it, the release that **deprecated** it, and the release
+that **retired** it. That triple exists at every level a call can be
+gated on: a command, a subcommand, a second-level operation of a
+two-level ensemble (`info object class`), an option, and a literal
+argument value. They are independent, so a deprecated item is still
+perfectly usable — it is simply on notice.
 
 The three states get three different codes, so a message never has to guess
 which one you meant:
 
 | State | Code | Meaning |
 |---|---|---|
-| Not introduced yet | `W135` (command, subcommand, argument value) / `W136` (option) | The resolved version predates the introducing release. |
+| Not introduced yet | `W135` (command, subcommand, second-level subcommand, argument value) / `W136` (option) | The resolved version predates the introducing release. |
 | Deprecated | **`W144`** | The resolved version is at or past the deprecating release, and the item is still available. |
 | Retired | `W139` | The resolved version is at or past the retiring release, so the item is gone. |
 
@@ -37,7 +42,8 @@ already gone in 10.0.0, not that 10.0.0 is the last release with it. A
 retired item is never also reported as deprecated — `W139` supersedes
 `W144`.
 
-The version the analyser compares against is the resolved floor. For package
+The version the analyser compares against is the resolved [version
+floor](../../GLOSSARY.md#version-floor). For package
 syntax, that is the active profile's library pin, raised by any unconditional
 versioned `package require` in the file. For Tcl core syntax, it is the active
 Tcl dialect version, likewise raised by an unconditional `package require Tcl`

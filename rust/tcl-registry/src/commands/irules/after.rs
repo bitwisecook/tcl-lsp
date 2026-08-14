@@ -64,9 +64,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "When script is named, an id is returned for the script.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "after MILLI_SECONDS (-periodic)? (NESTING_SCRIPT)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -92,10 +91,9 @@ pub const fn spec() -> CommandSpec {
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         xc_translatable: Some(false),
         ..CommandSpec::DEFAULT

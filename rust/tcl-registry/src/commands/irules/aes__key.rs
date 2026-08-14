@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the created key.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "AES::key ('128' | '192' | '256')?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

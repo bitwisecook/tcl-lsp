@@ -19,9 +19,8 @@
 //! `math::statistics::minmax-histogram-limits` command.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "math::statistics::minmax-histogram-limits min max ?number?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

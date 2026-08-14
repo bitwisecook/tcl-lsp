@@ -1508,7 +1508,10 @@ command farewell {
         let store = PackStore::empty("mylib");
         assert_eq!(store.name(), "mylib");
         assert!(store.commands().is_empty());
-        assert!(store.source().contains("speclib mylib 1.0 {"));
+        assert!(store.source().contains(&format!(
+            "speclib mylib {} {{",
+            crate::render_spectcl::DSL_VERSION
+        )));
     }
 
     #[test]

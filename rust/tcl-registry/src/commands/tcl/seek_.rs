@@ -37,9 +37,8 @@ use crate::prelude::*;
 // there is no documented behavioural delta to model — see the module doc
 // on `spec()` below).
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "seek channelId offset ?origin?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `origin` (position 2)'s three legal values — present, unchanged, in
@@ -110,8 +109,7 @@ pub fn spec() -> CommandSpec {
             // `reads: true, writes: false`.
             reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Change the access position for an open channel.",

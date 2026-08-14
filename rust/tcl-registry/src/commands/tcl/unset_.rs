@@ -65,9 +65,8 @@ use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "unset ?-nocomplain? ?--? ?name name name ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `unset ?-nocomplain? ?--? ?name name name ...?` — every trailing word is a
@@ -163,10 +162,8 @@ pub fn spec() -> CommandSpec {
         },
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Delete one or more variables.",

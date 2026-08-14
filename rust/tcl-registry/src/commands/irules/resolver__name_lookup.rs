@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The response will be a dns_message structure usable by the RESOLVER::summarize, DNSMSG::header, and DNSMSG::section iRule commands.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "RESOLVER::name_lookup NET_RESOLVER_NAME NAME TYPE",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

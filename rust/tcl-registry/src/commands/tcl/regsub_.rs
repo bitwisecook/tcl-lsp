@@ -21,9 +21,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "regsub ?switches? exp string subSpec ?varName?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Fold the value-returning form of `regsub` for literal arguments.
@@ -258,10 +257,8 @@ pub fn spec() -> CommandSpec {
         var_write_typing: VarWriteTyping::Fixed(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         options: OPTIONS,
         hover: Some(HoverSnippet {

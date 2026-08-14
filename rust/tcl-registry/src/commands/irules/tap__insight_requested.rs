@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Return boolean value if TAP modules wants to get an insight from any module.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "TAP::insight_requested",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

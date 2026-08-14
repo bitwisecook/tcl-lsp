@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The getter returns the flow's current Secure Renegotiation mode: zero for request, one for require, or two for require-strict. The request, require, and require-strict arguments set the mode for subsequent SSL handshakes on the flow.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "SSL::secure_renegotiation (request | require | require-strict)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

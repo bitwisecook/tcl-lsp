@@ -33,9 +33,8 @@ use crate::prelude::*;
 /// value below. So `self` carries a single, version-ungated form under its
 /// command-level `TCL86_PLUS` gate.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "self ?subcommand?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// `self subcommand`'s nine legal words, each a bare keyword taking no

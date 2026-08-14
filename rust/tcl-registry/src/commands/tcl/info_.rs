@@ -22,9 +22,8 @@ use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "info option ?arg arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// A concise `SubSubCommand` — most `info object`/`info class` operations are
@@ -39,23 +38,31 @@ const fn sub(name: &'static str, detail: &'static str, synopsis: &'static str) -
         name,
         detail,
         synopsis,
-        dialects: None,
+        ..SubSubCommand::DEFAULT
     }
 }
 
 /// A `SubSubCommand` gated to a later dialect (e.g. the 9.0 `TclOO`
 /// introspection additions below, TIP 500/524/558).
+///
+/// `since` states the same fact on the *version* axis that `dialects` states
+/// on the dialect-bit axis: `info` is a core command with no owning package,
+/// so its lifecycle axis is the Tcl core release the file targets. The two
+/// are kept as separate arguments rather than derived from one another
+/// because a dialect set is a membership mask, not an ordered release.
 const fn sub_since(
     name: &'static str,
     detail: &'static str,
     synopsis: &'static str,
     dialects: DialectSet,
+    since: &'static str,
 ) -> SubSubCommand {
     SubSubCommand {
         name,
         detail,
         synopsis,
         dialects: Some(dialects),
+        lifecycle: Lifecycle::introduced_in(since),
     }
 }
 
@@ -78,6 +85,7 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
         "Report the object's unique creation id, fixed for its lifetime.",
         "info object creationid object",
         DialectSet::TCL90_PLUS,
+        "9.0",
     ),
     sub(
         "definition",
@@ -124,6 +132,7 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
         "List the declared properties of an object.",
         "info object properties object ?options...?",
         DialectSet::TCL90_PLUS,
+        "9.0",
     ),
     sub(
         "variables",
@@ -161,6 +170,7 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
         "Report the definition namespace used for kind definitions of the class: -class (the default) or -instance.",
         "info class definitionnamespace class ?kind?",
         DialectSet::TCL90_PLUS,
+        "9.0",
     ),
     sub(
         "destructor",
@@ -202,6 +212,7 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
         "List the declared properties of a class.",
         "info class properties class ?options...?",
         DialectSet::TCL90_PLUS,
+        "9.0",
     ),
     sub(
         "subclasses",
@@ -540,8 +551,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
     },
@@ -586,9 +596,7 @@ pub fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         hover: Some(HoverSnippet {
             summary: "Information about the state of the Tcl interpreter",

@@ -21,16 +21,13 @@
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "catch script ?resultVarName? ?optionsVarName?",
         // `optionsVarName` (and the return-options dict it receives) was
         // added to the synopsis in Tcl 8.5's catch(n); 8.4's synopsis is
@@ -42,6 +39,7 @@ const FORMS: &[FormSpec] = &[
         // versions", ratified D3), so version-dependent behaviour follows
         // 8.4 there too.
         dialects: Some(DialectSet::TCL85_PLUS),
+        ..FormSpec::DEFAULT
     },
     // Tcl 8.4's `catch(n)`: `catch script ?varName?` — a single result
     // variable (there named `varName`, not `resultVarName`) and no
@@ -49,9 +47,9 @@ const FORMS: &[FormSpec] = &[
     // same embedded 8.4.6 core (see the comment above), so it follows this
     // shape too.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "catch script ?varName?",
         dialects: Some(DialectSet::TCL84.union(DialectSet::IRULES)),
+        ..FormSpec::DEFAULT
     },
 ];
 

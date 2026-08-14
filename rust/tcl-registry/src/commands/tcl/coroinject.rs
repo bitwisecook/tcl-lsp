@@ -26,9 +26,8 @@
 //! pages.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "coroinject coroName command ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 // `coroinject coroName command ?arg...?` schedules an arbitrary command to run
@@ -36,11 +35,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 // value).  Deferred arbitrary code with unknown reads/writes — treated like
 // `eval` so the optimiser never eliminates or reorders it.
 static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 pub fn spec() -> CommandSpec {

@@ -1529,51 +1529,160 @@ fn sweep_dialect_catalogue() {
 }
 
 /// Every declared lifecycle in every registry — commands, subcommands,
-/// options, versioned argument values, iRules events, and BIG-IP profile
-/// types — must order its releases legally (#1210).
+/// second-level subcommands, options, option constraints, forms, side
+/// effects, enumerable argument values, versioned argument values, iRules
+/// events, and BIG-IP profile types — must order its releases legally
+/// (#1210), and a child's window must lie inside its parent's.
 ///
 /// Bad ordering (`deprecated < introduced`, `retired < deprecated`, …) is
 /// unrepresentable downstream: `state_at` would report a state the data
 /// cannot actually reach, so it is rejected here rather than at a consumer.
+/// A child that outlives its parent is the same kind of unreachable claim —
+/// an option of a command retired at 3.0 cannot itself survive to 4.0 — so
+/// the intersection with the parent must come back unchanged.
 ///
 /// registry-metadata: structural invariants over registry data, not C-Tcl
 /// facts.
+/// Assert one lifecycle orders its releases legally.
+fn check_lifecycle(what: &str, lifecycle: tcl_registry::lifecycle::Lifecycle) {
+    assert_eq!(lifecycle.validate(), Ok(()), "{what}: {lifecycle:?}");
+}
+
+/// Assert `child` stays inside `parent`'s window.
+///
+/// A child inherits its parent's gate, so every release the child *declares
+/// for itself* must survive being narrowed by the parent — anything else
+/// claims availability the parent does not have. A release the child leaves
+/// open is the inherited one and is not compared, and the narrowed window
+/// must itself still be a legal ordering (a child introduced after its
+/// parent retired is unreachable).
+fn check_lifecycle_contained(
+    what: &str,
+    child: tcl_registry::lifecycle::Lifecycle,
+    parent: tcl_registry::lifecycle::Lifecycle,
+) {
+    let merged = child.intersect(parent);
+    for (release, own, narrowed) in [
+        ("introduced", child.introduced, merged.introduced),
+        ("deprecated", child.deprecated, merged.deprecated),
+        ("retired", child.retired, merged.retired),
+    ] {
+        if own.is_some() {
+            assert_eq!(
+                own, narrowed,
+                "{what}: declared {release} {own:?} reaches outside its parent {parent:?}"
+            );
+        }
+    }
+    assert_eq!(
+        merged.validate(),
+        Ok(()),
+        "{what}: {child:?} narrowed by its parent {parent:?} is unreachable"
+    );
+}
+
+/// Both lifecycle checks at once, for a child of `parent`.
+fn check_lifecycle_under(
+    what: &str,
+    child: tcl_registry::lifecycle::Lifecycle,
+    parent: tcl_registry::lifecycle::Lifecycle,
+) {
+    check_lifecycle(what, child);
+    check_lifecycle_contained(what, child, parent);
+}
+
+/// Every lifecycle hung off one subcommand: its options, option constraints,
+/// side effects, second-level subcommands, and both argument-value tables.
+fn check_subcommand_lifecycles(path: &str, sub: &tcl_registry::SubCommand) {
+    for opt in sub.options {
+        check_lifecycle_under(
+            &format!("{path} {}", opt.name),
+            opt.lifecycle,
+            sub.lifecycle,
+        );
+    }
+    for constraint in sub.option_constraints {
+        let what = format!("{path} constraint {:?}", constraint.options);
+        check_lifecycle_under(&what, constraint.lifecycle, sub.lifecycle);
+    }
+    for effect in sub.side_effects {
+        let what = format!("{path} side_effect {:?}", effect.target);
+        check_lifecycle_under(&what, effect.lifecycle, sub.lifecycle);
+    }
+    for sub_sub in sub.sub_subcommands {
+        let what = format!("{path} {}", sub_sub.name);
+        check_lifecycle_under(&what, sub_sub.lifecycle, sub.lifecycle);
+    }
+    for (index, values) in sub.arg_values {
+        for value in *values {
+            let what = format!("{path} arg{index} = {}", value.value);
+            check_lifecycle_under(&what, value.lifecycle, sub.lifecycle);
+        }
+    }
+    for gate in sub.versioned_arg_values {
+        let what = format!("{path} arg{} = {}", gate.index, gate.value);
+        check_lifecycle_under(&what, gate.lifecycle, sub.lifecycle);
+    }
+}
+
+/// Every lifecycle hung off one command, recursing into its subcommands.
+fn check_command_lifecycles(root: &str, spec: &tcl_registry::CommandSpec) {
+    check_lifecycle(root, spec.lifecycle);
+    for opt in spec.options {
+        check_lifecycle_under(
+            &format!("{root} {}", opt.name),
+            opt.lifecycle,
+            spec.lifecycle,
+        );
+    }
+    for constraint in spec.option_constraints {
+        let what = format!("{root} constraint {:?}", constraint.options);
+        check_lifecycle_under(&what, constraint.lifecycle, spec.lifecycle);
+    }
+    for form in spec.forms {
+        let what = format!("{root} form {}", form.synopsis);
+        check_lifecycle_under(&what, form.lifecycle, spec.lifecycle);
+    }
+    for effect in spec.side_effects {
+        let what = format!("{root} side_effect {:?}", effect.target);
+        check_lifecycle_under(&what, effect.lifecycle, spec.lifecycle);
+    }
+    for (index, values) in spec.arg_values {
+        for value in *values {
+            let what = format!("{root} arg{index} = {}", value.value);
+            check_lifecycle_under(&what, value.lifecycle, spec.lifecycle);
+        }
+    }
+    for gate in spec.versioned_arg_values {
+        let what = format!("{root} arg{} = {}", gate.index, gate.value);
+        check_lifecycle_under(&what, gate.lifecycle, spec.lifecycle);
+    }
+    for sub in spec.subcommands {
+        let path = format!("{root} {}", sub.name);
+        check_lifecycle_under(&path, sub.lifecycle, spec.lifecycle);
+        check_subcommand_lifecycles(&path, sub);
+    }
+}
+
 #[test]
 fn sweep_lifecycle_ordering_is_valid_everywhere() {
-    let check = |what: &str, lifecycle: tcl_registry::lifecycle::Lifecycle| {
-        assert_eq!(lifecycle.validate(), Ok(()), "{what}: {lifecycle:?}");
-    };
-
     for &dname in LOADABLE_DIALECTS {
         let reg = registry_for_dialect(dname);
         let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
         for name in &names {
             let Some(spec) = reg.get(name) else { continue };
-            check(&format!("{dname}/{name}"), spec.lifecycle);
-            for opt in spec.options {
-                check(&format!("{dname}/{name} {}", opt.name), opt.lifecycle);
-            }
-            for sub in spec.subcommands {
-                let path = format!("{dname}/{name} {}", sub.name);
-                check(&path, sub.lifecycle);
-                for opt in sub.options {
-                    check(&format!("{path} {}", opt.name), opt.lifecycle);
-                }
-                for gate in sub.versioned_arg_values {
-                    check(&format!("{path} = {}", gate.value), gate.lifecycle);
-                }
-            }
+            check_command_lifecycles(&format!("{dname}/{name}"), spec);
         }
     }
 
     let events = EventRegistry::build();
     for event in events.all_event_names() {
-        check(event, events.event_lifecycle(event).expect("known event"));
+        check_lifecycle(event, events.event_lifecycle(event).expect("known event"));
     }
 
     let profiles = ProfileRegistry::build();
     for name in profiles.all_profile_names() {
-        check(
+        check_lifecycle(
             name,
             profiles.profile_lifecycle(name).expect("known profile"),
         );

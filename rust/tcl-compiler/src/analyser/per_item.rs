@@ -950,6 +950,8 @@ impl Analyser {
     fn graft_fragment_pending(&mut self, db: &DeferredBody, frag: BodyFragment, delta: u32) {
         self.ensemble_namespaces.extend(frag.ensembles);
         self.pending_arity.extend(frag.pending_arity);
+        self.pending_option_conflicts
+            .extend(frag.pending_option_conflicts);
         self.pending_user_call_arity
             .extend(frag.pending_user_call_arity);
         self.pending_ctor_arity.extend(frag.pending_ctor_arity);
@@ -1135,6 +1137,10 @@ pub struct BodyFragment {
     proc_scope: super::types::Scope,
     ensembles: std::collections::HashSet<String>,
     pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
+    /// Version-gated W147 option conflicts the body raised, carried so the
+    /// shell decides them against the *whole document's* `package require`
+    /// set rather than the fragment's.
+    pending_option_conflicts: Vec<super::diagnostics::version_gate::GatedOptionConflict>,
     pending_user_call_arity: Vec<super::types::PendingUserCallArity>,
     pending_ctor_arity: Vec<super::types::PendingCtorArity>,
     pending_next_arity: Vec<super::types::PendingNextArity>,
@@ -1387,6 +1393,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         proc_scope,
         ensembles: a.ensemble_namespaces,
         pending_arity: a.pending_arity,
+        pending_option_conflicts: a.pending_option_conflicts,
         pending_user_call_arity: a.pending_user_call_arity,
         pending_ctor_arity: a.pending_ctor_arity,
         pending_next_arity: a.pending_next_arity,
@@ -1861,6 +1868,9 @@ fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
     for (_, ns, _, _) in &mut frag.pending_arity {
         fix(ns);
     }
+    for conflict in &mut frag.pending_option_conflicts {
+        fix(&mut conflict.namespace);
+    }
     for (_, ns, _, _) in &mut frag.disabled_commands {
         fix(ns);
     }
@@ -1909,6 +1919,9 @@ fn rebase_pending_names(frag: &mut BodyFragment, fix: &impl Fn(&mut String)) {
 fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for (_, _, _, diag) in &mut frag.pending_arity {
         rebase_diag(diag, d);
+    }
+    for conflict in &mut frag.pending_option_conflicts {
+        rebase_diag(&mut conflict.diagnostic, d);
     }
     for (_, _, _, diag) in &mut frag.disabled_commands {
         rebase_diag(diag, d);

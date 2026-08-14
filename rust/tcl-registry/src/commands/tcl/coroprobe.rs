@@ -20,20 +20,17 @@
 //! resuming it.
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "coroprobe coroName command ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 // `coroprobe coroName command ?arg...?` evaluates an arbitrary command *now* in
 // the paused coroutine's context and returns its result — so it runs unknown
 // code with unknown reads/writes, matching `eval` / `uplevel`.
 static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Command spec for `coroprobe`.

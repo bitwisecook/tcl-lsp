@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "The age of the route metrics in seconds",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ROUTE::age DESTINATION_IP_ADDRESS (GATEWAY_IP_ADDRESS)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         deprecated_replacement: Some("(removed)"),
         ..CommandSpec::DEFAULT

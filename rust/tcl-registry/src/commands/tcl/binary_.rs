@@ -28,34 +28,30 @@ use crate::prelude::*;
 // their prior contents), matching `scan_.rs`'s identical declaration.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "binary format formatString ?arg arg ...?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "binary scan string formatString ?varName varName ...?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     // `binary encode`/`binary decode` were added in Tcl 8.6 (TIP 317) — see
     // the matching gate on the `encode`/`decode` `SubCommand` entries below.
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "binary encode format ?-option value ...? data",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "binary decode format ?-option value ...? data",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
 ];
 

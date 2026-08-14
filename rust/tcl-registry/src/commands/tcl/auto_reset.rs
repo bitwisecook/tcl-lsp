@@ -22,9 +22,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "auto_reset",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `auto_reset`.
@@ -75,8 +74,7 @@ pub fn spec() -> CommandSpec {
                 target: SideEffectTarget::Variable,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // Deletes (renames away) every command still resolvable from
             // the auto-load index at call time, so a fresh copy loads on
@@ -89,10 +87,8 @@ pub fn spec() -> CommandSpec {
             // currently resolves.
             SideEffect {
                 target: SideEffectTarget::ProcDefinition,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

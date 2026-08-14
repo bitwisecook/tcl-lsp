@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the JSON element whose value was set (same element as the first argument passed to the command).",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "JSON::set JSON_ELEMENT JSON_TYPE (JSON_VALUE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
-            reads: false,
             writes: true,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

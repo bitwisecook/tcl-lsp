@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "ANTIFRAUD::enable_log No return value (enables Anti-Fraud TMM logs at default log level for the current transaction).",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "ANTIFRAUD::enable_log (LOG_LEVEL)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::AsmState,
-            reads: false,
             writes: true,
             connection_side: ConnectionSide::Client,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

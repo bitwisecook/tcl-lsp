@@ -537,9 +537,37 @@ pub struct OptionConstraint {
     pub options: &'static [&'static str],
     /// Tcl dialects in which this relationship applies.
     pub dialects: Option<DialectSet>,
+    /// Introduction / deprecation / retirement releases of this relationship
+    /// on the owning command's package version axis — a conflict that only
+    /// exists once both options do. [`Lifecycle::UNSPECIFIED`] means it
+    /// applies in every package version.
+    pub lifecycle: Lifecycle,
 }
 
 impl OptionConstraint {
+    /// Default value for all fields — used with `..OptionConstraint::DEFAULT`.
+    pub const DEFAULT: Self = Self {
+        options: &[],
+        dialects: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+    };
+
+    /// Whether this constraint applies given the resolved *`package_version`*.
+    ///
+    /// *`package_version`* is the guaranteed-available floor from a
+    /// `package require` (see [`crate::version::requirement_lower_bound`]).
+    /// `None` is permissive.
+    #[must_use]
+    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This constraint's lifecycle state at the resolved *`package_version`*.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
+    }
+
     /// Whether this constraint is active for `dialect`, inheriting the
     /// command/subcommand dialect set when it has no own gate.
     #[must_use]
@@ -914,6 +942,13 @@ pub struct CommandSpec {
     /// per-form values to the command level since the completion
     /// consumer keys purely on positional index.
     pub arg_values: &'static [(u8, &'static [ArgValue])],
+
+    /// Package-version gates for individual literal values in
+    /// [`Self::arg_values`] — the command-level twin of
+    /// [`SubCommand::versioned_arg_values`], indexed 0-based *after the
+    /// command name*. A value with no entry here is present in every
+    /// package version.
+    pub versioned_arg_values: &'static [VersionedArgValue],
 
     /// Whether `ArgRole::Body` arguments of this command run in the
     /// caller's frame ([`BodyKind::Plain`]) or in a separate
@@ -1423,6 +1458,7 @@ impl CommandSpec {
         option_constraints: &[],
         reserved_trailing_words: 0,
         arg_values: &[],
+        versioned_arg_values: &[],
         body_kind: BodyKind::Plain,
         body_arg_implicit_args: 0,
         taint_output_sink: None,
@@ -1564,13 +1600,24 @@ impl CommandSpec {
     }
 
     /// The command's primary invocation synopsis — the first non-empty
-    /// [`Self::forms`] entry, falling back to the first non-empty hover
-    /// synopsis line. `None` when the spec declares neither. Used for the
-    /// "usage: …" suffix on arity diagnostics (E002/E003/E005).
+    /// [`Self::forms`] entry *available at `package_version`*, falling back to
+    /// the first non-empty hover synopsis line. `None` when the spec declares
+    /// neither. Used for the "usage: …" suffix on arity diagnostics
+    /// (E002/E003/E005).
+    ///
+    /// A [`FormSpec`] carries its own [`Lifecycle`], so a form a later release
+    /// added — or withdrew — is skipped when `package_version` excludes it: a
+    /// document pinned to the older release is told the usage *it* has, not a
+    /// synopsis it cannot call. `None` is permissive (every form is eligible),
+    /// matching the rest of the `*_for_version` family; the hover fallback is
+    /// never gated, because a hover line carries no lifecycle to gate on.
+    ///
+    /// [`FormSpec`]: crate::hover::FormSpec
     #[must_use]
-    pub fn primary_synopsis(&self) -> Option<&'static str> {
+    pub fn primary_synopsis(&self, package_version: Option<&str>) -> Option<&'static str> {
         self.forms
             .iter()
+            .filter(|form| form.available_for_version(package_version))
             .map(|f| f.synopsis)
             .chain(self.hover.iter().flat_map(|h| h.synopsis.iter().copied()))
             .find(|s| !s.is_empty())
@@ -1595,10 +1642,20 @@ impl CommandSpec {
     /// required word contributes only its trailing run: the words a caller
     /// can append without also having to supply something in between.
     ///
+    /// A form is additionally skipped when its [`Lifecycle`] excludes
+    /// `package_version` — appending a word that only exists from a later
+    /// release is exactly the fix a pinned document must not be offered.
+    /// `None` is permissive (every form is eligible).
+    ///
     /// Returns an empty vector when the command declares no forms, none apply
-    /// to *dialect*, or the applicable ones end in a required word.
+    /// to *dialect* and *`package_version`*, or the applicable ones end in a
+    /// required word.
     #[must_use]
-    pub fn optional_trailing_arg_names(&self, dialect: DialectSet) -> Vec<&'static str> {
+    pub fn optional_trailing_arg_names(
+        &self,
+        dialect: DialectSet,
+        package_version: Option<&str>,
+    ) -> Vec<&'static str> {
         self.forms
             .iter()
             .filter(|form| {
@@ -1606,6 +1663,7 @@ impl CommandSpec {
                     .or(self.dialects)
                     .is_none_or(|allowed| allowed.contains(dialect))
             })
+            .filter(|form| form.available_for_version(package_version))
             .map(|form| optional_trailing_placeholders(form.synopsis))
             .max_by_key(Vec::len)
             .unwrap_or_default()
@@ -1776,6 +1834,52 @@ impl CommandSpec {
             .iter()
             .find(|(i, _)| *i == index)
             .map_or(&[], |(_, vs)| vs)
+    }
+
+    /// Whether an enumerable positional argument value exists at
+    /// `package_version` — the command-level twin of
+    /// [`SubCommand::arg_value_available_for_version`].
+    ///
+    /// `index` is 0-based *after the command name*. Both gates apply: the
+    /// value's own [`ArgValue::lifecycle`] and any
+    /// [`Self::versioned_arg_values`] entry naming it. A value with neither
+    /// is ungated, and an ungated value is always available.
+    #[must_use]
+    pub fn arg_value_available_for_version(
+        &self,
+        index: u8,
+        value: &str,
+        package_version: Option<&str>,
+    ) -> bool {
+        let declared = self
+            .arg_values_at(index)
+            .iter()
+            .find(|v| v.value == value)
+            .is_none_or(|v| v.available_for_version(package_version));
+        declared
+            && self
+                .versioned_arg_values
+                .iter()
+                .find(|gate| gate.index == index && gate.value == value)
+                .is_none_or(|gate| gate.available_for_version(package_version))
+    }
+
+    /// The enumerable values for the 0-based `index` *after the command name*
+    /// that exist at `package_version` — [`Self::arg_values_at`] with both
+    /// version gates applied, so completion offers exactly what the target
+    /// release accepts.
+    #[must_use]
+    pub fn available_arg_values_at(
+        &self,
+        index: u8,
+        package_version: Option<&str>,
+    ) -> Vec<&'static ArgValue> {
+        self.arg_values_at(index)
+            .iter()
+            .filter(|value| {
+                self.arg_value_available_for_version(index, value.value, package_version)
+            })
+            .collect()
     }
 
     /// Check if this command is available in a given dialect.
@@ -2363,6 +2467,54 @@ pub struct SubSubCommand {
     pub synopsis: &'static str,
     /// Dialect membership; `None` inherits from the owning subcommand.
     pub dialects: Option<DialectSet>,
+    /// Introduction / deprecation / retirement releases of this second-level
+    /// subcommand on the owning command's package version axis.
+    /// [`Lifecycle::UNSPECIFIED`] means it is present in every package
+    /// version — orthogonal to [`Self::dialects`], which gates on the Tcl
+    /// *core* version.
+    pub lifecycle: Lifecycle,
+}
+
+/// Whether `sub_sub` is present in `dialect`, inheriting `parent_dialects`
+/// (the owning subcommand's gate) when it declares none of its own.
+fn sub_subcommand_supports_dialect(
+    sub_sub: &SubSubCommand,
+    dialect: Option<DialectSet>,
+    parent_dialects: Option<DialectSet>,
+) -> bool {
+    match (dialect, sub_sub.dialects.or(parent_dialects)) {
+        (Some(want), Some(have)) => have.intersects(want),
+        _ => true,
+    }
+}
+
+impl SubSubCommand {
+    /// Default value for all fields — used with `..SubSubCommand::DEFAULT`.
+    pub const DEFAULT: Self = Self {
+        name: "",
+        detail: "",
+        synopsis: "",
+        dialects: None,
+        lifecycle: Lifecycle::UNSPECIFIED,
+    };
+
+    /// Whether this second-level subcommand exists given the resolved
+    /// *`package_version`*.
+    ///
+    /// *`package_version`* is the guaranteed-available floor from a
+    /// `package require` (see [`crate::version::requirement_lower_bound`]).
+    /// `None` is permissive.
+    #[must_use]
+    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
+        self.lifecycle.available_at(package_version)
+    }
+
+    /// This second-level subcommand's lifecycle state at the resolved
+    /// *`package_version`*.
+    #[must_use]
+    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
+        self.lifecycle.state_at(package_version)
+    }
 }
 
 impl SubCommand {
@@ -2531,6 +2683,9 @@ impl SubCommand {
 
     /// Whether an enumerable positional argument value exists at
     /// `package_version`.
+    ///
+    /// Both gates apply: the value's own [`ArgValue::lifecycle`] and any
+    /// [`Self::versioned_arg_values`] entry naming it.
     #[must_use]
     pub fn arg_value_available_for_version(
         &self,
@@ -2538,10 +2693,34 @@ impl SubCommand {
         value: &str,
         package_version: Option<&str>,
     ) -> bool {
-        self.versioned_arg_values
+        let declared = self
+            .arg_values_at(index)
             .iter()
-            .find(|gate| gate.index == index && gate.value == value)
-            .is_none_or(|gate| gate.available_for_version(package_version))
+            .find(|v| v.value == value)
+            .is_none_or(|v| v.available_for_version(package_version));
+        declared
+            && self
+                .versioned_arg_values
+                .iter()
+                .find(|gate| gate.index == index && gate.value == value)
+                .is_none_or(|gate| gate.available_for_version(package_version))
+    }
+
+    /// The enumerable values for the 0-based `index` *after the subcommand
+    /// word* that exist at `package_version` — [`Self::arg_values_at`] with
+    /// both version gates applied.
+    #[must_use]
+    pub fn available_arg_values_at(
+        &self,
+        index: u8,
+        package_version: Option<&str>,
+    ) -> Vec<&'static ArgValue> {
+        self.arg_values_at(index)
+            .iter()
+            .filter(|value| {
+                self.arg_value_available_for_version(index, value.value, package_version)
+            })
+            .collect()
     }
 
     /// [`leading_option_word_count`] against this subcommand's own
@@ -2596,10 +2775,48 @@ impl SubCommand {
         word: &str,
         dialect: DialectSet,
     ) -> Option<&'static SubSubCommand> {
+        self.resolve_sub_subcommand_gated(word, Some(dialect), None)
+    }
+
+    /// The second-level subcommands available for `dialect` and
+    /// `package_version`, in declaration order — the table completion and the
+    /// analyser judge a third-level word against, so an operation the target
+    /// release does not have is neither offered nor accepted.
+    ///
+    /// `None` on either gate is permissive, matching every other availability
+    /// query in this module.
+    #[must_use]
+    pub fn available_sub_subcommands(
+        &self,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+    ) -> Vec<&'static SubSubCommand> {
         let parent = self.dialects;
-        self.resolve_sub_subcommand_filtered(word, |s| match s.dialects.or(parent) {
-            Some(d) => d.intersects(dialect),
-            None => true,
+        self.sub_subcommands
+            .iter()
+            .filter(|s| sub_subcommand_supports_dialect(s, dialect, parent))
+            .filter(|s| s.available_for_version(package_version))
+            .collect()
+    }
+
+    /// [`Self::resolve_sub_subcommand`] narrowed by both availability axes:
+    /// the Tcl-core `dialect` and the owning package's `package_version`
+    /// floor.
+    ///
+    /// Prefix uniqueness is judged against exactly the operations that exist
+    /// at the target, so `info class def` can be unambiguous on one release
+    /// and ambiguous on the next.
+    #[must_use]
+    pub fn resolve_sub_subcommand_gated(
+        &self,
+        word: &str,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+    ) -> Option<&'static SubSubCommand> {
+        let parent = self.dialects;
+        self.resolve_sub_subcommand_filtered(word, |s| {
+            sub_subcommand_supports_dialect(s, dialect, parent)
+                && s.available_for_version(package_version)
         })
     }
 
@@ -2739,15 +2956,225 @@ mod tests {
         let spec = registry.get("catch").expect("catch is a registry command");
         // Tcl 8.5 onward documents `catch script ?resultVarName? ?optionsVarName?`.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90),
+            spec.optional_trailing_arg_names(DialectSet::TCL90, None),
             vec!["resultVarName", "optionsVarName"]
         );
         // Tcl 8.4's `catch script ?varName?` has no options dictionary, so a
         // consumer running under that dialect never offers a word the release
         // has no argument slot for.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL84),
+            spec.optional_trailing_arg_names(DialectSet::TCL84, None),
             vec!["varName"]
         );
+    }
+
+    // -- FormSpec lifecycle in the form-selection queries -----------------
+    //
+    // A `FormSpec` carries its own lifecycle, so a synopsis a later release
+    // added must not be shown to — nor its optional words offered to — a
+    // document pinned below it.  The widest form is declared first, matching
+    // the shipped convention (`lassign`'s 8.6+ shape leads its 8.5 one).
+
+    const VERSIONED_FORMS: &[crate::hover::FormSpec] = &[
+        crate::hover::FormSpec {
+            synopsis: "fauxform target ?resultVar? ?optionsVar?",
+            lifecycle: Lifecycle::introduced_in("2.0"),
+            ..crate::hover::FormSpec::DEFAULT
+        },
+        crate::hover::FormSpec {
+            synopsis: "fauxform target ?resultVar?",
+            ..crate::hover::FormSpec::DEFAULT
+        },
+    ];
+
+    fn versioned_form_spec() -> CommandSpec {
+        CommandSpec {
+            name: "fauxform",
+            forms: VERSIONED_FORMS,
+            ..CommandSpec::DEFAULT
+        }
+    }
+
+    #[test]
+    fn primary_synopsis_skips_a_form_the_floor_predates() {
+        let spec = versioned_form_spec();
+        // At 1.0 the two-optional-word form does not exist yet, so the usage
+        // hint shows the shape that release actually has.
+        assert_eq!(
+            spec.primary_synopsis(Some("1.0")),
+            Some("fauxform target ?resultVar?")
+        );
+        // From 2.0 the newer form leads, exactly as declaration order says.
+        assert_eq!(
+            spec.primary_synopsis(Some("2.0")),
+            Some("fauxform target ?resultVar? ?optionsVar?")
+        );
+        // No floor resolved = permissive, i.e. the pre-existing behaviour.
+        assert_eq!(
+            spec.primary_synopsis(None),
+            Some("fauxform target ?resultVar? ?optionsVar?")
+        );
+    }
+
+    #[test]
+    fn optional_trailing_arg_names_skips_a_form_the_floor_predates() {
+        let spec = versioned_form_spec();
+        // A quick fix must not offer to append `optionsVar` to a document
+        // whose Fauxpkg is 1.x: that release has no argument slot for it.
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("1.0")),
+            vec!["resultVar"]
+        );
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("2.0")),
+            vec!["resultVar", "optionsVar"]
+        );
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90, None),
+            vec!["resultVar", "optionsVar"]
+        );
+    }
+
+    #[test]
+    fn a_retired_form_stops_being_documented() {
+        const RETIRED: &[crate::hover::FormSpec] = &[crate::hover::FormSpec {
+            synopsis: "fauxform target ?resultVar?",
+            lifecycle: Lifecycle::UNSPECIFIED.retired_from("3.0"),
+            ..crate::hover::FormSpec::DEFAULT
+        }];
+        let spec = CommandSpec {
+            name: "fauxform",
+            forms: RETIRED,
+            ..CommandSpec::DEFAULT
+        };
+        assert!(spec.primary_synopsis(Some("3.0")).is_none());
+        assert!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("3.0"))
+                .is_empty()
+        );
+        // Retirement is exclusive, so 2.9 still documents it.
+        assert_eq!(
+            spec.primary_synopsis(Some("2.9")),
+            Some("fauxform target ?resultVar?")
+        );
+    }
+
+    // -- command-level argument-value gates ------------------------------
+    //
+    // A literal value can be gated by its own `ArgValue::lifecycle`, by a
+    // positional `versioned_arg_values` entry, or by both; the accessor must
+    // apply every gate that names it.
+
+    const GATED_VALUES: &[ArgValue] = &[
+        ArgValue {
+            value: "old",
+            ..ArgValue::DEFAULT
+        },
+        ArgValue {
+            value: "new",
+            lifecycle: Lifecycle::introduced_in("2.0"),
+            ..ArgValue::DEFAULT
+        },
+    ];
+
+    const UNDECLARED_GATE: &[VersionedArgValue] = &[VersionedArgValue {
+        index: 0,
+        value: "undeclared",
+        lifecycle: Lifecycle::introduced_in("3.0"),
+    }];
+
+    fn gated_spec() -> CommandSpec {
+        CommandSpec {
+            name: "widget",
+            arg_values: &[(0, GATED_VALUES)],
+            versioned_arg_values: UNDECLARED_GATE,
+            ..CommandSpec::DEFAULT
+        }
+    }
+
+    #[test]
+    fn command_arg_value_availability_honours_both_gates() {
+        let spec = gated_spec();
+        // The value's own lifecycle …
+        assert!(!spec.arg_value_available_for_version(0, "new", Some("1.0")));
+        assert!(spec.arg_value_available_for_version(0, "new", Some("2.0")));
+        // … a positional gate for a value the table does not declare …
+        assert!(!spec.arg_value_available_for_version(0, "undeclared", Some("2.0")));
+        assert!(spec.arg_value_available_for_version(0, "undeclared", Some("3.0")));
+        // … an ungated value, an unknown value, and an unknown target are
+        // all permissive.
+        assert!(spec.arg_value_available_for_version(0, "old", Some("1.0")));
+        assert!(spec.arg_value_available_for_version(0, "anything", Some("1.0")));
+        assert!(spec.arg_value_available_for_version(0, "new", None));
+        // A different argument index shares no gates.
+        assert!(spec.arg_value_available_for_version(1, "new", Some("1.0")));
+    }
+
+    #[test]
+    fn available_arg_values_filters_the_declared_table() {
+        let spec = gated_spec();
+        let names = |version: Option<&str>| -> Vec<&str> {
+            spec.available_arg_values_at(0, version)
+                .iter()
+                .map(|value| value.value)
+                .collect()
+        };
+        assert_eq!(names(Some("1.0")), vec!["old"]);
+        assert_eq!(names(Some("2.0")), vec!["old", "new"]);
+        assert_eq!(names(None), vec!["old", "new"]);
+    }
+
+    // -- second-level subcommand gates -----------------------------------
+
+    const OPS: &[SubSubCommand] = &[
+        SubSubCommand {
+            name: "classic",
+            ..SubSubCommand::DEFAULT
+        },
+        SubSubCommand {
+            name: "modern",
+            lifecycle: Lifecycle::introduced_in("2.0"),
+            ..SubSubCommand::DEFAULT
+        },
+    ];
+
+    const OP_HOLDER: SubCommand = SubCommand {
+        name: "op",
+        sub_subcommands: OPS,
+        ..SubCommand::DEFAULT
+    };
+
+    #[test]
+    fn sub_subcommand_resolution_honours_the_package_floor() {
+        // Below the introduction the operation does not exist, so it neither
+        // resolves nor competes for a prefix …
+        assert!(
+            OP_HOLDER
+                .resolve_sub_subcommand_gated("modern", None, Some("1.0"))
+                .is_none()
+        );
+        assert_eq!(
+            OP_HOLDER
+                .resolve_sub_subcommand_gated("modern", None, Some("2.0"))
+                .map(|op| op.name),
+            Some("modern")
+        );
+        // … and an unknown target stays permissive, matching every other
+        // availability query.
+        assert_eq!(
+            OP_HOLDER
+                .resolve_sub_subcommand_gated("modern", None, None)
+                .map(|op| op.name),
+            Some("modern")
+        );
+        let names = |version: Option<&str>| -> Vec<&str> {
+            OP_HOLDER
+                .available_sub_subcommands(None, version)
+                .iter()
+                .map(|op| op.name)
+                .collect()
+        };
+        assert_eq!(names(Some("1.0")), vec!["classic"]);
+        assert_eq!(names(Some("2.0")), vec!["classic", "modern"]);
     }
 }

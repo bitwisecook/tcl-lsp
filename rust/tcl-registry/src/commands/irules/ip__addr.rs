@@ -35,9 +35,8 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns 0 IF NO MATCH, 1 for a match.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "IP::addr IP_ADDR_MASK 'equals' IP_ADDR_MASK",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         options: const {
             &[
@@ -73,9 +72,8 @@ pub const fn spec() -> CommandSpec {
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

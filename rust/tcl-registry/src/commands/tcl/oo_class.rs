@@ -154,16 +154,13 @@ fn class_create_with_namespace_state_transitions(
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "oo::class method ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// The three class-manufacturing methods `class.n` documents for

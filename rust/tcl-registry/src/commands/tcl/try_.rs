@@ -26,11 +26,9 @@ use crate::prelude::*;
 // the static spec can only declare the generic worst case rather than a
 // specific `SideEffectTarget`.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 // `try body ?handler...? ?finally script?` is `try`'s only documented
@@ -47,9 +45,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // `TCL86_PLUS` gate below, so this single entry already correctly
 // excludes 8.4/8.5 and every dialect pinned to an 8.4/8.5 base.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "try body ?handler...? ?finally script?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Whether a handler-body word is the literal `-` fallthrough marker

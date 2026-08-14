@@ -61,9 +61,8 @@
 use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "tclPkgSetup dir pkg version files",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `tclPkgSetup`.
@@ -125,10 +124,8 @@ pub fn spec() -> CommandSpec {
             // colliding `$cmd` from an earlier call is silently replaced.
             SideEffect {
                 target: SideEffectTarget::Variable,
-                reads: false,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
             // `package provide $pkg $version`: reads any version already
             // provided for pkg (to raise an error on a genuine conflict)
@@ -137,8 +134,7 @@ pub fn spec() -> CommandSpec {
                 target: SideEffectTarget::InterpState,
                 reads: true,
                 writes: true,
-                connection_side: ConnectionSide::None,
-                dialects: None,
+                ..SideEffect::DEFAULT
             },
         ],
         hover: Some(HoverSnippet {

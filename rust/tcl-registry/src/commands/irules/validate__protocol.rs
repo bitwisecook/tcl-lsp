@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns TRUE in case of match, FALSE otherwise.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "VALIDATE::protocol CLASSIFY_APP_NAME ANY_CHARS",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

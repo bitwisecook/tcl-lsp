@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "None.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "NSH::service_index DIRECTION (NSH_SERVICE_IDX)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

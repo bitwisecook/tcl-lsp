@@ -32,16 +32,15 @@ pub const fn spec() -> CommandSpec {
             return_value: "UDP::sendbuffer returns the maximum send buffer size (bytes) of a UDP connection.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "UDP::sendbuffer (UDP_SNDBUF_SIZE)?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::UdpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

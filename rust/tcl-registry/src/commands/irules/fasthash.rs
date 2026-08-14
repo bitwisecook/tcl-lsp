@@ -32,16 +32,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the numeric hash for the specified string",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "fasthash DATA",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

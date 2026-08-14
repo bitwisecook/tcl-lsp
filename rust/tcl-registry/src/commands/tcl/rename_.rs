@@ -20,10 +20,8 @@
 use crate::prelude::*;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::ProcDefinition,
-    reads: false,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 const RENAME_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
@@ -99,9 +97,8 @@ fn rename_state_transitions(arguments: InvocationArguments<'_>) -> StateTransiti
 }
 
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "rename oldName newName",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// Command spec for `rename`.

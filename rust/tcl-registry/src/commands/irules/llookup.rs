@@ -32,16 +32,13 @@ pub const fn spec() -> CommandSpec {
             return_value: "A Tcl list of values matching *KEY*.  When used with `[ASM::violation details]`, binary values such as `http_sub_violation` and `sig_data.kw_data.buffer` are base64-encoded.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "llookup MMAP KEY",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Global,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

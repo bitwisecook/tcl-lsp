@@ -13,17 +13,21 @@ default
 
 ## Question
 
-Why does the analyser warn that a command, subcommand, option, or
-argument value was removed in the version my file resolves to?
+Why does the analyser warn that a command, subcommand, second-level
+subcommand, option, or argument value was removed in the version my file
+resolves to?
 
 ## Why
 
-The registry records three lifecycle facts for each command, subcommand,
-option, and literal argument value: the release that introduced it, the
-release that deprecated it, and the release that removed it. W139 is the
-removal rung. It fires when the resolved version floor is **at or past**
-the removing release, which means the item no longer exists there and the
-call fails at run time.
+The registry records three lifecycle facts for every gateable level: a
+command, a subcommand, a second-level operation of a two-level ensemble
+(`info object class`), an option, and a literal argument value — the
+release that introduced it, the release that deprecated it, and the
+release that removed it. See [lifecycle (registry)](../../GLOSSARY.md#lifecycle-registry).
+W139 is the removal rung. It fires when the resolved [version
+floor](../../GLOSSARY.md#version-floor) is **at or past** the removing
+release, which means the item no longer exists there and the call fails
+at run time.
 
 The retiring release is **exclusive**: a removal recorded at `10.0.0`
 means `10.0.0` is the first release without the item, not the last one
@@ -67,6 +71,31 @@ thing to change.
 For BIG-IP projects, the floor is the configured BIG-IP version rather
 than a `package require`; adjusting it changes which release the whole
 file is checked against.
+
+## A version *range* that reaches a retirement is hedged, not asserted
+
+`package require Foo A-B` only guarantees the loaded `Foo` is somewhere in
+`[A, B)` — see [requirement straddle](../../GLOSSARY.md#requirement-straddle).
+The floor check above asks only about `A`, so a call can pass it while
+still being missing from part of the range the requirement accepts. When
+the range's **stated** upper bound reaches past a retirement, W139 fires
+with a hedged message instead of the plain removal wording:
+
+```tcl
+package require Tcl 8.5-9.1
+trace variable v w handler
+```
+
+reports:
+
+> 'trace variable' is not available in every version satisfying
+> requirement `8.5-9.1`: removed in Tcl 9.0.
+
+`trace variable` still works at the low end of the range, so the message
+says "not available in every version", not "was removed". Only a range
+with a real upper bound (`A-B`) can trigger this; `package require Tcl
+8.5` and `package require Tcl 8.5-` both state no ceiling and never
+straddle a retirement.
 
 ## How to suppress
 

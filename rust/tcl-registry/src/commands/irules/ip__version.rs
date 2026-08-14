@@ -32,16 +32,14 @@ pub const fn spec() -> CommandSpec {
             return_value: "IP version of a connection",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "IP::version",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
-            writes: false,
             connection_side: ConnectionSide::Both,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

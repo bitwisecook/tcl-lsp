@@ -16,12 +16,19 @@ tcl-lsp CLI
 | Context | How |
 |---------|-----|
 | Hosted | <https://bitwisecook.github.io/tcl-lsp/spec-studio/> |
-| Local | `make spec-studio-wasm`, then open `rust/tcl-spec-studio-wasm/dist/index.html` |
+| Local | `make spec-studio-wasm`, then serve `rust/tcl-spec-studio-wasm/dist/` (for example `cd rust/tcl-spec-studio-wasm/dist && python3 -m http.server`) and open it |
 
 ## How to use
 
-The studio is one self-contained HTML file. Open it and everything works —
-including offline, and including from a file you saved to disk.
+The studio is a small directory of files: `index.html` (which carries the
+registry, the analyser, and both renderers inside it), the code editor, and the
+Tcl language server. Serve that directory and everything works — including
+offline once the page has loaded.
+
+Opening `index.html` straight off disk still works for browsing, editing,
+rendering, and importing files: browsers block the editor and the language
+server on `file://` URLs, so the page falls back to its plain text editor and
+says so. Serve the directory to get the full editor.
 
 1. **Pick a dialect** at the top left. The command list underneath is that
    dialect's real registry, so Tcl 8.4 shows what Tcl 8.4 has.
@@ -68,13 +75,22 @@ and fields about scope aliasing. The same text sits behind the form's
 
 ### Nothing you type is uploaded
 
-The command registry, the Tcl compiler's analyser, and both renderers are
-compiled to WebAssembly and embedded in the page. It carries a content
-security policy of `connect-src 'none'`, so it *cannot* make a network
-request — an unreleased command or a proprietary package you import stays on
-your machine. Opening a GitHub issue is the one action that leaves the page,
-and it is a link you click: the issue form opens pre-filled in a new tab so
-you can read it before posting.
+The command registry, the Tcl compiler's analyser, both renderers, and the Tcl
+language server are compiled to WebAssembly and served from the page's own
+directory. Its content security policy allows the page to reach exactly two
+outside hosts — `api.github.com` and `codeload.github.com` — and only one
+feature can use them: the **Fetch releases from GitHub** panel described below,
+which acts only when you fill it in and press the button. Nothing else on the
+page can make a network request, so an unreleased command or a proprietary
+package you import stays on your machine.
+
+If you would rather the page never reach the network at all, do not use that
+panel: download the release archives yourself and upload them, which does
+exactly the same thing offline.
+
+Opening a GitHub issue is the other action that leaves the page, and it is a
+link you click: the issue form opens pre-filled in a new tab so you can read it
+before posting.
 
 ### Importing a package
 
@@ -97,15 +113,70 @@ every `proc` it finds becomes a draft specification:
 Every guess is listed with the evidence behind it, so you can accept it or
 overrule it. They are a starting point, not an assertion.
 
-### A DSL tab is coming
+### Importing several releases, to get version ranges
 
-Today the studio reads and writes the live registry as a form, a `.rs`
-module, and a stub. A fourth surface — open an existing `.tclspec`
-[SpecTcl pack](../../design/spec-packs.md) and edit it the same way, then
-save your changes back as SpecTcl instead of Rust — is designed but not
-yet built. Until it lands, write a pack by hand or with the spec-author
-Claude Code skill; see [how to write a SpecTcl
-pack](../kcs-howto-write-a-tclspec-pack.md).
+One snapshot can only say what a package looks like *now*. Switch the Import
+tab to **Several releases → version ranges** and add one `.zip` per release —
+GitHub's **Download ZIP** of a tag, a release asset, or any archive holding the
+sources. Each archive gets a version label, guessed from its file name and
+editable: the labels are what every range is derived from, so check them.
+
+The studio then drafts each release independently and diffs them, so
+`introduced_version` is the first release that actually *witnesses* the command
+appearing, and `retired_version` the first release it is gone from. Each command
+shows the bounds it ended up with and, underneath, the notes explaining how each
+one was reached — a derived bound with no reasoning beside it would not be
+checkable, so the reasoning is not hidden.
+
+**These archives are every release this package ever had** is off by default,
+and it changes one thing: with it off, a command present in your oldest archive
+only proves it existed *as far back as you looked*, so no `introduced_version`
+is recorded and a note says the introduction is unknown. Turn it on only when
+the oldest archive really is the package's first release.
+
+The same derivation is available outside the browser as `tcl spec import` — see
+[how to derive version ranges from release
+history](../kcs-howto-derive-version-ranges-from-releases.md).
+
+### Fetching releases from GitHub
+
+Beneath the archive list is the studio's one networked feature, walled off and
+labelled as such. Give it `owner/repo` (or paste a GitHub URL), press **List the
+tags**, pick the releases you want, and press **Download the selected
+releases**: it fetches each tag's source archive straight from
+`codeload.github.com` into your browser and stages it like an uploaded one.
+
+It is unauthenticated, so GitHub's shared limit of 60 requests an hour applies;
+when you hit it the panel says so and gives the time it resets. Any failure —
+rate limit, a repository that does not exist, a network that is not there —
+points you back at the upload path, which needs no network at all.
+
+### The Pack DSL tab
+
+Beside the form, `.rs` module, and stub, the **Pack DSL** tab holds the
+[SpecTcl pack](../../design/spec-packs.md)'s `.tclspec` source directly —
+the studio's one authoritative document for a pack you are building.
+Edit a field in the form and the DSL text updates; edit the text and the
+form, the command list, and the collision report all follow. Open an
+existing `.tclspec` with **Open a .tclspec…**, or start one from scratch
+and **Download** or **Add to files** when you are done. **Re-render
+canonically** rebuilds the whole document from its commands — useful
+after a lot of form editing, at the cost of your own comments and layout.
+
+The editing surface is Monaco — the same editor component VS Code is built
+on — and behind it runs **the actual Tcl language server**, compiled to
+WebAssembly and running in a Web Worker inside your browser. It is not a
+lookalike: it is the same server binary your editor talks to, so the
+colouring, hovers, completions, diagnostics, and formatting you get here
+are exactly what you would get in VS Code, Neovim, or JetBrains. The
+**Test** tab's Tcl sample gets the same treatment, opened under whichever
+dialect the selector at the top of the page names.
+
+The status line under the editor says what is running. If the language
+server cannot start — an old browser, WebAssembly turned off, the page
+opened from `file://` — the page says so and falls back to a plain text
+editor with the pack's own highlighting and validation, so nothing is
+silently missing.
 
 ### What a stub cannot carry
 
@@ -168,6 +239,6 @@ reasoning that produced it.
 - [Dialect command stubs](../../design/contracts/dialect-stubs.md) — the stub
   language the studio emits.
 - [SpecTcl pack design](../../design/spec-packs.md) — the `.tclspec`
-  authoring format the studio's coming DSL tab reads and writes.
+  authoring format the studio's Pack DSL tab reads and writes.
 - [How to write a SpecTcl pack](../kcs-howto-write-a-tclspec-pack.md) —
   write one by hand today.

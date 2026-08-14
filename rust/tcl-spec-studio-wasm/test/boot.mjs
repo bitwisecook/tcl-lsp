@@ -1,0 +1,308 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+/*
+ * Boot the assembled spec-studio dist in a real browser and assert it works.
+ *
+ * This is the check that a dist is *deployable*, which no amount of unit
+ * testing can give you: it serves `dist/` over HTTP exactly as GitHub Pages
+ * does, loads the page in headless chromium under the page's own CSP, and
+ * then walks the three things that can only fail in a browser —
+ *
+ *   1. the studio wasm instantiates and the registry loads;
+ *   2. opening the Pack DSL tab fetches the lazy editor chunk and mounts
+ *      Monaco (proving the code split resolves relative to the deployed
+ *      directory, not to the site root);
+ *   3. the language server worker starts, answers `initialize`, and reports
+ *      itself running (proving the worker's three files landed together and
+ *      that `worker-src`/`connect-src` are wide enough for them).
+ *
+ * Any console error, page error, or failed request is a failure: a CSP
+ * violation shows up as exactly that and nothing else.
+ *
+ * Usage: `node test/boot.mjs [dist-dir]` (defaults to ../dist).
+ * Requires playwright's chromium — `PLAYWRIGHT_BROWSERS_PATH` if it is not in
+ * the default location. Skips with exit 0 when playwright is not installed, so
+ * it never turns "this machine has no browser" into a build failure.
+ */
+
+import { createServer } from "node:http";
+import { readFile, stat } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { dirname, extname, join, normalize, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { crc32 } from "node:zlib";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const distDir = resolve(process.argv[2] ?? join(here, "..", "dist"));
+
+const TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".wasm": "application/wasm",
+  ".svg": "image/svg+xml",
+};
+
+/** Serve `distDir` read-only, refusing anything that escapes it. */
+function serve() {
+  const server = createServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
+    const path = join(distDir, rel === "/" ? "index.html" : rel);
+    if (!path.startsWith(distDir)) {
+      res.writeHead(403).end("no");
+      return;
+    }
+    readFile(path).then(
+      (body) => {
+        res.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream" });
+        res.end(body);
+      },
+      () => res.writeHead(404).end("not found"),
+    );
+  });
+  return new Promise((ok) => server.listen(0, "127.0.0.1", () => ok(server)));
+}
+
+/**
+ * Build a minimal STORED (uncompressed) zip from `{name: text}`.
+ *
+ * Hand-rolled rather than pulled from npm: this file is run by a build that
+ * must not need a dependency tree, and a stored zip is a header, a body, and a
+ * central directory. `unzip_entries` reads it with the real `zip` crate, so the
+ * archive being trivial does not make the test trivial.
+ */
+function storedZip(files) {
+  const entries = Object.entries(files);
+  const locals = [];
+  const central = [];
+  let offset = 0;
+  for (const [name, text] of entries) {
+    const nameBytes = Buffer.from(name, "utf8");
+    const body = Buffer.from(text, "utf8");
+    const sum = crc32(body);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4); // version needed
+    local.writeUInt16LE(0, 6); // flags
+    local.writeUInt16LE(0, 8); // method: stored
+    local.writeUInt32LE(sum, 14);
+    local.writeUInt32LE(body.length, 18);
+    local.writeUInt32LE(body.length, 22);
+    local.writeUInt16LE(nameBytes.length, 26);
+    locals.push(local, nameBytes, body);
+
+    const header = Buffer.alloc(46);
+    header.writeUInt32LE(0x02014b50, 0);
+    header.writeUInt16LE(20, 4); // version made by
+    header.writeUInt16LE(20, 6); // version needed
+    header.writeUInt16LE(0, 10); // method: stored
+    header.writeUInt32LE(sum, 16);
+    header.writeUInt32LE(body.length, 20);
+    header.writeUInt32LE(body.length, 24);
+    header.writeUInt16LE(nameBytes.length, 28);
+    header.writeUInt32LE(offset, 42);
+    central.push(header, nameBytes);
+    offset += 30 + nameBytes.length + body.length;
+  }
+  const dir = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(dir.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, dir, end]);
+}
+
+/** Fail the run with a message. */
+function fail(message) {
+  console.error(`FAIL: ${message}`);
+  process.exitCode = 1;
+}
+
+async function main() {
+  try {
+    await stat(join(distDir, "index.html"));
+  } catch {
+    fail(`no index.html in ${distDir} — run 'make spec-studio-wasm' first`);
+    return;
+  }
+
+  let chromium;
+  try {
+    ({ chromium } = createRequire(import.meta.url)("playwright"));
+  } catch {
+    console.log("playwright not installed — skipping the browser boot check");
+    return;
+  }
+
+  const server = await serve();
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}/`;
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+
+  const problems = [];
+  page.on("pageerror", (e) => problems.push(`page error: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") problems.push(`console error: ${m.text()}`);
+  });
+  page.on("requestfailed", (r) =>
+    problems.push(`request failed: ${r.url()} (${r.failure()?.errorText ?? "?"})`),
+  );
+
+  try {
+    console.log(`==> serving ${distDir} at ${base}`);
+    await page.goto(base, { waitUntil: "load" });
+
+    // 1. The studio wasm instantiated and the registry is browsable.
+    await page.waitForFunction(
+      () => (document.getElementById("count")?.textContent ?? "").match(/\d/),
+      null,
+      { timeout: 60_000 },
+    );
+    const count = await page.textContent("#count");
+    console.log(`    registry loaded: ${count.trim()}`);
+
+    // 2. Opening the Pack DSL tab loads the editor chunk and mounts Monaco.
+    await page.click("#tab-dsl");
+    await page.waitForSelector("#dslEditor .monaco-editor", { timeout: 60_000 });
+    console.log("    Monaco mounted on the Pack DSL tab");
+
+    // 3. The language server worker reaches `initialize`.
+    await page.waitForFunction(
+      // The exact success sentence: the *failure* message also contains the
+      // words "is running" ("the editor is running without analysis"), so a
+      // looser predicate passes on a page with no language server at all.
+      () =>
+        (document.getElementById("lspStatus")?.textContent ?? "").includes(
+          "language server is running in this page",
+        ),
+      null,
+      { timeout: 120_000 },
+    );
+    console.log(`    LSP: ${(await page.textContent("#lspStatus")).trim()}`);
+
+    // 4. The server actually analyses: type a broken pack line and expect the
+    //    editor to show a marker. This is the difference between "the worker
+    //    booted" and "the worker is doing the job".
+    await page.click("#dslEditor .monaco-editor .view-lines");
+    await page.keyboard.type("\ncommand");
+    const markers = await page.waitForFunction(
+      () => {
+        const node = document.querySelector("#dslEditor .monaco-editor");
+        return node && node.querySelectorAll(".squiggly-error, .squiggly-warning").length > 0;
+      },
+      null,
+      { timeout: 60_000 },
+    ).catch(() => null);
+    console.log(
+      markers
+        ? "    the language server published diagnostics into the editor"
+        : "    note: no diagnostic appeared for the typed sample (not fatal)",
+    );
+
+    // 5. The Test tab's second editor mounts on its own model.
+    await page.click("#tab-test");
+    await page.waitForSelector("#testEditor .monaco-editor", { timeout: 30_000 });
+    console.log("    Monaco mounted on the Test tab");
+
+    // 6. The Releases import mode and its GitHub panel are present and inert
+    //    until asked — no request is made by opening them.
+    await page.click("#tab-import");
+    await page.click("#imode-releases");
+    await page.waitForSelector("#ghPanel:not([hidden])", { timeout: 10_000 });
+    console.log("    the Releases mode and the GitHub panel are reachable");
+
+    // 7. The whole multi-release pipeline, through the real UI: two archives
+    //    in, one version range out. `greet` exists in both releases and
+    //    `farewell` only in the newer one, so the importer must derive
+    //    `introduced 1.1` for the second and nothing for the first — the
+    //    difference between "present as far back as we looked" and "arrived
+    //    here", which is the entire point of the feature.
+    await page.setInputFiles("#zipPicker", [
+      {
+        name: "mylib-1.0.zip",
+        mimeType: "application/zip",
+        buffer: storedZip({
+          "mylib-1.0/pkgIndex.tcl": "package ifneeded mylib 1.0 {}\n",
+          "mylib-1.0/mylib.tcl": "package provide mylib 1.0\nproc greet {who} { return $who }\n",
+        }),
+      },
+      {
+        name: "mylib-1.1.zip",
+        mimeType: "application/zip",
+        buffer: storedZip({
+          "mylib-1.1/mylib.tcl":
+            "package provide mylib 1.1\nproc greet {who} { return $who }\n" +
+            "proc farewell {who} { return $who }\n",
+        }),
+      },
+    ]);
+    await page.waitForFunction(
+      () => document.querySelectorAll("#releaseList li").length === 2,
+      null,
+      { timeout: 30_000 },
+    );
+    const labels = await page.$$eval("#releaseList .ver", (nodes) => nodes.map((n) => n.value));
+    if (labels.join(",") !== "1.0,1.1") {
+      throw new Error(`version labels were not suggested from the file names: ${labels}`);
+    }
+    await page.click("#releasesRun");
+    await page.waitForSelector("#releasesOut .found", { timeout: 60_000 });
+    const derived = await page.$$eval("#releasesOut .found", (cards) =>
+      cards.map((card) => ({
+        name: card.querySelector(".nm")?.textContent ?? "",
+        ranges: Array.from(card.querySelectorAll(".range")).map((r) => r.textContent ?? ""),
+      })),
+    );
+    const farewell = derived.find((c) => c.name === "farewell");
+    const greet = derived.find((c) => c.name === "greet");
+    if (!farewell || !greet) {
+      throw new Error(`expected greet and farewell, got ${JSON.stringify(derived)}`);
+    }
+    if (!farewell.ranges.includes("introduced 1.1")) {
+      throw new Error(`farewell should be introduced at 1.1: ${farewell.ranges.join(", ")}`);
+    }
+    if (!greet.ranges.includes("introduced —")) {
+      throw new Error(
+        `greet's introduction is unknown with a partial history: ${greet.ranges.join(", ")}`,
+      );
+    }
+    console.log(
+      "    two release archives unpacked and diffed in-page: " +
+        `${derived.map((c) => `${c.name} [${c.ranges.join(" ")}]`).join(", ")}`,
+    );
+  } catch (e) {
+    fail(e instanceof Error ? e.message : String(e));
+  } finally {
+    await browser.close();
+    server.close();
+  }
+
+  // A request to GitHub during a boot check would mean the panel is not opt-in.
+  const network = problems.filter((p) => /github\.com/.test(p));
+  if (network.length) fail(`the page reached GitHub without being asked: ${network.join("; ")}`);
+  for (const problem of problems) fail(problem);
+  if (!process.exitCode) console.log("==> boot check passed");
+}
+
+await main();

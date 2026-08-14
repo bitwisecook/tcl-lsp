@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [World-state contents lattice](#world-state-contents-lattice)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -286,6 +286,62 @@ state), each with its own arity and side-effect classification.  See
 `FormSpec` in `tcl_registry::hover`.
 
 See also: [Command registry](design/compiler/command-registry.md).
+
+### Lifecycle (registry)
+
+The `introduced` / `deprecated` / `retired` triple every gateable registry
+entity carries — a command, subcommand, second-level subcommand, option,
+option constraint, side effect, form, or literal argument value — on
+either its owning package's version axis or the core Tcl axis.
+`introduced` is the first release an entity exists in; `retired` is the
+first release it no longer exists in, an **exclusive** bound (`retired:
+10.0.0` means 10.0.0 is the first release without it, not the last one
+with it); `deprecated` marks it on notice while still available. A
+retired entity is never also reported deprecated. A child's lifecycle
+must stay inside its declaring parent's window — checked by
+`Lifecycle::intersect` — which the registry sweep enforces as a hard gate
+for every compiled-in spec. See `Lifecycle` in `tcl_registry::lifecycle`.
+
+See also: [SpecTcl pack design](design/spec-packs.md#version-ranges-introduced-deprecated-retired),
+[W135](kcs/codes/kcs-diagnostic-w135-command-needs-newer-package.md),
+[W139](kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version.md),
+[W144](kcs/codes/kcs-diagnostic-w144-deprecated-at-resolved-version.md).
+
+### Version floor
+
+The resolved minimum version of a package (or, on the Tcl-core axis, of
+Tcl itself) a source file is checked against when deciding whether a
+[lifecycle](#lifecycle-registry)-gated entity is available. The floor
+comes from the active dialect profile's library pin, raised by the
+highest guaranteed lower bound among the file's unconditional, unguarded
+`package require <pkg> <req>` lines — a require inside a branch that may
+not run (an `if` body, a `catch`, a `try` body or handler) does not count,
+because it does not guarantee the version on every path; a `try`
+`finally` script does, because it always runs. An explicit require can
+only *raise* the floor, never lower what the profile already ships. See
+`Analyser::package_version_floor` in
+`tcl_compiler::analyser::diagnostics::version_gate`.
+
+See also: [W135](kcs/codes/kcs-diagnostic-w135-command-needs-newer-package.md).
+
+### Requirement straddle
+
+The case where a `package require Foo A-B` version **range** admits more
+than the [version floor](#version-floor) alone guarantees: the floor
+check asks only about `A`, but the loaded package could really be
+anywhere in `[A, B)`, so a range whose stated upper bound `B` reaches past
+an entity's retiring release leaves that entity missing from part of the
+accepted window even though the floor is satisfied. Only a **stated**
+upper bound participates — a bare `A` or an open `A-` states no ceiling
+and cannot straddle anything. The straddling case reports the ordinary
+`W139` with a hedged message ("not available in every version satisfying
+requirement …") rather than the plain retirement wording, because the
+entity genuinely is available at the low end of the range. See
+`Analyser::requirement_straddle_diagnostic` in
+`tcl_compiler::analyser::diagnostics::version_gate`, and
+`tcl_registry::version::requirement_upper_bound`.
+
+See also: [W139](kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version.md).
 
 ### ObjectClassSpec
 

@@ -41,6 +41,13 @@
 //! An absent *target* version (the caller could not resolve one) is
 //! permissive: the item is treated as available and not deprecated, matching
 //! the registry's long-standing "no version known ⇒ do not gate" behaviour.
+//!
+//! Every release string here is a **plain dotted version** — a release a
+//! command surface changed in, never a prerelease label — so the comparisons
+//! below use [`crate::version::compare`] rather than the `package vcompare`
+//! port. A consumer ordering labels a package actually shipped (`1.0a1`,
+//! `1.0b1`, `1.0`) needs `tcl_dialect::compare_versions` instead;
+//! see [`crate::version::compare`]'s own note.
 
 use crate::deprecation::DeprecationFixHook;
 use crate::version::compare;

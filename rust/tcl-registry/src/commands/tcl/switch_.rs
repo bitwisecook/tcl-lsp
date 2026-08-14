@@ -21,11 +21,9 @@
 use crate::prelude::*;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
     writes: true,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 // Both forms are documented, word-for-word identically (modulo the
@@ -35,14 +33,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // shorthand. Neither form is dialect- or version-restricted.
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "switch ?options? string pattern body ?pattern body ...?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "switch ?options? string {pattern body ?pattern body ...?}",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 

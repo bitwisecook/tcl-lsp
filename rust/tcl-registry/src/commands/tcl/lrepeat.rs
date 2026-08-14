@@ -85,14 +85,14 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lrepeat count ?element ...?",
         dialects: Some(DialectSet::TCL86_PLUS),
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lrepeat count element ?element ...?",
         dialects: Some(DialectSet::TCL85),
+        ..FormSpec::DEFAULT
     },
 ];
 

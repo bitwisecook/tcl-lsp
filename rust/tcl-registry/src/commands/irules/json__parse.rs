@@ -32,16 +32,12 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns a JSON cache instance handle to use for retrieving and overwriting content, and rendering.",
         }),
         forms: &[FormSpec {
-            kind: FormKind::Default,
             synopsis: "JSON::parse (JSON_STRING (JSON_MAX_ENTRIES)? )?",
-            dialects: None,
+            ..FormSpec::DEFAULT
         }],
         side_effects: &[SideEffect {
-            target: SideEffectTarget::Unknown,
             reads: true,
-            writes: false,
-            connection_side: ConnectionSide::None,
-            dialects: None,
+            ..SideEffect::DEFAULT
         }],
         ..CommandSpec::DEFAULT
     }

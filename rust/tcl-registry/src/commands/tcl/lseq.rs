@@ -73,19 +73,16 @@ use crate::prelude::*;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lseq start ?(..|to)? end ??by? step?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lseq start count count ??by? step?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
     FormSpec {
-        kind: FormKind::Default,
         synopsis: "lseq count ?by step?",
-        dialects: None,
+        ..FormSpec::DEFAULT
     },
 ];
 
@@ -94,11 +91,8 @@ const FORMS: &[FormSpec] = &[
 // an arbitrary nested command, so the conservative, sound declaration is
 // "reads some unknown state" rather than no side effects at all.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
     reads: true,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 /// Keyword tokens that can appear at argument index 1 — the branch point

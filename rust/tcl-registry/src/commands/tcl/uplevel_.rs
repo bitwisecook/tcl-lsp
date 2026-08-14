@@ -28,11 +28,7 @@ use crate::prelude::*;
 /// effect the command doesn't actually have — the same idiom `eval`'s spec
 /// uses (and cites), for the same reason.
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    target: SideEffectTarget::Unknown,
-    reads: false,
-    writes: false,
-    connection_side: ConnectionSide::None,
-    dialects: None,
+    ..SideEffect::DEFAULT
 }];
 
 // `uplevel ?level? arg ?arg ...?` — synopsis, arity, and the core
@@ -69,9 +65,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // 9.1's uplevel.html is byte-for-byte identical to 9.0's (bar doc-anchor
 // line-number IDs) — no 9.1-specific delta exists for this command.
 const FORMS: &[FormSpec] = &[FormSpec {
-    kind: FormKind::Default,
     synopsis: "uplevel ?level? arg ?arg ...?",
-    dialects: None,
+    ..FormSpec::DEFAULT
 }];
 
 /// This command's own frame-crossing grammar, so the arg-role resolver and
