@@ -42,8 +42,8 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_traced;
-use tcl_dialect::TclVersion;
+use tcl_compiler::lowering::lower_to_ir_traced_with_config;
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_lexer::script_is_complete;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Value, Vm};
@@ -51,25 +51,49 @@ use tcl_vm::{CompileError, CompileService, Value, Vm};
 /// The `CompileService` the VM uses for runtime `eval` / command substitution
 /// (and for the top-level script the driver runs): the real Rust compiler
 /// pipeline (lower → CFG → bytecode). Matches the `eval` / `run_test` examples.
-struct Svc(CommandRegistry, &'static str);
+///
+/// Built from one resolved [`DialectProfile`] (issue #1462): the registry,
+/// the lexer grammar (`{*}` expansion, the `${…}` delimiting rule), and the
+/// expression dialect all come from the emulated release, so `--tcl-version
+/// 8.4` rejects `{*}` exactly as `tclsh8.4` does.
+struct Svc {
+    registry: &'static CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: &'static str,
+}
+
+impl Svc {
+    /// A compile service targeting `profile`'s grammar, registry, and dialect.
+    fn for_profile(profile: &'static DialectProfile) -> Self {
+        Self {
+            registry: tcl_registry::registry_for_profile(profile),
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: profile.name,
+        }
+    }
+}
 
 impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+        if let Some(msg) =
+            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
+        {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir(src, &self.0, tcl_lexer::LexerConfig::default(), self.1);
+        let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
         let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+        Ok(codegen_module(&cfg, &ir, self.registry))
     }
     fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+        if let Some(msg) =
+            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
+        {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir_traced(src, &self.0);
+        let ir = lower_to_ir_traced_with_config(src, self.registry, self.config);
         let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+        Ok(codegen_module(&cfg, &ir, self.registry))
     }
 }
 
@@ -169,21 +193,24 @@ fn usage() {
 /// output, at the requested runtime version (`None` keeps the VM default).
 fn new_vm(version: Option<TclVersion>) -> Vm {
     let mut vm = Vm::with_output(Box::new(Stdout));
-    // Default to the plain-Tcl profile's pinned VM release (dialect-profile
-    // model §5.4); `--tcl-version <x.y>` overrides it.
+    // Default to the plain-Tcl 9.0 profile; `--tcl-version <x.y>` selects
+    // another release's profile. The profile is resolved once and drives
+    // BOTH halves (issue #1462): the runtime semantics (below) and the
+    // compiler's grammar/registry (`Svc::for_profile`).
     let release = version
         .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name("tcl9.0").vm_runtime_version);
-    vm.set_runtime_version(release);
+    let profile = DialectProfile::by_name(release.dialect_name());
+    vm.set_dialect_profile(profile);
     // Codegen targets the same release: the dialect is a *compile* target, not
     // an execution-time switch, so a numeric literal is resolved for 8.6 while
-    // compiling rather than re-read under 8.6 rules at run time.
-    let dialect = release.dialect_name();
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default(), dialect)));
+    // compiling rather than re-read under 8.6 rules at run time — and a
+    // grammar fact (`{*}` is 8.5+) is enforced while compiling too.
+    vm.set_compiler(Box::new(Svc::for_profile(profile)));
     // Enable the real `thread` package: a Send factory each worker calls to
     // build its own compiler, and a thread-safe shared stdout for `puts`.
     vm.enable_threads(
-        Arc::new(|| {
-            Box::new(Svc(CommandRegistry::build_default(), dialect))
+        Arc::new(move || {
+            Box::new(Svc::for_profile(profile))
                 as Box<dyn CompileService<Module = tcl_bytecode::ModuleAsm>>
         }),
         Arc::new(Mutex::new(Box::new(Stdout) as Box<dyn Write + Send>)),
@@ -393,5 +420,34 @@ mod tests {
             out90.contains("% 1"),
             "9.0 creates in the namespace: {out90:?}"
         );
+    }
+
+    #[test]
+    fn tcl_version_flag_gates_grammar_and_command_surface() {
+        // Issue #1462: `{*}` expansion is TIP 157 (8.5+). The braced catch
+        // body recompiles at run time through the CLI's compile service, so
+        // under an 8.4 pin the 8.4 grammar rejects it with the genuine
+        // tclsh8.4 message — as a *catchable* error, matching C Tcl's
+        // deferral of compile-time parse errors. (The REPL echoes command
+        // *results*; `$m` on its own line surfaces the caught message.)
+        let expand = "catch {llength [list {*}{a b}]} m\nset m\n";
+        let out84 = drive_at(expand, Some(TclVersion::V8_4));
+        assert!(
+            out84.contains("extra characters after close-brace"),
+            "8.4 rejects {{*}}: {out84:?}"
+        );
+        let out90 = drive_at(expand, Some(TclVersion::V9_0));
+        assert!(out90.contains("% 2"), "9.0 expands {{*}}: {out90:?}");
+
+        // Issue #1463: `lassign` is 8.5+, so an 8.4-pinned VM resolves it
+        // like tclsh8.4 — to an invalid command name.
+        let lassign = "catch {lassign {a b} x} m\nset m\n";
+        let out84 = drive_at(lassign, Some(TclVersion::V8_4));
+        assert!(
+            out84.contains("invalid command name \"lassign\""),
+            "8.4 has no lassign: {out84:?}"
+        );
+        let out90 = drive_at(lassign, Some(TclVersion::V9_0));
+        assert!(out90.contains("% b"), "9.0 has lassign: {out90:?}");
     }
 }

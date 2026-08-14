@@ -1,0 +1,328 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! **The emulated release governs the grammar and the command surface, not
+//! just the runtime semantics.**
+//!
+//! Issues #1462/#1463: a version-pinned VM must reject what its emulated
+//! release rejects. Two facts move together with the release:
+//!
+//! - the **lexing grammar** (#1462) — `{*}` expansion is TIP 157 (8.5+), so
+//!   under an 8.4 pin it is a hard `extra characters after close-brace`
+//!   exactly as `tclsh8.4` reports it;
+//! - the **builtin command surface** (#1463) — `lassign` is 8.5+, `lpop` is
+//!   9.0+, so under an older pin they resolve to `invalid command name`,
+//!   while user-defined procs (the polyfill pattern) always stay callable.
+//!
+//! The host wiring below mirrors `tclvm`: one resolved `DialectProfile`
+//! drives the compiler's `LexerConfig` + registry AND the VM's runtime pin.
+//! Vectors are pinned against tclsh 8.4.20 / 8.6.16 / 9.0.4 behaviour and
+//! byte-compared against a real interpreter whenever one is on `PATH`
+//! (`TCLSH84` / `TCLSH86` / `TCLSH90` override the binary names).
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use tcl_compiler::cfg_builder::build_cfg_codegen;
+use tcl_compiler::codegen::codegen_module;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
+use tcl_dialect::{DialectProfile, TclVersion};
+use tcl_vm::{CompileError, CompileService, Vm};
+
+#[derive(Clone, Default)]
+struct Capture(Rc<RefCell<Vec<u8>>>);
+
+impl std::io::Write for Capture {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// The `tclvm` compile service: registry, lexer grammar, and expression
+/// dialect all resolved once from the emulated release's profile.
+struct CompilerSvc {
+    registry: &'static tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: &'static str,
+}
+
+impl CompilerSvc {
+    fn for_profile(profile: &'static DialectProfile) -> Self {
+        Self {
+            registry: tcl_registry::registry_for_profile(profile),
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: profile.name,
+        }
+    }
+}
+
+impl CompileService for CompilerSvc {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        if let Some(msg) =
+            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, self.registry))
+    }
+}
+
+/// Run `src` on a VM pinned to `profile`, compiling for that profile exactly
+/// as `tclvm --tcl-version` does. Returns the `puts` output; a compile
+/// rejection or an uncaught runtime error becomes the error's message, so a
+/// vector can pin `extra characters after close-brace` and `invalid command
+/// name "lassign"` the same way it pins a value.
+fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
+    let svc = CompilerSvc::for_profile(profile);
+    let asm = match svc.compile(src) {
+        Ok(asm) => asm,
+        Err(e) => return e.0,
+    };
+    let cap = Capture::default();
+    let mut vm = Vm::with_output(Box::new(cap.clone()));
+    vm.set_dialect_profile(profile);
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(profile)));
+    let completion = vm.run_module(&asm);
+    let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
+    if !completion.code.is_ok() || out.is_empty() {
+        // An uncaught error's message, or — for a profile with no `puts`
+        // (the iRules sandbox bans it) — the script's final result.
+        return completion.result.to_str().trim().to_string();
+    }
+    out
+}
+
+/// [`profile_output`] for a plain release pin (the `--tcl-version` path).
+fn vm_output(src: &str, version: TclVersion) -> String {
+    profile_output(src, DialectProfile::by_name(version.dialect_name()))
+}
+
+/// One script and what each release must produce (`puts` output, or the
+/// compile/runtime error message).
+struct Vector {
+    name: &'static str,
+    script: &'static str,
+    want_84: &'static str,
+    want_85: &'static str,
+    want_86: &'static str,
+    want_90: &'static str,
+}
+
+const VECTORS: &[Vector] = &[
+    // -- #1462: the {*} expansion grammar is a compile fact --
+    Vector {
+        name: "{*} expansion is a hard parse error before 8.5",
+        script: "puts [llength [list {*}{a b}]]\n",
+        want_84: "extra characters after close-brace",
+        want_85: "2",
+        want_86: "2",
+        want_90: "2",
+    },
+    // -- #1463: the builtin surface follows the release --
+    Vector {
+        name: "lassign arrives in 8.5",
+        script: "puts [lassign {a b} x]\n",
+        want_84: "invalid command name \"lassign\"",
+        want_85: "b",
+        want_86: "b",
+        want_90: "b",
+    },
+    Vector {
+        name: "dict arrives in 8.5",
+        script: "puts [dict get {a 1} a]\n",
+        want_84: "invalid command name \"dict\"",
+        want_85: "1",
+        want_86: "1",
+        want_90: "1",
+    },
+    Vector {
+        name: "try arrives in 8.6",
+        script: "puts [catch {try { } } m]$m\n",
+        want_84: "1invalid command name \"try\"",
+        want_85: "1invalid command name \"try\"",
+        want_86: "0",
+        want_90: "0",
+    },
+    Vector {
+        name: "lmap arrives in 8.6",
+        script: "puts [catch {lmap v {1 2} {expr {$v * 2}}} m]$m\n",
+        want_84: "1invalid command name \"lmap\"",
+        want_85: "1invalid command name \"lmap\"",
+        want_86: "02 4",
+        want_90: "02 4",
+    },
+    Vector {
+        name: "lpop arrives in 9.0",
+        script: "set l {a b c}\nputs [catch {lpop l} m]$m\n",
+        want_84: "1invalid command name \"lpop\"",
+        want_85: "1invalid command name \"lpop\"",
+        want_86: "1invalid command name \"lpop\"",
+        want_90: "0c",
+    },
+    Vector {
+        name: "an unavailable builtin is absent from info commands",
+        script: "puts [llength [info commands lassign]]\n",
+        want_84: "0",
+        want_85: "1",
+        want_86: "1",
+        want_90: "1",
+    },
+    // -- the polyfill pattern: a user proc always wins over a hidden builtin --
+    Vector {
+        name: "a user-defined proc is callable at every release",
+        script: "proc lassign {l args} { return polyfill }\nputs [lassign {a b} x]\n",
+        want_84: "polyfill",
+        want_85: "polyfill",
+        want_86: "polyfill",
+        want_90: "polyfill",
+    },
+];
+
+#[test]
+fn command_surface_follows_the_emulated_release() {
+    for v in VECTORS {
+        assert_eq!(
+            vm_output(v.script, TclVersion::V8_4),
+            v.want_84,
+            "[8.4] {}",
+            v.name
+        );
+        assert_eq!(
+            vm_output(v.script, TclVersion::V8_5),
+            v.want_85,
+            "[8.5] {}",
+            v.name
+        );
+        assert_eq!(
+            vm_output(v.script, TclVersion::V8_6),
+            v.want_86,
+            "[8.6] {}",
+            v.name
+        );
+        assert_eq!(
+            vm_output(v.script, TclVersion::V9_0),
+            v.want_90,
+            "[9.0] {}",
+            v.name
+        );
+        assert_eq!(
+            vm_output(v.script, TclVersion::V9_1),
+            v.want_90,
+            "[9.1] {}",
+            v.name
+        );
+    }
+}
+
+/// A `catch` body is compiled at run time through the VM's compile service,
+/// so an 8.5+-only spelling inside it is a *catchable* error under an 8.4
+/// pin — matching C Tcl, which defers a compile-time parse error to a
+/// bytecode instruction that raises it at runtime.
+#[test]
+fn expansion_parse_error_inside_catch_is_catchable_at_8_4() {
+    let src = "puts [catch {llength [list {*}{a b}]} m]\nputs $m\n";
+    assert_eq!(
+        vm_output(src, TclVersion::V8_4),
+        "1\nextra characters after close-brace"
+    );
+    assert_eq!(vm_output(src, TclVersion::V9_0), "0\n2");
+}
+
+/// #1463's precision point about vendor profiles: an iRules-pinned VM
+/// validates against the vendor availability mask, not plain tcl8.4. Both
+/// run a Tcl 8.4 core, but the TMM sandbox (K36322151) additionally bans
+/// `source` (and `puts`, which is why the probe reports through the script
+/// result rather than an output channel) — under plain tcl8.4 both stay
+/// callable.
+#[test]
+fn vendor_profile_masks_differ_from_the_plain_release() {
+    let src = "catch {source /no/such/file.tcl} m\nset m\n";
+    assert_eq!(
+        profile_output(src, DialectProfile::irules()),
+        "invalid command name \"source\"",
+        "the TMM sandbox has no source at all"
+    );
+    let out = profile_output(src, DialectProfile::by_name("tcl8.4"));
+    assert!(
+        !out.contains("invalid command name"),
+        "plain tcl8.4 has source (it merely fails to read the file): {out}"
+    );
+}
+
+/// Run `src` under a real tclsh, or `None` when that binary isn't available.
+fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
+    use std::io::Write as _;
+    let mut candidates: Vec<String> = Vec::new();
+    if let Ok(explicit) = std::env::var(bin_env) {
+        candidates.push(explicit);
+    }
+    candidates.extend(names.iter().map(ToString::to_string));
+    for name in candidates {
+        let Ok(mut child) = std::process::Command::new(&name)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        else {
+            continue;
+        };
+        if let Some(stdin) = child.stdin.as_mut() {
+            let _ = stdin.write_all(src.as_bytes());
+        }
+        let Ok(out) = child.wait_with_output() else {
+            continue;
+        };
+        return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
+    }
+    None
+}
+
+/// Byte-compare the value-producing vectors against a real interpreter when
+/// one is installed; skips silently otherwise. Error-message vectors are
+/// excluded — tclsh reports those on stderr with a traceback, so only the
+/// `catch`-shaped vectors (whose divergence is on stdout) are comparable.
+#[test]
+fn vectors_match_real_tclsh_when_available() {
+    let mut checked = 0usize;
+    for v in VECTORS {
+        if !v.script.contains("catch") && !v.script.contains("info commands") {
+            continue;
+        }
+        for (env, names, want) in [
+            ("TCLSH84", &["tclsh8.4"][..], v.want_84),
+            ("TCLSH86", &["tclsh8.6"][..], v.want_86),
+            ("TCLSH90", &["tclsh9.0"][..], v.want_90),
+        ] {
+            if let Some(out) = tclsh_output(env, names, v.script) {
+                assert_eq!(out, want, "[{env}] {}", v.name);
+                checked += 1;
+            }
+        }
+    }
+    if checked == 0 {
+        eprintln!("no system tclsh found — pinned expectations still verified");
+    }
+}

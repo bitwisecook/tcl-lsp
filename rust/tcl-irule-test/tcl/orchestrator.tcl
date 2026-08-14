@@ -203,11 +203,13 @@ namespace eval ::orch {
 
     proc fire {event_name args} {
         # Set up state for the event if provided
+        # ({*} is 8.5+ syntax; the harness compiles under the TMM's 8.4
+        # grammar, so expand via eval as compat84.tcl prescribes.)
         foreach {k v} $args {
             switch -exact -- [string trimleft $k -] {
-                http_request  { _setup_http_request {*}$v }
-                http_response { _setup_http_response {*}$v }
-                tls           { _setup_tls {*}$v }
+                http_request  { eval _setup_http_request $v }
+                http_response { eval _setup_http_response $v }
+                tls           { eval _setup_tls $v }
             }
         }
 
@@ -1637,7 +1639,8 @@ namespace eval ::orch {
     #   puts [::orch::fakecmp_plan -count 2]
     proc fakecmp_plan {args} {
         variable _tmm_count
-        set plan [fakecmp_suggest_sources {*}$args]
+        # ({*} is 8.5+ syntax; the harness compiles under 8.4 — eval-expand.)
+        set plan [eval fakecmp_suggest_sources $args]
         set lines [list]
         lappend lines "fakeCMP distribution plan ($_tmm_count TMMs):"
         for {set t 0} {$t < $_tmm_count} {incr t} {

@@ -781,10 +781,7 @@ mod tests {
         let parts = parse_subst_template(r"\x41$arr(0)").unwrap();
         assert_eq!(
             parts,
-            vec![
-                SubstPart::Lit("A".into()),
-                SubstPart::Var("arr(0)".into()),
-            ]
+            vec![SubstPart::Lit("A".into()), SubstPart::Var("arr(0)".into()),]
         );
     }
 

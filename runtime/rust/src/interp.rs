@@ -797,6 +797,17 @@ pub struct InterpState {
     /// (`interp create`) or safe interpreter can emulate a different release
     /// from its parent, exactly as each owns its own global namespace.
     runtime_version: Cell<tcl_dialect::TclVersion>,
+    /// The dialect profile this interpreter validates its builtin command
+    /// surface against (issue #1463) and derives its lexing grammar from
+    /// (issue #1462). Defaults to the permissive fallback profile, which
+    /// hides nothing and lexes with the modern grammar;
+    /// [`Interp::set_runtime_version`] pins the matching plain-Tcl profile.
+    dialect_profile: Cell<&'static tcl_dialect::DialectProfile>,
+    /// The availability registry for `dialect_profile`, resolved once at pin
+    /// time (`registry_for_profile` guards its cache with a lock, and this is
+    /// consulted on every command dispatch). `None` for the permissive
+    /// fallback profile, which gates nothing.
+    profile_registry: Cell<Option<&'static tcl_registry::CommandRegistry>>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -1098,6 +1109,8 @@ impl Interp {
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
             runtime_version: Cell::new(DEFAULT_RUNTIME_VERSION),
+            dialect_profile: Cell::new(tcl_dialect::DialectProfile::plain_tcl()),
+            profile_registry: Cell::new(None),
         }));
         // The numeric grammar is thread-ambient and may have been left on
         // another release by an interpreter built earlier on this thread, so a
@@ -1151,18 +1164,37 @@ impl Interp {
     /// interpreter each resolve against their own global namespace — setting
     /// it here never reaches across an interpreter boundary.
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
-        // Ahead of the unchanged-version short-circuit: the numeric grammar is
+        // A bare release pin is the matching plain-Tcl profile: the emulated
+        // release is one fact carrying the runtime semantics, the lexing
+        // grammar (issue #1462), and the command-surface availability mask
+        // (issue #1463).
+        self.set_dialect_profile(tcl_dialect::DialectProfile::by_name(version.dialect_name()));
+    }
+
+    /// Pin the dialect profile this interpreter emulates — the profile form
+    /// of [`Self::set_runtime_version`], for hosts whose dialect is a vendor
+    /// profile rather than a plain Tcl release. The runtime version follows
+    /// the profile's pinned `vm_runtime_version`, scripts are lexed with the
+    /// profile's grammar, and the profile's availability mask becomes the
+    /// builtin command-surface filter.
+    pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        let version = profile.vm_runtime_version;
+        // Ahead of the unchanged-profile short-circuit: the numeric grammar is
         // *thread*-ambient, not per-interp, so "this interp already emulates
         // `version`" does not imply the thread's grammar is this interp's. A
         // second interpreter constructed on a thread where an earlier one
         // installed 8.4 must re-install its own release even when its version
         // field needs no change.
         install_number_syntax(version);
-        if self.runtime_version() == version {
+        if std::ptr::eq(self.dialect_profile(), profile) {
             return;
         }
         self.invalidate_interpreter_policy();
         self.invalidate_command_environment();
+        self.0.dialect_profile.set(profile);
+        self.0
+            .profile_registry
+            .set((!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile)));
         self.0.runtime_version.set(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
@@ -1176,14 +1208,52 @@ impl Interp {
         self.0.runtime_version.get()
     }
 
+    /// The dialect profile this interpreter validates its command surface
+    /// against (see [`Self::set_dialect_profile`]).
+    #[must_use]
+    pub fn dialect_profile(&self) -> &'static tcl_dialect::DialectProfile {
+        self.0.dialect_profile.get()
+    }
+
+    /// The lexer configuration scripts evaluate under: the pinned profile's
+    /// grammar (issue #1462) — `{*}` expansion off and the first-close `${…}`
+    /// rule on when the interpreter emulates Tcl 8.4.
+    pub(crate) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::from_grammar(self.dialect_profile().grammar)
+    }
+
     /// Whether a builtin command is exposed on this interpreter's selected
     /// runtime surface. The registry recognises versioned builtin entries;
     /// unrecognised names remain available for user-defined commands.
+    ///
+    /// Two registry-backed cases (issue #1463): the math-function surface
+    /// (`::tcl::mathfunc::*` vs the 8.4 fixed table), and release
+    /// availability — a builtin whose registry spec the pinned profile's
+    /// availability mask does not admit (`lassign` at 8.4, `lpop` before
+    /// 9.0) resolves like C Tcl, to `invalid command name`. Only
+    /// registry-known builtins are gated: user procs and names the registry
+    /// does not know remain callable, so a polyfill proc shadowing a hidden
+    /// builtin keeps working.
     pub(crate) fn builtin_command_visible_for_surface(&self, name: &[u8]) -> bool {
         core::str::from_utf8(name).map_or(true, |name| {
             tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version())
                 .permits_builtin_math_function_command(name)
+                && self.profile_admits_registry_builtin(name)
         })
+    }
+
+    /// The availability half of [`Self::builtin_command_visible_for_surface`]:
+    /// whether the pinned profile admits registry builtin `name`. Names the
+    /// registry does not know are always admitted — they may be engine
+    /// extensions the registry has no spec for.
+    fn profile_admits_registry_builtin(&self, name: &str) -> bool {
+        let Some(registry) = self.0.profile_registry.get() else {
+            return true; // the permissive fallback profile gates nothing
+        };
+        registry.get(name).is_none()
+            || registry
+                .get_for_dialect(name, self.dialect_profile().availability_mask)
+                .is_some()
     }
 
     /// Convert `obj` to the byte view consumed by Tcl's `binary` command.
@@ -4340,7 +4410,7 @@ impl Interp {
             self.cmd_frames.borrow_mut().push(f);
         }
         let mut last = Code::Ok;
-        let commands = parse::parse_script(src);
+        let commands = parse::parse_script_with_config(src, self.lexer_config());
         if commands.is_empty() {
             // A script with no commands (empty / whitespace / comments only)
             // evaluates to the empty result — `Tcl_EvalEx` resets the result at
@@ -5466,7 +5536,9 @@ impl Interp {
         // and its namespace-scope variable resolution both agree with the
         // parent (issue #1328). Resolution still runs against the child's
         // *own* global namespace: the rule is shared, the variables are not.
-        child.set_runtime_version(self.runtime_version());
+        // The whole profile is inherited, not just the release, so a child's
+        // command-surface availability gate agrees too (issue #1463).
+        child.set_dialect_profile(self.dialect_profile());
         // A (non-safe) child gets the predefined globals (`tcl_platform`, …) like
         // a real interpreter. The full `init.tcl` (package/auto-load) is deferred.
         child.set_startup_globals();
@@ -7852,6 +7924,73 @@ mod tests {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(ok(i, b"expr {0o17}"), b"15");
             assert_eq!(ok(i, b"expr {1_0}"), b"10");
+        });
+    }
+
+    /// Selecting the release selects the *lexing grammar* scripts parse
+    /// under (issue #1462) and the builtin command surface (issue #1463):
+    /// under an 8.4 pin `{*}` does not expand and the first-close `${…}`
+    /// rule applies, and `lassign` (8.5+) resolves to `invalid command
+    /// name` — while a user-defined proc of the same name stays callable
+    /// (the compat-polyfill pattern).
+    #[test]
+    fn grammar_and_command_surface_follow_the_selected_release() {
+        use tcl_dialect::TclVersion;
+
+        // #1462 — the `{*}` expansion grammar (TIP 157, 8.5+).
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(ok(i, b"llength [list {*}{a b}]"), b"2");
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            // No expansion under 8.4: the recovered `{*}{a b}` is one word,
+            // never two. (tclsh8.4 reports `extra characters after
+            // close-brace`; surfacing that hard lex error through this
+            // engine's parse-or-nothing seam is a residual gap.)
+            assert_eq!(ok(i, b"llength [list {*}{a b}]"), b"1");
+        });
+
+        // #1462 — the `${…}` delimiting rule: 8.x stops at the first `}`
+        // (its `Tcl_ParseVarName` counts no braces), 9.x nests. Verified
+        // against tclsh8.4.20 / tclsh9.0.4.
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"set \"a{b\" 5"), Code::Ok);
+            assert_eq!(i.eval_str(b"set \"a{b}c\" 9"), Code::Ok);
+            assert_eq!(ok(i, b"set r ${a{b}c}"), b"5c}");
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"set \"a{b\" 5"), Code::Ok);
+            assert_eq!(i.eval_str(b"set \"a{b}c\" 9"), Code::Ok);
+            assert_eq!(ok(i, b"set r ${a{b}c}"), b"9");
+        });
+
+        // #1463 — the builtin surface: lassign is 8.5+, lpop is 9.0+.
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"lassign {a b} x"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"lassign\"");
+            assert_eq!(ok(i, b"llength [info commands lassign]"), b"0");
+            // The polyfill pattern: a user proc wins over the hidden builtin.
+            assert_eq!(
+                i.eval_str(b"proc lassign {l args} { return polyfill }"),
+                Code::Ok
+            );
+            assert_eq!(ok(i, b"lassign {a b} x"), b"polyfill");
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(ok(i, b"lassign {a b} x"), b"b");
+            assert_eq!(i.eval_str(b"set l {a b c}"), Code::Ok);
+            assert_eq!(i.eval_str(b"lpop l"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"lpop\"");
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"set l {a b c}"), Code::Ok);
+            assert_eq!(ok(i, b"lpop l"), b"c");
         });
     }
 

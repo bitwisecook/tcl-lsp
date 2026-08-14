@@ -1180,9 +1180,17 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Statement> {
         let args = seg.args();
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let resolved =
-            self.registry
-                .resolve_invocation(cmd_name, &arg_refs, DialectSet::empty())?;
+        // Resolved under the registry's own availability mask (issues
+        // #1462/#1463): a profile-built registry suppresses the structured
+        // lowering of a command its release does not have (`lmap` at 8.4),
+        // so the call flows to `lower_default` and reaches the runtime's
+        // availability gate as a generic dispatch. A profile-less registry
+        // keeps the dialect-blind resolution.
+        let resolved = self.registry.resolve_invocation(
+            cmd_name,
+            &arg_refs,
+            self.registry.own_availability_mask(),
+        )?;
         let hook = resolved.semantics.lowering_hook?;
         let inline_body_error_context = resolved.semantics.operation.inline_body_error_context();
         match hook {
@@ -3395,8 +3403,20 @@ pub fn lower_to_ir_for_bytecode_with_dialect(
 /// [`tcl_runtime_api::CompileService::compile_traced`].
 #[must_use]
 pub fn lower_to_ir_traced(source: &str, registry: &CommandRegistry) -> Module {
+    lower_to_ir_traced_with_config(source, registry, tcl_lexer::LexerConfig::default())
+}
+
+/// Like [`lower_to_ir_traced`] but with an explicit dialect
+/// [`tcl_lexer::LexerConfig`], so a version-pinned host's traced recompiles
+/// parse under the same grammar as its ordinary compiles (issue #1462).
+#[must_use]
+pub fn lower_to_ir_traced_with_config(
+    source: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Module {
     lower_with(
-        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default())
+        Lowerer::with_config(registry, config)
             .for_bytecode_backend()
             .trace_visible(),
         source,
@@ -3438,7 +3458,20 @@ const FATAL_PARSE_MESSAGES: &[&str] = &[
 /// [`FATAL_PARSE_MESSAGES`] count; benign warnings are ignored.
 #[must_use]
 pub fn first_fatal_parse_error(source: &str) -> Option<String> {
-    let lexer = tcl_lexer::Lexer::new(source);
+    first_fatal_parse_error_with_config(source, tcl_lexer::LexerConfig::default())
+}
+
+/// Like [`first_fatal_parse_error`] but lexing under an explicit dialect
+/// [`tcl_lexer::LexerConfig`], so a version-pinned host rejects exactly what
+/// its emulated release rejects — under the Tcl 8.4 grammar `{*}{a b}` is a
+/// hard `extra characters after close-brace`, which the default (8.5+) config
+/// lexes as an ordinary expansion (issue #1462).
+#[must_use]
+pub fn first_fatal_parse_error_with_config(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let lexer = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(source), config);
     let (_tokens, warnings) = lexer.tokenise_all_with_warnings().ok()?;
     warnings
         .into_iter()

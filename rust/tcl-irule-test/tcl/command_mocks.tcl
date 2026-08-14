@@ -1364,8 +1364,10 @@ namespace eval ::itest::cmd {
                 set options [concat $flags [lrange $rest [expr {$idx + 3}] end]]
                 # Thread the comparison operator through to the matcher so
                 # starts_with / contains / ends_with are honoured rather than
-                # collapsing to exact equality.
-                return [::state::datagroup::match $dg_name $value $operator {*}$options]
+                # collapsing to exact equality.  ({*} is 8.5+ syntax; the
+                # harness compiles under the TMM's 8.4 grammar, so expand
+                # via eval as compat84.tcl prescribes.)
+                return [eval [list ::state::datagroup::match $dg_name $value $operator] $options]
             }
             lookup {
                 set dg_name [lindex $rest 0]
@@ -1689,8 +1691,10 @@ namespace eval ::itest::cmd {
             } else {
                 set tail [namespace tail $mock]
                 if {[info exists ::itest::cmd::_stub_actions($tail)]} {
+                    # concat joins the prefix and the action list ({*} is
+                    # 8.5+ syntax; the harness compiles under 8.4).
                     ::itest::register_command $irule_cmd \
-                        [list ::itest::cmd::_stub {*}$::itest::cmd::_stub_actions($tail)]
+                        [concat [list ::itest::cmd::_stub] $::itest::cmd::_stub_actions($tail)]
                 }
             }
         }

@@ -392,11 +392,23 @@ fn token_content<'s>(sm: &SourceMap<'s>, src: &'s [u8], t: Token) -> &'s [u8] {
 /// lines, comments) are dropped. Non-UTF-8 input or a lex error yields no
 /// commands (the UTF-8 internal-rep invariant; richer parse-error surfacing is
 /// tracked with the convergence).
+///
+/// Lexes with the default (Tcl-8.5+) config; a version-pinned interpreter
+/// parses through [`parse_script_with_config`] instead so the grammar follows
+/// the emulated release (issue #1462).
 pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
+    parse_script_with_config(src, tcl_lexer::LexerConfig::default())
+}
+
+/// [`parse_script`] under an explicit dialect [`tcl_lexer::LexerConfig`] —
+/// the seam [`crate::interp::Interp`] threads its runtime release's grammar
+/// through (issue #1462), so `{*}` expansion is off and the first-close
+/// `${…}` rule applies when the interpreter emulates Tcl 8.4.
+pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> Vec<Command<'_>> {
     let Ok(s) = std::str::from_utf8(src) else {
         return Vec::new();
     };
-    let toks = match Lexer::new(s).tokenise_all() {
+    let toks = match Lexer::with_source_map(SourceMap::new(s), config).tokenise_all() {
         Ok(t) => t,
         Err(_) => return Vec::new(),
     };

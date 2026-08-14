@@ -22,7 +22,6 @@
 //! substitutions and emitting specialised bytecode sequences for
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 
-use tcl_dialect::DialectSet;
 use tcl_registry::hooks::InlineCodegenHookId;
 
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
@@ -782,9 +781,11 @@ impl CodegenCtx<'_> {
         args: &[(String, bool)],
     ) -> Option<InlineCodegenHookId> {
         let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
-        let resolved = self
-            .registry
-            .resolve_call(cmd, &arg_refs, DialectSet::empty())?;
+        // The registry's own availability mask — see
+        // `emitter::bytecoded::try_bytecoded` (issues #1462/#1463).
+        let resolved =
+            self.registry
+                .resolve_call(cmd, &arg_refs, self.registry.own_availability_mask())?;
         if resolved.spec.name != cmd {
             return None;
         }

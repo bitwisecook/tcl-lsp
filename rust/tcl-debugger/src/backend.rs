@@ -35,8 +35,9 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_traced;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
+use tcl_compiler::lowering::lower_to_ir_traced_with_config;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, DebugAction, DebugSnapshot, Vm};
 
@@ -138,20 +139,37 @@ pub trait DebugBackend {
 }
 
 /// The `CompileService` the VM uses to compile the script and any runtime
-/// `eval` / command substitution: the real Rust compiler pipeline.
-struct Svc(CommandRegistry);
+/// `eval` / command substitution: the real Rust compiler pipeline, built from
+/// the one resolved [`DialectProfile`] the debugger VM emulates (issue #1462)
+/// so the compiler's grammar and registry match the runtime release.
+struct Svc {
+    registry: &'static CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: &'static str,
+}
+
+impl Svc {
+    /// A compile service targeting `profile`'s grammar, registry, and dialect.
+    fn for_profile(profile: &'static DialectProfile) -> Self {
+        Self {
+            registry: tcl_registry::registry_for_profile(profile),
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: profile.name,
+        }
+    }
+}
 
 impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir(src, &self.0);
+        let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
         let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+        Ok(codegen_module(&cfg, &ir, self.registry))
     }
     fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir_traced(src, &self.0);
+        let ir = lower_to_ir_traced_with_config(src, self.registry, self.config);
         let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+        Ok(codegen_module(&cfg, &ir, self.registry))
     }
 }
 
@@ -196,8 +214,11 @@ impl VmBackend {
     /// so [`Self::record`] can run it on a dedicated big-stack thread; see
     /// that function's doc comment.
     fn record_on_this_thread(source: &str) -> Result<Vec<DebugSnapshot>, DebugError> {
-        let registry = CommandRegistry::build_default();
-        let module = Svc(CommandRegistry::build_default())
+        // The debugger VM runs the plain-Tcl 9.0 profile (dialect-profile
+        // model §5.4); the profile is resolved once and drives both the
+        // runtime release and the compiler's grammar/registry (issue #1462).
+        let profile = DialectProfile::by_name("tcl9.0");
+        let module = Svc::for_profile(profile)
             .compile(source)
             .map_err(|e| DebugError::Failed(e.0))?;
 
@@ -205,10 +226,8 @@ impl VmBackend {
         let sink = Rc::clone(&trace);
 
         let mut vm = Vm::new();
-        // The debugger VM runs the plain-Tcl profile's pinned release
-        // (dialect-profile model §5.4).
-        vm.set_runtime_version(tcl_dialect::DialectProfile::by_name("tcl9.0").vm_runtime_version);
-        vm.set_compiler(Box::new(Svc(registry)));
+        vm.set_dialect_profile(profile);
+        vm.set_compiler(Box::new(Svc::for_profile(profile)));
         vm.set_debug_hook(Some(Box::new(move |snap: &DebugSnapshot| {
             sink.borrow_mut().push(snap.clone());
             DebugAction::Continue
