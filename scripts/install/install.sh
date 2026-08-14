@@ -1924,13 +1924,34 @@ legacy_claude_skill() {
         "$skill_dir/SKILL.md"
 }
 
+has_legacy_claude_bundle_marker() {
+    claude_root="$HOME/.claude"
+    if [ -f "$claude_root/tcl-ai.pyz" ] \
+       && looks_like_legacy_zipapp "$claude_root/tcl-ai.pyz"; then
+        return 0
+    fi
+    for skill_dir in "$claude_root"/skills/*; do
+        [ -d "$skill_dir" ] || continue
+        legacy_claude_skill "$skill_dir" && return 0
+    done
+    return 1
+}
+
 cleanup_legacy_claude_bundle() {
     # The Python bundle merged files into ~/.claude, so preserve every retired
     # item in one recovery directory before removing it from active discovery.
+    # Prompt filenames alone are not ownership markers: names such as
+    # manifest.json can belong to an unrelated Claude setup.
+    marker_override="${1:-0}"
+    keep_current_f5_query="${2:-0}"
     claude_root="$HOME/.claude"
     [ -d "$claude_root" ] || return 0
     backup="$claude_root/.tcl-lsp-python-backup-$(date +%Y%m%d%H%M%S)"
     staged=0
+    bundle_owned=0
+    if [ "$marker_override" = 1 ] || has_legacy_claude_bundle_marker; then
+        bundle_owned=1
+    fi
 
     if [ -f "$claude_root/tcl-ai.pyz" ] \
        && looks_like_legacy_zipapp "$claude_root/tcl-ai.pyz"; then
@@ -1940,22 +1961,25 @@ cleanup_legacy_claude_bundle() {
         staged=1
     fi
 
-    for prompt in brainstorm-security-checks.md explain_flow_system.md \
-                  irules_system.md irules_system.md.j2 manifest.json \
-                  tcl_system.md tcl_system.md.j2 tk_system.md; do
-        [ -f "$claude_root/prompts/$prompt" ] || continue
-        mkdir -p "$backup/prompts"
-        cp "$claude_root/prompts/$prompt" "$backup/prompts/"
-        rm -f "$claude_root/prompts/$prompt"
-        staged=1
-    done
+    if [ "$bundle_owned" = 1 ]; then
+        for prompt in brainstorm-security-checks.md explain_flow_system.md \
+                      irules_system.md irules_system.md.j2 manifest.json \
+                      tcl_system.md tcl_system.md.j2 tk_system.md; do
+            [ -f "$claude_root/prompts/$prompt" ] || continue
+            mkdir -p "$backup/prompts"
+            cp "$claude_root/prompts/$prompt" "$backup/prompts/"
+            rm -f "$claude_root/prompts/$prompt"
+            staged=1
+        done
+    fi
     rmdir "$claude_root/prompts" 2>/dev/null || true
 
     for skill_dir in "$claude_root"/skills/*; do
         [ -d "$skill_dir" ] || continue
         if legacy_claude_skill "$skill_dir"; then
             :
-        elif [ "$staged" = 1 ] \
+        elif [ "$bundle_owned" = 1 ] \
+             && [ "$keep_current_f5_query" != 1 ] \
              && [ "$(basename "$skill_dir")" = f5-query ] \
              && grep -aqE '^name:[[:space:]]*f5-query[[:space:]]*$' \
                     "$skill_dir/SKILL.md"; then
@@ -2016,7 +2040,6 @@ cleanup_legacy_python_installs() {
 
     cleanup_legacy_mcp_registrations "$claude_record" "$codex_mcp_path"
     cleanup_legacy_completions
-    cleanup_legacy_claude_bundle
 }
 
 propose_update_clis() {
@@ -2652,7 +2675,7 @@ register_mcp_claude() {
     if ! have_claude_cli; then
         warn "Claude Code was detected, but its CLI is not on PATH."
         warn "Register manually: claude mcp add -s $scope tcl-lsp -- $MCP_PATH"
-        return 1
+        return 0
     fi
     # Old installers relied on Claude's default local scope.  Remove that
     # stale entry as well as the chosen target, then add back explicitly.
@@ -2987,6 +3010,8 @@ install_claude_skills() {
         warn "could not locate extracted skill payload in $extract_dir"
         return 1
     fi
+    legacy_bundle_before=0
+    has_legacy_claude_bundle_marker && legacy_bundle_before=1
     mkdir -p "$HOME/.claude"
 
     # Snapshot existing ~/.claude/{skills,prompts,tcl-ai.pyz} before overwrite.
@@ -3011,26 +3036,64 @@ install_claude_skills() {
     [ -d "$inner/skills" ] && cp -R "$inner/skills" "$HOME/.claude/"
     n="$(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
     log "installed Claude Code skills -> $HOME/.claude/skills/ ($n skills)"
+    # Retire the Python-era bundle only after the replacement archive has been
+    # downloaded, verified, extracted, and installed. The current f5-query
+    # skill is content-compatible with the old bundle and has just been
+    # refreshed, so keep it while removing other positively identified items.
+    cleanup_legacy_claude_bundle "$legacy_bundle_before" 1
 }
 
 install_ai_integrations() {
     # No further questions asked here — choose_ai_components already
     # set WANT_MCP / WANT_SKILLS, and choose_mcp_prefix set the path.
     if [ "$WANT_MCP" = "1" ]; then
-        install_mcp
-        [ "$INSTALL_MCP_CLAUDE" = 1 ] && register_mcp_claude
-        [ "$INSTALL_MCP_CODEX" = 1 ] && register_mcp_codex
-        [ "$INSTALL_MCP_GEMINI" = 1 ] && register_mcp_gemini
-        [ "$INSTALL_MCP_COPILOT" = 1 ] && register_mcp_copilot
-        [ "$INSTALL_MCP_OPENCODE" = 1 ] && register_mcp_opencode
-        [ "$INSTALL_MCP_HERMES" = 1 ] && register_mcp_hermes
-        [ "$INSTALL_MCP_GOOSE" = 1 ] && register_mcp_goose
-        [ "$INSTALL_MCP_BOBBIT" = 1 ] && register_mcp_bobbit
+        install_mcp || return 1
+        if [ "$INSTALL_MCP_CLAUDE" = 1 ]; then register_mcp_claude || return 1; fi
+        if [ "$INSTALL_MCP_CODEX" = 1 ]; then register_mcp_codex || return 1; fi
+        if [ "$INSTALL_MCP_GEMINI" = 1 ]; then register_mcp_gemini || return 1; fi
+        if [ "$INSTALL_MCP_COPILOT" = 1 ]; then register_mcp_copilot || return 1; fi
+        if [ "$INSTALL_MCP_OPENCODE" = 1 ]; then register_mcp_opencode || return 1; fi
+        if [ "$INSTALL_MCP_HERMES" = 1 ]; then register_mcp_hermes || return 1; fi
+        if [ "$INSTALL_MCP_GOOSE" = 1 ]; then register_mcp_goose || return 1; fi
+        if [ "$INSTALL_MCP_BOBBIT" = 1 ]; then register_mcp_bobbit || return 1; fi
         cleanup_stale_mcp
     fi
     if [ "$WANT_SKILLS" = "1" ]; then
-        install_claude_skills
+        install_claude_skills || return 1
     fi
+}
+
+execute_install_plan() {
+    # Destructive migration is deliberately last. A failed download,
+    # verification, extraction, installation, or registration must leave the
+    # working Python-era installation available for recovery.
+    install_downloader || return 1
+
+    if needs_prefix; then
+        case "$ONLY" in
+            tcl)  install_cli tcl || return 1 ;;
+            f5)   install_cli f5 || return 1 ;;
+            both) install_cli tcl || return 1
+                  install_cli f5 || return 1 ;;
+            none) : ;;
+            *) die "invalid ONLY=$ONLY" ;;
+        esac
+        install_cli_runtime_dependencies || return 1
+        apply_path_update || return 1
+    fi
+
+    case "$ONLY" in
+        tcl)  install_completion tcl || return 1 ;;
+        f5)   install_completion f5 || return 1 ;;
+        both) install_completion tcl || return 1
+              install_completion f5 || return 1 ;;
+    esac
+
+    install_ai_integrations || return 1
+    cleanup_legacy_python_installs
+    # A declined skills component still needs its retired bundle cleaned up.
+    [ "$WANT_SKILLS" = "1" ] || cleanup_legacy_claude_bundle
+    cleanup_legacy_path_entries
 }
 
 
@@ -3091,32 +3154,7 @@ main() {
     require_root_or_die
 
     # === PHASE 3: execute the plan (no more questions) ===
-    # Retire main-branch Python artefacts before writing their native
-    # replacements. This also prevents old shell completions, Claude skills,
-    # or MCP registrations from surviving when that component was declined.
-    cleanup_legacy_python_installs
-    install_downloader
-
-    if needs_prefix; then
-        case "$ONLY" in
-            tcl)  install_cli tcl ;;
-            f5)   install_cli f5 ;;
-            both) install_cli tcl; install_cli f5 ;;
-            none) : ;;
-            *) die "invalid ONLY=$ONLY" ;;
-        esac
-        install_cli_runtime_dependencies
-        apply_path_update
-    fi
-
-    case "$ONLY" in
-        tcl)  install_completion tcl ;;
-        f5)   install_completion f5 ;;
-        both) install_completion tcl; install_completion f5 ;;
-    esac
-
-    install_ai_integrations
-    cleanup_legacy_path_entries
+    execute_install_plan
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
     if needs_prefix && ! path_contains "$PREFIX"; then

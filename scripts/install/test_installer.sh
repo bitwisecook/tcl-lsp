@@ -84,6 +84,40 @@ looks_like_legacy_zipapp "$test_root/path-old/tcl" || fail "legacy zipapp was no
 if looks_like_legacy_zipapp "$test_root/path-old/unrelated"; then fail "unrelated Python file was claimed"; fi
 pass "legacy ownership recognition"
 
+# Migration is the final successful-plan step. If a selected native component
+# fails, the working Python-era artefact must remain; a successful plan still
+# removes it even when that component was declined.
+defer_root="$test_root/deferred-cleanup"
+mkdir -p "$defer_root/home" "$defer_root/bin" "$defer_root/work"
+make_legacy_zipapp "$defer_root/bin/tcl"
+if ! (
+    export HOME="$defer_root/home"
+    export PATH="$defer_root/bin:/usr/bin:/bin"
+    WORKDIR="$defer_root/work"
+    ONLY=none; WANT_MCP=1; WANT_SKILLS=0
+    needs_prefix() { return 1; }
+    install_downloader() { return 0; }
+    install_ai_integrations() { return 1; }
+    if execute_install_plan; then exit 20; fi
+    [ -e "$defer_root/bin/tcl" ]
+); then
+    fail "failed native plan removed the working legacy CLI"
+fi
+if ! (
+    export HOME="$defer_root/home"
+    export PATH="$defer_root/bin:/usr/bin:/bin"
+    WORKDIR="$defer_root/work"
+    ONLY=none; WANT_MCP=0; WANT_SKILLS=0
+    needs_prefix() { return 1; }
+    install_downloader() { return 0; }
+    install_ai_integrations() { return 0; }
+    execute_install_plan
+    [ ! -e "$defer_root/bin/tcl" ]
+); then
+    fail "successful native plan did not clean the legacy CLI"
+fi
+pass "legacy deletion waits for successful native installation"
+
 # Migration removes the main installer's complete discoverable footprint. It
 # must leave unrelated files and the newly installed native binary alone.
 make_legacy_zipapp "$test_root/path-old/f5"
@@ -141,6 +175,7 @@ mkdir -p "$PROJECT_ROOT"
 WANT_TCL=0; WANT_F5=0; WANT_MCP=0; WANT_SKILLS=0
 MCP_PREFIX_OVERRIDE="$test_root/path-new"
 cleanup_legacy_python_installs
+cleanup_legacy_claude_bundle
 cleanup_legacy_path_entries
 for old in tcl f5 tcl-explorer tcl-explorer-gui tcl-lsp-mcp-server.pyz; do
     assert_absent "$test_root/path-old/$old" "legacy $old cleanup"
@@ -178,6 +213,16 @@ grep -qF '# Added by tcl-lsp installer' "$HOME/.zshrc" \
 assert_file "$test_root/path-new/tcl" "native tcl preservation"
 assert_file "$test_root/path-old/unrelated" "unrelated Python file preservation"
 pass "complete safe main-installer migration cleanup"
+
+# A colliding prompt filename is not sufficient evidence that the main-branch
+# installer owns it. Preserve it when no legacy zipapp or skill marker exists.
+mkdir -p "$HOME/.claude/prompts"
+printf 'independent prompt manifest\n' > "$HOME/.claude/prompts/manifest.json"
+cleanup_legacy_claude_bundle
+assert_file "$HOME/.claude/prompts/manifest.json" \
+    "unowned Claude prompt preservation"
+rm -f "$HOME/.claude/prompts/manifest.json"
+pass "Claude prompt cleanup requires a legacy bundle marker"
 
 # When Codex is detected by its config directory but its CLI is unavailable,
 # replace exactly the old MCP table and preserve unrelated TOML settings.
@@ -261,6 +306,19 @@ grep -qF 'mcp remove -s user tcl-lsp' "$CLAUDE_LOG" \
 grep -qF "mcp add -s user tcl-lsp -- $MCP_PATH" "$CLAUDE_LOG" \
     || fail "Claude native user registration was not added explicitly"
 pass "Claude delete/add migration uses an explicit scope"
+
+# Detection through ~/.claude is enough to offer integration, but the CLI can
+# still be absent. Keep the manual-registration warning nonfatal so remaining
+# harnesses and cleanup continue.
+mv "$test_root/path-new/claude" "$test_root/path-new/claude.disabled"
+claude_config_only_output="$(register_mcp_claude 2>&1)" \
+    || fail "config-only Claude registration was fatal"
+case "$claude_config_only_output" in
+    *"CLI is not on PATH"*"Register manually"*) : ;;
+    *) fail "config-only Claude warning omitted manual registration guidance" ;;
+esac
+mv "$test_root/path-new/claude.disabled" "$test_root/path-new/claude"
+pass "config-only Claude registration is nonfatal"
 
 # Gemini has native scope-aware commands too; use those instead of editing its
 # settings format when the CLI is present.
