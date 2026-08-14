@@ -71,7 +71,18 @@ use super::{Optimisation, PassContext};
 
 /// Run the chain-fold pass over the whole compilation unit.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    let cross = ctx.cross_event_vars.clone();
+    // A dynamic variable-trace target (`trace add variable $n …`) means
+    // *every* name is potentially traced, so no intermediate write is
+    // provably unobserved anywhere in the module (issue #1377).
+    if cu.ir_module.has_dynamic_variable_trace {
+        return;
+    }
+    let mut cross = ctx.cross_event_vars.clone();
+    // The whole-module trace fact stores the canonical (`::`-stripped)
+    // spelling, so it also protects a chain whose target is spelled
+    // unqualified while the trace names `::var` (issue #1377) — the same
+    // fact SCCP and O102 already consult.
+    cross.extend(cu.ir_module.traced_variables.iter().cloned());
     // `ctx.registry` is always set by the `optimise*` entry points; a bare
     // hand-built `PassContext` (some pass-level unit tests) leaves it
     // `None`, so fall back to a default-dialect registry rather than
@@ -80,19 +91,26 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let registry: &CommandRegistry = ctx
         .registry
         .unwrap_or_else(|| tcl_registry::cache::default_registry());
-    let top_protected = protected_vars(&cu.top_level, &cross, registry);
-    fold_script(ctx, &cu.ir_module.top_level, &top_protected, 0);
+    if !cu.top_level.dynamic_barrier_blocks_value_motion() {
+        let top_protected = protected_vars(&cu.top_level, &cross, registry);
+        fold_script(ctx, &cu.ir_module.top_level, &top_protected, 0);
+    }
     for (qname, proc) in &cu.ir_module.procedures {
-        let protected = cu
-            .procedures
-            .get(qname)
-            .map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross, registry));
+        let fu = cu.procedures.get(qname);
+        // A computed variable name (`set $name …`) can write the accumulator
+        // mid-chain under a spelling `classify_write` cannot see, so the
+        // whole function abstains (issue #1374).
+        if fu.is_some_and(FunctionUnit::dynamic_barrier_blocks_value_motion) {
+            continue;
+        }
+        let protected = fu.map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross, registry));
         fold_script(ctx, &proc.body, &protected, 0);
     }
 }
 
 /// Variables that must never have a write-chain folded: those that escape
-/// the frame (aliased / traced) plus the iRules cross-event state set.
+/// the frame (aliased / traced) plus the iRules cross-event state set and
+/// the whole-module traced names the caller folded into `cross_event`.
 fn protected_vars(
     fu: &FunctionUnit,
     cross_event: &HashSet<String>,
@@ -349,7 +367,13 @@ fn try_fold_chain_at(
         }
     }
 
-    if writes.len() < 2 || protected.contains(&var) {
+    // The whole-module traced-variable fact is stored `::`-stripped (see
+    // `populate_variable_trace_facts`), so a `::`-qualified chain target is
+    // checked under that canonical spelling too.
+    if writes.len() < 2
+        || protected.contains(&var)
+        || protected.contains(var.trim_start_matches("::"))
+    {
         return None;
     }
     // `last_word` is always set: a run of ≥2 writes has at least one
@@ -609,6 +633,46 @@ mod tests {
         assert_eq!(
             apply("proc ::f {} {\n    set s \"\"\n    append s a\n    append s b\n}"),
             "proc ::f {} {\n    set s ab\n}",
+        );
+    }
+
+    /// Issue #1374 — a computed variable name between the writes can hit the
+    /// accumulator under a spelling `classify_write` cannot see (`f acc`
+    /// returns `zzz b` in tclsh; the fold's `a b` would be a miscompile), so
+    /// the whole proc abstains from O104 / O130.
+    #[test]
+    fn dynamic_name_write_blocks_chain_fold() {
+        let src = "proc ::f {name} { set acc {}; lappend acc a; set $name zzz; lappend acc b; return $acc }";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter()
+                .all(|o| o.code != DiagCode::O130 && o.code != DiagCode::O104),
+            "dynamic-name proc must not chain-fold, got {opts:?}",
+        );
+    }
+
+    /// Issue #1377 — a write trace observes every intermediate store. The
+    /// module fact records the trace target `::acc` canonically as `acc`, so
+    /// the unqualified chain over `acc` must be protected too.
+    #[test]
+    fn traced_variable_blocks_chain_fold() {
+        let src = "proc onw {a b c} { puts trace }\ntrace add variable ::acc write ::onw\nset acc {}\nlappend acc a\nlappend acc b";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O130),
+            "traced accumulator must not chain-fold, got {opts:?}",
+        );
+    }
+
+    /// Issue #1377 — a dynamic trace target (`trace add variable $n …`)
+    /// makes every name potentially traced, so no chain folds at all.
+    #[test]
+    fn dynamic_trace_target_blocks_chain_fold() {
+        let src = "proc onw {a b c} { puts trace }\ntrace add variable $n write ::onw\nset acc {}\nlappend acc a\nlappend acc b";
+        let opts = run_pass(src);
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O130),
+            "dynamic trace target must block every chain fold, got {opts:?}",
         );
     }
 }

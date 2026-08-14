@@ -403,6 +403,12 @@ fn couple_propagated_const_dead_stores(
     if crate::taint::is_irules_dialect(dialect) {
         return;
     }
+    // Whole-module variable-trace facts (issue #1377): a dynamic trace
+    // target makes every name potentially traced, so no propagated const
+    // def is provably dead anywhere in the module.
+    if cu.ir_module.has_dynamic_variable_trace {
+        return;
+    }
     let source = &cu.source;
     let mut functions: Vec<&crate::compilation_unit::FunctionUnit> = vec![&cu.top_level];
     functions.extend(cu.procedures.values());
@@ -416,7 +422,14 @@ fn couple_propagated_const_dead_stores(
         if fu.complexity_guarded {
             continue;
         }
-        couple_const_dead_stores_in_function(fu, registry, source, selected, &mut removals);
+        couple_const_dead_stores_in_function(
+            fu,
+            registry,
+            source,
+            selected,
+            &cu.ir_module.traced_variables,
+            &mut removals,
+        );
     }
 
     // Append each removal, reconciling it against the already-selected
@@ -454,6 +467,10 @@ struct CoupleCtx<'a> {
     def_count: std::collections::HashMap<&'a str, usize>,
     scope_aliases: std::collections::HashSet<String>,
     rmw_hidden: std::collections::HashSet<String>,
+    /// [`crate::ir::Module::traced_variables`] — canonical (`::`-stripped)
+    /// names under an active variable trace anywhere in the module
+    /// (issue #1377).
+    traced: &'a std::collections::BTreeSet<String>,
 }
 
 fn couple_const_dead_stores_in_function(
@@ -461,6 +478,7 @@ fn couple_const_dead_stores_in_function(
     registry: &CommandRegistry,
     source: &str,
     selected: &[Optimisation],
+    traced: &std::collections::BTreeSet<String>,
     removals: &mut Vec<Optimisation>,
 ) {
     use crate::def_use::DefKind;
@@ -481,6 +499,7 @@ fn couple_const_dead_stores_in_function(
         def_count,
         scope_aliases: super::elimination::scan_scope_aliases(&fu.cfg, registry),
         rmw_hidden: super::elimination::collect_rmw_hidden_reads(fu, registry),
+        traced,
     };
 
     for chain in fu.def_use.chains.values() {
@@ -509,6 +528,7 @@ fn couple_const_dead_store_chain(
         def_count,
         scope_aliases,
         rmw_hidden,
+        traced,
     } = ctx;
     let empty: HashSet<String> = HashSet::new();
 
@@ -516,11 +536,18 @@ fn couple_const_dead_store_chain(
         return None;
     }
     let (var, _ver) = &chain.key;
-    // Single constant scalar def, never aliased / global / RMW-hidden.
+    // Single constant scalar def, never aliased / global / RMW-hidden /
+    // traced. The whole-module trace fact stores the canonical
+    // (`::`-stripped) spelling (issue #1377), so an unqualified store still
+    // matches a `trace add variable ::var …` installed anywhere.
     if def_count.get(var.as_str()).copied().unwrap_or(0) != 1 {
         return None;
     }
-    if var.starts_with("::") || scope_aliases.contains(var) || rmw_hidden.contains(var) {
+    if var.starts_with("::")
+        || scope_aliases.contains(var)
+        || rmw_hidden.contains(var)
+        || traced.contains(var.trim_start_matches("::"))
+    {
         return None;
     }
     // The def-use chain keys on the variable name; resolve it to the SSA
@@ -585,17 +612,37 @@ fn couple_const_dead_store_chain(
         return None;
     }
 
-    // Textual coupling check (robust to def-use gaps such as
-    // string-interpolation reads): count `$var` references across the
-    // function, then count how many a *surviving* propagation actually
-    // consumed. The def is removable only when at least one reference
-    // existed and **every** reference was propagated away. A braced
-    // literal `{$var}` (no substitution) or an array `$var(i)` read is
-    // counted but never consumed, so the counts diverge and we keep the
-    // def — conservative and safe.
+    if !every_reference_propagated(fu, source, selected, var) {
+        return None;
+    }
+
+    // Approach B: `def_stmt` is from `fu.cfg` (relative to `base_offset`).
+    let del_span = line_delete_span(source, fu.abs_span(def_stmt.span()));
+    Some(Optimisation::new(
+        DiagCode::O109,
+        "Eliminate dead store",
+        del_span,
+        "",
+    ))
+}
+
+/// Textual coupling check (robust to def-use gaps such as
+/// string-interpolation reads): count `$var` references across the
+/// function, then count how many a *surviving* propagation actually
+/// consumed. The def is removable only when at least one reference existed
+/// and **every** reference was propagated away. A braced literal `{$var}`
+/// (no substitution) or an array `$var(i)` read is counted but never
+/// consumed, so the counts diverge and the def is kept — conservative and
+/// safe. Extracted from [`couple_const_dead_store_chain`].
+fn every_reference_propagated(
+    fu: &crate::compilation_unit::FunctionUnit,
+    source: &str,
+    selected: &[Optimisation],
+    var: &str,
+) -> bool {
     let (fs, fe) = function_source_span(fu);
     if fs >= fe || fe > source.len() {
-        return None;
+        return false;
     }
     let func_src = &source[fs..fe];
     let total_refs = count_var_refs(func_src, var);
@@ -603,7 +650,7 @@ fn couple_const_dead_store_chain(
         // Never read (or read only in a non-substituting form) — the
         // existing unused-variable pass owns this; not a propagation
         // coupling.
-        return None;
+        return false;
     }
     // Miscompilation guard: the variable name must appear as a *bareword*
     // exactly once — the def target. Any other bareword occurrence is a
@@ -611,7 +658,7 @@ fn couple_const_dead_store_chain(
     // `upvar … x`, a `"…x…"` literal, …); removing the def would then drop a
     // value still consumed. Conservative: a stray textual `x` keeps the def.
     if bareword_occurrences(func_src, var) != 1 {
-        return None;
+        return false;
     }
     // Attribute a propagation to this function by its *start* offset —
     // a rewrite never spans two functions, and a word-token's span may
@@ -627,18 +674,7 @@ fn couple_const_dead_store_chain(
         })
         .map(|o| consumed_var_count(o, source, var))
         .sum();
-    if consumed != total_refs {
-        return None;
-    }
-
-    // Approach B: `def_stmt` is from `fu.cfg` (relative to `base_offset`).
-    let del_span = line_delete_span(source, fu.abs_span(def_stmt.span()));
-    Some(Optimisation::new(
-        DiagCode::O109,
-        "Eliminate dead store",
-        del_span,
-        "",
-    ))
+    consumed == total_refs
 }
 
 /// Source byte range spanning every statement of `fu` (for textual reference

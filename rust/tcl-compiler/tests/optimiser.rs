@@ -183,12 +183,14 @@ fn proc_body_and_direct_expr_substitution() {
     // spurious rewrite, value preserved).
     assert_eq!(optimised("set v [expr {3}]", TCL), "set v [expr {3}]");
 
-    // Escaping command substitution ([eval $s]) is non-removable; the constant
-    // store `set n 1` still forwards into `puts $n` (O102 → `puts 1`).
+    // Escaping command substitution ([eval $s]) is non-removable. Since
+    // issue #1374 the opaque `eval $s` script also blinds the whole frame's
+    // value lattice (its body may install a variable trace on `n` or reach
+    // any name), so the O102 forward of `set n 1` into `puts $n` abstains
+    // too and the source stays byte-identical — sound, just conservative.
     let esc = "set n [eval $s]\nset n 1\nputs $n\n";
-    let esc_out = optimised(esc, TCL);
-    assert_eq!(esc_out.lines().next().unwrap(), "set n [eval $s]");
-    assert!(opt_fires(esc, TCL, "O102"));
+    assert_eq!(optimised(esc, TCL), esc);
+    assert!(!opt_fires(esc, TCL, "O102"));
 }
 
 #[test]
@@ -1605,4 +1607,91 @@ mod cross_event_dse {
             "same-event dead store kept:\n{out}"
         );
     }
+}
+
+// ===========================================================================
+// Issues #1374 / #1377 / #1402 — the dynamic-name value-motion barrier and
+// the whole-module variable-trace fact. Every source below currently
+// miscompiled (or mis-reported) before the shared
+// `FunctionUnit::dynamic_barrier_blocks_value_motion` gate and the
+// `Module::traced_variables` widening landed; each pin asserts the
+// optimiser abstains. tclsh oracles cited per test.
+// ===========================================================================
+
+// tclsh 8.6/9.0: `f acc` returns `zzz b` — folding the chain to
+// `set acc {a b}` (O130) walks straight past the dynamic write.
+#[test]
+fn dynamic_name_write_blocks_o130_chain_fold_issue_1374() {
+    let src =
+        "proc f {name} { set acc {}; lappend acc a; set $name zzz; lappend acc b; return $acc }";
+    assert!(!opt_fires(src, TCL, "O130"));
+    assert!(!opt_fires(src, TCL, "O104"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// tclsh 8.6/9.0: `f x` prints `2` — forwarding `puts $x` to `puts 1`
+// (O102, or O100 off the SCCP lattice) ignores that `set $name 2` can
+// rewrite `x`.
+#[test]
+fn dynamic_name_write_blocks_o102_forwarding_issue_1374() {
+    let src = "proc f {name} { set x 1; set $name 2; puts $x }";
+    assert!(!opt_fires(src, TCL, "O102"));
+    assert!(!opt_fires(src, TCL, "O100"));
+    assert!(!opt_fires(src, TCL, "O109"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// tclsh 8.6/9.0: `f flag 1` prints `zzz` — sinking `set flag hello` past
+// the dynamic write into the branch (O125) makes it print `hello`.
+#[test]
+fn dynamic_name_write_blocks_o125_sinking_issue_1374() {
+    let src = "proc f {name c} { set flag hello; if {$c} { set $name zzz; puts $flag } }";
+    assert!(!opt_fires(src, TCL, "O125"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// O119 moves and deletes `set` statements, so the same barrier applies.
+#[test]
+fn dynamic_name_write_blocks_o119_packing_issue_1374() {
+    let src = "set $name q\nset a 1\nset b 2\nset c 3\n";
+    assert!(!opt_fires(src, TCL, "O119"));
+    // Control: the clean top-level sibling still packs under tcl8.6 (top
+    // level, because inside a proc the unused-variable O126 deletions win
+    // overlap selection over the pack either way).
+    let clean = "set a 1\nset b 2\nset c 3\n";
+    assert!(opt_fires(clean, TCL, "O119"));
+}
+
+// tclsh 8.6/9.0: each `set` fires the `::onw` write trace (prints `trace`
+// twice) — deleting `set g 1` as a dead store (O109) drops a callback.
+// The trace spells `::g`, the stores are unqualified; both name the same
+// top-level global.
+#[test]
+fn traced_global_store_is_not_a_dead_store_issue_1377() {
+    let src = "proc onw {a b c} { puts trace }\ntrace add variable ::g write ::onw\nset g 1\nset g 2\nputs $g\n";
+    assert!(!opt_fires(src, TCL, "O109"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// tclsh 8.6/9.0: the `lappend`s fire the `::acc` write trace — folding to
+// `set acc {a b}` (O130) collapses three observable writes into one.
+#[test]
+fn traced_list_chain_is_not_folded_issue_1377() {
+    let src = "proc onw {a b c} { puts trace }\ntrace add variable ::acc write ::onw\nset acc {}\nlappend acc a\nlappend acc b\n";
+    assert!(!opt_fires(src, TCL, "O130"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// A computed command head (`$cmd $x`) lowers to a `Statement::Barrier`
+// whose retained words reference `$x` and raises no dynamic-name flag;
+// treating a barrier as referencing no variable let O125 sink `set x 1`
+// into the branch, leaving `f 0 puts` to read an unset `x` (tclsh:
+// `can't read "x"`). A dynamic `eval` spelling of the trailing reference
+// abstains too (that one via the issue-#1374 opaque-script barrier).
+#[test]
+fn barrier_reference_blocks_o125_issue_1402() {
+    let src = "proc f {flag cmd} {\nset x 1\nif {$flag} { puts $x }\n$cmd $x\n}";
+    assert!(!opt_fires(src, TCL, "O125"));
+    let eval_src = "proc f {flag} {\nset x 1\nif {$flag} { puts $x }\neval [list puts $x]\n}";
+    assert!(!opt_fires(eval_src, TCL, "O125"));
 }

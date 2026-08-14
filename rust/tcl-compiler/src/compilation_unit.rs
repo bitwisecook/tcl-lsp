@@ -602,6 +602,20 @@ impl FunctionUnit {
         // grammar carries the iRules word operators, so `if {$x contains
         // "cd"}` folds under `f5-irules`. A hand-assembled registry without a
         // profile keeps the historical loaded-packs octal derivation.
+        // Dynamic-name facts (issue #923 audit cluster C10): a `set $var v`
+        // means any name may be defined, an `unset $n` that any name may have
+        // stopped existing — so the existence fold below must abstain in that
+        // direction rather than hand the optimiser a wrong constant branch.
+        //
+        // Computed *before* SCCP because a dynamic write / destroy blinds the
+        // value lattice too (issue #1374): after `set $name v` any variable in
+        // the frame may hold any value, so no definition is a trustworthy
+        // constant. Reuse the "every variable is externally mutable" switch a
+        // dynamic trace target already throws — same lattice consequence, one
+        // chokepoint — so O100 / O101 / branch folds never propagate a value
+        // across the barrier. A dynamic *read* only observes, so it leaves
+        // the value lattice alone.
+        let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry);
         let mut sccp = sccp_with_extra_escaping(
             &cfg,
             &ssa,
@@ -611,7 +625,9 @@ impl FunctionUnit {
             crate::sccp::TraceInputs {
                 registry,
                 traced_variables: trace_facts.traced_variables,
-                has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace,
+                has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace
+                    || dynamic_names.writes
+                    || dynamic_names.destroys,
             },
         );
         // Surface `[info exists X]` / `[array exists X]`
@@ -622,12 +638,6 @@ impl FunctionUnit {
         // parameter/existence facts to fold them itself.  A method body's
         // instance variables are handed over too, so the fold abstains on
         // object state instead of calling it absent (issue #1129).
-        //
-        // Dynamic-name facts (issue #923 audit cluster C10): a `set $var v`
-        // means any name may be defined, an `unset $n` that any name may have
-        // stopped existing — so the existence fold must abstain in that
-        // direction rather than hand the optimiser a wrong constant branch.
-        let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry);
         sccp.constant_branches
             .extend(crate::sccp::existence_constant_branches(
                 &cfg,
@@ -710,6 +720,24 @@ impl FunctionUnit {
             method_facts: None,
             semantic_facts: SemanticAnalysisBundle::unavailable(DialectSet::empty()),
         }
+    }
+
+    /// Whether this function's [`Self::dynamic_names`] barrier forbids any
+    /// pass that *moves, folds, or deletes* a variable's value across other
+    /// statements (issue #1374).
+    ///
+    /// A computed variable name (`set $name v`, `unset $n`, `[set $v]`)
+    /// can create, destroy, or observe **any** variable in the frame, so no
+    /// "sole reaching definition", "write-only chain", or "not referenced
+    /// later" fact derived from spelled names is trustworthy anywhere in the
+    /// function.  Consulted by the value-motion passes — O102 load
+    /// forwarding, O104 / O130 chain folding, O119 multi-`set` packing, and
+    /// O125 code sinking — which abstain for the whole function when it
+    /// answers `true`, matching the abstention O109 / O126 elimination and
+    /// SCCP's existence fold already apply.
+    #[must_use]
+    pub const fn dynamic_barrier_blocks_value_motion(&self) -> bool {
+        !self.dynamic_names.is_clear()
     }
 
     /// Recover the absolute span of `span` (a span carried by this unit's

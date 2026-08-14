@@ -53,15 +53,18 @@ use super::{Optimisation, PassContext};
 
 /// Run the pattern-recognition pass.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+    // O119 moves and deletes `set` statements, so a function with a
+    // computed variable name (`set $name …`) abstains from packing —
+    // the shared value-motion barrier of issue #1374. O114 (`set`/`expr`
+    // → `incr`) rewrites a statement in place and stays on.
     let top_ints = int_var_names(&cu.top_level);
-    walk_script(ctx, &cu.ir_module.top_level, &top_ints, 0);
+    let top_pack = !cu.top_level.dynamic_barrier_blocks_value_motion();
+    walk_script(ctx, &cu.ir_module.top_level, &top_ints, top_pack, 0);
     for (qname, proc) in &cu.ir_module.procedures {
-        let ints = cu
-            .procedures
-            .get(qname)
-            .map(int_var_names)
-            .unwrap_or_default();
-        walk_script(ctx, &proc.body, &ints, 0);
+        let fu = cu.procedures.get(qname);
+        let ints = fu.map(int_var_names).unwrap_or_default();
+        let pack = fu.is_some_and(|f| !f.dynamic_barrier_blocks_value_motion());
+        walk_script(ctx, &proc.body, &ints, pack, 0);
     }
     // O128 — end-offset index rewrites (its own segment-level walk over
     // the same source).
@@ -99,14 +102,24 @@ fn lattice_is_int(t: &TypeLattice) -> bool {
 }
 
 /// `depth` is the nesting level of `script` — see
-/// [`super::MAX_OPTIMISER_WALK_DEPTH`].
-fn walk_script(ctx: &mut PassContext<'_>, script: &Script, int_vars: &HashSet<String>, depth: u32) {
+/// [`super::MAX_OPTIMISER_WALK_DEPTH`]. `pack` gates the O119 multi-`set`
+/// packing (off for a function whose dynamic-name barrier blocks value
+/// motion — see [`run`]).
+fn walk_script(
+    ctx: &mut PassContext<'_>,
+    script: &Script,
+    int_vars: &HashSet<String>,
+    pack: bool,
+    depth: u32,
+) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
-    detect_multi_set_packing(ctx, script);
+    if pack {
+        detect_multi_set_packing(ctx, script);
+    }
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, int_vars, depth);
+        walk_statement(ctx, stmt, int_vars, pack, depth);
     }
 }
 
@@ -252,6 +265,7 @@ fn walk_statement(
     ctx: &mut PassContext<'_>,
     stmt: &Statement,
     int_vars: &HashSet<String>,
+    pack: bool,
     depth: u32,
 ) {
     match stmt {
@@ -271,34 +285,34 @@ fn walk_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, &c.body, int_vars, depth + 1);
+                walk_script(ctx, &c.body, int_vars, pack, depth + 1);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, b, int_vars, depth + 1);
+                walk_script(ctx, b, int_vars, pack, depth + 1);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, init, int_vars, depth + 1);
-            walk_script(ctx, next, int_vars, depth + 1);
-            walk_script(ctx, body, int_vars, depth + 1);
+            walk_script(ctx, init, int_vars, pack, depth + 1);
+            walk_script(ctx, next, int_vars, pack, depth + 1);
+            walk_script(ctx, body, int_vars, pack, depth + 1);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, body, int_vars, depth + 1),
+        | Statement::Foreach { body, .. } => walk_script(ctx, body, int_vars, pack, depth + 1),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, int_vars, depth + 1);
+            walk_script(ctx, body, int_vars, pack, depth + 1);
             for h in handlers {
-                walk_script(ctx, &h.body, int_vars, depth + 1);
+                walk_script(ctx, &h.body, int_vars, pack, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, int_vars, depth + 1);
+                walk_script(ctx, fb, int_vars, pack, depth + 1);
             }
         }
         Statement::Switch {
@@ -306,11 +320,11 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b, int_vars, depth + 1);
+                    walk_script(ctx, b, int_vars, pack, depth + 1);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, b, int_vars, depth + 1);
+                walk_script(ctx, b, int_vars, pack, depth + 1);
             }
         }
         _ => {}
@@ -442,6 +456,30 @@ mod tests {
     }
 
     // end-to-end tests
+
+    /// Issue #1374 — a computed variable name in the proc means the packed
+    /// `set`s' targets are not provably distinct from whatever `set $name …`
+    /// touches, so O119 abstains for the whole function. The in-place O114
+    /// rewrite is unaffected (covered by the tests below).
+    #[test]
+    fn dynamic_name_write_blocks_multi_set_packing() {
+        let opts = run_pass("proc ::f {name} { set $name q\nset a 1\nset b 2\nset c 3 }");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O119),
+            "dynamic-name proc must not pack, got {opts:?}",
+        );
+    }
+
+    /// Control for the gate above: the same run of `set`s without the
+    /// dynamic write still packs.
+    #[test]
+    fn multi_set_packing_still_fires_without_dynamic_name() {
+        let opts = run_pass("proc ::f {} { set a 1\nset b 2\nset c 3 }");
+        assert!(
+            opts.iter().any(|o| o.code == DiagCode::O119),
+            "control: clean proc must still pack, got {opts:?}",
+        );
+    }
 
     #[test]
     fn set_expr_plus_one_rewrites_to_incr() {

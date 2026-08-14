@@ -44,7 +44,7 @@
 //! and [`Statement::AssignExpr`] whose expression has no
 //! command substitution.
 
-use crate::compilation_unit::CompilationUnit;
+use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
@@ -55,8 +55,21 @@ use super::{Optimisation, PassContext};
 
 /// Run the code-sinking pass.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    walk_script(ctx, &cu.ir_module.top_level, 0);
-    for proc in cu.ir_module.procedures.values() {
+    // A computed variable name (`set $name …`) can read or write any
+    // variable under a spelling the textual `$var` scans below cannot see,
+    // so the whole function abstains from sinking (issue #1374) — the same
+    // barrier O109 / O126 elimination and SCCP already consult.
+    if !cu.top_level.dynamic_barrier_blocks_value_motion() {
+        walk_script(ctx, &cu.ir_module.top_level, 0);
+    }
+    for (qname, proc) in &cu.ir_module.procedures {
+        if cu
+            .procedures
+            .get(qname)
+            .is_none_or(FunctionUnit::dynamic_barrier_blocks_value_motion)
+        {
+            continue;
+        }
         walk_script(ctx, &proc.body, 0);
     }
 }
@@ -69,54 +82,7 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script, depth: u32) {
     }
     let stmts = &script.statements;
     for i in 0..stmts.len().saturating_sub(1) {
-        let stmt = &stmts[i];
-        let Some((var, span)) = sinkable_assignment(stmt) else {
-            continue;
-        };
-        // A variable that carries state across `when <event>` boundaries
-        // (iRules) is observable after this event handler returns, so its
-        // definition must not be sunk into a branch that may not run.
-        if ctx.cross_event_vars.contains(&var) {
-            continue;
-        }
-        // Already-covered guard: a statement an earlier pass already rewrites
-        // (e.g. O109 / O126 dead-store elimination, which runs before code
-        // sinking) must not also be sunk — the two rewrites would conflict.
-        if ctx.optimisations.iter().any(|o| {
-            o.span.start() <= span.start() && o.span.end() >= span.end() && !span.is_empty()
-        }) {
-            continue;
-        }
-        let decision = &stmts[i + 1];
-        if !is_decision(decision) {
-            continue;
-        }
-        if decision_condition_uses_var(decision, &var) {
-            continue;
-        }
-        if !any_decision_body_uses_var(decision, &var, depth) {
-            continue;
-        }
-        let mut later_use = false;
-        for later in &stmts[i + 2..] {
-            if statement_uses_var(later, &var, depth) {
-                later_use = true;
-                break;
-            }
-        }
-        if later_use {
-            continue;
-        }
-        // Sinking relocates `stmt` past the decision's condition and past the
-        // statements that precede its use inside the target branch. If any of
-        // those redefine a variable the assignment's RHS *reads*, the moved
-        // computation would observe a different value — a miscompile. The
-        // earlier guards only protect the assigned variable itself, not its
-        // read-set.
-        if sink_rhs_clobbered_by_decision(stmt, decision) {
-            continue;
-        }
-        emit_sink(ctx, stmt, span, decision, &var);
+        consider_sink_at(ctx, stmts, i, depth);
     }
 
     // Recurse into nested compound statements.
@@ -173,6 +139,71 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script, depth: u32) {
     }
 }
 
+/// Evaluate `stmts[i]` as a sink candidate whose decision is `stmts[i + 1]`,
+/// emitting the O125 when every gate passes. Extracted from [`walk_script`].
+fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, depth: u32) {
+    let stmt = &stmts[i];
+    let Some((var, span)) = sinkable_assignment(stmt) else {
+        return;
+    };
+    // A variable that carries state across `when <event>` boundaries
+    // (iRules) is observable after this event handler returns, so its
+    // definition must not be sunk into a branch that may not run.
+    if ctx.cross_event_vars.contains(&var) {
+        return;
+    }
+    // Already-covered guard: a statement an earlier pass already rewrites
+    // (e.g. O109 / O126 dead-store elimination, which runs before code
+    // sinking) must not also be sunk — the two rewrites would conflict.
+    if ctx
+        .optimisations
+        .iter()
+        .any(|o| o.span.start() <= span.start() && o.span.end() >= span.end() && !span.is_empty())
+    {
+        return;
+    }
+    let decision = &stmts[i + 1];
+    if !is_decision(decision) {
+        return;
+    }
+    if decision_condition_uses_var(decision, &var) {
+        return;
+    }
+    if !any_decision_body_uses_var(decision, &var, depth) {
+        return;
+    }
+    if stmts[i + 2..]
+        .iter()
+        .any(|later| statement_uses_var(later, &var, depth))
+    {
+        return;
+    }
+    // Sinking relocates `stmt` past the decision's condition and past the
+    // statements that precede its use inside the target branch. If any of
+    // those redefine a variable the assignment's RHS *reads*, the moved
+    // computation would observe a different value — a miscompile. The
+    // earlier guards only protect the assigned variable itself, not its
+    // read-set.
+    if sink_rhs_clobbered_by_decision(stmt, decision) {
+        return;
+    }
+    let targets = decision_sink_targets(decision, &var);
+    // A `Barrier` / `UpFrame` answers "uses every variable" (issue
+    // #1402), which is the right *blocking* answer for the later-use
+    // scan above but must never *enable* a sink: a branch whose first
+    // "use" is such a statement had no sink before that answer existed,
+    // and anchoring one there could move the def past an earlier
+    // by-name read the textual scan cannot see. Decline instead.
+    if targets.is_empty()
+        || targets
+            .iter()
+            .any(|t| matches!(t, Statement::Barrier { .. } | Statement::UpFrame { .. }))
+    {
+        return;
+    }
+    emit_sink(ctx, stmt, span, &targets, &var);
+}
+
 /// Emit the O125 sink. The assignment is sunk into the **deepest** branch
 /// body that uses `var`, in **every** branch that uses it (a decision with
 /// the var live in both arms duplicates the def into each). When the
@@ -183,11 +214,10 @@ fn emit_sink(
     ctx: &mut PassContext<'_>,
     original: &Statement,
     original_span: tcl_lexer::Span,
-    decision: &Statement,
+    targets: &[&Statement],
     var: &str,
 ) {
     let _ = original;
-    let targets = decision_sink_targets(decision, var);
     let target_spans: Vec<tcl_lexer::Span> = targets.iter().map(|s| s.span()).collect();
 
     if let Some(set_text) = extract_source(ctx.source, original_span)
@@ -581,7 +611,15 @@ fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
         return true;
     }
     match stmt {
-        Statement::AssignConst { .. } | Statement::Barrier { .. } => false,
+        Statement::AssignConst { .. } => false,
+        // A barrier is emitted precisely when lowering cannot model a
+        // command's effects (a dynamic `eval` body, a computed head, …), and
+        // its retained words may reference any variable — including `var`.
+        // Answer `true`, matching `propagation`'s `has_intervening_barrier`
+        // (issue #1402). An `UpFrame` (literal-body `uplevel`/`interp eval`)
+        // evaluates in a *different* frame that can reach this one, so it
+        // gets the same conservative answer rather than a body recursion.
+        Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
         Statement::AssignValue { value, .. } => text_references_var(value, var),
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             expr_references_var(expr, var)
@@ -628,9 +666,9 @@ fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
                 .any(|it| text_references_var(&it.list_arg, var))
                 || script_uses_var(body, var, depth + 1)
         }
-        Statement::Catch { body, .. }
-        | Statement::UpFrame { body, .. }
-        | Statement::Block { body, .. } => script_uses_var(body, var, depth + 1),
+        Statement::Catch { body, .. } | Statement::Block { body, .. } => {
+            script_uses_var(body, var, depth + 1)
+        }
         Statement::Try {
             body,
             handlers,
@@ -967,6 +1005,61 @@ mod tests {
             opts.iter().all(|o| o.code != DiagCode::O125),
             "sink past a condition cmd-subst that may write an RHS read must be suppressed, got {opts:?}",
         );
+    }
+
+    /// Issue #1374 — the branch body's `set $name zzz` can write `flag`
+    /// under a spelling the textual `$var` scan cannot see (`f flag 1`
+    /// prints `zzz` in tclsh; the sunk `set flag hello` would print
+    /// `hello`), so the whole proc abstains from O125.
+    #[test]
+    fn dynamic_name_write_suppresses_sink() {
+        let opts =
+            run_pass("proc ::f {name c} { set flag hello; if {$c} { set $name zzz; puts $flag } }");
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O125),
+            "dynamic-name proc must not sink, got {opts:?}",
+        );
+    }
+
+    /// Issue #1402 — a computed command head (`$cmd $x`) lowers to a
+    /// `Statement::Barrier` whose retained words reference `$x`, and it
+    /// deliberately raises no dynamic-name flag (see
+    /// [`crate::dynamic_names`]), so only the later-use scan protects it:
+    /// treating the barrier as a use keeps `set x 1` from being sunk into
+    /// the branch (with `flag` false, `f 0 puts` would then read an unset
+    /// `x`).
+    #[test]
+    fn barrier_reference_after_decision_suppresses_sink() {
+        let src = "proc ::f {flag cmd} {\nset x 1\nif {$flag} { puts $x }\n$cmd $x\n}";
+        // The pin must exercise the Barrier arm of `statement_uses_var`, not
+        // the issue-#1374 whole-function gate — assert the barrier is clear.
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.procedures.get("::f").expect("::f built");
+        assert!(
+            !fu.dynamic_barrier_blocks_value_motion(),
+            "shape must not raise the dynamic-name barrier",
+        );
+        let opts = run_pass(src);
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O125),
+            "must not sink past a barrier that references the var, got {opts:?}",
+        );
+    }
+
+    /// Issue #1402 — the conservative direction directly: a `Barrier` (and
+    /// an `UpFrame`) answers "uses every variable", matching
+    /// `propagation`'s `has_intervening_barrier`.
+    #[test]
+    fn barrier_statement_conservatively_uses_every_var() {
+        let barrier = Statement::Barrier {
+            span: tcl_lexer::Span::new(0, 4),
+            reason: "test".to_owned(),
+            command: "eval".to_owned(),
+            canonical_command: None,
+            args: vec!["$s".to_owned()],
+            tokens: None,
+        };
+        assert!(statement_uses_var(&barrier, "x", 0));
     }
 
     #[test]

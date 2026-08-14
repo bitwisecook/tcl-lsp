@@ -229,6 +229,15 @@ fn run_load_forwarding(
     use crate::def_use::{DefKind, UseKind};
     use crate::ir::Statement;
 
+    // A computed variable name (`set $name …`) in this frame can rewrite
+    // any variable between a "sole" reaching definition and its use, under
+    // a spelling neither the def-use chains nor `has_intervening_barrier`
+    // can see — so the whole function abstains (issue #1374), the same
+    // barrier O109 / O126 elimination and SCCP already consult.
+    if fu.dynamic_barrier_blocks_value_motion() {
+        return;
+    }
+
     // Independent of the SCCP lattice (see the doc comment on the call
     // site in `run`), this pass must apply the same externally-mutable
     // guard SCCP applies to its own lattice — a `global`/`variable`/
@@ -1006,6 +1015,13 @@ fn oo_method_constants(
         return std::collections::HashMap::new();
     };
     if fu.complexity_guarded {
+        return std::collections::HashMap::new();
+    }
+    // This re-run bypasses the unit build's dynamic-name widening of the
+    // SCCP escaping switch, so apply the same abstention here: a computed
+    // variable name in the body makes no method-local constant trustworthy
+    // (issue #1374).
+    if fu.dynamic_barrier_blocks_value_motion() {
         return std::collections::HashMap::new();
     }
     // The re-run also carries the registry builtin-fold context (issue
@@ -3605,6 +3621,21 @@ mod tests {
         assert!(
             opts.iter().any(|o| o.code == DiagCode::O102),
             "expected O102 load-forwarding, got {opts:?}",
+        );
+    }
+
+    // Issue #1374 — a computed variable name (`set $name 2`) between the
+    // "sole" reaching def and the use can rewrite `x` under a spelling the
+    // def-use chains cannot see: `f x` prints 2 in tclsh, so forwarding the
+    // literal 1 (via O102's chain scan or O100's SCCP projection) is a
+    // miscompile. The whole function abstains.
+    #[test]
+    fn dynamic_name_write_blocks_load_forwarding() {
+        let opts = run_pass("proc ::f {name} { set x 1; set $name 2; puts $x }");
+        assert!(
+            opts.iter()
+                .all(|o| !matches!(o.code, DiagCode::O100 | DiagCode::O102)),
+            "must not forward the pre-dynamic-write literal 1, got {opts:?}",
         );
     }
 
