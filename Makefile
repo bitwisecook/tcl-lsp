@@ -996,6 +996,13 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and the
 		cd $(ROOT)rust/tcl-spec-studio-wasm; \
 		cargo fmt --all --check; \
 		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(ROOT)rust/tcl-lsp-server-wasm/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
+		echo "==> Checking tcl-lsp-server-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
+		cd $(ROOT)rust/tcl-lsp-server-wasm; \
+		cargo fmt --all --check; \
+		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
 
 # Supply-chain audit for the Rust workspace: RustSec advisories, license

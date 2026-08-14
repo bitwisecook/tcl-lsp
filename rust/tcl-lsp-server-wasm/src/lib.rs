@@ -127,7 +127,10 @@ impl LspWorker {
                         let reply_post = post.clone();
                         wasm_bindgen_futures::spawn_local(async move {
                             if let Ok(Some(response)) = call.await {
-                                post_message(&reply_post, &inject_type_hierarchy_provider(response));
+                                post_message(
+                                    &reply_post,
+                                    &inject_type_hierarchy_provider(response),
+                                );
                             }
                         });
                     }
@@ -231,7 +234,9 @@ fn file_path_of(uri: &str) -> Option<std::path::PathBuf> {
 
 /// Report a message the worker could not make sense of.
 fn log_bad_message(detail: &str) {
-    web_log(&format!("tcl-lsp: dropped an unparseable message: {detail}"));
+    web_log(&format!(
+        "tcl-lsp: dropped an unparseable message: {detail}"
+    ));
 }
 
 /// Write one line to the host console.
