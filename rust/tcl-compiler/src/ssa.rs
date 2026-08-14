@@ -631,15 +631,57 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // but not a scope alias, so `trace add variable x` must
             // still surface its `VarWrite` def.
             if let Some(reg) = registry {
-                if let Some(spec) = reg.get(command)
+                let spec = reg.get(command);
+                if let Some(spec) = spec
                     && spec.traits.contains(Traits::CREATES_SCOPE_ALIAS)
                 {
                     return Vec::new();
                 }
                 let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-                let indices = reg.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite);
-                if !indices.is_empty() {
-                    return indices
+                // Loop variables (`ArgRole::LoopVarList` — `foreach` / `lmap`
+                // var-lists, `dict for` / `array for` key-value pairs).  A
+                // structured loop that stays a barrier — `{*}` expansion
+                // among its words, a dynamic body — still binds every
+                // variable its *literal* var-list words name, and its body is
+                // scanned for reads in this same frame, so without these defs
+                // a body read of a loop variable reported W210
+                // "read before it is set" (issue #1380).  A dynamic var-list
+                // word (`foreach {*}$pairs …`) names nothing statically and
+                // contributes no def.
+                //
+                // A **conditionally-bound** layout is excluded: `dict update
+                // dictVar key varName … body` binds `varName` only when the
+                // key is present at runtime, so it is not a definite def and
+                // the key-aware read-before-set harvester owns it instead
+                // (`RepeatedArgLayout::conditional_binding`, issue #1278).
+                let loop_vars_conditional = |repeated: &[tcl_registry::RepeatedArgLayout]| {
+                    repeated.iter().any(|layout| {
+                        layout.conditional_binding && layout.role == ArgRole::LoopVarList
+                    })
+                };
+                let conditional_loop_vars = spec.is_some_and(|spec| {
+                    args.first()
+                        .and_then(|first| spec.resolve_subcommand(first))
+                        .map_or_else(
+                            || loop_vars_conditional(spec.repeated_args),
+                            |sub| loop_vars_conditional(sub.repeated_args),
+                        )
+                });
+                let mut defs: Vec<String> = if conditional_loop_vars {
+                    Vec::new()
+                } else {
+                    reg.arg_indices_for_role(command, &arg_strs, ArgRole::LoopVarList)
+                        .into_iter()
+                        .filter_map(|idx| args.get(idx))
+                        .filter(|word| !word.contains('$') && !word.contains('['))
+                        .filter_map(|word| tcl_syntax::list::split_list(word).ok())
+                        .flatten()
+                        .map(std::borrow::Cow::into_owned)
+                        .filter(|name| !name.is_empty())
+                        .collect()
+                };
+                defs.extend(
+                    reg.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite)
                         .into_iter()
                         .filter_map(|idx| {
                             // A brace-quoted name word is a literal name, `$`
@@ -651,8 +693,10 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                                 crate::naming::element_var_name_braced(s, braced).to_owned()
                             })
                         })
-                        .filter(|n| !n.is_empty())
-                        .collect();
+                        .filter(|n| !n.is_empty()),
+                );
+                if !defs.is_empty() {
+                    return defs;
                 }
             }
             // Legacy string-match fallback for callers without a

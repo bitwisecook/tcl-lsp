@@ -1219,44 +1219,70 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// `{*}` expansion on structured commands lowers to a barrier so
+    /// Whether a resolved lowering hook commits to a **positional argv
+    /// shape** — its lowerer reads "the body is word N", "the loop variables
+    /// are word 0", "the result variable is word 1" — so a `{*}` expansion
+    /// among the words makes the shape unknowable and the call must barrier
+    /// instead.
+    ///
+    /// Registry-derived by construction: the answer is keyed on the typed
+    /// [`LoweringHookId`] that [`Self::try_dispatch_structured_hook`] already
+    /// dispatches on, not on a command-name list (issue #1380 — a nine-name
+    /// list had drifted against seventeen structured hook IDs, so `lmap`,
+    /// `dict for`, `array for`, `foreachLine`, `catch`, `try`, `eval`,
+    /// `uplevel`, and `apply` all committed to their un-expanded argv).
+    /// The match is exhaustive with no wildcard arm, so a new hook ID cannot
+    /// be added without classifying it here.
+    ///
+    /// The `false` arm is the non-structured group: those hooks run in
+    /// [`try_lower_hook`] before this dispatcher is reached, and each already
+    /// declines an expanded call itself via `has_expansion`.
+    fn hook_commits_to_argv_shape(hook: LoweringHookId) -> bool {
+        match hook {
+            LoweringHookId::Proc
+            | LoweringHookId::When
+            | LoweringHookId::NamespaceEval
+            | LoweringHookId::If
+            | LoweringHookId::Switch
+            | LoweringHookId::For
+            | LoweringHookId::While
+            | LoweringHookId::Foreach
+            | LoweringHookId::Lmap
+            | LoweringHookId::ForeachLine
+            | LoweringHookId::Catch
+            | LoweringHookId::Try
+            | LoweringHookId::Dict
+            | LoweringHookId::Eval
+            | LoweringHookId::Uplevel
+            | LoweringHookId::Apply
+            | LoweringHookId::ArrayFor => true,
+            LoweringHookId::Expr
+            | LoweringHookId::Return
+            | LoweringHookId::Set
+            | LoweringHookId::Incr
+            | LoweringHookId::AppendOrLappend
+            | LoweringHookId::Unset
+            | LoweringHookId::Global
+            | LoweringHookId::Variable
+            | LoweringHookId::Upvar => false,
+        }
+    }
+
+    /// `{*}` expansion on a structured command lowers to a barrier so
     /// downstream analyses can't reason about the expanded form.
-    /// Returns `Some(barrier)` when the gate trips; `None` otherwise.
     fn structured_expand_barrier(
         cmd_name: &str,
         args: &[String],
         seg: &SegmentedCommand,
-    ) -> Option<Statement> {
-        let structured = matches!(
-            cmd_name,
-            "proc"
-                | "when"
-                | "namespace"
-                | "if"
-                | "switch"
-                | "for"
-                | "while"
-                | "foreach"
-                | "foreach_in_collection"
-        );
-        if !structured {
-            return None;
-        }
-        if !seg
-            .expand_word
-            .as_ref()
-            .is_some_and(|ew| ew.iter().any(|&e| e))
-        {
-            return None;
-        }
-        Some(Statement::Barrier {
+    ) -> Statement {
+        Statement::Barrier {
             span: seg.span,
             reason: format!("{cmd_name} with argument expansion"),
             command: cmd_name.into(),
             canonical_command: None,
             args: args.to_vec(),
             tokens: Some(Self::cmd_tokens(seg)),
-        })
+        }
     }
 
     /// Try to dispatch *`cmd_name`* through the registry's typed
@@ -1303,6 +1329,17 @@ impl<'r> Lowerer<'r> {
             self.registry.own_availability_mask(),
         )?;
         let hook = resolved.semantics.lowering_hook?;
+        // The expansion gate lives here, keyed on the same typed hook the
+        // dispatch below uses, so it can never name a different set of
+        // commands than the lowerers it protects (issue #1380).
+        if Self::hook_commits_to_argv_shape(hook)
+            && seg
+                .expand_word
+                .as_ref()
+                .is_some_and(|ew| ew.iter().any(|&e| e))
+        {
+            return Some(Self::structured_expand_barrier(cmd_name, args, seg));
+        }
         let inline_body_error_context = resolved.semantics.operation.inline_body_error_context();
         match hook {
             // Static-body uplevel.  Match `uplevel 1 {body}`,
@@ -1525,16 +1562,13 @@ impl<'r> Lowerer<'r> {
             return Some(stmt);
         }
 
-        if let Some(barrier) = Self::structured_expand_barrier(cmd_name, args, seg) {
-            return Some(barrier);
-        }
-
-        // Registry-driven hook-ID dispatch covers all 15
+        // Registry-driven hook-ID dispatch covers all 17
         // structured command forms — every typed
         // `LoweringHookId` (Proc, When, NamespaceEval, If,
         // Switch, For, While, Foreach, Lmap, ForeachLine, Catch,
-        // Try, Dict, Eval, Uplevel) flows through
-        // [`try_dispatch_structured_hook`].  Commands that
+        // Try, Dict, Eval, Uplevel, Apply, ArrayFor) flows through
+        // [`try_dispatch_structured_hook`], which also raises the
+        // `{*}`-expansion barrier for them.  Commands that
         // aren't in the registry, or whose hook is `None`, fall
         // through to [`lower_default`] below.
         if let Some(stmt) = self.try_dispatch_structured_hook(cmd_name, seg, namespace) {
@@ -3931,6 +3965,87 @@ mod tests {
             "8.4 treats `{{*}}` as literal → `if` lowers without a barrier: {:?}",
             m84.top_level.statements,
         );
+    }
+
+    /// Issue #1380: the `{*}` barrier used to be a nine-name list
+    /// (`proc`/`when`/`namespace`/`if`/`switch`/`for`/`while`/`foreach`/
+    /// `foreach_in_collection`) while `try_dispatch_structured_hook` covers
+    /// seventeen typed hook IDs, so every structured form missing from the
+    /// list committed to its *un-expanded* argv — `lmap i {*}$spec {…}`
+    /// fabricated an `IRForeach` with one iterator over the literal word
+    /// `${spec}`, which is what made W210 claim a loop variable was read
+    /// before it was set.
+    #[test]
+    fn every_argv_shaped_hook_barriers_on_expansion() {
+        let reg = reg();
+        for src in [
+            // Forms the old name list already covered.
+            "foreach i {*}$spec {puts $i}",
+            "if {*}$cond {puts hi}",
+            "switch {*}$spec {a {puts hi}}",
+            "while {*}$spec {puts hi}",
+            "for {*}$spec {puts hi}",
+            "proc {*}$spec {puts hi}",
+            "namespace eval {*}$spec {puts hi}",
+            // Forms it missed.
+            "lmap i {*}$spec {puts $i}",
+            "dict for {k v} {*}$rest {puts $k}",
+            "array for {k v} {*}$rest {puts $k}",
+            "foreachLine ln {*}$rest {puts $ln}",
+            "catch {puts hi} {*}$rest",
+            "try {puts hi} {*}$rest",
+            "eval {*}$rest",
+            "uplevel {*}$rest",
+            "apply {*}$rest",
+        ] {
+            let m = lower_to_ir(src, &reg);
+            assert!(
+                matches!(
+                    m.top_level.statements.first(),
+                    Some(Statement::Barrier { .. })
+                ),
+                "`{src}` must barrier on `{{*}}` expansion: {:?}",
+                m.top_level.statements,
+            );
+        }
+    }
+
+    /// The barrier is an *expansion* gate, not a blanket one: the same
+    /// structured forms without `{*}` keep their specialised lowering, and a
+    /// non-structured hook (`set`) never barriers on expansion at all — its
+    /// own `has_expansion` check declines and the call reaches
+    /// `lower_default`.
+    #[test]
+    fn expansion_barrier_leaves_unexpanded_and_non_structured_forms_alone() {
+        let reg = reg();
+        for src in [
+            "foreach i $spec {puts $i}",
+            "lmap i $spec {puts $i}",
+            "catch {puts hi} err",
+            "set {*}$rest",
+            "puts {*}$rest",
+        ] {
+            let m = lower_to_ir(src, &reg);
+            assert!(
+                !matches!(
+                    m.top_level.statements.first(),
+                    Some(Statement::Barrier { .. })
+                ),
+                "`{src}` must not raise the expansion barrier: {:?}",
+                m.top_level.statements,
+            );
+        }
+    }
+
+    /// The barrier reason names the command, which the compiler-explorer
+    /// `--show ir` view and the audit notes in issue #1380 both quote.
+    #[test]
+    fn expansion_barrier_reason_names_the_command() {
+        let m = lower_to_ir("lmap i {*}$spec {puts $i}", &reg());
+        let Some(Statement::Barrier { reason, .. }) = m.top_level.statements.first() else {
+            panic!("expected a barrier: {:?}", m.top_level.statements);
+        };
+        assert_eq!(reason, "lmap with argument expansion");
     }
 
     #[test]
