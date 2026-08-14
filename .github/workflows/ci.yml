@@ -1642,3 +1642,6 @@ jobs:
             done < <(jq -r '.artifacts[] | [.id | tostring, .workflow_run.id | tostring] | @tsv' <<< "$payload")
             (( page++ ))
           done
+
+# (measurement scaffold — this branch exists only to measure the .vscode-test
+# cache hit/miss delta; not for merge)
