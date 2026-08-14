@@ -214,7 +214,7 @@ fn the_loaded_specs_carry_their_analysis_facts() {
     let hover = compile.hover.expect("hover survives the migration");
     assert_eq!(hover.summary, "Compile with advanced optimizations.");
     assert_eq!(
-        compile.primary_synopsis(),
+        compile.primary_synopsis(None),
         Some(
             "compile_ultra ?-incremental? ?-retime? ?-scan? ?-no_autoungroup? \
              ?-no_boundary_optimization? ?-gate_clock? ?-timing_high_effort_script?"

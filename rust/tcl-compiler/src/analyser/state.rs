@@ -472,6 +472,12 @@ pub struct Analyser {
     /// [`Self::flush_dsl_gate_diagnostics`] against the effective Tcl
     /// version.
     pub(super) dsl_gate_sites: Vec<super::diagnostics::version_gate::DslGateSite>,
+    /// Proven W147 option conflicts whose `OptionConstraint` is version-gated
+    /// — decided post-walk by [`Self::flush_gated_option_conflicts`], which
+    /// promotes the ones the resolved floor actually has onto
+    /// [`Self::pending_arity`]. A constraint with no lifecycle bypasses this
+    /// buffer entirely and is queued inline at the dispatch site.
+    pub(super) pending_option_conflicts: Vec<super::diagnostics::version_gate::GatedOptionConflict>,
     /// Session/file pins for the keyed library-version axes
     /// (`--bigip-version`-style overrides, dialect-profile-model.md §7.1).
     /// Defaults to empty, in which case each keyed axis falls back to its
@@ -1347,6 +1353,7 @@ impl Analyser {
             tk_domains: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
             dsl_gate_sites: Vec::new(),
+            pending_option_conflicts: Vec::new(),
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
             builtin_names: None,
             builtin_dialect: None,
@@ -2467,6 +2474,11 @@ impl Analyser {
         self.flush_w143_diagnostics();
         self.flush_w304_diagnostics();
         self.flush_var_literal_checks();
+        // Decide every version-gated option relationship *before* the arity
+        // flush: a conflict the resolved floor has is promoted onto
+        // `pending_arity`, so it goes through the same shadowing suppression
+        // an ungated one does.
+        self.flush_gated_option_conflicts();
         self.flush_arity_diagnostics();
         self.flush_ctor_arity_diagnostics();
         self.flush_next_arity_diagnostics();

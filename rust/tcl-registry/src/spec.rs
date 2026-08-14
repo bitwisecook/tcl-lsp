@@ -1600,13 +1600,24 @@ impl CommandSpec {
     }
 
     /// The command's primary invocation synopsis — the first non-empty
-    /// [`Self::forms`] entry, falling back to the first non-empty hover
-    /// synopsis line. `None` when the spec declares neither. Used for the
-    /// "usage: …" suffix on arity diagnostics (E002/E003/E005).
+    /// [`Self::forms`] entry *available at `package_version`*, falling back to
+    /// the first non-empty hover synopsis line. `None` when the spec declares
+    /// neither. Used for the "usage: …" suffix on arity diagnostics
+    /// (E002/E003/E005).
+    ///
+    /// A [`FormSpec`] carries its own [`Lifecycle`], so a form a later release
+    /// added — or withdrew — is skipped when `package_version` excludes it: a
+    /// document pinned to the older release is told the usage *it* has, not a
+    /// synopsis it cannot call. `None` is permissive (every form is eligible),
+    /// matching the rest of the `*_for_version` family; the hover fallback is
+    /// never gated, because a hover line carries no lifecycle to gate on.
+    ///
+    /// [`FormSpec`]: crate::hover::FormSpec
     #[must_use]
-    pub fn primary_synopsis(&self) -> Option<&'static str> {
+    pub fn primary_synopsis(&self, package_version: Option<&str>) -> Option<&'static str> {
         self.forms
             .iter()
+            .filter(|form| form.available_for_version(package_version))
             .map(|f| f.synopsis)
             .chain(self.hover.iter().flat_map(|h| h.synopsis.iter().copied()))
             .find(|s| !s.is_empty())
@@ -1631,10 +1642,20 @@ impl CommandSpec {
     /// required word contributes only its trailing run: the words a caller
     /// can append without also having to supply something in between.
     ///
+    /// A form is additionally skipped when its [`Lifecycle`] excludes
+    /// `package_version` — appending a word that only exists from a later
+    /// release is exactly the fix a pinned document must not be offered.
+    /// `None` is permissive (every form is eligible).
+    ///
     /// Returns an empty vector when the command declares no forms, none apply
-    /// to *dialect*, or the applicable ones end in a required word.
+    /// to *dialect* and *`package_version`*, or the applicable ones end in a
+    /// required word.
     #[must_use]
-    pub fn optional_trailing_arg_names(&self, dialect: DialectSet) -> Vec<&'static str> {
+    pub fn optional_trailing_arg_names(
+        &self,
+        dialect: DialectSet,
+        package_version: Option<&str>,
+    ) -> Vec<&'static str> {
         self.forms
             .iter()
             .filter(|form| {
@@ -1642,6 +1663,7 @@ impl CommandSpec {
                     .or(self.dialects)
                     .is_none_or(|allowed| allowed.contains(dialect))
             })
+            .filter(|form| form.available_for_version(package_version))
             .map(|form| optional_trailing_placeholders(form.synopsis))
             .max_by_key(Vec::len)
             .unwrap_or_default()
@@ -2934,15 +2956,106 @@ mod tests {
         let spec = registry.get("catch").expect("catch is a registry command");
         // Tcl 8.5 onward documents `catch script ?resultVarName? ?optionsVarName?`.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90),
+            spec.optional_trailing_arg_names(DialectSet::TCL90, None),
             vec!["resultVarName", "optionsVarName"]
         );
         // Tcl 8.4's `catch script ?varName?` has no options dictionary, so a
         // consumer running under that dialect never offers a word the release
         // has no argument slot for.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL84),
+            spec.optional_trailing_arg_names(DialectSet::TCL84, None),
             vec!["varName"]
+        );
+    }
+
+    // -- FormSpec lifecycle in the form-selection queries -----------------
+    //
+    // A `FormSpec` carries its own lifecycle, so a synopsis a later release
+    // added must not be shown to — nor its optional words offered to — a
+    // document pinned below it.  The widest form is declared first, matching
+    // the shipped convention (`lassign`'s 8.6+ shape leads its 8.5 one).
+
+    const VERSIONED_FORMS: &[crate::hover::FormSpec] = &[
+        crate::hover::FormSpec {
+            synopsis: "fauxform target ?resultVar? ?optionsVar?",
+            lifecycle: Lifecycle::introduced_in("2.0"),
+            ..crate::hover::FormSpec::DEFAULT
+        },
+        crate::hover::FormSpec {
+            synopsis: "fauxform target ?resultVar?",
+            ..crate::hover::FormSpec::DEFAULT
+        },
+    ];
+
+    fn versioned_form_spec() -> CommandSpec {
+        CommandSpec {
+            name: "fauxform",
+            forms: VERSIONED_FORMS,
+            ..CommandSpec::DEFAULT
+        }
+    }
+
+    #[test]
+    fn primary_synopsis_skips_a_form_the_floor_predates() {
+        let spec = versioned_form_spec();
+        // At 1.0 the two-optional-word form does not exist yet, so the usage
+        // hint shows the shape that release actually has.
+        assert_eq!(
+            spec.primary_synopsis(Some("1.0")),
+            Some("fauxform target ?resultVar?")
+        );
+        // From 2.0 the newer form leads, exactly as declaration order says.
+        assert_eq!(
+            spec.primary_synopsis(Some("2.0")),
+            Some("fauxform target ?resultVar? ?optionsVar?")
+        );
+        // No floor resolved = permissive, i.e. the pre-existing behaviour.
+        assert_eq!(
+            spec.primary_synopsis(None),
+            Some("fauxform target ?resultVar? ?optionsVar?")
+        );
+    }
+
+    #[test]
+    fn optional_trailing_arg_names_skips_a_form_the_floor_predates() {
+        let spec = versioned_form_spec();
+        // A quick fix must not offer to append `optionsVar` to a document
+        // whose Fauxpkg is 1.x: that release has no argument slot for it.
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("1.0")),
+            vec!["resultVar"]
+        );
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("2.0")),
+            vec!["resultVar", "optionsVar"]
+        );
+        assert_eq!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90, None),
+            vec!["resultVar", "optionsVar"]
+        );
+    }
+
+    #[test]
+    fn a_retired_form_stops_being_documented() {
+        const RETIRED: &[crate::hover::FormSpec] = &[crate::hover::FormSpec {
+            synopsis: "fauxform target ?resultVar?",
+            lifecycle: Lifecycle::UNSPECIFIED.retired_from("3.0"),
+            ..crate::hover::FormSpec::DEFAULT
+        }];
+        let spec = CommandSpec {
+            name: "fauxform",
+            forms: RETIRED,
+            ..CommandSpec::DEFAULT
+        };
+        assert!(spec.primary_synopsis(Some("3.0")).is_none());
+        assert!(
+            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("3.0"))
+                .is_empty()
+        );
+        // Retirement is exclusive, so 2.9 still documents it.
+        assert_eq!(
+            spec.primary_synopsis(Some("2.9")),
+            Some("fauxform target ?resultVar?")
         );
     }
 

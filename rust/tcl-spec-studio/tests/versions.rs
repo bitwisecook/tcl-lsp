@@ -437,3 +437,67 @@ fn the_single_snapshot_import_path_is_unchanged() {
     assert_eq!(stable.draft["introduced_version"], json!("1.0"));
     assert_eq!(stable.draft["required_package"], json!("fakepkg"));
 }
+
+/// Prerelease labels are three distinct releases, not one.
+///
+/// `tcl_registry::version::compare` stops at the first non-numeric segment, so
+/// it reads `1.0a1`, `1.0b1`, and `1.0` as equal — sorting them arbitrarily and
+/// then discarding two of the three as duplicate snapshots. Ordering goes
+/// through the `package vcompare` port, which puts the alpha and beta below the
+/// release they lead up to.
+#[test]
+fn prerelease_labels_sort_and_survive_as_distinct_snapshots() {
+    let snapshots = vec![
+        snapshot("1.0", V1_2),
+        snapshot("1.0b1", V1_1),
+        snapshot("1.0a1", V1_0),
+    ];
+    let import = import_package_versions(
+        &snapshots,
+        "tcl9.0",
+        &VersionedImportOptions {
+            complete_history: true,
+        },
+    );
+    assert_eq!(
+        import.versions,
+        vec!["1.0a1", "1.0b1", "1.0"],
+        "alpha < beta < release, and none is dropped: {:?}",
+        import.warnings
+    );
+    assert!(
+        !import
+            .warnings
+            .iter()
+            .any(|w| w.contains("duplicate snapshot version")),
+        "no prerelease is a duplicate of another: {:?}",
+        import.warnings
+    );
+    // Derivation transitions read the prerelease order the same way they read
+    // any other: `fresh` first exists in the beta, `doomed` is gone by 1.0.
+    assert_eq!(
+        find(&import, "fakepkg::fresh").draft["introduced_version"],
+        json!("1.0b1"),
+    );
+    assert_eq!(
+        find(&import, "fakepkg::doomed").draft["retired_version"],
+        json!("1.0"),
+    );
+}
+
+/// Two spellings of one release still collide — and the warning names both, so
+/// the author can see which label was dropped and what it collided with.
+#[test]
+fn a_duplicate_spelt_two_ways_names_both_labels() {
+    let snapshots = vec![snapshot("1.0", V1_0), snapshot("1.0.0", V1_1)];
+    let import = import_package_versions(&snapshots, "tcl9.0", &VersionedImportOptions::default());
+    assert_eq!(import.versions, vec!["1.0"]);
+    assert!(
+        import.warnings.iter().any(|w| {
+            w.starts_with("error: duplicate snapshot version `1.0.0`")
+                && w.contains("same release as `1.0`")
+        }),
+        "{:?}",
+        import.warnings
+    );
+}

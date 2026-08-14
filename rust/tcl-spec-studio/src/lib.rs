@@ -123,7 +123,9 @@ pub fn command_index(dialect: &str) -> Value {
             Some(json!({
                 "name": name,
                 "summary": spec.hover.map_or("", |h| h.summary),
-                "synopsis": spec.primary_synopsis().unwrap_or(""),
+                // A catalogue listing shows what the spec declares, unfiltered:
+                // there is no document, and so no resolved package-version floor.
+                "synopsis": spec.primary_synopsis(None).unwrap_or(""),
                 "subcommands": spec.subcommands.len(),
                 "options": spec.options.len(),
                 "deprecated": spec.deprecated_replacement.is_some(),

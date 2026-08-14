@@ -301,7 +301,11 @@ pub fn signature_for_command(
                 constraint.supports_dialect(Some(profile.availability_mask), spec.dialects)
             })
             .collect(),
-        synopsis: spec.primary_synopsis(),
+        // The walk cannot know the file's resolved package-version floor
+        // yet (`package require` may appear anywhere), so form selection
+        // stays permissive here — the post-walk gate is what version-aware
+        // reporting goes through.
+        synopsis: spec.primary_synopsis(None),
         // A command name is never prefix-matched, so a simple command's
         // signature carries no abbreviation floor.
         min_abbrev: None,
@@ -389,7 +393,11 @@ pub fn signature_for_command_any_dialect(
                     .flat_map(|form| form.option_constraints.iter()),
             )
             .collect(),
-        synopsis: spec.primary_synopsis(),
+        // Deliberately permissive, like every other gate on this
+        // dialect-agnostic path: the question it answers is "does this exist
+        // in ANY dialect", so filtering forms by a version floor would defeat
+        // the purpose.
+        synopsis: spec.primary_synopsis(None),
         // A command name is never prefix-matched, so a simple command's
         // signature carries no abbreviation floor.
         min_abbrev: None,

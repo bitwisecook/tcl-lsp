@@ -1594,39 +1594,13 @@ impl Analyser {
         let (nargs_min, positional_any_expand) =
             count_positionals(args, arg_expand, positional_start);
 
-        // Option relationships are registry data. The generic analyser only
-        // projects the literal leading option words and reports the first
-        // proven conflict; dynamic option names and `{*}` expansions remain
-        // conservative abstentions. No repair is offered because choosing
-        // which option expresses the caller's intent is inherently ambiguous.
-        if let Some((constraint, first, second)) =
-            first_distinct_option_conflict(&seen_options, &sig.option_constraints)
-        {
-            let names = constraint
-                .options
-                .iter()
-                .filter(|name| seen_options.iter().any(|(seen, _)| seen == *name))
-                .copied()
-                .collect::<Vec<_>>()
-                .join(", ");
-            let span = tcl_lexer::Span::new(first.start(), second.end());
-            let ns = self.command_resolution_namespace(scope_path);
-            let enforce_order = !self.scope_path_in_proc_body(scope_path);
-            self.pending_arity.push((
-                resolution_name.to_string(),
-                ns,
-                enforce_order,
-                super::types::Diagnostic {
-                    code: DiagCode::W147,
-                    span,
-                    message: format!(
-                        "Options {names} cannot be used together for '{display_name}'"
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                },
-            ));
-        }
+        self.queue_option_conflict(
+            resolution_name,
+            display_name,
+            sig,
+            &seen_options,
+            scope_path,
+        );
 
         let full_span = match arg_tokens.last() {
             Some(last) => tcl_lexer::Span::new(cmd_tok.span.start(), last.span.end()),
@@ -1682,6 +1656,64 @@ impl Analyser {
         ) {
             self.pending_arity
                 .push((resolution_name.to_string(), ns, enforce_order, diag));
+        }
+    }
+
+    /// **W147** for the first proven conflict among the literal leading
+    /// option words.
+    ///
+    /// Option relationships are registry data. The generic analyser only
+    /// projects the literal leading option words and reports the first proven
+    /// conflict; dynamic option names and `{*}` expansions remain
+    /// conservative abstentions. No repair is offered because choosing which
+    /// option expresses the caller's intent is inherently ambiguous.
+    ///
+    /// A conflict whose [`tcl_registry::OptionConstraint`] carries a
+    /// lifecycle is *buffered* rather than queued: a relationship declared
+    /// `-introduced 2.0` does not exist in a file whose owning package
+    /// resolves to 1.x, and — like every other lifecycle fact — the floor is
+    /// not known until every `package require` has been walked. An
+    /// unversioned constraint keeps the inline path exactly as it was.
+    fn queue_option_conflict(
+        &mut self,
+        resolution_name: &str,
+        display_name: &str,
+        sig: &super::dispatch::CommandSig,
+        seen_options: &[(&'static str, tcl_lexer::Span)],
+        scope_path: &[usize],
+    ) {
+        let Some((constraint, first, second)) =
+            first_distinct_option_conflict(seen_options, &sig.option_constraints)
+        else {
+            return;
+        };
+        let names = constraint
+            .options
+            .iter()
+            .filter(|name| seen_options.iter().any(|(seen, _)| seen == *name))
+            .copied()
+            .collect::<Vec<_>>()
+            .join(", ");
+        let ns = self.command_resolution_namespace(scope_path);
+        let enforce_order = !self.scope_path_in_proc_body(scope_path);
+        let diagnostic = super::types::Diagnostic {
+            code: DiagCode::W147,
+            span: tcl_lexer::Span::new(first.start(), second.end()),
+            message: format!("Options {names} cannot be used together for '{display_name}'"),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        };
+        if constraint.lifecycle.is_unspecified() {
+            self.pending_arity
+                .push((resolution_name.to_string(), ns, enforce_order, diagnostic));
+        } else {
+            self.record_gated_option_conflict(
+                resolution_name,
+                constraint.lifecycle,
+                ns,
+                enforce_order,
+                diagnostic,
+            );
         }
     }
 

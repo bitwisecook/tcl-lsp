@@ -635,7 +635,9 @@ impl<'a> Bench<'a> {
             "source": origin_label(origin),
             "dialect": self.merged.builtins().dialect(),
             "summary": hover.map_or("", |h| h.summary),
-            "synopsis": spec.primary_synopsis().unwrap_or(""),
+            // Studio preview of one spec, with no document behind it — nothing
+            // resolves a package-version floor here.
+            "synopsis": spec.primary_synopsis(None).unwrap_or(""),
             "arity": arity_text(spec.arity),
             "subcommands": spec.subcommands.len(),
             "options": spec.options.len(),

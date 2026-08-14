@@ -89,9 +89,42 @@ pub(in crate::analyser) struct VersionGateSite {
     dialect: &'static str,
 }
 
+/// A proven **W147** option conflict whose [`OptionConstraint`] is
+/// version-gated, held until the whole-file floor is known.
+///
+/// A relationship such as `option_conflict {-a -b} -introduced 2.0` does not
+/// exist below 2.0, so enforcing it against a file pinned to 1.x would report
+/// a rule that release does not have. A constraint with an
+/// [`Lifecycle::UNSPECIFIED`] lifecycle never reaches this buffer: it holds in
+/// every release and is queued inline onto [`Analyser::pending_arity`] at the
+/// dispatch site, exactly as before.
+///
+/// The fields after `lifecycle` are the `pending_arity` tuple this becomes
+/// once [`Analyser::flush_gated_option_conflicts`] decides the relationship
+/// exists — the version gate is a filter in front of the ordinary queue, not
+/// a second reporting path.
+///
+/// [`OptionConstraint`]: tcl_registry::OptionConstraint
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::analyser) struct GatedOptionConflict {
+    /// The axis governing the constraint's lifecycle, or `None` when the
+    /// owning spec sits on no version axis at all (permissive).
+    pub(in crate::analyser) axis: Option<VersionGateAxis>,
+    /// The relationship's declared lifecycle on that axis.
+    pub(in crate::analyser) lifecycle: Lifecycle,
+    /// Base command name the post-walk arity flush resolves shadowing against.
+    pub(in crate::analyser) resolution_name: String,
+    /// Call-site command-resolution namespace.
+    pub(in crate::analyser) namespace: String,
+    /// Whether a shadowing definition must lexically precede the call.
+    pub(in crate::analyser) enforce_order: bool,
+    /// The W147 diagnostic, already fully formed.
+    pub(in crate::analyser) diagnostic: Diagnostic,
+}
+
 /// Version axes supported by the generic lifecycle consumer.
-#[derive(Debug, Clone, Copy)]
-enum VersionGateAxis {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::analyser) enum VersionGateAxis {
     /// A package whose version comes from a profile pin and/or `package require`.
     Package(&'static str),
     /// The Tcl core version selected by the active dialect profile.
@@ -327,6 +360,35 @@ fn version_gate_diagnostic(
 }
 
 impl Analyser {
+    /// The version axis that governs every [`Lifecycle`] declared on `spec`
+    /// or on anything hanging off it — subcommands, options, argument values,
+    /// and option *relationships*.
+    ///
+    /// On a keyed ambient axis (the F5 surfaces) a vendor-own spec needs no
+    /// `required_package` to sit on the axis: its pin resolves through the
+    /// profile's vendor bit. Otherwise the owning package names the axis, and
+    /// a lifecycle on an otherwise unowned Tcl command is governed by the
+    /// selected core Tcl profile rather than a fictitious `package require` —
+    /// which keeps every core command generic while letting an explicit
+    /// `package require Tcl` raise the floor.
+    ///
+    /// `None` when nothing puts the spec on an axis; every consumer treats
+    /// that as permissive, matching the "no version known ⇒ do not gate" rule.
+    pub(in crate::analyser) fn lifecycle_axis(
+        &self,
+        spec: &tcl_registry::CommandSpec,
+    ) -> Option<VersionGateAxis> {
+        self.profile
+            .keyed_pin_for(spec)
+            .map(|pin| pin.package)
+            .or_else(|| spec.owning_package())
+            .map(VersionGateAxis::Package)
+            .or_else(|| {
+                spec.supports_dialect(DialectSet::ALL_TCL)
+                    .then_some(VersionGateAxis::TclCore)
+            })
+    }
+
     fn record_lifecycle_site(
         &mut self,
         span: Span,
@@ -426,8 +488,25 @@ impl Analyser {
         let Some(sub_sub) = sub.resolve_sub_subcommand(word) else {
             return;
         };
+        // Span and payload are computed against one hoisted `SourceMap` and
+        // bound to locals before the `&mut self` call below, so the map's
+        // immutable borrow of `self.source` has already ended.
+        let (span, payload) = {
+            let source_map = self.cached_source_map();
+            (
+                super::super::utils::full_word_span_in(&source_map, *tok),
+                deprecation_fix_payload(
+                    invocation.command,
+                    invocation.command_token,
+                    invocation.args,
+                    invocation.arg_tokens,
+                    2,
+                    &source_map,
+                ),
+            )
+        };
         self.record_lifecycle_site(
-            super::super::utils::full_word_span(*tok, &self.source),
+            span,
             invocation.axis,
             sub_sub.lifecycle,
             VersionGateItem::SubSubCommand {
@@ -435,14 +514,7 @@ impl Analyser {
                 subcommand: sub.name.to_owned(),
                 sub_subcommand: sub_sub.name.to_owned(),
             },
-            deprecation_fix_payload(
-                invocation.command,
-                invocation.command_token,
-                invocation.args,
-                invocation.arg_tokens,
-                2,
-                &self.source,
-            ),
+            payload,
         );
     }
 
@@ -578,21 +650,7 @@ impl Analyser {
         // and a vendor-own spec needs no `required_package` to sit on the
         // axis (its pin resolves through the profile's vendor bit).
         let keyed = self.profile.keyed_version_range(spec);
-        let axis = self
-            .profile
-            .keyed_pin_for(spec)
-            .map(|pin| pin.package)
-            .or_else(|| spec.owning_package())
-            .map(VersionGateAxis::Package)
-            // A lifecycle on an otherwise unowned Tcl command/subcommand is
-            // governed by the selected core Tcl profile, not by a fictitious
-            // `package require`. This keeps every core command generic while
-            // allowing an explicit `package require Tcl` to raise the floor.
-            .or_else(|| {
-                spec.supports_dialect(DialectSet::ALL_TCL)
-                    .then_some(VersionGateAxis::TclCore)
-            });
-        let Some(axis) = axis else {
+        let Some(axis) = self.lifecycle_axis(spec) else {
             return;
         };
         let invocation = LifecycleInvocation {
@@ -671,29 +729,7 @@ impl Analyser {
         let sites = std::mem::take(&mut self.version_gate_sites);
         let mut new_diags: Vec<Diagnostic> = Vec::new();
         for site in sites {
-            let floor_and_guarantee = match site.axis {
-                VersionGateAxis::Package(package) => {
-                    self.package_version_floor(package).map(|(floor, source)| {
-                        let guarantee = match source {
-                            FloorSource::Require => {
-                                format!("`package require` guarantees only {floor}")
-                            }
-                            FloorSource::ProfilePin => {
-                                format!("{} ships {package} {floor}", self.profile.name)
-                            }
-                        };
-                        (floor, guarantee)
-                    })
-                }
-                VersionGateAxis::TclCore => self.effective_dsl_version().map(|version| {
-                    let floor = version.as_package_version().to_owned();
-                    (
-                        floor.clone(),
-                        format!("{} targets Tcl {floor}", self.profile.name),
-                    )
-                }),
-            };
-            let Some((floor, guarantee)) = floor_and_guarantee else {
+            let Some((floor, guarantee)) = self.axis_floor(site.axis) else {
                 continue;
             };
             // A range that reaches a retirement outranks the floor's own
@@ -720,6 +756,106 @@ impl Analyser {
             });
         }
         self.result.diagnostics.extend(new_diags);
+    }
+
+    /// The resolved version floor on `axis`, with the phrase naming what
+    /// guarantees it.
+    ///
+    /// `None` = no floor is resolvable (an unpinned package required without
+    /// a version, or a permissive profile with no core version) — the
+    /// standing "no version known ⇒ do not gate" case.
+    fn axis_floor(&self, axis: VersionGateAxis) -> Option<(String, String)> {
+        match axis {
+            VersionGateAxis::Package(package) => {
+                self.package_version_floor(package).map(|(floor, source)| {
+                    let guarantee = match source {
+                        FloorSource::Require => {
+                            format!("`package require` guarantees only {floor}")
+                        }
+                        FloorSource::ProfilePin => {
+                            format!("{} ships {package} {floor}", self.profile.name)
+                        }
+                    };
+                    (floor, guarantee)
+                })
+            }
+            VersionGateAxis::TclCore => self.effective_dsl_version().map(|version| {
+                let floor = version.as_package_version().to_owned();
+                (
+                    floor.clone(),
+                    format!("{} targets Tcl {floor}", self.profile.name),
+                )
+            }),
+        }
+    }
+
+    /// Buffer a *proven* option conflict whose [`OptionConstraint`] carries a
+    /// lifecycle, to be decided once the whole-file floor is known.
+    ///
+    /// The caller has already established that the conflict is violated and
+    /// built the diagnostic; the only open question is whether the
+    /// relationship *exists* at the release this file targets, and that is a
+    /// post-walk fact for the same reason every other lifecycle check is one
+    /// — `package require` may appear anywhere.
+    ///
+    /// [`OptionConstraint`]: tcl_registry::OptionConstraint
+    pub(in crate::analyser) fn record_gated_option_conflict(
+        &mut self,
+        resolution_name: &str,
+        lifecycle: Lifecycle,
+        namespace: String,
+        enforce_order: bool,
+        diagnostic: Diagnostic,
+    ) {
+        // The constraint's axis is its owning command's — a relationship
+        // between two of that command's options ages on the same axis the
+        // options themselves do.
+        let axis = self.registry.clone().and_then(|registry| {
+            registry
+                .get(resolution_name)
+                .and_then(|spec| self.lifecycle_axis(spec))
+        });
+        self.pending_option_conflicts.push(GatedOptionConflict {
+            axis,
+            lifecycle,
+            resolution_name: resolution_name.to_owned(),
+            namespace,
+            enforce_order,
+            diagnostic,
+        });
+    }
+
+    /// Promote every buffered gated option conflict the resolved floor
+    /// actually has onto [`Analyser::pending_arity`], and drop the rest.
+    ///
+    /// Runs *before* [`Analyser::flush_arity_diagnostics`], so a promoted
+    /// conflict goes through exactly the shadowing / definition-order
+    /// suppression an ungated one does — the version gate decides whether the
+    /// relationship exists, never whether the call resolves to a builtin.
+    ///
+    /// Permissive in both directions the registry is permissive: a spec on no
+    /// version axis, and an axis with no resolvable floor, both report the
+    /// conflict. A *deprecated* relationship still exists, so it is reported
+    /// too — deprecation is not absence.
+    pub(in crate::analyser) fn flush_gated_option_conflicts(&mut self) {
+        if self.pending_option_conflicts.is_empty() {
+            return;
+        }
+        for conflict in std::mem::take(&mut self.pending_option_conflicts) {
+            let floor = conflict
+                .axis
+                .and_then(|axis| self.axis_floor(axis))
+                .map(|(floor, _guarantee)| floor);
+            if !conflict.lifecycle.available_at(floor.as_deref()) {
+                continue;
+            }
+            self.pending_arity.push((
+                conflict.resolution_name,
+                conflict.namespace,
+                conflict.enforce_order,
+                conflict.diagnostic,
+            ));
+        }
     }
 
     /// The hedged diagnostic for a site whose floor passes but whose
@@ -1639,5 +1775,182 @@ mod tests {
                 .all(|(code, _)| code == "W144"),
             "a conditional require is not a guarantee"
         );
+    }
+
+    /// A synthetic package whose two options conflict **only from 2.0**.
+    ///
+    /// Nothing shipped declares a lifecycle on an `option_conflict` yet — a
+    /// `.tclspec` pack is the first thing that will (`option_conflict {-a -b}
+    /// -introduced 2.0` is loader vocabulary 1.1) — so the gate is exercised
+    /// through an overlay registry, which is exactly the route a workspace's
+    /// packs reach the analyser by.
+    mod gated_option_conflict {
+        use super::super::super::super::state::Analyser;
+
+        /// Overlay key for the synthetic pack below. Any non-zero value works;
+        /// the cache keys `(profile, overlay)` on it.
+        const OVERLAY: u64 = 0x7e57_c0f1;
+
+        const OPTIONS: &[tcl_registry::hover::OptionSpec] = &[
+            tcl_registry::hover::OptionSpec {
+                name: "-alpha",
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+            tcl_registry::hover::OptionSpec {
+                name: "-beta",
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+        ];
+
+        const CONSTRAINTS: &[tcl_registry::OptionConstraint] = &[tcl_registry::OptionConstraint {
+            options: &["-alpha", "-beta"],
+            lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("2.0"),
+            ..tcl_registry::OptionConstraint::DEFAULT
+        }];
+
+        /// The same relationship with no lifecycle at all — the zero-change
+        /// control for the inline path.
+        const UNGATED_CONSTRAINTS: &[tcl_registry::OptionConstraint] =
+            &[tcl_registry::OptionConstraint {
+                options: &["-alpha", "-beta"],
+                ..tcl_registry::OptionConstraint::DEFAULT
+            }];
+
+        fn spec(
+            name: &'static str,
+            constraints: &'static [tcl_registry::OptionConstraint],
+        ) -> tcl_registry::CommandSpec {
+            tcl_registry::CommandSpec {
+                name,
+                required_package: Some("Fauxpkg"),
+                arity: tcl_registry::Arity::any(),
+                options: OPTIONS,
+                option_constraints: constraints,
+                ..tcl_registry::CommandSpec::DEFAULT
+            }
+        }
+
+        /// Every W147 message `source` draws under `tcl8.6`, with the
+        /// synthetic pack installed.
+        fn conflicts(source: &str) -> Vec<String> {
+            let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+            let _registry =
+                tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |registry| {
+                    registry.insert(spec("fauxgated", CONSTRAINTS));
+                    registry.insert(spec("fauxplain", UNGATED_CONSTRAINTS));
+                });
+            Analyser::new()
+                .with_pack_overlay(OVERLAY)
+                .analyse(source, "tcl8.6")
+                .diagnostics
+                .iter()
+                .filter(|d| d.code.as_str() == "W147")
+                .map(|d| d.message.clone())
+                .collect()
+        }
+
+        #[test]
+        fn a_conflict_introduced_later_is_silent_below_its_floor() {
+            // The relationship does not exist in Fauxpkg 1.x, so enforcing it
+            // would report a rule that release has not got.
+            let src = "package require Fauxpkg 1.0\nfauxgated -alpha -beta\n";
+            assert!(conflicts(src).is_empty(), "{:?}", conflicts(src));
+        }
+
+        #[test]
+        fn a_conflict_introduced_later_fires_once_the_floor_reaches_it() {
+            let src = "package require Fauxpkg 2.0\nfauxgated -alpha -beta\n";
+            let diags = conflicts(src);
+            assert!(
+                diags
+                    .iter()
+                    .any(|m| m.contains("-alpha, -beta") && m.contains("fauxgated")),
+                "{diags:?}"
+            );
+        }
+
+        #[test]
+        fn no_resolvable_floor_stays_permissive() {
+            // An unversioned require on an unpinned package resolves no floor
+            // at all, and "no version known ⇒ do not gate" is the standing
+            // registry rule — so the conflict is reported.
+            let src = "package require Fauxpkg\nfauxgated -alpha -beta\n";
+            assert_eq!(conflicts(src).len(), 1, "{:?}", conflicts(src));
+        }
+
+        #[test]
+        fn an_unversioned_constraint_is_untouched_by_the_gate() {
+            // The zero-behaviour-change control: a constraint with no
+            // lifecycle keeps the inline path, floor or no floor.
+            for src in [
+                "package require Fauxpkg 1.0\nfauxplain -alpha -beta\n",
+                "package require Fauxpkg 2.0\nfauxplain -alpha -beta\n",
+                "package require Fauxpkg\nfauxplain -alpha -beta\n",
+            ] {
+                assert_eq!(conflicts(src).len(), 1, "{src:?}: {:?}", conflicts(src));
+            }
+        }
+
+        #[test]
+        fn a_retired_conflict_stops_being_enforced_but_a_deprecated_one_does_not() {
+            // Retirement is exclusive: the relationship is gone at 3.0…
+            const RETIRED: &[tcl_registry::OptionConstraint] = &[tcl_registry::OptionConstraint {
+                options: &["-alpha", "-beta"],
+                lifecycle: tcl_registry::lifecycle::Lifecycle::UNSPECIFIED
+                    .retired_from("3.0")
+                    .deprecated_from("2.0"),
+                ..tcl_registry::OptionConstraint::DEFAULT
+            }];
+            const KEY: u64 = 0x7e57_c0f2;
+            let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+            let _registry =
+                tcl_registry::registry_for_profile_with_overlay(profile, KEY, |registry| {
+                    registry.insert(spec("fauxretired", RETIRED));
+                });
+            let count = |source: &str| {
+                Analyser::new()
+                    .with_pack_overlay(KEY)
+                    .analyse(source, "tcl8.6")
+                    .diagnostics
+                    .iter()
+                    .filter(|d| d.code.as_str() == "W147")
+                    .count()
+            };
+            assert_eq!(
+                count("package require Fauxpkg 3.0\nfauxretired -alpha -beta\n"),
+                0,
+                "a retired relationship is not enforced"
+            );
+            // … but a *deprecated* one still exists, and deprecation is not
+            // absence.
+            assert_eq!(
+                count("package require Fauxpkg 2.0\nfauxretired -alpha -beta\n"),
+                1,
+                "a deprecated relationship still holds"
+            );
+        }
+
+        #[test]
+        fn a_shadowing_user_proc_still_suppresses_a_gated_conflict() {
+            // The gate decides whether the relationship exists; it must not
+            // bypass the `pending_arity` shadowing suppression an ungated
+            // conflict goes through.
+            let src = "package require Fauxpkg 2.0\n\
+                       proc fauxgated args {}\n\
+                       fauxgated -alpha -beta\n";
+            assert!(conflicts(src).is_empty(), "{:?}", conflicts(src));
+        }
+
+        #[test]
+        fn a_require_inside_the_file_gates_a_conflict_in_a_proc_body() {
+            // The floor is a whole-file fact and the `package require` may
+            // follow the call: buffering is what makes this work.
+            let below = "proc use {} { fauxgated -alpha -beta }\n\
+                         package require Fauxpkg 1.0\n";
+            assert!(conflicts(below).is_empty(), "{:?}", conflicts(below));
+            let met = "proc use {} { fauxgated -alpha -beta }\n\
+                       package require Fauxpkg 2.0\n";
+            assert_eq!(conflicts(met).len(), 1, "{:?}", conflicts(met));
+        }
     }
 }

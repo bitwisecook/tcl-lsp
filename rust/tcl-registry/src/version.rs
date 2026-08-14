@@ -51,6 +51,18 @@ fn segments(version: &str) -> impl Iterator<Item = u64> + '_ {
 }
 
 /// Segment-wise comparison of two dotted versions, zero-padding the shorter.
+///
+/// **Prerelease-blind, by design and by domain.** [`segments`] stops at the
+/// first non-numeric segment, so `1.0a1`, `1.0b1`, and `1.0` all compare
+/// **equal**. That is correct for what this comparator exists to answer —
+/// lifecycle floors and `package require` requirement bounds, whose release
+/// strings are plain dotted versions ([`crate::lifecycle::Lifecycle`]) — and
+/// it keeps a malformed spec from ordering unpredictably.
+///
+/// It is **not** correct for ordering or de-duplicating *release labels* a
+/// package actually shipped, where a prerelease is a distinct release. Use
+/// `tcl_dialect::compare_versions` — the oracle-pinned
+/// `package vcompare` port — for that.
 #[must_use]
 pub fn compare(a: &str, b: &str) -> Ordering {
     let mut ai = segments(a);

@@ -34,11 +34,23 @@
 //! ## What is derived, and from what
 //!
 //! 1. **Snapshot order** — labels are sorted with
-//!    [`tcl_registry::version::compare`], not trusted in caller order; a
-//!    disagreement is a warning, and a duplicate label is an error entry in
+//!    [`tcl_dialect::compare_versions`], not trusted in caller order;
+//!    a disagreement is a warning, and a duplicate label is an error entry in
 //!    the warnings. A snapshot whose own `package provide` version contradicts
 //!    its label is a warning too: the label wins, because it is the release the
 //!    caller says these sources are.
+//!
+//!    The comparator matters here in a way it does not for a lifecycle floor:
+//!    a release label is whatever a package actually shipped, so `1.0a1`,
+//!    `1.0b1`, and `1.0` are three distinct snapshots.
+//!    [`tcl_registry::version::compare`] parses dotted integers only and stops
+//!    at the first non-numeric segment, which makes all three compare *equal*
+//!    — two of them would be discarded as duplicates.
+//!    [`tcl_dialect::compare_versions`] is the `package vcompare`
+//!    port (oracle-pinned against `tclsh`), and orders alpha/beta releases
+//!    below the release they lead up to. Labels that are genuinely the same
+//!    release spelt two ways (`1.0` and `1.0.0`) still collide, and the
+//!    duplicate warning names both spellings so the author can see why.
 //! 2. **Base shape** — each snapshot is drafted independently by the ordinary
 //!    importer, and a command's merged draft is the draft from the **newest**
 //!    snapshot defining it. Arity, roles, hover, options and forms therefore
@@ -96,7 +108,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
-use tcl_registry::version::compare;
+use tcl_dialect::compare_versions;
 
 use crate::draft::Draft;
 use crate::infer::{Import, Inferred, SourceFile, import_package};
@@ -210,9 +222,15 @@ struct Release {
 
 /// The snapshot indices to analyse, in ascending version order, with the
 /// duplicates dropped.
+///
+/// Ordering and duplicate detection both go through
+/// [`compare_versions`] — the `package vcompare` port — because a release
+/// label may carry a prerelease suffix. Two labels that compare equal are one
+/// release spelt two ways (`1.0` / `1.0.0`), and the warning names both
+/// spellings rather than only the one being dropped.
 fn order_snapshots(snapshots: &[VersionedSnapshot], warnings: &mut Vec<String>) -> Vec<usize> {
     let mut order: Vec<usize> = (0..snapshots.len()).collect();
-    order.sort_by(|a, b| compare(&snapshots[*a].version, &snapshots[*b].version));
+    order.sort_by(|a, b| compare_versions(&snapshots[*a].version, &snapshots[*b].version));
     if order.iter().enumerate().any(|(at, index)| at != *index) {
         warnings.push(format!(
             "snapshots were not given in ascending version order; analysed as {}",
@@ -222,13 +240,21 @@ fn order_snapshots(snapshots: &[VersionedSnapshot], warnings: &mut Vec<String>) 
 
     let mut kept: Vec<usize> = Vec::with_capacity(order.len());
     for index in order {
-        let duplicate = kept.last().is_some_and(|last| {
-            compare(&snapshots[*last].version, &snapshots[index].version) == Ordering::Equal
+        let duplicate = kept.last().copied().filter(|last| {
+            compare_versions(&snapshots[*last].version, &snapshots[index].version)
+                == Ordering::Equal
         });
-        if duplicate {
+        if let Some(first) = duplicate {
+            let kept_label = &snapshots[first].version;
+            let dropped_label = &snapshots[index].version;
+            let spelling = if kept_label == dropped_label {
+                String::new()
+            } else {
+                format!(" (same release as `{kept_label}`)")
+            };
             warnings.push(format!(
-                "error: duplicate snapshot version `{}`; only the first is analysed",
-                snapshots[index].version
+                "error: duplicate snapshot version `{dropped_label}`{spelling}; \
+                 only the first is analysed"
             ));
             continue;
         }
@@ -258,7 +284,7 @@ fn analyse(
         let snapshot = &snapshots[*index];
         let import = import_package(&snapshot.files, dialect);
         if let Some(declared) = &import.version
-            && compare(declared, &snapshot.version) != Ordering::Equal
+            && compare_versions(declared, &snapshot.version) != Ordering::Equal
         {
             warnings.push(format!(
                 "snapshot labelled {} declares `package provide … {declared}`; \

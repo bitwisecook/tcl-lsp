@@ -322,10 +322,20 @@ fn glob_matches(pattern: &str, text: &str) -> bool {
 /// The tags to import, oldest first.
 ///
 /// Filtered by `pattern`, dropped when the tag is unusable in a URL or yields
-/// no version label, ordered with the registry's own version comparison (never
-/// GitHub's listing order), de-duplicated by label — two tags for one version
-/// would be a duplicate snapshot — and finally cut to the **newest** `limit`,
-/// because recent releases are what a spec is being written against.
+/// no version label, ordered with the `package vcompare` port
+/// ([`tcl_dialect::compare_versions`], never GitHub's listing order),
+/// de-duplicated by label — two tags for one version would be a duplicate
+/// snapshot — and finally cut to the **newest** `limit`, because recent
+/// releases are what a spec is being written against.
+///
+/// The comparator is the dialect port rather than
+/// `tcl_registry::version::compare` because a release tag routinely carries a
+/// prerelease suffix: the registry comparator parses dotted integers only, so
+/// `1.0a1`, `1.0b1`, and `1.0` all compare equal and the `limit` cut would
+/// keep whichever the tag-name tiebreak happened to sort last. Duplicate
+/// detection stays *textual*, so two differently-spelt labels for the same
+/// release (`1.0` / `1.0.0`) both survive to the importer, which warns about
+/// them by name.
 fn select_tags(tags: &[String], pattern: Option<&str>, limit: Option<usize>) -> Vec<TagPick> {
     let mut picks: Vec<TagPick> = tags
         .iter()
@@ -340,7 +350,7 @@ fn select_tags(tags: &[String], pattern: Option<&str>, limit: Option<usize>) -> 
         })
         .collect();
     picks.sort_by(|a, b| {
-        tcl_registry::version::compare(&a.version, &b.version).then_with(|| a.tag.cmp(&b.tag))
+        tcl_dialect::compare_versions(&a.version, &b.version).then_with(|| a.tag.cmp(&b.tag))
     });
     picks.dedup_by(|a, b| a.version == b.version);
     if let Some(limit) = limit
@@ -534,6 +544,25 @@ mod tests {
         let picks = select_tags(&tags, None, Some(2));
         let versions: Vec<&str> = picks.iter().map(|p| p.version.as_str()).collect();
         assert_eq!(versions, ["1.1", "2.0"]);
+    }
+
+    #[test]
+    fn prerelease_tags_order_below_the_release_they_lead_up_to() {
+        // `tcl_registry::version::compare` stops at the first non-numeric
+        // segment, so it reads all three of these as `1.0` — the order would
+        // then fall to the tag-name tiebreak (`v1.0` first) and `--limit 1`
+        // would import a beta instead of the release. The `package vcompare`
+        // port orders alpha < beta < release.
+        let tags: Vec<String> = ["v1.0", "v1.0b1", "v1.0a1"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let picks = select_tags(&tags, None, None);
+        let versions: Vec<&str> = picks.iter().map(|p| p.version.as_str()).collect();
+        assert_eq!(versions, ["1.0a1", "1.0b1", "1.0"]);
+        // …so the newest-`limit` cut keeps the release, not the prerelease.
+        let newest = select_tags(&tags, None, Some(1));
+        assert_eq!(newest[0].version, "1.0");
     }
 
     #[test]
