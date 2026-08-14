@@ -684,6 +684,28 @@ fn unused_variable_elimination_o126() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn branch_condition_ending_in_a_nested_empty_pair_rewrites_the_whole_word() {
+    // Issue #1423. The branch condition span is the lexer's word span, so
+    // it stops one byte short of the outer `}`. Deciding the widening from
+    // the slice's last byte read `{$n == 0 && $y eq {}` as already whole —
+    // it does end in a `}`, the *inner* empty pair's — so the pass unwrapped
+    // an opener with no matching closer and emitted the unbalanced
+    // replacement `{0 == 0 && $y eq {}`.
+    let src = "proc p {y} {\n    set n 0\n    if {$n == 0 && $y eq {}} { puts a }\n}\n";
+    let rewrites = opt_rewrites(src, TCL);
+    let o100: Vec<&str> = rewrites
+        .iter()
+        .filter(|(code, _)| code == "O100")
+        .map(|(_, replacement)| replacement.as_str())
+        .collect();
+    assert_eq!(o100, vec!["{0 == 0 && $y eq {}}"], "{rewrites:?}");
+    assert_eq!(
+        optimised(src, TCL),
+        "proc p {y} {\n    set n 0\n    if {0 == 0 && $y eq {}} { puts a }\n}\n",
+    );
+}
+
+#[test]
 fn constant_propagation_into_commands_o100() {
     // tclsh: x=42 ⇒ `puts 42`. (The single-def literal is forwarded via O102 and
     // the now-dead store removed via O109 — assert the value + the codes used.)

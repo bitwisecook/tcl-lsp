@@ -37,10 +37,15 @@
 //! resolved on demand through a [`SourceMap`].  These accessors
 //! therefore take `&SourceMap` to recover a word's source geometry.
 //!
-//! [`close_quote_offset`] is the token-free member of the family: it
-//! answers the same "where does this word close?" question for a `"…"`
-//! word from a bare byte offset, for callers that hold source and an
-//! offset rather than a lexed [`Token`].
+//! [`close_quote_offset`] and [`word_closer_offset_at`] /
+//! [`word_span_at`] are the token-free members of the family.
+//! [`close_quote_offset`] answers the same "where does this word close?"
+//! question for a `"…"` word from a bare byte offset;
+//! [`word_closer_offset_at`] answers it for **any** delimited word from
+//! the word's own lexer [`Span`], for callers that kept a span but not
+//! the [`Token`] it came from (an optimiser pass rewriting from a CFG
+//! terminator's condition span, a rename edit built from an analysis
+//! reference span, the explorer widening an IR range).
 //!
 //! [`Token`]: crate::Token
 //! [`Span`]: crate::Span
@@ -222,6 +227,82 @@ pub fn word_span(sm: &SourceMap<'_>, tok: Token) -> crate::Span {
     crate::Span::new(tok.span.start(), word_append_offset(sm, tok))
 }
 
+/// Byte offset of the closing `}` / `]` / `"` of the word whose **lexer
+/// span** is *span*, or `None`.
+///
+/// The token-free sibling of [`word_closer_offset`], for a caller that kept
+/// a word's [`Span`] but not the [`Token`] it came from — an optimiser pass
+/// holding a CFG terminator's condition span, a rename edit built from an
+/// analysis reference span, the compiler explorer widening an IR range.
+/// Those callers used to hand-roll the arithmetic and the copies drifted:
+/// `branch_folding`'s decided the question with a textual
+/// `!text.ends_with('}')` guess, so a condition ending in a *nested* empty
+/// pair — `while {$x eq {}}` — looked already-widened and the outer `}` was
+/// dropped from the rewrite target (issue #1423).
+///
+/// *span* must be the lexer's own span for a whole delimited word: the
+/// opening delimiter is its first byte and, by the inner-end convention,
+/// the closer sits one byte past the span **except** for an empty
+/// `{}` / `[]` / `""` / `${}`, whose span already covers it.  The empty
+/// form is exactly a two-byte body after the opener, which is what
+/// [`SourceMap::token_text`] reports as empty — so this agrees with
+/// [`word_closer_offset`] byte for byte on every word token, without
+/// needing the token.
+///
+/// Unlike [`word_closer_offset`] this also resolves the braced *variable*
+/// form `${name}`: the span already encodes whichever
+/// [`BracedVarStyle`](tcl_dialect::BracedVarStyle) the lexer applied, so
+/// recovering the closer from it stays release-blind.
+///
+/// Returns `None` when the span is empty or out of bounds, when it does not
+/// open with a delimiter, or when the word is unterminated (the computed
+/// position is not the matching closer).
+#[must_use]
+pub fn word_closer_offset_at(source: &str, span: crate::Span) -> Option<u32> {
+    let bytes = source.as_bytes();
+    let (start, end) = (span.start() as usize, span.end() as usize);
+    if start >= end || end > bytes.len() {
+        return None;
+    }
+    // A `${name}` word opens with `$`; every other delimited word opens
+    // with the delimiter itself.
+    let opener_len = usize::from(bytes[start] == b'$' && bytes.get(start + 1) == Some(&b'{'));
+    let closer = closer_for(bytes[start + opener_len])?;
+    let empty = end == start + opener_len + 2 && bytes[end - 1] == closer;
+    let closer_off = if empty { end - 1 } else { end };
+    if bytes.get(closer_off) == Some(&closer) {
+        u32::try_from(closer_off).ok()
+    } else {
+        None
+    }
+}
+
+/// The **whole written word** the lexer span *span* denotes, closing
+/// delimiter included — the token-free sibling of [`word_span`].
+///
+/// Widens *span* through [`word_closer_offset_at`], so an empty
+/// `{}` / `[]` / `""` / `${}` is never overshot and a word whose last inner
+/// byte is itself a closer (`{a\}}`, `{$x eq {}}`) is never left short.  A
+/// bare word, an unterminated word, and a span that is already the whole
+/// word come back unchanged.
+///
+/// ```
+/// use tcl_lexer::{Span, word_span_at};
+/// // `{$x eq {}}` lexes with the span `{$x eq {}` — it already ends in a
+/// // `}` (the inner empty pair's), yet still needs its own closer.
+/// let src = "{$x eq {}}";
+/// assert_eq!(&src[word_span_at(src, Span::new(0, 9)).as_range()], src);
+/// // The empty pair's own span is already whole.
+/// assert_eq!(word_span_at("{}", Span::new(0, 2)), Span::new(0, 2));
+/// ```
+#[must_use]
+pub fn word_span_at(source: &str, span: crate::Span) -> crate::Span {
+    match word_closer_offset_at(source, span) {
+        Some(closer) => crate::Span::new(span.start(), closer.saturating_add(1)),
+        None => span,
+    }
+}
+
 /// Inclusive end [`SourcePosition`] covering *tok*'s closing delimiter.
 ///
 /// The position-returning sibling of [`word_closer_offset`], for callers
@@ -395,7 +476,7 @@ fn command_subst_end(source: &str, open_bracket: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Lexer, SourceMap, TokenType};
+    use crate::{Lexer, SourceMap, Span, TokenType};
 
     /// Lex `src` and return the first non-trivia token (the word under test).
     fn first_word(src: &str) -> Token {
@@ -702,6 +783,105 @@ mod tests {
         assert_eq!(body.kind, TokenType::Cmd);
         let off = word_append_offset(&sm, body);
         assert_eq!(off, u32::try_from(src.len()).unwrap());
+    }
+
+    #[test]
+    fn span_closer_agrees_with_the_token_accessor() {
+        // The token-free sibling must land on the same byte as
+        // `word_closer_offset` for every word shape the family covers —
+        // empty pairs, escaped closers, quoted words with escapes, and a
+        // word whose last inner byte is a nested pair's closer.
+        for src in [
+            "puts {abc}",
+            "puts {}",
+            "puts {a\\}}",
+            "puts {$x eq {}}",
+            "puts [x]",
+            "puts []",
+            "puts \"ab\"",
+            "puts \"\"",
+            "puts \"a\\\"b\"",
+            "puts plain",
+            "puts {abc",
+        ] {
+            let sm = SourceMap::new(src);
+            let tok = nth_word(src, 1);
+            assert_eq!(
+                word_closer_offset_at(src, tok.span),
+                word_closer_offset(&sm, tok),
+                "closer offset for {src:?}",
+            );
+            assert_eq!(
+                word_span_at(src, tok.span),
+                word_span(&sm, tok),
+                "word span for {src:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn span_word_covers_a_nested_empty_pair() {
+        // Issue #1423: the span `{$x eq {}` already *ends* in a `}` — the
+        // inner empty pair's closer — so a textual "does it end with `}`?"
+        // test skips the widening the outer word really needs and the
+        // rewrite target loses the outer brace.
+        let src = "while {$x eq {}} {}";
+        let sm = SourceMap::new(src);
+        let cond = nth_word(src, 1);
+        assert_eq!(&src[cond.span.as_range()], "{$x eq {}");
+        let widened = word_span_at(src, cond.span);
+        assert_eq!(&src[widened.as_range()], "{$x eq {}}");
+        assert_eq!(widened, word_span(&sm, cond));
+    }
+
+    #[test]
+    fn span_word_does_not_overshoot_a_nested_empty_pair() {
+        // The `{}` argument's own span is already whole: widening it would
+        // swallow the enclosing body's `}`.
+        let src = "a {}}";
+        assert_eq!(word_span_at(src, Span::new(2, 4)), Span::new(2, 4));
+        assert_eq!(word_closer_offset_at(src, Span::new(2, 4)), Some(3));
+    }
+
+    #[test]
+    fn span_word_does_not_overshoot_an_empty_command_substitution() {
+        // `[x []]` — the inner empty `[]`'s span already covers its own
+        // `]`, so widening it swallows the enclosing substitution's closer.
+        // The optimiser's own deleted `full_word_span` byte-counter widened
+        // here on the bare "next byte is the expected closer" rule.
+        let src = "[x []]";
+        assert_eq!(&src[Span::new(3, 5).as_range()], "[]");
+        assert_eq!(word_span_at(src, Span::new(3, 5)), Span::new(3, 5));
+    }
+
+    #[test]
+    fn span_word_covers_a_braced_variable() {
+        // The `${name}` shape `word_closer_offset` cannot key off the
+        // opening byte for: the span already encodes the lexer's
+        // dialect-resolved name, so the closer is recoverable from it.
+        assert_eq!(word_span_at("${x}", Span::new(0, 3)), Span::new(0, 4));
+        // `${a{b}}` under Tcl 9 brace-nesting names `a{b}` — the span stops
+        // before the *outer* `}`, exactly as the ordinary form does.
+        assert_eq!(word_span_at("${a{b}}", Span::new(0, 6)), Span::new(0, 7));
+    }
+
+    #[test]
+    fn span_word_leaves_the_degenerate_empty_variable_alone() {
+        // `${}` immediately followed by an unrelated literal `}`: the
+        // lexer already extended the span over the empty name's own
+        // closer, so widening again would swallow the literal.
+        assert_eq!(word_span_at("${}}", Span::new(0, 3)), Span::new(0, 3));
+        assert_eq!(word_closer_offset_at("${}}", Span::new(0, 3)), Some(2));
+    }
+
+    #[test]
+    fn span_word_leaves_undelimited_and_unterminated_words_alone() {
+        assert_eq!(word_span_at("$x", Span::new(0, 2)), Span::new(0, 2));
+        assert_eq!(word_span_at("plain", Span::new(0, 5)), Span::new(0, 5));
+        assert_eq!(word_span_at("[x", Span::new(0, 2)), Span::new(0, 2));
+        assert_eq!(word_span_at("${x", Span::new(0, 3)), Span::new(0, 3));
+        assert_eq!(word_closer_offset_at("abc", Span::new(0, 0)), None);
+        assert_eq!(word_closer_offset_at("abc", Span::new(0, 9)), None);
     }
 
     #[test]

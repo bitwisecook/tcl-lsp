@@ -30,9 +30,18 @@
 //! to target the full word / statement extent; otherwise the
 //! rewrite leaves orphan closing delimiters in the output.
 //!
-//! This module owns the extension helpers used by the optimiser
-//! passes. Centralising them here keeps the fix consistent across
-//! `propagation`, `tail_call`, `structure_elimination`, etc.
+//! This module owns the *multi-word* / statement-level extension
+//! helpers used by the optimiser passes. Centralising them here keeps
+//! the fix consistent across `propagation`, `tail_call`,
+//! `structure_elimination`, etc.
+//!
+//! Widening a **single** word to its own closing delimiter is not owned
+//! here: that is [`tcl_lexer::word_span_at`] (the token-free sibling of
+//! `tcl_lexer::word_span`), which the passes call directly. This module
+//! used to carry a `full_word_span` byte-counter of its own — a second
+//! implementation under the same name as the analyser's correct
+//! delegate, and one that recognised only `[…]` and `${…}` (issue
+//! #1423).
 
 use tcl_lexer::Span;
 
@@ -167,70 +176,9 @@ pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
     Span::new(argv_span.start(), end)
 }
 
-/// Simpler variant for single-word argv spans. The lexer reports
-/// the representative token for `${name}` / `[cmd]` words without
-/// the trailing `}` / `]`; this helper extends by exactly one
-/// byte when the next source byte is the expected closer.
-///
-/// Used by passes that rewrite a single argv word (not a full
-/// statement). Equivalent to [`full_rewrite_span`] on those shapes
-/// but faster — no bracket/brace counting.
-#[must_use]
-pub fn full_word_span(source: &str, argv_span: Span) -> Span {
-    let bytes = source.as_bytes();
-    let start = argv_span.start() as usize;
-    let end = argv_span.end() as usize;
-    if start >= bytes.len() || end >= bytes.len() || start > end {
-        return argv_span;
-    }
-    let Some(&first) = bytes.get(start) else {
-        return argv_span;
-    };
-    if end == start {
-        return argv_span;
-    }
-    let second = bytes.get(start + 1).copied();
-    let next = bytes[end];
-    let needs_extend =
-        (first == b'[' && next == b']') || (first == b'$' && second == Some(b'{') && next == b'}');
-    if needs_extend {
-        Span::new(argv_span.start(), argv_span.end() + 1)
-    } else {
-        argv_span
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn full_word_span_bare_var() {
-        // `$x` — no extension.
-        assert_eq!(full_word_span("$x", Span::new(0, 2)), Span::new(0, 2));
-    }
-
-    #[test]
-    fn full_word_span_braced_var_extends_closing_brace() {
-        // `${x}` — argv span 0..3 covers `${x`, extend to 0..4.
-        assert_eq!(full_word_span("${x}", Span::new(0, 3)), Span::new(0, 4));
-    }
-
-    #[test]
-    fn full_word_span_cmd_subst_extends_closing_bracket() {
-        // `[cmd]` — argv span 0..4 covers `[cmd`, extend to 0..5.
-        assert_eq!(full_word_span("[cmd]", Span::new(0, 4)), Span::new(0, 5));
-    }
-
-    #[test]
-    fn full_word_span_plain_identifier_no_extension() {
-        assert_eq!(full_word_span("plain ", Span::new(0, 5)), Span::new(0, 5));
-    }
-
-    #[test]
-    fn full_word_span_at_eof_no_extension() {
-        assert_eq!(full_word_span("[x", Span::new(0, 2)), Span::new(0, 2));
-    }
 
     #[test]
     fn full_rewrite_span_balanced_span_unchanged() {

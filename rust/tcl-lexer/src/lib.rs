@@ -40,6 +40,10 @@
 //!   answered from a bare byte offset, for callers holding source and an
 //!   offset rather than a token (it skips `\`-escapes and whole `[…]`
 //!   command substitutions).
+//! - [`word_closer_offset_at`], [`word_span_at`] — the same closer
+//!   question for **any** delimited word (`${name}` included) answered
+//!   from the word's own [`Span`], for callers that kept a span but not
+//!   the [`Token`] it came from.
 //! - [`Lexer`], [`LexerConfig`], [`LexError`] — the lexer itself.
 //!   Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens; every other
 //!   construct is surfaced as a `SyntaxError` (in strict-quoting mode)
@@ -71,7 +75,8 @@ pub use highlight::{
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
 pub use ranges::{
-    close_quote_offset, word_append_offset, word_closer_offset, word_end_position, word_span,
+    close_quote_offset, word_append_offset, word_closer_offset, word_closer_offset_at,
+    word_end_position, word_span, word_span_at,
 };
 pub use source_map::SourceMap;
 pub use span::Span;

@@ -70,7 +70,7 @@ use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
-use super::helpers::spans::{full_quoted_string_span, full_word_span};
+use super::helpers::spans::full_quoted_string_span;
 use super::{Optimisation, PassContext};
 
 /// Run the propagation pass across every function.
@@ -436,7 +436,7 @@ fn report_load_forward(
             ctx.report(Optimisation::new(
                 DiagCode::O102,
                 message.to_owned(),
-                full_word_span(ctx.source, fu.abs_span(*argv_span)),
+                tcl_lexer::word_span_at(ctx.source, fu.abs_span(*argv_span)),
                 literal.to_owned(),
             ));
             emitted_applicable = true;
@@ -771,7 +771,7 @@ fn build_forward_edits(
     if de as usize > source.len() || ds >= de {
         return None;
     }
-    let target = full_word_span(source, var_span);
+    let target = tcl_lexer::word_span_at(source, var_span);
     // Don't collide with an earlier pass's rewrite (def line or use word).
     if ranges_overlap(rewritten, ds, de) || ranges_overlap(rewritten, target.start(), target.end())
     {
@@ -1238,7 +1238,7 @@ fn visit_oo_frame_folds(
         ctx.report(Optimisation::new(
             DiagCode::O129,
             "Fold constant builtin command substitution",
-            full_word_span(ctx.source, span),
+            tcl_lexer::word_span_at(ctx.source, span),
             folded,
         ));
     }
@@ -2308,7 +2308,7 @@ fn visit_call_cmd_subst_folds(
             ctx.report(Optimisation::new(
                 DiagCode::O115,
                 "Remove redundant nested expr",
-                full_word_span(ctx.source, *argv_span),
+                tcl_lexer::word_span_at(ctx.source, *argv_span),
                 collapsed,
             ));
             continue;
@@ -2323,7 +2323,7 @@ fn visit_call_cmd_subst_folds(
             ctx.report(Optimisation::new(
                 DiagCode::O101,
                 "Fold constant expression",
-                full_word_span(ctx.source, *argv_span),
+                tcl_lexer::word_span_at(ctx.source, *argv_span),
                 folded,
             ));
             continue;
@@ -2353,7 +2353,7 @@ fn visit_call_cmd_subst_folds(
             ctx.report(Optimisation::new(
                 code,
                 message,
-                full_word_span(ctx.source, *argv_span),
+                tcl_lexer::word_span_at(ctx.source, *argv_span),
                 folded,
             ));
             continue;
@@ -2365,7 +2365,7 @@ fn visit_call_cmd_subst_folds(
             ctx.report(Optimisation::new(
                 DiagCode::O103,
                 format!("Fold pure-proc call to '{qualified_name}' to its constant return"),
-                full_word_span(ctx.source, *argv_span),
+                tcl_lexer::word_span_at(ctx.source, *argv_span),
                 replacement,
             ));
         }

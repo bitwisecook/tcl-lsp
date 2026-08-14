@@ -211,10 +211,11 @@ fn emit_for_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
         } else {
             format!("end-{offset}")
         };
-        // The `Cmd` token span follows the lexer's inner-end convention:
-        // `span.end()` is the exclusive offset of the closing `]`, so the
-        // full `[…]` substitution is `start..end + 1`.
-        let span = Span::new(idx_tok.span.start(), idx_tok.span.end() + 1);
+        // The `Cmd` token span follows the lexer's inner-end convention, so
+        // the full `[…]` substitution needs its closing `]`. Deriving that
+        // as `end + 1` overshoots an empty `[]`, so it goes through the
+        // owner rather than by hand (issue #1423).
+        let span = tcl_lexer::word_span_at(ctx.source, idx_tok.span);
         ctx.report(Optimisation::new(
             DiagCode::O128,
             "Use end-offset index instead of length arithmetic",
