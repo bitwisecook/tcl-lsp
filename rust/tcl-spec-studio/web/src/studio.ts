@@ -37,7 +37,9 @@ import {
 } from "./dom.js";
 import { renderDslHighlight, renderDslMarkers, syncDslScroll } from "./dslEditor.js";
 import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
+import type { EditorHost, MonacoHostModule } from "./editorHost.js";
 import * as idb from "./idb.js";
+import { initReleasesPanel } from "./importReleases.js";
 import type {
   CommandIndex,
   DialectEntry,
@@ -80,6 +82,21 @@ const MAX_PALETTE = 60;
 
 /** The sample the Test tab starts with, before the author writes their own. */
 const SAMPLE_HINT = "# Call your pack's commands here.\n";
+
+/**
+ * The lazily-imported editor chunk, relative to the page.
+ *
+ * Loaded on first entry to an editor tab, never at boot: it carries Monaco and
+ * the language client, about 2.5 MB of the dist, and a visitor who only browses
+ * the registry should not pay for an editor they never open. A failure to load
+ * it — an old browser, a `file://` page where module fetches are blocked, a
+ * partial deployment — is the top rung of the fallback ladder, and lands the
+ * page back on the textarea it has always had.
+ */
+const EDITOR_CHUNK = "assets/monaco-host.js";
+
+/** Where the language server worker's three files sit in the dist. */
+const LSP_WORKER_DIR = "lsp";
 
 /** How long a keystroke waits before the models are asked to catch up. */
 const SETTLE_MS = 120;
@@ -151,6 +168,17 @@ let navigating = false;
  * byte for byte as it was.
  */
 let formDirty = false;
+/**
+ * The mounted Monaco/LSP surface, once it exists.
+ *
+ * `null` means the page is on the textarea path — either because no editor tab
+ * has been opened yet, or because the chunk would not load. Every write to a
+ * document goes to the textarea *and* to this when it is present, so the two
+ * never disagree and the fallback needs no separate state.
+ */
+let editorHost: EditorHost | null = null;
+/** Set while the chunk is loading, so two tab clicks do not mount twice. */
+let editorMounting: Promise<void> | null = null;
 
 /* Drafts ---------------------------------------------------------------- */
 
@@ -413,7 +441,7 @@ function setPackSource(
     state.pack.view = null;
     setStatus("dslStatus", `could not read the pack: ${message(e)}`, "err");
   }
-  if (!opts.fromDsl) byId<HTMLTextAreaElement>("dslText").value = source;
+  if (!opts.fromDsl) writeDsl(source);
 
   // A command the document no longer declares cannot stay open.
   const names = new Set((state.pack.view?.commands ?? []).map((c) => c.name));
@@ -425,8 +453,15 @@ function setPackSource(
   // so its notices are `state.pack.view`'s own `notices` — no separate
   // `pack_validate` call, `pack_load` and `pack_validate` both build the
   // notice list from the same `Resolution::store_view`.
-  renderDslHighlight(wasm, source);
-  renderDslMarkers(state.pack.view?.notices ?? []);
+  //
+  // Skipped entirely once Monaco is mounted: the overlay is then a hidden
+  // fallback, and the language server is painting the same document properly.
+  // Repainting it anyway would cost a full re-tokenise per keystroke for
+  // something nobody can see.
+  if (!usingMonaco()) {
+    renderDslHighlight(wasm, source);
+    renderDslMarkers(state.pack.view?.notices ?? []);
+  }
   if (opts.refreshForm && state.pack.open) refreshOpenCommand();
   // The pack decides what the sample resolves to, so a document change is a
   // test result change — but only pay for it while the tab is on screen.
@@ -1067,12 +1102,14 @@ function readFiles(fileList: FileList | null, opts: { directory?: boolean } = {}
  * store call a form edit does, so the document that results is exactly what
  * the DSL pane shows and what live-save persists.
  */
-function addImportedToPack(): void {
-  if (!state.imported.length) return;
+function writeDraftsToPack(commands: { name: string; draft: Draft }[]): {
+  written: number;
+  failed: string[];
+} {
   let source = state.pack.source;
   let written = 0;
   const failed: string[] = [];
-  for (const found of state.imported) {
+  for (const found of commands) {
     try {
       const out = unwrap<PackWrite>(
         wasm.pack_set_command(source, found.name, JSON.stringify(found.draft), false),
@@ -1085,6 +1122,12 @@ function addImportedToPack(): void {
   }
   state.pack.open = null;
   setPackSource(source);
+  return { written, failed };
+}
+
+function addImportedToPack(): void {
+  if (!state.imported.length) return;
+  const { written, failed } = writeDraftsToPack(state.imported);
   setStatus(
     "importStatus",
     `${written} command(s) written into pack ${state.pack.view?.pack ?? ""}` +
@@ -1264,9 +1307,8 @@ function insertSampleCall(): void {
     min = 0;
   }
   const args = Array.from({ length: min }, (_, i) => `arg${i + 1}`).join(" ");
-  const area = byId<HTMLTextAreaElement>("testText");
-  const text = area.value.replace(/\s*$/, "");
-  area.value = `${text ? `${text}\n` : ""}${name}${args ? ` ${args}` : ""}\n`;
+  const text = byId<HTMLTextAreaElement>("testText").value.replace(/\s*$/, "");
+  writeSample(`${text ? `${text}\n` : ""}${name}${args ? ` ${args}` : ""}\n`);
   runTest();
 }
 
@@ -1662,6 +1704,95 @@ function openReference(query: string): void {
   selectTab("reference");
 }
 
+/* The editor surface ---------------------------------------------------- */
+
+// The fallback ladder, top to bottom:
+//
+//   1. Monaco + the real language server in a Web Worker  (the full experience)
+//   2. Monaco alone — the worker did not start, so no analysis, and the status
+//      line says so  (handled inside the chunk, which still resolves)
+//   3. the textarea plus the `dsl_highlight` overlay, exactly as before
+//
+// Only rung 3 is decided here, because only rung 3 means the chunk itself never
+// arrived. Every degradation is announced in `#lspStatus` rather than swallowed:
+// a page that quietly stops giving you diagnostics is worse than one that says
+// it has.
+
+/** Whether the Monaco surface is live — the overlay repaints only when it is not. */
+function usingMonaco(): boolean {
+  return editorHost !== null;
+}
+
+/**
+ * Load the editor chunk and mount both surfaces, once.
+ *
+ * The specifier is built at run time rather than written as a literal, which is
+ * what keeps esbuild from pulling the chunk back into the main bundle: a literal
+ * `import("./monacoHost.js")` in an IIFE build is inlined, and the whole point
+ * of the split is that it is not.
+ */
+async function mountEditorHost(): Promise<void> {
+  if (editorHost || editorMounting) {
+    await editorMounting;
+    return;
+  }
+  // `#lspStatus` sits under the Pack DSL editor, which is not on screen when
+  // the Test tab triggered the mount — so a *degradation* is repeated into the
+  // Test tab's own status line. Announcing a lost language server only where
+  // the reader cannot see it is the same as not announcing it.
+  const report = (message: string, kind?: "ok" | "err"): void => {
+    setStatus("lspStatus", message, kind);
+    if (kind === "err") setStatus("testStatus", message, kind);
+  };
+  editorMounting = (async () => {
+    report("loading the editor…");
+    const specifier = new URL(EDITOR_CHUNK, document.baseURI).href;
+    const chunk = (await import(specifier)) as MonacoHostModule;
+    editorHost = await chunk.mountEditors({
+      workerDir: LSP_WORKER_DIR,
+      dialect: state.dialect,
+      report,
+      dsl: {
+        container: byId("dslEditor"),
+        textarea: byId<HTMLTextAreaElement>("dslText"),
+        onChange: (text) => setPackSource(text, { fromDsl: true, refreshForm: true }),
+      },
+      sample: {
+        container: byId("testEditor"),
+        textarea: byId<HTMLTextAreaElement>("testText"),
+        onChange: () => runTest(),
+      },
+    });
+    // The overlay was the text surface; now it is a hidden fallback that must
+    // not keep painting over the editor that replaced it.
+    byId("dslFallback").hidden = true;
+  })();
+  try {
+    await editorMounting;
+  } catch (e) {
+    editorHost = null;
+    report(
+      `the code editor could not load (${message(e)}) — falling back to the plain text editor, ` +
+        "which keeps highlighting and the pack's own validation but has no language server",
+      "err",
+    );
+  } finally {
+    editorMounting = null;
+  }
+}
+
+/** Push text into whichever surface is live, without echoing a change back. */
+function writeDsl(source: string): void {
+  byId<HTMLTextAreaElement>("dslText").value = source;
+  editorHost?.setDslText(source);
+}
+
+/** The same, for the Test tab's sample. */
+function writeSample(sample: string): void {
+  byId<HTMLTextAreaElement>("testText").value = sample;
+  editorHost?.setSampleText(sample);
+}
+
 /* Tabs ------------------------------------------------------------------ */
 
 function selectTab(name: Tab): void {
@@ -1670,6 +1801,13 @@ function selectTab(name: Tab): void {
     const on = tab === name;
     byId(`tab-${tab}`).setAttribute("aria-selected", on ? "true" : "false");
     byId(`pane-${tab}`).hidden = !on;
+  }
+  if (name === "dsl" || name === "test") {
+    void mountEditorHost().then(() => {
+      // Monaco measures the container it was created in; a container inside a
+      // `hidden` pane measures zero, so every reveal needs a re-layout.
+      editorHost?.layout();
+    });
   }
   // The bench is the most expensive surface in the studio — it installs a
   // registry and runs the analyser — so it only works while it is on screen.
@@ -1714,6 +1852,11 @@ function bindUi(): void {
     // The dialect decides what a pack collides with, so the merged world has
     // to be recomputed too.
     setPackSource(state.pack.source);
+    // The language server takes the dialect as the sample document's language
+    // id, so the sample is closed and re-opened under the new one — the same
+    // route an editor takes when a file's language changes, and the only place
+    // the studio's dialect and the server's dialect can be made to agree.
+    editorHost?.setDialect(state.dialect);
     onDraftChanged();
   });
 
@@ -1880,6 +2023,19 @@ function bindUi(): void {
   drop.addEventListener("drop", (event) => {
     readFiles((event as DragEvent).dataTransfer?.files ?? null);
   });
+
+  // The multi-release importer and its opt-in GitHub panel. Everything it
+  // needs from here is passed in — the dialect is read at the moment of use so
+  // a change to the selector applies to the next derivation, not the last.
+  initReleasesPanel({
+    wasm,
+    dialect: () => state.dialect,
+    addToPack: writeDraftsToPack,
+    openDraft: (draft, origin) => {
+      loadDraft(clone(draft), origin);
+      selectTab("editor");
+    },
+  });
 }
 
 function loadIndex(): void {
@@ -1916,7 +2072,7 @@ async function restoreSession(): Promise<void> {
   setPackSource(session.source);
   if (typeof session.sample === "string") {
     state.sample = session.sample;
-    byId<HTMLTextAreaElement>("testText").value = session.sample;
+    writeSample(session.sample);
   }
   byId("liveSave").textContent =
     `Restored from this browser: pack ${state.pack.view?.pack ?? ""}, ` +

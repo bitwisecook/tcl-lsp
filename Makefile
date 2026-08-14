@@ -30,7 +30,7 @@ OUT_DIR         := $(EXT_DIR)/out
 # rust/bigip-report-gen/frontend/dist and synced into the Python f5report package).
 REPORT_SHARED_DIR := $(ROOT)rust/bigip-report-gen/frontend
 # TypeScript front-end for the command-registry spec studio (bundled into the
-# single-file studio page by rust/tcl-spec-studio-wasm/build-wasm.sh).
+# studio's dist directory by rust/tcl-spec-studio-wasm/build-wasm.sh).
 SPEC_STUDIO_WEB := $(ROOT)rust/tcl-spec-studio/web
 # The compiler-explorer GUI shell lives in the `tcl` crate; `make explorer-wasm`
 # builds the Rust → WASM core + Mermaid into it, and `build.rs` embeds the whole
@@ -1402,10 +1402,27 @@ spec-studio-assets: ## Build the spec studio's TypeScript front-end (src/ -> web
 	@echo "==> Building the spec studio front-end (TypeScript)"
 	cd $(SPEC_STUDIO_WEB) && $(NPM) ci && $(NPM) run build
 
-spec-studio-wasm: spec-studio-assets ## Build the command-registry spec studio (Rust → WASM) into rust/tcl-spec-studio-wasm/dist/index.html
+# Depends on `lsp-server-wasm`: the studio's Pack DSL and Test panes are Monaco
+# backed by the *real* language server, whose worker + wasm build-wasm.sh copies
+# into `dist/lsp/`. Without it the target fails loudly rather than shipping a
+# page whose editor can never analyse anything.
+spec-studio-wasm: spec-studio-assets lsp-server-wasm ## Build the command-registry spec studio (Rust → WASM) into rust/tcl-spec-studio-wasm/dist/
 	@command -v wasm-bindgen >/dev/null 2>&1 || { \
 		echo "wasm-bindgen not found — 'cargo install wasm-bindgen-cli'"; exit 1; }
 	bash $(ROOT)rust/tcl-spec-studio-wasm/build-wasm.sh
+
+.PHONY: spec-studio-test spec-studio-boot
+spec-studio-test: ## Unit-test the spec studio front-end (node's test runner)
+	cd $(SPEC_STUDIO_WEB) && $(NPM) ci && $(NPM) test
+
+# Serves the assembled dist over HTTP and drives it in headless chromium: the
+# registry loads, Monaco mounts on both editor tabs, and the language server
+# worker reaches "initialized". Skips (exit 0) where playwright is not
+# installed, so it is safe to call from a build that may run anywhere.
+spec-studio-boot: ## Boot the assembled spec studio in headless chromium
+	@command -v node >/dev/null 2>&1 || { \
+		echo "node not found — run 'make ensure-test-deps'"; exit 1; }
+	node $(ROOT)rust/tcl-spec-studio-wasm/test/boot.mjs
 
 LSP_SERVER_WASM_DIR := $(ROOT)rust/tcl-lsp-server-wasm
 

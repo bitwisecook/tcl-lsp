@@ -33,7 +33,9 @@
 use serde_json::{Value, json};
 use wasm_bindgen::prelude::*;
 
+mod archive;
 mod dsl_highlight;
+mod snapshots;
 
 /// Install a panic hook that routes Rust panics to `console.error` (panics
 /// abort under wasm, so this is the only way to see them).
@@ -210,6 +212,56 @@ pub fn import_package(files_json: &str, dialect: &str) -> String {
         return error("no files to import");
     }
     to_string(&tcl_spec_studio::infer::import_package(&files, dialect).to_json())
+}
+
+/// Read the Tcl sources out of a `.zip` held in the browser.
+///
+/// `bytes` is the archive verbatim (a `File`'s `arrayBuffer`, a fetched release
+/// zipball). Returns
+/// `{"entries": [{"name", "text"}], "skipped": […], "members": n, "bytes": n}`
+/// — every `.tcl` / `.tm` / `.test` / `.itcl` / `.itk` member decoded as text,
+/// plus a line per member the caps or a read error kept out, so the page can
+/// say what it did not look at rather than quietly analysing less than the
+/// author thinks. Unreadable container bytes come back as `{"error": …}`.
+///
+/// Nothing is written anywhere: the entries exist only as JSON strings handed
+/// straight back to the caller.
+#[wasm_bindgen]
+#[must_use]
+pub fn unzip_entries(bytes: &[u8]) -> String {
+    to_string(&archive::extract_json(bytes))
+}
+
+/// Derive each command's version range from several releases of one package.
+///
+/// `snapshots_json` is `[{"version": "1.2", "files": [{"name", "text"}, …]}, …]`
+/// — one entry per release, in any order (they are sorted by version, and a
+/// caller order that disagrees is reported as a warning rather than obeyed).
+/// `complete_history` says the snapshots cover *every* release, which is what
+/// licenses an `introduced_version` on the earliest one; with a partial history
+/// the earliest release only witnesses "present as far back as we looked" and
+/// the field is left unset with a note saying so.
+///
+/// Returns the [`VersionedImport`](tcl_spec_studio::versions::VersionedImport)
+/// JSON: the package name, the labels analysed in ascending order, one merged
+/// draft per command with the evidence behind every derived bound, and the
+/// warnings — including every fact the releases contradict each other about.
+#[wasm_bindgen]
+#[must_use]
+pub fn import_package_versions(
+    snapshots_json: &str,
+    dialect: &str,
+    complete_history: bool,
+) -> String {
+    let snapshots = match snapshots::parse(snapshots_json) {
+        Ok(snapshots) => snapshots,
+        Err(message) => return error(&message),
+    };
+    let options = tcl_spec_studio::versions::VersionedImportOptions { complete_history };
+    to_string(
+        &tcl_spec_studio::versions::import_package_versions(&snapshots, dialect, &options)
+            .to_json(),
+    )
 }
 
 // ---------------------------------------------------------------------------

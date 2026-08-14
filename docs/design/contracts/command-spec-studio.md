@@ -16,11 +16,104 @@ reference), [`dialect-stubs.md`](dialect-stubs.md) (the stub language),
 |---|---|---|
 | Schema + renderers | `rust/tcl-spec-studio` | One table describing every spec field; the draft model; the `.rs` and stub renderers; package inference. No browser, no WASM. |
 | WASM facade | `rust/tcl-spec-studio-wasm` | `wasm-bindgen` cdylib. Every export takes and returns a JSON string. Excluded from the workspace (the glue needs `unsafe`). |
-| Front-end | `rust/tcl-spec-studio/web` | Strict TypeScript, bundled by esbuild to one IIFE. Generates its form from the schema; knows no field names. |
-| Assembly | `rust/tcl-spec-studio-wasm/build-wasm.sh` | Inlines wasm + glue + stylesheet + bundle + logo into one `dist/index.html`. |
+| Front-end | `rust/tcl-spec-studio/web` | Strict TypeScript, bundled by esbuild into two files: the controller (an IIFE, inlined into the page) and the editor chunk (an ES module, loaded on demand). Generates its form from the schema; knows no field names. |
+| Language server | `rust/tcl-lsp-server-wasm` | The **real** `tcl-lsp-server` `LspService`, compiled to wasm and driven over `postMessage` from a Web Worker. The studio's editors are a client of it. |
+| Assembly | `rust/tcl-spec-studio-wasm/build-wasm.sh` | Inlines wasm + glue + stylesheet + controller + logo into `dist/index.html`, and copies the editor chunk and the server worker in beside it. |
 
-`make spec-studio-wasm` runs the last three in order. The published page is a
-single self-contained file with `connect-src 'none'`.
+`make spec-studio-wasm` runs all of the above in order — it depends on
+`make lsp-server-wasm` for the worker.
+
+## Dist layout
+
+The dist is a **directory**, deployed whole:
+
+```
+index.html                       the page; studio wasm + glue + CSS + controller inlined
+assets/monaco-host.js            Monaco + the language client (lazy, ~2.7 MB)
+assets/monaco-host.css           its stylesheet, with the codicon font as a data: URI
+lsp/worker.js                    the language server worker
+lsp/tcl_lsp_server_wasm.js       its wasm-bindgen glue
+lsp/tcl_lsp_server_wasm_bg.wasm  the server (~21 MB raw, ~5.6 MB gzipped)
+```
+
+Two properties hold this together and must be kept:
+
+1. **No static relative reference.** `index.html` links no file. The editor
+   chunk is reached by `new URL("assets/monaco-host.js", document.baseURI)`,
+   its stylesheet by `new URL("./monaco-host.css", import.meta.url)`, and the
+   worker's own two files by `new URL(".", self.location.href)`. That is what
+   lets the same dist work at a site root, under Pages' `/spec-studio/`, and
+   under a local `python3 -m http.server` with no rewriting. `build-wasm.sh`
+   asserts it: a `<script src=…>` or `<link href=…>` in the page's markup
+   fails the build.
+2. **The three `lsp/` files stay together under their own names.**
+   `worker.js` derives the glue and the `.wasm` from its own location.
+
+### Content-Security-Policy
+
+`connect-src` is no longer `'none'` — it is `'self'` plus exactly
+`https://api.github.com` and `https://codeload.github.com`, which exist for the
+one opt-in panel described below. Everything else is same-origin: `script-src
+'self' 'unsafe-inline' 'wasm-unsafe-eval'`, `worker-src 'self'` (**not**
+`blob:`), `style-src 'self' 'unsafe-inline'`, `font-src data:`. The page's
+privacy notice names the GitHub panel as the sole exception, and the boot check
+(below) fails if the page reaches GitHub without being asked.
+
+## The editors are clients of the real language server
+
+The Pack DSL pane and the Test pane are Monaco editors whose language features
+all come from `rust/tcl-lsp-server-wasm` — the same `LspService<Backend>` the
+native binary runs, with a `postMessage` transport in place of stdio. Nothing in
+the front-end decides what a word means.
+
+| Concern | Where it lives |
+|---|---|
+| Transport | `vscode-jsonrpc`'s `BrowserMessageReader`/`Writer` over `new Worker("lsp/worker.js")` — one JSON-RPC message per `postMessage`, no `Content-Length` framing, which is exactly what `worker.js` was built to speak. |
+| Session | `web/src/lspClient.ts` — the `initialize` handshake behind a 30 s deadline, open-document bookkeeping, push-diagnostics fan-out. No protocol code: the request types come from `vscode-languageserver-protocol`. |
+| Providers | `web/src/monacoHost.ts` — semantic tokens, hover, completion, signature help, formatting, and diagnostics, each a translation of one LSP reply into one Monaco shape. |
+| Contract | `web/src/editorHost.ts` — the interface `studio.ts` holds. `studio.ts` imports no Monaco and no LSP type. |
+
+**Dialect is the language id.** The `.tclspec` document opens as `tclspec`; the
+Tcl sample opens under whichever dialect the studio's selector names
+(`tcl9.0`, `f5-irules`, …), and changing the selector closes and re-opens it.
+The server's `dialect_from_language_id` accepts both spellings, so there is one
+rule for how a document's dialect is decided rather than a `didChangeConfiguration`
+round-trip that can disagree with it.
+
+**The semantic-token legend is the server's.** The client sends an empty
+`tokenTypes` list in `initialize` and maps whatever legend comes back, so a
+token type the server gains later paints as plain text rather than shifting
+every colour by one.
+
+### The fallback ladder
+
+Three rungs, each announced in the page's `#lspStatus` line rather than
+swallowed:
+
+1. **Monaco + the language server** — the full experience.
+2. **Monaco alone** — the worker did not start (wasm disabled, a partial
+   deploy). The editor still edits; the status line says there is no analysis.
+3. **The textarea and the `dsl_highlight` overlay** — the editor chunk itself
+   never loaded (a `file://` page, an old browser). This is the surface the
+   studio had before Monaco, kept in the bundle for exactly this reason:
+   `web/src/dslEditor.ts` is ~170 lines and stays.
+
+The textarea is the state of record on every rung. Monaco writes through to it
+on each change, and `studio.ts` writes to both, so the two never disagree and
+rung 3 needs no separate state.
+
+### Bundle discipline
+
+The controller (~113 KB) is what every visitor loads; the editor chunk (~2.7 MB
+minified, ~680 KB gzipped) and the server wasm (~5.6 MB gzipped) load only when
+an editor tab is opened. esbuild's code splitting cannot express this — it needs
+`format: "esm"` for the whole build and the controller must stay a classic
+script — so `build.mjs` runs two builds and `studio.ts` reaches the second one
+through a dynamic `import()` of a **runtime-built** URL, which is what stops
+esbuild pulling Monaco back into the first.
+
+Third-party licences: `web/THIRD-PARTY-NOTICES.md`, restated as a banner
+comment at the top of the editor chunk.
 
 ## The schema is the single source of truth
 

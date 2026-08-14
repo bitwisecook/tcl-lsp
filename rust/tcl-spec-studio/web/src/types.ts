@@ -366,6 +366,15 @@ export interface StudioWasm {
   render_stub(draftsJson: string, mode: string, dialect: string): string;
   import_package(filesJson: string, dialect: string): string;
 
+  /* Release archives, read entirely in this page. `unzip_entries` takes the
+     archive's bytes and returns its Tcl members as text (plus what it skipped
+     and why); `import_package_versions` takes one entry per release and returns
+     the merged drafts with the version ranges the releases actually witness.
+     `completeHistory` is the caller's claim that the releases given are *all*
+     of them, which is what licenses an `introduced_version` on the earliest. */
+  unzip_entries(bytes: Uint8Array): string;
+  import_package_versions(snapshotsJson: string, dialect: string, completeHistory: boolean): string;
+
   /* The pack store. Every one of these takes the `.tclspec` document, so the
      browser holds exactly one piece of state and Rust stays a pure function
      of it — which is what makes the DSL pane and the form two projections of

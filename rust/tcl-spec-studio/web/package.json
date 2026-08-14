@@ -7,9 +7,10 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint src --ext .ts && prettier --check \"src/**/*.ts\"",
-    "format": "prettier --write \"src/**/*.ts\""
+    "test": "node build.mjs --tests && node --test dist/tests/units.test.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint src test --ext .ts && prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\""
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
@@ -18,7 +19,10 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
+    "monaco-editor": "^0.56.0",
     "prettier": "^3.9.6",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vscode-jsonrpc": "^9.0.1",
+    "vscode-languageserver-protocol": "^3.18.2"
   }
 }

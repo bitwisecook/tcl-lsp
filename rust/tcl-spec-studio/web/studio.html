@@ -10,10 +10,13 @@
 <html lang="en" data-theme="auto">
 <head>
 <meta charset="utf-8">
-<!-- The studio is fully self-contained: the registry, the compiler's analyser,
-     and both renderers are linked into the inlined wasm. `connect-src 'none'`
-     means it can NEVER make a network request, so an unreleased command spec or
-     a proprietary Tcl package you import cannot leave the browser. Opening a
+<!-- The studio ships every byte it runs: the registry, the compiler's analyser,
+     both renderers, the Tcl language server, and the code editor are all in this
+     directory and load from it. `connect-src` allows exactly two remote origins —
+     `api.github.com` and `codeload.github.com` — and they are reachable from
+     one place only, the opt-in "Fetch releases from GitHub" panel on the Import
+     tab. Nothing else on the page can make a request: an unreleased command spec
+     or a proprietary Tcl package you import cannot leave the browser. Opening a
      GitHub issue is a top-level navigation (`form-action`/link), not a fetch —
      you see exactly what is sent, and only when you click. -->
 <meta http-equiv="Content-Security-Policy" content="__CSP__">
@@ -33,8 +36,9 @@ __STYLES__
   <div class="privacy" id="privacy">
     <span class="lock" aria-hidden="true">🔒</span>
     <div>
-      <b>Everything runs entirely in your browser.</b> The command registry, the Tcl compiler's analyser, and both renderers are compiled to WebAssembly and embedded in this page. Nothing you type or import is uploaded — no server, no API, no network request. Once this page has loaded you can go offline (or save it and open it from disk) and it still works.
-      <div class="small">Opening a GitHub issue is the one action that leaves the page, and it is a link you click: the issue form opens pre-filled in a new tab so you can read it before posting.</div>
+      <b>Everything runs entirely in your browser.</b> The command registry, the Tcl compiler's analyser, both renderers, and the <b>Tcl language server itself</b> are compiled to WebAssembly and served from this page's own directory. Nothing you type or import is uploaded — no server, no API, no telemetry. Once this page has loaded you can go offline and it still works.
+      <div class="small"><b>One opt-in exception.</b> The <b>Fetch releases from GitHub</b> panel on the <b>Import a package</b> tab — and only that panel — talks to the network: it reads tags from <code>api.github.com</code> and downloads release archives from <code>codeload.github.com</code>, directly from your browser, unauthenticated, and only when you fill it in and press the button. Every other way of getting sources in (drop files, pick a directory, upload <code>.zip</code> archives) is offline. If you would rather the page never reach the network at all, use the <code>.zip</code> upload path instead.</div>
+      <div class="small">Opening a GitHub issue is the other action that leaves the page, and it is a link you click: the issue form opens pre-filled in a new tab so you can read it before posting.</div>
     </div>
   </div>
 
@@ -98,8 +102,16 @@ __STYLES__
         <!-- The DSL pane. This textarea is not "an export view of the form":
              the `.tclspec` document IS the model, and both this and the form
              are projections of it. Type here and the form follows; edit the
-             form and this follows. A real code editor (Monaco, with the LSP
-             itself as its language server) is a later slice. -->
+             form and this follows.
+
+             The visible surface is Monaco, mounted into `#dslEditor` and backed
+             by the real Tcl language server running as WebAssembly in a Web
+             Worker — the same server binary an editor talks to, so the
+             colouring, hovers, completions, diagnostics and formatting here are
+             not an approximation of what your editor shows, they are what it
+             shows. The textarea underneath stays the state of record and takes
+             over verbatim if the worker cannot start (an old browser, wasm
+             disabled, the page opened from `file://`). -->
         <section class="pane" id="pane-dsl" role="tabpanel" aria-labelledby="tab-dsl" hidden>
           <p class="hint" style="margin-top:0">The pack's <code>.tclspec</code> source — the studio's one authoritative document. Every other surface is a live projection of it: edit a field in the form and this text updates; edit this text and the form, the pack list, and the collision report all follow. This is also the deliverable.</p>
           <div class="out">
@@ -111,11 +123,13 @@ __STYLES__
               <button type="button" class="ghost" id="dslCanonical" title="Re-render the whole document from its commands — this discards your comments and layout">Re-render canonically</button>
               <span class="path" id="dslPath"></span>
             </div>
-            <div class="dsl-wrap">
+            <div class="editorhost" id="dslEditor"></div>
+            <div class="dsl-wrap" id="dslFallback">
               <pre class="dsl-hl" id="dslHl" aria-hidden="true"></pre>
               <div class="dsl-markers" id="dslMarkers" aria-hidden="true"></div>
               <textarea id="dslText" class="dsl" rows="26" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Pack .tclspec source"></textarea>
             </div>
+            <div class="status" id="lspStatus"></div>
             <input type="file" id="dslPicker" accept=".tclspec,text/plain">
             <div class="note info" id="liveSave" style="margin-top:.7rem">Live save is on: every edit is kept in this browser.</div>
             <div class="status" id="dslStatus"></div>
@@ -135,6 +149,11 @@ __STYLES__
               <button type="button" class="ghost" id="testSample">Insert a sample call</button>
               <span class="path" id="testSummary"></span>
             </div>
+            <!-- The same Monaco/LSP treatment as the Pack DSL pane, on a `.tcl`
+                 model: the document is opened under whichever dialect the
+                 selector at the top of the page names, so the server analyses
+                 it exactly as an editor configured for that dialect would. -->
+            <div class="editorhost short" id="testEditor"></div>
             <textarea id="testText" class="dsl" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Tcl to test the pack with"></textarea>
             <div class="status" id="testStatus"></div>
             <div class="testsplit">
@@ -188,6 +207,16 @@ __STYLES__
         </section>
 
         <section class="pane" id="pane-import" role="tabpanel" aria-labelledby="tab-import" hidden>
+          <!-- Two ways in, and the difference is what they can *claim*. One
+               snapshot tells you what a package looks like now; several
+               releases tell you when each command arrived and when it went
+               away, which is the only honest basis for a version range. -->
+          <div class="modes" role="tablist" aria-label="Import mode">
+            <button type="button" role="tab" id="imode-files" aria-controls="imode-files-body" aria-selected="true">One snapshot</button>
+            <button type="button" role="tab" id="imode-releases" aria-controls="imode-releases-body" aria-selected="false">Several releases → version ranges</button>
+          </div>
+
+          <div id="imode-files-body">
           <p class="hint" style="margin-top:0">Drop a package's <code>.tcl</code> files here, or point at a whole library directory. Each file is compiled with the real analyser — the same one the language server runs — and every <code>proc</code> it finds becomes a draft spec: arity and argument roles from how the body uses each parameter, plus the shape heuristics that read the body itself — option tables from <code>-*</code> dispatch, <code>--</code> handling, mode words that become subcommands, closed value sets, and callbacks with their appended arity. Every conclusion comes with the evidence behind it.</p>
           <div class="drop" id="drop" role="button" tabindex="0" aria-controls="picker">
             <div class="big">Drop <code>.tcl</code> files here, or click to choose</div>
@@ -204,6 +233,53 @@ __STYLES__
           <input type="file" id="dirPicker" webkitdirectory multiple>
           <div class="status" id="importStatus" style="margin-top:.6rem"></div>
           <div id="importOut" style="margin-top:.8rem"></div>
+          </div>
+
+          <div id="imode-releases-body" hidden>
+            <p class="hint" style="margin-top:0">Add one <code>.zip</code> per release — GitHub's <b>Download ZIP</b> of a tag, a release asset, or anything else containing the package's sources. Each archive gets a version label (guessed from the file name, and editable: the labels are what every range is derived from). The importer then drafts each release independently and diffs them, so <code>introduced_version</code> and <code>retired_version</code> come from releases that actually witness the change rather than from the newest snapshot's own version number. Nothing is uploaded — the archives are unpacked in this page.</p>
+            <div class="drop" id="zipDrop" role="button" tabindex="0" aria-controls="zipPicker">
+              <div class="big">Drop release <code>.zip</code> archives here, or click to choose</div>
+              <div class="sub">one archive per release — nothing is uploaded</div>
+            </div>
+            <input type="file" id="zipPicker" multiple accept=".zip,application/zip">
+            <ul class="releases" id="releaseList"></ul>
+            <label class="checkrow" for="completeHistory">
+              <input type="checkbox" id="completeHistory">
+              <span>
+                <b>These archives are every release this package ever had.</b>
+                <span class="sub">Off (the default), a command present in the oldest archive only proves it existed <i>as far back as you looked</i>, so no <code>introduced_version</code> is written for it and a note says the introduction is unknown. On, the oldest archive <i>is</i> the first release, so a command present there is recorded as introduced there.</span>
+              </span>
+            </label>
+            <div class="actions" style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.7rem">
+              <button type="button" class="primary" id="releasesRun">Derive version ranges</button>
+              <button type="button" class="ghost" id="releasesClear">Clear the releases</button>
+              <button type="button" class="ghost" id="releasesAll" hidden>Add every command to the pack</button>
+            </div>
+            <div class="status" id="releasesStatus" style="margin-top:.6rem"></div>
+            <div id="releasesOut" style="margin-top:.8rem"></div>
+
+            <!-- The one networked feature in the studio, deliberately walled
+                 off, labelled, and never reached unless the author fills it
+                 in and presses the button. -->
+            <div class="card netpanel" id="ghPanel">
+              <label class="fld">Fetch releases from GitHub <span class="netbadge">uses the network</span></label>
+              <div class="note warn">
+                <b>This is the only part of this page that makes a network request.</b>
+                It fetches from <code>api.github.com</code> and <code>codeload.github.com</code> directly from your browser, unauthenticated and with no credentials attached; nothing else on this page ever uses the network. GitHub will see your address and the repository you asked about. Prefer the <code>.zip</code> upload above if that matters to you — it does exactly the same thing offline.
+              </div>
+              <div class="ghbar">
+                <input type="text" id="ghRepo" placeholder="owner/repo — or paste a GitHub URL" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="GitHub repository">
+                <button type="button" class="ghost" id="ghList">List the tags</button>
+              </div>
+              <div class="status" id="ghStatus"></div>
+              <ul class="ghtags" id="ghTags"></ul>
+              <div class="actions" style="display:flex;gap:.45rem;flex-wrap:wrap" id="ghActions" hidden>
+                <button type="button" class="primary" id="ghFetch">Download the selected releases</button>
+                <button type="button" class="ghost" id="ghMore" hidden>Show more tags</button>
+                <button type="button" class="ghost" id="ghNone">Select none</button>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section class="pane" id="pane-reference" role="tabpanel" aria-labelledby="tab-reference" hidden>

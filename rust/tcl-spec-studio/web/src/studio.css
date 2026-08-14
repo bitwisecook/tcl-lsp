@@ -451,6 +451,81 @@ pre.testview { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 1r
   .row input[type=text], .row input[type=number], .row select { min-width: 0; flex: 1 1 5rem; }
 }
 
+/* The Monaco editor hosts. Fixed heights rather than `resize: vertical`
+   because Monaco measures its own viewport: a host that grows by drag would
+   need a resize observer to stay in sync, and the two panes want different
+   fixed sizes anyway (the pack document is the main surface; the Tcl sample is
+   a scratch pad). `.short` is the sample. Hidden until something mounts into
+   it, so a browser that never loads the editor chunk shows no empty box. */
+.editorhost {
+  display: none; height: 32rem; border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.editorhost.short { height: 14rem; }
+.editorhost.monaco-mounted { display: block; }
+/* Monaco paints its own background; keep the rounded corner from clipping the
+   scrollbar overlay it renders on top. */
+.editorhost .monaco-editor { border-radius: 10px; }
+
+/* The import-mode switch — the same visual language as the pane tabs, one
+   level in. */
+.modes { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: .9rem; }
+.modes button {
+  border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+  border-radius: 999px; padding: .35rem .85rem; font: inherit; font-size: .85rem;
+  cursor: pointer;
+}
+.modes button[aria-selected="true"] {
+  border-color: var(--accent); color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* One staged release: its origin, its editable version label, and how much
+   Tcl came out of the archive. */
+.releases { list-style: none; margin: .8rem 0 0; padding: 0; }
+.releases li {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: .5rem .7rem; margin-bottom: .45rem;
+}
+.releases .origin { font-family: var(--mono); font-size: .8rem; flex: 1 1 12rem; }
+.releases .ver { width: 9rem; font-family: var(--mono); }
+.releases li.nolabel { border-color: var(--warn-bd); }
+.releases .files { color: var(--muted); font-size: .8rem; }
+.releases .drop { border: 0; padding: 0; }
+
+/* The complete-history switch: a checkbox whose consequence is spelled out
+   beside it, because the difference it makes is a claim about the package. */
+.checkrow {
+  display: flex; gap: .6rem; align-items: flex-start; margin-top: .8rem;
+  border: 1px solid var(--border); border-radius: 10px; padding: .6rem .75rem;
+}
+.checkrow input { margin-top: .2rem; }
+.checkrow .sub { display: block; color: var(--muted); font-size: .82rem; margin-top: .2rem; }
+
+/* The GitHub panel. Visually fenced off — this is the only thing on the page
+   that reaches the network, and it should look like it. */
+.netpanel { border-color: var(--warn-bd); margin-top: 1.2rem; }
+.netbadge {
+  font-size: .7rem; font-weight: 600; color: var(--warn-fg);
+  border: 1px solid var(--warn-bd); border-radius: 999px; padding: .05rem .45rem;
+  margin-left: .4rem; text-transform: none; letter-spacing: 0;
+}
+.ghbar { display: flex; gap: .45rem; flex-wrap: wrap; align-items: center; }
+.ghbar input { flex: 1 1 16rem; }
+.ghtags { list-style: none; margin: .6rem 0; padding: 0; max-height: 16rem; overflow: auto; }
+.ghtags li { display: flex; gap: .5rem; align-items: center; padding: .15rem 0; }
+.ghtags .tag { font-family: var(--mono); font-size: .82rem; }
+.ghtags .as { color: var(--muted); font-size: .78rem; }
+
+/* Per-command version evidence in the releases result. */
+.ranges { display: flex; gap: .4rem; flex-wrap: wrap; margin: .25rem 0 .1rem; }
+.ranges .range {
+  font-size: .72rem; font-family: var(--mono); border: 1px solid var(--border);
+  border-radius: 999px; padding: .05rem .45rem; color: var(--muted);
+}
+.ranges .range.set { border-color: var(--accent); color: var(--accent); }
+
 /* Touch targets. Apple's HIG asks for 44x44pt; the desktop paddings land
    several controls under that, which is what makes the toolbar fiddly to
    tap on a phone. Only applied to coarse pointers so the desktop density
