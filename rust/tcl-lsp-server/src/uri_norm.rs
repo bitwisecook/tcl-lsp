@@ -28,19 +28,14 @@
 //!
 //! # What is normalised, and what deliberately is not
 //!
-//! Three purely syntactic things:
+//! Two narrowly scoped syntactic spellings:
 //!
-//! 1. **Windows file-URI shape** — `ls_types::Uri::from_file_path` turns an
-//!    extended-length drive path into `file://///%3F/C%3A/…` and a UNC path
-//!    into `file://///server/share/…`. VS Code rejects both because their empty
-//!    authority is followed by a path beginning `//`; they are rewritten as
-//!    `file:///c%3A/…` and `file://server/share/…`, respectively.
-//! 2. **Percent-encoding case** — `%3a` and `%3A` are the same octet, so the
+//! 1. **Percent-encoding case** — `%3a` and `%3A` are the same octet, so the
 //!    hex digits are pinned upper-case. Both `percent_encoding` (what
 //!    `Uri::from_file_path` uses) and JavaScript's `encodeURIComponent` (what
 //!    `vscode-uri` uses) already emit upper-case, so this only ever repairs an
 //!    odd client.
-//! 3. **Windows drive-letter case** — `vscode-uri`'s `URI.file()` lower-cases
+//! 2. **Windows drive-letter case** — `vscode-uri`'s `URI.file()` lower-cases
 //!    the drive letter (`file:///c%3A/…`), while `ls_types`' `from_file_path`
 //!    upper-cases it (`file:///C%3A/…`). That single character is what made a
 //!    server-scanned file and the same file opened in the editor look like two
@@ -55,6 +50,15 @@
 //! spells a path in two cases is inconsistent with *itself*, which is the
 //! client's bug to fix (VS Code is not; `uriConverters` exists for those that
 //! are).
+//!
+//! Server-constructed file paths have one additional boundary repair:
+//! [`repair_file_uri_from_path`] makes `ls_types::Uri::from_file_path` agree
+//! with VS Code's `URI.file`. A leading `//` becomes a URI authority on every
+//! host; on Windows only, the extended-length `//?/` marker is removed first.
+//! The repair is deliberately called only by the path-to-URI constructor, not
+//! by this module's generic incoming-URI normaliser: a first path segment named
+//! `?` and a path beginning `//` must retain their meaning when already
+//! expressed as URIs, including on POSIX and macOS.
 //!
 //! # Tolerant parse
 //!
@@ -102,9 +106,8 @@ fn is_uri_legal(b: u8) -> bool {
         )
 }
 
-/// The canonical string form of `raw`: valid Windows file-URI shape,
-/// percent-escape hex pinned upper-case, and a Windows drive letter pinned
-/// lower-case.
+/// The canonical string form of `raw`: percent-escape hex pinned upper-case and
+/// a Windows drive letter pinned lower-case.
 ///
 /// Idempotent, and a byte-for-byte no-op on a URI that is already canonical —
 /// which every URI VS Code sends is. Purely syntactic: it never touches the
@@ -112,22 +115,6 @@ fn is_uri_legal(b: u8) -> bool {
 /// another.
 #[must_use]
 pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
-    // `ls_types::Uri::from_file_path` prefixes every Windows path with
-    // `file:///`.  That is right for a drive path, but Windows filesystem APIs
-    // may return an extended-length path (`\\?\C:\...` or
-    // `\\?\UNC\server\share\...`) and ordinary UNC paths start with `\\`.
-    // After slash normalisation those prefixes produce `file://///%3F/...` or
-    // `file://///server/...`: fluent-uri accepts both, but VS Code rejects
-    // them because they have an empty authority and a path beginning `//`.
-    // Repair that dependency-boundary spelling before applying the two
-    // ordinary canonicalisations below.  Keeping this string-only also makes
-    // the Windows cases testable on every CI host.
-    if let Some(windows_shape) = canonical_windows_file_uri_shape(raw) {
-        // The repaired shape no longer matches the helper, so this recursion
-        // is one step only; it applies escape- and drive-case normalisation to
-        // the repaired URI without ever borrowing the temporary string.
-        return Cow::Owned(canonical_uri_string(&windows_shape).into_owned());
-    }
     let bytes = raw.as_bytes();
     let needs_hex_fix = bytes.iter().enumerate().any(|(i, &b)| {
         b == b'%'
@@ -157,37 +144,56 @@ pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
     Cow::Owned(String::from_utf8(out).unwrap_or_else(|_| raw.to_owned()))
 }
 
-/// Repair the file-URI shapes produced for Windows extended-length and UNC
-/// paths by `ls_types::Uri::from_file_path`.
+/// Repair the file-URI shape `ls_types::Uri::from_file_path` produces for a
+/// filesystem path beginning with `//`.
 ///
-/// Returns `None` for an ordinary URI.  A URI with four or more slashes after
-/// `file:` has no authority and begins its path with `//`; the first path
-/// component is therefore the UNC authority.  The encoded extended-length
-/// marker (`?`) is metadata from the Windows path namespace, not part of the
-/// file URI, and is removed for both drive and `UNC` forms.
-fn canonical_windows_file_uri_shape(raw: &str) -> Option<String> {
-    let rest = raw.strip_prefix("file:")?;
-    let slash_count = rest.bytes().take_while(|&b| b == b'/').count();
-    if slash_count < 3 {
-        return None;
-    }
+/// VS Code's `URI.file` represents a leading `//host/` as the authority on
+/// every host, preserving POSIX/macOS double-slash paths as `file://host/…`
+/// while also producing the standard UNC form on Windows. Windows has one
+/// additional case: the encoded extended-length marker (`?`) is namespace
+/// metadata, not part of the URI, and is removed for both drive and `UNC`
+/// forms. `windows` is explicit rather than hidden behind `#[cfg]` so every
+/// branch is type-checked and unit-tested on every CI host.
+///
+/// This function must only receive the output of `Uri::from_file_path`; it is
+/// not a generic URI canonicalisation. Returns `None` for an ordinary path.
+pub(crate) fn repair_file_uri_from_path(raw: &str, windows: bool) -> Option<String> {
+    // `from_file_path` prepends `file://` on Unix and `file:///` on Windows.
+    // Removing exactly that platform prefix recovers its encoded path without
+    // having to guess what four or five slashes meant. In particular,
+    // `file:///%3F/foo` is the valid POSIX path `/?/foo`, not a Windows
+    // extended-length marker.
+    let encoded_path = if windows {
+        raw.strip_prefix("file:///")?
+    } else {
+        raw.strip_prefix("file://")?
+    };
+    let authority_and_path = encoded_path.strip_prefix("//")?;
 
-    let tail = &rest[slash_count..];
-    let extended = tail
-        .strip_prefix("%3F/")
-        .or_else(|| tail.strip_prefix("%3f/"))
-        .or_else(|| tail.strip_prefix("?/"));
-    if let Some(extended) = extended {
-        if let Some(unc) = extended
-            .strip_prefix("UNC/")
-            .or_else(|| extended.strip_prefix("unc/"))
-        {
-            return Some(format!("file://{unc}"));
+    if windows {
+        let extended = authority_and_path
+            .strip_prefix("%3F/")
+            .or_else(|| authority_and_path.strip_prefix("%3f/"))
+            .or_else(|| authority_and_path.strip_prefix("?/"));
+        if let Some(extended) = extended {
+            if let Some((kind, unc)) = extended.split_once('/')
+                && kind.eq_ignore_ascii_case("UNC")
+            {
+                return Some(format!("file://{unc}"));
+            }
+            return Some(format!("file:///{extended}"));
         }
-        return Some(format!("file:///{extended}"));
     }
 
-    (slash_count > 3).then(|| format!("file://{tail}"))
+    // This is the host/path split used by vscode-uri's `URI.file`: everything
+    // before the first slash is the authority; the rest is the absolute path.
+    // A bare `//host` receives `/`, while `///path` has an empty authority and
+    // becomes the ordinary local URI `file:///path`.
+    match authority_and_path.split_once('/') {
+        Some((authority, path)) => Some(format!("file://{authority}/{path}")),
+        None if authority_and_path.is_empty() => Some("file:///".to_owned()),
+        None => Some(format!("file://{authority_and_path}/")),
+    }
 }
 
 /// Byte offset of the Windows drive letter in `raw`, when its path starts with
@@ -321,7 +327,10 @@ pub fn normalise_uris_in_params(value: &mut serde_json::Value) {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_uri_string, normalise_uris_in_params, repair_uri_string};
+    use super::{
+        canonical_uri_string, normalise_uris_in_params, repair_file_uri_from_path,
+        repair_uri_string,
+    };
     use serde_json::json;
 
     #[test]
@@ -343,8 +352,17 @@ mod tests {
     /// diagnostic queue throw `UriError` instead of displaying the notice.
     #[test]
     fn a_windows_extended_drive_uri_is_repaired() {
+        let repaired = repair_file_uri_from_path(
+            "file://///%3F/C%3A/Users/me/project/.tcl-lsp/bad.tclspec",
+            true,
+        )
+        .unwrap();
         assert_eq!(
-            canonical_uri_string("file://///%3F/C%3A/Users/me/project/.tcl-lsp/bad.tclspec"),
+            repaired,
+            "file:///C%3A/Users/me/project/.tcl-lsp/bad.tclspec",
+        );
+        assert_eq!(
+            canonical_uri_string(&repaired),
             "file:///c%3A/Users/me/project/.tcl-lsp/bad.tclspec",
         );
     }
@@ -353,14 +371,89 @@ mod tests {
     fn windows_unc_uri_shapes_gain_an_authority() {
         for malformed in [
             "file://///server/share/project/spec.tclspec",
-            "file:////server/share/project/spec.tclspec",
             "file://///%3F/UNC/server/share/project/spec.tclspec",
+            "file://///%3f/Unc/server/share/project/spec.tclspec",
         ] {
             assert_eq!(
-                canonical_uri_string(malformed),
-                "file://server/share/project/spec.tclspec",
+                repair_file_uri_from_path(malformed, true).as_deref(),
+                Some("file://server/share/project/spec.tclspec"),
                 "{malformed}",
             );
+        }
+    }
+
+    #[test]
+    fn generic_canonicalisation_preserves_posix_question_mark_segment() {
+        let uri = "file:///%3F/foo.tcl";
+        assert_eq!(canonical_uri_string(uri), uri);
+        assert_eq!(repair_file_uri_from_path(uri, true), None);
+    }
+
+    #[test]
+    fn generic_canonicalisation_preserves_posix_double_slash_path() {
+        let uri = "file:////srv/share/a.tcl";
+        assert_eq!(canonical_uri_string(uri), uri);
+        assert_eq!(
+            repair_file_uri_from_path(uri, false).as_deref(),
+            Some("file://srv/share/a.tcl"),
+        );
+    }
+
+    #[test]
+    fn posix_double_slash_question_mark_is_not_windows_metadata() {
+        assert_eq!(
+            repair_file_uri_from_path("file:////%3F/foo.tcl", false).as_deref(),
+            Some("file://%3F/foo.tcl"),
+        );
+    }
+
+    #[test]
+    fn path_authority_split_matches_vscode_uri_file() {
+        for (raw, expected) in [
+            ("file:////server", "file://server/"),
+            ("file:////", "file:///"),
+            ("file://///local/path", "file:///local/path"),
+        ] {
+            assert_eq!(
+                repair_file_uri_from_path(raw, false).as_deref(),
+                Some(expected),
+                "{raw}",
+            );
+        }
+    }
+
+    #[test]
+    fn browser_and_virtual_workspace_uris_keep_their_structure() {
+        for uri in [
+            "https://example.test/workspace/%3F/file.tcl?ref=C%3A#source",
+            "http://localhost:3000/workspace//file.tcl",
+            "vscode-vfs://github/owner/repo/path/file.tcl",
+            "vscode-remote://ssh-remote+host/home/me/file.tcl",
+            "untitled:Untitled-1",
+        ] {
+            assert_eq!(canonical_uri_string(uri), uri, "{uri}");
+            assert_eq!(repair_file_uri_from_path(uri, cfg!(windows)), None, "{uri}");
+        }
+    }
+
+    #[test]
+    fn incoming_browser_and_virtual_workspace_uris_are_not_reinterpreted() {
+        let uris = [
+            "https://example.test/workspace/%3F/file.tcl?ref=C%3A#source",
+            "http://localhost:3000/workspace//file.tcl",
+            "vscode-vfs://github/owner/repo/path/file.tcl",
+            "vscode-remote://ssh-remote+host/home/me/file.tcl",
+            "file:///%3F/foo.tcl",
+            "file:////srv/share/a.tcl",
+        ];
+        let mut params = json!({
+            "workspaceFolders": uris.map(|uri| json!({ "uri": uri })),
+        });
+
+        normalise_uris_in_params(&mut params);
+
+        for (index, expected) in uris.iter().enumerate() {
+            assert_eq!(params["workspaceFolders"][index]["uri"], *expected);
         }
     }
 
