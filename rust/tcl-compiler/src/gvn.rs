@@ -1436,38 +1436,42 @@ pub fn find_redundancies_for_function(
 
 // Loop-invariant detection
 
-/// Enumerate blocks reachable from `entry` via CFG edges.
-fn reachable_from(cfg: &CfgFunction, entry: BlockId) -> FxHashSet<BlockId> {
-    let mut out = FxHashSet::default();
-    let mut stack = vec![entry];
-    while let Some(id) = stack.pop() {
-        if !out.insert(id) {
-            continue;
-        }
-        if let Some(block) = cfg.blocks.get(&id)
-            && let Some(term) = &block.terminator
-        {
-            match term {
-                Terminator::Goto { target, .. } => stack.push(*target),
-                Terminator::Branch {
-                    true_target,
-                    false_target,
-                    ..
-                } => {
-                    stack.push(*true_target);
-                    stack.push(*false_target);
-                }
-                Terminator::Return { .. } => {}
-            }
-        }
-    }
-    out
+/// Adopt the compiler's single "is this block executable" fact into GVN's
+/// hasher.
+///
+/// The owner is [`crate::sccp::SccpResult::executable_blocks`] — the
+/// optimistic executable-block set SCCP accumulates while it folds constant
+/// branches (`sccp.rs:199`). The deletion side already reads exactly that
+/// set: `optimiser/elimination.rs:392` turns it into `unreachable_blocks`
+/// for the O107 deletion, and O112's constant-condition deletions
+/// (`optimiser/structure_elimination.rs`) are the structured-IR view of the
+/// same constant facts. `crate::loops::build_loop_forest` takes it as a
+/// parameter for the same reason.
+///
+/// Code motion must consult the same fact rather than raw CFG reachability:
+/// a plain terminator-successor walk still reaches a block behind a
+/// constant-false branch, so PRE and LICM would offer a hoist *into* a
+/// region the deletion passes simultaneously offer to remove (issue #1385).
+/// SCCP is optimistic, so a block it never marked executable is provably
+/// dead under those same facts — pruning to the set is the sound direction.
+fn adopt_executable_blocks<S: std::hash::BuildHasher>(
+    executable: &std::collections::HashSet<BlockId, S>,
+) -> FxHashSet<BlockId> {
+    executable.iter().copied().collect()
 }
 
 /// Natural loop: all blocks on any path from `latch` back to
 /// `header` that doesn't leave the loop via a non-predecessor
 /// edge. Walks predecessors starting from `latch`, stopping at
 /// the header.
+///
+/// Mirrors `crate::loops::natural_loop_blocks` (`loops.rs:98-122`) and now
+/// takes the same executable set, so the two agree on which blocks a loop
+/// body contains. The bodies stay separate only because the back-edge
+/// search around this one uses `SsaFunction::dominator_intervals` (one O(V)
+/// numbering, O(1) per query) where `crate::loops::dominates`
+/// (`loops.rs:64-73`) walks the idom chain per query — the quadratic issue
+/// #1250 removed from this pass.
 fn natural_loop_blocks(
     cfg: &CfgFunction,
     header: BlockId,
@@ -1526,14 +1530,26 @@ fn loop_defined_variables(
 ///
 /// Uses a simplified occurrence
 /// walk that reuses [`statement_occurrences`].
+///
+/// `executable` is the caller's [`crate::sccp::SccpResult::executable_blocks`]
+/// — see [`adopt_executable_blocks`]. Blocks outside it are provably dead and
+/// never receive a hoist offer.
 #[must_use]
-pub fn find_loop_invariants(
+pub fn find_loop_invariants<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
+    executable: &std::collections::HashSet<BlockId, S>,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
-    find_loop_invariants_with_legality(registry, cfg, ssa, dialect, GvnLegalitySource::Legacy)
+    find_loop_invariants_with_legality(
+        registry,
+        cfg,
+        ssa,
+        &adopt_executable_blocks(executable),
+        dialect,
+        GvnLegalitySource::Legacy,
+    )
 }
 
 /// Run loop-invariance detection using one function's dispatch-stability
@@ -1543,6 +1559,10 @@ pub fn find_loop_invariants(
 /// it needs the same live-dispatch proof as reusing one: a command whose
 /// binding, traces, or interpreter policy may change inside the loop is not
 /// invariant merely because its arguments are.
+///
+/// Executability comes from the function's own SCCP result, the same fact
+/// the deletion passes read, so a hoist is never offered into a block O112 /
+/// O107 offer to delete (issue #1385).
 #[must_use]
 pub fn find_loop_invariants_for_function(
     registry: &CommandRegistry,
@@ -1554,6 +1574,7 @@ pub fn find_loop_invariants_for_function(
         registry,
         &function.cfg,
         &function.ssa,
+        &adopt_executable_blocks(&function.sccp.executable_blocks),
         dialect,
         GvnLegalitySource::Common(semantic.as_ref()),
     )
@@ -1563,10 +1584,10 @@ fn find_loop_invariants_with_legality(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
+    executable: &FxHashSet<BlockId>,
     dialect: Option<&str>,
     legality: GvnLegalitySource<'_>,
 ) -> Vec<RedundantComputation> {
-    let executable = reachable_from(cfg, ssa.entry);
     let mut results: Vec<RedundantComputation> = Vec::new();
     // One O(V) dominator-tree numbering serves every dominance query below.
     // Walking the idom chain per query instead made this pass O(V²) on a wide
@@ -1580,7 +1601,7 @@ fn find_loop_invariants_with_legality(
     // latch-dominance gate below.
     let mut header_to_blocks: FxHashMap<BlockId, FxHashSet<BlockId>> = FxHashMap::default();
     let mut header_to_latches: FxHashMap<BlockId, FxHashSet<BlockId>> = FxHashMap::default();
-    for tail in &executable {
+    for tail in executable {
         let Some(block) = cfg.blocks.get(tail) else {
             continue;
         };
@@ -1600,7 +1621,7 @@ fn find_loop_invariants_with_legality(
             if !dom.dominates(succ, *tail) {
                 continue;
             }
-            let blocks = natural_loop_blocks(cfg, succ, *tail, &executable);
+            let blocks = natural_loop_blocks(cfg, succ, *tail, executable);
             header_to_blocks
                 .entry(succ)
                 .and_modify(|e| e.extend(blocks.iter().copied()))
@@ -1685,11 +1706,17 @@ pub enum OccurrenceEvent {
 ///   for, emit `OccurrenceEvent::Kill`.
 /// - For every pure + CSE-candidate occurrence reported by
 ///   `statement_occurrences`, emit `OccurrenceEvent::Occur(occ)`.
+///
+/// Blocks outside `executable` (see [`adopt_executable_blocks`]) contribute
+/// nothing: an occurrence SCCP proved unreachable is not a real earlier
+/// computation, so it must not become the hoist target a later occurrence is
+/// told to reuse (issue #1385).
 #[must_use]
-pub fn collect_function_occurrence_events(
+pub fn collect_function_occurrence_events<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
+    executable: &std::collections::HashSet<BlockId, S>,
     dialect: Option<&str>,
 ) -> (
     FxHashMap<BlockId, Vec<OccurrenceEvent>>,
@@ -1699,6 +1726,7 @@ pub fn collect_function_occurrence_events(
         registry,
         cfg,
         ssa,
+        &adopt_executable_blocks(executable),
         dialect,
         GvnLegalitySource::Legacy,
     )
@@ -1709,6 +1737,7 @@ fn collect_function_occurrence_events_with_legality(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
+    executable: &FxHashSet<BlockId>,
     dialect: Option<&str>,
     legality: GvnLegalitySource<'_>,
 ) -> (
@@ -1719,6 +1748,9 @@ fn collect_function_occurrence_events_with_legality(
     let mut all_occurrences: Vec<ExprOccurrence> = Vec::new();
 
     for (bn, cfg_block) in &cfg.blocks {
+        if !executable.contains(bn) {
+            continue;
+        }
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
@@ -1875,14 +1907,27 @@ fn run_partial_redundancy_fixpoint(
 /// but not on every path.  Uses the may/must-availability
 /// bidirectional dataflow from
 /// [`run_partial_redundancy_fixpoint`].
+///
+/// `executable` is the caller's [`crate::sccp::SccpResult::executable_blocks`]
+/// — see [`adopt_executable_blocks`]. The hoist point a partial redundancy
+/// implies must land in a block that survives deletion, so the availability
+/// dataflow runs over that set and never over raw CFG reachability.
 #[must_use]
-pub fn find_partial_redundancies(
+pub fn find_partial_redundancies<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
+    executable: &std::collections::HashSet<BlockId, S>,
     dialect: Option<&str>,
 ) -> Vec<RedundantComputation> {
-    find_partial_redundancies_with_legality(registry, cfg, ssa, dialect, GvnLegalitySource::Legacy)
+    find_partial_redundancies_with_legality(
+        registry,
+        cfg,
+        ssa,
+        &adopt_executable_blocks(executable),
+        dialect,
+        GvnLegalitySource::Legacy,
+    )
 }
 
 /// Run partial-redundancy detection using one function's dispatch-stability
@@ -1892,6 +1937,9 @@ pub fn find_partial_redundancies(
 /// it never consults the legacy command-string classifier: an unavailable
 /// sidecar and every unresolved, ambiguous, declined, or unmapped site fail
 /// closed.
+///
+/// Executability comes from the function's own SCCP result, the same fact
+/// the deletion passes read (issue #1385).
 #[must_use]
 pub fn find_partial_redundancies_for_function(
     registry: &CommandRegistry,
@@ -1903,6 +1951,7 @@ pub fn find_partial_redundancies_for_function(
         registry,
         &function.cfg,
         &function.ssa,
+        &adopt_executable_blocks(&function.sccp.executable_blocks),
         dialect,
         GvnLegalitySource::Common(semantic.as_ref()),
     )
@@ -1912,15 +1961,16 @@ fn find_partial_redundancies_with_legality(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
+    executable: &FxHashSet<BlockId>,
     dialect: Option<&str>,
     legality: GvnLegalitySource<'_>,
 ) -> Vec<RedundantComputation> {
-    let executable = reachable_from(cfg, ssa.entry);
     if !executable.contains(&ssa.entry) {
         return Vec::new();
     }
-    let (events_by_block, all_occurrences) =
-        collect_function_occurrence_events_with_legality(registry, cfg, ssa, dialect, legality);
+    let (events_by_block, all_occurrences) = collect_function_occurrence_events_with_legality(
+        registry, cfg, ssa, executable, dialect, legality,
+    );
     if all_occurrences.is_empty() {
         return Vec::new();
     }
@@ -1928,14 +1978,14 @@ fn find_partial_redundancies_with_legality(
 
     let mut order: Vec<BlockId> = cfg.reverse_postorder();
     let seen: FxHashSet<BlockId> = order.iter().copied().collect();
-    for id in &executable {
+    for id in executable {
         if !seen.contains(id) {
             order.push(*id);
         }
     }
 
     let (may_in, _may_out, must_in, _must_out) =
-        run_partial_redundancy_fixpoint(cfg, ssa, &executable, &events_by_block, &universe, &order);
+        run_partial_redundancy_fixpoint(cfg, ssa, executable, &events_by_block, &universe, &order);
 
     // Build first-occurrence map by source offset.
     let mut sorted = all_occurrences.clone();
@@ -2761,6 +2811,14 @@ mod tests {
         }
     }
 
+    /// Every block of a hand-built CFG, as the executable set. These tests
+    /// exercise the loop / availability machinery on CFGs with no SCCP run,
+    /// so they hand it the whole CFG — the pre-#1385 premise, stated at the
+    /// call site instead of derived inside the pass.
+    fn all_blocks(cfg: &Function) -> std::collections::HashSet<BlockId> {
+        cfg.blocks.keys().copied().collect()
+    }
+
     #[test]
     fn find_redundancies_detects_same_block_duplicate() {
         let registry = CommandRegistry::build_default();
@@ -3080,7 +3138,7 @@ mod tests {
         ssa.blocks.insert(body, b);
         ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
-        let results = find_loop_invariants(&registry, &cfg, &ssa, None);
+        let results = find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None);
         assert_eq!(results.len(), 1);
         // Canonical: loop-invariant code motion is O106 (not O107,
         // which is unreachable dead code).
@@ -3171,7 +3229,7 @@ mod tests {
         ssa.blocks.insert(latch, empty_ssa_block("latch"));
         ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
-        let results = find_loop_invariants(&registry, &cfg, &ssa, None);
+        let results = find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None);
         assert!(
             results.is_empty(),
             "invariant behind an in-loop branch must not be hoisted, got {results:?}",
@@ -3265,7 +3323,7 @@ mod tests {
         ssa.blocks.insert(body, b);
         ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
-        let results = find_loop_invariants(&registry, &cfg, &ssa, None);
+        let results = find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None);
         assert!(results.is_empty());
     }
 
@@ -3282,7 +3340,7 @@ mod tests {
         let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
         ssa.idom.insert(cfg.entry, None);
         ssa.blocks.insert(cfg.entry, empty_ssa_block("entry"));
-        assert!(find_loop_invariants(&registry, &cfg, &ssa, None).is_empty());
+        assert!(find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None).is_empty());
     }
 
     // -- partial-redundancy detection --
@@ -3362,7 +3420,7 @@ mod tests {
         ssa.blocks.insert(ff, ff_b);
         ssa.blocks.insert(join, join_b);
 
-        let results = find_partial_redundancies(&registry, &cfg, &ssa, None);
+        let results = find_partial_redundancies(&registry, &cfg, &ssa, &all_blocks(&cfg), None);
         assert_eq!(results.len(), 1);
         // Canonical: partial redundancy (GVN-PRE) shares O105 with
         // full redundancy — the loop-invariant code O106 was wrong
@@ -3398,7 +3456,9 @@ mod tests {
             .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa.blocks.insert(cfg.entry, entry_b);
 
-        assert!(find_partial_redundancies(&registry, &cfg, &ssa, None).is_empty());
+        assert!(
+            find_partial_redundancies(&registry, &cfg, &ssa, &all_blocks(&cfg), None).is_empty()
+        );
     }
 
     #[test]

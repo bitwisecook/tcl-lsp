@@ -1727,3 +1727,122 @@ fn barrier_reference_blocks_o125_issue_1402() {
     let eval_src = "proc f {flag} {\nset x 1\nif {$flag} { puts $x }\neval [list puts $x]\n}";
     assert!(!opt_fires(eval_src, TCL, "O125"));
 }
+
+// ===========================================================================
+// Issue #1385 — code motion and deletion must share one "is this block
+// executable" fact.
+//
+// The owner is `SccpResult::executable_blocks` (`sccp.rs:199`), the
+// optimistic set SCCP fills in while it folds constant branches. The
+// deletion side already reads it: `optimiser/elimination.rs:392`
+// (`unreachable_blocks`, the O107 source), and O112's constant-condition
+// deletions in `optimiser/structure_elimination.rs` are the structured-IR
+// view of the same constant facts. GVN's PRE and LICM used to answer the
+// question themselves with a plain terminator-successor walk, so a block
+// behind a constant-false branch still looked executable and drew an O106
+// hoist / O105 partial-redundancy offer into a region O112 was
+// simultaneously offering to delete.
+//
+// `find_loop_invariants` / `find_partial_redundancies` now take that set,
+// and `*_for_function` seed it from `fu.sccp.executable_blocks`.
+// ===========================================================================
+
+/// `src` compiled to a unit whose top level carries the SCCP result the
+/// deletion passes read.
+fn top_level_unit(src: &str) -> tcl_compiler::compilation_unit::CompilationUnit {
+    let registry = registry_for_dialect(TCL);
+    tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(src, registry, false, TCL)
+}
+
+/// `(licm, pre)` finding counts under the executable set the deletion passes
+/// use — the same seeding `find_loop_invariants_for_function` /
+/// `find_partial_redundancies_for_function` do internally.
+fn gvn_offers_under_sccp(src: &str) -> (usize, usize) {
+    let registry = registry_for_dialect(TCL);
+    let cu = top_level_unit(src);
+    let fu = &cu.top_level;
+    let executable = &fu.sccp.executable_blocks;
+    (
+        tcl_compiler::gvn::find_loop_invariants(registry, &fu.cfg, &fu.ssa, executable, Some(TCL))
+            .len(),
+        tcl_compiler::gvn::find_partial_redundancies(
+            registry,
+            &fu.cfg,
+            &fu.ssa,
+            executable,
+            Some(TCL),
+        )
+        .len(),
+    )
+}
+
+// A constant-false `if` wrapping a loop: O112 deletes the whole `if`, so the
+// loop body must draw no O106 hoist. Structural (which code fires), not
+// Tcl-observable: tclsh 8.6/9.0 runs neither the loop nor any hoisted copy,
+// so both the original and the O112 rewrite produce no output.
+#[test]
+fn licm_offers_no_hoist_inside_a_block_o112_deletes_issue_1385() {
+    let dead = "set lst $argv\nif {0} {\n    for {set i 0} {$i < 3} {incr i} {\n        lindex $lst 0\n    }\n}\n";
+    assert!(
+        opt_fires(dead, TCL, "O112"),
+        "the constant-false if must still be offered for deletion"
+    );
+    assert_eq!(
+        gvn_offers_under_sccp(dead).0,
+        0,
+        "no O106 hoist may be offered inside the region O112 deletes"
+    );
+
+    // Control: the same loop outside the dead branch keeps its hoist, so the
+    // executable fact is pruning dead code and not disabling LICM.
+    let live = "set lst $argv\nfor {set i 0} {$i < 3} {incr i} {\n    lindex $lst 0\n}\n";
+    assert!(!opt_fires(live, TCL, "O112"));
+    assert_eq!(gvn_offers_under_sccp(live).0, 1);
+}
+
+// The same pairing for O105 partial redundancy: the diamond and its merge
+// point both sit inside the constant-false `if` O112 deletes.
+#[test]
+fn pre_offers_no_hoist_inside_a_block_o112_deletes_issue_1385() {
+    let dead = "set lst $argv\nif {0} {\n    if {$argc} {\n        lindex $lst 0\n    }\n    lindex $lst 0\n}\n";
+    assert!(
+        opt_fires(dead, TCL, "O112"),
+        "the constant-false if must still be offered for deletion"
+    );
+    assert_eq!(
+        gvn_offers_under_sccp(dead).1,
+        0,
+        "no O105 partial-redundancy hoist may be offered inside the region O112 deletes"
+    );
+
+    // Control: the same diamond outside the dead branch still reports.
+    let live = "set lst $argv\nif {$argc} {\n    lindex $lst 0\n}\nlindex $lst 0\n";
+    assert!(!opt_fires(live, TCL, "O112"));
+    assert_eq!(gvn_offers_under_sccp(live).1, 1);
+}
+
+// The production entries carry the same contract without the caller having
+// to seed the set: they read `fu.sccp.executable_blocks` themselves.
+#[test]
+fn production_gvn_entries_read_the_sccp_executable_fact_issue_1385() {
+    let registry = registry_for_dialect(TCL);
+    let dead = "set lst $argv\nif {0} {\n    for {set i 0} {$i < 3} {incr i} {\n        lindex $lst 0\n    }\n    if {$argc} {\n        llength $lst\n    }\n    llength $lst\n}\n";
+    let cu = top_level_unit(dead);
+    let fu = &cu.top_level;
+    assert!(
+        fu.cfg
+            .blocks
+            .keys()
+            .any(|b| !fu.sccp.executable_blocks.contains(b)),
+        "the reproducer must actually contain SCCP-dead blocks"
+    );
+    assert!(
+        tcl_compiler::gvn::find_loop_invariants_for_function(registry, fu, Some(TCL)).is_empty(),
+        "O106 must not fire inside SCCP-dead code"
+    );
+    assert!(
+        tcl_compiler::gvn::find_partial_redundancies_for_function(registry, fu, Some(TCL))
+            .is_empty(),
+        "O105-PRE must not fire inside SCCP-dead code"
+    );
+}
