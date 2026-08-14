@@ -21,10 +21,9 @@
 # and the Claude Code skills bundle.
 #
 # Detects the host OS (macOS, Debian/Ubuntu, RHEL/CentOS/Fedora, Arch,
-# Alpine), checks for a usable Python 3.10+, installs dependencies
-# through the native package manager when missing, prompts for an
-# install directory (scanning $PATH for writable candidates), and
-# optionally writes shell completion.
+# Alpine), prompts for an install directory (scanning $PATH for writable
+# candidates), and optionally writes shell completion.  Every installed
+# executable is native; Python is neither required nor installed.
 #
 # Before prompting, looks for an existing `tcl` / `f5` on $PATH and
 # offers to update in place. Does NOT use sudo: if a step needs root
@@ -44,18 +43,20 @@
 # aborts the install — set TCL_LSP_NO_VERIFY=1 to install unverified
 # (only do this when the network path is trustworthy end-to-end).
 #
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install/install.sh | sh
+# Usage (stable release):
+#   curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh | sh
+# A downloaded pre-release installer selects the tag stamped into itself.
 #
 # Environment overrides:
-#   TCL_LSP_VERSION         - release tag to install (default: latest)
+#   TCL_LSP_VERSION         - release tag (default: installer's stamped tag, or latest in a checkout)
 #   TCL_LSP_PREFIX          - install dir (default: prompt; non-interactive: ~/.local/bin)
 #   TCL_LSP_REPO            - GitHub owner/repo (default: bitwisecook/tcl-lsp)
 #   TCL_LSP_ONLY            - "tcl", "f5", or "both" (default: both)
 #   TCL_LSP_OS              - bypass /etc/os-release: debian|rhel|fedora|arch|alpine|macos
-#   TCL_LSP_NO_DEPS         - 1 to skip OS-package install (Python, curl, unzip)
+#   TCL_LSP_NO_DEPS         - 1 to skip OS-package install (curl, unzip)
 #   TCL_LSP_NO_PATH         - 1 to skip PATH/rc modification
 #   TCL_LSP_NO_COMP         - 1 to skip shell completion
+#   TCL_LSP_NO_LEGACY_CLEANUP - 1 to keep recognised Python-era tcl-lsp files
 #   TCL_LSP_NO_MCP          - 1 to skip MCP-server install for AI clients
 #   TCL_LSP_NO_SKILLS       - 1 to skip Claude Code skills install
 #   TCL_LSP_NO_CLAUDE       - 1 to ignore Claude Code even if detected
@@ -76,6 +77,7 @@
 #   TCL_LSP_QUIET           - 1 to suppress the per-prompt stderr breadcrumb
 #   TCL_LSP_TRACE           - 1 to print extra trace lines for downloads etc.
 #   TCL_LSP_SUFFIX          - suffix for installed binaries (e.g. "-lsp"; default: empty)
+#   TCL_LSP_UI              - auto|plain|fzf|dialog|whiptail (default: auto)
 #
 # Every interactive prompt prints a `ask: [kind] question -> answer`
 # breadcrumb to stderr so an aborted run leaves a visible record in
@@ -99,7 +101,22 @@ INSTALLER_VERSION="${INSTALLER_VERSION_TAG} ${INSTALLER_VERSION_SHA}"
 
 DEFAULT_REPO="bitwisecook/tcl-lsp"
 REPO="${TCL_LSP_REPO:-$DEFAULT_REPO}"
-VERSION="${TCL_LSP_VERSION:-latest}"
+select_release_version() {
+    requested="$1"
+    stamped="$2"
+    if [ -n "$requested" ]; then
+        printf '%s\n' "$requested"
+    elif [ "$stamped" != dev ]; then
+        # Release assets are stamped by create-release. This matters for
+        # odd-minor pre-releases, which GitHub deliberately excludes from
+        # /releases/latest.
+        printf '%s\n' "$stamped"
+    else
+        printf '%s\n' latest
+    fi
+}
+VERSION="$(select_release_version "${TCL_LSP_VERSION:-}" "$INSTALLER_VERSION_TAG")"
+SOURCE_BUILD_GUIDE="https://github.com/${REPO}/blob/rust/docs/kcs/kcs-howto-build-and-install-on-an-unsupported-platform.md"
 
 # ONLY: which CLIs to install (tcl / f5 / both). ONLY_EXPLICIT=1 when
 # pinned via env so choose_clis() skips the prompt.
@@ -153,6 +170,7 @@ record() {
 TTY_IN=""               # stdin | /dev/tty | none (set by detect_tty)
 TTY_OUT=""              # stderr | /dev/tty | none
 TTY_PROBED=0
+UI_BACKEND="plain"       # plain | fzf | dialog | whiptail
 
 # Probe once; `curl | sh` pipes stdin but /dev/tty is usually reachable.
 detect_tty() {
@@ -191,6 +209,105 @@ read_user_line() {
     if [ "$TTY_IN" = stdin ]; then IFS= read -r reply
     else IFS= read -r reply </dev/tty
     fi
+}
+
+detect_ui_backend() {
+    requested="${TCL_LSP_UI:-auto}"
+    case "$requested" in
+        auto|plain|fzf|dialog|whiptail) : ;;
+        *) die "TCL_LSP_UI must be auto|plain|fzf|dialog|whiptail (got: $requested)" ;;
+    esac
+    if [ "$requested" = plain ] || ! tty_available; then
+        UI_BACKEND=plain
+        return
+    fi
+    if [ "$requested" != auto ]; then
+        have "$requested" || die "TCL_LSP_UI=$requested requested, but '$requested' is not on PATH"
+        UI_BACKEND="$requested"
+        return
+    fi
+    for candidate in fzf dialog whiptail; do
+        if have "$candidate"; then
+            UI_BACKEND="$candidate"
+            return
+        fi
+    done
+    UI_BACKEND=plain
+}
+
+# Select one value from VALUE LABEL pairs.  The chosen value is printed to
+# stdout; UI chrome stays on the controlling terminal.  Callers fall back to
+# their default when this returns non-zero (cancel/Escape).
+ui_menu() {
+    title="$1"; default_value="$2"; shift 2
+    case "$UI_BACKEND" in
+        fzf)
+            rows=""
+            menu_pairs="$(while [ "$#" -gt 0 ]; do
+                printf '%s|%s\n' "$1" "$2"
+                shift 2
+            done)"
+            OLD_IFS="$IFS"; IFS='
+'
+            for row in $menu_pairs; do
+                value="${row%%|*}"
+                [ "$value" = "$default_value" ] && rows="${rows}${rows:+
+}${row}"
+            done
+            for row in $menu_pairs; do
+                value="${row%%|*}"
+                [ "$value" != "$default_value" ] && rows="${rows}${rows:+
+}${row}"
+            done
+            IFS="$OLD_IFS"
+            chosen="$(printf '%s\n' "$rows" | sed 's/|/  /' \
+                | fzf --height=~40% --layout=reverse --border \
+                      --prompt="$title > " --header='Enter: select  Esc: cancel' \
+                      2>/dev/tty)" || return 1
+            printf '%s\n' "${chosen%%  *}"
+            ;;
+        dialog|whiptail)
+            tool="$UI_BACKEND"
+            if [ "$tool" = dialog ]; then
+                "$tool" --stdout --title "tcl-lsp installer" \
+                    --default-item "$default_value" --menu "$title" 20 78 12 "$@" \
+                    </dev/tty 2>/dev/tty
+            else
+                "$tool" --output-fd 1 --title "tcl-lsp installer" \
+                    --default-item "$default_value" --menu "$title" 20 78 12 "$@" \
+                    </dev/tty 2>/dev/tty
+            fi
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+ui_yesno() {
+    question="$1"; default="$2"
+    case "$UI_BACKEND" in
+        fzf)
+            if [ "$default" = yes ]; then
+                set -- yes Yes no No
+            else
+                set -- no No yes Yes
+            fi
+            choice="$(ui_menu "$question" "$default" "$@")" || return 2
+            [ "$choice" = yes ]
+            ;;
+        dialog)
+            default_flag=""; [ "$default" = no ] && default_flag="--defaultno"
+            # shellcheck disable=SC2086
+            dialog --title "tcl-lsp installer" $default_flag --yesno "$question" 9 72 \
+                </dev/tty 2>/dev/tty
+            ;;
+        whiptail)
+            default_flag=""; [ "$default" = no ] && default_flag="--defaultno"
+            # shellcheck disable=SC2086
+            whiptail --title "tcl-lsp installer" $default_flag --yesno "$question" 9 72 \
+                </dev/tty 2>/dev/tty
+            ;;
+        *) return 2 ;;
+    esac
 }
 
 # --help prints the leading comment block as documentation.
@@ -243,12 +360,32 @@ _ask_yesno_text() {
     esac
 }
 
+_ask_yesno() {
+    question="$1"; default="$2"; kind="$3"
+    if [ "$UI_BACKEND" != plain ]; then
+        set +e
+        ui_yesno "$question" "$default"
+        answer=$?
+        set -e
+        case "$answer" in
+            0) prompt_record "$kind" "$question" "yes ($UI_BACKEND)"; return 0 ;;
+            1) prompt_record "$kind" "$question" "no ($UI_BACKEND)"; return 1 ;;
+            *)
+                prompt_record "$kind" "$question" "$default ($UI_BACKEND cancelled)"
+                [ "$default" = yes ]
+                return
+                ;;
+        esac
+    fi
+    _ask_yesno_text "$question" "$default"
+}
+
 # Opt-in prompt — default no when headless.
 ask() {
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
     if [ "${TCL_LSP_ASSUME_NO:-0}"  = "1" ]; then prompt_record ask "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
     tty_available || { prompt_record ask "$1" "no (no-tty, default-no)"; return 1; }
-    _ask_yesno_text "$1" yes
+    _ask_yesno "$1" yes ask
 }
 
 # Opt-out prompt — default yes when headless (upstream signal was the opt-in).
@@ -256,7 +393,7 @@ ask_optout() {
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then prompt_record ask-optout "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask-optout "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
     tty_available || { prompt_record ask-optout "$1" "yes (no-tty, default-yes)"; return 0; }
-    _ask_yesno_text "$1" yes
+    _ask_yesno "$1" yes ask-optout
 }
 
 # Strict default-NO — destructive / privileged choices. Empty input, headless
@@ -265,6 +402,10 @@ ask_default_no() {
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask-no "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then prompt_record ask-no "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
     tty_available || { prompt_record ask-no "$1" "no (no-tty, default-no)"; return 1; }
+    if [ "$UI_BACKEND" != plain ]; then
+        _ask_yesno "$1" no ask-no
+        return
+    fi
     print_prompt "$1"
     read_user_line || { prompt_record ask-no "$1" "read-failed"; return 1; }
     case "$reply" in
@@ -400,6 +541,9 @@ detect_os() {
     fi
     case "$UNAME" in
         Darwin) OS=macos ;;
+        MINGW*|MSYS*|CYGWIN*)
+            die "prebuilt Windows binaries are published, but this shell installer supports macOS and Linux only.
+Download the matching Windows release assets, or follow the manual installation guide: $SOURCE_BUILD_GUIDE" ;;
         Linux)
             if read_os_release_safe; then
                 case "${ID:-}:${ID_LIKE:-}" in
@@ -414,7 +558,9 @@ detect_os() {
                 OS=linux
             fi
             ;;
-        *) die "unsupported OS: $UNAME (only macOS and Linux are supported)" ;;
+        *) die "no prebuilt tcl-lsp binaries are published for $(uname -sm 2>/dev/null || echo "$UNAME").
+Supported installer platforms: macOS (x86_64, arm64) and Linux (x86_64, arm64, riscv64).
+Build and install from source: $SOURCE_BUILD_GUIDE" ;;
     esac
     log "detected OS: $OS"
 }
@@ -450,37 +596,6 @@ detect_shell() {
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-python_ok() {
-    # Returns 0 if $1 resolves to a Python >= 3.10 interpreter.
-    [ -n "${1:-}" ] || return 1
-    have "$1" || return 1
-    "$1" - <<'PY' 2>/dev/null
-import sys
-sys.exit(0 if sys.version_info >= (3, 10) else 1)
-PY
-}
-
-find_python() {
-    # Probe well-known absolute paths first so a poisoned $PATH cannot
-    # silently shadow the system interpreter we're about to use.
-    PYTHON=""
-    for candidate in \
-        /opt/homebrew/bin/python3.14 /opt/homebrew/bin/python3.13 /opt/homebrew/bin/python3.12 \
-        /opt/homebrew/bin/python3.11 /opt/homebrew/bin/python3.10 /opt/homebrew/bin/python3 \
-        /usr/local/bin/python3.14 /usr/local/bin/python3.13 /usr/local/bin/python3.12 \
-        /usr/local/bin/python3.11 /usr/local/bin/python3.10 /usr/local/bin/python3 \
-        /usr/bin/python3.14 /usr/bin/python3.13 /usr/bin/python3.12 \
-        /usr/bin/python3.11 /usr/bin/python3.10 /usr/bin/python3 \
-        python3.14 python3.13 python3.12 python3.11 python3.10 \
-        python3 python; do
-        if python_ok "$candidate"; then
-            PYTHON="$(command -v "$candidate")"
-            return 0
-        fi
-    done
-    return 1
-}
-
 # Echo a command before running it; do not suppress its stdout/stderr.
 run_cmd() {
     log "+ $*"
@@ -499,70 +614,6 @@ run_as_root() {
     fi
 }
 
-# Phase 1: detect Python and record (without installing) whether we'll
-# need to install it. install_python() is called in phase 3.
-PYTHON_INSTALL_PLANNED=0
-plan_python_if_needed() {
-    if find_python; then return 0; fi
-    if [ "${TCL_LSP_NO_DEPS:-0}" = "1" ]; then
-        die "Python 3.10+ not found and TCL_LSP_NO_DEPS=1 — install Python manually and retry."
-    fi
-    case "$OS" in
-        macos)
-            if ! have brew; then
-                die "Python 3.10+ not found and Homebrew is not installed.
-Install Homebrew (https://brew.sh) or Python 3.10+ manually, then re-run."
-            fi
-            ;;
-        debian|rhel|fedora|arch|alpine)
-            need_root "install Python 3.10+ via $(pkg_manager_label)" \
-                      "install Python 3.10+ manually (e.g. \`$(pkg_manager_install_cmd) python3\`) or set TCL_LSP_NO_DEPS=1"
-            ;;
-        *)
-            die "Cannot auto-install Python on this OS. Install Python 3.10+ manually and retry." ;;
-    esac
-    PYTHON_INSTALL_PLANNED=1
-}
-
-# Phase 3: actually install Python — only reached after require_root_or_die.
-install_python() {
-    [ "$PYTHON_INSTALL_PLANNED" = 1 ] || return 0
-    log "Python 3.10+ not found — installing via package manager"
-    case "$OS" in
-        macos)
-            run_cmd brew install python@3.14 \
-                || run_cmd brew install python@3.13 \
-                || run_cmd brew install python3
-            ;;
-        debian)
-            apt_get_update_once
-            run_as_root apt-get install -y python3 ca-certificates curl
-            ;;
-        rhel)
-            PM="yum"; have dnf && PM="dnf"
-            run_as_root "$PM" install -y ca-certificates curl
-            installed=0
-            for v in python3.12 python3.11; do
-                if "$PM" list --available "$v" >/dev/null 2>&1 \
-                   || "$PM" info "$v" >/dev/null 2>&1; then
-                    if run_as_root "$PM" install -y "$v"; then installed=1; break; fi
-                fi
-            done
-            [ "$installed" = 0 ] && run_as_root "$PM" install -y python3
-            ;;
-        fedora)
-            PM="yum"; have dnf && PM="dnf"
-            run_as_root "$PM" install -y python3 ca-certificates curl
-            ;;
-        arch)
-            run_as_root pacman -Sy --noconfirm python ca-certificates curl
-            ;;
-        alpine)
-            run_as_root apk add --no-cache python3 ca-certificates curl
-            ;;
-    esac
-    find_python || die "Python install completed but no python3.10+ found on PATH."
-}
 
 # Phase 1: pick a downloader, recording an install need if both are missing.
 CURL_INSTALL_PLANNED=0
@@ -1078,7 +1129,7 @@ _download_run() {
 }
 
 # download URL OUTPUT — dies on failure with the URL + captured error.
-# Use for mandatory artefacts (CLI zipapps, SHA256SUMS). For files
+# Use for mandatory artefacts (native binaries, SHA256SUMS). For files
 # that may legitimately be absent on a release, use try_download.
 download() {
     _download_run "$@" && return 0
@@ -1312,15 +1363,23 @@ choose_clis() {
 
     menu_default=3
     case "$d_default" in tcl) menu_default=1 ;; f5) menu_default=2 ;; both) menu_default=3 ;; esac
-    print_line ""
-    print_line "Choose which CLIs to install:"
-    print_line "  1) tcl"
-    print_line "  2) f5"
-    print_line "  3) both (tcl + f5)"
-    print_line "  4) none (AI-only install)"
-    print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
-    read_user_line || reply=""
-    ans="${reply:-$menu_default}"
+    if [ "$UI_BACKEND" != plain ]; then
+        ans="$(ui_menu "Choose which command-line tools to install" "$menu_default" \
+            1 "tcl — Tcl language tools" \
+            2 "f5 — BIG-IP query tools" \
+            3 "both — tcl and f5" \
+            4 "none — AI integrations only")" || ans="$menu_default"
+    else
+        print_line ""
+        print_line "Choose which CLIs to install:"
+        print_line "  1) tcl"
+        print_line "  2) f5"
+        print_line "  3) both (tcl + f5)"
+        print_line "  4) none (AI-only install)"
+        print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
+        read_user_line || reply=""
+        ans="${reply:-$menu_default}"
+    fi
     case "$ans" in
         1) WANT_TCL=1; WANT_F5=0 ;;
         2) WANT_TCL=0; WANT_F5=1 ;;
@@ -1378,15 +1437,23 @@ choose_ai_components() {
 
     if [ "$has_skills" = 1 ]; then
         menu_default=3
-        print_line ""
-        print_line "Choose which AI components to install:"
-        print_line "  1) mcp"
-        print_line "  2) skills"
-        print_line "  3) both (mcp + skills)"
-        print_line "  4) none"
-        print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
-        read_user_line || reply=""
-        ans="${reply:-$menu_default}"
+        if [ "$UI_BACKEND" != plain ]; then
+            ans="$(ui_menu "Choose AI integrations" "$menu_default" \
+                1 "MCP server" \
+                2 "Claude Code skills" \
+                3 "both — MCP server and skills" \
+                4 "none")" || ans="$menu_default"
+        else
+            print_line ""
+            print_line "Choose which AI components to install:"
+            print_line "  1) mcp"
+            print_line "  2) skills"
+            print_line "  3) both (mcp + skills)"
+            print_line "  4) none"
+            print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
+            read_user_line || reply=""
+            ans="${reply:-$menu_default}"
+        fi
         case "$ans" in
             1) WANT_MCP=1; WANT_SKILLS=0 ;;
             2) WANT_MCP=0; WANT_SKILLS=1 ;;
@@ -1396,13 +1463,19 @@ choose_ai_components() {
         esac
     else
         menu_default=1
-        print_line ""
-        print_line "Choose AI components (Codex only — no skills):"
-        print_line "  1) mcp"
-        print_line "  2) none"
-        print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
-        read_user_line || reply=""
-        ans="${reply:-$menu_default}"
+        if [ "$UI_BACKEND" != plain ]; then
+            ans="$(ui_menu "Choose Codex integration" "$menu_default" \
+                1 "MCP server" \
+                2 "none")" || ans="$menu_default"
+        else
+            print_line ""
+            print_line "Choose AI components (Codex only — no skills):"
+            print_line "  1) mcp"
+            print_line "  2) none"
+            print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
+            read_user_line || reply=""
+            ans="${reply:-$menu_default}"
+        fi
         case "$ans" in
             1) WANT_MCP=1 ;;
             2) WANT_MCP=0 ;;
@@ -1443,90 +1516,25 @@ find_on_path() {
     return 1
 }
 
-looks_like_our_zipapp() {
-    # Tier 1: python shebang + ZIP signature. Tier 2: unzip or python
-    # zipfile to look for our markers.
+looks_like_legacy_zipapp() {
+    # Python-era installers shipped self-contained zipapps. Recognise them
+    # without requiring Python or unzip: ZIP member names remain visible in
+    # the central directory even when member contents are compressed.
     f="$1"
     [ -r "$f" ] || return 1
 
-    first="$(head -c 200 "$f" 2>/dev/null)"
+    first="$(head -n 1 "$f" 2>/dev/null)"
     case "$first" in
         '#!'*python*) : ;;
         *) return 1 ;;
     esac
     head -c 2048 "$f" 2>/dev/null | grep -aq 'PK' || return 1
-
-    # Tier 2a — unzip.  Both the post-restructure markers
-    # (``shared/_build_info.py`` + ``tooling.{tcl,f5,wasm}.main`` /
-    # ``server._build_info`` / ``server.server``) AND the legacy
-    # pre-restructure markers (``lsp/_build_info.py`` +
-    # ``explorer.{tcl,f5,wasm}_cli`` / ``lsp._build_info`` /
-    # ``lsp.server``) match — both shapes were shipped on
-    # different release tags and an installer rolling over either of
-    # them must recognise it as ours, not refuse to overwrite.
-    if have unzip; then
-        if unzip -l -- "$f" 2>/dev/null \
-            | grep -qE 'shared/_build_info\.py|lsp/_build_info\.py|static/index\.html'; then
-            return 0
-        fi
-        if unzip -p -- "$f" __main__.py 2>/dev/null \
-            | grep -qE 'tooling\.(tcl|f5|wasm|explorer\.cli)|tooling\.explorer|explorer\.(tcl|f5|wasm)_cli|ai\.mcp\.tcl_mcp_server|shared\._build_info|server\.(server|_build_info)|lsp\.(server|_build_info)|Tcl Compiler Explorer'; then
-            return 0
-        fi
-        return 1
-    fi
-
-    # Tier 2b — Python zipfile
-    if [ -n "${PYTHON:-}" ]; then
-        if "$PYTHON" - "$f" >/dev/null 2>&1 <<'PY'
-import sys, zipfile
-try:
-    with zipfile.ZipFile(sys.argv[1]) as z:
-        names = set(z.namelist())
-        if 'shared/_build_info.py' in names or 'lsp/_build_info.py' in names:
-            sys.exit(0)
-        # Explorer GUI zipapps bundle the static web payload — no
-        # shared/_build_info.py, no Python source from the main tree.
-        if 'static/index.html' in names:
-            sys.exit(0)
-        try:
-            main = z.read('__main__.py').decode('utf-8', errors='replace')
-        except KeyError:
-            sys.exit(1)
-        markers = (
-            # Post-restructure entry points (Phase 4+).
-            'tooling.tcl.main', 'tooling.f5.main', 'tooling.wasm.main',
-            'tooling.explorer.cli', 'tooling.explorer',
-            'server.server', 'server._build_info',
-            'shared._build_info',
-            # Pre-restructure entry points (shipped on earlier tags).
-            'explorer.tcl_cli', 'explorer.f5_cli', 'explorer.wasm_cli',
-            'lsp._build_info', 'lsp.server',
-            # MCP server stays valid across the restructure.
-            'ai.mcp.tcl_mcp_server',
-            # Explorer GUI zipapp uses scripts/zipapp-main/gui.py as
-            # its __main__ — match on the distinctive banner string.
-            'Tcl Compiler Explorer',
-        )
-        for m in markers:
-            if m in main:
-                sys.exit(0)
-except (zipfile.BadZipFile, FileNotFoundError, OSError):
-    pass
-sys.exit(1)
-PY
-        then
-            return 0
-        fi
-        return 1
-    fi
-
-    # Neither unzip nor Python — can't confirm. Treat as not-ours so
-    # downstream logic surfaces the safer "overwrite anyway?" prompt.
-    return 1
+    LC_ALL=C grep -aqE \
+        'shared/_build_info\.py|lsp/_build_info\.py|static/index\.html|ai/mcp/tcl_mcp_server\.py|tooling/(tcl|f5|wasm)/|explorer/(tcl|f5|wasm)_cli\.py' \
+        "$f"
 }
 
-# Find an existing tcl-lsp MCP server zipapp by checking, in order:
+# Find an existing tcl-lsp MCP server by checking, in order:
 # Claude Code's registration, Codex's config.toml, $PATH.
 find_existing_mcp() {
     if have claude; then
@@ -1566,54 +1574,45 @@ find_existing_mcp() {
     return 1
 }
 
-# The MCP artefact filename the install will write: the native `tcl-mcp`
-# binary when a native build is available/selected, else the Python zipapp.
 mcp_target_basename() {
-    if [ "${TCL_LSP_MCP_PYZ:-0}" != "1" ] \
-        && { [ -n "${TCL_LSP_MCP_BIN:-}" ] || host_triple >/dev/null 2>&1; }; then
-        echo "tcl-mcp"
-    else
-        echo "tcl-lsp-mcp-server.pyz"
-    fi
+    echo "tcl-mcp"
 }
 
-# Detect an existing MCP zipapp and offer to update it in place.
+# Detect an existing MCP install and offer to update it in place.
 # Sets MCP_PREFIX_OVERRIDE.
 looks_like_our_native_mcp() {
-    # Our native MCP server is an executable named `tcl-mcp`.  Unlike the
-    # zipapp (whose structure looks_like_our_zipapp inspects), a native binary
-    # can't be introspected the same way, so match on the artefact name the
-    # installer itself writes / registers.
+    # The MCP server has no human-facing version command. Require both the
+    # release artefact name and its embedded server-info product name so an
+    # unrelated executable called `tcl-mcp` is never claimed as ours.
     f="$1"
     [ -f "$f" ] && [ -x "$f" ] || return 1
     case "$(basename "$f")" in
-        tcl-mcp | tcl-mcp.exe) return 0 ;;
+        tcl-mcp | tcl-mcp.exe) LC_ALL=C grep -aq 'tcl-lsp' "$f" ;;
         *) return 1 ;;
     esac
 }
 
 looks_like_our_native_cli() {
-    # Our `tcl` and `f5` CLIs ship as native binaries, not
-    # Python zipapps, so looks_like_our_zipapp can't recognise a prior
-    # install of them. As with looks_like_our_native_mcp, a native binary
-    # can't be introspected structurally, so match on the artefact names the
-    # installer itself writes — `tcl`/`f5`, honouring any TCL_LSP_SUFFIX
-    # (INSTALL_SUFFIX) and a Windows `.exe`.
+    # Match both the installer-owned name and a product-specific banner
+    # embedded by clap.  A random executable named `tcl` must never be treated
+    # as ours merely because its basename collides.
     f="$1"
     [ -f "$f" ] && [ -x "$f" ] || return 1
     case "$(basename "$f")" in
-        "tcl${INSTALL_SUFFIX}" | "tcl${INSTALL_SUFFIX}.exe") return 0 ;;
-        "f5${INSTALL_SUFFIX}" | "f5${INSTALL_SUFFIX}.exe") return 0 ;;
+        "tcl${INSTALL_SUFFIX}" | "tcl${INSTALL_SUFFIX}.exe")
+            LC_ALL=C grep -aq 'Unified Tcl toolchain CLI' "$f" ;;
+        "f5${INSTALL_SUFFIX}" | "f5${INSTALL_SUFFIX}.exe")
+            LC_ALL=C grep -aq 'BIG-IP.*query' "$f" ;;
         *) return 1 ;;
     esac
 }
 
-# True when $1 is an artefact this installer produces — a Python zipapp, the
+# True when $1 is an artefact this installer produces — a legacy zipapp, the
 # native MCP binary, or a native `tcl`/`f5` CLI. Used by the overwrite paths
 # to decide whether an existing file at a target path is our own artefact
 # (safe to replace in place) rather than an unrelated file.
 looks_like_ours() {
-    looks_like_our_zipapp "$1" \
+    looks_like_legacy_zipapp "$1" \
         || looks_like_our_native_mcp "$1" \
         || looks_like_our_native_cli "$1"
 }
@@ -1621,12 +1620,12 @@ looks_like_ours() {
 propose_update_mcp() {
     [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && return 0
     p="$(find_existing_mcp)" || return 0
-    if ! looks_like_our_zipapp "$p" && ! looks_like_our_native_mcp "$p"; then
+    if ! looks_like_legacy_zipapp "$p" && ! looks_like_our_native_mcp "$p"; then
         warn "found '$(basename "$p")' at $p but it doesn't look like our MCP server"
         return 0
     fi
-    # Remember the prior install so cleanup_stale_mcp can remove it if this run
-    # installs the other flavour (native ⇄ zipapp) or a copy elsewhere.
+    # Remember the prior install so cleanup_stale_mcp can remove a superseded
+    # Python zipapp or a copy elsewhere after registration succeeds.
     PRIOR_MCP_PATH="$p"
     log "found existing MCP server at $p"
     if ask_optout "Update existing MCP server at $p (in place)? [Y/n]"; then
@@ -1636,11 +1635,9 @@ propose_update_mcp() {
 }
 
 # After a successful MCP install + registration, remove leftover copies so a
-# machine doesn't accumulate stale MCP servers when switching flavours or
-# locations:
-#   * the OTHER flavour's artefact at the install prefix (old Python zipapp when
-#     we just installed native, or an old native binary when we installed the
-#     zipapp);
+# machine doesn't accumulate stale MCP servers when switching from the Python
+# zipapp or changing locations:
+#   * the retired Python artefact at the install prefix;
 #   * a prior install detected elsewhere (PRIOR_MCP_PATH), when it's ours and
 #     isn't the copy we just wrote.
 # Only ever removes files we positively recognise as ours.
@@ -1648,23 +1645,69 @@ cleanup_stale_mcp() {
     [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && return 0
     [ -n "${MCP_PATH:-}" ] || return 0
     prefix="$(prefix_for mcp)"
-    if [ "$MCP_NATIVE" = "1" ]; then
-        other="$prefix/tcl-lsp-mcp-server.pyz"
-    else
-        other="$prefix/tcl-mcp"
-    fi
+    other="$prefix/tcl-lsp-mcp-server.pyz"
     # The superseded other-flavour artefact at our prefix.
     if [ -e "$other" ] && [ "$other" != "$MCP_PATH" ]; then
-        if looks_like_our_zipapp "$other" || looks_like_our_native_mcp "$other"; then
+        if looks_like_legacy_zipapp "$other"; then
             rm -f "$other" && log "removed superseded MCP server $other"
         fi
     fi
     # A prior install elsewhere that we've now replaced.
     if [ -n "${PRIOR_MCP_PATH:-}" ] && [ "$PRIOR_MCP_PATH" != "$MCP_PATH" ] \
         && [ -e "$PRIOR_MCP_PATH" ]; then
-        if looks_like_our_zipapp "$PRIOR_MCP_PATH" || looks_like_our_native_mcp "$PRIOR_MCP_PATH"; then
+        if looks_like_legacy_zipapp "$PRIOR_MCP_PATH" || looks_like_our_native_mcp "$PRIOR_MCP_PATH"; then
             rm -f "$PRIOR_MCP_PATH" && log "removed prior MCP server $PRIOR_MCP_PATH"
         fi
+    fi
+}
+
+remove_legacy_python_artefact() {
+    legacy="$1"
+    [ -e "$legacy" ] || return 0
+    looks_like_legacy_zipapp "$legacy" || return 0
+    if rm -f "$legacy" 2>/dev/null; then
+        log "removed retired Python-era tcl-lsp artefact $legacy"
+    else
+        warn "could not remove retired Python-era tcl-lsp artefact $legacy"
+    fi
+}
+
+cleanup_legacy_python_installs() {
+    [ "${TCL_LSP_NO_LEGACY_CLEANUP:-0}" = "1" ] && {
+        log "keeping recognised Python-era artefacts (TCL_LSP_NO_LEGACY_CLEANUP=1)"
+        return 0
+    }
+
+    # Old installers wrote standalone zipapps into a PATH directory. Search
+    # only exact historical names, and delete only files whose shebang, ZIP
+    # structure, and embedded project paths positively identify them as ours.
+    # Python itself, virtual environments, and pip packages are never touched.
+    legacy_dirs="${PATH:-}"
+    legacy_dirs="${legacy_dirs}:$HOME/.local/bin:$HOME/bin"
+    [ -n "${PREFIX:-}" ] && legacy_dirs="${legacy_dirs}:$PREFIX"
+    [ -n "${MCP_PREFIX_OVERRIDE:-}" ] && legacy_dirs="${legacy_dirs}:$MCP_PREFIX_OVERRIDE"
+
+    OLD_IFS="$IFS"; IFS=:
+    for legacy_dir in $legacy_dirs; do
+        [ -n "$legacy_dir" ] || legacy_dir=.
+        [ -d "$legacy_dir" ] || continue
+        if [ "$WANT_TCL" = "1" ]; then
+            remove_legacy_python_artefact "$legacy_dir/tcl"
+        fi
+        if [ "$WANT_F5" = "1" ]; then
+            remove_legacy_python_artefact "$legacy_dir/f5"
+        fi
+        # These products have no native successor on the Rust branch.
+        remove_legacy_python_artefact "$legacy_dir/tcl-explorer"
+        remove_legacy_python_artefact "$legacy_dir/tcl-explorer-gui"
+        if [ "$WANT_MCP" = "1" ]; then
+            remove_legacy_python_artefact "$legacy_dir/tcl-lsp-mcp-server.pyz"
+        fi
+    done
+    IFS="$OLD_IFS"
+
+    if [ "$WANT_SKILLS" = "1" ]; then
+        remove_legacy_python_artefact "$HOME/.claude/tcl-ai.pyz"
     fi
 }
 
@@ -1716,7 +1759,7 @@ propose_update_one() {
     # Returns non-zero to signal the caller should bail to the picker.
     n="$1"
     path="$(find_on_path "$n")" || return 0
-    if looks_like_our_zipapp "$path"; then
+    if looks_like_ours "$path"; then
         dir="$(dirname "$path")"
         log "found existing $n at $path"
         if ! ask_optout "Update existing $n at $path (in place)? [Y/n]"; then
@@ -1729,8 +1772,8 @@ propose_update_one() {
         esac
         return 0
     fi
-    warn "found '$n' at $path but it doesn't look like our zipapp"
-    warn "(missing python shebang or ZIP signature) — picker will run as usual"
+    warn "found '$n' at $path but it is not a recognised tcl-lsp installation"
+    warn "picker will run as usual; the unrelated command will not be overwritten"
     return 1
 }
 
@@ -1758,7 +1801,7 @@ count_conflicts_for() {
     n="$1"
     own_dir="$(prefix_for "$n")"
     if other="$(find_on_path "$n")" && [ "$other" != "$own_dir/$n" ]; then
-        if looks_like_our_zipapp "$other"; then
+        if looks_like_ours "$other"; then
             warn "another tcl-lsp '$n' is already at $other (will shadow $own_dir/$n)"
         else
             warn "an unrelated '$n' exists at $other (will shadow $own_dir/$n)"
@@ -1792,8 +1835,15 @@ detect_conflicts() {
         return
     fi
 
-    print_prompt "$(printf '\nHow to proceed?\n  1) keep (install with original name; existing shadow remains)\n  2) rename (install as <name>-lsp)\n  3) abort\n  selection [1]: ')"
-    read_user_line || reply=1
+    if [ "$UI_BACKEND" != plain ]; then
+        reply="$(ui_menu "A command-name conflict is already on PATH" 1 \
+            1 "keep — install original names" \
+            2 "rename — install as <name>-lsp" \
+            3 "abort")" || reply=1
+    else
+        print_prompt "$(printf '\nHow to proceed?\n  1) keep (install with original name; existing shadow remains)\n  2) rename (install as <name>-lsp)\n  3) abort\n  selection [1]: ')"
+        read_user_line || reply=1
+    fi
     case "${reply:-1}" in
         1|keep)   sel=keep ;;
         2|rename) sel=rename ;;
@@ -1881,7 +1931,7 @@ choose_prefix() {
 }
 
 choose_mcp_prefix() {
-    # Pick the directory where the MCP server zipapp lands. Defaults to
+    # Pick the directory where the native MCP server lands. Defaults to
     # the existing install dir (set by propose_update_mcp) when one was
     # detected; otherwise to $PREFIX (the CLI dir, or ~/.local/bin when
     # no CLI was installed).
@@ -1921,12 +1971,12 @@ plan_overwrite_check() {
     # the decision so phase 3 doesn't have to ask again.
     dst="$1"
     [ -e "$dst" ] || return 0
-    # Recognise every flavour of artefact we produce — zipapp, native MCP
+    # Recognise every flavour of artefact we produce — legacy zipapp, native MCP
     # binary, or native `tcl`/`f5` CLI — so an in-place update doesn't trip
     # the "unrelated file" prompt (which aborts non-interactive upgrades).
     looks_like_ours "$dst" && return 0
     warn "$dst already exists and is not a recognised tcl-lsp artefact"
-    warn "(not our zipapp, native MCP binary, or native CLI)"
+    warn "(not our legacy zipapp, native MCP binary, or native CLI)"
     if ! ask_default_no "Overwrite $dst anyway? [y/N]"; then
         die "aborted: existing $dst is unrelated and overwrite declined.
 Re-run with TCL_LSP_PREFIX=/other/dir, or remove $dst first."
@@ -1979,7 +2029,7 @@ $(uname -sm 2>/dev/null) — this platform has no published CLI build."
     tmpfile="$WORKDIR/$asset"
     download "$url" "$tmpfile"
     # Verify against SHA256SUMS when the asset is listed (fatal on mismatch);
-    # otherwise install unverified with a warning — mirrors install_mcp_native.
+    # otherwise install unverified with a warning — mirrors install_mcp.
     if ensure_sums && awk -v a="$asset" '$2==a || $2=="*"a {f=1} END{exit !f}' "$SUMS_PATH" 2>/dev/null; then
         verify_artefact "$asset" "$tmpfile"
     else
@@ -2153,9 +2203,6 @@ ensure_unzip() {
 }
 
 MCP_PATH=""
-# When set to 1, MCP_PATH is a native `tcl-mcp` binary (launched directly, no
-# Python interpreter). Left 0 for the default Python zipapp.
-MCP_NATIVE=0
 # A prior MCP install detected during planning (propose_update_mcp), removed by
 # cleanup_stale_mcp if this run replaces it.
 PRIOR_MCP_PATH=""
@@ -2164,9 +2211,9 @@ PRIOR_MCP_PATH=""
 # release asset names (`tcl-mcp-<triple>`, `tcl-<triple>`, `f5-query-<triple>`;
 # see the publish-native-binaries CI job). Prints the triple, or returns 1 for a
 # platform without a published native binary.
-host_triple() {
-    _os="$(uname -s 2>/dev/null || echo unknown)"
-    _arch="$(uname -m 2>/dev/null || echo unknown)"
+host_triple_for() {
+    _os="$1"
+    _arch="$2"
     case "$_os" in
         Linux)
             case "$_arch" in
@@ -2181,27 +2228,52 @@ host_triple() {
                 x86_64)          echo "x86_64-apple-darwin" ;;
                 *) return 1 ;;
             esac ;;
+        MINGW*|MSYS*|CYGWIN*|Windows_NT)
+            case "$_arch" in
+                arm64 | aarch64) echo "aarch64-pc-windows-msvc" ;;
+                x86_64 | amd64)  echo "x86_64-pc-windows-msvc" ;;
+                *) return 1 ;;
+            esac ;;
         *) return 1 ;;
     esac
 }
 
-# Try to fetch + install the native `tcl-mcp` binary for the host platform.
-# Returns 0 (and sets MCP_PATH + MCP_NATIVE) on success, 1 to fall back to the
-# Python zipapp. Set TCL_LSP_MCP_PYZ=1 to force the zipapp.
-install_mcp_native() {
-    [ "${TCL_LSP_MCP_PYZ:-0}" = "1" ] && return 1
-    triple="$(host_triple)" || {
-        warn "no native tcl-mcp binary for $(uname -sm 2>/dev/null) — using Python zipapp"
-        return 1
-    }
+host_triple() {
+    host_triple_for \
+        "$(uname -s 2>/dev/null || echo unknown)" \
+        "$(uname -m 2>/dev/null || echo unknown)"
+}
+
+preflight_native_platform() {
+    # A caller-supplied native MCP executable is already suitable for this
+    # machine. Everything else selected below requires a published host build.
+    if ! needs_prefix && { [ "$WANT_MCP" != "1" ] \
+        || { [ -n "${TCL_LSP_MCP_BIN:-}" ] && [ -x "${TCL_LSP_MCP_BIN}" ]; }; }; then
+        return 0
+    fi
+    if ! triple="$(host_triple)"; then
+        die "no prebuilt tcl-lsp binaries are published for $(uname -sm 2>/dev/null || echo unknown).
+Supported installer platforms: macOS (x86_64, arm64) and Linux (x86_64, arm64, riscv64).
+Build only the features you need and install them from source: $SOURCE_BUILD_GUIDE"
+    fi
+    log "native release platform: $triple"
+}
+
+# Fetch + install the native `tcl-mcp` binary for the host platform. There is
+# deliberately no Python fallback on the Rust-only release line.
+install_mcp() {
+    if [ -n "${TCL_LSP_MCP_BIN:-}" ] && [ -x "${TCL_LSP_MCP_BIN}" ]; then
+        MCP_PATH="${TCL_LSP_MCP_BIN}"
+        log "using native MCP server -> $MCP_PATH"
+        return 0
+    fi
+    triple="$(host_triple)" || die "no native tcl-mcp binary for \
+$(uname -sm 2>/dev/null) — this platform has no published MCP build."
     ensure_tag
     asset="tcl-mcp-${triple}"
     tmpfile="$WORKDIR/$asset"
-    log "trying native MCP binary $asset"
-    if ! try_download "$(asset_url "$asset")" "$tmpfile"; then
-        warn "native MCP binary $asset not published for this release — using Python zipapp"
-        return 1
-    fi
+    log "downloading native MCP server $asset"
+    download "$(asset_url "$asset")" "$tmpfile"
     # Verify against SHA256SUMS when the asset is listed (fatal on mismatch);
     # otherwise install unverified with a warning.
     if ensure_sums && awk -v a="$asset" '$2==a || $2=="*"a {f=1} END{exit !f}' "$SUMS_PATH" 2>/dev/null; then
@@ -2212,49 +2284,16 @@ install_mcp_native() {
     MCP_PATH="$(prefix_for mcp)/tcl-mcp"
     write_target "$tmpfile" "$MCP_PATH"
     chmod +x "$MCP_PATH" 2>/dev/null || true
-    MCP_NATIVE=1
     log "installed native MCP server -> $MCP_PATH"
-    return 0
-}
-
-install_mcp_zipapp() {
-    if [ -n "$MCP_PATH" ] && [ -x "$MCP_PATH" ]; then return 0; fi
-    # Opt-in: register a prebuilt native `tcl-mcp` binary instead of the Python
-    # zipapp (e.g. `TCL_LSP_MCP_BIN=$(pwd)/target/release/tcl-mcp ./install.sh`,
-    # or after `make rust-mcp`). Skips the download entirely.
-    if [ -n "${TCL_LSP_MCP_BIN:-}" ] && [ -x "${TCL_LSP_MCP_BIN}" ]; then
-        MCP_PATH="${TCL_LSP_MCP_BIN}"
-        MCP_NATIVE=1
-        log "using native MCP server -> $MCP_PATH"
-        return 0
-    fi
-    # Default: fetch the native binary for this platform; fall back to the
-    # Python zipapp when unavailable (unsupported arch / older release).
-    if install_mcp_native; then return 0; fi
-    ensure_tag
-    asset="tcl-lsp-mcp-server-${VER_NO_V}.pyz"
-    url="$(asset_url "$asset")"
-    log "downloading $asset"
-    tmpfile="$WORKDIR/$asset"
-    download "$url" "$tmpfile"
-    verify_artefact "$asset" "$tmpfile"
-    MCP_PATH="$(prefix_for mcp)/tcl-lsp-mcp-server.pyz"
-    write_target "$tmpfile" "$MCP_PATH"
-    log "installed MCP server -> $MCP_PATH"
 }
 
 register_mcp_claude() {
-    # Native binary launches directly; the Python zipapp needs the interpreter.
-    if [ "$MCP_NATIVE" = "1" ]; then
-        set -- "$MCP_PATH"
-    else
-        set -- "$PYTHON" "$MCP_PATH"
-    fi
+    set -- "$MCP_PATH"
     # Capture prior entry so a failed add can be restored.
     if ! have_claude_cli; then
         warn "claude CLI not on PATH — add the MCP server manually:"
         warn "  claude mcp add tcl-lsp -- $*"
-        return
+        return 0
     fi
     prior=""
     if claude mcp list 2>/dev/null | awk '{print $1}' | grep -qx 'tcl-lsp'; then
@@ -2273,33 +2312,47 @@ register_mcp_claude() {
         warn "restore it manually if needed"
     fi
     warn "or register fresh with: claude mcp add tcl-lsp -- $*"
+    return 1
 }
 
 register_mcp_codex() {
     cfg="$HOME/.codex/config.toml"
     mkdir -p "$HOME/.codex"
     touch "$cfg"
-    # Allow leading whitespace — TOML accepts indented section headers
-    # and a hand-edited config may use them.
-    if grep -qE '^[[:space:]]*\[mcp_servers\.tcl_lsp\]' "$cfg" 2>/dev/null; then
-        log "Codex already has [mcp_servers.tcl_lsp] in $cfg — leaving as-is"
-        return
+    backup="${cfg}.bak.$(date +%Y%m%d%H%M%S)"
+    cp "$cfg" "$backup"
+
+    # Prefer Codex's supported config command. The existing entry is removed
+    # first so a Python-era command/args pair cannot survive the migration.
+    if have_codex_cli; then
+        codex mcp remove tcl_lsp >/dev/null 2>&1 || true
+        if codex mcp add tcl_lsp -- "$MCP_PATH" >/dev/null 2>&1; then
+            log "registered native MCP server with Codex (tcl_lsp)"
+            return 0
+        fi
+        cp "$backup" "$cfg"
+        warn "codex mcp add failed; restored $cfg from $backup"
+        return 1
     fi
-    cp "$cfg" "${cfg}.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+
+    # Codex directory detection also works when its CLI is not on PATH. In that
+    # case replace exactly our table (and any nested table) while preserving
+    # every unrelated setting. Write a complete temporary file, then rename.
+    tmp_cfg="$WORKDIR/codex-config.toml"
+    awk '
+        /^[[:space:]]*\[mcp_servers\.tcl_lsp([.][^]]+)?\][[:space:]]*$/ { drop=1; next }
+        drop && /^[[:space:]]*\[/ { drop=0 }
+        !drop { print }
+    ' "$cfg" > "$tmp_cfg"
     # Escape \ and " so a path with TOML-meaningful chars can't break the file.
     mcp_escaped="$(toml_basic_escape "$MCP_PATH")"
     {
         printf '\n[mcp_servers.tcl_lsp]\n'
-        if [ "$MCP_NATIVE" = "1" ]; then
-            # Native binary: run it directly, no interpreter, no args.
-            printf 'command = "%s"\n' "$mcp_escaped"
-            printf 'args = []\n'
-        else
-            printf 'command = "%s"\n' "$(toml_basic_escape "$PYTHON")"
-            printf 'args = ["%s"]\n'  "$mcp_escaped"
-        fi
-    } >> "$cfg"
-    log "registered MCP server with Codex in $cfg"
+        printf 'command = "%s"\n' "$mcp_escaped"
+        printf 'args = []\n'
+    } >> "$tmp_cfg"
+    mv "$tmp_cfg" "$cfg"
+    log "registered native MCP server with Codex in $cfg"
 }
 
 toml_basic_escape() {
@@ -2354,8 +2407,6 @@ install_claude_skills() {
     # in skills/_prompts/; no Python tcl-ai.pyz — the skills drive the native
     # tcl-mcp MCP server + tcl/f5-query CLIs).
     [ -d "$inner/skills" ] && cp -R "$inner/skills" "$HOME/.claude/"
-    # Remove a stale Python AI CLI left by an older installer.
-    rm -f "$HOME/.claude/tcl-ai.pyz" 2>/dev/null || true
     n="$(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
     log "installed Claude Code skills -> $HOME/.claude/skills/ ($n skills)"
 }
@@ -2364,9 +2415,13 @@ install_ai_integrations() {
     # No further questions asked here — choose_ai_components already
     # set WANT_MCP / WANT_SKILLS, and choose_mcp_prefix set the path.
     if [ "$WANT_MCP" = "1" ]; then
-        install_mcp_zipapp
-        [ "$HAS_CLAUDE" = "1" ] && register_mcp_claude
-        [ "$HAS_CODEX"  = "1" ] && register_mcp_codex
+        install_mcp
+        if [ "$HAS_CLAUDE" = "1" ]; then
+            register_mcp_claude || return 1
+        fi
+        if [ "$HAS_CODEX" = "1" ]; then
+            register_mcp_codex || return 1
+        fi
         cleanup_stale_mcp
     fi
     if [ "$WANT_SKILLS" = "1" ]; then
@@ -2384,11 +2439,16 @@ main() {
     detect_shell
     detect_proxy
     plan_downloader              # record curl-install need if missing
-    plan_python_if_needed        # record python-install need if missing
     detect_ai_clients
+    detect_ui_backend
+    [ "$UI_BACKEND" = plain ] || log "interactive UI: $UI_BACKEND"
 
     # === PHASE 2: gather every decision the user needs to make ===
     choose_clis
+
+    choose_ai_components
+    guard_install_plan
+    preflight_native_platform
 
     if needs_prefix; then
         propose_update_clis
@@ -2410,14 +2470,12 @@ main() {
         esac
     fi
 
-    choose_ai_components
-    guard_install_plan
     if [ "$WANT_MCP" = "1" ]; then
         propose_update_mcp
         choose_mcp_prefix
         mcp_target_dir="$(prefix_for mcp)"
         if ! dir_writable "$mcp_target_dir"; then
-            need_root "write the MCP zipapp to ${mcp_target_dir}" \
+            need_root "write the native MCP server to ${mcp_target_dir}" \
                       "pick a writable MCP directory"
         fi
         plan_overwrite_check "${mcp_target_dir}/$(mcp_target_basename)"
@@ -2428,9 +2486,7 @@ main() {
     require_root_or_die
 
     # === PHASE 3: execute the plan (no more questions) ===
-    install_python
     install_downloader
-    log "using Python: $PYTHON"
 
     if needs_prefix; then
         case "$ONLY" in
@@ -2451,6 +2507,7 @@ main() {
     esac
 
     install_ai_integrations
+    cleanup_legacy_python_installs
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
     if needs_prefix && ! path_contains "$PREFIX"; then
@@ -2477,4 +2534,6 @@ main() {
     fi
 }
 
-main "$@"
+if [ "${TCL_LSP_INSTALLER_SOURCE_ONLY:-0}" != "1" ]; then
+    main "$@"
+fi

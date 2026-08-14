@@ -677,7 +677,7 @@ tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in syn
 # Phase targets for parallel prep-pr execution.  (`_prep-pr-smoke` is VSIX
 # packaging smoke + standalone-EDA verification — a different thing from the
 # `smoke` test tier below; hence the distinct `_prep-pr-smoke-tier` name.)
-_prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets typecheck-spec-studio-ts lint-spec-studio-ts
+_prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets typecheck-spec-studio-ts lint-spec-studio-ts test-installer
 _prep-pr-tests: test-rust
 _prep-pr-smoke: smoke-vsix verify-standalone-eda
 _prep-pr-smoke-tier: smoke
@@ -693,7 +693,10 @@ rust-check: check-rust xtask-check ## Rust fmt + clippy + generated-file drift g
 prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck + smoke tier) — deep suites run in CI
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-smoke-tier
 
-.PHONY: smoke smoke-p test-exhaustive fuzz
+.PHONY: smoke smoke-p test-installer test-exhaustive fuzz
+
+test-installer: ## Test installer platform, UI, and legacy-migration decisions (no network)
+	@bash scripts/install/test_installer.sh
 
 # Whole-workspace smoke tier: the fastest meaningful per-module subset, run
 # locally right after `cargo build`/`cargo check` — seconds warm, NOT a
