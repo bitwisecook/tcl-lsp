@@ -60,6 +60,14 @@ the VS Code extension from the
 [Marketplace](https://marketplace.visualstudio.com/items?itemName=bitwisecook.tcl-lsp).
 Nothing needs Python — the server is a self-contained native binary.
 
+While the Rust rewrite is on the pre-release channel, install it from the
+`rust` branch and pin the current pre-release:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/install/install.sh \
+  | TCL_LSP_VERSION=v2.1.19 sh
+```
+
 ### All editors
 
 | Editor | Type | Setup | Unique extras |
@@ -1411,7 +1419,11 @@ generation, …). Build it with `make rust-mcp`.
 
 **Install / register.** The installer fetches the prebuilt native binary for
 your platform from the GitHub release (`tcl-mcp-<triple>`), verifies its
-checksum, and registers it with Claude Code (`claude mcp add`) and Codex:
+checksum, detects supported AI harnesses, and asks separately whether to
+register each one. If the current project contains that harness's files, the
+installer offers project or user scope; otherwise it uses user scope. Claude
+Code, Codex, Gemini CLI, GitHub Copilot CLI, OpenCode, Hermes, Goose, and
+Bobbit are recognised (Bobbit supports project scope only):
 
 ```bash
 ./scripts/install/install.sh            # fetches + registers the native binary
@@ -1420,7 +1432,7 @@ checksum, and registers it with Claude Code (`claude mcp add`) and Codex:
 - `TCL_LSP_MCP_BIN=/path/to/tcl-mcp ./scripts/install/install.sh` — register a
   local build instead of downloading.
 
-Working **inside this repo**, Claude Code / Codex auto-discover the server via
+Working **inside this repo**, compatible harnesses auto-discover the server via
 the committed [`.mcp.json`](.mcp.json), which launches
 [`scripts/tcl-mcp`](scripts/tcl-mcp): it prefers a local build
 (`make rust-mcp`), else a cached binary, else fetches the release asset for the

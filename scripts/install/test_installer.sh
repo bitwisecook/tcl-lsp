@@ -84,26 +84,145 @@ looks_like_legacy_zipapp "$test_root/path-old/tcl" || fail "legacy zipapp was no
 if looks_like_legacy_zipapp "$test_root/path-old/unrelated"; then fail "unrelated Python file was claimed"; fi
 pass "legacy ownership recognition"
 
-# Migration removes only positively identified historical names. It must leave
-# unrelated files and the newly installed native binary alone.
+# Migration is the final successful-plan step. If a selected native component
+# fails, the working Python-era artefact must remain; a successful plan still
+# removes it even when that component was declined.
+defer_root="$test_root/deferred-cleanup"
+mkdir -p "$defer_root/home" "$defer_root/bin" "$defer_root/work"
+make_legacy_zipapp "$defer_root/bin/tcl"
+if ! (
+    export HOME="$defer_root/home"
+    export PATH="$defer_root/bin:/usr/bin:/bin"
+    WORKDIR="$defer_root/work"
+    ONLY=none; WANT_MCP=1; WANT_SKILLS=0
+    needs_prefix() { return 1; }
+    install_downloader() { return 0; }
+    install_ai_integrations() { return 1; }
+    if execute_install_plan; then exit 20; fi
+    [ -e "$defer_root/bin/tcl" ]
+); then
+    fail "failed native plan removed the working legacy CLI"
+fi
+if ! (
+    export HOME="$defer_root/home"
+    export PATH="$defer_root/bin:/usr/bin:/bin"
+    WORKDIR="$defer_root/work"
+    ONLY=none; WANT_MCP=0; WANT_SKILLS=0
+    needs_prefix() { return 1; }
+    install_downloader() { return 0; }
+    install_ai_integrations() { return 0; }
+    execute_install_plan
+    [ ! -e "$defer_root/bin/tcl" ]
+); then
+    fail "successful native plan did not clean the legacy CLI"
+fi
+pass "legacy deletion waits for successful native installation"
+
+# Migration removes the main installer's complete discoverable footprint. It
+# must leave unrelated files and the newly installed native binary alone.
 make_legacy_zipapp "$test_root/path-old/f5"
 make_legacy_zipapp "$test_root/path-old/tcl-explorer"
 make_legacy_zipapp "$test_root/path-old/tcl-explorer-gui"
 make_legacy_zipapp "$test_root/path-old/tcl-lsp-mcp-server.pyz"
+mkdir -p "$test_root/custom-prefix" "$test_root/mcp-custom"
+make_legacy_zipapp "$test_root/custom-prefix/tcl-lsp"
+make_legacy_zipapp "$test_root/custom-prefix/f5-custom"
+make_legacy_zipapp "$test_root/mcp-custom/tcl-lsp-mcp-server.pyz"
+cat > "$HOME/.bashrc" <<EOF
+# Added by tcl-lsp installer
+export PATH="$test_root/custom-prefix:\$PATH"
+EOF
+cat > "$HOME/.zshrc" <<EOF
+# Added by tcl-lsp installer
+export PATH="$test_root/path-new:\$PATH"
+EOF
 mkdir -p "$HOME/.claude"
 make_legacy_zipapp "$HOME/.claude/tcl-ai.pyz"
+mkdir -p "$HOME/.claude/prompts" "$HOME/.claude/skills/tcl-fix" \
+    "$HOME/.claude/skills/f5-query" \
+    "$HOME/.claude/skills/unrelated" \
+    "$HOME/.local/share/bash-completion/completions"
+printf 'Tcl system prompt\n' > "$HOME/.claude/prompts/tcl_system.md"
+printf 'python3 .claude/tcl-ai.pyz fix\n' > "$HOME/.claude/skills/tcl-fix/SKILL.md"
+printf '%s\n' '---' 'name: f5-query' '---' > "$HOME/.claude/skills/f5-query/SKILL.md"
+printf 'keep me\n' > "$HOME/.claude/skills/unrelated/SKILL.md"
+printf '_ARGCOMPLETE=1 tcl.pyz\n' > "$HOME/.local/share/bash-completion/completions/tcl"
+printf 'native completion\n' > "$HOME/.local/share/bash-completion/completions/f5"
+mkdir -p "$HOME/.codex"
+cat > "$HOME/.codex/config.toml" <<EOF
+model = "example"
+
+[mcp_servers.tcl_lsp]
+command = "python3"
+args = ["$test_root/mcp-custom/tcl-lsp-mcp-server.pyz"]
+
+[mcp_servers.other]
+command = "/keep/me"
+EOF
+CLAUDE_LOG="$test_root/legacy-claude.log"; export CLAUDE_LOG
+cat > "$test_root/path-new/claude" <<EOF
+#!/bin/sh
+printf '%s\n' "\$*" >> "$CLAUDE_LOG"
+if [ "\$1 \$2" = "mcp list" ]; then
+    printf 'tcl-lsp: python3 $test_root/mcp-custom/tcl-lsp-mcp-server.pyz\n'
+fi
+EOF
+chmod +x "$test_root/path-new/claude"
 printf '#!/bin/sh\n# Unified Tcl toolchain CLI\n' > "$test_root/path-new/tcl"
 chmod +x "$test_root/path-new/tcl"
-WANT_TCL=1; WANT_F5=1; WANT_MCP=1; WANT_SKILLS=1
+PROJECT_ROOT="$test_root/project"
+mkdir -p "$PROJECT_ROOT"
+WANT_TCL=0; WANT_F5=0; WANT_MCP=0; WANT_SKILLS=0
 MCP_PREFIX_OVERRIDE="$test_root/path-new"
 cleanup_legacy_python_installs
+cleanup_legacy_claude_bundle
+cleanup_legacy_path_entries
 for old in tcl f5 tcl-explorer tcl-explorer-gui tcl-lsp-mcp-server.pyz; do
     assert_absent "$test_root/path-old/$old" "legacy $old cleanup"
 done
+assert_absent "$test_root/custom-prefix/tcl-lsp" "suffixed legacy tcl cleanup"
+assert_absent "$test_root/custom-prefix/f5-custom" "suffixed legacy f5 cleanup"
+assert_absent "$test_root/mcp-custom/tcl-lsp-mcp-server.pyz" "registered MCP path cleanup"
 assert_absent "$HOME/.claude/tcl-ai.pyz" "legacy Claude AI zipapp cleanup"
+assert_absent "$HOME/.claude/prompts/tcl_system.md" "legacy Claude prompt cleanup"
+assert_absent "$HOME/.claude/skills/tcl-fix" "legacy Claude skill cleanup"
+assert_absent "$HOME/.claude/skills/f5-query" "standalone legacy Claude skill cleanup"
+assert_file "$HOME/.claude/skills/unrelated/SKILL.md" "unrelated Claude skill preservation"
+if ! compgen -G "$HOME/.claude/.tcl-lsp-python-backup-*/tcl-ai.pyz" >/dev/null; then
+    fail "legacy Claude bundle backup was not created"
+fi
+assert_absent "$HOME/.local/share/bash-completion/completions/tcl" \
+    "legacy argcomplete cleanup"
+assert_file "$HOME/.local/share/bash-completion/completions/f5" \
+    "native completion preservation"
+grep -qF 'mcp remove -s local tcl-lsp' "$CLAUDE_LOG" \
+    || fail "legacy Claude MCP registration was not removed"
+if grep -qF '[mcp_servers.tcl_lsp]' "$HOME/.codex/config.toml"; then
+    fail "legacy Codex MCP registration survived"
+fi
+grep -qF 'command = "/keep/me"' "$HOME/.codex/config.toml" \
+    || fail "unrelated Codex MCP registration was not preserved"
+if grep -qF '# Added by tcl-lsp installer' "$HOME/.bashrc"; then
+    fail "stale installer PATH entry survived"
+fi
+if ! compgen -G "$HOME/.bashrc.bak.*" >/dev/null; then
+    fail "shell startup backup was not created"
+fi
+grep -qF '# Added by tcl-lsp installer' "$HOME/.zshrc" \
+    || fail "active native installer PATH entry was removed"
 assert_file "$test_root/path-new/tcl" "native tcl preservation"
 assert_file "$test_root/path-old/unrelated" "unrelated Python file preservation"
-pass "safe Python-era migration cleanup"
+pass "complete safe main-installer migration cleanup"
+
+# A colliding prompt filename is not sufficient evidence that the main-branch
+# installer owns it. Preserve it when no legacy zipapp or skill marker exists.
+mkdir -p "$HOME/.claude/prompts"
+printf 'independent prompt manifest\n' > "$HOME/.claude/prompts/manifest.json"
+cleanup_legacy_claude_bundle
+assert_file "$HOME/.claude/prompts/manifest.json" \
+    "unowned Claude prompt preservation"
+rm -f "$HOME/.claude/prompts/manifest.json"
+pass "Claude prompt cleanup requires a legacy bundle marker"
 
 # When Codex is detected by its config directory but its CLI is unavailable,
 # replace exactly the old MCP table and preserve unrelated TOML settings.
@@ -138,6 +257,114 @@ register_mcp_codex
 grep -qF 'mcp remove tcl_lsp' "$CODEX_LOG" || fail "Codex old registration was not removed"
 grep -qF "mcp add tcl_lsp -- $MCP_PATH" "$CODEX_LOG" || fail "Codex native registration was not added"
 pass "Codex MCP migration through CLI"
+
+# Detection recognises CLI/config footprints for every supported harness.
+PROJECT_ROOT="$test_root/project"
+mkdir -p "$PROJECT_ROOT/.bobbit" "$HOME/.gemini" "$HOME/.copilot" \
+    "$HOME/.config/opencode" "$HOME/.hermes" "$HOME/.config/goose"
+AI_DETECTED=0
+detect_ai_clients
+assert_eq "$HAS_CLAUDE:$HAS_CODEX:$HAS_GEMINI:$HAS_COPILOT" "1:1:1:1" \
+    "primary harness detection"
+assert_eq "$HAS_OPENCODE:$HAS_HERMES:$HAS_GOOSE:$HAS_BOBBIT" "1:1:1:1" \
+    "config-driven harness detection"
+pass "supported harness detection"
+
+# Harness selection is independent. A harness with project-owned files defaults
+# to project scope; a detected harness without them gets user scope. Bobbit is
+# project-only because it deliberately discovers a project-root .mcp.json.
+mkdir -p "$PROJECT_ROOT/.claude" "$PROJECT_ROOT/.bobbit"
+HAS_CLAUDE=1; HAS_CODEX=1; HAS_GEMINI=0; HAS_COPILOT=0
+HAS_OPENCODE=0; HAS_HERMES=0; HAS_GOOSE=0; HAS_BOBBIT=1
+TCL_LSP_ASSUME_YES=1
+choose_ai_components
+assert_eq "$INSTALL_MCP_CLAUDE:$MCP_SCOPE_CLAUDE" "1:project" "Claude project scope selection"
+assert_eq "$INSTALL_MCP_CODEX:$MCP_SCOPE_CODEX" "1:user" "Codex user scope selection"
+assert_eq "$INSTALL_MCP_BOBBIT:$MCP_SCOPE_BOBBIT" "1:project" "Bobbit project scope selection"
+assert_eq "$WANT_MCP:$WANT_SKILLS" "1:1" "per-harness MCP and Claude skills plan"
+unset TCL_LSP_ASSUME_YES
+pass "per-harness registration and project-aware scope planning"
+
+# Claude migration must remove the historical implicit local registration and
+# replace the selected scope explicitly. `mcp list` prints names with a colon,
+# so migration must not depend on parsing that display format.
+CLAUDE_LOG="$test_root/claude.log"; export CLAUDE_LOG
+cat > "$test_root/path-new/claude" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$CLAUDE_LOG"
+if [ "$1 $2" = "mcp list" ]; then
+    printf 'tcl-lsp: python3 /old/tcl-lsp-mcp-server.pyz\n'
+fi
+EOF
+chmod +x "$test_root/path-new/claude"
+MCP_SCOPE_CLAUDE=user
+register_mcp_claude
+grep -qF 'mcp remove -s local tcl-lsp' "$CLAUDE_LOG" \
+    || fail "Claude stale local registration was not removed"
+grep -qF 'mcp remove -s user tcl-lsp' "$CLAUDE_LOG" \
+    || fail "Claude selected user registration was not replaced"
+grep -qF "mcp add -s user tcl-lsp -- $MCP_PATH" "$CLAUDE_LOG" \
+    || fail "Claude native user registration was not added explicitly"
+pass "Claude delete/add migration uses an explicit scope"
+
+# Detection through ~/.claude is enough to offer integration, but the CLI can
+# still be absent. Keep the manual-registration warning nonfatal so remaining
+# harnesses and cleanup continue.
+mv "$test_root/path-new/claude" "$test_root/path-new/claude.disabled"
+claude_config_only_output="$(register_mcp_claude 2>&1)" \
+    || fail "config-only Claude registration was fatal"
+case "$claude_config_only_output" in
+    *"CLI is not on PATH"*"Register manually"*) : ;;
+    *) fail "config-only Claude warning omitted manual registration guidance" ;;
+esac
+mv "$test_root/path-new/claude.disabled" "$test_root/path-new/claude"
+pass "config-only Claude registration is nonfatal"
+
+# Gemini has native scope-aware commands too; use those instead of editing its
+# settings format when the CLI is present.
+GEMINI_LOG="$test_root/gemini.log"; export GEMINI_LOG
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$GEMINI_LOG"\n' > "$test_root/path-new/gemini"
+chmod +x "$test_root/path-new/gemini"
+MCP_SCOPE_GEMINI=project
+register_mcp_gemini
+grep -qF 'mcp remove -s project tcl-lsp' "$GEMINI_LOG" \
+    || fail "Gemini project registration was not removed before replacement"
+grep -qF "mcp add -s project tcl-lsp $MCP_PATH" "$GEMINI_LOG" \
+    || fail "Gemini native project registration was not added"
+pass "Gemini delete/add migration uses an explicit scope"
+
+# Config-only harnesses can be bootstrapped without Python, Node.js, jq, or yq
+# when their config file does not exist yet.
+json_cfg="$test_root/config/new/.mcp.json"
+yaml_cfg="$test_root/config/hermes/config.yaml"
+write_json_mcp_config "$json_cfg" standard
+write_yaml_mcp_config "$yaml_cfg" hermes
+grep -qF '"tcl-lsp"' "$json_cfg" || fail "new standard MCP JSON omitted tcl-lsp"
+grep -qF "\"command\": \"$MCP_PATH\"" "$json_cfg" || fail "new standard MCP JSON omitted native command"
+grep -qF '  tcl-lsp:' "$yaml_cfg" || fail "new Hermes YAML omitted tcl-lsp"
+grep -qF "    command: \"$MCP_PATH\"" "$yaml_cfg" || fail "new Hermes YAML omitted native command"
+pass "native-only JSON and YAML MCP config bootstrap"
+
+# The no-dependency YAML updater replaces only our child map and preserves
+# unrelated harness configuration.
+cat > "$yaml_cfg" <<'EOF'
+model: example
+mcp_servers:
+  tcl-lsp:
+    command: python3
+    args: [/old/tcl-lsp-mcp-server.pyz]
+  other:
+    command: /keep/me
+theme: dark
+EOF
+write_yaml_mcp_config "$yaml_cfg" hermes
+grep -qF "    command: \"$MCP_PATH\"" "$yaml_cfg" \
+    || fail "Hermes native MCP command was not replaced"
+grep -qF '    command: /keep/me' "$yaml_cfg" \
+    || fail "unrelated Hermes MCP entry was not preserved"
+grep -qF 'theme: dark' "$yaml_cfg" || fail "unrelated Hermes root setting was not preserved"
+if grep -qF '.pyz' "$yaml_cfg"; then fail "old Hermes zipapp command survived"; fi
+pass "Hermes YAML migration preserves unrelated configuration"
 
 if grep -qE 'plan_python_if_needed|install_python|install_mcp_zipapp|MCP_NATIVE' \
     "$repo_root/scripts/install/install.sh"; then

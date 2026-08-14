@@ -28,8 +28,8 @@ use std::sync::Arc;
 use rmcp::ServiceExt;
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorData,
-    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
+    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorData,
+    ListToolsResult, PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerInfo, Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::stdio;
@@ -66,7 +66,7 @@ impl ServerHandler for TclMcp {
     async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         let tools = tools::tool_schemas()
             .into_iter()
@@ -78,10 +78,12 @@ impl ServerHandler for TclMcp {
                 Tool::new(name, description, Arc::new(object))
             })
             .collect();
-        Ok(ListToolsResult {
+        Ok(tool_list_result(
             tools,
-            ..Default::default()
-        })
+            context
+                .protocol_version()
+                .is_some_and(|version| version >= ProtocolVersion::V_2026_07_28),
+        ))
     }
 
     async fn call_tool(
@@ -107,6 +109,19 @@ impl ServerHandler for TclMcp {
     }
 }
 
+fn tool_list_result(tools: Vec<Tool>, supports_cache_hints: bool) -> ListToolsResult {
+    let mut result = ListToolsResult::with_all_items(tools);
+    if supports_cache_hints {
+        // MCP 2026-07-28 requires both cache fields on list results.  The tool
+        // catalogue is static and contains no user-specific data, but keep a
+        // zero TTL so clients continue to refresh it exactly as they did for
+        // older protocol revisions.
+        result.ttl_ms = Some(0);
+        result.cache_scope = Some(CacheScope::Public);
+    }
+    result
+}
+
 /// Every Tokio worker thread's stack budget — see the matching constant
 /// and doc comment in `tcl-lsp-server/src/main.rs` for why this must be
 /// generous: the analyser's and CFG builder's depth-capped recursions
@@ -127,4 +142,21 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
     let service = TclMcp.serve(stdio()).await?;
     service.waiting().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod protocol_tests {
+    use super::*;
+
+    #[test]
+    fn tool_list_cache_hints_follow_the_negotiated_protocol() {
+        let modern = serde_json::to_value(tool_list_result(Vec::new(), true)).unwrap();
+        assert_eq!(modern["resultType"], "complete");
+        assert_eq!(modern["ttlMs"], 0);
+        assert_eq!(modern["cacheScope"], "public");
+
+        let legacy = serde_json::to_value(tool_list_result(Vec::new(), false)).unwrap();
+        assert!(legacy.get("ttlMs").is_none());
+        assert!(legacy.get("cacheScope").is_none());
+    }
 }

@@ -33,9 +33,10 @@
 # All prompts run up front, before any download or install action — so
 # you can answer the questions and then walk away.
 #
-# If the `claude` or `codex` CLI is detected (or ~/.claude / ~/.codex
-# exists), offers to install the MCP server and — for Claude Code —
-# the skills zip from the same GitHub release.
+# Detects supported AI harnesses from their CLI or configuration directory.
+# For each one, offers to register the MCP server.  When the current project
+# contains that harness's files, the installer also offers project or user
+# scope; otherwise it uses user scope.  Claude Code skills remain optional.
 #
 # Downloaded release artefacts are verified against the release's
 # SHA256SUMS file (and, if `cosign` is installed and the release
@@ -51,16 +52,24 @@
 #   TCL_LSP_VERSION         - release tag (default: installer's stamped tag, or latest in a checkout)
 #   TCL_LSP_PREFIX          - install dir (default: prompt; non-interactive: ~/.local/bin)
 #   TCL_LSP_REPO            - GitHub owner/repo (default: bitwisecook/tcl-lsp)
+#   TCL_LSP_INSTALLER_BRANCH - source branch shown in re-run instructions (default: rust)
 #   TCL_LSP_ONLY            - "tcl", "f5", or "both" (default: both)
 #   TCL_LSP_OS              - bypass /etc/os-release: debian|rhel|fedora|arch|alpine|macos
 #   TCL_LSP_NO_DEPS         - 1 to skip OS-package install (curl, unzip)
 #   TCL_LSP_NO_PATH         - 1 to skip PATH/rc modification
 #   TCL_LSP_NO_COMP         - 1 to skip shell completion
-#   TCL_LSP_NO_LEGACY_CLEANUP - 1 to keep recognised Python-era tcl-lsp files
+#   TCL_LSP_NO_LEGACY_CLEANUP - 1 to keep the main installer's Python zipapps,
+#                               completions, Claude bundle, and MCP registrations
 #   TCL_LSP_NO_MCP          - 1 to skip MCP-server install for AI clients
 #   TCL_LSP_NO_SKILLS       - 1 to skip Claude Code skills install
 #   TCL_LSP_NO_CLAUDE       - 1 to ignore Claude Code even if detected
 #   TCL_LSP_NO_CODEX        - 1 to ignore Codex even if detected
+#   TCL_LSP_NO_GEMINI       - 1 to ignore Gemini CLI even if detected
+#   TCL_LSP_NO_COPILOT      - 1 to ignore GitHub Copilot CLI even if detected
+#   TCL_LSP_NO_OPENCODE     - 1 to ignore OpenCode even if detected
+#   TCL_LSP_NO_HERMES       - 1 to ignore Hermes even if detected
+#   TCL_LSP_NO_GOOSE        - 1 to ignore Goose even if detected
+#   TCL_LSP_NO_BOBBIT       - 1 to ignore Bobbit even if detected
 #   TCL_LSP_NO_VERIFY            - 1 to install without SHA256SUMS verification
 #   TCL_LSP_REQUIRE_COSIGN       - 1 to fail when cosign signature is missing/invalid
 #   TCL_LSP_ALLOW_INSECURE_WGET  - 1 to allow wget without --https-only (DANGEROUS)
@@ -101,6 +110,7 @@ INSTALLER_VERSION="${INSTALLER_VERSION_TAG} ${INSTALLER_VERSION_SHA}"
 
 DEFAULT_REPO="bitwisecook/tcl-lsp"
 REPO="${TCL_LSP_REPO:-$DEFAULT_REPO}"
+INSTALLER_SOURCE_BRANCH="${TCL_LSP_INSTALLER_BRANCH:-rust}"
 select_release_version() {
     requested="$1"
     stamped="$2"
@@ -136,6 +146,18 @@ WANT_TCL=""
 WANT_F5=""
 WANT_MCP=""
 WANT_SKILLS=""
+
+# Per-harness MCP registration plan.  Detection and all prompts happen before
+# any download.  Scope is "project" or "user"; user-only harnesses never offer
+# a project choice.
+INSTALL_MCP_CLAUDE=0; MCP_SCOPE_CLAUDE=user
+INSTALL_MCP_CODEX=0; MCP_SCOPE_CODEX=user
+INSTALL_MCP_GEMINI=0; MCP_SCOPE_GEMINI=user
+INSTALL_MCP_COPILOT=0; MCP_SCOPE_COPILOT=user
+INSTALL_MCP_OPENCODE=0; MCP_SCOPE_OPENCODE=user
+INSTALL_MCP_HERMES=0; MCP_SCOPE_HERMES=user
+INSTALL_MCP_GOOSE=0; MCP_SCOPE_GOOSE=user
+INSTALL_MCP_BOBBIT=0; MCP_SCOPE_BOBBIT=project
 
 GREEN=''; YELLOW=''; RED=''; BOLD=''; RESET=''
 if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
@@ -443,8 +465,8 @@ require_root_or_die() {
 Re-run as root with the two-step pattern (safer than \`curl | sudo sh\` —
 you can inspect the script first):
   curl -fsSLo /tmp/tcl-lsp-install.sh \\
-       https://raw.githubusercontent.com/${REPO}/main/scripts/install/install.sh
-  sudo sh /tmp/tcl-lsp-install.sh"
+       https://raw.githubusercontent.com/${REPO}/${INSTALLER_SOURCE_BRANCH}/scripts/install/install.sh
+  sudo TCL_LSP_VERSION=${VERSION} sh /tmp/tcl-lsp-install.sh"
     die "$msg"
 }
 
@@ -1407,82 +1429,137 @@ needs_prefix() {
     [ "$WANT_TCL" = "1" ] || [ "$WANT_F5" = "1" ]
 }
 
+ai_client_detected() {
+    [ "${HAS_CLAUDE:-0}" = 1 ] || [ "${HAS_CODEX:-0}" = 1 ] \
+        || [ "${HAS_GEMINI:-0}" = 1 ] || [ "${HAS_COPILOT:-0}" = 1 ] \
+        || [ "${HAS_OPENCODE:-0}" = 1 ] || [ "${HAS_HERMES:-0}" = 1 ] \
+        || [ "${HAS_GOOSE:-0}" = 1 ] || [ "${HAS_BOBBIT:-0}" = 1 ]
+}
+
+harness_has_project_files() {
+    # Only files/directories that the harness itself owns count.  A generic
+    # repository checkout is not enough to make project scope appear.
+    root="$PROJECT_ROOT"
+    case "$1" in
+        claude)  [ -e "$root/.claude" ] || [ -e "$root/CLAUDE.md" ] || [ -e "$root/.mcp.json" ] ;;
+        codex)   [ -e "$root/.codex" ] || [ -e "$root/AGENTS.md" ] ;;
+        gemini)  [ -e "$root/.gemini" ] || [ -e "$root/GEMINI.md" ] ;;
+        copilot) [ -e "$root/.github/copilot-instructions.md" ] \
+                 || [ -e "$root/.github/instructions" ] \
+                 || [ -e "$root/.github/agents" ] \
+                 || [ -e "$root/.github/mcp.json" ] || [ -e "$root/.mcp.json" ] ;;
+        opencode) [ -e "$root/.opencode" ] || [ -e "$root/opencode.json" ] \
+                  || [ -e "$root/opencode.jsonc" ] ;;
+        bobbit)  [ -e "$root/.bobbit" ] ;;
+        *)       return 1 ;;
+    esac
+}
+
+set_harness_plan() {
+    client="$1"; enabled="$2"; scope="$3"
+    case "$client" in
+        claude)  INSTALL_MCP_CLAUDE="$enabled";  MCP_SCOPE_CLAUDE="$scope" ;;
+        codex)   INSTALL_MCP_CODEX="$enabled";   MCP_SCOPE_CODEX="$scope" ;;
+        gemini)  INSTALL_MCP_GEMINI="$enabled";  MCP_SCOPE_GEMINI="$scope" ;;
+        copilot) INSTALL_MCP_COPILOT="$enabled"; MCP_SCOPE_COPILOT="$scope" ;;
+        opencode) INSTALL_MCP_OPENCODE="$enabled"; MCP_SCOPE_OPENCODE="$scope" ;;
+        hermes)  INSTALL_MCP_HERMES="$enabled";  MCP_SCOPE_HERMES="$scope" ;;
+        goose)   INSTALL_MCP_GOOSE="$enabled";   MCP_SCOPE_GOOSE="$scope" ;;
+        bobbit)  INSTALL_MCP_BOBBIT="$enabled";  MCP_SCOPE_BOBBIT="$scope" ;;
+        *) die "internal: unknown AI harness: $client" ;;
+    esac
+}
+
+harness_env_disabled() {
+    case "$1" in
+        claude)  [ "${TCL_LSP_NO_CLAUDE:-0}" = 1 ] ;;
+        codex)   [ "${TCL_LSP_NO_CODEX:-0}" = 1 ] ;;
+        gemini)  [ "${TCL_LSP_NO_GEMINI:-0}" = 1 ] ;;
+        copilot) [ "${TCL_LSP_NO_COPILOT:-0}" = 1 ] ;;
+        opencode) [ "${TCL_LSP_NO_OPENCODE:-0}" = 1 ] ;;
+        hermes)  [ "${TCL_LSP_NO_HERMES:-0}" = 1 ] ;;
+        goose)   [ "${TCL_LSP_NO_GOOSE:-0}" = 1 ] ;;
+        bobbit)  [ "${TCL_LSP_NO_BOBBIT:-0}" = 1 ] ;;
+    esac
+}
+
+choose_harness_scope() {
+    client="$1"; label="$2"; supports_project="$3"
+    scope=user
+    # Bobbit intentionally discovers only a project-root .mcp.json.  It has no
+    # documented user MCP store, so do not manufacture an unsupported scope.
+    if [ "$supports_project" = 2 ]; then
+        prompt_record mcp-scope "$label registration scope" "project (only supported scope)"
+        printf '%s\n' project
+        return
+    fi
+    if [ "$supports_project" = 1 ] && harness_has_project_files "$client"; then
+        scope=project
+        if tty_available \
+           && [ "${TCL_LSP_ASSUME_YES:-0}" != 1 ] \
+           && [ "${TCL_LSP_ASSUME_NO:-0}" != 1 ]; then
+            if [ "$UI_BACKEND" != plain ]; then
+                scope="$(ui_menu "Register $label MCP server where?" project \
+                    project "project — $PROJECT_ROOT" \
+                    user "user — all projects")" || scope=project
+            else
+                print_line "  $label project files found in $PROJECT_ROOT"
+                print_line "    1) project (recommended)"
+                print_line "    2) user (all projects)"
+                print_prompt "  scope [1]:"
+                read_user_line || reply=""
+                case "${reply:-1}" in
+                    1) scope=project ;;
+                    2) scope=user ;;
+                    *) die "invalid scope selection: $reply (expected 1 or 2)" ;;
+                esac
+            fi
+        fi
+        prompt_record mcp-scope "$label registration scope" "$scope"
+    fi
+    printf '%s\n' "$scope"
+}
+
+choose_one_harness() {
+    client="$1"; label="$2"; detected="$3"; supports_project="$4"
+    [ "$detected" = 1 ] || return 0
+    harness_env_disabled "$client" && return 0
+    if ask_optout "Register tcl-mcp with $label? [Y/n]"; then
+        scope="$(choose_harness_scope "$client" "$label" "$supports_project")"
+        set_harness_plan "$client" 1 "$scope"
+        WANT_MCP=1
+        log "$label MCP registration selected ($scope scope)"
+    fi
+}
+
 choose_ai_components() {
-    # Phase 2: which AI components to install. Sets WANT_MCP / WANT_SKILLS.
-    # Short-circuits when no AI client was detected.
+    # Phase 2: ask separately for every detected harness.  All registration
+    # and scope decisions are complete before the MCP binary is downloaded.
     WANT_MCP=0; WANT_SKILLS=0
-    if [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ]; then
+    INSTALL_MCP_CLAUDE=0; INSTALL_MCP_CODEX=0
+    INSTALL_MCP_GEMINI=0; INSTALL_MCP_COPILOT=0
+    INSTALL_MCP_OPENCODE=0; INSTALL_MCP_HERMES=0
+    INSTALL_MCP_GOOSE=0; INSTALL_MCP_BOBBIT=0
+    if ! ai_client_detected; then
         log "no AI client detected — skipping AI component selection"
         return
     fi
-    # Env opt-outs.
-    if [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && [ "${TCL_LSP_NO_SKILLS:-0}" = "1" ]; then
-        log "AI components disabled via TCL_LSP_NO_MCP=1 TCL_LSP_NO_SKILLS=1"
-        return
-    fi
-    has_skills=0
-    [ "$HAS_CLAUDE" = "1" ] && has_skills=1
 
-    # Defaults — install everything the env didn't disable.
-    d_mcp=0; d_skills=0
-    [ "${TCL_LSP_NO_MCP:-0}"    != "1" ] && d_mcp=1
-    [ "${TCL_LSP_NO_SKILLS:-0}" != "1" ] && [ "$has_skills" = 1 ] && d_skills=1
-
-    if ! tty_available \
-       || [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
-        WANT_MCP="$d_mcp"; WANT_SKILLS="$d_skills"
-        log "AI (non-interactive): mcp=$WANT_MCP skills=$WANT_SKILLS"
-        return
+    if [ "${TCL_LSP_NO_MCP:-0}" != 1 ]; then
+        choose_one_harness claude  "Claude Code"        "$HAS_CLAUDE"  1
+        choose_one_harness codex   "Codex"              "$HAS_CODEX"   1
+        choose_one_harness gemini  "Gemini CLI"         "$HAS_GEMINI"  1
+        choose_one_harness copilot "GitHub Copilot CLI" "$HAS_COPILOT" 1
+        choose_one_harness opencode "OpenCode"           "$HAS_OPENCODE" 1
+        choose_one_harness hermes  "Hermes"             "$HAS_HERMES"  0
+        choose_one_harness goose   "Goose"              "$HAS_GOOSE"   0
+        choose_one_harness bobbit  "Bobbit"             "$HAS_BOBBIT"  2
     fi
-
-    if [ "$has_skills" = 1 ]; then
-        menu_default=3
-        if [ "$UI_BACKEND" != plain ]; then
-            ans="$(ui_menu "Choose AI integrations" "$menu_default" \
-                1 "MCP server" \
-                2 "Claude Code skills" \
-                3 "both — MCP server and skills" \
-                4 "none")" || ans="$menu_default"
-        else
-            print_line ""
-            print_line "Choose which AI components to install:"
-            print_line "  1) mcp"
-            print_line "  2) skills"
-            print_line "  3) both (mcp + skills)"
-            print_line "  4) none"
-            print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
-            read_user_line || reply=""
-            ans="${reply:-$menu_default}"
-        fi
-        case "$ans" in
-            1) WANT_MCP=1; WANT_SKILLS=0 ;;
-            2) WANT_MCP=0; WANT_SKILLS=1 ;;
-            3) WANT_MCP=1; WANT_SKILLS=1 ;;
-            4) WANT_MCP=0; WANT_SKILLS=0 ;;
-            *) die "invalid selection: $ans (expected 1..4)" ;;
-        esac
-    else
-        menu_default=1
-        if [ "$UI_BACKEND" != plain ]; then
-            ans="$(ui_menu "Choose Codex integration" "$menu_default" \
-                1 "MCP server" \
-                2 "none")" || ans="$menu_default"
-        else
-            print_line ""
-            print_line "Choose AI components (Codex only — no skills):"
-            print_line "  1) mcp"
-            print_line "  2) none"
-            print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
-            read_user_line || reply=""
-            ans="${reply:-$menu_default}"
-        fi
-        case "$ans" in
-            1) WANT_MCP=1 ;;
-            2) WANT_MCP=0 ;;
-            *) die "invalid selection: $ans (expected 1..2)" ;;
-        esac
+    if [ "$HAS_CLAUDE" = 1 ] && [ "${TCL_LSP_NO_SKILLS:-0}" != 1 ] \
+       && [ "${TCL_LSP_NO_CLAUDE:-0}" != 1 ] \
+       && ask_optout "Install the tcl-lsp skills for Claude Code? [Y/n]"; then
+        WANT_SKILLS=1
     fi
-    prompt_record ai-plan "menu pick" "$ans"
     log "AI: mcp=$WANT_MCP skills=$WANT_SKILLS"
 }
 
@@ -1490,9 +1567,6 @@ guard_install_plan() {
     if [ "$WANT_TCL" != "1" ] && [ "$WANT_F5" != "1" ] \
        && [ "$WANT_MCP" != "1" ] && [ "$WANT_SKILLS" != "1" ]; then
         die "nothing selected — at least one component must be picked"
-    fi
-    if [ "$WANT_MCP" = "1" ] && [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ]; then
-        warn "MCP requested but no AI client detected — installing anyway"
     fi
     if [ "$WANT_SKILLS" = "1" ] && [ "$HAS_CLAUDE" != "1" ]; then
         warn "skills requested but Claude Code not detected — installing anyway"
@@ -1523,11 +1597,9 @@ looks_like_legacy_zipapp() {
     f="$1"
     [ -r "$f" ] || return 1
 
-    first="$(head -n 1 "$f" 2>/dev/null)"
-    case "$first" in
-        '#!'*python*) : ;;
-        *) return 1 ;;
-    esac
+    # Avoid command substitution here: scanning a native executable whose
+    # basename starts with tcl/f5 can otherwise feed NUL bytes into the shell.
+    head -c 256 "$f" 2>/dev/null | grep -aq '^#!.*python' || return 1
     head -c 2048 "$f" 2>/dev/null | grep -aq 'PK' || return 1
     LC_ALL=C grep -aqE \
         'shared/_build_info\.py|lsp/_build_info\.py|static/index\.html|ai/mcp/tcl_mcp_server\.py|tooling/(tcl|f5|wasm)/|explorer/(tcl|f5|wasm)_cli\.py' \
@@ -1672,43 +1744,302 @@ remove_legacy_python_artefact() {
     fi
 }
 
+legacy_installer_dirs() {
+    # Main's installer could use any PATH directory, the common user/system
+    # prefixes offered by its picker, or a custom prefix written into a shell
+    # rc file. Emit all discoverable locations; duplicates are harmless.
+    printf '%s\n' "${PATH:-}" | tr ':' '\n'
+    printf '%s\n' "$HOME/.local/bin" "$HOME/bin" \
+        /usr/local/bin /opt/homebrew/bin /opt/local/bin
+    [ -n "${PREFIX:-}" ] && printf '%s\n' "$PREFIX"
+    [ -n "${TCL_PREFIX_OVERRIDE:-}" ] && printf '%s\n' "$TCL_PREFIX_OVERRIDE"
+    [ -n "${F5_PREFIX_OVERRIDE:-}" ] && printf '%s\n' "$F5_PREFIX_OVERRIDE"
+    [ -n "${MCP_PREFIX_OVERRIDE:-}" ] && printf '%s\n' "$MCP_PREFIX_OVERRIDE"
+
+    for rc in "${RC:-$HOME/.profile}" "$HOME/.profile" "$HOME/.bashrc" \
+              "$HOME/.bash_profile" "${ZDOTDIR:-$HOME}/.zshrc" \
+              "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"; do
+        [ -f "$rc" ] || continue
+        sed -n '
+            /^# Added by tcl-lsp installer$/ {
+                n
+                s#^export PATH="\([^":]*\):\$PATH"$#\1#p
+                s#^fish_add_path \([^[:space:]]*\)$#\1#p
+            }
+        ' "$rc"
+    done
+}
+
+legacy_claude_mcp_record() {
+    have claude || return 1
+    claude mcp list 2>/dev/null \
+        | awk '$1 == "tcl-lsp" || $1 == "tcl-lsp:" { print; exit }'
+}
+
+legacy_codex_mcp_path() {
+    cfg="$HOME/.codex/config.toml"
+    [ -f "$cfg" ] || return 1
+    awk '
+        /^[[:space:]]*\[mcp_servers\.tcl_lsp\][[:space:]]*$/ { inside=1; next }
+        inside && /^[[:space:]]*\[/ { inside=0 }
+        inside && /\.pyz/ {
+            if (match($0, /"[^"]+\.pyz"/)) {
+                print substr($0, RSTART+1, RLENGTH-2); exit
+            }
+        }
+    ' "$cfg"
+}
+
+cleanup_legacy_mcp_registrations() {
+    # The main-branch installer registered only Claude (implicit local scope)
+    # and Codex (user config). Remove an entry only when it still names the
+    # retired Python zipapp; native or unrelated entries are left untouched.
+    claude_record="$1"
+    case "$claude_record" in
+        *tcl-lsp-mcp-server.pyz*|*tcl-ai.pyz*)
+            if (cd "${PROJECT_ROOT:-$PWD}" \
+                && claude mcp remove -s local tcl-lsp >/dev/null 2>&1); then
+                log "removed retired Python MCP registration from Claude Code (local scope)"
+            elif (cd "${PROJECT_ROOT:-$PWD}" \
+                  && claude mcp remove tcl-lsp >/dev/null 2>&1); then
+                log "removed retired Python MCP registration from Claude Code"
+            else
+                warn "could not remove retired Python MCP registration from Claude Code"
+            fi
+            ;;
+    esac
+
+    cfg="$HOME/.codex/config.toml"
+    legacy_codex_path="$2"
+    if [ -n "$legacy_codex_path" ]; then
+        backup="${cfg}.bak.$(date +%Y%m%d%H%M%S).python-migration"
+        cp "$cfg" "$backup"
+        tmp_cfg="$WORKDIR/codex-legacy-cleanup.toml"
+        awk '
+            /^[[:space:]]*\[mcp_servers\.tcl_lsp([.][^]]+)?\][[:space:]]*$/ { drop=1; next }
+            drop && /^[[:space:]]*\[/ { drop=0 }
+            !drop { print }
+        ' "$cfg" > "$tmp_cfg"
+        mv "$tmp_cfg" "$cfg"
+        log "removed retired Python MCP registration from Codex (backup: $backup)"
+    fi
+}
+
+looks_like_legacy_completion() {
+    f="$1"
+    [ -f "$f" ] || return 1
+    LC_ALL=C grep -aqE '_ARGCOMPLETE|python_argcomplete|register-python-argcomplete' "$f"
+}
+
+cleanup_legacy_completions() {
+    # Main installed completion into these exact per-user paths. The generated
+    # scripts identify themselves through argcomplete protocol markers, which
+    # are absent from the native clap completions.
+    for completion in \
+        "$HOME/.local/share/bash-completion/completions/tcl" \
+        "$HOME/.local/share/bash-completion/completions/f5" \
+        "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl" \
+        "${ZDOTDIR:-$HOME}/.zsh/completions/_f5" \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions/tcl.fish" \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions/f5.fish"; do
+        if looks_like_legacy_completion "$completion"; then
+            rm -f "$completion"
+            log "removed retired Python shell completion $completion"
+        fi
+    done
+}
+
+looks_like_any_native_cli() {
+    f="$1"
+    [ -f "$f" ] && [ -x "$f" ] || return 1
+    case "$(basename "$f")" in
+        tcl* ) LC_ALL=C grep -aq 'Unified Tcl toolchain CLI' "$f" ;;
+        f5* )  LC_ALL=C grep -aq 'BIG-IP.*query' "$f" ;;
+        * )    return 1 ;;
+    esac
+}
+
+dir_has_native_tcl_lsp() {
+    dir="$1"
+    [ -d "$dir" ] || return 1
+    for candidate in "$dir"/tcl* "$dir"/f5*; do
+        [ -f "$candidate" ] || continue
+        if looks_like_our_native_mcp "$candidate" \
+           || looks_like_any_native_cli "$candidate"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+installer_path_from_line() {
+    printf '%s\n' "$1" | sed -n '
+        s#^export PATH="\([^":]*\):\$PATH"$#\1#p
+        s#^fish_add_path \([^[:space:]]*\)$#\1#p
+    '
+}
+
+cleanup_legacy_path_entries() {
+    # Keep a marker block when its directory now contains a native replacement;
+    # otherwise remove the exact two lines owned by the main installer.
+    [ "${TCL_LSP_NO_LEGACY_CLEANUP:-0}" = "1" ] && return 0
+    for rc in "${RC:-$HOME/.profile}" "$HOME/.profile" "$HOME/.bashrc" \
+              "$HOME/.bash_profile" "${ZDOTDIR:-$HOME}/.zshrc" \
+              "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"; do
+        [ -f "$rc" ] || continue
+        tmp_rc="$(mktemp "$WORKDIR/rc-clean.XXXXXX")"
+        changed=0
+        while IFS= read -r line || [ -n "$line" ]; do
+            if [ "$line" = "$PATH_MARKER" ]; then
+                path_line=""
+                if IFS= read -r path_line || [ -n "$path_line" ]; then
+                    installer_dir="$(installer_path_from_line "$path_line")"
+                    if [ -n "$installer_dir" ] \
+                       && ! dir_has_native_tcl_lsp "$installer_dir"; then
+                        changed=1
+                        continue
+                    fi
+                    printf '%s\n%s\n' "$line" "$path_line" >> "$tmp_rc"
+                    continue
+                fi
+            fi
+            printf '%s\n' "$line" >> "$tmp_rc"
+        done < "$rc"
+        if [ "$changed" = 1 ]; then
+            backup="${rc}.bak.$(date +%Y%m%d%H%M%S).python-migration"
+            cp "$rc" "$backup"
+            mv "$tmp_rc" "$rc"
+            log "removed stale installer PATH entry from $rc (backup: $backup)"
+        else
+            rm -f "$tmp_rc"
+        fi
+    done
+}
+
+legacy_claude_skill() {
+    skill_dir="$1"
+    [ -f "$skill_dir/SKILL.md" ] || return 1
+    LC_ALL=C grep -aqE \
+        'python3[[:space:]]+\.claude/tcl-ai\.pyz|\.claude/prompts/' \
+        "$skill_dir/SKILL.md"
+}
+
+has_legacy_claude_bundle_marker() {
+    claude_root="$HOME/.claude"
+    if [ -f "$claude_root/tcl-ai.pyz" ] \
+       && looks_like_legacy_zipapp "$claude_root/tcl-ai.pyz"; then
+        return 0
+    fi
+    for skill_dir in "$claude_root"/skills/*; do
+        [ -d "$skill_dir" ] || continue
+        legacy_claude_skill "$skill_dir" && return 0
+    done
+    return 1
+}
+
+cleanup_legacy_claude_bundle() {
+    # The Python bundle merged files into ~/.claude, so preserve every retired
+    # item in one recovery directory before removing it from active discovery.
+    # Prompt filenames alone are not ownership markers: names such as
+    # manifest.json can belong to an unrelated Claude setup.
+    marker_override="${1:-0}"
+    keep_current_f5_query="${2:-0}"
+    claude_root="$HOME/.claude"
+    [ -d "$claude_root" ] || return 0
+    backup="$claude_root/.tcl-lsp-python-backup-$(date +%Y%m%d%H%M%S)"
+    staged=0
+    bundle_owned=0
+    if [ "$marker_override" = 1 ] || has_legacy_claude_bundle_marker; then
+        bundle_owned=1
+    fi
+
+    if [ -f "$claude_root/tcl-ai.pyz" ] \
+       && looks_like_legacy_zipapp "$claude_root/tcl-ai.pyz"; then
+        mkdir -p "$backup"
+        cp "$claude_root/tcl-ai.pyz" "$backup/"
+        rm -f "$claude_root/tcl-ai.pyz"
+        staged=1
+    fi
+
+    if [ "$bundle_owned" = 1 ]; then
+        for prompt in brainstorm-security-checks.md explain_flow_system.md \
+                      irules_system.md irules_system.md.j2 manifest.json \
+                      tcl_system.md tcl_system.md.j2 tk_system.md; do
+            [ -f "$claude_root/prompts/$prompt" ] || continue
+            mkdir -p "$backup/prompts"
+            cp "$claude_root/prompts/$prompt" "$backup/prompts/"
+            rm -f "$claude_root/prompts/$prompt"
+            staged=1
+        done
+    fi
+    rmdir "$claude_root/prompts" 2>/dev/null || true
+
+    for skill_dir in "$claude_root"/skills/*; do
+        [ -d "$skill_dir" ] || continue
+        if legacy_claude_skill "$skill_dir"; then
+            :
+        elif [ "$bundle_owned" = 1 ] \
+             && [ "$keep_current_f5_query" != 1 ] \
+             && [ "$(basename "$skill_dir")" = f5-query ] \
+             && grep -aqE '^name:[[:space:]]*f5-query[[:space:]]*$' \
+                    "$skill_dir/SKILL.md"; then
+            # f5-query was the one main-bundle skill with no Python/prompt
+            # reference. Remove it only after another legacy bundle marker
+            # proves this is a Python-era installation.
+            :
+        else
+            continue
+        fi
+        mkdir -p "$backup/skills"
+        cp -R "$skill_dir" "$backup/skills/"
+        rm -rf -- "$skill_dir"
+        staged=1
+    done
+    rmdir "$claude_root/skills" 2>/dev/null || true
+
+    if [ "$staged" = 1 ]; then
+        log "retired the Python Claude bundle (backup: $backup)"
+    else
+        rmdir "$backup" 2>/dev/null || true
+    fi
+}
+
 cleanup_legacy_python_installs() {
     [ "${TCL_LSP_NO_LEGACY_CLEANUP:-0}" = "1" ] && {
         log "keeping recognised Python-era artefacts (TCL_LSP_NO_LEGACY_CLEANUP=1)"
         return 0
     }
 
-    # Old installers wrote standalone zipapps into a PATH directory. Search
-    # only exact historical names, and delete only files whose shebang, ZIP
-    # structure, and embedded project paths positively identify them as ours.
-    # Python itself, virtual environments, and pip packages are never touched.
-    legacy_dirs="${PATH:-}"
-    legacy_dirs="${legacy_dirs}:$HOME/.local/bin:$HOME/bin"
-    [ -n "${PREFIX:-}" ] && legacy_dirs="${legacy_dirs}:$PREFIX"
-    [ -n "${MCP_PREFIX_OVERRIDE:-}" ] && legacy_dirs="${legacy_dirs}:$MCP_PREFIX_OVERRIDE"
+    # Capture registrations before removing their commands. Some clients hide
+    # an entry after its executable disappears.
+    claude_record="$(legacy_claude_mcp_record || true)"
+    codex_mcp_path="$(legacy_codex_mcp_path || true)"
 
-    OLD_IFS="$IFS"; IFS=:
+    # Delete every installer-owned Python zipapp in every discoverable legacy
+    # prefix, including binaries installed with TCL_LSP_SUFFIX. Ownership is
+    # established from the archive's embedded tcl-lsp paths, not its filename.
+    legacy_dirs="$(legacy_installer_dirs)"
+    OLD_IFS="$IFS"; IFS='
+'
     for legacy_dir in $legacy_dirs; do
-        [ -n "$legacy_dir" ] || legacy_dir=.
+        [ -n "$legacy_dir" ] || continue
         [ -d "$legacy_dir" ] || continue
-        if [ "$WANT_TCL" = "1" ]; then
-            remove_legacy_python_artefact "$legacy_dir/tcl"
-        fi
-        if [ "$WANT_F5" = "1" ]; then
-            remove_legacy_python_artefact "$legacy_dir/f5"
-        fi
-        # These products have no native successor on the Rust branch.
-        remove_legacy_python_artefact "$legacy_dir/tcl-explorer"
-        remove_legacy_python_artefact "$legacy_dir/tcl-explorer-gui"
-        if [ "$WANT_MCP" = "1" ]; then
-            remove_legacy_python_artefact "$legacy_dir/tcl-lsp-mcp-server.pyz"
-        fi
+        for legacy in "$legacy_dir"/tcl* "$legacy_dir"/f5*; do
+            [ -f "$legacy" ] || continue
+            remove_legacy_python_artefact "$legacy"
+        done
     done
     IFS="$OLD_IFS"
 
-    if [ "$WANT_SKILLS" = "1" ]; then
-        remove_legacy_python_artefact "$HOME/.claude/tcl-ai.pyz"
-    fi
+    # A registered MCP path may live outside PATH and outside every standard
+    # prefix, so collect it directly before removing the registration.
+    claude_mcp_path="$(printf '%s\n' "$claude_record" \
+        | grep -oE '/[A-Za-z0-9._/+~:-]+\.pyz' | head -n 1 || true)"
+    [ -n "$claude_mcp_path" ] && remove_legacy_python_artefact "$claude_mcp_path"
+    [ -n "$codex_mcp_path" ] && remove_legacy_python_artefact "$codex_mcp_path"
+
+    cleanup_legacy_mcp_registrations "$claude_record" "$codex_mcp_path"
+    cleanup_legacy_completions
 }
 
 propose_update_clis() {
@@ -2142,8 +2473,30 @@ comp_install() {
 
 have_claude_cli() { have claude; }
 have_codex_cli()  { have codex; }
+have_gemini_cli() { have gemini; }
+have_copilot_cli() { have copilot; }
+have_opencode_cli() { have opencode || have opencode2; }
+have_hermes_cli() { have hermes; }
+have_goose_cli() { have goose; }
+have_bobbit_cli() { have bobbit; }
 has_claude_dir()  { [ -d "$HOME/.claude" ]; }
 has_codex_dir()   { [ -d "$HOME/.codex" ]; }
+has_gemini_dir()  { [ -d "$HOME/.gemini" ]; }
+has_copilot_dir() { [ -d "$HOME/.copilot" ]; }
+has_opencode_dir() { [ -d "${XDG_CONFIG_HOME:-$HOME/.config}/opencode" ]; }
+has_hermes_dir()  { [ -d "$HOME/.hermes" ]; }
+has_goose_dir()   { [ -d "${XDG_CONFIG_HOME:-$HOME/.config}/goose" ]; }
+has_bobbit_dir()  { [ -d "${PROJECT_ROOT:-$PWD}/.bobbit" ]; }
+
+PROJECT_ROOT=""
+detect_project_context() {
+    # Scope choices apply to the project containing the directory from which
+    # the installer was launched.  Outside a repository, inspect $PWD itself.
+    if have git; then
+        PROJECT_ROOT="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)"
+    fi
+    [ -n "$PROJECT_ROOT" ] || PROJECT_ROOT="$PWD"
+}
 
 AI_DETECTED=0
 detect_ai_clients() {
@@ -2152,16 +2505,46 @@ detect_ai_clients() {
     [ "$AI_DETECTED" = "1" ] && return 0
     HAS_CLAUDE=0
     HAS_CODEX=0
+    HAS_GEMINI=0
+    HAS_COPILOT=0
+    HAS_OPENCODE=0
+    HAS_HERMES=0
+    HAS_GOOSE=0
+    HAS_BOBBIT=0
     if [ "${TCL_LSP_NO_CLAUDE:-0}" != "1" ]; then
         if have_claude_cli || has_claude_dir; then HAS_CLAUDE=1; fi
     fi
     if [ "${TCL_LSP_NO_CODEX:-0}" != "1" ]; then
         if have_codex_cli || has_codex_dir; then HAS_CODEX=1; fi
     fi
-    if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then
+    if [ "${TCL_LSP_NO_GEMINI:-0}" != "1" ]; then
+        if have_gemini_cli || has_gemini_dir; then HAS_GEMINI=1; fi
+    fi
+    if [ "${TCL_LSP_NO_COPILOT:-0}" != "1" ]; then
+        if have_copilot_cli || has_copilot_dir; then HAS_COPILOT=1; fi
+    fi
+    if [ "${TCL_LSP_NO_OPENCODE:-0}" != "1" ]; then
+        if have_opencode_cli || has_opencode_dir; then HAS_OPENCODE=1; fi
+    fi
+    if [ "${TCL_LSP_NO_HERMES:-0}" != "1" ]; then
+        if have_hermes_cli || has_hermes_dir; then HAS_HERMES=1; fi
+    fi
+    if [ "${TCL_LSP_NO_GOOSE:-0}" != "1" ]; then
+        if have_goose_cli || has_goose_dir; then HAS_GOOSE=1; fi
+    fi
+    if [ "${TCL_LSP_NO_BOBBIT:-0}" != "1" ]; then
+        if have_bobbit_cli || has_bobbit_dir; then HAS_BOBBIT=1; fi
+    fi
+    if ai_client_detected; then
         msg=""
         [ "$HAS_CLAUDE" = "1" ] && msg="${msg}Claude Code "
         [ "$HAS_CODEX"  = "1" ] && msg="${msg}Codex "
+        [ "$HAS_GEMINI" = "1" ] && msg="${msg}Gemini CLI "
+        [ "$HAS_COPILOT" = "1" ] && msg="${msg}GitHub Copilot CLI "
+        [ "$HAS_OPENCODE" = "1" ] && msg="${msg}OpenCode "
+        [ "$HAS_HERMES" = "1" ] && msg="${msg}Hermes "
+        [ "$HAS_GOOSE" = "1" ] && msg="${msg}Goose "
+        [ "$HAS_BOBBIT" = "1" ] && msg="${msg}Bobbit "
         log "detected AI client(s): ${msg}"
     fi
     AI_DETECTED=1
@@ -2288,56 +2671,36 @@ $(uname -sm 2>/dev/null) — this platform has no published MCP build."
 }
 
 register_mcp_claude() {
-    set -- "$MCP_PATH"
-    # Capture prior entry so a failed add can be restored.
+    scope="$MCP_SCOPE_CLAUDE"
     if ! have_claude_cli; then
-        warn "claude CLI not on PATH — add the MCP server manually:"
-        warn "  claude mcp add tcl-lsp -- $*"
+        warn "Claude Code was detected, but its CLI is not on PATH."
+        warn "Register manually: claude mcp add -s $scope tcl-lsp -- $MCP_PATH"
         return 0
     fi
-    prior=""
-    if claude mcp list 2>/dev/null | awk '{print $1}' | grep -qx 'tcl-lsp'; then
-        # The exact `mcp list` format isn't a stable contract; capture
-        # the full record so we can echo it back as restore guidance.
-        prior="$(claude mcp list 2>/dev/null | awk '$1=="tcl-lsp" {sub(/^tcl-lsp[[:space:]]+/,""); print; exit}')"
-        claude mcp remove tcl-lsp >/dev/null 2>&1 || true
-    fi
-    if claude mcp add tcl-lsp -- "$@" >/dev/null 2>&1; then
-        log "registered MCP server with Claude Code (tcl-lsp)"
+    # Old installers relied on Claude's default local scope.  Remove that
+    # stale entry as well as the chosen target, then add back explicitly.
+    (cd "$PROJECT_ROOT" && claude mcp remove -s local tcl-lsp >/dev/null 2>&1) || true
+    (cd "$PROJECT_ROOT" && claude mcp remove -s "$scope" tcl-lsp >/dev/null 2>&1) || true
+    if (cd "$PROJECT_ROOT" && claude mcp add -s "$scope" tcl-lsp -- "$MCP_PATH" >/dev/null 2>&1); then
+        log "registered MCP server with Claude Code (tcl-lsp, $scope scope)"
         return
     fi
     warn "claude mcp add failed"
-    if [ -n "$prior" ]; then
-        warn "prior registration was: $prior"
-        warn "restore it manually if needed"
-    fi
-    warn "or register fresh with: claude mcp add tcl-lsp -- $*"
+    warn "register manually: claude mcp add -s $scope tcl-lsp -- $MCP_PATH"
     return 1
 }
 
-register_mcp_codex() {
-    cfg="$HOME/.codex/config.toml"
-    mkdir -p "$HOME/.codex"
+toml_basic_escape() {
+    # Escape \ and " for a TOML basic string.
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+write_codex_mcp_config() {
+    cfg="$1"
+    mkdir -p "$(dirname "$cfg")"
     touch "$cfg"
     backup="${cfg}.bak.$(date +%Y%m%d%H%M%S)"
     cp "$cfg" "$backup"
-
-    # Prefer Codex's supported config command. The existing entry is removed
-    # first so a Python-era command/args pair cannot survive the migration.
-    if have_codex_cli; then
-        codex mcp remove tcl_lsp >/dev/null 2>&1 || true
-        if codex mcp add tcl_lsp -- "$MCP_PATH" >/dev/null 2>&1; then
-            log "registered native MCP server with Codex (tcl_lsp)"
-            return 0
-        fi
-        cp "$backup" "$cfg"
-        warn "codex mcp add failed; restored $cfg from $backup"
-        return 1
-    fi
-
-    # Codex directory detection also works when its CLI is not on PATH. In that
-    # case replace exactly our table (and any nested table) while preserving
-    # every unrelated setting. Write a complete temporary file, then rename.
     tmp_cfg="$WORKDIR/codex-config.toml"
     awk '
         /^[[:space:]]*\[mcp_servers\.tcl_lsp([.][^]]+)?\][[:space:]]*$/ { drop=1; next }
@@ -2355,9 +2718,271 @@ register_mcp_codex() {
     log "registered native MCP server with Codex in $cfg"
 }
 
-toml_basic_escape() {
-    # Escape \ and " for a TOML basic string.
+register_mcp_codex() {
+    scope="$MCP_SCOPE_CODEX"
+    if [ "$scope" = project ]; then
+        write_codex_mcp_config "$PROJECT_ROOT/.codex/config.toml"
+        return
+    fi
+    cfg="$HOME/.codex/config.toml"
+    # Prefer Codex's supported user-level command.  Project-level registration
+    # uses the documented .codex/config.toml because the CLI has no scope flag.
+    if have_codex_cli; then
+        mkdir -p "$HOME/.codex"
+        [ -f "$cfg" ] || : > "$cfg"
+        backup="${cfg}.bak.$(date +%Y%m%d%H%M%S)"
+        cp "$cfg" "$backup"
+        codex mcp remove tcl_lsp >/dev/null 2>&1 || true
+        if codex mcp add tcl_lsp -- "$MCP_PATH" >/dev/null 2>&1; then
+            log "registered native MCP server with Codex (tcl_lsp, user scope)"
+            return 0
+        fi
+        cp "$backup" "$cfg"
+        warn "codex mcp add failed; restored $cfg from $backup"
+        return 1
+    fi
+    write_codex_mcp_config "$cfg"
+}
+
+json_basic_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+write_new_json_mcp_config() {
+    cfg="$1"; shape="$2"
+    command="$(json_basic_escape "$MCP_PATH")"
+    case "$shape" in
+        standard)
+            printf '{\n  "mcpServers": {\n    "tcl-lsp": {\n      "type": "stdio",\n      "command": "%s",\n      "args": []\n    }\n  }\n}\n' "$command" > "$cfg" ;;
+        copilot)
+            printf '{\n  "mcpServers": {\n    "tcl-lsp": {\n      "type": "local",\n      "command": "%s",\n      "args": [],\n      "tools": ["*"]\n    }\n  }\n}\n' "$command" > "$cfg" ;;
+        opencode-v1)
+            printf '{\n  "mcp": {\n    "tcl-lsp": {\n      "type": "local",\n      "command": ["%s"],\n      "enabled": true\n    }\n  }\n}\n' "$command" > "$cfg" ;;
+        *) die "internal: unknown JSON MCP shape: $shape" ;;
+    esac
+}
+
+write_json_mcp_config() {
+    cfg="$1"; shape="$2"
+    mkdir -p "$(dirname "$cfg")"
+    if [ ! -s "$cfg" ]; then
+        write_new_json_mcp_config "$cfg" "$shape"
+        log "registered native MCP server in $cfg"
+        return 0
+    fi
+    backup="${cfg}.bak.$(date +%Y%m%d%H%M%S)"
+    cp "$cfg" "$backup"
+    tmp_cfg="$WORKDIR/harness-config.json"
+    if have jq; then
+        case "$shape" in
+            standard)
+                filter='.mcpServers = (.mcpServers // {}) | .mcpServers["tcl-lsp"] = {type:"stdio", command:$command, args:[]}' ;;
+            copilot)
+                filter='.mcpServers = (.mcpServers // {}) | .mcpServers["tcl-lsp"] = {type:"local", command:$command, args:[], tools:["*"]}' ;;
+            opencode-v1)
+                filter='.mcp = (.mcp // {}) | .mcp["tcl-lsp"] = {type:"local", command:[$command], enabled:true}' ;;
+        esac
+        if jq --arg command "$MCP_PATH" "$filter" "$cfg" > "$tmp_cfg" 2>/dev/null; then
+            mv "$tmp_cfg" "$cfg"
+            log "registered native MCP server in $cfg"
+            return 0
+        fi
+    else
+        node_bin=""
+        if have node; then node_bin=node
+        elif have nodejs; then node_bin=nodejs
+        fi
+        if [ -n "$node_bin" ] && "$node_bin" -e '
+const fs = require("fs");
+const [shape, file, command] = process.argv.slice(1);
+const config = JSON.parse(fs.readFileSync(file, "utf8"));
+if (shape === "opencode-v1") {
+  config.mcp ||= {};
+  config.mcp["tcl-lsp"] = {type: "local", command: [command], enabled: true};
+} else {
+  config.mcpServers ||= {};
+  config.mcpServers["tcl-lsp"] = shape === "copilot"
+    ? {type: "local", command, args: [], tools: ["*"]}
+    : {type: "stdio", command, args: []};
+}
+process.stdout.write(JSON.stringify(config, null, 2) + "\\n");
+' "$shape" "$cfg" "$MCP_PATH" > "$tmp_cfg" 2>/dev/null; then
+            mv "$tmp_cfg" "$cfg"
+            log "registered native MCP server in $cfg"
+            return 0
+        fi
+    fi
+    cp "$backup" "$cfg"
+    warn "could not safely update $cfg (JSONC/comments need a client-supported editor)"
+    warn "left the original intact; backup: $backup"
+    return 1
+}
+
+write_yaml_mcp_config() {
+    cfg="$1"; shape="$2"
+    mkdir -p "$(dirname "$cfg")"
+    if [ ! -s "$cfg" ]; then
+        command="$(printf '%s' "$MCP_PATH" | sed 's/"/\\"/g')"
+        case "$shape" in
+            hermes)
+                printf 'mcp_servers:\n  tcl-lsp:\n    command: "%s"\n    args: []\n' "$command" > "$cfg" ;;
+            goose)
+                printf 'extensions:\n  tcl-lsp:\n    type: stdio\n    name: tcl-lsp\n    enabled: true\n    cmd: "%s"\n    args: []\n    env_keys: []\n    envs: {}\n    timeout: 300\n' "$command" > "$cfg" ;;
+        esac
+        log "registered native MCP server in $cfg"
+        return 0
+    fi
+    backup="${cfg}.bak.$(date +%Y%m%d%H%M%S)"
+    cp "$cfg" "$backup"
+    tmp_cfg="$WORKDIR/harness-config.yaml"
+    if have yq && yq --version 2>&1 | grep -qi 'mikefarah'; then
+        if [ "$shape" = hermes ]; then
+            expression='.mcp_servers."tcl-lsp" = {"command": strenv(TCL_LSP_MCP_COMMAND), "args": []}'
+        else
+            expression='.extensions."tcl-lsp" = {"type": "stdio", "name": "tcl-lsp", "enabled": true, "cmd": strenv(TCL_LSP_MCP_COMMAND), "args": [], "env_keys": [], "envs": {}, "timeout": 300}'
+        fi
+        if TCL_LSP_MCP_COMMAND="$MCP_PATH" yq "$expression" "$cfg" > "$tmp_cfg" 2>/dev/null; then
+            mv "$tmp_cfg" "$cfg"
+            log "registered native MCP server in $cfg"
+            return 0
+        fi
+    fi
+
+    # No YAML runtime is required for the ordinary block-map shape used by
+    # both clients. Replace exactly our two-space-indented child and preserve
+    # every unrelated line. Reject flow-style roots rather than guessing.
+    if [ "$shape" = hermes ]; then root_key=mcp_servers
+    else root_key=extensions
+    fi
+    if grep -q "^${root_key}:" "$cfg" \
+       && ! grep -qE "^${root_key}:[[:space:]]*(#.*)?$" "$cfg"; then
+        cp "$backup" "$cfg"
+        warn "cannot safely update flow-style YAML key '$root_key' in $cfg"
+        return 1
+    fi
+    block="$WORKDIR/harness-yaml-block"
+    command="$(printf '%s' "$MCP_PATH" | sed 's/"/\\"/g')"
+    if [ "$shape" = hermes ]; then
+        printf '  tcl-lsp:\n    command: "%s"\n    args: []\n' "$command" > "$block"
+    else
+        printf '  tcl-lsp:\n    type: stdio\n    name: tcl-lsp\n    enabled: true\n    cmd: "%s"\n    args: []\n    env_keys: []\n    envs: {}\n    timeout: 300\n' "$command" > "$block"
+    fi
+    if awk -v root="$root_key" -v block="$block" '
+        function emit( line) {
+            while ((getline line < block) > 0) print line
+            close(block)
+        }
+        BEGIN { in_root=0; found_root=0; inserted=0; skip_child=0 }
+        {
+            if (in_root && $0 ~ /^[^[:space:]#]/ && $0 !~ ("^" root ":[[:space:]]")) {
+                if (!inserted) { emit(); inserted=1 }
+                in_root=0; skip_child=0
+            }
+            if ($0 ~ ("^" root ":[[:space:]]*(#.*)?$")) {
+                found_root=1; in_root=1; print; next
+            }
+            if (in_root && $0 ~ /^  tcl-lsp:[[:space:]]*(#.*)?$/) {
+                skip_child=1; next
+            }
+            if (skip_child) {
+                if ($0 ~ /^  [^[:space:]#][^:]*:/) {
+                    skip_child=0
+                    if (!inserted) { emit(); inserted=1 }
+                } else if ($0 ~ /^[^[:space:]#]/) {
+                    skip_child=0
+                } else {
+                    next
+                }
+            }
+            print
+        }
+        END {
+            if (in_root && !inserted) emit()
+            if (!found_root) { print ""; print root ":"; emit() }
+        }
+    ' "$cfg" > "$tmp_cfg"; then
+        mv "$tmp_cfg" "$cfg"
+        log "registered native MCP server in $cfg"
+        return 0
+    fi
+    cp "$backup" "$cfg"
+    warn "could not update $cfg; restored the original from $backup"
+    return 1
+}
+
+register_mcp_gemini() {
+    scope="$MCP_SCOPE_GEMINI"
+    if have_gemini_cli; then
+        (cd "$PROJECT_ROOT" && gemini mcp remove -s "$scope" tcl-lsp >/dev/null 2>&1) || true
+        if (cd "$PROJECT_ROOT" && gemini mcp add -s "$scope" tcl-lsp "$MCP_PATH" >/dev/null 2>&1); then
+            log "registered MCP server with Gemini CLI (tcl-lsp, $scope scope)"
+            return 0
+        fi
+        warn "gemini mcp add failed"
+        return 1
+    fi
+    if [ "$scope" = project ]; then cfg="$PROJECT_ROOT/.gemini/settings.json"
+    else cfg="$HOME/.gemini/settings.json"
+    fi
+    write_json_mcp_config "$cfg" standard
+}
+
+register_mcp_copilot() {
+    scope="$MCP_SCOPE_COPILOT"
+    if [ "$scope" = user ] && have_copilot_cli; then
+        copilot mcp remove tcl-lsp >/dev/null 2>&1 || true
+        if copilot mcp add tcl-lsp -- "$MCP_PATH" >/dev/null 2>&1; then
+            log "registered MCP server with GitHub Copilot CLI (tcl-lsp, user scope)"
+            return 0
+        fi
+        warn "copilot mcp add failed"
+        return 1
+    fi
+    if [ "$scope" = project ]; then
+        if [ -e "$PROJECT_ROOT/.github/mcp.json" ] && [ ! -e "$PROJECT_ROOT/.mcp.json" ]; then
+            cfg="$PROJECT_ROOT/.github/mcp.json"
+        else
+            cfg="$PROJECT_ROOT/.mcp.json"
+        fi
+    else
+        cfg="$HOME/.copilot/mcp-config.json"
+    fi
+    write_json_mcp_config "$cfg" standard
+}
+
+register_mcp_opencode() {
+    scope="$MCP_SCOPE_OPENCODE"
+    if have opencode2; then
+        if [ "$scope" = user ]; then
+            opencode2 mcp add tcl-lsp --global -- "$MCP_PATH"
+        else
+            (cd "$PROJECT_ROOT" && opencode2 mcp add tcl-lsp -- "$MCP_PATH")
+        fi
+        log "registered MCP server with OpenCode ($scope scope)"
+        return 0
+    fi
+    if [ "$scope" = project ]; then
+        if [ -e "$PROJECT_ROOT/opencode.jsonc" ] && [ ! -e "$PROJECT_ROOT/opencode.json" ]; then
+            cfg="$PROJECT_ROOT/opencode.jsonc"
+        else
+            cfg="$PROJECT_ROOT/opencode.json"
+        fi
+    else
+        cfg="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.json"
+    fi
+    write_json_mcp_config "$cfg" opencode-v1
+}
+
+register_mcp_hermes() {
+    write_yaml_mcp_config "$HOME/.hermes/config.yaml" hermes
+}
+
+register_mcp_goose() {
+    write_yaml_mcp_config "${XDG_CONFIG_HOME:-$HOME/.config}/goose/config.yaml" goose
+}
+
+register_mcp_bobbit() {
+    write_json_mcp_config "$PROJECT_ROOT/.mcp.json" standard
 }
 
 install_claude_skills() {
@@ -2385,6 +3010,8 @@ install_claude_skills() {
         warn "could not locate extracted skill payload in $extract_dir"
         return 1
     fi
+    legacy_bundle_before=0
+    has_legacy_claude_bundle_marker && legacy_bundle_before=1
     mkdir -p "$HOME/.claude"
 
     # Snapshot existing ~/.claude/{skills,prompts,tcl-ai.pyz} before overwrite.
@@ -2409,24 +3036,64 @@ install_claude_skills() {
     [ -d "$inner/skills" ] && cp -R "$inner/skills" "$HOME/.claude/"
     n="$(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
     log "installed Claude Code skills -> $HOME/.claude/skills/ ($n skills)"
+    # Retire the Python-era bundle only after the replacement archive has been
+    # downloaded, verified, extracted, and installed. The current f5-query
+    # skill is content-compatible with the old bundle and has just been
+    # refreshed, so keep it while removing other positively identified items.
+    cleanup_legacy_claude_bundle "$legacy_bundle_before" 1
 }
 
 install_ai_integrations() {
     # No further questions asked here — choose_ai_components already
     # set WANT_MCP / WANT_SKILLS, and choose_mcp_prefix set the path.
     if [ "$WANT_MCP" = "1" ]; then
-        install_mcp
-        if [ "$HAS_CLAUDE" = "1" ]; then
-            register_mcp_claude || return 1
-        fi
-        if [ "$HAS_CODEX" = "1" ]; then
-            register_mcp_codex || return 1
-        fi
+        install_mcp || return 1
+        if [ "$INSTALL_MCP_CLAUDE" = 1 ]; then register_mcp_claude || return 1; fi
+        if [ "$INSTALL_MCP_CODEX" = 1 ]; then register_mcp_codex || return 1; fi
+        if [ "$INSTALL_MCP_GEMINI" = 1 ]; then register_mcp_gemini || return 1; fi
+        if [ "$INSTALL_MCP_COPILOT" = 1 ]; then register_mcp_copilot || return 1; fi
+        if [ "$INSTALL_MCP_OPENCODE" = 1 ]; then register_mcp_opencode || return 1; fi
+        if [ "$INSTALL_MCP_HERMES" = 1 ]; then register_mcp_hermes || return 1; fi
+        if [ "$INSTALL_MCP_GOOSE" = 1 ]; then register_mcp_goose || return 1; fi
+        if [ "$INSTALL_MCP_BOBBIT" = 1 ]; then register_mcp_bobbit || return 1; fi
         cleanup_stale_mcp
     fi
     if [ "$WANT_SKILLS" = "1" ]; then
-        install_claude_skills
+        install_claude_skills || return 1
     fi
+}
+
+execute_install_plan() {
+    # Destructive migration is deliberately last. A failed download,
+    # verification, extraction, installation, or registration must leave the
+    # working Python-era installation available for recovery.
+    install_downloader || return 1
+
+    if needs_prefix; then
+        case "$ONLY" in
+            tcl)  install_cli tcl || return 1 ;;
+            f5)   install_cli f5 || return 1 ;;
+            both) install_cli tcl || return 1
+                  install_cli f5 || return 1 ;;
+            none) : ;;
+            *) die "invalid ONLY=$ONLY" ;;
+        esac
+        install_cli_runtime_dependencies || return 1
+        apply_path_update || return 1
+    fi
+
+    case "$ONLY" in
+        tcl)  install_completion tcl || return 1 ;;
+        f5)   install_completion f5 || return 1 ;;
+        both) install_completion tcl || return 1
+              install_completion f5 || return 1 ;;
+    esac
+
+    install_ai_integrations || return 1
+    cleanup_legacy_python_installs
+    # A declined skills component still needs its retired bundle cleaned up.
+    [ "$WANT_SKILLS" = "1" ] || cleanup_legacy_claude_bundle
+    cleanup_legacy_path_entries
 }
 
 
@@ -2439,6 +3106,7 @@ main() {
     detect_shell
     detect_proxy
     plan_downloader              # record curl-install need if missing
+    detect_project_context
     detect_ai_clients
     detect_ui_backend
     [ "$UI_BACKEND" = plain ] || log "interactive UI: $UI_BACKEND"
@@ -2486,28 +3154,7 @@ main() {
     require_root_or_die
 
     # === PHASE 3: execute the plan (no more questions) ===
-    install_downloader
-
-    if needs_prefix; then
-        case "$ONLY" in
-            tcl)  install_cli tcl ;;
-            f5)   install_cli f5 ;;
-            both) install_cli tcl; install_cli f5 ;;
-            none) : ;;
-            *) die "invalid ONLY=$ONLY" ;;
-        esac
-        install_cli_runtime_dependencies
-        apply_path_update
-    fi
-
-    case "$ONLY" in
-        tcl)  install_completion tcl ;;
-        f5)   install_completion f5 ;;
-        both) install_completion tcl; install_completion f5 ;;
-    esac
-
-    install_ai_integrations
-    cleanup_legacy_python_installs
+    execute_install_plan
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
     if needs_prefix && ! path_contains "$PREFIX"; then
