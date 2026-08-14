@@ -627,13 +627,25 @@ fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) {
     if declared.is_empty() || KNOWN_VOCABULARY_VERSIONS.contains(&declared) {
         return;
     }
-    log.say(
-        line,
+    // "Newer words may be dropped" is only true of a vocabulary this loader
+    // postdates. Anything else in the slot — most often a pack that wrote its
+    // *library's* version there (`speclib tclinterp 0.15`) — never named a
+    // vocabulary at all, and the notice says so instead of implying the
+    // loader is behind.
+    let msg = if tcl_registry::version::compare(declared, NEWEST_VOCABULARY_VERSION).is_gt() {
         format!(
             "pack declares SpecTcl vocabulary {declared}; this loader knows \
              {NEWEST_VOCABULARY_VERSION} — newer words may be dropped"
-        ),
-    );
+        )
+    } else {
+        format!(
+            "`{declared}` is not a SpecTcl vocabulary version (this loader \
+             knows {NEWEST_VOCABULARY_VERSION}); if it is the library's own \
+             version, it belongs in `introduced_version`, not the `speclib` \
+             slot"
+        )
+    };
+    log.say(line, msg);
 }
 
 // ---------------------------------------------------------------------------
@@ -4416,6 +4428,23 @@ mod tests {
             vec![
                 "pack declares SpecTcl vocabulary 4.9; this loader knows 1.1 — \
                  newer words may be dropped"
+            ]
+        );
+        // A number *below* every vocabulary this loader knows never named a
+        // vocabulary at all — the classic slip is writing the library's own
+        // release in the slot — so the notice points at `introduced_version`
+        // instead of claiming the loader is behind.
+        let pack = load_pack("speclib probe 0.15 {\n command demo { arity 1 }\n}");
+        assert!(pack.command("demo").is_some(), "the pack still loads");
+        assert_eq!(
+            pack.notices
+                .iter()
+                .map(|notice| notice.message.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "`0.15` is not a SpecTcl vocabulary version (this loader knows \
+                 1.1); if it is the library's own version, it belongs in \
+                 `introduced_version`, not the `speclib` slot"
             ]
         );
     }
