@@ -2649,3 +2649,39 @@ fn fp_rbs_21_tp_unexpanded_loops_are_unchanged() {
         codes(loud, D)
     );
 }
+
+// FP-RBS-21b — a *brace-quoted* var-list word binds the names it literally
+// spells, `$` and `[` included.
+//
+// The barrier harvest used to test the reconstructed word text for `$` / `[`,
+// which conflates "the word's value contains a dollar" with "the word
+// substitutes".  A braced word substitutes nothing, so `{$x}` is a
+// one-element list naming the variable `$x` — a legal Tcl name that the byte
+// test dropped from the def set (PR #1481 review of issue #1380).
+//
+// Oracle (tclsh 8.6.16 and 9.0.4 both print `1`):
+//   set spec {{1}}
+//   foreach {{$x}} {*}$spec {puts ${$x}}   → 1
+
+#[test]
+fn fp_rbs_21b_braced_var_list_binds_a_literal_dollar_name() {
+    let src = "set spec {{1}}\nforeach {{$x}} {*}$spec {puts ${$x}}\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-21b: a braced var-list word binds the name it literally spells; \
+         emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_21b_tp_a_substituted_var_list_still_harvests_nothing() {
+    // TP control: a var-list word that genuinely substitutes names nothing
+    // statically, so a body read of the bound name still reports.
+    let src = "set spec {{1}}\nset names {x}\nforeach $names {*}$spec {puts $x}\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-21b TP: a substituted var-list contributes no def; emitted: {:?}",
+        codes(src, D)
+    );
+}
