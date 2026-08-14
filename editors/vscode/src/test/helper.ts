@@ -304,6 +304,13 @@ export interface EffectiveConfig {
   extra_commands: string[];
   non_ascii_mode: string | null;
   library_paths: string[];
+  spec_packs: string[];
+  spec_packs_loaded: Array<{
+    name: string;
+    tier: string;
+    commands: number;
+    files: string[];
+  }>;
   line_length: number;
   dialect_explicitly_set: boolean;
   features: Record<string, boolean>;

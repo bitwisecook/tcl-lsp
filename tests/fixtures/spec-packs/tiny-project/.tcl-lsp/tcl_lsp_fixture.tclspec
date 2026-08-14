@@ -1,0 +1,48 @@
+# Test-only specification for the package in ../lib/tcl_lsp_fixture.tcl.
+speclib tcl_lsp_fixture 1.0 {
+
+command ::tcl_lsp_fixture::collect {
+    dialects tcl8.6+
+    arity 2
+    required_package tcl_lsp_fixture
+
+    arg 0 -role VarWrite
+    arg 1 -role Body
+
+    form Default {::tcl_lsp_fixture::collect resultVar script}
+
+    hover {
+        summary {Evaluate a script while collecting a result in a caller variable.}
+        synopsis {::tcl_lsp_fixture::collect resultVar script}
+        description {Clears resultVar in the caller, evaluates script in that caller, and returns the final value of resultVar.}
+        source {tests/fixtures/spec-packs/tiny-project/lib/tcl_lsp_fixture.tcl}
+        returns {The final value of resultVar.}
+    }
+}
+
+command ::tcl_lsp_fixture::catalog {
+    dialects tcl8.6+
+    arity 1
+    required_package tcl_lsp_fixture
+
+    subcommand names {
+        arity 0
+        detail {Return the available fixture entry names.}
+        synopsis {::tcl_lsp_fixture::catalog names}
+    }
+}
+
+command ::tcl_lsp_fixture::strlen {
+    dialects tcl8.6+
+    arity 1
+    required_package tcl_lsp_fixture
+
+    arg 0 -role Value
+    const_fold -inputs {words} {words ctx} {
+        set subject [lindex $words 0]
+        if {![string is ascii $subject]} { return }
+        fold [string length $subject]
+    }
+}
+
+}

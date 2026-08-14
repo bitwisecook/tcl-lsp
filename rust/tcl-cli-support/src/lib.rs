@@ -46,17 +46,14 @@ pub use output::{
     OutputTarget, ensure_ascii, expand_tabs, resolve_use_colour, write_binary_output,
     write_highlighted_output, write_text_output,
 };
-/// The command registry for `dialect`, **with the shipped `.tclspec`
-/// loadables installed**.
+/// The command registry for `dialect`, with project, user, and shipped
+/// `.tclspec` loadables installed.
 ///
-/// The per-dialect registry cache lives in `tcl-registry` so every downstream
-/// tool shares one cache; this is the same cache, entered through the one door
-/// that also carries the bundled packs. It has to be: the EDA vendor libraries
-/// are loadables now (`docs/design/spec-packs.md`), so a `tcl lookup --dialect
-/// xilinx-eda-tcl synth_design` reaches its spec only if the CLI parses
-/// `specs/synth_design`'s pack the way the language server does. With no
-/// bundled directory present this is byte-for-byte
-/// [`tcl_registry::registry_for_dialect`], down to the same cached instance.
+/// A CLI invocation treats its current directory as its workspace root. That
+/// gives a project the same automatic `.tcl-lsp/` and `tclpkg.tcl`-adjacent
+/// discovery the language server performs, while retaining the user and
+/// bundled tiers. The set is loaded once because a CLI process has one stable
+/// working directory and exits after its verb completes.
 ///
 /// An owning handle, because the pack-carrying entry it names is refcounted
 /// and retirable. A CLI verb resolves its packs once and runs to exit, so in
@@ -66,10 +63,10 @@ pub use output::{
 pub fn registry_for_dialect(
     dialect: &str,
 ) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
-    tcl_spectcl::bundled::registry_for_dialect(dialect)
+    tcl_spectcl::install::registry_for_dialect_with_packs(dialect, cli_packs())
 }
 
-/// The shipped loadables' content identity, for
+/// The discovered loadables' content identity, for
 /// [`Analyser::with_pack_overlay`](tcl_compiler::analyser::Analyser::with_pack_overlay).
 ///
 /// The analyser resolves its own registry from its `DialectProfile`, so it
@@ -78,12 +75,35 @@ pub fn registry_for_dialect(
 /// command reads as unknown, because the vendor libraries are `.tclspec` packs
 /// now and nothing compiled-in answers for them.
 ///
-/// Call [`registry_for_dialect`] for the same dialect first (every CLI verb
-/// already does): that is what *builds* the entry this key names, and the
-/// analyser can only look it up.
+/// This builds the dialect overlay before returning its key. The analyser's
+/// overlay lookup is intentionally read-only, so returning a key without
+/// installing the corresponding `(profile, key)` entry would silently fall
+/// back to the plain profile.
 #[must_use]
-pub fn spec_pack_key() -> u64 {
-    tcl_spectcl::bundled::packs().key
+pub fn spec_pack_key(dialect: &str) -> u64 {
+    let packs = cli_packs();
+    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, packs);
+    packs.key
+}
+
+/// Discover the CLI process's workspace once, rooted at its current directory.
+fn cli_packs() -> &'static tcl_spectcl::PackSet {
+    static PACKS: std::sync::OnceLock<tcl_spectcl::PackSet> = std::sync::OnceLock::new();
+    PACKS.get_or_init(|| {
+        let workspace_roots = std::env::current_dir().into_iter().collect();
+        let files = tcl_spectcl::discover(&tcl_spectcl::DiscoveryOptions {
+            workspace_roots,
+            ..tcl_spectcl::DiscoveryOptions::default()
+        });
+        let packs = tcl_spectcl::bundled::load_discovered(&files);
+        // Pack commands and their typed behaviour are one publication. Hook
+        // dispatch consults the process-wide plan, while explorer consumers
+        // consult the active pack set; publish both before exposing `packs`.
+        tcl_spectcl::hooks::publish(&packs);
+        tcl_spectcl::hooks::ensure_thread_host();
+        tcl_spectcl::bundled::set_active(Some(std::sync::Arc::new(packs.clone())));
+        packs
+    })
 }
 
 /// Result alias for fallible CLI-support operations.

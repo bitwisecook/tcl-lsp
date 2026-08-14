@@ -1,0 +1,33 @@
+# Focused SpecTcl pack for georgtree/tclinterp 0.15.
+#
+# This is documentation evidence, not a test dependency. The committed
+# regression fixture under tests/fixtures/spec-packs/ is deliberately
+# synthetic. Source evidence is pinned in tclinterp-validation-report.md.
+
+speclib tclinterp 0.15 {
+
+command ::tclinterp::interpolation::lin1d {
+    dialects {tcl9.0 tcl9.1}
+    arity 6
+    required_package tclinterp
+    return_type List
+
+    option -x -takes xValues \
+        -detail {List of independent values; values must be strictly increasing.}
+    option -y -takes yValues \
+        -detail {List of dependent values corresponding one-for-one with -x.}
+    option -xi -takes interpolationPoints \
+        -detail {List of independent values at which to interpolate.}
+
+    form Default {::tclinterp::interpolation::lin1d -x xValues -y yValues -xi interpolationPoints}
+
+    hover {
+        summary {Perform one-dimensional linear interpolation.}
+        synopsis {::tclinterp::interpolation::lin1d -x xValues -y yValues -xi interpolationPoints}
+        description {Interpolate dependent values at each point in -xi from paired -x and -y samples. The -x list must be strictly increasing, and the -x and -y lists must have equal lengths.}
+        source {georgtree/tclinterp tclinterp.tcl:139-171 at ccd894bbcf759607cec37cb308e12fca639b17b0}
+        returns {A list of interpolated dependent values, one for each value in -xi.}
+    }
+}
+
+}

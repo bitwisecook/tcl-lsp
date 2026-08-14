@@ -88,7 +88,7 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let source = combine_sources(&documents);
 
     let result = Analyser::new()
-        .with_pack_overlay(tcl_cli_support::spec_pack_key())
+        .with_pack_overlay(tcl_cli_support::spec_pack_key(&dialect))
         .analyse(&source, &dialect);
     let line_index = LineIndex::new(&source);
 
