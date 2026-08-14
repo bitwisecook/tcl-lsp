@@ -1256,6 +1256,46 @@ impl Interp {
                 .is_some()
     }
 
+    /// Resolve `name` (from namespace `origin`) to a command handle, applying
+    /// the availability gate of [`Self::builtin_command_visible_for_surface`]
+    /// to the **final** resolved builtin identity: a builtin the emulated
+    /// release does not carry resolves to `None`, exactly as if no command of
+    /// that name existed.
+    ///
+    /// This is the single owner of the gate on the dispatch side (PR #1481
+    /// review of issues #1462/#1463). The gate was originally spelled out at
+    /// the direct-dispatch call site only, so the two other resolve-then-
+    /// [`Self::invoke`] shapes — the alias trampoline
+    /// ([`Self::dispatch_alias`]) and the `namespace import` redirect
+    /// ([`Command::Imported`]) — reached the builtin behind an ungated second
+    /// resolution, making a release-hidden builtin callable through an alias
+    /// or an imported spelling. Every name→`Command` step that feeds `invoke`
+    /// now goes through here, so a new dispatch path cannot silently reopen
+    /// the hole.
+    ///
+    /// A gated miss is deliberately indistinguishable from a deleted command:
+    /// each caller then reports the miss the way it already reports a target
+    /// that genuinely does not exist (`invalid command name "<target>"`,
+    /// naming the resolved target rather than the alias — matching real tclsh
+    /// 8.6/9.0 for `interp alias {} la {} nosuchcmd; la`), which is precisely
+    /// the "this release does not have that command" contract of #1462.
+    pub(crate) fn resolve_dispatchable(&self, origin: NsId, name: &[u8]) -> Option<Command> {
+        let (cmd, fqn) = {
+            let ns = self.namespaces.borrow();
+            let cmd = ns.resolve(origin, name)?;
+            // Only a *directly* bound builtin carries a release identity. Procs,
+            // aliases, ensembles and objects are script-created, and a nested
+            // redirect (import/alias) is gated when it resolves in its turn.
+            if !matches!(cmd, Command::Builtin(_)) {
+                return Some(cmd);
+            }
+            let fqn = ns.resolve_fqn(origin, name)?;
+            (cmd, fqn)
+        };
+        self.builtin_command_visible_for_surface(&fqn)
+            .then_some(cmd)
+    }
+
     /// Convert `obj` to the byte view consumed by Tcl's `binary` command.
     ///
     /// Byte-array objects retain their own raw payload. Ordinary string objects
@@ -1513,6 +1553,23 @@ impl Interp {
             .rename_creates_alias_loop(self.current_ns.get(), old, new)
         {
             return RenameOutcome::AliasLoop;
+        }
+        // A builtin the emulated release does not carry is not there to be
+        // renamed or deleted (#1462/#1463): rebinding it under a name the
+        // registry has no spec for would hand it back ungated, defeating the
+        // availability mask outright. Checked before any observable effect,
+        // like the alias-loop refusal above.
+        let bound = self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), old)
+            .is_some();
+        if bound
+            && self
+                .resolve_dispatchable(self.current_ns.get(), old)
+                .is_none()
+        {
+            return RenameOutcome::NoSuchCommand;
         }
         self.invalidate_command_environment();
         // Command traces fire *before* the table mutation (C's TclRenameCommand:
@@ -5103,15 +5160,10 @@ impl Interp {
     /// The original resolve→invoke→unknown dispatch (trace-free).
     fn dispatch_inner(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
-        let resolved = self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), &name);
-        let wrapper_hidden = matches!(&resolved, Some(Command::Builtin(_)))
-            && self
-                .resolve_cmd_fqn(&name)
-                .is_some_and(|fqn| !self.builtin_command_visible_for_surface(&fqn));
-        if let Some(cmd) = resolved.filter(|_| !wrapper_hidden) {
+        // The availability gate lives in `resolve_dispatchable`, so a builtin
+        // the emulated release does not carry misses here and falls through to
+        // the `unknown` machinery below like any other unresolved name.
+        if let Some(cmd) = self.resolve_dispatchable(self.current_ns.get(), &name) {
             return self.invoke(cmd, argv);
         }
         // Inside an `oo::define`/`oo::objdefine` body, an unresolved leading word
@@ -5157,7 +5209,7 @@ impl Interp {
                     return code;
                 }
             }
-            let unk = self.namespaces.borrow().resolve(GLOBAL, b"unknown");
+            let unk = self.resolve_dispatchable(GLOBAL, b"unknown");
             if let Some(unk) = unk {
                 let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
                 let head = new_string(b"unknown");
@@ -5182,8 +5234,10 @@ impl Interp {
             Command::Builtin(f) => f(self, argv),
             Command::Alias { target, prefix } => self.dispatch_alias(&target, &prefix, argv),
             Command::Imported { source } => {
-                let resolved = self.namespaces.borrow().resolve(GLOBAL, &source);
-                match resolved {
+                // Gated resolution: a source the emulated release does not carry
+                // is a miss, so an imported spelling cannot smuggle a hidden
+                // builtin past the surface check (PR #1481 review).
+                match self.resolve_dispatchable(GLOBAL, &source) {
                     // Transparent redirect: forward argv unchanged to the source.
                     Some(cmd) => self.invoke(cmd, argv),
                     None => self.invalid_command(&source),
@@ -5627,7 +5681,10 @@ impl Interp {
     /// `interp hide name`: move command `name` out of the command table into the
     /// hidden table. Returns whether it existed.
     pub(crate) fn hide_command(&mut self, name: &[u8]) -> bool {
-        let resolved = self.namespaces.borrow().resolve(GLOBAL, name);
+        // Gated: a builtin the emulated release does not carry is not there to
+        // be hidden, so `interp hide` cannot park it in the hidden table where
+        // `interp invokehidden` would reach it past the surface check.
+        let resolved = self.resolve_dispatchable(GLOBAL, name);
         match resolved {
             Some(cmd) => {
                 self.invalidate_interpreter_policy();
@@ -6556,10 +6613,7 @@ impl Interp {
         // is simply the final fall-through base.
         let mut rel = b"tcl::mathfunc::".to_vec();
         rel.extend_from_slice(fname);
-        let cmd = self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), &rel);
+        let cmd = self.resolve_dispatchable(self.current_ns.get(), &rel);
         let Some(cmd) = cmd else {
             let mut m = b"invalid command name \"tcl::mathfunc::".to_vec();
             m.extend_from_slice(fname);
@@ -6593,9 +6647,12 @@ impl Interp {
     /// bounded by [`MAX_ALIAS_DISPATCH_DEPTH`], so a cycle that escaped the
     /// definition-time gate errors instead of exhausting the native stack.
     fn dispatch_alias(&mut self, target: &[u8], prefix: &[Vec<u8>], argv: &[*mut TclObj]) -> Code {
-        let target_cmd = self.namespaces.borrow().resolve(GLOBAL, target);
+        let target_cmd = self.resolve_dispatchable(GLOBAL, target);
         let Some(target_cmd) = target_cmd else {
-            // Lazily bound: the target was deleted (or never existed).
+            // Lazily bound: the target was deleted, never existed, or is a
+            // builtin the emulated release does not carry (the three are
+            // deliberately the same outcome — see `resolve_dispatchable`).
+            // Real tclsh names the *target* here, not the alias.
             return self.invalid_command(target);
         };
         if ALIAS_DISPATCH_DEPTH.with(|d| d.get()) >= MAX_ALIAS_DISPATCH_DEPTH {
@@ -7991,6 +8048,124 @@ mod tests {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(i.eval_str(b"set l {a b c}"), Code::Ok);
             assert_eq!(ok(i, b"lpop l"), b"c");
+        });
+    }
+
+    /// The #1463 availability gate is a property of the **final resolved
+    /// builtin**, not of the spelling the caller wrote. PR #1481's review
+    /// found the gate spelled out at direct dispatch only, so the two
+    /// resolve-then-`invoke` shapes — the alias trampoline and the `namespace
+    /// import` redirect — reached the builtin through a second, ungated
+    /// resolution and made an 8.4-hidden `lassign` callable as
+    /// `interp alias {} la {} lassign; la {a b} x y`.
+    ///
+    /// Error identity is oracled against real tclsh 8.6.16 / 9.0.4:
+    /// `interp alias {} la {} nosuchcmd; la a b` reports `invalid command
+    /// name "nosuchcmd"` — the *target* name, not the alias — so a
+    /// release-hidden target reports the same way a deleted one does.
+    #[test]
+    fn the_release_command_surface_gates_alias_and_import_dispatch() {
+        use tcl_dialect::TclVersion;
+
+        // The reviewer's reproducer: an 8.4 alias to the 8.5+ `lassign`.
+        // (Creating the alias still succeeds — real Tcl binds alias targets
+        // lazily, so an alias to a nonexistent command is legal.)
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"interp alias {} la {} lassign"), Code::Ok);
+            assert_eq!(i.eval_str(b"la {a b} x y"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"lassign\"");
+            // …and nothing was assigned through the alias.
+            assert_eq!(i.eval_str(b"set x"), Code::Error);
+            // An alias *chain* is gated at the final builtin too, not merely
+            // at the first hop.
+            assert_eq!(i.eval_str(b"interp alias {} lb {} la"), Code::Ok);
+            assert_eq!(i.eval_str(b"lb {a b} x y"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"lassign\"");
+        });
+        // The same alias is a working `lassign` on a release that carries it.
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"interp alias {} la {} lassign"), Code::Ok);
+            assert_eq!(ok(i, b"la {a b} x y; list $x $y"), b"a b");
+        });
+
+        // The `namespace import` redirect. `::tcl::mathop::+` is 8.5+ and,
+        // unlike `lassign`, lives in a namespace, so it can be imported by an
+        // ordinary script. Import it on a release that carries it, then
+        // re-pin to 8.4: the imported spelling must miss the way its source
+        // does, naming the resolved source.
+        const IMPORT: &[u8] = b"namespace eval ::tcl::mathop {namespace export *}\n\
+             namespace eval n {namespace import ::tcl::mathop::+}";
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(i.eval_str(IMPORT), Code::Ok);
+            assert_eq!(ok(i, b"n::+ 1 2"), b"3");
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"n::+ 1 2"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"::tcl::mathop::+\""
+            );
+        });
+
+        // Direct dispatch is unchanged by moving the gate into the shared
+        // resolver — both the hidden and the carried release.
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"tcl::mathop::+ 1 2"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"tcl::mathop::+\"");
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(ok(i, b"tcl::mathop::+ 1 2"), b"3");
+        });
+    }
+
+    /// The same gate on the two *non*-dispatch shapes that would hand a
+    /// release-hidden builtin back ungated (PR #1481 review): `rename`, which
+    /// would rebind it under a name the registry has no spec for, and `interp
+    /// hide`, which would park it where `interp invokehidden` reaches it.
+    ///
+    /// `rename`'s refusal is oracled against tclsh 8.6.16 / 9.0.4:
+    /// `rename nosuchcmd zz` → `can't rename "nosuchcmd": command doesn't
+    /// exist`. Hiding a command that does not exist is this runtime's
+    /// documented silent no-op, so what the hide arm pins is that nothing
+    /// lands in the hidden table.
+    #[test]
+    fn the_release_command_surface_gates_rename_and_hide() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"rename lassign lz"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't rename \"lassign\": command doesn't exist"
+            );
+            assert_eq!(i.eval_str(b"lz {a b} x y"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"lz\"");
+
+            assert_eq!(i.eval_str(b"interp hide {} lassign"), Code::Ok);
+            assert_eq!(
+                i.eval_str(b"interp invokehidden {} lassign {a b} x y"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"invalid hidden command name \"lassign\"");
+        });
+        // Both stay ordinary operations on a release that carries `lassign`.
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"rename lassign lz"), Code::Ok);
+            assert_eq!(ok(i, b"lz {a b} x y; list $x $y"), b"a b");
+        });
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"interp hide {} lassign"), Code::Ok);
+            assert_eq!(
+                ok(i, b"interp invokehidden {} lassign {a b} x y; list $x $y"),
+                b"a b"
+            );
         });
     }
 
