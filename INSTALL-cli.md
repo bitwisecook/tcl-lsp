@@ -6,7 +6,8 @@ no runtime, no interpreter — download one file per tool and run it.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/install/install.sh \
+  | TCL_LSP_VERSION=v2.1.19 sh
 ```
 
 Works on macOS and Linux (x86_64, arm64, and riscv64 on Linux).
@@ -15,15 +16,18 @@ Re-run the same line to update.
 To inspect first, or run unattended:
 
 ```sh
-curl -fsSLo install.sh https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install/install.sh
+curl -fsSLo install.sh https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/install/install.sh
 less install.sh
-TCL_LSP_ASSUME_YES=1 sh install.sh
+TCL_LSP_VERSION=v2.1.19 TCL_LSP_ASSUME_YES=1 sh install.sh
 ```
 
 The installer picks the binary for your platform, verifies it against the
-release `SHA256SUMS`, installs shell completions, and offers to set up the
-`tcl-mcp` MCP server and the Claude Code skills if it finds `claude` or
-`codex`. Run `sh install.sh --help` for the full env-var list
+release `SHA256SUMS`, installs shell completions, and offers each detected AI
+harness its own `tcl-mcp` registration. Claude Code, Codex, Gemini CLI, GitHub
+Copilot CLI, OpenCode, Hermes, Goose, and Bobbit are recognised. Harnesses with
+project files offer project or user scope; otherwise registration is user-level.
+Bobbit is project-only because it discovers the project-root `.mcp.json`.
+Claude Code skills are offered separately. Run `sh install.sh --help` for the full env-var list
 (`TCL_LSP_ONLY`, `TCL_LSP_NO_MCP`, `TCL_LSP_NO_SKILLS`, `TCL_LSP_NO_PATH`, …).
 
 ## Manual install
@@ -56,7 +60,7 @@ The MCP server is published the same way, as `tcl-mcp-<triple>`.
 ## Verify downloads
 
 ```sh
-tag="v2.1.16"
+tag="v2.1.19"
 curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/SHA256SUMS"
 sha256sum --ignore-missing -c SHA256SUMS \
     || shasum -a 256 --ignore-missing -c SHA256SUMS

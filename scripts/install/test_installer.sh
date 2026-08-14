@@ -139,6 +139,101 @@ grep -qF 'mcp remove tcl_lsp' "$CODEX_LOG" || fail "Codex old registration was n
 grep -qF "mcp add tcl_lsp -- $MCP_PATH" "$CODEX_LOG" || fail "Codex native registration was not added"
 pass "Codex MCP migration through CLI"
 
+# Detection recognises CLI/config footprints for every supported harness.
+PROJECT_ROOT="$test_root/project"
+mkdir -p "$PROJECT_ROOT/.bobbit" "$HOME/.gemini" "$HOME/.copilot" \
+    "$HOME/.config/opencode" "$HOME/.hermes" "$HOME/.config/goose"
+AI_DETECTED=0
+detect_ai_clients
+assert_eq "$HAS_CLAUDE:$HAS_CODEX:$HAS_GEMINI:$HAS_COPILOT" "1:1:1:1" \
+    "primary harness detection"
+assert_eq "$HAS_OPENCODE:$HAS_HERMES:$HAS_GOOSE:$HAS_BOBBIT" "1:1:1:1" \
+    "config-driven harness detection"
+pass "supported harness detection"
+
+# Harness selection is independent. A harness with project-owned files defaults
+# to project scope; a detected harness without them gets user scope. Bobbit is
+# project-only because it deliberately discovers a project-root .mcp.json.
+mkdir -p "$PROJECT_ROOT/.claude" "$PROJECT_ROOT/.bobbit"
+HAS_CLAUDE=1; HAS_CODEX=1; HAS_GEMINI=0; HAS_COPILOT=0
+HAS_OPENCODE=0; HAS_HERMES=0; HAS_GOOSE=0; HAS_BOBBIT=1
+TCL_LSP_ASSUME_YES=1
+choose_ai_components
+assert_eq "$INSTALL_MCP_CLAUDE:$MCP_SCOPE_CLAUDE" "1:project" "Claude project scope selection"
+assert_eq "$INSTALL_MCP_CODEX:$MCP_SCOPE_CODEX" "1:user" "Codex user scope selection"
+assert_eq "$INSTALL_MCP_BOBBIT:$MCP_SCOPE_BOBBIT" "1:project" "Bobbit project scope selection"
+assert_eq "$WANT_MCP:$WANT_SKILLS" "1:1" "per-harness MCP and Claude skills plan"
+unset TCL_LSP_ASSUME_YES
+pass "per-harness registration and project-aware scope planning"
+
+# Claude migration must remove the historical implicit local registration and
+# replace the selected scope explicitly. `mcp list` prints names with a colon,
+# so migration must not depend on parsing that display format.
+CLAUDE_LOG="$test_root/claude.log"; export CLAUDE_LOG
+cat > "$test_root/path-new/claude" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$CLAUDE_LOG"
+if [ "$1 $2" = "mcp list" ]; then
+    printf 'tcl-lsp: python3 /old/tcl-lsp-mcp-server.pyz\n'
+fi
+EOF
+chmod +x "$test_root/path-new/claude"
+MCP_SCOPE_CLAUDE=user
+register_mcp_claude
+grep -qF 'mcp remove -s local tcl-lsp' "$CLAUDE_LOG" \
+    || fail "Claude stale local registration was not removed"
+grep -qF 'mcp remove -s user tcl-lsp' "$CLAUDE_LOG" \
+    || fail "Claude selected user registration was not replaced"
+grep -qF "mcp add -s user tcl-lsp -- $MCP_PATH" "$CLAUDE_LOG" \
+    || fail "Claude native user registration was not added explicitly"
+pass "Claude delete/add migration uses an explicit scope"
+
+# Gemini has native scope-aware commands too; use those instead of editing its
+# settings format when the CLI is present.
+GEMINI_LOG="$test_root/gemini.log"; export GEMINI_LOG
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$GEMINI_LOG"\n' > "$test_root/path-new/gemini"
+chmod +x "$test_root/path-new/gemini"
+MCP_SCOPE_GEMINI=project
+register_mcp_gemini
+grep -qF 'mcp remove -s project tcl-lsp' "$GEMINI_LOG" \
+    || fail "Gemini project registration was not removed before replacement"
+grep -qF "mcp add -s project tcl-lsp $MCP_PATH" "$GEMINI_LOG" \
+    || fail "Gemini native project registration was not added"
+pass "Gemini delete/add migration uses an explicit scope"
+
+# Config-only harnesses can be bootstrapped without Python, Node.js, jq, or yq
+# when their config file does not exist yet.
+json_cfg="$test_root/config/new/.mcp.json"
+yaml_cfg="$test_root/config/hermes/config.yaml"
+write_json_mcp_config "$json_cfg" standard
+write_yaml_mcp_config "$yaml_cfg" hermes
+grep -qF '"tcl-lsp"' "$json_cfg" || fail "new standard MCP JSON omitted tcl-lsp"
+grep -qF "\"command\": \"$MCP_PATH\"" "$json_cfg" || fail "new standard MCP JSON omitted native command"
+grep -qF '  tcl-lsp:' "$yaml_cfg" || fail "new Hermes YAML omitted tcl-lsp"
+grep -qF "    command: \"$MCP_PATH\"" "$yaml_cfg" || fail "new Hermes YAML omitted native command"
+pass "native-only JSON and YAML MCP config bootstrap"
+
+# The no-dependency YAML updater replaces only our child map and preserves
+# unrelated harness configuration.
+cat > "$yaml_cfg" <<'EOF'
+model: example
+mcp_servers:
+  tcl-lsp:
+    command: python3
+    args: [/old/tcl-lsp-mcp-server.pyz]
+  other:
+    command: /keep/me
+theme: dark
+EOF
+write_yaml_mcp_config "$yaml_cfg" hermes
+grep -qF "    command: \"$MCP_PATH\"" "$yaml_cfg" \
+    || fail "Hermes native MCP command was not replaced"
+grep -qF '    command: /keep/me' "$yaml_cfg" \
+    || fail "unrelated Hermes MCP entry was not preserved"
+grep -qF 'theme: dark' "$yaml_cfg" || fail "unrelated Hermes root setting was not preserved"
+if grep -qF '.pyz' "$yaml_cfg"; then fail "old Hermes zipapp command survived"; fi
+pass "Hermes YAML migration preserves unrelated configuration"
+
 if grep -qE 'plan_python_if_needed|install_python|install_mcp_zipapp|MCP_NATIVE' \
     "$repo_root/scripts/install/install.sh"; then
     fail "retired Python installer path remains"
