@@ -33,6 +33,7 @@
 // it in TypeScript.
 
 import * as monaco from "monaco-editor/editor/editor.api.js";
+import "monaco-editor/languages/definitions/rust/register.js";
 import type {
   CompletionItem as LspCompletionItem,
   CompletionList as LspCompletionList,
@@ -41,16 +42,27 @@ import type {
   TextEdit as LspTextEdit,
 } from "vscode-languageserver-protocol";
 
-import type { EditorHost, EditorHostOptions, SurfaceSpec } from "./editorHost.js";
+import type {
+  EditorHost,
+  EditorHostOptions,
+  OutputSurfaceSpec,
+  SurfaceSpec,
+} from "./editorHost.js";
 import { LspClient, startLspClient } from "./lspClient.js";
 
 /** The Monaco language id both surfaces' models are registered under. */
 const SPECTCL_LANGUAGE = "spectcl";
 const TCL_LANGUAGE = "tcl";
 
+/** Build provenance checked by the controller before this chunk is mounted. */
+declare const __SPEC_STUDIO_FRONTEND_VERSION__: string;
+export const buildVersion = __SPEC_STUDIO_FRONTEND_VERSION__;
+
 /** In-memory document URIs. Nothing resolves them — they are identities. */
 const DSL_URI = "inmemory://studio/pack.tclspec";
 const SAMPLE_URI = "inmemory://studio/sample.tcl";
+const RUST_URI = "inmemory://studio/command.rs";
+const STUB_URI = "inmemory://studio/stubs.tcl";
 
 /** How long keystrokes settle before the change is pushed on. */
 const SETTLE_MS = 120;
@@ -334,8 +346,7 @@ function currentTheme(): string {
  * pair together wherever the dist is deployed — a subdirectory on Pages, a
  * local `python3 -m http.server`, anywhere.
  */
-async function loadStylesheet(): Promise<void> {
-  const href = new URL("./monaco-host.css", import.meta.url).href;
+async function loadStylesheet(href: string): Promise<void> {
   if (document.querySelector(`link[href="${href}"]`)) return;
   await new Promise<void>((resolve) => {
     const link = document.createElement("link");
@@ -438,6 +449,59 @@ class Surface {
   }
 }
 
+/** A read-only Monaco surface used by both generated-code panes. */
+class OutputSurface {
+  readonly editor: monaco.editor.IStandaloneCodeEditor;
+
+  private readonly model: monaco.editor.ITextModel;
+
+  private readonly client: LspClient | null;
+
+  private readonly uri: string;
+
+  constructor(
+    spec: OutputSurfaceSpec,
+    uri: string,
+    language: string,
+    languageId: string | null,
+    client: LspClient | null,
+  ) {
+    this.client = languageId ? client : null;
+    this.uri = uri;
+    spec.container.classList.add("monaco-mounted");
+    this.model = monaco.editor.createModel(
+      spec.fallback.textContent ?? "",
+      language,
+      monaco.Uri.parse(uri),
+    );
+    this.editor = monaco.editor.create(spec.container, {
+      ...editorOptions(),
+      model: this.model,
+      readOnly: true,
+      domReadOnly: true,
+    });
+    if (languageId) this.client?.openDocument(uri, languageId, this.model.getValue());
+  }
+
+  setText(text: string): void {
+    if (this.model.getValue() === text) return;
+    this.model.setValue(text);
+    this.client?.changeDocument(this.uri, text);
+  }
+
+  layout(): void {
+    this.editor.layout();
+  }
+
+  setDiagnostics(items: LspDiagnostic[]): void {
+    monaco.editor.setModelMarkers(this.model, "tcl-lsp", toMarkers(items));
+  }
+
+  get documentUri(): string {
+    return this.uri;
+  }
+}
+
 /**
  * Stand both editors up, with the language server behind them when it boots.
  *
@@ -447,7 +511,7 @@ class Surface {
  * which means this module never loaded — takes the page back to the textarea.
  */
 export async function mountEditors(options: EditorHostOptions): Promise<EditorHost> {
-  await loadStylesheet();
+  await loadStylesheet(options.stylesheetUrl);
   registerLanguages();
   monaco.editor.setTheme(currentTheme());
   window
@@ -457,7 +521,7 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
   let client: LspClient | null = null;
   try {
     options.report("starting the language server…");
-    client = await startLspClient(options.workerDir);
+    client = await startLspClient(options.workerUrl);
     registerProviders(client);
     options.report("the Tcl language server is running in this page", "ok");
   } catch (e) {
@@ -468,22 +532,29 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     );
   }
 
-  const dsl = new Surface(options.dsl, DSL_URI, SPECTCL_LANGUAGE, "tclspec", client);
+  const dsl = new Surface(options.dsl, DSL_URI, SPECTCL_LANGUAGE, "spectcl", client);
   const sample = new Surface(options.sample, SAMPLE_URI, TCL_LANGUAGE, options.dialect, client);
+  const rust = new OutputSurface(options.rust, RUST_URI, "rust", null, client);
+  const stub = new OutputSurface(options.stub, STUB_URI, TCL_LANGUAGE, "spectcl", client);
 
   client?.onDiagnostics((uri, items) => {
     if (uri === dsl.documentUri) dsl.setDiagnostics(items);
     else if (uri === sample.documentUri) sample.setDiagnostics(items);
+    else if (uri === stub.documentUri) stub.setDiagnostics(items);
   });
 
   const ready = client !== null;
   return {
     setDslText: (text) => dsl.setText(text),
     setSampleText: (text) => sample.setText(text),
+    setRustText: (text) => rust.setText(text),
+    setStubText: (text) => stub.setText(text),
     setDialect: (dialect) => sample.setLanguageId(dialect),
     layout: () => {
       dsl.layout();
       sample.layout();
+      rust.layout();
+      stub.layout();
     },
     get lspReady() {
       return ready;

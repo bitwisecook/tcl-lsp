@@ -119,6 +119,14 @@ pub fn new_subcommand() -> String {
     ))
 }
 
+/// Format a `.tclspec` document with the shared Tcl formatter under the Tcl 9
+/// + `SpecTcl` profile used by the studio's Tcl editors.
+#[wasm_bindgen]
+#[must_use]
+pub fn format_pack(source: &str) -> String {
+    to_string(&json!({ "source": tcl_spec_studio::format_pack(source) }))
+}
+
 /// Render `draft_json` as a registry `.rs` source file, copyright banner
 /// included.
 ///

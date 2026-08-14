@@ -47,9 +47,15 @@ const backlog = [];
 
 async function init() {
   // Everything is local — the worker makes no network request at runtime.
-  const baseUrl = new URL(".", self.location.href).href;
-  importScripts(baseUrl + "tcl_lsp_server_wasm.js");
-  await wasm_bindgen(baseUrl + "tcl_lsp_server_wasm_bg.wasm");
+  const workerUrl = new URL(self.location.href);
+  const assetVersion = workerUrl.searchParams.get("v");
+  const sibling = (name) => {
+    const url = new URL(name, workerUrl);
+    if (assetVersion) url.searchParams.set("v", assetVersion);
+    return url.href;
+  };
+  importScripts(sibling("tcl_lsp_server_wasm.js"));
+  await wasm_bindgen(sibling("tcl_lsp_server_wasm_bg.wasm"));
 
   // Bind postMessage: the server calls it with `this` unbound.
   server = new wasm_bindgen.LspWorker((text) => self.postMessage(text));

@@ -105,6 +105,12 @@ export interface Rendered {
   error?: string;
 }
 
+/** Source returned by a pure formatter operation. */
+export interface Formatted {
+  source: string;
+  error?: string;
+}
+
 /** One inferred command from an imported package, with its evidence. */
 export interface InferredCommand {
   name: string;
@@ -362,6 +368,7 @@ export interface StudioWasm {
   load_command(name: string, dialect: string): string;
   new_command(): string;
   new_subcommand(): string;
+  format_pack(source: string): string;
   render_rs(draftJson: string, pack: string): string;
   render_stub(draftsJson: string, mode: string, dialect: string): string;
   import_package(filesJson: string, dialect: string): string;

@@ -146,6 +146,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ipnet"
+version = "2.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a756c3fac73139e83f14c2d742155dd2b78d3ee56597b419a0579b7bdd6dd78"
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -285,6 +291,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]
@@ -361,6 +368,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bigip"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "ipnet",
+ "regex",
+ "serde_json",
+ "sha2",
+ "tcl-dialect",
+ "tcl-irules",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
+ "thiserror",
+]
+
+[[package]]
 name = "tcl-bytecode"
 version = "0.1.0"
 dependencies = [
@@ -433,12 +457,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-irules"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "thiserror",
+]
+
+[[package]]
+name = "tcl-lsp-core"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "rustc-hash",
+ "serde_json",
+ "tcl-bigip",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-irules",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -493,6 +548,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-lsp-core",
  "tcl-registry",
  "tcl-spectcl",
  "tcl-syntax",

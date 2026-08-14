@@ -302,16 +302,13 @@ export class LspClient {
 /**
  * Boot the language server worker and return a ready client.
  *
- * `workerDir` is the directory holding the worker's three build outputs. It is
- * a parameter rather than a constant because the studio's dist lays them out
- * under `lsp/` while a test serves a stub from wherever it likes.
+ * `workerUrl` is already resolved and content-keyed by the controller.
  */
-export async function startLspClient(workerDir: string): Promise<LspClient> {
-  const url = new URL(`${workerDir.replace(/\/$/, "")}/worker.js`, document.baseURI).href;
+export async function startLspClient(workerUrl: string): Promise<LspClient> {
   // A classic worker, deliberately: the server's glue is built with
   // wasm-bindgen's `--target no-modules`, so `new Worker(url)` needs no
   // `{ type: "module" }` and works in every browser the studio supports.
-  return LspClient.start(() => new Worker(url));
+  return LspClient.start(() => new Worker(workerUrl));
 }
 
 /**

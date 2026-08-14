@@ -60,10 +60,13 @@ lspdist="$here/../tcl-lsp-server-wasm/dist"
 dist="$here/dist"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
+version="$(git -C "$here" describe --tags --always --dirty)"
 # Rebuilt from scratch each time: a stale `assets/` or `lsp/` left behind by an
 # older layout would be deployed alongside the new one and served to somebody.
 rm -rf "$dist"
 mkdir -p "$dist/assets" "$dist/lsp"
+
+echo "==> Spec Studio $version"
 
 echo "==> cargo build --target wasm32-unknown-unknown --release"
 ( cd "$here" && cargo build --target wasm32-unknown-unknown --release )
@@ -147,14 +150,44 @@ echo "==> assembling dist/index.html"
 python3 - \
     "$web/studio.html" "$web/src/studio.css" "$web/dist/studio.js" \
     "$out/tcl_spec_studio_wasm.js" "$out/tcl_spec_studio_wasm_bg.wasm" \
-    "$dist/index.html" "$assets" <<'PY'
-import base64, os, sys
-tmpl_path, css_path, js_path, glue_path, wasm_path, out_path, assets_dir = sys.argv[1:8]
-tmpl = open(tmpl_path, encoding="utf-8").read()
-css = open(css_path, encoding="utf-8").read()
-js = open(js_path, encoding="utf-8").read()
-glue = open(glue_path, encoding="utf-8").read()
-b64 = base64.b64encode(open(wasm_path, "rb").read()).decode("ascii")
+    "$dist/index.html" "$assets" "$dist/assets/monaco-host.js" \
+    "$dist/assets/monaco-host.css" "$dist/lsp/worker.js" \
+    "$dist/lsp/tcl_lsp_server_wasm.js" "$dist/lsp/tcl_lsp_server_wasm_bg.wasm" \
+    "$version" <<'PY'
+import base64, hashlib, json, os, sys
+(
+    tmpl_path, css_path, js_path, glue_path, wasm_path, out_path, assets_dir,
+    editor_js_path, editor_css_path, lsp_worker_path, lsp_glue_path,
+    lsp_wasm_path, version,
+) = sys.argv[1:14]
+
+def read_bytes(path):
+    with open(path, "rb") as stream:
+        return stream.read()
+
+def asset(name, payload):
+    return {
+        "name": name,
+        "version": version,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "bytes": len(payload),
+    }
+
+tmpl_bytes = read_bytes(tmpl_path)
+css_bytes = read_bytes(css_path)
+js_bytes = read_bytes(js_path)
+glue_bytes = read_bytes(glue_path)
+wasm_bytes = read_bytes(wasm_path)
+editor_js_bytes = read_bytes(editor_js_path)
+editor_css_bytes = read_bytes(editor_css_path)
+lsp_worker_bytes = read_bytes(lsp_worker_path)
+lsp_glue_bytes = read_bytes(lsp_glue_path)
+lsp_wasm_bytes = read_bytes(lsp_wasm_path)
+tmpl = tmpl_bytes.decode("utf-8")
+css = css_bytes.decode("utf-8")
+js = js_bytes.decode("utf-8")
+glue = glue_bytes.decode("utf-8")
+b64 = base64.b64encode(wasm_bytes).decode("ascii")
 payload = (
     '<script id="studio-wasm" type="application/octet-stream">' + b64 + "</script>\n"
     "<script>" + glue + "</script>"
@@ -165,6 +198,27 @@ LOGOS = {
     "__LOGO_TCL_LSP__": "logo-tcl-lsp.svg",
     "__LOGO_TCL_LSP_DARK__": "logo-tcl-lsp-dark.svg",
 }
+logo_bytes = {
+    token: read_bytes(os.path.join(assets_dir, name)) for token, name in LOGOS.items()
+}
+build_info = {
+    "version": version,
+    "assets": [
+        asset("html-shell", tmpl_bytes),
+        asset("studio-style", css_bytes),
+        asset("studio-controller", js_bytes),
+        asset("studio-wasm-glue", glue_bytes),
+        asset("studio-wasm", wasm_bytes),
+        asset("logo-light", logo_bytes["__LOGO_TCL_LSP__"]),
+        asset("logo-dark", logo_bytes["__LOGO_TCL_LSP_DARK__"]),
+        asset("editor-controller", editor_js_bytes),
+        asset("editor-style", editor_css_bytes),
+        asset("lsp-worker", lsp_worker_bytes),
+        asset("lsp-wasm-glue", lsp_glue_bytes),
+        asset("lsp-wasm", lsp_wasm_bytes),
+    ],
+}
+build_json = json.dumps(build_info, separators=(",", ":")).replace("<", "\\u003c")
 # The narrowest policy the page can actually run under, enumerated rather than
 # relaxed wholesale. Everything is `'self'` — the editor chunk, its stylesheet,
 # the worker, and the fetches that pull the server's wasm — with exactly two
@@ -201,12 +255,18 @@ CSP = (
 # payload are safe.
 tmpl = tmpl.replace("__CSP__", CSP)
 tmpl = tmpl.replace("__STYLES__", "<style>" + css + "</style>")
+tmpl = tmpl.replace(
+    "__BUILD_INFO__",
+    '<script id="studio-build" type="application/json">' + build_json + "</script>",
+)
 tmpl = tmpl.replace("__WASM_PAYLOAD__", payload)
 tmpl = tmpl.replace("__STUDIO_JS__", "<script>" + js + "</script>")
-for tok, name in LOGOS.items():
-    mark = open(os.path.join(assets_dir, name), encoding="utf-8").read()
-    tmpl = tmpl.replace(tok, mark)
-for tok in ("__CSP__", "__STYLES__", "__WASM_PAYLOAD__", "__STUDIO_JS__", *LOGOS):
+for tok in LOGOS:
+    tmpl = tmpl.replace(tok, logo_bytes[tok].decode("utf-8"))
+for tok in (
+    "__CSP__", "__STYLES__", "__BUILD_INFO__", "__WASM_PAYLOAD__",
+    "__STUDIO_JS__", *LOGOS,
+):
     if tok in tmpl:
         raise SystemExit(f"placeholder {tok} substitution failed")
 open(out_path, "w", encoding="utf-8").write(tmpl)

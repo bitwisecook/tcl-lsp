@@ -37,30 +37,44 @@ export interface SurfaceSpec {
   onChange: (text: string) => void;
 }
 
-/** Everything the host needs to stand both editors up. */
+/** One read-only rendered-code surface. */
+export interface OutputSurfaceSpec {
+  /** The element Monaco mounts into. */
+  container: HTMLElement;
+  /** The fallback `<pre>` whose current text seeds the model. */
+  fallback: HTMLElement;
+}
+
+/** Everything the host needs to stand all four editors up. */
 export interface EditorHostOptions {
-  /**
-   * Directory holding the language server worker's three files
-   * (`worker.js`, the wasm-bindgen glue, and the `.wasm`), relative to the
-   * page. Passed in rather than derived so a test can point at a stub.
-   */
-  workerDir: string;
+  /** Content-keyed URL for the language server worker. */
+  workerUrl: string;
+  /** Content-keyed URL for Monaco's emitted stylesheet. */
+  stylesheetUrl: string;
   /** The `.tclspec` pack document. Always opened as `spectcl`. */
   dsl: SurfaceSpec;
   /** The Tcl sample, opened under whichever dialect the studio has selected. */
   sample: SurfaceSpec;
+  /** Rendered Rust source, always a Rust model. */
+  rust: OutputSurfaceSpec;
+  /** Rendered Tcl stub, opened as Tcl 9 + SpecTcl. */
+  stub: OutputSurfaceSpec;
   /** The studio's current dialect, used as the sample's LSP language id. */
   dialect: string;
   /** Where boot progress and any degradation is announced. */
   report: Report;
 }
 
-/** A mounted pair of editors. */
+/** The four mounted code editors. */
 export interface EditorHost {
   /** Replace the pack document's text without re-entering `onChange`. */
   setDslText(text: string): void;
   /** Replace the sample's text without re-entering `onChange`. */
   setSampleText(text: string): void;
+  /** Replace the rendered Rust model. */
+  setRustText(text: string): void;
+  /** Replace the rendered Tcl-stub model. */
+  setStubText(text: string): void;
   /** Re-open the sample under a new dialect (its LSP language id). */
   setDialect(dialect: string): void;
   /** Re-measure after the containing tab became visible. */
@@ -71,5 +85,7 @@ export interface EditorHost {
 
 /** The lazily-imported chunk's shape — the one export `studio.ts` calls. */
 export interface MonacoHostModule {
+  /** `git describe` embedded in this lazy bundle. */
+  buildVersion: string;
   mountEditors(options: EditorHostOptions): Promise<EditorHost>;
 }
