@@ -362,6 +362,74 @@ fn a_substituted_body_word_is_not_lowered_at_its_written_offsets() {
     }
 }
 
+/// `try`'s *other* bodies — the ones #1375's gate missed (PR #1481 review).
+///
+/// The gate landed on the primary body alone.  `finally` only required its
+/// word to be a single token, and every non-`-` `on` / `trap` handler body was
+/// walked unconditionally, so both still rebased a substituted word's
+/// reconstructed text at the token's span and emitted a statement off the end
+/// of the source — `[36,42]` in a 40-byte file for the `finally` spelling,
+/// `[47,53]` in a 51-byte one for the handler spelling.
+///
+/// Both scripts are perfectly good Tcl: tclsh 8.6.16 and 9.0.4 print `hi` and
+/// exit 0 for each.  So the compiler must degrade, not die — it defers the
+/// whole `try` to the runtime command, which is the call C's
+/// `TclCompileTryCmd` makes for the same words (`goto failedToCompile` on any
+/// handler / `finally` body that is not a `TCL_TOKEN_SIMPLE_WORD`).
+#[test]
+fn a_substituted_try_finally_or_handler_body_is_not_lowered_at_its_written_offsets() {
+    for src in [
+        // The two reproducers from the review, byte-for-byte.
+        "set body {puts hi}; try {} finally $body",
+        "set body {puts hi}; try {error x} on error {} $body",
+        // …and the shapes around them: `trap`, a command substitution, a
+        // dynamic handler in front of a static `finally`, and the multi-byte
+        // tail that turns a slide into an unsliceable span.
+        "set body {puts hi}; try {error x} trap NONE {} $body",
+        "set body {puts hi}; try {error x} on error {} [subst $body]",
+        "set body {puts hi}; try {error x} on error {} $body finally {puts bye}",
+        "set body {puts hi}; try {} finally $body\n",
+        "set body {puts hi}; try {} finally $body\u{200b}",
+    ] {
+        assert_lowered_spans_are_sliceable(src, "tcl8.6");
+
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        let mut structured_try = false;
+        tcl_compiler::ir::for_each_statement(&module.top_level, &mut |stmt| {
+            structured_try |= matches!(stmt, tcl_compiler::ir::Statement::Try { .. });
+        });
+        assert!(
+            !structured_try,
+            "a run-time `try` body must not lower to a structured Try; {src:?} did",
+        );
+    }
+}
+
+/// The static spellings keep lowering — the gate narrows the walk, it does not
+/// switch it off.
+#[test]
+fn a_literal_try_finally_or_handler_body_still_lowers() {
+    for src in [
+        "set body {puts hi}; try {} finally {puts hi}",
+        "set body {puts hi}; try {error x} on error {} {puts hi}",
+        "try {error x} trap NONE {m o} {puts $m} finally {puts bye}",
+    ] {
+        assert_lowered_spans_are_sliceable(src, "tcl8.6");
+
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        let mut structured_try = false;
+        tcl_compiler::ir::for_each_statement(&module.top_level, &mut |stmt| {
+            structured_try |= matches!(stmt, tcl_compiler::ir::Statement::Try { .. });
+        });
+        assert!(
+            structured_try,
+            "a literal `try` must still lower to a structured Try; {src:?} did not",
+        );
+    }
+}
+
 /// The literal bodies must keep their body unit — the gate above narrows the
 /// walk, it does not switch it off.
 #[test]

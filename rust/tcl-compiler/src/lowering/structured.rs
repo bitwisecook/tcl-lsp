@@ -696,11 +696,20 @@ impl Lowerer<'_> {
 
             if keyword == "finally" && i + 1 < args.len() {
                 let fin_tok = arg_tokens.get(i + 1);
-                let fin_single = arg_single.get(i + 1).copied().unwrap_or(false);
-                if fin_tok.is_some() && fin_single {
-                    finally_body = Some(self.lower_body_from_tok(&args[i + 1], fin_tok, namespace));
-                    finally_span = fin_tok.map(|t| t.span);
+                // The `finally` word is a body like any other, so it needs the
+                // same static gate as the primary body above: single-token-ness
+                // alone let `try {} finally $body` through, and rebasing the
+                // reconstructed `${body}` text at the `$body` token's span put
+                // the inner statement off the end of the source (issue #1375,
+                // missed here; PR #1481 review).  C's `TclCompileTryCmd` makes
+                // the same call — a `finally` word that is not a
+                // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile`, deferring
+                // the whole `try` to the runtime command.
+                if fin_tok.is_none() || !super::seg_word_is_static_braced(seg, i + 2) {
+                    return Self::barrier(seg, "try with dynamic finally body");
                 }
+                finally_body = Some(self.lower_body_from_tok(&args[i + 1], fin_tok, namespace));
+                finally_span = fin_tok.map(|t| t.span);
                 i += 2;
                 continue;
             }
@@ -739,6 +748,20 @@ impl Lowerer<'_> {
                     tcl_lexer::backslash_subst(&args[i + 3])
                 };
                 let is_fallthrough = handler_single && body_value == "-";
+                // Every handler body that is *not* the fallthrough marker gets
+                // the primary body's static gate: `on error {} $body` is a
+                // single VAR token, so the old unconditional walk rebased the
+                // reconstructed `${body}` text at that token and emitted a span
+                // past the end of the source (issue #1375, missed here; PR
+                // #1481 review).  C's `TclCompileTryCmd` refuses the same shape
+                // — a handler body that is not a `TCL_TOKEN_SIMPLE_WORD` is
+                // `goto failedToCompile` — so the whole `try` defers to the
+                // runtime command, exactly as the primary-body gate does.
+                if !is_fallthrough
+                    && (handler_tok.is_none() || !super::seg_word_is_static_braced(seg, i + 4))
+                {
+                    return Self::barrier(seg, "try with dynamic handler body");
+                }
                 let handler_body = if is_fallthrough {
                     crate::ir::Script::new()
                 } else {
@@ -1519,6 +1542,66 @@ mod tests {
             &m.top_level.statements[0],
             Statement::Barrier { reason, .. } if reason == "try with dynamic body"
         ));
+    }
+
+    // …and the `try` bodies #1375 missed (PR #1481 review): the gate landed on
+    // the primary body only, so `finally` and every non-`-` `on`/`trap`
+    // handler still walked a `$body` word and rebased its reconstructed text
+    // off the end of the source. tclsh 8.6.16 / 9.0.4 run both spellings fine
+    // (`set body {puts hi}; try {} finally $body` prints `hi`), so the
+    // degraded path must be a barrier — the runtime `try` — not a panic.
+    // C's `TclCompileTryCmd` bails on the same words for the same reason.
+
+    #[test]
+    fn try_dollar_var_finally_body_falls_through_to_barrier() {
+        let m = lower_to_ir("try {} finally $body", &reg());
+        assert!(
+            matches!(
+                &m.top_level.statements[0],
+                Statement::Barrier { reason, .. } if reason == "try with dynamic finally body"
+            ),
+            "got {:?}",
+            m.top_level.statements[0],
+        );
+    }
+
+    #[test]
+    fn try_dollar_var_handler_body_falls_through_to_barrier() {
+        for src in [
+            "try {error x} on error {} $body",
+            "try {error x} trap NONE {} $body",
+            "try {error x} on error {} [subst $body]",
+            "try {error x} on error {} $body finally {puts bye}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(
+                    &m.top_level.statements[0],
+                    Statement::Barrier { reason, .. } if reason == "try with dynamic handler body"
+                ),
+                "expected a dynamic-handler-body barrier for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
+    }
+
+    #[test]
+    fn try_static_finally_and_handler_bodies_still_lower() {
+        // FP-guard: the gate narrows the walk, it does not switch it off.
+        for src in [
+            "try {error x} finally {puts bye}",
+            "try {error x} on error {} {puts bad}",
+            "try {error x} trap NONE {m o} {puts $m} finally {puts bye}",
+            // The `-` fallthrough marker is not a body and keeps its own path.
+            "try {set x 1} on ok a - trap NONE b {return $b}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Try { .. }),
+                "expected a structured Try for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
     }
 
     #[test]
