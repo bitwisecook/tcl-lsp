@@ -3901,6 +3901,21 @@ mod tests {
         assert_eq!(out, src, "source must come back untouched, not truncated");
     }
 
+    /// The multiline shape reported on PR #1481: the `]` sitting in a
+    /// command-position comment inside the substitution is inert in C Tcl
+    /// (verified against tclsh 8.6/9.0), so the quoted word runs to the
+    /// final `"`.  When the shared scanner stopped at that `]` it reported
+    /// the quote opening the inner `"b"` as the closer, and any fold edge
+    /// anchored there would splice over the middle of valid source.
+    #[test]
+    fn static_fold_keeps_a_commented_command_substitution_well_formed() {
+        let registry = CommandRegistry::build_default();
+        let src = "set x 5\nputs \"a[\n# ] comment\nset y \"b\"\n]c $x\"\n";
+        let (out, count, _) = fold_static_substrings(src, "tcl8.6", &registry);
+        assert_eq!(count, 0, "a command substitution is not SCCP-foldable");
+        assert_eq!(out, src, "source must come back untouched, not truncated");
+    }
+
     #[test]
     fn static_fold_skips_non_constant() {
         let registry = CommandRegistry::build_default();

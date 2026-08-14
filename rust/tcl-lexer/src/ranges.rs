@@ -267,7 +267,10 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 /// * a `[…]` command substitution is skipped whole — quotes inside it
 ///   belong to the substituted command, not to this word — with brackets
 ///   nesting and a `]` inside a braced or quoted word of the inner
-///   command left inert.
+///   command left inert;
+/// * a `#` at *command position* inside that substitution opens a Tcl
+///   comment, so a `]` written in the comment is inert and does not end
+///   the substitution early.
 ///
 /// Returns `None` when *`open_quote`* does not point at a `"`, when the
 /// word runs to end of input unterminated, or when an inner command
@@ -302,32 +305,84 @@ pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
 /// Byte offset one past the `]` closing the command substitution opening
 /// at *`open_bracket`*, or `None` when it is unterminated.
 ///
-/// Mirrors the lexer's `parse_command` state: brackets nest, a `\`-escape
-/// is inert, and a `]` inside a braced or quoted word of the inner
-/// command does not close the substitution.
+/// Brackets nest, a `\`-escape is inert, and a `]` inside a braced or
+/// quoted word of the inner command does not close the substitution.
+///
+/// # Comments are part of the grammar here
+///
+/// A substituted script is a *script*, so C Tcl's parser runs its
+/// comment rule inside the brackets: at command position an unescaped
+/// `#` starts a comment that runs to the next unescaped newline, and
+/// every `]`, `[`, `"` and `{` written in that comment is inert.  A
+/// scanner without comment state stops at the first commented-out `]`
+/// and hands its caller a truncated span — for
+/// `"a[\n# ] comment\nset y "b"\n]c"` it would report the `"` opening
+/// the inner `"b"` as the outer word's closer, and O129 or the minifier
+/// would then rewrite over the middle of otherwise valid source.
+///
+/// Command position is the start of the substitution, and whatever
+/// follows an unescaped newline or `;` at bracket top level, leading
+/// whitespace skipped.  A `#` inside a `"…"` or `{…}` word is ordinary
+/// text, never a comment — hence the invariant that `at_command_start`
+/// is only ever raised while `braces == 0 && !in_quotes`, which is what
+/// lets the `#` arm below test that flag alone.
 fn command_subst_end(source: &str, open_bracket: usize) -> Option<usize> {
     let bytes = source.as_bytes();
     let mut pos = open_bracket + 1;
     let mut depth: u32 = 1;
     let mut braces: u32 = 0;
     let mut in_quotes = false;
+    let mut in_comment = false;
+    let mut at_command_start = true;
     while pos < bytes.len() {
-        match bytes[pos] {
-            b'\\' => {
-                pos = backslash_escape_end(source, pos);
-                continue;
+        let byte = bytes[pos];
+        if byte == b'\\' {
+            // One unit everywhere, comments included: a backslash-newline
+            // continues a comment onto the following line rather than
+            // ending it.
+            pos = backslash_escape_end(source, pos);
+            at_command_start = false;
+            continue;
+        }
+        if in_comment {
+            if byte == b'\n' {
+                in_comment = false;
+                at_command_start = true;
             }
-            b'"' if braces == 0 => in_quotes = !in_quotes,
-            b'{' if !in_quotes => braces += 1,
-            b'}' if !in_quotes => braces = braces.saturating_sub(1),
-            b'[' if braces == 0 && !in_quotes => depth += 1,
+            pos += 1;
+            continue;
+        }
+        match byte {
+            b'#' if at_command_start => in_comment = true,
+            b'"' if braces == 0 => {
+                in_quotes = !in_quotes;
+                at_command_start = false;
+            }
+            b'{' if !in_quotes => {
+                braces += 1;
+                at_command_start = false;
+            }
+            b'}' if !in_quotes => {
+                braces = braces.saturating_sub(1);
+                at_command_start = false;
+            }
+            b'[' if braces == 0 && !in_quotes => {
+                depth += 1;
+                // The nested script opens at command position too.
+                at_command_start = true;
+            }
             b']' if braces == 0 && !in_quotes => {
                 depth -= 1;
                 if depth == 0 {
                     return Some(pos + 1);
                 }
+                at_command_start = false;
             }
-            _ => {}
+            b'\n' | b';' if braces == 0 && !in_quotes => at_command_start = true,
+            // Whitespace before the first word of a command keeps the
+            // scanner at command position, so `[foo; # ]` still comments.
+            b' ' | b'\t' | b'\r' | b'\x0b' | b'\x0c' => {}
+            _ => at_command_start = false,
         }
         pos += 1;
     }
@@ -709,6 +764,87 @@ mod tests {
     }
 
     #[test]
+    fn close_quote_spans_a_comment_hiding_the_substitution_closer() {
+        // The reported shape.  C Tcl (verified against tclsh 8.6 and 9.0)
+        // yields `abc` here, so the `]` inside `# ] comment` is inert and
+        // the word runs to the final `"`.  Closing at the quote that opens
+        // the inner `"b"` would make O129 and the minifier rewrite over the
+        // middle of valid source.
+        let src = "\"a[\n# ] comment\nset y \"b\"\n]c\"";
+        let close = close_quote_offset(src, 0).unwrap();
+        assert_eq!(close, src.len() - 1);
+        assert_eq!(&src[..=close], src);
+    }
+
+    #[test]
+    fn close_quote_comment_bracket_does_not_close_the_substitution() {
+        // Minimal form of the same bug: the only `]` before `format` is
+        // commented out.
+        let src = "\"a[\n# ]\nformat b]c\"";
+        assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_comment_may_open_the_substitution() {
+        // `[` puts the scanner at command position, so a `#` immediately
+        // after it comments.
+        let src = "\"a[# ]\nformat b]c\"";
+        assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_hash_mid_command_is_not_a_comment() {
+        // `#` away from command position is an ordinary word character, so
+        // the `]` after it closes normally and the word ends at offset 13 —
+        // not at the quote opening `"tail"`.
+        let src = "\"a[foo #bar]c\" \"tail\"";
+        assert_eq!(close_quote_offset(src, 0), Some(13));
+        assert_eq!(&src[..=13], "\"a[foo #bar]c\"");
+    }
+
+    #[test]
+    fn close_quote_comment_continues_over_a_backslash_newline() {
+        // A comment line ending in `\` swallows the next line too, so the
+        // `]` opening that continuation line stays inert.
+        let src = "\"a[\n# one \\\n] still comment\nformat b]c\"";
+        assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_hash_inside_a_braced_word_is_not_a_comment() {
+        // `{x\n# y}` is a braced word: treating the `#` as a comment would
+        // swallow the `}` that closes it, leaving the substitution
+        // unterminated.
+        let src = "\"a[string length {x\n# y}]c\"";
+        assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_hash_inside_a_quoted_word_is_not_a_comment() {
+        // A newline inside a `"…"` word of the substituted command is not a
+        // command boundary, so the following `#` is literal text and the
+        // `]` beside it is inert.
+        let src = "\"a[string cat \"x\n#]\" ]c\"";
+        assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_semicolon_opens_command_position() {
+        // `;` ends a command just as a newline does, so `# ]` after it is a
+        // comment; the word must reach the final `"`, not the one opening
+        // the inner `"x"`.
+        let src = "\"a[foo; # ]\nbar \"x\"]c\"";
+        assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
+    }
+
+    #[test]
+    fn close_quote_substitution_commented_to_end_of_input_is_none() {
+        // The only `]` is commented out and none follows: unterminated, so
+        // no offset can be trusted.
+        assert_eq!(close_quote_offset("\"a[\n# ]\nfoo", 0), None);
+    }
+
+    #[test]
     fn close_quote_unterminated_word_is_none() {
         assert_eq!(close_quote_offset("\"abc", 0), None);
     }
@@ -761,3 +897,4 @@ mod tests {
         );
     }
 }
+

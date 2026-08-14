@@ -344,6 +344,21 @@ mod tests {
     }
 
     #[test]
+    fn full_quoted_string_span_spans_a_comment_inside_a_substitution() {
+        // The `]` in the command-position comment is inert in C Tcl, so the
+        // word closes at the final `"`.  Stopping at the quote opening the
+        // inner `"b"` would give O129 a truncated rewrite span and corrupt
+        // otherwise valid source.
+        let source = "set x \"a[\n# ] comment\nset y \"b\"\n]c\"";
+        let span = full_quoted_string_span(source, Span::new(6, 8));
+        assert_eq!(
+            span,
+            Span::new(6, u32::try_from(source.len()).unwrap()),
+            "span must cover the whole multiline quoted word",
+        );
+    }
+
+    #[test]
     fn full_quoted_string_span_unterminated_unchanged() {
         // No close quote at all — the span is returned untouched so no
         // rewrite anchors on a guessed offset.
