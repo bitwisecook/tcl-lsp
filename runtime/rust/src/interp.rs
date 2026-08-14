@@ -6753,7 +6753,7 @@ impl Interp {
         flags: crate::subst::SubstFlags,
         loc: Option<(Option<Rc<[u8]>>, u32)>,
     ) -> Result<Vec<u8>, Code> {
-        let body = crate::subst::scan(src, flags);
+        let body = crate::subst::scan(src, flags, self.lexer_config().escapes);
         match &body {
             WordBody::Literal(b) => Ok(b.to_vec()),
             WordBody::Parts(parts) => {

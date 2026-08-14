@@ -22,7 +22,7 @@
 //! [`ExprNode`] tree and produces the corresponding bytecode
 //! instructions.
 
-use tcl_lexer::backslash_subst;
+use tcl_lexer::backslash_subst_in;
 
 use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
@@ -211,19 +211,19 @@ impl CodegenCtx<'_> {
             // (`\xNN`, `\NNN`, `\uNNNN`, …), which the template parser's simplified
             // literal decoding does not cover (expr-8.13's `"\374"`).
             if !inner.contains('$') && !inner.contains('[') {
-                self.push_lit(&backslash_subst(inner));
+                self.push_lit(&backslash_subst_in(inner, self.escapes));
                 return false;
             }
-            match super::helpers::parse_subst_template(inner) {
+            match super::helpers::parse_subst_template(inner, self.escapes) {
                 Some(parts) => self.emit_subst_parts(&parts),
                 // Unparseable template (e.g. a bare `$` with no name): literal.
-                None => self.push_lit(&backslash_subst(inner)),
+                None => self.push_lit(&backslash_subst_in(inner, self.escapes)),
             }
             return false;
         }
         // Bare text (no delimiters): a literal, backslash-decoded.
         if text.contains('\\') {
-            let processed = backslash_subst(text);
+            let processed = backslash_subst_in(text, self.escapes);
             self.push_lit(&processed);
         } else {
             self.push_lit(text);

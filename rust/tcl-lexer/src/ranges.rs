@@ -263,7 +263,10 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 /// command-substitution parsers use:
 ///
 /// * a `\`-escape is skipped as one unit via [`backslash_escape_end`], so
-///   `\"` is content and `\[` opens nothing;
+///   `\"` is content and `\[` opens nothing.  The release-blind (Tcl 9.0) form
+///   is deliberate: the escape grammar is release-variant in *width*, but every
+///   form's payload is hex or octal digits, none of which is a delimiter, so no
+///   release's widths move a closing `"` or `]` (issue #1479);
 /// * a `[…]` command substitution is skipped whole — quotes inside it
 ///   belong to the substituted command, not to this word — with brackets
 ///   nesting and a `]` inside a braced or quoted word of the inner

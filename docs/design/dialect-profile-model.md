@@ -262,12 +262,25 @@ pub struct LexerGrammar {
     pub irules_brace_separator: bool,      // }{ — iRules
     pub braced_var: BracedVarStyle,        // Tcl9Nesting vs FirstClose
     pub script_skips_leading_bom: bool,    // a whole-file source's BOM prologue
+    pub expr_comments: ExprCommentStyle,   // `#` inside [expr] — TIP 582, 9.0
+    pub numbers: NumberSyntax,             // Tcl84 / Tcl85 / Tcl90
+    pub escapes: EscapeSyntax,             // Tcl84 / Tcl86 / Tcl90
 }
 
 /// Three-valued so f5-bigip (runtime_base=None, "not Tcl") is INERT, not
 /// silently defaulted to octal/decimal (§11.1).
 pub enum Ternary { Yes, No, Inert }
 ```
+
+`escapes` is the axis that forces the 8.x grammar constant apart: 8.5 and 8.6
+agree on every other field, but TIP 388 (8.6) capped `\x` at two hex digits,
+added `\UHHHHHHHH`, and stopped an octal escape taking a third digit once the
+first two reached `0x20`, so the catalog carries `GRAMMAR_TCL85` and
+`GRAMMAR_TCL86` separately. 9.0 keeps 8.6's widths and raises `TCL_UTF_MAX` to
+4, so a decoded scalar above U+FFFF stops degrading to U+FFFD. The decoder
+(`tcl_lexer::backslash_subst_in`) and its extent rule
+(`tcl_lexer::backslash_escape_end_in`) are one scan, so a release can never
+give an escape one width and another value.
 
 There is **no `mathfunc_ceiling` field.** The mathfunc tier is still derived
 per call by `tcl_expr_eval::math_func_ceiling_for_dialect` in `tcl-compiler`,

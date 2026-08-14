@@ -196,7 +196,7 @@ impl CodegenCtx<'_> {
             // Whole bare variable reference: `$var` (the name runs to the end).
             self.load_var(var);
         } else if has_unescaped_subst(elem)
-            && let Some(parts) = super::helpers::parse_subst_template(elem)
+            && let Some(parts) = super::helpers::parse_subst_template(elem, self.escapes)
             && parts.len() > 1
         {
             // Composite key with an embedded substitution (`-$opt`, `x$item`,
@@ -227,7 +227,7 @@ impl CodegenCtx<'_> {
             // its escapes are decoded (`\w` → `w`, `\ ` → space) before the
             // element lookup — matching C Tcl. (Braced keys like `set {a($x)} 1`
             // never reach here; `push_var_ref` pushes those literally.)
-            self.push_lit(&tcl_lexer::backslash_subst(elem));
+            self.push_lit(&tcl_lexer::backslash_subst_in(elem, self.escapes));
         } else {
             // Pure literal key (or a key the template parser left whole).
             self.push_lit(elem);

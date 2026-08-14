@@ -85,6 +85,13 @@ pub struct CodegenCtx<'r> {
     /// whatever rules happen to be installed at run time. Defaults to 9.0 for
     /// the hand-built contexts in tests.
     pub numbers: tcl_dialect::NumberSyntax,
+    /// The backslash-escape grammar of the release being compiled *for*.
+    ///
+    /// Threaded from `IrModule::dialect` beside [`Self::numbers`], so a literal
+    /// word's escapes are decoded the way the target release reads them —
+    /// `\x4142` is `B` when compiling for 8.5 and `A42` from 8.6 (issue #1479).
+    /// Defaults to 9.0 for the hand-built contexts in tests.
+    pub escapes: tcl_dialect::EscapeSyntax,
     /// Literal constant pool.
     pub literals: LiteralTable,
     /// Local variable table.
@@ -161,6 +168,7 @@ impl<'r> CodegenCtx<'r> {
     pub fn new(is_proc: bool, params: &[&str], registry: &'r CommandRegistry) -> Self {
         Self {
             numbers: tcl_dialect::NumberSyntax::default(),
+            escapes: tcl_dialect::EscapeSyntax::default(),
             literals: LiteralTable::new(),
             lvt: LocalVarTable::new(params),
             instructions: Vec::new(),

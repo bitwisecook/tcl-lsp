@@ -152,7 +152,7 @@ impl CodegenCtx<'_> {
             } => {
                 let value =
                     if *value_needs_backsubst && !value.contains('[') && !value.contains("${") {
-                        tcl_lexer::backslash_subst(value).into_owned()
+                        tcl_lexer::backslash_subst_in(value, self.escapes).into_owned()
                     } else {
                         // A value carrying a `[` or `${` (an escaped `\[` / `\${` or
                         // a real substitution) is left raw: the runtime `subst_word`
@@ -438,7 +438,7 @@ impl CodegenCtx<'_> {
         // subst path, which cannot resolve the bare `$idx` inside the index.
         if value.starts_with('$')
             && value.ends_with(')')
-            && let Some(parts) = parse_subst_template(value)
+            && let Some(parts) = parse_subst_template(value, self.escapes)
             && parts.len() == 1
             && let SubstPart::Var(name) = &parts[0]
             && split_array_ref(name).is_some()
@@ -458,7 +458,7 @@ impl CodegenCtx<'_> {
         // braces. A genuine braced argument never reaches here (it is emitted by
         // the braced-word path), so decomposing is safe.
         if (value.contains('$') || value.contains('['))
-            && let Some(parts) = parse_subst_template(value)
+            && let Some(parts) = parse_subst_template(value, self.escapes)
             && parts.len() > 1
             && (parts
                 .iter()
@@ -500,7 +500,7 @@ impl CodegenCtx<'_> {
             && !value.contains("${")
             && !value.contains('[')
         {
-            self.push_lit(&tcl_lexer::backslash_subst(value));
+            self.push_lit(&tcl_lexer::backslash_subst_in(value, self.escapes));
             return;
         }
         // A whole-word command substitution compiles inline (on the explicit
@@ -570,7 +570,7 @@ impl CodegenCtx<'_> {
             return false;
         }
         if !matches!(
-            parse_subst_template(value).as_deref(),
+            parse_subst_template(value, self.escapes).as_deref(),
             Some([SubstPart::Cmd(_)])
         ) {
             return false;
@@ -645,7 +645,7 @@ impl CodegenCtx<'_> {
             if a.contains('[') || a.contains("${") {
                 self.push_lit(a);
             } else {
-                self.push_lit(&tcl_lexer::backslash_subst(a));
+                self.push_lit(&tcl_lexer::backslash_subst_in(a, self.escapes));
             }
         } else {
             self.emit_value_interpolated(a);

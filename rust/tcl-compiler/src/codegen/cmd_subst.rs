@@ -384,7 +384,7 @@ impl CodegenCtx<'_> {
         // `[cmd]` is a single part and falls through to the fast paths below.
         if !braced
             && (arg.contains('$') || arg.contains('['))
-            && let Some(parts) = parse_subst_template(arg)
+            && let Some(parts) = parse_subst_template(arg, self.escapes)
             && parts.len() > 1
         {
             for part in &parts {
@@ -469,7 +469,7 @@ impl CodegenCtx<'_> {
             // Interpolated string — delegate to emit_value with interpolation
             self.emit_value(arg, true);
         } else if !braced && arg.contains('\\') {
-            let processed = tcl_lexer::backslash_subst(arg);
+            let processed = tcl_lexer::backslash_subst_in(arg, self.escapes);
             if processed.contains('$') || (processed.contains('[') && processed.contains(']')) {
                 // After backslash processing, still has subst markers — push raw
                 self.push_lit(&processed);
@@ -556,7 +556,7 @@ impl CodegenCtx<'_> {
             // `be(a:$a)` (set-1.26).
             self.emit_value(word, true);
         } else if !braced && word.contains('\\') {
-            let processed = tcl_lexer::backslash_subst(word);
+            let processed = tcl_lexer::backslash_subst_in(word, self.escapes);
             self.push_lit(&processed);
         } else {
             self.push_lit(word);
@@ -719,7 +719,7 @@ impl CodegenCtx<'_> {
         if interpolate
             && value.starts_with('$')
             && value.ends_with(')')
-            && let Some(parts) = parse_subst_template(value)
+            && let Some(parts) = parse_subst_template(value, self.escapes)
             && parts.len() == 1
             && let SubstPart::Var(name) = &parts[0]
             && split_array_ref(name).is_some()
@@ -730,7 +730,7 @@ impl CodegenCtx<'_> {
         // Interpolated string: decompose $var and [cmd] parts
         if interpolate
             && (value.contains('$') || value.contains('['))
-            && let Some(parts) = parse_subst_template(value)
+            && let Some(parts) = parse_subst_template(value, self.escapes)
             && parts.len() > 1
         {
             for part in &parts {

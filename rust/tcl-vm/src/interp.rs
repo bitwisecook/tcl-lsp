@@ -945,6 +945,14 @@ impl Vm {
         self.dialect_profile
     }
 
+    /// The backslash-escape grammar this VM decodes under — the pinned
+    /// profile's, so a VM emulating 8.5 reads `\x4142` as `B` and one
+    /// emulating 9.0 reads it as `A42` (issue #1479).
+    #[must_use]
+    pub fn escape_syntax(&self) -> tcl_dialect::EscapeSyntax {
+        self.dialect_profile.grammar.escapes
+    }
+
     /// A VM writing to an already-shared output sink.
     fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         let mut vm = Self {

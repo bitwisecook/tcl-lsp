@@ -26,16 +26,33 @@
 
 use std::borrow::Cow;
 
-/// Process Tcl backslash escapes in `text`.
+use tcl_dialect::EscapeSyntax;
+
+/// Process Tcl backslash escapes in `text` under **Tcl 9.0's** grammar.
 ///
-/// Recognises:
+/// The release-blind entry point, for the large body of consumers with no
+/// dialect in scope (a hover renderer, a manifest reader, a test helper).
+/// Consumers that know which release they compile or evaluate for call
+/// [`backslash_subst_in`] instead — the grammar is release-variant, and the
+/// 9.0 default is the documented `Unknown` posture, not a universal rule.
+///
+/// See [`backslash_subst_in`] for the recognised forms.
+#[must_use]
+pub fn backslash_subst(text: &str) -> Cow<'_, str> {
+    backslash_subst_in(text, EscapeSyntax::default())
+}
+
+/// Process Tcl backslash escapes in `text` under `escapes`.
+///
+/// Byte-exact with the release's `TclParseBackslash`. Recognises:
 ///
 /// - Simple mappings: `\a \b \f \n \r \t \v \\ \{ \} \[ \] \$ \" \<space> \;`
 /// - Line continuation: `\<LF>`, `\<CR>`, or `\<CRLF>` followed by any
 ///   run of space/tab, collapsed to a single ASCII space.
-/// - Hex escapes: `\xNN` (1–2 hex digits)
+/// - Hex escapes: `\xNN` — two hex digits from 8.6 (TIP 388), unbounded
+///   before that, keeping the low byte either way
 /// - Unicode escapes: `\uNNNN` (1–4 hex digits)
-/// - Wide unicode escapes: `\UNNNNNNNN` (1–8 hex digits)
+/// - Wide unicode escapes: `\UNNNNNNNN` (1–8 hex digits) — 8.6 onward only
 /// - Octal escapes: `\NNN` (1–3 octal digits, capped to Tcl's byte range)
 ///
 /// Any other `\X` passes through as the character `X`.
@@ -46,183 +63,176 @@ use std::borrow::Cow;
 /// valid-UTF-8 sink would ultimately render. A lone surrogate cannot
 /// be represented in a Rust `String`, so U+FFFD is the closest
 /// valid-UTF-8 approximation for those edge cases.
-///
 #[must_use]
-pub fn backslash_subst(text: &str) -> Cow<'_, str> {
+pub fn backslash_subst_in(text: &str, escapes: EscapeSyntax) -> Cow<'_, str> {
     if !text.contains('\\') {
         return Cow::Borrowed(text);
     }
 
+    let bytes = text.as_bytes();
     let mut out = String::with_capacity(text.len());
-    let mut chars = text.char_indices().peekable();
-
-    while let Some((_, ch)) = chars.next() {
-        if ch != '\\' {
-            out.push(ch);
+    // Start of the literal run waiting to be copied in one piece.
+    let mut literal = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'\\' {
+            i += 1;
             continue;
         }
-        let Some(&(escape_i, escape_ch)) = chars.peek() else {
-            out.push('\\');
-            break;
-        };
-
-        match escape_ch {
-            'a' => push_simple(&mut out, '\x07', &mut chars),
-            'b' => push_simple(&mut out, '\x08', &mut chars),
-            'f' => push_simple(&mut out, '\x0C', &mut chars),
-            'n' => push_simple(&mut out, '\n', &mut chars),
-            'r' => push_simple(&mut out, '\r', &mut chars),
-            't' => push_simple(&mut out, '\t', &mut chars),
-            'v' => push_simple(&mut out, '\x0B', &mut chars),
-            '\\' | '{' | '}' | '[' | ']' | '$' | '"' | ' ' | ';' => {
-                push_simple(&mut out, escape_ch, &mut chars);
-            }
-            '\n' | '\r' => consume_line_continuation(&mut out, escape_ch, &mut chars),
-            'x' => scan_hex_escape(&mut out, text, escape_i, 2, &mut chars),
-            'u' => scan_unicode_escape(&mut out, text, escape_i, &mut chars),
-            'U' => scan_wide_unicode_escape(&mut out, &mut chars),
-            '0'..='7' => scan_octal_escape(&mut out, text, escape_i, &mut chars),
-            _ => {
-                // Unknown escape: pass through the char after the backslash.
-                out.push(escape_ch);
-                chars.next();
-            }
-        }
+        out.push_str(&text[literal..i]);
+        let (end, resolved) = decode_escape(text, i, escapes);
+        out.push(resolved);
+        i = end;
+        literal = end;
     }
+    out.push_str(&text[literal..]);
 
     Cow::Owned(out)
 }
 
-type CharIndices<'s> = std::iter::Peekable<std::str::CharIndices<'s>>;
-
-#[inline]
-fn push_simple(out: &mut String, resolved: char, chars: &mut CharIndices<'_>) {
-    out.push(resolved);
-    chars.next();
-}
-
-fn consume_line_continuation(out: &mut String, first: char, chars: &mut CharIndices<'_>) {
-    chars.next(); // consume the LF or CR
-    if first == '\r'
-        && let Some(&(_, '\n')) = chars.peek()
-    {
-        chars.next();
-    }
-    while let Some(&(_, c)) = chars.peek() {
-        if c == ' ' || c == '\t' {
-            chars.next();
-        } else {
-            break;
-        }
-    }
-    out.push(' ');
-}
-
-/// Parse `\uHHHH` (1–4 hex digits). C Tcl 9.0 keeps surrogate code
-/// units as independent string elements; Rust `String` cannot store
-/// surrogate scalar values, so they degrade to U+FFFD instead of being
-/// combined with a following `\u` escape.
-fn scan_unicode_escape(out: &mut String, text: &str, escape_i: usize, chars: &mut CharIndices<'_>) {
-    let letter = chars.next().expect("caller peeked 'u'").1;
-    let digits_start = escape_i + 1;
-    let digits_end = scan_digits(text, digits_start, 4, chars, |c| c.is_ascii_hexdigit());
-    if digits_end == digits_start {
-        out.push(letter);
-        return;
-    }
-    let digits = &text[digits_start..digits_end];
-    let value = u32::from_str_radix(digits, 16).expect("hex digits parse");
-
-    out.push(char::from_u32(value).unwrap_or('\u{FFFD}'));
-}
-
-fn scan_wide_unicode_escape(out: &mut String, chars: &mut CharIndices<'_>) {
-    let letter = chars.next().expect("caller peeked 'U'").1;
-    let mut value = 0u32;
-    let mut consumed = 0usize;
-    while consumed < 8 {
-        let Some(&(_, c)) = chars.peek() else { break };
-        let Some(digit) = c.to_digit(16) else { break };
-        let Some(next) = value.checked_mul(16).and_then(|v| v.checked_add(digit)) else {
-            break;
-        };
-        if next > 0x0010_FFFF {
-            break;
-        }
-        chars.next();
-        value = next;
-        consumed += 1;
-    }
-    if consumed == 0 {
-        out.push(letter);
-    } else {
-        out.push(char::from_u32(value).unwrap_or('\u{FFFD}'));
-    }
-}
-
-fn scan_hex_escape(
-    out: &mut String,
-    text: &str,
-    escape_i: usize,
-    max_digits: usize,
-    chars: &mut CharIndices<'_>,
-) {
-    let letter = chars.next().expect("caller peeked a valid escape letter").1;
-    let digits_start = escape_i + 1;
-    let digits_end = scan_digits(text, digits_start, max_digits, chars, |c| {
-        c.is_ascii_hexdigit()
-    });
-    if digits_end > digits_start {
-        let digits = &text[digits_start..digits_end];
-        let value = u32::from_str_radix(digits, 16).expect("hex digits parse");
-        out.push(char::from_u32(value).unwrap_or('\u{FFFD}'));
-    } else {
-        // No hex digits followed → pass the letter through literally.
-        out.push(letter);
-    }
-}
-
-fn scan_octal_escape(out: &mut String, text: &str, escape_i: usize, chars: &mut CharIndices<'_>) {
-    // The first octal digit is still in the peek buffer; the helper
-    // consumes it.
-    let digits_start = escape_i;
-    let max_digits = match chars.peek().map(|(_, c)| *c) {
-        Some('0'..='3') => 3,
-        Some('4'..='7') => 2,
-        _ => unreachable!("caller peeked an octal digit"),
+/// One backslash escape starting at `text[i] == '\'`: where it ends, and the
+/// single character it resolves to.
+///
+/// `TclParseBackslash` always yields exactly one code point, so the extent and
+/// the value come from one scan and cannot disagree — which matters because
+/// both are release-variant and a consumer that measured an escape under one
+/// release and decoded it under another would slice mid-escape. Both
+/// [`backslash_subst_in`] and [`backslash_escape_end_in`] are this function.
+fn decode_escape(text: &str, i: usize, escapes: EscapeSyntax) -> (usize, char) {
+    let b = text.as_bytes();
+    debug_assert_eq!(b.get(i), Some(&b'\\'), "caller must point at a backslash");
+    let Some(&next) = b.get(i + 1) else {
+        // A trailing lone backslash is itself.
+        return (i + 1, '\\');
     };
-    let digits_end = scan_digits(text, digits_start, max_digits, chars, |c| {
-        matches!(c, '0'..='7')
-    });
-    let digits = &text[digits_start..digits_end];
-    let value = u32::from_str_radix(digits, 8).expect("octal digits parse");
-    out.push(char::from_u32(value).unwrap_or('\u{FFFD}'));
+    match next {
+        // Absolute values, as C uses, so no compiler's idea of `\n` can differ.
+        b'a' => (i + 2, '\u{07}'),
+        b'b' => (i + 2, '\u{08}'),
+        b'f' => (i + 2, '\u{0C}'),
+        b'n' => (i + 2, '\u{0A}'),
+        b'r' => (i + 2, '\u{0D}'),
+        b't' => (i + 2, '\u{09}'),
+        b'v' => (i + 2, '\u{0B}'),
+        b'\n' | b'\r' => (continuation_end(b, i, next), ' '),
+        b'x' => {
+            let (end, value) = hex_run(b, i + 2, escapes.hex_escape_digits(), false);
+            // No hex digit at all means the escape is a literal `x`.
+            if end == i + 2 {
+                (i + 2, 'x')
+            } else {
+                // Only the low byte survives, in every release.
+                (end, scalar(value & 0xFF, escapes))
+            }
+        }
+        b'u' => {
+            let (end, value) = hex_run(b, i + 2, Some(4), true);
+            if end == i + 2 {
+                (i + 2, 'u')
+            } else {
+                (end, scalar(value, escapes))
+            }
+        }
+        b'U' if escapes.has_wide_unicode() => {
+            let (end, value) = hex_run(b, i + 2, Some(8), true);
+            if end == i + 2 {
+                (i + 2, 'U')
+            } else {
+                (end, scalar(value, escapes))
+            }
+        }
+        b'0'..=b'7' => {
+            let (end, value) = octal_run(b, i + 1, escapes);
+            (end, scalar(value, escapes))
+        }
+        // Anything else — the punctuation escapes, a pre-8.6 `\U`, an unknown
+        // letter — is the character itself. It may be multi-byte (`\é`, `\你`),
+        // so advance by its real UTF-8 width rather than a fixed two bytes.
+        _ => {
+            let ch = text[i + 1..].chars().next().unwrap_or('\u{FFFD}');
+            (i + 1 + ch.len_utf8(), ch)
+        }
+    }
 }
 
-fn scan_digits<F>(
-    _text: &str,
-    start: usize,
-    max: usize,
-    chars: &mut CharIndices<'_>,
-    is_digit: F,
-) -> usize
-where
-    F: Fn(char) -> bool,
-{
+/// The decoded scalar for `value`, degraded to U+FFFD when the release cannot
+/// hold it: a surrogate (which no Rust `String` can store) in any release, and
+/// anything past the basic multilingual plane in a UTF-16-internal one.
+fn scalar(value: u32, escapes: EscapeSyntax) -> char {
+    if escapes.is_bmp_only() && value > 0xFFFF {
+        return '\u{FFFD}';
+    }
+    char::from_u32(value).unwrap_or('\u{FFFD}')
+}
+
+/// End of a `\<newline>` line continuation starting at `b[i] == b'\\'`, whose
+/// newline byte is `nl`.
+///
+/// The newline (a `\r` pairs with a following `\n` as one CRLF) and the run of
+/// spaces and tabs after it all belong to the escape — the whole span collapses
+/// to a single space. Release-invariant.
+fn continuation_end(b: &[u8], i: usize, nl: u8) -> usize {
+    let mut j = i + 2;
+    if nl == b'\r' && b.get(j) == Some(&b'\n') {
+        j += 1;
+    }
+    while matches!(b.get(j), Some(b' ' | b'\t')) {
+        j += 1;
+    }
+    j
+}
+
+/// Scan the hex digits of an escape from `start`: where they end, and their
+/// accumulated value.
+///
+/// `max` is the digit budget ([`None`] for 8.4/8.5's unbounded `\x`, where the
+/// accumulation wraps and only the low byte is kept). `capped` applies C's
+/// `ParseHex` guard, which refuses a further digit once the value has passed
+/// `0x10FFF` (`tcl9.0.4/generic/tclParse.c:735`) — so `\UFFFFFFFF` consumes
+/// five digits, not eight, and `\U00110000` consumes seven.
+fn hex_run(b: &[u8], start: usize, max: Option<usize>, capped: bool) -> (usize, u32) {
+    let budget = max.unwrap_or(usize::MAX);
     let mut end = start;
-    let mut count = 0;
-    while count < max {
-        let Some(&(_, c)) = chars.peek() else { break };
-        if !is_digit(c) {
+    let mut value = 0u32;
+    let mut count = 0usize;
+    while count < budget {
+        let Some(&byte) = b.get(end) else { break };
+        if !byte.is_ascii_hexdigit() || (capped && value > 0x0001_0FFF) {
             break;
         }
-        chars.next();
-        // Digits are ASCII by construction, so each consumed digit
-        // advances by exactly one byte.
+        let digit = char::from(byte).to_digit(16).expect("hex digit");
+        value = value.wrapping_mul(16).wrapping_add(digit);
         end += 1;
         count += 1;
     }
-    end
+    (end, value)
+}
+
+/// Scan the octal digits of an escape whose first digit is `b[start]`: where
+/// they end, and their value.
+///
+/// One to three digits. Whether a *third* is taken is release-variant — 8.6
+/// onward refuses it once the two-digit value has reached `0x20`
+/// (`tcl8.6.16/generic/tclParse.c:977`), 8.4/8.5 always take it and truncate to
+/// a byte — so `\400` is `\40` plus a literal `0` from 8.6 and a single NUL
+/// before it.
+fn octal_run(b: &[u8], start: usize, escapes: EscapeSyntax) -> (usize, u32) {
+    let digit = |at: usize| match b.get(at) {
+        Some(&c @ b'0'..=b'7') => Some(u32::from(c - b'0')),
+        _ => None,
+    };
+    let first = digit(start).expect("caller peeked an octal digit");
+    let Some(second) = digit(start + 1) else {
+        return (start + 1, first);
+    };
+    let value = first * 8 + second;
+    if !escapes.octal_takes_third_digit(value) {
+        return (start + 2, value);
+    }
+    let Some(third) = digit(start + 2) else {
+        return (start + 2, value);
+    };
+    (start + 3, (value * 8 + third) & 0xFF)
 }
 
 #[cfg(test)]
@@ -448,14 +458,29 @@ mod tests {
     }
 }
 
-/// The byte index one past the backslash escape starting at `text[i] == '\'`.
+/// The byte index one past the backslash escape starting at `text[i] == '\'`,
+/// under **Tcl 9.0's** grammar.
+///
+/// The release-blind twin of [`backslash_escape_end_in`], paired with
+/// [`backslash_subst`]. A consumer that knows its release must use the `_in`
+/// pair for **both** calls: an escape's width and its value come from the same
+/// scan, so mixing releases slices mid-escape.
+#[must_use]
+pub fn backslash_escape_end(text: &str, i: usize) -> usize {
+    backslash_escape_end_in(text, i, EscapeSyntax::default())
+}
+
+/// The byte index one past the backslash escape starting at `text[i] == '\'`,
+/// under `escapes`.
 ///
 /// The *span* of an escape, for consumers that highlight or decode it one
-/// escape at a time.  Widths match [`backslash_subst`] exactly — `\xNN` (1–2
-/// hex), `\uNNNN` (1–4 hex), `\UNNNNNNNN` (1–8 hex), `\NNN` (1–3 octal), the
-/// `\<newline>` line continuation (LF, CR, or CRLF plus the run of spaces/tabs
-/// it absorbs, per `TclParseBackslash`'s backslash-newline rule), else the
-/// backslash plus one full character.
+/// escape at a time.  Widths match [`backslash_subst_in`] exactly — they are
+/// literally the same scan — covering `\xNN` (two hex
+/// digits from 8.6, unbounded before), `\uNNNN` (1–4 hex), `\UNNNNNNNN` (1–8
+/// hex, 8.6 onward), `\NNN` (1–3 octal), the `\<newline>` line continuation
+/// (LF, CR, or CRLF plus the run of spaces/tabs it absorbs, per
+/// `TclParseBackslash`'s backslash-newline rule), else the backslash plus one
+/// full character.
 ///
 /// It lives beside the evaluator because it *is* the same rule.  Separate
 /// hand-rolled copies had drifted — one consumed unbounded hex digits, one
@@ -468,45 +493,225 @@ mod tests {
 /// advances by its real UTF-8 width: a fixed `+2` would slice inside the
 /// character.
 #[must_use]
-pub fn backslash_escape_end(text: &str, i: usize) -> usize {
-    let b = text.as_bytes();
-    debug_assert_eq!(b.get(i), Some(&b'\\'), "caller must point at a backslash");
+pub fn backslash_escape_end_in(text: &str, i: usize, escapes: EscapeSyntax) -> usize {
+    decode_escape(text, i, escapes).0
+}
 
-    let hex_run = |start: usize, max: usize| {
-        let mut j = start;
-        while j < b.len() && j < start + max && b[j].is_ascii_hexdigit() {
-            j += 1;
-        }
-        // `\x` with no hex digit at all is a literal `x`, not a hex escape.
-        (j > start).then_some(j)
-    };
-    match b.get(i + 1) {
-        None => i + 1,
-        Some(b'x') => hex_run(i + 2, 2).unwrap_or(i + 2),
-        Some(b'u') => hex_run(i + 2, 4).unwrap_or(i + 2),
-        Some(b'U') => hex_run(i + 2, 8).unwrap_or(i + 2),
-        Some(b'0'..=b'7') => {
-            let mut j = i + 2;
-            while j < b.len() && j < i + 4 && matches!(b[j], b'0'..=b'7') {
-                j += 1;
+#[cfg(test)]
+mod release_vector_tests {
+    use super::{backslash_escape_end_in, backslash_subst_in};
+    use tcl_dialect::EscapeSyntax::{self, Tcl84, Tcl86, Tcl90};
+
+    /// One vector: the source, and per release the decoded string plus the
+    /// number of bytes the escape at offset 0 consumes.
+    struct Vector {
+        src: &'static str,
+        want: [(EscapeSyntax, &'static str, usize); 3],
+    }
+
+    /// Every release-variant (and a few release-invariant) escape, decoded and
+    /// measured under each grammar. Value and width are asserted together
+    /// because they come from one scan and must not drift apart.
+    ///
+    /// The 8.6 and 9.0 columns are tclsh-verified (8.6.14, 9.0.4); the 8.4/8.5
+    /// column is read from `tcl8.4.20/generic/tclParse.c:553-685` and
+    /// `tcl8.5.19/generic/tclParse.c:839-975`, which are identical here.
+    const VECTORS: &[Vector] = &[
+        // TIP 388: `\x` took every trailing hex digit and kept the low byte.
+        Vector {
+            src: r"\x41",
+            want: [(Tcl84, "A", 4), (Tcl86, "A", 4), (Tcl90, "A", 4)],
+        },
+        Vector {
+            src: r"\x4142",
+            want: [(Tcl84, "B", 6), (Tcl86, "A42", 4), (Tcl90, "A42", 4)],
+        },
+        Vector {
+            src: r"\xff",
+            want: [
+                (Tcl84, "\u{FF}", 4),
+                (Tcl86, "\u{FF}", 4),
+                (Tcl90, "\u{FF}", 4),
+            ],
+        },
+        // No hex digit at all: a literal `x`, in every release.
+        Vector {
+            src: r"\xZZ",
+            want: [(Tcl84, "xZZ", 2), (Tcl86, "xZZ", 2), (Tcl90, "xZZ", 2)],
+        },
+        Vector {
+            src: r"\x1g",
+            want: [
+                (Tcl84, "\u{01}g", 3),
+                (Tcl86, "\u{01}g", 3),
+                (Tcl90, "\u{01}g", 3),
+            ],
+        },
+        // `\U` is TIP 388 too — before it, a literal `U` and plain digits.
+        Vector {
+            src: r"\U0001F600",
+            want: [
+                (Tcl84, "U0001F600", 2),
+                // 8.6's stock build is UTF-16-internal: the width is 9.0's,
+                // the value degrades to U+FFFD.
+                (Tcl86, "\u{FFFD}", 10),
+                (Tcl90, "\u{1F600}", 10),
+            ],
+        },
+        Vector {
+            src: r"\U41",
+            want: [(Tcl84, "U41", 2), (Tcl86, "A", 4), (Tcl90, "A", 4)],
+        },
+        // C's `ParseHex` stops once the accumulated value passes 0x10FFF, so
+        // this consumes five digits — not eight — in every release that has it.
+        Vector {
+            src: r"\UFFFFFFFF",
+            want: [
+                (Tcl84, "UFFFFFFFF", 2),
+                (Tcl86, "\u{FFFD}FFF", 7),
+                (Tcl90, "\u{FFFFF}FFF", 7),
+            ],
+        },
+        // `\u` never changed: at most four hex digits, always BMP.
+        Vector {
+            src: r"\u00E9",
+            want: [(Tcl84, "é", 6), (Tcl86, "é", 6), (Tcl90, "é", 6)],
+        },
+        Vector {
+            src: r"\u9",
+            want: [(Tcl84, "\t", 3), (Tcl86, "\t", 3), (Tcl90, "\t", 3)],
+        },
+        // Octal: the third digit's guard is 8.6's.
+        Vector {
+            src: r"\101",
+            want: [(Tcl84, "A", 4), (Tcl86, "A", 4), (Tcl90, "A", 4)],
+        },
+        Vector {
+            src: r"\377",
+            want: [
+                (Tcl84, "\u{FF}", 4),
+                (Tcl86, "\u{FF}", 4),
+                (Tcl90, "\u{FF}", 4),
+            ],
+        },
+        Vector {
+            src: r"\400",
+            // 8.4/8.5 take the third digit and truncate 0o400 to a byte: NUL.
+            want: [(Tcl84, "\0", 4), (Tcl86, " 0", 3), (Tcl90, " 0", 3)],
+        },
+        Vector {
+            src: r"\777",
+            want: [(Tcl84, "\u{FF}", 4), (Tcl86, "?7", 3), (Tcl90, "?7", 3)],
+        },
+        Vector {
+            src: r"\378",
+            want: [
+                (Tcl84, "\u{1F}8", 3),
+                (Tcl86, "\u{1F}8", 3),
+                (Tcl90, "\u{1F}8", 3),
+            ],
+        },
+        // Release-invariant: simple letters, punctuation, a multi-byte escaped
+        // character, and the line continuation.
+        Vector {
+            src: r"\n",
+            want: [(Tcl84, "\n", 2), (Tcl86, "\n", 2), (Tcl90, "\n", 2)],
+        },
+        Vector {
+            src: "\\é",
+            want: [(Tcl84, "é", 3), (Tcl86, "é", 3), (Tcl90, "é", 3)],
+        },
+        Vector {
+            src: "\\\n   x",
+            want: [(Tcl84, " x", 5), (Tcl86, " x", 5), (Tcl90, " x", 5)],
+        },
+        Vector {
+            src: "\\\r\n\t x",
+            want: [(Tcl84, " x", 5), (Tcl86, " x", 5), (Tcl90, " x", 5)],
+        },
+    ];
+
+    #[test]
+    fn decoded_value_and_consumed_width_agree_per_release() {
+        for vector in VECTORS {
+            for &(escapes, decoded, width) in &vector.want {
+                assert_eq!(
+                    &*backslash_subst_in(vector.src, escapes),
+                    decoded,
+                    "decode {:?} under {escapes:?}",
+                    vector.src
+                );
+                assert_eq!(
+                    backslash_escape_end_in(vector.src, 0, escapes),
+                    width,
+                    "extent of {:?} under {escapes:?}",
+                    vector.src
+                );
             }
-            j
         }
-        Some(&nl @ (b'\n' | b'\r')) => {
-            // Line continuation: the newline (a `\r` pairs with a following
-            // `\n` as one CRLF) and the run of spaces/tabs after it are all
-            // part of the escape — [`backslash_subst`] collapses the whole
-            // span to a single space, mirroring `TclParseBackslash`.
-            let mut j = i + 2;
-            if nl == b'\r' && b.get(j) == Some(&b'\n') {
-                j += 1;
+    }
+
+    /// The extent must be exactly the span the decoder turns into one
+    /// character: decoding the measured slice yields a single char, and
+    /// decoding the tail separately reproduces the whole result.
+    #[test]
+    fn the_extent_is_the_span_the_decoder_consumes() {
+        for vector in VECTORS {
+            for &(escapes, decoded, width) in &vector.want {
+                let head = backslash_subst_in(&vector.src[..width], escapes);
+                assert_eq!(
+                    head.chars().count(),
+                    1,
+                    "escape slice of {:?} under {escapes:?} is not one char",
+                    vector.src
+                );
+                let tail = backslash_subst_in(&vector.src[width..], escapes);
+                assert_eq!(
+                    format!("{head}{tail}"),
+                    decoded,
+                    "split decode of {:?} under {escapes:?}",
+                    vector.src
+                );
             }
-            while matches!(b.get(j), Some(b' ' | b'\t')) {
-                j += 1;
-            }
-            j
         }
-        Some(_) => i + 1 + text[i + 1..].chars().next().map_or(1, char::len_utf8),
+    }
+
+    #[test]
+    fn the_release_blind_entry_points_are_the_tcl9_ones() {
+        for vector in VECTORS {
+            assert_eq!(
+                super::backslash_subst(vector.src),
+                backslash_subst_in(vector.src, Tcl90),
+                "{:?}",
+                vector.src
+            );
+            assert_eq!(
+                super::backslash_escape_end(vector.src, 0),
+                backslash_escape_end_in(vector.src, 0, Tcl90),
+                "{:?}",
+                vector.src
+            );
+        }
+    }
+
+    #[test]
+    fn split_segments_follow_the_release_widths() {
+        // `\x4142` is one six-byte escape under 8.5 and a four-byte escape plus
+        // literal `42` under 8.6 — a highlighter must colour them differently.
+        let pieces = |escapes| {
+            super::split_backslash_escapes_in(r"a\x4142z", escapes)
+                .into_iter()
+                .map(|s| (&r"a\x4142z"[s.start..s.end], s.is_escape))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            pieces(Tcl84),
+            vec![("a", false), (r"\x4142", true), ("z", false)]
+        );
+        assert_eq!(
+            pieces(Tcl90),
+            vec![("a", false), (r"\x41", true), ("42z", false)]
+        );
     }
 }
 
@@ -581,9 +786,17 @@ pub struct EscapeSegment {
 ///
 /// Segments are contiguous and cover `text` exactly; a text with no backslash
 /// yields a single literal segment (or none, when empty). Widths come from
-/// [`backslash_escape_end`].
+/// [`backslash_escape_end`], so this splits under Tcl 9.0's grammar; a caller
+/// with a dialect in scope uses [`split_backslash_escapes_in`].
 #[must_use]
 pub fn split_backslash_escapes(text: &str) -> Vec<EscapeSegment> {
+    split_backslash_escapes_in(text, EscapeSyntax::default())
+}
+
+/// [`split_backslash_escapes`] under `escapes` — the release-aware form, whose
+/// escape segments are exactly as wide as that release's decoder consumes.
+#[must_use]
+pub fn split_backslash_escapes_in(text: &str, escapes: EscapeSyntax) -> Vec<EscapeSegment> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut run = 0usize;
@@ -595,7 +808,7 @@ pub fn split_backslash_escapes(text: &str) -> Vec<EscapeSegment> {
             i += 1;
             continue;
         }
-        let end = backslash_escape_end(text, i);
+        let end = backslash_escape_end_in(text, i, escapes);
         if run < i {
             out.push(EscapeSegment {
                 start: run,

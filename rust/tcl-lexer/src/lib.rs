@@ -80,13 +80,14 @@ pub use structural_index::{
     script_is_complete,
 };
 pub use substitution::{
-    EscapeSegment, backslash_escape_end, backslash_subst, split_backslash_escapes,
+    EscapeSegment, backslash_escape_end, backslash_escape_end_in, backslash_subst,
+    backslash_subst_in, split_backslash_escapes, split_backslash_escapes_in,
 };
 // Re-exported from the foundational dialect crate so existing
 // `tcl_lexer::BracedVarStyle` imports keep working — the enum moved down to
 // `tcl-dialect` (dialect-profile-model.md §3) where the `DialectProfile`
 // grammar axis shares it.
-pub use tcl_dialect::BracedVarStyle;
+pub use tcl_dialect::{BracedVarStyle, EscapeSyntax};
 pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
 
 /// Crate version string.
