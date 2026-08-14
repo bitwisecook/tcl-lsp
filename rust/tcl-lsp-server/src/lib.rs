@@ -20335,9 +20335,10 @@ fn whole_line_range(path: &Path, line: u32) -> tower_lsp_server::ls_types::Range
 /// workspace symbols, and rename each see one file twice.
 ///
 /// The canonicalisation is `ls_types`' own `from_file_path` plus
-/// [`uri_norm::canonical_uri_string`], whose whole job is the one place the two
-/// implementations disagree: `from_file_path` upper-cases a Windows drive
-/// letter, `vscode-uri`'s `URI.file()` lower-cases it.
+/// [`uri_norm::canonical_uri_string`]. The latter repairs the invalid
+/// empty-authority form `from_file_path` produces for Windows extended-length
+/// and UNC paths, then pins Windows drive-letter and percent-escape case to the
+/// spelling `vscode-uri` uses.
 #[must_use]
 pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
     let raw = Uri::from_file_path(path)?;

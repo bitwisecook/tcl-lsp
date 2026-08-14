@@ -28,14 +28,19 @@
 //!
 //! # What is normalised, and what deliberately is not
 //!
-//! Two things, both purely syntactic and both defined by RFC 3986 §6.2.2:
+//! Three purely syntactic things:
 //!
-//! 1. **Percent-encoding case** — `%3a` and `%3A` are the same octet, so the
+//! 1. **Windows file-URI shape** — `ls_types::Uri::from_file_path` turns an
+//!    extended-length drive path into `file://///%3F/C%3A/…` and a UNC path
+//!    into `file://///server/share/…`. VS Code rejects both because their empty
+//!    authority is followed by a path beginning `//`; they are rewritten as
+//!    `file:///c%3A/…` and `file://server/share/…`, respectively.
+//! 2. **Percent-encoding case** — `%3a` and `%3A` are the same octet, so the
 //!    hex digits are pinned upper-case. Both `percent_encoding` (what
 //!    `Uri::from_file_path` uses) and JavaScript's `encodeURIComponent` (what
 //!    `vscode-uri` uses) already emit upper-case, so this only ever repairs an
 //!    odd client.
-//! 2. **Windows drive-letter case** — `vscode-uri`'s `URI.file()` lower-cases
+//! 3. **Windows drive-letter case** — `vscode-uri`'s `URI.file()` lower-cases
 //!    the drive letter (`file:///c%3A/…`), while `ls_types`' `from_file_path`
 //!    upper-cases it (`file:///C%3A/…`). That single character is what made a
 //!    server-scanned file and the same file opened in the editor look like two
@@ -97,8 +102,9 @@ fn is_uri_legal(b: u8) -> bool {
         )
 }
 
-/// The canonical string form of `raw`: percent-escape hex pinned upper-case and
-/// a Windows drive letter pinned lower-case.
+/// The canonical string form of `raw`: valid Windows file-URI shape,
+/// percent-escape hex pinned upper-case, and a Windows drive letter pinned
+/// lower-case.
 ///
 /// Idempotent, and a byte-for-byte no-op on a URI that is already canonical —
 /// which every URI VS Code sends is. Purely syntactic: it never touches the
@@ -106,6 +112,22 @@ fn is_uri_legal(b: u8) -> bool {
 /// another.
 #[must_use]
 pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
+    // `ls_types::Uri::from_file_path` prefixes every Windows path with
+    // `file:///`.  That is right for a drive path, but Windows filesystem APIs
+    // may return an extended-length path (`\\?\C:\...` or
+    // `\\?\UNC\server\share\...`) and ordinary UNC paths start with `\\`.
+    // After slash normalisation those prefixes produce `file://///%3F/...` or
+    // `file://///server/...`: fluent-uri accepts both, but VS Code rejects
+    // them because they have an empty authority and a path beginning `//`.
+    // Repair that dependency-boundary spelling before applying the two
+    // ordinary canonicalisations below.  Keeping this string-only also makes
+    // the Windows cases testable on every CI host.
+    if let Some(windows_shape) = canonical_windows_file_uri_shape(raw) {
+        // The repaired shape no longer matches the helper, so this recursion
+        // is one step only; it applies escape- and drive-case normalisation to
+        // the repaired URI without ever borrowing the temporary string.
+        return Cow::Owned(canonical_uri_string(&windows_shape).into_owned());
+    }
     let bytes = raw.as_bytes();
     let needs_hex_fix = bytes.iter().enumerate().any(|(i, &b)| {
         b == b'%'
@@ -133,6 +155,39 @@ pub fn canonical_uri_string(raw: &str) -> Cow<'_, str> {
         out[i] = out[i].to_ascii_lowercase();
     }
     Cow::Owned(String::from_utf8(out).unwrap_or_else(|_| raw.to_owned()))
+}
+
+/// Repair the file-URI shapes produced for Windows extended-length and UNC
+/// paths by `ls_types::Uri::from_file_path`.
+///
+/// Returns `None` for an ordinary URI.  A URI with four or more slashes after
+/// `file:` has no authority and begins its path with `//`; the first path
+/// component is therefore the UNC authority.  The encoded extended-length
+/// marker (`?`) is metadata from the Windows path namespace, not part of the
+/// file URI, and is removed for both drive and `UNC` forms.
+fn canonical_windows_file_uri_shape(raw: &str) -> Option<String> {
+    let rest = raw.strip_prefix("file:")?;
+    let slash_count = rest.bytes().take_while(|&b| b == b'/').count();
+    if slash_count < 3 {
+        return None;
+    }
+
+    let tail = &rest[slash_count..];
+    let extended = tail
+        .strip_prefix("%3F/")
+        .or_else(|| tail.strip_prefix("%3f/"))
+        .or_else(|| tail.strip_prefix("?/"));
+    if let Some(extended) = extended {
+        if let Some(unc) = extended
+            .strip_prefix("UNC/")
+            .or_else(|| extended.strip_prefix("unc/"))
+        {
+            return Some(format!("file://{unc}"));
+        }
+        return Some(format!("file:///{extended}"));
+    }
+
+    (slash_count > 3).then(|| format!("file://{tail}"))
 }
 
 /// Byte offset of the Windows drive letter in `raw`, when its path starts with
@@ -279,6 +334,33 @@ mod tests {
             "untitled:Untitled-1",
         ] {
             assert_eq!(canonical_uri_string(uri), uri, "{uri} must be untouched");
+        }
+    }
+
+    /// Windows `std::fs::canonicalize` returns an extended-length path.  When
+    /// such a path belongs to a `SpecTcl` pack notice, it is converted back to a
+    /// URI for `publishDiagnostics`; this is the spelling that made VS Code's
+    /// diagnostic queue throw `UriError` instead of displaying the notice.
+    #[test]
+    fn a_windows_extended_drive_uri_is_repaired() {
+        assert_eq!(
+            canonical_uri_string("file://///%3F/C%3A/Users/me/project/.tcl-lsp/bad.tclspec"),
+            "file:///c%3A/Users/me/project/.tcl-lsp/bad.tclspec",
+        );
+    }
+
+    #[test]
+    fn windows_unc_uri_shapes_gain_an_authority() {
+        for malformed in [
+            "file://///server/share/project/spec.tclspec",
+            "file:////server/share/project/spec.tclspec",
+            "file://///%3F/UNC/server/share/project/spec.tclspec",
+        ] {
+            assert_eq!(
+                canonical_uri_string(malformed),
+                "file://server/share/project/spec.tclspec",
+                "{malformed}",
+            );
         }
     }
 
