@@ -111,7 +111,11 @@ __STYLES__
               <button type="button" class="ghost" id="dslCanonical" title="Re-render the whole document from its commands — this discards your comments and layout">Re-render canonically</button>
               <span class="path" id="dslPath"></span>
             </div>
-            <textarea id="dslText" class="dsl" rows="26" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Pack .tclspec source"></textarea>
+            <div class="dsl-wrap">
+              <pre class="dsl-hl" id="dslHl" aria-hidden="true"></pre>
+              <div class="dsl-markers" id="dslMarkers" aria-hidden="true"></div>
+              <textarea id="dslText" class="dsl" rows="26" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Pack .tclspec source"></textarea>
+            </div>
             <input type="file" id="dslPicker" accept=".tclspec,text/plain">
             <div class="note info" id="liveSave" style="margin-top:.7rem">Live save is on: every edit is kept in this browser.</div>
             <div class="status" id="dslStatus"></div>

@@ -328,6 +328,28 @@ export interface TestInspection {
 }
 
 /**
+ * One classified byte span of a `.tclspec` document, from `dsl_highlight`.
+ *
+ * `start`/`end` are **byte** offsets, not JavaScript string indices — see
+ * `dslEditor.ts`'s `byteChunks` for why a plain `String.slice` is the wrong
+ * tool. `text` is included so the caller never needs to slice by byte offset
+ * at all for the common case of painting the token itself.
+ */
+export interface DslToken {
+  start: number;
+  end: number;
+  class: string;
+  text: string;
+}
+
+/** `dsl_hover`'s reply: the DSL vocabulary note for the word at an offset. */
+export interface DslHover {
+  found: boolean;
+  title: string;
+  body: string;
+}
+
+/**
  * The wasm module's exports.
  *
  * Every call takes and returns a JSON string: the Rust side marshals, so the
@@ -361,6 +383,12 @@ export interface StudioWasm {
      what a token carries — never a JavaScript string index. */
   pack_test_analyse(source: string, sample: string, dialect: string): string;
   pack_test_inspect(source: string, sample: string, dialect: string, offset: number): string;
+
+  /* The Pack DSL tab's overlay editor: client-side highlight and hover for
+     the `.tclspec` grammar itself. `offset` in `dsl_hover` is a **byte**
+     offset into `source`, same convention as the Test tab above. */
+  dsl_highlight(source: string): string;
+  dsl_hover(source: string, offset: number): string;
 }
 
 /**

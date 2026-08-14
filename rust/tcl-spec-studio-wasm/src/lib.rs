@@ -33,6 +33,8 @@
 use serde_json::{Value, json};
 use wasm_bindgen::prelude::*;
 
+mod dsl_highlight;
+
 /// Install a panic hook that routes Rust panics to `console.error` (panics
 /// abort under wasm, so this is the only way to see them).
 #[wasm_bindgen(start)]
@@ -414,4 +416,38 @@ pub fn pack_test_inspect(source: &str, sample: &str, dialect: &str, offset: usiz
             None => error("no word at that position"),
         }
     })
+}
+
+// ---------------------------------------------------------------------------
+// The Pack DSL tab — client-side highlight and hover for the DSL itself
+// ---------------------------------------------------------------------------
+
+/// Classified byte-span tokens for `.tclspec` `source` — what the Pack DSL
+/// editor's overlay paints. `[{start, end, class, text}, …]`, non-overlapping
+/// and in source order.
+///
+/// Classes: `comment`, `command-word` (a statement head — `command`,
+/// `arity`, `option`, `hover`, …), `property-flag` (a `-flag` word),
+/// `value` (an ordinary bare word), `number`, `variable` (`$name`), and
+/// `punctuation` (`;` and `{*}`). See `dsl_highlight` for how a block's
+/// contents are told apart as further DSL statements versus a flat word
+/// list versus foreign/prose content.
+#[wasm_bindgen]
+#[must_use]
+pub fn dsl_highlight(source: &str) -> String {
+    to_string(&dsl_highlight::highlight_json(source))
+}
+
+/// The hover for the DSL word covering byte `offset` of `source`.
+///
+/// `{"found": true, "title": …, "body": …}` when `offset` lands on a
+/// recognised statement head or property flag (backed by
+/// `tcl_spec_studio::schema` / `help`, a catalogue variant, or the DSL's own
+/// grammar keywords); `{"found": false, ...}` otherwise — including when the
+/// word under the cursor is ordinary pack-author data (a value, a number, a
+/// variable) rather than DSL vocabulary.
+#[wasm_bindgen]
+#[must_use]
+pub fn dsl_hover(source: &str, offset: usize) -> String {
+    to_string(&dsl_highlight::hover_json(source, offset))
 }

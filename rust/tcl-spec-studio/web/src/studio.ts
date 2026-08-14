@@ -35,6 +35,7 @@ import {
   setStatus,
   type Child,
 } from "./dom.js";
+import { renderDslHighlight, renderDslMarkers, syncDslScroll } from "./dslEditor.js";
 import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
 import * as idb from "./idb.js";
 import type {
@@ -420,6 +421,12 @@ function setPackSource(
 
   renderPackList();
   renderDslReport();
+  // The overlay is a pure paint of the same document `pack_load` just read,
+  // so its notices are `state.pack.view`'s own `notices` — no separate
+  // `pack_validate` call, `pack_load` and `pack_validate` both build the
+  // notice list from the same `Resolution::store_view`.
+  renderDslHighlight(wasm, source);
+  renderDslMarkers(state.pack.view?.notices ?? []);
   if (opts.refreshForm && state.pack.open) refreshOpenCommand();
   // The pack decides what the sample resolves to, so a document change is a
   // test result change — but only pay for it while the tab is on screen.
@@ -1734,6 +1741,10 @@ function bindUi(): void {
       setPackSource(text, { fromDsl: true, refreshForm: true });
     }, SETTLE_MS);
   });
+  // The overlay layers are paint-only (`pointer-events: none` except a few
+  // hoverable spans), so they never scroll themselves — keep them glued to
+  // the textarea's own scroll position.
+  byId("dslText").addEventListener("scroll", syncDslScroll);
 
   byId("dslCopy").addEventListener("click", () => copyText(state.pack.source, "dslStatus"));
   byId("dslDownload").addEventListener("click", () => download(packPath(), state.pack.source));

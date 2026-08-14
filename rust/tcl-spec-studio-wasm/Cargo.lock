@@ -457,6 +457,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "serde_json",
+ "tcl-lexer",
  "tcl-spec-studio",
  "wasm-bindgen",
 ]

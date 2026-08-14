@@ -288,16 +288,66 @@ input[type=file] { display: none; }
 .packactions { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .5rem; }
 .packactions button { font-size: .78rem; padding: .3rem .5rem; }
 
-/* The DSL pane's editor. A plain textarea for this slice — Monaco with the
-   LSP attached is a later one — but it is a real editing surface, not a
-   read-only render: it edits the document every other surface projects. */
-textarea.dsl {
-  width: 100%; font-family: var(--mono); font-size: .8rem; line-height: 1.5;
+/* The DSL pane's editor. A `<pre>` paint layer *in front of* a
+   transparent-text textarea — the classic overlay-editor trick, not a real
+   editor component; Monaco with the LSP itself (compiled to wasm) attached
+   is the later one, and it replaces this file rather than growing it. The
+   textarea underneath stays the single input surface (typing, caret,
+   selection, resize, and its own background) and owns pointer events by
+   default; the `<pre>` on top only paints text colour, with
+   `pointer-events: none` so every click/drag passes straight through to the
+   textarea — except the few spans that opt back in for a hover tooltip (see
+   below). All three layers share one box model (font, padding, line-height,
+   border, no wrap) so they land on the same pixels. */
+.dsl-wrap { position: relative; }
+.dsl-hl, textarea.dsl {
+  width: 100%; margin: 0; font-family: var(--mono); font-size: .8rem; line-height: 1.5;
   padding: .9rem 1rem; border: 1px solid var(--border); border-radius: 10px;
-  background: var(--bg); color: var(--fg); resize: vertical; min-height: 22rem;
-  white-space: pre; overflow-wrap: normal; overflow-x: auto;
+  white-space: pre; overflow-wrap: normal;
+}
+textarea.dsl {
+  position: relative; z-index: 1; background: var(--bg); color: transparent;
+  caret-color: var(--fg); resize: vertical; min-height: 22rem; overflow: auto;
 }
 textarea.dsl:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dsl-hl {
+  position: absolute; inset: 0; z-index: 3; color: var(--fg); background: transparent;
+  border-color: transparent; overflow: hidden; pointer-events: none;
+}
+/* Individual DSL-keyword spans opt back into pointer events (for their
+   native `title=` tooltip) even though the `<pre>` layer they live in does
+   not — a click that lands exactly on one of these words is swallowed
+   rather than reaching the textarea underneath (no caret placement there);
+   everywhere else on the page passes straight through. A deliberate trade
+   for a hover with zero custom positioning code, acceptable for the small
+   fraction of the document these two classes cover. */
+.dsl-hl .tk-command-word, .dsl-hl .tk-property-flag { pointer-events: auto; cursor: help; }
+.dsl-hl .tk-comment { color: var(--muted); font-style: italic; }
+.dsl-hl .tk-command-word { color: var(--accent); font-weight: 600; }
+.dsl-hl .tk-property-flag { color: #8250df; }
+.dsl-hl .tk-string { color: #0a7d3c; }
+.dsl-hl .tk-number { color: #b35900; }
+.dsl-hl .tk-variable { color: #cf222e; }
+.dsl-hl .tk-punctuation { color: var(--muted); }
+.dsl-hl .tk-value { color: var(--fg); }
+@media (prefers-color-scheme: dark) {
+  .dsl-hl .tk-property-flag { color: #c297ff; }
+  .dsl-hl .tk-string { color: #56d364; }
+  .dsl-hl .tk-number { color: #e3b341; }
+  .dsl-hl .tk-variable { color: #ff7b72; }
+}
+/* The validate-notice gutter: a thin coloured tick per flagged line, in the
+   textarea/pre's own left padding strip (not over any text), with the
+   loader's reason as its native tooltip. No per-character mapping, no
+   custom positioning math beyond the shared line-height. Sits between the
+   textarea (z-index 1) and the highlight text (z-index 3). */
+.dsl-markers {
+  position: absolute; inset: 0; z-index: 2; padding: .9rem 0 0; overflow: hidden; pointer-events: none;
+}
+.dsl-marker-line {
+  position: absolute; left: .35rem; width: 4px; border-radius: 2px;
+  background: var(--warn-bd); pointer-events: auto;
+}
 
 /* The DSL pane's report: loader notices and registry collisions. */
 .dslrow { display: flex; gap: .5rem; align-items: baseline; padding: .25rem 0; border-top: 1px solid var(--border); font-size: .82rem; }
