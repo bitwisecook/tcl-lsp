@@ -15,3 +15,14 @@ proc ::tcl_lsp_fixture::collect {resultVar script} {
     uplevel 1 $script
     return $result
 }
+
+proc ::tcl_lsp_fixture::catalog {subcommand} {
+    if {$subcommand eq "names"} {
+        return {collect catalog strlen}
+    }
+    return -code error "unknown subcommand $subcommand"
+}
+
+proc ::tcl_lsp_fixture::strlen {value} {
+    string length $value
+}

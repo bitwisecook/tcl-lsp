@@ -74,12 +74,15 @@ pub fn registry_for_dialect(
 /// command reads as unknown, because the vendor libraries are `.tclspec` packs
 /// now and nothing compiled-in answers for them.
 ///
-/// Call [`registry_for_dialect`] for the same dialect first (every CLI verb
-/// already does): that is what *builds* the entry this key names, and the
-/// analyser can only look it up.
+/// This builds the dialect overlay before returning its key. The analyser's
+/// overlay lookup is intentionally read-only, so returning a key without
+/// installing the corresponding `(profile, key)` entry would silently fall
+/// back to the plain profile.
 #[must_use]
-pub fn spec_pack_key() -> u64 {
-    cli_packs().key
+pub fn spec_pack_key(dialect: &str) -> u64 {
+    let packs = cli_packs();
+    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, packs);
+    packs.key
 }
 
 /// Discover the CLI process's workspace once, rooted at its current directory.
@@ -91,7 +94,14 @@ fn cli_packs() -> &'static tcl_spectcl::PackSet {
             workspace_roots,
             ..tcl_spectcl::DiscoveryOptions::default()
         });
-        tcl_spectcl::bundled::load_discovered(&files)
+        let packs = tcl_spectcl::bundled::load_discovered(&files);
+        // Pack commands and their typed behaviour are one publication. Hook
+        // dispatch consults the process-wide plan, while explorer consumers
+        // consult the active pack set; publish both before exposing `packs`.
+        tcl_spectcl::hooks::publish(&packs);
+        tcl_spectcl::hooks::ensure_thread_host();
+        tcl_spectcl::bundled::set_active(Some(std::sync::Arc::new(packs.clone())));
+        packs
     })
 }
 

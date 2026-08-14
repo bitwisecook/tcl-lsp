@@ -20,4 +20,29 @@ command ::tcl_lsp_fixture::collect {
     }
 }
 
+command ::tcl_lsp_fixture::catalog {
+    dialects tcl8.6+
+    arity 1
+    required_package tcl_lsp_fixture
+
+    subcommand names {
+        arity 0
+        detail {Return the available fixture entry names.}
+        synopsis {::tcl_lsp_fixture::catalog names}
+    }
+}
+
+command ::tcl_lsp_fixture::strlen {
+    dialects tcl8.6+
+    arity 1
+    required_package tcl_lsp_fixture
+
+    arg 0 -role Value
+    const_fold -inputs {words} {words ctx} {
+        set subject [lindex $words 0]
+        if {![string is ascii $subject]} { return }
+        fold [string length $subject]
+    }
+}
+
 }
