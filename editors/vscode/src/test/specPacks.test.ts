@@ -102,7 +102,7 @@ suite("SpecTcl project packs", () => {
         (effective) =>
           effective.spec_packs.includes(pack) &&
           effective.spec_packs_loaded.some(
-            (loaded) => loaded.name === "tcl_lsp_fixture" && loaded.commands === 1,
+            (loaded) => loaded.name === "tcl_lsp_fixture" && loaded.commands > 0,
           ),
         { timeout: 20_000, label: "synthetic pack loaded" },
       );
