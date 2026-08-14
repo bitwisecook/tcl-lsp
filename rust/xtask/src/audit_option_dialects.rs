@@ -34,14 +34,38 @@
 //! unbuilt tclsh yields `"tclsh not found"` for every probe (a missing-tree
 //! short-circuit), so the audit is meaningful on whatever subset of the
 //! four trees is built.
+//!
+//! # The audit↔registry drift guard (`--check`, issue #1396)
+//!
+//! The audit above only measures *tclsh*. Nothing tied it back to
+//! `tcl-registry`, so the audit and the registry could describe two different
+//! option surfaces and neither would notice — which is exactly what happened:
+//! the audit probed `fconfigure -profile` (TIP 656, Tcl 9.0) while the
+//! registry had no such [`OptionSpec`], and the omission was found by hand.
+//! The gap is fixed; this guard is the detector that never landed.
+//!
+//! `cargo xtask audit-option-dialects --check` sources each probed command's
+//! option surface from the registry's `OptionSpec` tables and fails when a
+//! probed option name is not declared there. It runs no tclsh, so it is cheap
+//! enough for `make xtask-check` on any machine, built Tcl trees or not.
+//! [`probe_options_exist_in_registry`](tests::probe_options_exist_in_registry)
+//! asserts the same thing under `cargo test -p xtask`.
+//!
+//! Known gaps are declared in [`KNOWN_UNSPECIFIED`], each with the issue
+//! tracking the registry work — migration debt is tracked, not grandfathered
+//! (`AGENTS.md`). An entry that has since been specified fails the gate too,
+//! so the waiver list cannot outlive the gap it documents.
 
 use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Command, ExitCode, Stdio};
+use std::sync::LazyLock;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use tcl_registry::CommandSpec;
+use tcl_registry::hover::OptionSpec;
 
 use crate::util::repo_root;
 
@@ -548,6 +572,187 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ),
 ];
 
+/// Probed options the registry does not declare, each with the issue tracking
+/// the registry work. The gate fails on an entry that is no longer missing, so
+/// a waiver cannot outlive its gap.
+///
+/// Keyed exactly like [`PROBES`] — `(command, subcommand, option)`.
+const KNOWN_UNSPECIFIED: &[(&str, Option<&str>, &str, &str)] = &[];
+
+/// The core Tcl command specs, built once for the whole cross-check rather
+/// than once per probe.
+static TCL_SPECS: LazyLock<Vec<CommandSpec>> =
+    LazyLock::new(tcl_registry::commands::tcl::tcl_command_specs);
+
+/// Every option name the registry declares for *command*, with no dialect or
+/// package-version filter: the command's own [`OptionSpec`]s, every
+/// `CommandForm`'s options, and its subcommands' options. Declared aliases
+/// (`-bd` for `-borderwidth`) count as declarations. `None` means the command
+/// itself is not in the registry.
+///
+/// The subcommand surface is folded in whether or not the probe names a
+/// subcommand, because [`PROBES`]' subcommand column records *where the probe
+/// script exercises the option*, not where the registry has to declare it: an
+/// ensemble may hang one shared option table off the command (`string
+/// -nocase`) or off each member (`clock scan -format`), and `encoding
+/// -profile` is probed with no subcommand column at all yet is declared on
+/// `encoding convertfrom`. Insisting on a particular declaration site would
+/// flag registry-modelling choices rather than the drift class this guards —
+/// an option surface the audit knows about and the registry has never heard
+/// of.
+fn registry_option_names(command: &str) -> Option<Vec<&'static str>> {
+    let spec = TCL_SPECS.iter().find(|s| s.name == command)?;
+    let mut names: Vec<&'static str> = Vec::new();
+    let push = |opt: &'static OptionSpec, names: &mut Vec<&'static str>| {
+        names.push(opt.name);
+        names.extend(opt.aliases.iter().copied());
+    };
+    for opt in spec.options {
+        push(opt, &mut names);
+    }
+    for form in spec.command_forms {
+        for opt in form.options {
+            push(opt, &mut names);
+        }
+    }
+    for sub in spec.subcommands {
+        for opt in sub.options {
+            push(opt, &mut names);
+        }
+    }
+    names.sort_unstable();
+    names.dedup();
+    Some(names)
+}
+
+/// One audit↔registry disagreement.
+#[derive(Debug, PartialEq, Eq)]
+enum Finding {
+    /// The audit probes a command the registry does not define at all.
+    UnknownCommand { label: String },
+    /// The audit probes an option the registry does not declare, and no
+    /// [`KNOWN_UNSPECIFIED`] entry tracks it.
+    UnknownOption { label: String },
+    /// A [`KNOWN_UNSPECIFIED`] entry whose gap is closed — the waiver is stale
+    /// and must be deleted along with its issue.
+    StaleWaiver { label: String, issue: &'static str },
+    /// A [`KNOWN_UNSPECIFIED`] entry that matches no probe at all.
+    OrphanWaiver { label: String, issue: &'static str },
+}
+
+impl Finding {
+    /// The one-line report entry for this finding.
+    fn describe(&self) -> String {
+        match self {
+            Self::UnknownCommand { label } => {
+                format!("  {label}: command not in the Tcl command registry")
+            }
+            Self::UnknownOption { label } => {
+                format!("  {label}: probed by the audit, no OptionSpec in the registry")
+            }
+            Self::StaleWaiver { label, issue } => format!(
+                "  {label}: KNOWN_UNSPECIFIED entry is stale — the registry now \
+                 declares it; drop the entry and close {issue}"
+            ),
+            Self::OrphanWaiver { label, issue } => format!(
+                "  {label}: KNOWN_UNSPECIFIED entry ({issue}) matches no probe; \
+                 drop it or restore the probe"
+            ),
+        }
+    }
+}
+
+/// A `(command, subcommand, option, note)` row — the shape of both [`PROBES`]
+/// (whose note is the probe script) and [`KNOWN_UNSPECIFIED`] (whose note is
+/// the tracking issue).
+type Row = (
+    &'static str,
+    Option<&'static str>,
+    &'static str,
+    &'static str,
+);
+
+/// Cross-check every probed option against the registry's `OptionSpec`
+/// tables, in [`PROBES`] order followed by [`KNOWN_UNSPECIFIED`] order.
+fn cross_check() -> Vec<Finding> {
+    cross_check_tables(PROBES, KNOWN_UNSPECIFIED)
+}
+
+/// [`cross_check`] over explicit tables, so the failure arms can be tested
+/// without perturbing the committed [`PROBES`] / [`KNOWN_UNSPECIFIED`].
+fn cross_check_tables(probes: &[Row], waivers: &[Row]) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for &(cmd, sub, opt, _) in probes {
+        let label = label(cmd, sub, opt);
+        let waived = waivers
+            .iter()
+            .any(|&(c, s, o, _)| c == cmd && s == sub && o == opt);
+        let Some(declared) = registry_option_names(cmd) else {
+            if !waived {
+                findings.push(Finding::UnknownCommand { label });
+            }
+            continue;
+        };
+        match (declared.binary_search(&opt).is_ok(), waived) {
+            (false, false) => findings.push(Finding::UnknownOption { label }),
+            (true, true) => findings.push(Finding::StaleWaiver {
+                label,
+                issue: waiver_issue(waivers, cmd, sub, opt),
+            }),
+            _ => {}
+        }
+    }
+    for &(cmd, sub, opt, issue) in waivers {
+        if !probes
+            .iter()
+            .any(|&(c, s, o, _)| c == cmd && s == sub && o == opt)
+        {
+            findings.push(Finding::OrphanWaiver {
+                label: label(cmd, sub, opt),
+                issue,
+            });
+        }
+    }
+    findings
+}
+
+/// The tracking issue recorded for a waived probe (`"(untracked)"` when the
+/// entry has somehow lost it — [`cross_check_tables`] only asks after matching
+/// one).
+fn waiver_issue(waivers: &[Row], cmd: &str, sub: Option<&str>, opt: &str) -> &'static str {
+    waivers
+        .iter()
+        .find(|&&(c, s, o, _)| c == cmd && s == sub && o == opt)
+        .map_or("(untracked)", |&(_, _, _, issue)| issue)
+}
+
+/// Run the audit↔registry drift guard: every probed option must be declared by
+/// the registry, or tracked in [`KNOWN_UNSPECIFIED`]. Runs no tclsh.
+fn run_check() -> ExitCode {
+    let findings = cross_check();
+    if findings.is_empty() {
+        println!(
+            "audit-option-dialects: OK ({} probed options all declared in the \
+             registry, {} tracked gap(s))",
+            PROBES.len(),
+            KNOWN_UNSPECIFIED.len()
+        );
+        return ExitCode::SUCCESS;
+    }
+    let report: Vec<String> = findings.iter().map(Finding::describe).collect();
+    eprintln!(
+        "audit-option-dialects: {} audit↔registry disagreement(s). The dialect \
+         audit and the registry must describe the same option surface — an \
+         option the audit probes but the registry never declares is invisible \
+         to completion, hover, and the arity check (issue #1396, `fconfigure \
+         -profile`). Add the OptionSpec, or record the gap in \
+         KNOWN_UNSPECIFIED with its tracking issue:\n{}",
+        findings.len(),
+        report.join("\n")
+    );
+    ExitCode::FAILURE
+}
+
 /// One audited option and the versions that accept it.
 struct Entry {
     command: &'static str,
@@ -559,7 +764,13 @@ struct Entry {
 /// Run the dialect audit: probe every option against each built tclsh,
 /// write the JSON artifact, and print the per-option / summary log.
 /// Always exits 0 (matching `return 0`).
-pub fn run() -> Result<ExitCode> {
+///
+/// With `check`, run the audit↔registry drift guard instead — no tclsh, no
+/// artifact, non-zero exit on a disagreement.
+pub fn run(check: bool) -> Result<ExitCode> {
+    if check {
+        return Ok(run_check());
+    }
     let root = repo_root();
     let mut entries: Vec<Entry> = Vec::with_capacity(PROBES.len());
 
@@ -903,5 +1114,155 @@ mod tests {
         keys.sort_unstable();
         keys.dedup();
         assert_eq!(keys.len(), total, "probe table has duplicate keys");
+    }
+
+    /// The audit↔registry drift guard (issue #1396): every option the dialect
+    /// audit probes must be declared by the registry's `OptionSpec` tables, so
+    /// the two cannot describe different option surfaces. `fconfigure
+    /// -profile` (TIP 656) drifted exactly this way and was found by hand.
+    #[test]
+    fn probe_options_exist_in_registry() {
+        let findings = cross_check();
+        assert!(
+            findings.is_empty(),
+            "audit↔registry option drift:\n{}",
+            findings
+                .iter()
+                .map(Finding::describe)
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+
+    /// The regression the guard was written for: `fconfigure -profile` must
+    /// stay declared in the registry.
+    #[test]
+    fn fconfigure_profile_is_declared() {
+        let names = registry_option_names("fconfigure").expect("fconfigure is a registry command");
+        assert!(
+            names.contains(&"-profile"),
+            "TIP 656 `-profile` (issue #1396)"
+        );
+    }
+
+    /// A waiver may only name a real probe, and must carry a tracking issue —
+    /// migration debt is tracked, not grandfathered.
+    #[test]
+    fn waivers_are_tracked_and_reachable() {
+        for &(cmd, sub, opt, issue) in KNOWN_UNSPECIFIED {
+            assert!(
+                issue.starts_with('#'),
+                "{}: waiver must cite a tracking issue",
+                label(cmd, sub, opt)
+            );
+            assert!(
+                PROBES
+                    .iter()
+                    .any(|&(c, s, o, _)| c == cmd && s == sub && o == opt),
+                "{}: waiver names no probe",
+                label(cmd, sub, opt)
+            );
+        }
+    }
+
+    #[test]
+    fn registry_lookup_distinguishes_declared_absent_and_unknown() {
+        let declared = registry_option_names("lsearch").expect("lsearch is a registry command");
+        assert!(declared.contains(&"-stride"), "declared option is visible");
+        assert!(
+            !declared.contains(&"-no-such-option"),
+            "undeclared option is absent"
+        );
+        assert!(
+            registry_option_names("no_such_command_42").is_none(),
+            "an unknown command is reported as such, not as a missing option"
+        );
+    }
+
+    /// The guard's teeth: an audited option the registry does not declare —
+    /// the `fconfigure -profile` shape — is reported, naming the site.
+    #[test]
+    fn undeclared_option_is_flagged() {
+        let probes: &[Row] = &[("fconfigure", None, "-tip999", "fconfigure stdin -tip999 1")];
+        let findings = cross_check_tables(probes, &[]);
+        assert_eq!(
+            findings,
+            vec![Finding::UnknownOption {
+                label: "fconfigure -tip999".to_string()
+            }]
+        );
+        assert!(findings[0].describe().contains("fconfigure -tip999"));
+    }
+
+    /// A command the audit probes but the registry does not define at all is a
+    /// distinct finding from a missing option.
+    #[test]
+    fn unknown_command_is_flagged() {
+        let probes: &[Row] = &[("no_such_command_42", None, "-x", "no_such_command_42 -x")];
+        assert_eq!(
+            cross_check_tables(probes, &[]),
+            vec![Finding::UnknownCommand {
+                label: "no_such_command_42 -x".to_string()
+            }]
+        );
+    }
+
+    /// A waiver silences its own site and nothing else.
+    #[test]
+    fn waiver_silences_only_its_own_site() {
+        let probes: &[Row] = &[
+            ("fconfigure", None, "-tip999", "fconfigure stdin -tip999 1"),
+            ("fconfigure", None, "-tip998", "fconfigure stdin -tip998 1"),
+        ];
+        let waivers: &[Row] = &[("fconfigure", None, "-tip999", "#1396")];
+        assert_eq!(
+            cross_check_tables(probes, waivers),
+            vec![Finding::UnknownOption {
+                label: "fconfigure -tip998".to_string()
+            }]
+        );
+    }
+
+    /// A waiver whose gap has been closed fails the gate, so the list cannot
+    /// outlive the debt it tracks.
+    #[test]
+    fn stale_waiver_is_flagged() {
+        let probes: &[Row] = &[(
+            "fconfigure",
+            None,
+            "-profile",
+            "fconfigure stdin -profile strict",
+        )];
+        let waivers: &[Row] = &[("fconfigure", None, "-profile", "#1396")];
+        assert_eq!(
+            cross_check_tables(probes, waivers),
+            vec![Finding::StaleWaiver {
+                label: "fconfigure -profile".to_string(),
+                issue: "#1396",
+            }]
+        );
+    }
+
+    /// A waiver naming no probe is flagged rather than sitting there unread.
+    #[test]
+    fn orphan_waiver_is_flagged() {
+        let waivers: &[Row] = &[("fconfigure", None, "-tip999", "#1396")];
+        assert_eq!(
+            cross_check_tables(&[], waivers),
+            vec![Finding::OrphanWaiver {
+                label: "fconfigure -tip999".to_string(),
+                issue: "#1396",
+            }]
+        );
+    }
+
+    /// Subcommand-declared options count: `clock scan -format` lives on the
+    /// `scan` subcommand, `encoding -profile` on `encoding convertfrom`.
+    #[test]
+    fn subcommand_options_are_folded_in() {
+        let clock = registry_option_names("clock").expect("clock is a registry command");
+        assert!(clock.contains(&"-format"));
+        let encoding = registry_option_names("encoding").expect("encoding is a registry command");
+        assert!(encoding.contains(&"-profile"));
     }
 }

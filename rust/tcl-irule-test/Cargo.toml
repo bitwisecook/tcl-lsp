@@ -41,6 +41,7 @@ authors.workspace = true
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-bigip = { path = "../tcl-bigip" }
 tcl-vm = { path = "../tcl-vm" }
 tcl-compiler = { path = "../tcl-compiler" }

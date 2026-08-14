@@ -423,6 +423,19 @@ pub struct InterpState {
     /// and variable-resolution semantics; the VM never infers them from a
     /// dialect name.
     runtime_version: tcl_dialect::TclVersion,
+    /// The dialect profile this VM validates its builtin command surface
+    /// against (issue #1463): [`Self::builtin_command_visible_for_surface`]
+    /// consults this profile's availability mask, so a command the emulated
+    /// release does not have (`lassign` at 8.4, `lpop` before 9.0) resolves
+    /// like C Tcl — to `invalid command name`. Defaults to the permissive
+    /// fallback profile, which hides nothing; `set_runtime_version` pins the
+    /// matching plain-Tcl profile and `set_dialect_profile` pins a vendor one.
+    dialect_profile: &'static tcl_dialect::DialectProfile,
+    /// The availability registry for [`Self::dialect_profile`], resolved once
+    /// at pin time (`registry_for_profile` guards its cache with a lock, and
+    /// this is consulted on every command resolution). `None` for the
+    /// permissive fallback profile, which gates nothing.
+    profile_registry: Option<&'static tcl_registry::CommandRegistry>,
     /// Call-frame stack; `frames[0]` is the global scope.
     frames: Vec<CallFrame>,
     /// Command table (builtins + user procs), keyed by canonical name — a
@@ -886,11 +899,27 @@ impl Vm {
     }
 
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
-        // The 8.4 `namespace path` tier gate (M10.1) changes resolution
-        // outcomes, so the command-resolution memo (M16.4) must not survive a
-        // version flip.
+        // A bare release pin is the matching plain-Tcl profile: the emulated
+        // release is one fact carrying both the runtime semantics and the
+        // command-surface availability mask (issue #1463).
+        self.set_dialect_profile(tcl_dialect::DialectProfile::by_name(version.dialect_name()));
+    }
+
+    /// Pin the dialect profile this VM emulates — the profile form of
+    /// [`Self::set_runtime_version`], for hosts whose dialect is a vendor
+    /// profile rather than a plain Tcl release. The runtime version follows
+    /// the profile's pinned `vm_runtime_version`, and the profile's
+    /// availability mask becomes the builtin command-surface filter
+    /// ([`Self::builtin_command_visible_for_surface`]).
+    pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        // The 8.4 `namespace path` tier gate (M10.1) and the availability
+        // gate change resolution outcomes, so the command-resolution memo
+        // (M16.4) must not survive a version flip.
         self.bump_cmd_epoch();
-        self.runtime_version = version;
+        self.dialect_profile = profile;
+        self.profile_registry =
+            (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
+        self.runtime_version = profile.vm_runtime_version;
         // Install the release's numeric grammar for this runtime: `0755` is 493
         // under 8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5 and `0d` / `_`
         // separators from 9.0. C settles this at build time (`KILL_OCTAL`), so
@@ -898,7 +927,7 @@ impl Vm {
         // `tcl_syntax::number::set_runtime_syntax`. Embedders call this while
         // building the interpreter; the VM does not support switching release
         // mid-execution.
-        tcl_syntax::number::set_runtime_syntax(version.number_syntax());
+        tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
         self.write_release_globals();
     }
 
@@ -907,6 +936,21 @@ impl Vm {
     #[must_use]
     pub fn runtime_version(&self) -> tcl_dialect::TclVersion {
         self.runtime_version
+    }
+
+    /// The dialect profile this VM validates its command surface against
+    /// (see [`Self::set_dialect_profile`]).
+    #[must_use]
+    pub fn dialect_profile(&self) -> &'static tcl_dialect::DialectProfile {
+        self.dialect_profile
+    }
+
+    /// The backslash-escape grammar this VM decodes under — the pinned
+    /// profile's, so a VM emulating 8.5 reads `\x4142` as `B` and one
+    /// emulating 9.0 reads it as `A42` (issue #1479).
+    #[must_use]
+    pub fn escape_syntax(&self) -> tcl_dialect::EscapeSyntax {
+        self.dialect_profile.grammar.escapes
     }
 
     /// A VM writing to an already-shared output sink.
@@ -943,6 +987,8 @@ impl InterpState {
         guards.poison(GuardDomain::ObjectDispatch);
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
+            dialect_profile: tcl_dialect::DialectProfile::plain_tcl(),
+            profile_registry: None,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
             fixed_math_builtins: HashMap::new(),
@@ -1790,12 +1836,43 @@ impl Vm {
     }
 
     /// Whether this registered builtin is visible on the selected command
-    /// surface. The registry owns the only versioned command filter; ordinary
+    /// surface. The registry owns the only versioned command filters; ordinary
     /// procedures, aliases, and extensions are never hidden here.
+    ///
+    /// Two registry-backed cases, both scoped to engine-registered handlers:
+    ///
+    /// - the math-function surface (`::tcl::mathfunc::*` vs the 8.4 fixed
+    ///   table), for `Builtin` and embedder `Native` handlers alike;
+    /// - release availability (issue #1463): a `Builtin` whose registry spec
+    ///   the [`Self::dialect_profile`] availability mask does not admit
+    ///   (`lassign` at 8.4, `lpop` before 9.0) resolves like C Tcl — to
+    ///   `invalid command name`. Only registry-known builtins are gated:
+    ///   user procs, aliases, embedder `Native` replacements, and names the
+    ///   registry does not know remain callable.
     fn builtin_command_visible_for_surface(&self, name: &str, command: &Command) -> bool {
-        !matches!(command, Command::Builtin(_) | Command::Native(_))
-            || tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
-                .permits_builtin_math_function_command(name)
+        if !matches!(command, Command::Builtin(_) | Command::Native(_)) {
+            return true;
+        }
+        if !tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
+            .permits_builtin_math_function_command(name)
+        {
+            return false;
+        }
+        matches!(command, Command::Native(_)) || self.profile_admits_registry_builtin(name)
+    }
+
+    /// The availability half of [`Self::builtin_command_visible_for_surface`]:
+    /// whether the pinned [`Self::dialect_profile`] admits registry builtin
+    /// `name`. Names the registry does not know are always admitted — they
+    /// may be engine extensions the registry has no spec for.
+    fn profile_admits_registry_builtin(&self, name: &str) -> bool {
+        let Some(registry) = self.profile_registry else {
+            return true; // the permissive fallback profile gates nothing
+        };
+        registry.get(name).is_none()
+            || registry
+                .get_for_dialect(name, self.dialect_profile.availability_mask)
+                .is_some()
     }
 
     /// The names `info functions` exposes on the selected Tcl release.
@@ -1853,6 +1930,8 @@ impl Vm {
         child.compiler.clone_from(&self.compiler);
         child.host = Rc::clone(&self.host);
         child.runtime_version = self.runtime_version;
+        child.dialect_profile = self.dialect_profile;
+        child.profile_registry = self.profile_registry;
         Box::new(child)
     }
 

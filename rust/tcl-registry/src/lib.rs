@@ -287,7 +287,7 @@ pub use state_transition::{
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour};
-pub use traits::{Traits, UNIT_LINKAGE_TRAITS};
+pub use traits::{FRAME_REACH_TRAITS, Traits, UNIT_LINKAGE_TRAITS};
 pub use types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 pub use world_effect::{
     CallbackEffect, CallbackKinds, EffectAccess, EffectAccessMode, EffectFootprint,

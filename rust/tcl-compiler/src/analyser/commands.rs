@@ -1535,6 +1535,36 @@ impl Analyser {
             site.scope_path,
         );
     }
+    /// The bounds family for one dispatch site: W240 / W241 loop termination,
+    /// W230 / W232 index bounds, W231 `lset` bounds, and W232 string indices.
+    ///
+    /// Grouped so the shared per-command dispatch stays readable; each check
+    /// is independent and every one of them takes the registry rather than
+    /// recognising a command by name.
+    fn emit_bounds_family_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        let registry = self.registry.as_deref();
+        let loop_diags = super::bounds_checks::loop_termination_diagnostics(
+            cmd_name, args, arg_tokens, registry,
+        );
+        let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
+        let lset_diags = super::bounds_checks::lset_index_diagnostics(
+            cmd_name,
+            args,
+            arg_tokens,
+            &self.source,
+            registry,
+        );
+        let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
+        self.result.diagnostics.extend(loop_diags);
+        self.result.diagnostics.extend(idx_diags);
+        self.result.diagnostics.extend(lset_diags);
+        self.result.diagnostics.extend(str_diags);
+    }
 
     /// Dispatch-site diagnostic emitters, run from
     /// [`Self::process_command`] before the early-returning handlers so
@@ -1655,21 +1685,7 @@ impl Analyser {
         self.emit_w200_binary_format_modifiers(cmd_name, args, arg_tokens);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
         self.emit_w108_non_ascii(arg_tokens);
-        // W240 / W241 loop-termination + W230 / W232 index-bounds.
-        let loop_diags = super::bounds_checks::loop_termination_diagnostics(
-            cmd_name,
-            args,
-            arg_tokens,
-            self.registry.as_deref(),
-        );
-        self.result.diagnostics.extend(loop_diags);
-        let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
-        self.result.diagnostics.extend(idx_diags);
-        let lset_diags =
-            super::bounds_checks::lset_index_diagnostics(cmd_name, args, arg_tokens, &self.source);
-        self.result.diagnostics.extend(lset_diags);
-        let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
-        self.result.diagnostics.extend(str_diags);
+        self.emit_bounds_family_diagnostics(cmd_name, args, arg_tokens);
         self.emit_registry_argument_diagnostics(site);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w217_unset_option_only(cmd_name, args, arg_tokens);
@@ -2168,7 +2184,11 @@ impl Analyser {
         if body_tok.kind != TokenType::Var {
             return;
         }
-        let sm = tcl_lexer::SourceMap::new(&self.source);
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let raw = sm.token_text(body_tok);
         let var_name = raw
             .split_once('}')
@@ -2205,7 +2225,11 @@ impl Analyser {
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
-        let source_map = SourceMap::new(&self.source);
+        let source_map = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let words = CommandPrefixWords {
             texts: words.texts,
             tokens: words.tokens,
@@ -2896,7 +2920,11 @@ impl Analyser {
         // handler afterwards, once the immutable borrow has ended — the
         // same two-phase shape as `record_invocations_from_cmd_token`.
         let segs: Vec<SegmentedCommand> = {
-            let sm = SourceMap::new(&self.source);
+            let sm = Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
             let mut segs = Vec::new();
             for frag in self.cmd_fragments(body_tok, config) {
                 if frag.kind != TokenType::Cmd || sm.token_text(frag).is_empty() {

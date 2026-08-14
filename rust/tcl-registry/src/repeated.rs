@@ -85,16 +85,25 @@ pub struct RepeatedArgLayout {
     /// [`ArgRole`]: every generic write-detection site the compiler has
     /// (`tcl-compiler`'s `ssa::defs_of_with_registry`, `var_scoping`,
     /// `cfg_builder`, `lowering`, `ir_helpers`) resolves "does this argument
-    /// write a variable" through `ArgRole::VarWrite` alone — none of them
-    /// consult any other role — so `VarWrite` is read everywhere as "this
-    /// position unconditionally defines the named variable when the
-    /// statement executes". A `conditional_binding: true` layout must never
+    /// write a variable" through `ArgRole::VarWrite`, so `VarWrite` is read
+    /// everywhere as "this position unconditionally defines the named
+    /// variable when the statement executes". A `conditional_binding: true`
+    /// layout must never
     /// use it: doing so is exactly the mechanism that produced the `dict
     /// update` W210 false positive investigated for issue #1247/#1278 —
     /// `VarWrite` fed an unconditional SSA def, which pre-empted the
     /// key-aware suppression `harvest_dict_with_suppression`
     /// (`tcl-compiler/src/analyser/diagnostics/helpers.rs`) had already
     /// computed for the very same read.
+    ///
+    /// One consumer reads a *second* role as a definite def and subtracts
+    /// this flag by hand: `ssa::defs_of_with_registry` takes an opaque
+    /// [`ArgRole::LoopVarList`] barrier position as a loop-variable binding
+    /// (issue #1380 — a `{*}`-expanded `foreach`/`lmap` barriers, and its
+    /// body's reads of the loop variable would otherwise draw W210), and
+    /// skips the whole role for a command whose layout declares this flag.
+    /// That is why the check below stays keyed to `VarWrite` alone: a
+    /// `conditional_binding: true` layout may safely use `LoopVarList`.
     pub conditional_binding: bool,
 }
 

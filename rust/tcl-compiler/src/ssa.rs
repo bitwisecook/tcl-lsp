@@ -49,7 +49,7 @@ use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{self, BlockId};
-use crate::ir::{CommandTokens, Statement};
+use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
 use crate::naming::normalise_var_name;
 use crate::var_refs::{VarReferenceScanner, VarScanOptions, vars_in_expr};
 
@@ -552,6 +552,120 @@ pub fn is_dynamic_write_target(name: &str, braced_literal: bool) -> bool {
     base.is_empty() || base.contains('$') || base.contains('[')
 }
 
+/// Whether a loop-variable-list word is **static** — its source performs no
+/// substitution, so the word's text *is* the Tcl list of names the loop binds.
+///
+/// Dynamism is a property of the source word's *kind*, not of the bytes in its
+/// value — the same rule the neighbouring `VarWrite` path applies via
+/// [`CommandTokens::arg_is_braced_literal`].  A brace-quoted word substitutes
+/// nothing, so `foreach {{$x}} {*}$spec {puts ${$x}}` binds the perfectly legal
+/// variable named `$x`; testing the reconstructed word text for `$` / `[`
+/// dropped that name from the barrier's def set and reported a phantom
+/// `W210 Variable '$x' is read before it is set` on code `tclsh` runs happily
+/// (PR #1481 review of issue #1380).  A word that really does substitute
+/// (`foreach $names …`, `foreach [names] …`, `foreach {*}$spec …`) names
+/// nothing statically and contributes no def.
+///
+/// `text` is only consulted when the statement carries no structured word for
+/// this argument — a synthetic or lossy token snapshot, where the kind is
+/// unknown and the conservative text test is the best available answer.
+fn loop_var_list_word_is_static(word: Option<&WordExpr>, text: &str) -> bool {
+    match word {
+        Some(WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }) => true,
+        Some(
+            WordExpr::Variable { .. }
+            | WordExpr::CommandSubstitution { .. }
+            | WordExpr::Expand { .. },
+        ) => false,
+        // A compound word is static exactly when every part is text: a quoted
+        // (`"a b"`) or backslash-escaped (`a\ b`) var-list substitutes nothing,
+        // while any `$` / `[` part makes the whole word dynamic.
+        Some(WordExpr::Template { parts, .. }) => parts
+            .iter()
+            .all(|part| matches!(part, WordPart::Text { .. })),
+        Some(WordExpr::Opaque { .. }) | None => !text.contains('$') && !text.contains('['),
+    }
+}
+
+/// The defs a `Statement::Barrier` contributes under the registry — its
+/// loop-variable lists plus its `ArgRole::VarWrite` targets.
+///
+/// Skips *scope-alias* commands (`global`, `variable`, `upvar`) whose variable
+/// bindings are tracked separately by the `var_scoping` pass; without the skip
+/// we'd produce partial defs for the vararg forms (`global x y z` would mark
+/// only `x`).  The discriminator is `CREATES_SCOPE_ALIAS`, *not*
+/// `CREATES_DYNAMIC_BARRIER`: `trace` is a dynamic barrier but not a scope
+/// alias, so `trace add variable x` must still surface its `VarWrite` def.
+fn registry_barrier_defs(
+    reg: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+) -> Vec<String> {
+    use tcl_registry::{ArgRole, Traits};
+
+    let spec = reg.get(command);
+    if spec.is_some_and(|spec| spec.traits.contains(Traits::CREATES_SCOPE_ALIAS)) {
+        return Vec::new();
+    }
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    // Loop variables (`ArgRole::LoopVarList` — `foreach` / `lmap` var-lists,
+    // `dict for` / `array for` key-value pairs).  A structured loop that stays
+    // a barrier — `{*}` expansion among its words, a dynamic body — still
+    // binds every variable its *literal* var-list words name, and its body is
+    // scanned for reads in this same frame, so without these defs a body read
+    // of a loop variable reported W210 "read before it is set" (issue #1380).
+    // A dynamic var-list word (`foreach {*}$pairs …`) names nothing statically
+    // and contributes no def — see [`loop_var_list_word_is_static`] for how
+    // that verdict is reached.
+    //
+    // A **conditionally-bound** layout is excluded: `dict update dictVar key
+    // varName … body` binds `varName` only when the key is present at runtime,
+    // so it is not a definite def and the key-aware read-before-set harvester
+    // owns it instead (`RepeatedArgLayout::conditional_binding`, issue #1278).
+    let loop_vars_conditional = |repeated: &[tcl_registry::RepeatedArgLayout]| {
+        repeated
+            .iter()
+            .any(|layout| layout.conditional_binding && layout.role == ArgRole::LoopVarList)
+    };
+    let conditional_loop_vars = spec.is_some_and(|spec| {
+        args.first()
+            .and_then(|first| spec.resolve_subcommand(first))
+            .map_or_else(
+                || loop_vars_conditional(spec.repeated_args),
+                |sub| loop_vars_conditional(sub.repeated_args),
+            )
+    });
+    let mut defs: Vec<String> = if conditional_loop_vars {
+        Vec::new()
+    } else {
+        reg.arg_indices_for_role(command, &arg_strs, ArgRole::LoopVarList)
+            .into_iter()
+            .filter_map(|idx| args.get(idx).map(|word| (idx, word)))
+            .filter(|(idx, word)| {
+                loop_var_list_word_is_static(tokens.and_then(|t| t.words().get(idx + 1)), word)
+            })
+            .filter_map(|(_, word)| tcl_syntax::list::split_list(word).ok())
+            .flatten()
+            .map(std::borrow::Cow::into_owned)
+            .filter(|name| !name.is_empty())
+            .collect()
+    };
+    defs.extend(
+        reg.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite)
+            .into_iter()
+            .filter_map(|idx| {
+                // A brace-quoted name word is a literal name, `$` and all
+                // (issue #1078).
+                let braced = tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
+                args.get(idx)
+                    .map(|s| crate::naming::element_var_name_braced(s, braced).to_owned())
+            })
+            .filter(|n| !n.is_empty()),
+    );
+    defs
+}
+
 /// Registry-aware `defs_of`.
 ///
 /// Barrier defs route through
@@ -563,8 +677,6 @@ pub fn is_dynamic_write_target(name: &str, braced_literal: bool) -> bool {
 /// `VarWrite` walk).
 #[must_use]
 pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry>) -> Vec<String> {
-    use tcl_registry::{ArgRole, Traits};
-
     match stmt {
         Statement::AssignConst {
             name, name_braced, ..
@@ -621,38 +733,10 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                     })
                     .unwrap_or_default();
             }
-            // Registry-driven VarWrite walk.  Skips
-            // *scope-alias* commands (`global`, `variable`, `upvar`)
-            // whose variable bindings are tracked separately by the
-            // `var_scoping` pass; without the skip we'd produce partial
-            // defs for the vararg forms (`global x y z` would mark only
-            // `x`).  The discriminator is `CREATES_SCOPE_ALIAS`, *not*
-            // `CREATES_DYNAMIC_BARRIER`: `trace` is a dynamic barrier
-            // but not a scope alias, so `trace add variable x` must
-            // still surface its `VarWrite` def.
             if let Some(reg) = registry {
-                if let Some(spec) = reg.get(command)
-                    && spec.traits.contains(Traits::CREATES_SCOPE_ALIAS)
-                {
-                    return Vec::new();
-                }
-                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-                let indices = reg.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite);
-                if !indices.is_empty() {
-                    return indices
-                        .into_iter()
-                        .filter_map(|idx| {
-                            // A brace-quoted name word is a literal name, `$`
-                            // and all (issue #1078).
-                            let braced = tokens
-                                .as_ref()
-                                .is_some_and(|t| t.arg_is_braced_literal(idx));
-                            args.get(idx).map(|s| {
-                                crate::naming::element_var_name_braced(s, braced).to_owned()
-                            })
-                        })
-                        .filter(|n| !n.is_empty())
-                        .collect();
+                let defs = registry_barrier_defs(reg, command, args, tokens.as_ref());
+                if !defs.is_empty() {
+                    return defs;
                 }
             }
             // Legacy string-match fallback for callers without a

@@ -1065,6 +1065,44 @@ on a `CommandSpec`, `SubCommand`, or `CommandForm`, declares `--` support;
 W304 ("use `--` before dynamic pattern") is derived automatically via
 `CommandRegistry::resolve_option_terminator`.
 
+#### The audit-registry option-surface gate
+
+The `OptionSpec` tables are the source of truth for which options a command
+has, so anything else that enumerates options is a second copy that can
+drift.  The dialect audit (`rust/xtask/src/audit_option_dialects.rs`) is one
+such copy: its `PROBES` table names ~100 command/option pairs and measures
+them against real tclsh 8.4-9.0.  It drifted once already -- the audit probed
+`fconfigure -profile` (TIP 656, Tcl 9.0) while the registry declared no such
+option, and the omission was found by hand rather than by a gate (issue
+#1396).
+
+`cargo xtask audit-option-dialects --check` (wired into `make xtask-check`
+as `xtask-option-registry-drift`) closes that hole: every option the audit
+probes must be declared by the registry, or the gate fails naming the site.
+It sources the option surface from the registry rather than restating it,
+runs no tclsh, and needs no built Tcl trees.  The equivalent assertion runs
+under `cargo test -p xtask` as `probe_options_exist_in_registry`.
+
+What counts as declared is the command's whole option surface -- its own
+`options`, every `CommandForm`'s options, and every `SubCommand`'s options,
+including declared aliases, with no dialect or package-version filter.  The
+probe table's subcommand column records where the *probe script* exercises
+the option, not where the registry must declare it: an ensemble may hang one
+shared table off the command (`string -nocase`) or off each member (`clock
+scan -format`), and `encoding -profile` is probed with no subcommand column
+at all yet is declared on `encoding convertfrom`.  Insisting on a particular
+declaration site would flag registry-modelling choices instead of the one
+drift class this guards -- an option surface the audit knows about and the
+registry has never heard of.  Version gating is deliberately not filtered
+either: a 9.0-only option is still declared, and whether its `dialects` gate
+is *correct* is what the tclsh audit itself measures.
+
+A genuinely-missing option goes in `KNOWN_UNSPECIFIED` with the issue
+tracking the registry work -- migration debt is tracked, not grandfathered.
+The list is currently empty.  A waiver whose option has since been declared,
+or that names no probe, fails the gate too, so an entry cannot outlive the
+gap it documents.
+
 ### Keyword abbreviations -- one resolver for every prefix spelling
 
 Tcl's `Tcl_GetIndexFromObj` dispatch accepts **any unique prefix** of a

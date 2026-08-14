@@ -28,6 +28,23 @@ denormalised copy of it.
    `end + 1` overshoots, and a trailing empty `{}` swallows the enclosing
    body's `}`. The accessors detect emptiness from the lexer's content
    geometry and stay correct for backslash-escaped quoted words too.
+   A caller holding source and a byte offset rather than a token uses the
+   token-free sibling `tcl_lexer::close_quote_offset` for a `"…"` word — one
+   scanner, skipping `\`-escapes and whole `[…]` command substitutions, shared
+   by the optimiser's rewrite spans and the minifier's static folds. Hand-rolled
+   copies drifted: one skipped escapes but not substitutions, so
+   `"a[foo "b"]c"` closed on the inner quote and the rewrite truncated the word
+   mid-substitution (issue #1424).
+   A caller holding source and the word's own `Span` — but no longer the
+   `Token` it came from — uses `tcl_lexer::word_closer_offset_at` /
+   `word_span_at`, which answer the same question for `{…}`, `[…]`, `"…"`
+   **and** the braced variable form `${name}` (the span already encodes
+   whichever `BracedVarStyle` the lexer applied, so it stays release-blind).
+   Hand-rolled copies drifted here too: `branch_folding`'s decided the
+   question with a textual `!text.ends_with('}')` guess, so a condition
+   ending in a *nested* empty pair — `while {$x eq {}}` — read as
+   already-widened and the outer `}` was dropped from the rewrite target
+   (issue #1423).
 5. Command and word *ranges* owned by the segmenter use the inner-end
    convention and widen only where they need the closer
    (`SourceMap::range_positions`, the segmenter's `command_span`). Callers

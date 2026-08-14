@@ -88,14 +88,17 @@ pub fn codegen_function_with_procs(
 #[must_use]
 /// The per-module facts every function emission shares: the registry, the
 /// module source (for `errorInfo` surface text) and the release being compiled
-/// for. Bundled rather than threaded as parallel parameters — the argument list
-/// is already at `clippy::too_many_arguments`'s ceiling, and these three always
-/// travel together.
+/// for (its dialect name, and the numeral and backslash-escape grammars that
+/// name resolves to). Bundled rather than threaded as parallel parameters —
+/// the argument list is already at `clippy::too_many_arguments`'s ceiling, and
+/// these always travel together.
 #[derive(Clone, Copy)]
 struct ModuleEmit<'a> {
     registry: &'a CommandRegistry,
     source: &'a str,
+    dialect: Option<&'a str>,
     numbers: tcl_dialect::NumberSyntax,
+    escapes: tcl_dialect::EscapeSyntax,
 }
 
 fn codegen_function_src(
@@ -108,6 +111,8 @@ fn codegen_function_src(
 ) -> FunctionAsm {
     let mut ctx = CodegenCtx::new(is_proc, params, module.registry);
     ctx.numbers = module.numbers;
+    ctx.escapes = module.escapes;
+    ctx.dialect = module.dialect;
     ctx.set_source(module.source);
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
     asm.body_base_line = base_line;
@@ -138,11 +143,15 @@ pub fn codegen_module(
     let src = &ir_module.source;
     // The compile's target release: a named dialect's own numeric grammar, else
     // the permissive 9.x default.
-    let numbers = tcl_dialect::NumberSyntax::of_dialect_name(ir_module.dialect.as_deref());
+    let dialect = ir_module.dialect.as_deref();
+    let numbers = tcl_dialect::NumberSyntax::of_dialect_name(dialect);
+    let escapes = tcl_dialect::EscapeSyntax::of_dialect_name(dialect);
     let module = ModuleEmit {
         registry,
         source: src,
+        dialect,
         numbers,
+        escapes,
     };
     let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], module, 0);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();

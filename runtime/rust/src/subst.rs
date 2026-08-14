@@ -37,6 +37,7 @@
 use tcl_core_types::RecursionLimit;
 
 use crate::parse::{self, WordBody, WordPart};
+use tcl_lexer::EscapeSyntax;
 
 /// Cap on `$name(index)` nesting depth [`resolve_parts`] will recurse into
 /// while resolving a `WordPart::Variable`'s own `index` components. Separate
@@ -74,8 +75,9 @@ impl Default for SubstFlags {
 }
 
 /// Scan `src` into substitution components per `flags`, without evaluating.
-pub fn scan(src: &[u8], flags: SubstFlags) -> WordBody<'_> {
-    parse::scan_parts(src, flags.vars, flags.cmds, flags.backslashes)
+/// `escapes` is the emulated release's backslash grammar (issue #1479).
+pub fn scan(src: &[u8], flags: SubstFlags, escapes: EscapeSyntax) -> WordBody<'_> {
+    parse::scan_parts(src, flags.vars, flags.cmds, flags.backslashes, escapes)
 }
 
 /// Resolve a scanned [`WordBody`] to bytes. Literals are copied and backslashes
@@ -135,9 +137,10 @@ where
 
 /// `subst` with only backslashes active (`-novariables -nocommands`): `$` and
 /// `[` are literal, `\x` decodes. Equivalent to decoding the whole span via the
-/// shared [`tcl_syntax::backslash`] decoder.
-pub fn backslashes_only(src: &[u8]) -> Vec<u8> {
-    tcl_syntax::backslash::decode_bytes(src).into_owned()
+/// shared [`tcl_syntax::backslash`] decoder under the emulated release's escape
+/// grammar.
+pub fn backslashes_only(src: &[u8], escapes: EscapeSyntax) -> Vec<u8> {
+    tcl_syntax::backslash::decode_bytes_in(src, escapes).into_owned()
 }
 
 #[cfg(test)]
@@ -169,7 +172,12 @@ mod tests {
     }
 
     fn subst(src: &[u8]) -> Vec<u8> {
-        resolve_with(&scan(src, SubstFlags::default()), &var, &cmd)
+        subst_in(src, EscapeSyntax::default())
+    }
+
+    /// [`subst`] under an explicit release grammar.
+    fn subst_in(src: &[u8], escapes: EscapeSyntax) -> Vec<u8> {
+        resolve_with(&scan(src, SubstFlags::default(), escapes), &var, &cmd)
     }
 
     #[test]
@@ -259,6 +267,27 @@ mod tests {
         assert_eq!(subst(b"a$%b"), b"a$%b");
     }
 
+    /// `subst` decodes under the emulated release's escape grammar — the
+    /// user-visible half of issue #1479 (`--tcl-version 8.4`).
+    #[test]
+    fn subst_backslashes_follow_the_release() {
+        assert_eq!(subst_in(b"\\x4142", EscapeSyntax::Tcl84), b"B");
+        assert_eq!(subst_in(b"\\x4142", EscapeSyntax::Tcl86), b"A42");
+        assert_eq!(subst_in(b"\\x4142", EscapeSyntax::Tcl90), b"A42");
+        assert_eq!(subst_in(b"\\U0001F600", EscapeSyntax::Tcl84), b"U0001F600");
+        assert_eq!(
+            subst_in(b"\\U0001F600", EscapeSyntax::Tcl90),
+            "\u{1F600}".as_bytes()
+        );
+        // Octal's third digit is guarded from 8.6: `\400` is one NUL before,
+        // `\40` plus a literal `0` after.
+        assert_eq!(subst_in(b"\\400", EscapeSyntax::Tcl84), b"\0");
+        assert_eq!(subst_in(b"\\400", EscapeSyntax::Tcl90), b" 0");
+        // `-novariables -nocommands` takes the same axis.
+        assert_eq!(backslashes_only(b"\\x4142", EscapeSyntax::Tcl84), b"B");
+        assert_eq!(backslashes_only(b"\\x4142", EscapeSyntax::Tcl90), b"A42");
+    }
+
     #[test]
     fn flags_disable_kinds() {
         // -novariables: `$x` stays literal, `\t` still decodes.
@@ -267,8 +296,14 @@ mod tests {
             cmds: true,
             backslashes: true,
         };
-        assert_eq!(resolve_with(&scan(b"$x\\t", f), &var, &cmd), b"$x\t");
+        assert_eq!(
+            resolve_with(&scan(b"$x\\t", f, EscapeSyntax::default()), &var, &cmd),
+            b"$x\t"
+        );
         // backslashes_only: `$`/`[` literal, `\n` decodes.
-        assert_eq!(backslashes_only(b"$x[y]\\n"), b"$x[y]\n");
+        assert_eq!(
+            backslashes_only(b"$x[y]\\n", EscapeSyntax::default()),
+            b"$x[y]\n"
+        );
     }
 }

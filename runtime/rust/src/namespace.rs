@@ -58,6 +58,9 @@ pub enum RenameOutcome {
     Deleted,
     /// `old` did not resolve to any command.
     NoSuchCommand,
+    /// `old` is an alias and moving it onto `new` would close an alias loop
+    /// (C's `TclPreventAliasLoop`); the table is left untouched.
+    AliasLoop,
 }
 
 /// One namespace: its simple name, its command table, child namespaces, the
@@ -129,15 +132,36 @@ impl Namespaces {
     /// Register `command` under `name` (possibly qualified), creating any
     /// intermediate namespaces. A qualified `name` is rooted at global.
     pub fn register(&mut self, name: &[u8], command: Command) {
+        let _ = self.register_at(name, command);
+    }
+
+    /// [`register`](Self::register) reporting the `(namespace, simple name)` it
+    /// bound the command at — `None` for a name with no tail to bind (empty /
+    /// `::` only, where nothing is registered). The alias-loop gate needs the
+    /// binding site so it can walk the chain from it and unbind again.
+    pub(crate) fn register_at(&mut self, name: &[u8], command: Command) -> Option<(NsId, Vec<u8>)> {
         let segments = split_qualifier(name);
-        let Some((simple, ns_parts)) = segments.split_last() else {
-            return; // empty / `::` only — nothing to register
-        };
+        let (simple, ns_parts) = segments.split_last()?;
         let mut ns = GLOBAL;
         for part in ns_parts {
             ns = self.ensure_child(ns, part);
         }
-        self.arena[ns].commands.insert((*simple).to_vec(), command);
+        let simple = (*simple).to_vec();
+        self.arena[ns].commands.insert(simple.clone(), command);
+        Some((ns, simple))
+    }
+
+    /// The command bound directly at `(ns, name)` — the exact table slot, with
+    /// no resolution walk (the alias-chain gate addresses bindings it has
+    /// already located).
+    pub(crate) fn command_in(&self, ns: NsId, name: &[u8]) -> Option<Command> {
+        self.arena[ns].commands.get(name).cloned()
+    }
+
+    /// Remove the binding at `(ns, name)`, returning it — the rollback for a
+    /// refused alias definition.
+    pub(crate) fn unbind_in(&mut self, ns: NsId, name: &[u8]) -> Option<Command> {
+        self.arena[ns].commands.remove(name)
     }
 
     /// The single command resolver, `resolve(currentNs, name)` (A2). Returns a
@@ -213,31 +237,113 @@ impl Namespaces {
         if new.is_empty() {
             return RenameOutcome::Deleted;
         }
+        let Some((ns, simple)) = self.destination_of(current, new) else {
+            // Unreachable for a non-empty, non-separator-terminated name;
+            // put the command back rather than lose it.
+            self.arena[old_ns].commands.insert(old_simple, cmd);
+            return RenameOutcome::NoSuchCommand;
+        };
+        self.arena[ns].commands.insert(simple, cmd);
+        RenameOutcome::Renamed
+    }
+
+    /// The `(namespace, simple name)` a written destination name binds — the
+    /// split C's `TclGetNamespaceForQualName(…, TCL_CREATE_NS_IF_UNKNOWN)`
+    /// performs for `rename`'s new name, creating any intermediate namespaces
+    /// (C creates them even when the rename is later refused). A trailing
+    /// separator run names the empty-string `{}` command in the full qualifier
+    /// chain (`rename foo x::` binds `::x::`, `rename bar ::` the global `{}` —
+    /// tclsh 8.6/9.0-pinned, #934), matching `command_home_ns` / `home_of`.
+    fn destination_of(&mut self, current: NsId, new: &[u8]) -> Option<(NsId, Vec<u8>)> {
         let absolute = new.starts_with(b"::");
         let segments = split_qualifier(new);
-        // The same written-name split as `command_home_ns` / `home_of`: a
-        // trailing separator run names the empty-string `{}` command in the
-        // full qualifier chain (`rename foo x::` binds `::x::`, `rename bar
-        // ::` the global `{}` — tclsh 8.6/9.0-pinned, #934).
         let (simple, ns_parts): (&[u8], &[&[u8]]) = if ends_with_separator(new) {
             (b"", &segments[..])
         } else {
-            match segments.split_last() {
-                Some((simple, ns_parts)) => (*simple, ns_parts),
-                // Unreachable for a non-empty, non-separator-terminated name;
-                // put the command back rather than lose it.
-                None => {
-                    self.arena[old_ns].commands.insert(old_simple, cmd);
-                    return RenameOutcome::NoSuchCommand;
-                }
-            }
+            let (simple, ns_parts) = segments.split_last()?;
+            (*simple, ns_parts)
         };
         let mut ns = if absolute { GLOBAL } else { current };
         for part in ns_parts {
             ns = self.ensure_child(ns, part);
         }
-        self.arena[ns].commands.insert(simple.to_vec(), cmd);
-        RenameOutcome::Renamed
+        Some((ns, simple.to_vec()))
+    }
+
+    /// C's `TclPreventAliasLoop` (`tclInterp.c`) on the alias bound at
+    /// `(ns, simple)`: follow the chain — each hop resolves the alias's stored
+    /// target name **anchored at the global namespace**, exactly as dispatch
+    /// does — and report whether it comes back to the alias we started from.
+    /// An unresolvable target ends the chain (legal: aliases late-bind), and so
+    /// does a target that is not itself an alias.
+    ///
+    /// Every alias already in the table passed this same gate when it was
+    /// defined or renamed, so the chain holds no pre-existing cycle; the
+    /// visited list bounds the walk regardless, so no table state can spin it.
+    pub(crate) fn alias_chain_loops(&self, ns: NsId, simple: &[u8]) -> bool {
+        let start = (ns, simple.to_vec());
+        let mut hop = start.clone();
+        let mut seen: Vec<(NsId, Vec<u8>)> = Vec::new();
+        loop {
+            let Some(Command::Alias { target, .. }) = self.command_in(hop.0, &hop.1) else {
+                return false;
+            };
+            let Some(next) = self.home_of(GLOBAL, &target) else {
+                return false;
+            };
+            if next == start || seen.contains(&next) {
+                return true;
+            }
+            seen.push(next.clone());
+            hop = next;
+        }
+    }
+
+    /// C's `TclPreventAliasLoop` on the *rename* path (`TclRenameCommand` moves
+    /// the command, checks, and puts it back on a hit): would moving the command
+    /// bound to `old` onto `new` close an alias loop? The chain can only close
+    /// on the alias once it is visible at its destination, so the move is made
+    /// tentatively here and undone again — including any command it displaced —
+    /// leaving the caller to perform the real rename when this returns `false`.
+    pub(crate) fn rename_creates_alias_loop(
+        &mut self,
+        current: NsId,
+        old: &[u8],
+        new: &[u8],
+    ) -> bool {
+        if new.is_empty() {
+            return false; // a delete cannot close a loop
+        }
+        let Some((old_ns, old_simple)) = self.home_of(current, old) else {
+            return false;
+        };
+        if !matches!(
+            self.command_in(old_ns, &old_simple),
+            Some(Command::Alias { .. })
+        ) {
+            return false; // renaming a non-alias is always allowed
+        }
+        let Some((dest_ns, dest_simple)) = self.destination_of(current, new) else {
+            return false;
+        };
+        if (dest_ns, dest_simple.as_slice()) == (old_ns, old_simple.as_slice()) {
+            return false; // a self-rename moves nothing
+        }
+        let Some(moving) = self.unbind_in(old_ns, &old_simple) else {
+            return false;
+        };
+        let displaced = self.arena[dest_ns]
+            .commands
+            .insert(dest_simple.clone(), moving);
+        let loops = self.alias_chain_loops(dest_ns, &dest_simple);
+        let moved = self.unbind_in(dest_ns, &dest_simple);
+        if let Some(displaced) = displaced {
+            self.arena[dest_ns].commands.insert(dest_simple, displaced);
+        }
+        if let Some(moved) = moved {
+            self.arena[old_ns].commands.insert(old_simple, moved);
+        }
+        loops
     }
 
     /// Rewrite every [`Command::Imported`] redirect whose source is `old_fqn`

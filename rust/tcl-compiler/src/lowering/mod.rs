@@ -215,6 +215,31 @@ fn seg_word_is_static_literal(seg: &SegmentedCommand, idx: usize) -> bool {
             .is_some_and(|t| matches!(t.kind, TokenType::Str | TokenType::Esc))
 }
 
+/// Whether word `idx` runs a `$var` / `[cmd]` substitution when it is
+/// evaluated — so its value is run-time data rather than the text as written.
+///
+/// Weaker than the negation of [`seg_word_is_static_literal`], and
+/// deliberately so: a **compound** literal word (`{body}x`, two literal tokens
+/// welded together) is still spelled out in the source, so a body walk that
+/// clamps it with [`crate::segmenter::body_text_in_region`] rebases honest
+/// spans (issue #1325). `{*}$n` under an expansionless grammar looks the same
+/// from the representative token alone — braced, multi-token — yet its second
+/// fragment substitutes, so its value appears nowhere in the document.
+///
+/// Falls back to the representative token kind when the per-word fragments are
+/// unavailable, matching the coarse view the other word gates here take.
+fn seg_word_substitutes(seg: &SegmentedCommand, idx: usize) -> bool {
+    match seg.word_fragments.get(idx) {
+        Some(fragments) if !fragments.is_empty() => fragments
+            .iter()
+            .any(|fragment| matches!(fragment.token.kind, TokenType::Var | TokenType::Cmd)),
+        _ => seg
+            .argv
+            .get(idx)
+            .is_some_and(|tok| matches!(tok.kind, TokenType::Var | TokenType::Cmd)),
+    }
+}
+
 /// True iff `nm` is a static instance-variable name (not a `$var` /
 /// `[cmd]` substitution and not an option flag). Dynamic names are
 /// skipped — conservative.
@@ -293,61 +318,70 @@ fn proc_body_namespace(qualified: &str, lexical_fallback: &str) -> String {
     }
 }
 
-/// Parse a Tcl parameter / variable list into its names.
+/// Collapse the one substitution a braced word permits before the word's text
+/// is parsed as a list.
 ///
-/// The list is a braced word, so a `\<newline>` line continuation collapses to
-/// a single space first (the one substitution braces permit) — without it a
-/// multi-line var-list (`foreach {a b\<nl>  c} …`, a wrapped `proc` param list)
-/// would keep the `\` glued to the preceding name (`b\`) and bind the wrong
-/// variable.
-fn parse_param_names(param_str: &str) -> Vec<String> {
-    let collapsed = tcl_syntax::backslash::collapse_brace_continuations_str(param_str);
-    let mut params = Vec::new();
-    let text = collapsed.trim();
-    let bytes = text.as_bytes();
-    let mut i = 0;
+/// Both list words below arrive as brace-quoted source, so a `\<newline>` line
+/// continuation is still spelled out in the text the segmenter hands over —
+/// without collapsing it a wrapped var list (`foreach {a b\<nl>  c} …`) or a
+/// wrapped `proc` parameter list would keep the `\` glued to the preceding name
+/// (`b\`) and bind the wrong variable.
+fn collapse_list_word(word_text: &str) -> std::borrow::Cow<'_, str> {
+    tcl_syntax::backslash::collapse_brace_continuations_str(word_text)
+}
 
-    while i < bytes.len() {
-        // Skip whitespace.
-        while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
-        }
-        if i >= bytes.len() {
-            break;
-        }
+/// Split a Tcl *variable list* word into the variable names it binds.
+///
+/// This is the `foreach` / `lmap` varList word, and the identically-shaped
+/// varLists of `dict for|map`, `array for`, and a `try on|trap` handler. Such a
+/// word is a plain Tcl list, so grouping binds *one* variable whose name
+/// contains the separator: tclsh 9.0 binds the single name `a b` for both
+/// `foreach {{a b}} …` and `foreach {a\ b} …`, where a whitespace split would
+/// invent two names (or drop one). [`tcl_syntax::list::split_list`] owns that
+/// grammar, and it is what the analyser's `define_vars_from_list` already uses
+/// for the same word, so lowering and analysis agree by construction.
+///
+/// `None` means the word is not a well-formed list (an unmatched brace or
+/// quote). Callers fall back to the runtime command, which raises Tcl's own
+/// error, rather than guessing at a binding.
+fn parse_var_list_names(list_text: &str) -> Option<Vec<String>> {
+    let collapsed = collapse_list_word(list_text);
+    let names = tcl_syntax::list::split_list(&collapsed).ok()?;
+    Some(
+        names
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect(),
+    )
+}
 
-        if bytes[i] == b'{' {
-            // Braced parameter — find matching close brace.
-            let mut level = 1i32;
-            i += 1;
-            let start = i;
-            while i < bytes.len() && level > 0 {
-                match bytes[i] {
-                    b'{' => level += 1,
-                    b'}' => level -= 1,
-                    _ => {}
-                }
-                i += 1;
-            }
-            let inner = &text[start..i.saturating_sub(1)].trim();
-            if !inner.is_empty()
-                && let Some(name) = inner.split_whitespace().next()
-            {
-                params.push(name.to_owned());
-            }
-        } else {
-            // Bare word parameter.
-            let start = i;
-            while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                i += 1;
-            }
-            let word = &text[start..i];
-            if !word.is_empty() {
-                params.push(word.to_owned());
-            }
-        }
-    }
-    params
+/// Split a Tcl *formal parameter* list word into its parameter names.
+///
+/// This is the `proc` / `apply`-lambda / TclOO-method parameter word, a
+/// different grammar from [`parse_var_list_names`]: it has two list levels, the
+/// outer one holding a specifier per parameter and each specifier itself a
+/// `name ?default?` list. So `{x {y 2} args}` is the three parameters `x`, `y`
+/// (defaulting to `2`), and `args`; and `proc p {a\ b} {}` is the *single*
+/// parameter `a` defaulting to `b` (tclsh 9.0: `info args p` → `a`), not the
+/// two names a whitespace split would produce.
+/// [`tcl_syntax::formal_params::parse_formal_parameters`] owns that grammar and
+/// is what the VM, the WASM runtime, and `signature_scan` all decode with.
+///
+/// Only the names reach the IR — [`Procedure::params`] is name-only, and
+/// `params_raw` keeps the source text for consumers that need the defaults.
+///
+/// `None` means Tcl itself would refuse to create the procedure (a malformed
+/// list, a specifier with three or more fields, an array-element or qualified
+/// name), so the caller defers to the runtime command that reports it.
+fn parse_formal_param_names(param_text: &str) -> Option<Vec<String>> {
+    let collapsed = collapse_list_word(param_text);
+    let parameters = tcl_syntax::formal_params::parse_formal_parameters(&collapsed).ok()?;
+    Some(
+        parameters
+            .into_iter()
+            .map(|parameter| parameter.name)
+            .collect(),
+    )
 }
 
 /// Return `Some(true)` / `Some(false)` if *`expr_text`* is a
@@ -788,6 +822,22 @@ pub struct Lowerer<'r> {
     /// here reaches the same crash first and makes the CFG builder's own
     /// cap moot (issue #996).
     nest_depth: u32,
+    /// The buffer every span this lowering emits indexes into — the document
+    /// text for an ordinary lowering, and the *materialised literal* while a
+    /// synthesised script is lowered at offset `0` inside one (the `eval
+    /// $const` / factory-body paths that re-enter [`Self::lower_script`]).
+    /// [`Self::lower_script`] swaps it for the duration of each such
+    /// re-entry, because that is exactly where a new span space begins;
+    /// [`Self::lower_body`] does not, since a body's spans are rebased into
+    /// the space it inherits.
+    ///
+    /// Held so the lowerer can *check* a body word's rebase against the text
+    /// it claims to slice ([`crate::segmenter::body_text_in_region`] in
+    /// [`Self::lower_body_from_tok`]) rather than trusting the arithmetic —
+    /// the guard the analyser has carried since issue #1325.  Empty until a
+    /// script is lowered, which the guard reads as "nothing to compare
+    /// against" and leaves every body text alone.
+    source: String,
 }
 
 /// Maximum nesting depth for the recursive `lower_script` / `lower_body`
@@ -831,6 +881,7 @@ impl<'r> Lowerer<'r> {
             target: CompileTarget::Analysis,
             body_cache: None,
             nest_depth: 0,
+            source: String::new(),
         }
     }
 
@@ -909,7 +960,13 @@ impl<'r> Lowerer<'r> {
             self.nest_depth -= 1;
             return over_depth_script(0, source.len());
         }
+        // `source` starts a span space: its statements' offsets are relative
+        // to it, whether it is the document or a literal materialised inside
+        // one.  Swap it in for the descent and restore the enclosing one after
+        // (see [`Self::source`]).
+        let enclosing_source = std::mem::replace(&mut self.source, source.to_owned());
         let result = self.lower_script_inner(source, namespace);
+        self.source = enclosing_source;
         self.nest_depth -= 1;
         result
     }
@@ -941,6 +998,39 @@ impl<'r> Lowerer<'r> {
         let result = self.lower_body_inner(text, base_offset, namespace);
         self.nest_depth -= 1;
         result
+    }
+
+    /// The part of a body word's `text` whose spans may honestly be rebased
+    /// by that word's content offset, given the word occupies `tok`'s span in
+    /// [`Self::source`].
+    ///
+    /// Every body lowering below adds one base offset to the spans the
+    /// segmenter cuts from a word *value*, which is truthful only while that
+    /// value is the source region verbatim.  A compound `{body}x` word breaks
+    /// it: the value is the brace content welded to the tail with the closing
+    /// `}` dropped, so every token past the drop slides one byte left — an
+    /// off-by-one span on ASCII, an offset inside a UTF-8 sequence on
+    /// anything else (issue #1325).  [`crate::segmenter::body_text_in_region`]
+    /// clamps such a value to the contiguous braced part and passes an
+    /// ordinary body through untouched; the analyser's `analyse_body` has
+    /// applied it since #1325 and this is the lowering side of the same
+    /// guard.
+    ///
+    /// A substituting word (`$body`, `[gen]`) is left alone: its value is
+    /// run-time data that no source region can be compared against, so there
+    /// is nothing here to prove and clamping it would only delete text.  Such
+    /// words are the literal gates' business — they barrier rather than lower
+    /// (issue #1375).
+    fn guarded_body_text<'t>(&self, tok: tcl_lexer::Token, text: &'t str) -> &'t str {
+        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+            return text;
+        }
+        crate::segmenter::body_text_in_region(
+            &self.source,
+            (tok.span.start() + u32::from(tok.content_offset)) as usize,
+            tok.span.end() as usize,
+            text,
+        )
     }
 
     fn lower_body_inner(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
@@ -976,7 +1066,37 @@ impl<'r> Lowerer<'r> {
                 stmts.push(stmt);
             }
         }
+        self.debug_assert_spans_in_source(&stmts);
         stmts
+    }
+
+    /// Every statement leaving [`Self::lower_segmented`] must carry a span
+    /// that is a real range of the buffer it was lowered from — the contract
+    /// downstream consumers rely on when they slice the source with an IR
+    /// span (AGENTS.md: "trust it rather than re-deriving").
+    ///
+    /// This is the producer-side chokepoint: every statement the lowering
+    /// emits passes through here, at the nesting level whose segments were
+    /// cut from [`Self::source`], so a body rebase that overshoots its
+    /// document (issue #1325's compound `{body}x` word, issue #1375's
+    /// non-literal body word) fails the build's own tests instead of
+    /// reaching a consumer.  Debug-only: the guards in
+    /// [`Self::lower_body_from_tok`] and codegen's slice clamp are what keep
+    /// a release build safe.
+    fn debug_assert_spans_in_source(&self, stmts: &[Statement]) {
+        debug_assert!(
+            self.source.is_empty()
+                || stmts
+                    .iter()
+                    .all(|stmt| self.source.get(stmt.span().as_range()).is_some()),
+            "lowering emitted a span outside its {} byte source: {:?}",
+            self.source.len(),
+            stmts
+                .iter()
+                .map(Statement::span)
+                .filter(|span| self.source.get(span.as_range()).is_none())
+                .collect::<Vec<_>>(),
+        );
     }
 
     /// Maintain the per-scope const-map after a command lowers.
@@ -1099,44 +1219,70 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// `{*}` expansion on structured commands lowers to a barrier so
+    /// Whether a resolved lowering hook commits to a **positional argv
+    /// shape** — its lowerer reads "the body is word N", "the loop variables
+    /// are word 0", "the result variable is word 1" — so a `{*}` expansion
+    /// among the words makes the shape unknowable and the call must barrier
+    /// instead.
+    ///
+    /// Registry-derived by construction: the answer is keyed on the typed
+    /// [`LoweringHookId`] that [`Self::try_dispatch_structured_hook`] already
+    /// dispatches on, not on a command-name list (issue #1380 — a nine-name
+    /// list had drifted against seventeen structured hook IDs, so `lmap`,
+    /// `dict for`, `array for`, `foreachLine`, `catch`, `try`, `eval`,
+    /// `uplevel`, and `apply` all committed to their un-expanded argv).
+    /// The match is exhaustive with no wildcard arm, so a new hook ID cannot
+    /// be added without classifying it here.
+    ///
+    /// The `false` arm is the non-structured group: those hooks run in
+    /// [`try_lower_hook`] before this dispatcher is reached, and each already
+    /// declines an expanded call itself via `has_expansion`.
+    fn hook_commits_to_argv_shape(hook: LoweringHookId) -> bool {
+        match hook {
+            LoweringHookId::Proc
+            | LoweringHookId::When
+            | LoweringHookId::NamespaceEval
+            | LoweringHookId::If
+            | LoweringHookId::Switch
+            | LoweringHookId::For
+            | LoweringHookId::While
+            | LoweringHookId::Foreach
+            | LoweringHookId::Lmap
+            | LoweringHookId::ForeachLine
+            | LoweringHookId::Catch
+            | LoweringHookId::Try
+            | LoweringHookId::Dict
+            | LoweringHookId::Eval
+            | LoweringHookId::Uplevel
+            | LoweringHookId::Apply
+            | LoweringHookId::ArrayFor => true,
+            LoweringHookId::Expr
+            | LoweringHookId::Return
+            | LoweringHookId::Set
+            | LoweringHookId::Incr
+            | LoweringHookId::AppendOrLappend
+            | LoweringHookId::Unset
+            | LoweringHookId::Global
+            | LoweringHookId::Variable
+            | LoweringHookId::Upvar => false,
+        }
+    }
+
+    /// `{*}` expansion on a structured command lowers to a barrier so
     /// downstream analyses can't reason about the expanded form.
-    /// Returns `Some(barrier)` when the gate trips; `None` otherwise.
     fn structured_expand_barrier(
         cmd_name: &str,
         args: &[String],
         seg: &SegmentedCommand,
-    ) -> Option<Statement> {
-        let structured = matches!(
-            cmd_name,
-            "proc"
-                | "when"
-                | "namespace"
-                | "if"
-                | "switch"
-                | "for"
-                | "while"
-                | "foreach"
-                | "foreach_in_collection"
-        );
-        if !structured {
-            return None;
-        }
-        if !seg
-            .expand_word
-            .as_ref()
-            .is_some_and(|ew| ew.iter().any(|&e| e))
-        {
-            return None;
-        }
-        Some(Statement::Barrier {
+    ) -> Statement {
+        Statement::Barrier {
             span: seg.span,
             reason: format!("{cmd_name} with argument expansion"),
             command: cmd_name.into(),
             canonical_command: None,
             args: args.to_vec(),
             tokens: Some(Self::cmd_tokens(seg)),
-        })
+        }
     }
 
     /// Try to dispatch *`cmd_name`* through the registry's typed
@@ -1171,10 +1317,29 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Statement> {
         let args = seg.args();
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let resolved =
-            self.registry
-                .resolve_invocation(cmd_name, &arg_refs, DialectSet::empty())?;
+        // Resolved under the registry's own availability mask (issues
+        // #1462/#1463): a profile-built registry suppresses the structured
+        // lowering of a command its release does not have (`lmap` at 8.4),
+        // so the call flows to `lower_default` and reaches the runtime's
+        // availability gate as a generic dispatch. A profile-less registry
+        // keeps the dialect-blind resolution.
+        let resolved = self.registry.resolve_invocation(
+            cmd_name,
+            &arg_refs,
+            self.registry.own_availability_mask(),
+        )?;
         let hook = resolved.semantics.lowering_hook?;
+        // The expansion gate lives here, keyed on the same typed hook the
+        // dispatch below uses, so it can never name a different set of
+        // commands than the lowerers it protects (issue #1380).
+        if Self::hook_commits_to_argv_shape(hook)
+            && seg
+                .expand_word
+                .as_ref()
+                .is_some_and(|ew| ew.iter().any(|&e| e))
+        {
+            return Some(Self::structured_expand_barrier(cmd_name, args, seg));
+        }
         let inline_body_error_context = resolved.semantics.operation.inline_body_error_context();
         match hook {
             // Static-body uplevel.  Match `uplevel 1 {body}`,
@@ -1397,16 +1562,13 @@ impl<'r> Lowerer<'r> {
             return Some(stmt);
         }
 
-        if let Some(barrier) = Self::structured_expand_barrier(cmd_name, args, seg) {
-            return Some(barrier);
-        }
-
-        // Registry-driven hook-ID dispatch covers all 15
+        // Registry-driven hook-ID dispatch covers all 17
         // structured command forms — every typed
         // `LoweringHookId` (Proc, When, NamespaceEval, If,
         // Switch, For, While, Foreach, Lmap, ForeachLine, Catch,
-        // Try, Dict, Eval, Uplevel) flows through
-        // [`try_dispatch_structured_hook`].  Commands that
+        // Try, Dict, Eval, Uplevel, Apply, ArrayFor) flows through
+        // [`try_dispatch_structured_hook`], which also raises the
+        // `{*}`-expansion barrier for them.  Commands that
         // aren't in the registry, or whose hook is `None`, fall
         // through to [`lower_default`] below.
         if let Some(stmt) = self.try_dispatch_structured_hook(cmd_name, seg, namespace) {
@@ -1471,7 +1633,20 @@ impl<'r> Lowerer<'r> {
         // Phase 4: lower the body (materialised, static, or empty
         // for dynamic-with-resolved-name), register the Procedure,
         // and emit the runtime `proc` Call.
-        let params = parse_param_names(&args[1]);
+        // A parameter list Tcl would reject (malformed, an overlong specifier,
+        // an array-element or qualified name) creates no procedure: leave it to
+        // the runtime `proc`, which raises the error, rather than registering a
+        // Procedure whose parameters we guessed at.
+        let Some(params) = parse_formal_param_names(&args[1]) else {
+            return Statement::Barrier {
+                span: seg.span,
+                reason: "malformed proc params".into(),
+                command: "proc".into(),
+                canonical_command: None,
+                args: seg.args().to_vec(),
+                tokens: Some(Self::cmd_tokens(seg)),
+            };
+        };
         let qualified = qualify_proc_name(namespace, proc_name);
         // The body's own command/variable resolution namespace is the one the
         // proc is *defined in* — the qualifier prefix of its own qualified
@@ -1691,7 +1866,9 @@ impl<'r> Lowerer<'r> {
         let event_name = &args[0];
         let body_idx = args.len() - 1;
         let body_tok = seg.arg_tokens()[body_idx];
-        let body_text = &args[body_idx];
+        // The rebase below is truthful only for a body word that is its source
+        // region verbatim — see [`Self::guarded_body_text`].
+        let body_text = self.guarded_body_text(body_tok, &args[body_idx]);
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         // Fresh const-map frame for the nested proc body.
         // ``lower_body`` would otherwise inherit the enclosing
@@ -1811,7 +1988,7 @@ impl<'r> Lowerer<'r> {
             }
         }
         let body = if body_tok.kind == TokenType::Str {
-            let body_text = &args[body_tok_idx];
+            let body_text = self.guarded_body_text(*body_tok, &args[body_tok_idx]);
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
@@ -1929,7 +2106,7 @@ impl<'r> Lowerer<'r> {
             }
         }
         let body = if body_tok.kind == TokenType::Str {
-            let body_text = &args[0];
+            let body_text = self.guarded_body_text(body_tok, &args[0]);
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
@@ -2054,6 +2231,10 @@ impl<'r> Lowerer<'r> {
         {
             (Some(lambda_text), Some(&lambda_tok)) if lambda_tok.kind == TokenType::Str => {
                 let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
+                // The element spans below are this word's own spans rebased by
+                // `base`, so the lambda text has to be the region verbatim
+                // before it is split — see [`Self::guarded_body_text`].
+                let lambda_text = self.guarded_body_text(lambda_tok, lambda_text);
                 segment_commands_with_offset_and_config(lambda_text, base, self.config)
                     .iter()
                     .flat_map(|c| c.argv.iter().copied().zip(c.texts.iter().cloned()))
@@ -2068,12 +2249,22 @@ impl<'r> Lowerer<'r> {
             .filter(|(tok, _)| tok.kind == TokenType::Str)
             .map(|(tok, text)| {
                 (
-                    text.clone(),
+                    self.guarded_body_text(*tok, text).to_owned(),
                     tok.span.start() + u32::from(tok.content_offset),
                 )
             });
 
-        if let Some((body_text, body_offset)) = body_info {
+        // The lambda's bound parameters are element 0 of the lambda list, so a
+        // `$param` read inside the body resolves to the param (not a caller
+        // scalar). A parameter list `apply` itself would reject leaves the body
+        // unwalked: with no trustworthy bound names, a body unit would resolve
+        // its reads against the wrong frame.
+        let params = match lambda_elems.first() {
+            Some((_, param_text)) => parse_formal_param_names(param_text),
+            None => Some(Vec::new()),
+        };
+
+        if let (Some((body_text, body_offset)), Some(params)) = (body_info, params) {
             // `apply` evaluates the body in the namespace named by lambda element
             // 2, or the *global* namespace when it is absent — never the caller's
             // namespace. Element 2 is interpreted relative to the **global**
@@ -2098,16 +2289,10 @@ impl<'r> Lowerer<'r> {
             self.const_map_stack.pop();
             self.proc_depth -= 1;
 
-            // The lambda's bound parameters are element 0 of the lambda list, so
-            // a `$param` read inside the body resolves to the param (not a
-            // caller scalar). A body defined inside a TclOO method body is not
-            // registered globally (`suppress_proc_register`), but a body unit is
+            // A body defined inside a TclOO method body is not registered
+            // globally (`suppress_proc_register`), but a body unit is
             // analysis-only (never codegen-emitted), so it is always safe to
             // record for coverage.
-            let params = lambda_elems
-                .first()
-                .map(|(_, t)| parse_param_names(t))
-                .unwrap_or_default();
             let span = tcl_lexer::Span::new(
                 body_offset,
                 body_offset + u32::try_from(body_text.len()).unwrap_or(u32::MAX),
@@ -2154,7 +2339,13 @@ impl<'r> Lowerer<'r> {
         // The body (index 3) must be a single braced-literal token to walk.
         let body_is_braced = arg_tokens.get(3).is_some_and(|t| t.kind == TokenType::Str)
             && arg_single.get(3).copied() == Some(true);
-        if args.len() == 4 && body_is_braced {
+        // A varList Tcl would refuse to split binds nothing statically, so it
+        // falls through to the opaque runtime barrier below. Decided before the
+        // body is walked, so a rejected loop leaves no const-map traces behind.
+        if args.len() == 4
+            && body_is_braced
+            && let Some(vars) = parse_var_list_names(&args[1])
+        {
             let body_tok = &arg_tokens[3];
             // The body runs in the *caller's* frame (`vm.eval_source` in place),
             // so lower it inline — inheriting the caller's const-map — into a
@@ -2164,7 +2355,6 @@ impl<'r> Lowerer<'r> {
             // regex-source / taint), while codegen barriers it to the byte-
             // identical `::tcl::array::for` invoke — see `lower_foreach_dispatch`.
             let body = self.lower_body_from_tok(&args[3], Some(body_tok), namespace);
-            let vars = parse_param_names(&args[1]);
             return Statement::Foreach {
                 span: seg.span,
                 iterators: vec![ForeachIterator {
@@ -2190,13 +2380,50 @@ impl<'r> Lowerer<'r> {
     }
 
     fn lower_namespace_eval(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        // The body is walked from its *written* spelling, rebased by the body
+        // word's own content offset, so the word must not substitute (issue
+        // #1375's gate).  A `$body` / `[list …]` word's value is run-time data
+        // that appears nowhere in this document: rebasing its unsubstituted
+        // spelling fabricates statement spans that overrun the source —
+        // `namespace eval ::ns [list $o fw]` rebases the whole `[list $o fw]`
+        // text past the opening `[`, one byte off the end.
+        // [`Self::guarded_body_text`] deliberately passes such words through
+        // untouched because clamping run-time data proves nothing; refusing to
+        // walk them is the caller-side half of that contract.  The namespace is
+        // still entered at run time — the `Barrier` below re-emits the call —
+        // the body just stays opaque to static analysis, exactly as
+        // [`Self::lower_apply`] and [`Self::lower_array_for`] leave a dynamic
+        // body opaque.
+        if !seg_word_substitutes(seg, 3) {
+            self.walk_namespace_eval_body(seg, namespace);
+        }
+
+        Statement::Barrier {
+            span: seg.span,
+            reason: "namespace eval".into(),
+            command: "namespace".into(),
+            canonical_command: None,
+            args: seg.args().to_vec(),
+            tokens: Some(Self::cmd_tokens(seg)),
+        }
+    }
+
+    /// Walk a `namespace eval` body inline and record it as a body unit.
+    ///
+    /// Only reached for a body word that does not substitute — see
+    /// [`Self::lower_namespace_eval`] for why.
+    fn walk_namespace_eval_body(&mut self, seg: &SegmentedCommand, namespace: &str) {
         let args = seg.args();
         let child_ns = join_namespace(namespace, &args[1]);
+        let body_tok = seg.arg_tokens()[2];
+        // `namespace eval` inlines whatever literal body word it is given,
+        // including a compound `{…}x` one, so the rebase below needs the #1325
+        // guard (see [`Self::guarded_body_text`]) — both for the body itself and
+        // for the body unit's span derived from its length.
+        let body_text = self.guarded_body_text(body_tok, &args[2]);
+        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let prev = self.in_namespace_eval;
         self.in_namespace_eval = true;
-        let body_tok = seg.arg_tokens()[2];
-        let body_text = &args[2];
-        let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let body = self.lower_body(body_text, body_offset, &child_ns);
         self.in_namespace_eval = prev;
 
@@ -2223,15 +2450,6 @@ impl<'r> Lowerer<'r> {
             body,
             false,
         );
-
-        Statement::Barrier {
-            span: seg.span,
-            reason: "namespace eval".into(),
-            command: "namespace".into(),
-            canonical_command: None,
-            args: args.to_vec(),
-            tokens: Some(Self::cmd_tokens(seg)),
-        }
     }
 
     /// Default lowering: generic [`Statement::Call`] with registry-based
@@ -2798,14 +3016,14 @@ impl<'r> Lowerer<'r> {
                 .insert(class_qname.to_string());
             return;
         }
-        let params = match member.indices_for_call(args, ArgRole::ParamList).next() {
-            Some(rel) => seg
-                .texts
-                .get(base + rel)
-                .filter(|p| !p.is_empty())
-                .map(|p| parse_param_names(p))
-                .unwrap_or_default(),
-            None => Vec::new(),
+        // A parameter list Tcl would reject defines no method, and the class as
+        // a whole becomes unanalysable — the same abstention the dynamic name /
+        // body check above makes.
+        let Some(params) = member_param_names(member, args, seg, base) else {
+            self.module
+                .oo_unanalysed_classes
+                .insert(class_qname.to_string());
+            return;
         };
         // Lower the method body in its own frame (fresh const-map +
         // proc-depth) so the enclosing scope's tracked scalars
@@ -2874,6 +3092,28 @@ impl<'r> Lowerer<'r> {
             return;
         }
         self.module.methods.insert(method_qname, def);
+    }
+}
+
+/// Formal-parameter names of a body-bearing member, read from the word its
+/// grammar marks as the parameter list (`base + rel` in `seg.texts`).
+///
+/// An absent or empty word is the nullary member `method m {} {…}`, so it
+/// yields no names; `None` is a list Tcl itself would reject.
+fn member_param_names(
+    member: &tcl_registry::definer::MemberSpec,
+    args: &[String],
+    seg: &SegmentedCommand,
+    base: usize,
+) -> Option<Vec<String>> {
+    let param_text = member
+        .indices_for_call(args, ArgRole::ParamList)
+        .next()
+        .and_then(|rel| seg.texts.get(base + rel))
+        .filter(|text| !text.is_empty());
+    match param_text {
+        Some(text) => parse_formal_param_names(text),
+        None => Some(Vec::new()),
     }
 }
 
@@ -3342,8 +3582,20 @@ pub fn lower_to_ir_for_bytecode_with_dialect(
 /// [`tcl_runtime_api::CompileService::compile_traced`].
 #[must_use]
 pub fn lower_to_ir_traced(source: &str, registry: &CommandRegistry) -> Module {
+    lower_to_ir_traced_with_config(source, registry, tcl_lexer::LexerConfig::default())
+}
+
+/// Like [`lower_to_ir_traced`] but with an explicit dialect
+/// [`tcl_lexer::LexerConfig`], so a version-pinned host's traced recompiles
+/// parse under the same grammar as its ordinary compiles (issue #1462).
+#[must_use]
+pub fn lower_to_ir_traced_with_config(
+    source: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Module {
     lower_with(
-        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default())
+        Lowerer::with_config(registry, config)
             .for_bytecode_backend()
             .trace_visible(),
         source,
@@ -3385,7 +3637,20 @@ const FATAL_PARSE_MESSAGES: &[&str] = &[
 /// [`FATAL_PARSE_MESSAGES`] count; benign warnings are ignored.
 #[must_use]
 pub fn first_fatal_parse_error(source: &str) -> Option<String> {
-    let lexer = tcl_lexer::Lexer::new(source);
+    first_fatal_parse_error_with_config(source, tcl_lexer::LexerConfig::default())
+}
+
+/// Like [`first_fatal_parse_error`] but lexing under an explicit dialect
+/// [`tcl_lexer::LexerConfig`], so a version-pinned host rejects exactly what
+/// its emulated release rejects — under the Tcl 8.4 grammar `{*}{a b}` is a
+/// hard `extra characters after close-brace`, which the default (8.5+) config
+/// lexes as an ordinary expansion (issue #1462).
+#[must_use]
+pub fn first_fatal_parse_error_with_config(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let lexer = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(source), config);
     let (_tokens, warnings) = lexer.tokenise_all_with_warnings().ok()?;
     warnings
         .into_iter()
@@ -3700,6 +3965,87 @@ mod tests {
             "8.4 treats `{{*}}` as literal → `if` lowers without a barrier: {:?}",
             m84.top_level.statements,
         );
+    }
+
+    /// Issue #1380: the `{*}` barrier used to be a nine-name list
+    /// (`proc`/`when`/`namespace`/`if`/`switch`/`for`/`while`/`foreach`/
+    /// `foreach_in_collection`) while `try_dispatch_structured_hook` covers
+    /// seventeen typed hook IDs, so every structured form missing from the
+    /// list committed to its *un-expanded* argv — `lmap i {*}$spec {…}`
+    /// fabricated an `IRForeach` with one iterator over the literal word
+    /// `${spec}`, which is what made W210 claim a loop variable was read
+    /// before it was set.
+    #[test]
+    fn every_argv_shaped_hook_barriers_on_expansion() {
+        let reg = reg();
+        for src in [
+            // Forms the old name list already covered.
+            "foreach i {*}$spec {puts $i}",
+            "if {*}$cond {puts hi}",
+            "switch {*}$spec {a {puts hi}}",
+            "while {*}$spec {puts hi}",
+            "for {*}$spec {puts hi}",
+            "proc {*}$spec {puts hi}",
+            "namespace eval {*}$spec {puts hi}",
+            // Forms it missed.
+            "lmap i {*}$spec {puts $i}",
+            "dict for {k v} {*}$rest {puts $k}",
+            "array for {k v} {*}$rest {puts $k}",
+            "foreachLine ln {*}$rest {puts $ln}",
+            "catch {puts hi} {*}$rest",
+            "try {puts hi} {*}$rest",
+            "eval {*}$rest",
+            "uplevel {*}$rest",
+            "apply {*}$rest",
+        ] {
+            let m = lower_to_ir(src, &reg);
+            assert!(
+                matches!(
+                    m.top_level.statements.first(),
+                    Some(Statement::Barrier { .. })
+                ),
+                "`{src}` must barrier on `{{*}}` expansion: {:?}",
+                m.top_level.statements,
+            );
+        }
+    }
+
+    /// The barrier is an *expansion* gate, not a blanket one: the same
+    /// structured forms without `{*}` keep their specialised lowering, and a
+    /// non-structured hook (`set`) never barriers on expansion at all — its
+    /// own `has_expansion` check declines and the call reaches
+    /// `lower_default`.
+    #[test]
+    fn expansion_barrier_leaves_unexpanded_and_non_structured_forms_alone() {
+        let reg = reg();
+        for src in [
+            "foreach i $spec {puts $i}",
+            "lmap i $spec {puts $i}",
+            "catch {puts hi} err",
+            "set {*}$rest",
+            "puts {*}$rest",
+        ] {
+            let m = lower_to_ir(src, &reg);
+            assert!(
+                !matches!(
+                    m.top_level.statements.first(),
+                    Some(Statement::Barrier { .. })
+                ),
+                "`{src}` must not raise the expansion barrier: {:?}",
+                m.top_level.statements,
+            );
+        }
+    }
+
+    /// The barrier reason names the command, which the compiler-explorer
+    /// `--show ir` view and the audit notes in issue #1380 both quote.
+    #[test]
+    fn expansion_barrier_reason_names_the_command() {
+        let m = lower_to_ir("lmap i {*}$spec {puts $i}", &reg());
+        let Some(Statement::Barrier { reason, .. }) = m.top_level.statements.first() else {
+            panic!("expected a barrier: {:?}", m.top_level.statements);
+        };
+        assert_eq!(reason, "lmap with argument expansion");
     }
 
     #[test]
@@ -4335,18 +4681,126 @@ mod tests {
     }
 
     #[test]
-    fn parse_param_names_basic() {
-        assert_eq!(parse_param_names("a b c"), vec!["a", "b", "c"]);
+    fn formal_param_names_take_the_specifier_name_only() {
+        assert_eq!(
+            parse_formal_param_names("a b c").unwrap(),
+            vec!["a", "b", "c"],
+        );
+        assert_eq!(
+            parse_formal_param_names("{x default} y").unwrap(),
+            vec!["x", "y"]
+        );
+        assert!(parse_formal_param_names("").unwrap().is_empty());
+        // A wrapped parameter list collapses its continuation before splitting.
+        assert_eq!(
+            parse_formal_param_names("a b\\\n    c").unwrap(),
+            vec!["a", "b", "c"]
+        );
     }
 
     #[test]
-    fn parse_param_names_braced() {
-        assert_eq!(parse_param_names("{x default} y"), vec!["x", "y"]);
+    fn formal_param_names_reject_what_tcl_rejects() {
+        // Tcl refuses to create these procedures, so lowering declines too.
+        assert_eq!(parse_formal_param_names("{a b c}"), None);
+        assert_eq!(parse_formal_param_names("{a::b}"), None);
+        assert_eq!(parse_formal_param_names("{a(1)}"), None);
+        assert_eq!(parse_formal_param_names("{a"), None);
     }
 
     #[test]
-    fn parse_param_names_empty() {
-        assert!(parse_param_names("").is_empty());
+    fn var_list_names_keep_grouped_elements_whole() {
+        assert_eq!(parse_var_list_names("a b").unwrap(), vec!["a", "b"]);
+        // tclsh 9.0: both spellings bind the one variable named `a b`.
+        assert_eq!(parse_var_list_names("{a b}").unwrap(), vec!["a b"]);
+        assert_eq!(parse_var_list_names("a\\ b").unwrap(), vec!["a b"]);
+        assert!(parse_var_list_names("").unwrap().is_empty());
+        assert_eq!(
+            parse_var_list_names("a b\\\n    c").unwrap(),
+            vec!["a", "b", "c"]
+        );
+        // Unbalanced — no binding can be named, so the caller barriers.
+        assert_eq!(parse_var_list_names("{a"), None);
+    }
+
+    // issue #1431: a formal-parameter list has two list levels, so a grouped or
+    // escaped specifier is one parameter, not one name per whitespace run. The
+    // hand-rolled splitter gave `proc p {a\ b} {}` an arity of two.
+
+    /// Parameter names recorded for `::p` when `src` is lowered.
+    fn proc_params(src: &str) -> Vec<String> {
+        let m = lower_to_ir(src, &reg());
+        m.procedures
+            .get("::p")
+            .unwrap_or_else(|| panic!("::p registered for {src:?}"))
+            .params
+            .clone()
+    }
+
+    #[test]
+    fn escaped_space_proc_param_is_one_parameter() {
+        // tclsh 9.0: `proc p {a\ b} {}` → `info args p` is `a`, with
+        // `info default p a` yielding `b`. Only the name reaches the IR, so the
+        // arity is one — the splitter used to report two (`a\` and `b`).
+        assert_eq!(proc_params("proc p {a\\ b} {}"), vec!["a"]);
+        // The grouped spelling decodes identically.
+        assert_eq!(proc_params("proc p {{a b}} {}"), vec!["a"]);
+    }
+
+    #[test]
+    fn proc_params_keep_defaults_and_args_as_names() {
+        // FP-guard: `{x {y 2} args}` is still the three parameters `x`, `y`,
+        // and the variadic `args`.
+        assert_eq!(
+            proc_params("proc p {x {y 2} args} {}"),
+            vec!["x", "y", "args"]
+        );
+        assert!(proc_params("proc p {} {}").is_empty());
+    }
+
+    #[test]
+    fn proc_params_tcl_rejects_fall_through_to_barrier() {
+        // tclsh: `proc p {{a b c}} {}` → "too many fields in argument
+        // specifier". No procedure is created, so lowering registers none and
+        // leaves the runtime `proc` to report it.
+        for src in [
+            "proc p {{a b c}} {}",
+            "proc p {a::b} {}",
+            "proc p {a(1)} {}",
+        ] {
+            let m = lower_to_ir(src, &reg());
+            assert!(
+                !m.procedures.contains_key("::p"),
+                "no ::p for {src:?}: {:?}",
+                m.procedures.keys().collect::<Vec<_>>(),
+            );
+            assert!(
+                matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if reason == "malformed proc params"),
+                "expected a malformed-params barrier for {src:?}, got {:?}",
+                m.top_level.statements[0],
+            );
+        }
+    }
+
+    #[test]
+    fn oo_method_params_use_the_formal_parameter_grammar() {
+        let m = lower_to_ir(
+            "oo::class create C {\n    method m {a\\ b {c 1}} { return 1 }\n}\n",
+            &reg(),
+        );
+        let method = m.methods.get("::C::m").unwrap_or_else(|| {
+            panic!(
+                "::C::m lowered, got {:?}",
+                m.methods.keys().collect::<Vec<_>>()
+            )
+        });
+        assert_eq!(method.params, vec!["a", "c"]);
+        // A parameter list Tcl rejects makes the whole class unanalysable.
+        let m = lower_to_ir(
+            "oo::class create C {\n    method m {{a b c}} { return 1 }\n}\n",
+            &reg(),
+        );
+        assert!(m.oo_unanalysed_classes.contains("::C"), "{m:?}");
+        assert!(!m.methods.contains_key("::C::m"));
     }
 
     #[test]

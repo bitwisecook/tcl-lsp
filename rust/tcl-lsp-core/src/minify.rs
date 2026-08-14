@@ -133,7 +133,7 @@ use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr};
-use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType, close_quote_offset};
 use tcl_registry::abbrev::{KeywordTable, PrefixMatching};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -2422,7 +2422,7 @@ fn collect_folds_for_scope(
                             if has_unsafe_tainted_inputs(content, &uses, &fu.taints, &fu.ssa) {
                                 continue;
                             }
-                            if let Some(close) = find_close_quote(source, arg_off + 1) {
+                            if let Some(close) = close_quote_offset(source, arg_off) {
                                 edits.push((
                                     arg_off,
                                     close - arg_off + 1,
@@ -2465,7 +2465,7 @@ fn try_fold_region(
         return;
     };
     let abs_start = start + q;
-    let Some(close) = find_close_quote(source, abs_start + 1) else {
+    let Some(close) = close_quote_offset(source, abs_start) else {
         return;
     };
     let inner = &source[abs_start + 1..close];
@@ -2609,34 +2609,6 @@ fn parse_var_ref(text: &str, pos: usize) -> (usize, Option<&str>) {
         }
     }
     (end, Some(&text[start..end]))
-}
-
-/// Find the closing `"` from `start`, skipping `\`-escapes and
-/// `[…]` command substitutions.
-fn find_close_quote(source: &str, start: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
-    let mut pos = start;
-    while pos < bytes.len() {
-        match bytes[pos] {
-            b'"' => return Some(pos),
-            b'\\' => pos += 2,
-            b'[' => {
-                let mut depth = 1;
-                pos += 1;
-                while pos < bytes.len() && depth > 0 {
-                    match bytes[pos] {
-                        b'[' => depth += 1,
-                        b']' => depth -= 1,
-                        b'\\' => pos += 1,
-                        _ => {}
-                    }
-                    pos += 1;
-                }
-            }
-            _ => pos += 1,
-        }
-    }
-    None
 }
 
 /// Build a replacement token for a folded static string: bare when
@@ -3225,26 +3197,25 @@ fn shrink_expr_ast(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
     strip_expr_whitespace(&rendered, env, depth)
 }
 
-/// The logical complement of a comparison / membership operator,
-/// or `None` when it has none.
+/// The logical complement of a comparison / membership operator the minifier
+/// may safely substitute, or `None` when there is none it can use.
+///
+/// The table itself is [`BinOp::inverse`] (`tcl_syntax::expr::operators`) —
+/// this used to be a fourth hand-typed copy of those 14 rows, which is how it
+/// came to disagree with the shared evaluator.
+///
+/// The four *ordered numeric* rows are refused outright. Their identity holds
+/// only when neither operand can be NaN (`expr {!(NaN < 1)}` is 1 while
+/// `expr {NaN >= 1}` is 0 — [`BinOp::inverse_needs_non_nan`]), and the minifier
+/// rewrites source text with no type information whatsoever, so it can never
+/// discharge that precondition for an operand like `$x`. `==`/`!=` are exact
+/// complements even for NaN, and the string / membership operators never
+/// compare numerically, so those rows stay available (issue #1437).
 fn comparison_inversion(op: BinOp) -> Option<BinOp> {
-    Some(match op {
-        BinOp::Eq => BinOp::Ne,
-        BinOp::Ne => BinOp::Eq,
-        BinOp::Lt => BinOp::Ge,
-        BinOp::Ge => BinOp::Lt,
-        BinOp::Gt => BinOp::Le,
-        BinOp::Le => BinOp::Gt,
-        BinOp::StrEq => BinOp::StrNe,
-        BinOp::StrNe => BinOp::StrEq,
-        BinOp::In => BinOp::Ni,
-        BinOp::Ni => BinOp::In,
-        BinOp::StrLt => BinOp::StrGe,
-        BinOp::StrGe => BinOp::StrLt,
-        BinOp::StrGt => BinOp::StrLe,
-        BinOp::StrLe => BinOp::StrGt,
-        _ => return None,
-    })
+    if op.inverse_needs_non_nan() {
+        return None;
+    }
+    op.inverse()
 }
 
 /// Build a `!operand` node.
@@ -3369,8 +3340,12 @@ fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
     // yields the 0/1 boolean coercion while `x` yields x's value (tclsh:
     // `expr {!!5}` → 1, `expr {5}` → 5). The minifier processes Expr-role
     // arguments without knowing whether the result is consumed as a boolean, so
-    // the fold is unsafe here. The comparison-inversion and De Morgan rewrites
-    // below DO preserve the 0/1 result and remain.
+    // the fold is unsafe here. The De Morgan rewrite below preserves the 0/1
+    // result for any operand values and remains unconditional; the
+    // comparison-inversion rewrite preserves it only for the operators
+    // `comparison_inversion` still offers — the ordered numeric four (`<`,
+    // `<=`, `>`, `>=`) are excluded there because their identity fails on a
+    // NaN operand and the minifier cannot rule one out.
     if let ExprNode::Binary { op, left, right } = operand {
         // Comparison inversion: !($a == $b) → $a != $b.
         if let Some(inv) = comparison_inversion(*op) {
@@ -3912,6 +3887,35 @@ mod tests {
         assert!(map.values().any(|v| v == "n=5"), "{map:?}");
     }
 
+    /// Issue #1424: the quoted word embeds a command substitution whose own
+    /// argument is quoted. The shared close-quote scanner skips the whole
+    /// `[…]`, so no edit is ever anchored on the inner `"b"` — a scanner
+    /// stopping there would splice a replacement over `"a[string toupper "`
+    /// and leave `b"] $x"` dangling.
+    #[test]
+    fn static_fold_keeps_a_quoted_command_substitution_well_formed() {
+        let registry = CommandRegistry::build_default();
+        let src = "set x 5\nputs \"a[string toupper \"b\"] $x\"\n";
+        let (out, count, _) = fold_static_substrings(src, "tcl8.6", &registry);
+        assert_eq!(count, 0, "a command substitution is not SCCP-foldable");
+        assert_eq!(out, src, "source must come back untouched, not truncated");
+    }
+
+    /// The multiline shape reported on PR #1481: the `]` sitting in a
+    /// command-position comment inside the substitution is inert in C Tcl
+    /// (verified against tclsh 8.6/9.0), so the quoted word runs to the
+    /// final `"`.  When the shared scanner stopped at that `]` it reported
+    /// the quote opening the inner `"b"` as the closer, and any fold edge
+    /// anchored there would splice over the middle of valid source.
+    #[test]
+    fn static_fold_keeps_a_commented_command_substitution_well_formed() {
+        let registry = CommandRegistry::build_default();
+        let src = "set x 5\nputs \"a[\n# ] comment\nset y \"b\"\n]c $x\"\n";
+        let (out, count, _) = fold_static_substrings(src, "tcl8.6", &registry);
+        assert_eq!(count, 0, "a command substitution is not SCCP-foldable");
+        assert_eq!(out, src, "source must come back untouched, not truncated");
+    }
+
     #[test]
     fn static_fold_skips_non_constant() {
         let registry = CommandRegistry::build_default();
@@ -4084,6 +4088,36 @@ mod tests {
     #[test]
     fn expr_comparison_inversion() {
         check("if {!($a == $b)} {puts x}\n", "if {$a!=$b} {puts x}");
+        check("if {!($a != $b)} {puts x}\n", "if {$a==$b} {puts x}");
+    }
+
+    /// Issue #1437: `!($a < $b)` is not `$a >= $b` when an operand may be NaN
+    /// (`expr {!(NaN < 1)}` is 1, `expr {NaN >= 1}` is 0). The minifier rewrites
+    /// source text with no type information, so it can never prove an operand
+    /// NaN-free and must leave the ordered four alone — the parenthesised form
+    /// survives verbatim even though inverting would be shorter.
+    #[test]
+    fn expr_ordered_comparison_inversion_is_declined() {
+        check("if {!($a < $b)} {puts x}\n", "if {!($a<$b)} {puts x}");
+        check("if {!($a <= $b)} {puts x}\n", "if {!($a<=$b)} {puts x}");
+        check("if {!($a > $b)} {puts x}\n", "if {!($a>$b)} {puts x}");
+        check("if {!($a >= $b)} {puts x}\n", "if {!($a>=$b)} {puts x}");
+    }
+
+    /// The string and membership operators never compare numerically, so no NaN
+    /// rule reaches them and their inversions remain available.
+    #[test]
+    fn expr_string_and_membership_inversion_still_applies() {
+        check(
+            "if {!($a eq \"x\")} {puts x}\n",
+            "if {$a ne \"x\"} {puts x}",
+        );
+        check(
+            "if {!($a ne \"x\")} {puts x}\n",
+            "if {$a eq \"x\"} {puts x}",
+        );
+        check("if {!($a in $b)} {puts x}\n", "if {$a ni $b} {puts x}");
+        check("if {!($a ni $b)} {puts x}\n", "if {$a in $b} {puts x}");
     }
 
     #[test]

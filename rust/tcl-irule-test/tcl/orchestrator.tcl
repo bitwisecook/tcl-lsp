@@ -57,7 +57,9 @@ namespace eval ::orch {
         variable _config_keys
         foreach {opt val} $args {
             set key [string trimleft $opt -]
-            if {$key ni $_config_keys} {
+            # ([lsearch] rather than `ni`: the membership operators are 8.5+
+            # and the harness compiles under the TMM's 8.4.)
+            if {[lsearch -exact $_config_keys $key] < 0} {
                 error "unknown configure option \"-$key\" (valid: [join $_config_keys {, }])"
             }
             set config($key) $val
@@ -203,11 +205,13 @@ namespace eval ::orch {
 
     proc fire {event_name args} {
         # Set up state for the event if provided
+        # ({*} is 8.5+ syntax; the harness compiles under the TMM's 8.4
+        # grammar, so expand via eval as compat84.tcl prescribes.)
         foreach {k v} $args {
             switch -exact -- [string trimleft $k -] {
-                http_request  { _setup_http_request {*}$v }
-                http_response { _setup_http_response {*}$v }
-                tls           { _setup_tls {*}$v }
+                http_request  { eval _setup_http_request $v }
+                http_response { eval _setup_http_response $v }
+                tls           { eval _setup_tls $v }
             }
         }
 
@@ -1148,7 +1152,7 @@ namespace eval ::orch {
 
         # Check constraints
         foreach c $constraints {
-            if {$c ni $_test_constraints} {
+            if {[lsearch -exact $_test_constraints $c] < 0} {
                 incr _test_skipped
                 if {$_test_verbose >= 2} {
                     puts "---- $name SKIPPED ($c)"
@@ -1637,7 +1641,8 @@ namespace eval ::orch {
     #   puts [::orch::fakecmp_plan -count 2]
     proc fakecmp_plan {args} {
         variable _tmm_count
-        set plan [fakecmp_suggest_sources {*}$args]
+        # ({*} is 8.5+ syntax; the harness compiles under 8.4 — eval-expand.)
+        set plan [eval fakecmp_suggest_sources $args]
         set lines [list]
         lappend lines "fakeCMP distribution plan ($_tmm_count TMMs):"
         for {set t 0} {$t < $_tmm_count} {incr t} {

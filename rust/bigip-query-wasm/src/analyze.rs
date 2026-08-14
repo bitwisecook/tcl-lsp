@@ -28,7 +28,7 @@
 use std::fmt::Write as _;
 
 use tcl_compiler::analyser::Analyser;
-use tcl_lexer::{LexerConfig, highlight_ranges};
+use tcl_lexer::highlight_ranges;
 use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 
 /// Format an iRule body with the F5 iRules Style Guide formatter in the
@@ -39,10 +39,9 @@ use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 #[must_use]
 pub fn format_irule_source(source: &str) -> String {
     let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let config = FormatterConfig {
-        lexer_config: LexerConfig::for_dialect("f5-irules"),
-        ..FormatterConfig::default()
-    };
+    // One resolved profile carries every dialect fact the formatter needs
+    // (issue #1465) — the iRules lexer grammar included.
+    let config = FormatterConfig::for_dialect("f5-irules");
     format_tcl(source, &config, registry)
 }
 

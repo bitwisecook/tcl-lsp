@@ -53,45 +53,21 @@ pub fn preview(text: &str, limit: usize) -> String {
     }
 }
 
-/// The closing delimiter for an opening `{` / `"` / `[`, if any.
-fn closer_for(byte: u8) -> Option<u8> {
-    match byte {
-        b'{' => Some(b'}'),
-        b'"' => Some(b'"'),
-        b'[' => Some(b']'),
-        _ => None,
-    }
-}
-
 /// The inclusive end offset of `span`, widened to cover a braced/quoted/
 /// bracketed closer when one immediately follows, operating on a
 /// `[start, end)` span.
 ///
 /// A `Span` is `[start, end)` (exclusive), so its inclusive last byte is
-/// `end - 1`, the inclusive-end convention. The widen rules are: when the
-/// span opens with a delimiter and the matching closer sits one past the
-/// inclusive end, extend by one; the empty `{}` / `[]` / `""` case (which
-/// already ends *on* its closer) is never widened.
+/// `end - 1`. Whether a delimited word's closer sits past that is the
+/// [`tcl_lexer::word_span_at`] family's question, not the explorer's: an
+/// empty `{}` / `[]` / `""` already ends *on* its closer and must never be
+/// widened, while a word whose last inner byte happens to be a closer
+/// (`{$x eq {}}`) still needs widening (issue #1423). Re-deriving that here
+/// was one of six independent copies of the same arithmetic.
 fn widened_inclusive_end(span: Span, source: &str) -> u32 {
-    let start = span.start();
-    let end = span.end();
-    let default = end.saturating_sub(1);
-    let bytes = source.as_bytes();
-    let (a, e) = (start as usize, end as usize);
-    if a >= bytes.len() || end == 0 {
-        return default;
-    }
-    let Some(closer) = closer_for(bytes[a]) else {
-        return default;
-    };
-    // Empty opener+closer (`{}`): inclusive end is `end - 1`, which sits on
-    // the closer and `end - 1 == start + 1`. Never widen.
-    let inclusive = e - 1;
-    let is_empty = end == start + 2 && inclusive < bytes.len() && bytes[inclusive] == closer;
-    if !is_empty && e < bytes.len() && bytes[e] == closer {
-        return end; // widened: inclusive end advances to the closer at `end`.
-    }
-    default
+    tcl_lexer::word_span_at(source, span)
+        .end()
+        .saturating_sub(1)
 }
 
 /// Convert a [`Span`] to the explorer's range dict.
@@ -368,5 +344,61 @@ pub fn format_lattice(value: &LatticeValue) -> String {
         LatticeValue::Overdefined => "overdefined".to_owned(),
         LatticeValue::Const(c) => format!("const({})", const_value_repr(c)),
         LatticeValue::ConstSet(_) => "const(None)".to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inclusive_end_widens_a_delimited_word_to_its_closer() {
+        // `{a b}` — the lexer's span stops on the last inner byte, so the
+        // explorer's inclusive end must advance onto the `}`.
+        assert_eq!(widened_inclusive_end(Span::new(0, 4), "{a b}"), 4);
+        assert_eq!(widened_inclusive_end(Span::new(0, 2), "[x]"), 2);
+        assert_eq!(widened_inclusive_end(Span::new(0, 3), "\"ab\""), 3);
+    }
+
+    #[test]
+    fn inclusive_end_does_not_overshoot_an_empty_pair() {
+        // `a {}}` — the empty `{}`'s span already ends on its own closer;
+        // widening it would report the *enclosing* body's `}`.
+        assert_eq!(widened_inclusive_end(Span::new(2, 4), "a {}}"), 3);
+    }
+
+    #[test]
+    fn inclusive_end_widens_a_word_ending_in_a_nested_empty_pair() {
+        // Issue #1423: `{$x eq {}}` already ends in a `}` — the inner
+        // pair's — and still needs its own closer.
+        let source = "while {$x eq {}} {}";
+        assert_eq!(widened_inclusive_end(Span::new(6, 15), source), 15);
+        assert_eq!(source.as_bytes()[15], b'}');
+    }
+
+    #[test]
+    fn inclusive_end_widens_a_braced_variable_word() {
+        // `${x}` — the `Var` token span excludes the closing `}`, so the
+        // explorer used to report a range one byte short of the word.
+        assert_eq!(widened_inclusive_end(Span::new(0, 3), "${x}"), 3);
+        // `${}` is the degenerate empty name: already whole.
+        assert_eq!(widened_inclusive_end(Span::new(0, 3), "${}}"), 2);
+    }
+
+    #[test]
+    fn inclusive_end_leaves_undelimited_and_unterminated_spans_alone() {
+        assert_eq!(widened_inclusive_end(Span::new(0, 5), "plain"), 4);
+        assert_eq!(widened_inclusive_end(Span::new(0, 2), "{a"), 1);
+        assert_eq!(widened_inclusive_end(Span::new(0, 0), ""), 0);
+    }
+
+    #[test]
+    fn range_dict_reports_the_exclusive_end_past_the_closer() {
+        let source = "{a b}";
+        let li = LineIndex::new(source);
+        let d = range_dict(Span::new(0, 4), &li, source);
+        assert_eq!(d["startOffset"], 0);
+        assert_eq!(d["endOffset"], 5);
+        assert_eq!(d["endCol"], 5);
     }
 }

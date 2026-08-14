@@ -990,8 +990,10 @@ Use braces: {{ \u{2026} }}"
                     let inner = &text[paren_idx + 1..text.len() - 1];
                     if !name.is_empty() && index_has_substitution(inner) {
                         let corrected = build_w216_replacement(name, inner);
-                        // Token span end is exclusive — it sits on the `}`.
-                        let span = tcl_lexer::Span::new(t1.span.start(), t1.span.end() + 1);
+                        // The `}` closing a `${…}` word is the owner
+                        // family's call, not `span.end() + 1` — that
+                        // overshoots the degenerate `${}` (issue #1423).
+                        let span = tcl_lexer::word_span_at(&self.source, t1.span);
                         let message = format!(
                             "`${{{name}({inner})}}` does not substitute `{inner}` \
 (the brace form is documented to apply no further substitution to its \

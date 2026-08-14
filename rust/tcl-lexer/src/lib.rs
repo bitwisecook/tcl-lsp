@@ -36,6 +36,14 @@
 //!   a caller anchoring a diagnostic or slicing a word's raw text wants:
 //!   it returns the whole written word, closing delimiter included, where
 //!   [`Token::span`] alone stops at the end of the word's *content*.
+//! - [`close_quote_offset`] — the same closer question for a `"…"` word
+//!   answered from a bare byte offset, for callers holding source and an
+//!   offset rather than a token (it skips `\`-escapes and whole `[…]`
+//!   command substitutions).
+//! - [`word_closer_offset_at`], [`word_span_at`] — the same closer
+//!   question for **any** delimited word (`${name}` included) answered
+//!   from the word's own [`Span`], for callers that kept a span but not
+//!   the [`Token`] it came from.
 //! - [`Lexer`], [`LexerConfig`], [`LexError`] — the lexer itself.
 //!   Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens; every other
 //!   construct is surfaced as a `SyntaxError` (in strict-quoting mode)
@@ -66,7 +74,10 @@ pub use highlight::{
 };
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
-pub use ranges::{word_append_offset, word_closer_offset, word_end_position, word_span};
+pub use ranges::{
+    close_quote_offset, word_append_offset, word_closer_offset, word_closer_offset_at,
+    word_end_position, word_span, word_span_at,
+};
 pub use source_map::SourceMap;
 pub use span::Span;
 pub use structural_index::{
@@ -74,13 +85,14 @@ pub use structural_index::{
     script_is_complete,
 };
 pub use substitution::{
-    EscapeSegment, backslash_escape_end, backslash_subst, split_backslash_escapes,
+    EscapeSegment, backslash_escape_end, backslash_escape_end_in, backslash_subst,
+    backslash_subst_in, split_backslash_escapes, split_backslash_escapes_in,
 };
 // Re-exported from the foundational dialect crate so existing
 // `tcl_lexer::BracedVarStyle` imports keep working — the enum moved down to
 // `tcl-dialect` (dialect-profile-model.md §3) where the `DialectProfile`
 // grammar axis shares it.
-pub use tcl_dialect::BracedVarStyle;
+pub use tcl_dialect::{BracedVarStyle, EscapeSyntax};
 pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
 
 /// Crate version string.

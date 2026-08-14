@@ -43,25 +43,22 @@ use crate::cli::{ColourArgs, InputArgs};
 /// Default tab-expansion width used on stdout (the CLI default).
 const DEFAULT_TAB_WIDTH: usize = 4;
 
-/// `tcl format` — pretty-print each input with canonical style rules.
-pub fn run_format(
-    input: &InputArgs,
+/// The `tcl format` formatter configuration for `dialect`, with the CLI's
+/// style overrides applied.
+///
+/// The resolved dialect is the formatter's whole dialect story (issue #1465):
+/// its lexer grammar (so, e.g., an iRule's `}{` parses as two words and is
+/// re-emitted as `} {`), the release its rewrite candidates are filtered
+/// against, and the forward range those rewrites must stay correct across all
+/// come from this one profile. `--dialect` names it; otherwise it is the
+/// documents' detected dialect.
+fn format_config(
+    dialect: &str,
     indent_size: Option<usize>,
     indent_style: Option<&str>,
     max_line_length: Option<usize>,
-    colour: &ColourArgs,
-) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
-    let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&dialect);
-
-    let mut config = FormatterConfig {
-        // Tokenise with the dialect's rules so, e.g., an iRule's `}{` (valid in
-        // TMM) parses as two words and is re-emitted as `} {`.
-        lexer_config: tcl_lexer::LexerConfig::for_dialect(&dialect),
-        ..Default::default()
-    };
+) -> FormatterConfig {
+    let mut config = FormatterConfig::for_dialect(dialect);
     if let Some(size) = indent_size {
         config.indent_size = size;
     }
@@ -75,6 +72,23 @@ pub fn run_format(
     if let Some(max) = max_line_length {
         config.max_line_length = max;
     }
+    config
+}
+
+/// `tcl format` — pretty-print each input with canonical style rules.
+pub fn run_format(
+    input: &InputArgs,
+    indent_size: Option<usize>,
+    indent_style: Option<&str>,
+    max_line_length: Option<usize>,
+    colour: &ColourArgs,
+) -> anyhow::Result<u8> {
+    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let source = combine_sources(&documents);
+    let registry = registry_for_dialect(&dialect);
+
+    let config = format_config(&dialect, indent_size, indent_style, max_line_length);
 
     // `formatting_with` returns a single whole-document edit, or an empty Vec
     // when the source is already canonical.
@@ -300,4 +314,45 @@ pub fn run_unminify_error(
     let target = OutputTarget::from_arg(output);
     write_text_output(&target, &translated)?;
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_config;
+
+    /// `tcl format` must resolve the document's dialect onto the formatter,
+    /// not format everything as modern Tcl (issue #1465). `}{` is the
+    /// discriminator: TMM parses it as two words, stock Tcl does not.
+    #[test]
+    fn the_resolved_dialect_reaches_the_formatter() {
+        let irules = format_config("f5-irules", None, None, None);
+        assert!(irules.profile.is_irules());
+        assert!(irules.lexer_config().irules_brace_separator);
+
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let source = "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
+        let out = tcl_lsp_core::formatting::format_tcl(source, &irules, registry);
+        assert!(out.contains("} {"), "{out}");
+        assert!(!out.contains("}{"), "{out}");
+
+        // A Tcl release resolves its own profile, and leaves those bytes
+        // alone.
+        let tcl9 = format_config("tcl9.0", None, None, None);
+        assert!(!tcl9.lexer_config().irules_brace_separator);
+        let out = tcl_lsp_core::formatting::format_tcl(source, &tcl9, registry);
+        assert!(out.contains("}{"), "{out}");
+    }
+
+    /// The style overrides still apply on top of the profile.
+    #[test]
+    fn the_style_overrides_apply_on_top_of_the_profile() {
+        let cfg = format_config("f5-irules", Some(2), Some("tabs"), Some(70));
+        assert!(cfg.profile.is_irules());
+        assert_eq!(cfg.indent_size, 2);
+        assert_eq!(
+            cfg.indent_style,
+            tcl_lsp_core::formatting::IndentStyle::Tabs
+        );
+        assert_eq!(cfg.max_line_length, 70);
+    }
 }

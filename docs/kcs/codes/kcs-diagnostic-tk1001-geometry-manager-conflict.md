@@ -1,4 +1,4 @@
-# KCS: TK1001 — Why does the analyser warn about mixing `pack` and `grid`?
+# KCS: TK1001 — Why does the analyser warn about mixing geometry managers?
 
 > **Audience:** User
 > **Type:** Diagnostic
@@ -13,13 +13,13 @@ default
 
 ## Question
 
-Why does the analyser flag `pack` and `grid` used on children of the same
-parent widget?
+Why does the analyser flag two geometry managers (`pack`, `grid`, or
+`place`) used on children of the same parent widget?
 
 ## Why
 
-A Tk container can only be managed by one geometry manager. When both
-`pack` and `grid` claim the same parent, each keeps resizing the parent
+A Tk container can only be managed by one geometry manager. When two of
+them claim the same parent, each keeps resizing the parent
 to suit its own children and the other responds in kind. Tk raises
 "cannot use geometry manager grid inside … which already has slaves
 managed by pack" — or, in the versions that do not, the window loops
@@ -72,7 +72,8 @@ to mix them. Only sharing one parent is the problem.
 - **Across interpreters.** A `pack` in the main script and a `grid` in an
   `interp eval` body claim two different windows that merely share a path
   string, so they cannot conflict.
-- **`place`.** It is tracked, but only the `pack`/`grid` pair is reported.
+- **Only one manager.** Any *two* of `pack`, `grid`, and `place` on one
+  parent conflict; a container claimed by just one of them is fine.
 
 ## How to suppress
 

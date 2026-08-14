@@ -450,8 +450,14 @@ impl Analyser {
         // per-function `scan_scope_aliases` only sees a function's own traces;
         // fold the module-wide traced globals into every function's
         // suppression context (which already covers both W211 and W220).
-        let traced_globals =
+        let mut traced_globals =
             crate::optimiser::elimination::scan_module_traced_globals(cu, registry);
+        // The registry-driven whole-module fact stores the canonical
+        // (`::`-stripped) spelling, so an *unqualified* top-level store
+        // (`set g 1`, chain key `g`) is also suppressed when the trace
+        // names `::g` (issue #1377) — the same fact SCCP and the O102 /
+        // O109 gates consult.
+        traced_globals.extend(cu.ir_module.traced_variables.iter().cloned());
 
         // **W220 call-by-name suppression.** Build the
         // interprocedural proc-index once so a caller-local passed *by

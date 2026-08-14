@@ -35,6 +35,14 @@ expr {$x}
 
 - Skipped when the rewrite would change the result type (e.g. integer vs. floating-point).
 - Skipped when the original expression has observable side effects that the simplified form would drop.
+- Skipped when an operand could be `NaN` and the rewrite depends on it not
+  being. With a `NaN` operand Tcl makes `!=` true and every other comparison
+  false, so `!($x < $y)` is not `$x >= $y`, and `$x == $x` is `0` rather than
+  `1`. Rewrites of `<`, `<=`, `>`, `>=` under a `!`, and the `$x == $x` /
+  `$x != $x` / `$x <= $x` / `$x >= $x` folds, therefore fire only where the
+  operand is proved to be an integer. `==` / `!=` inversions, `$x < $x`,
+  `$x > $x`, and every string comparison (`eq`, `ne`, `lt`, …) and membership
+  test (`in`, `ni`) are unaffected.
 
 ## How to disable
 

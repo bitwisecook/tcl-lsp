@@ -1063,7 +1063,7 @@ fn detect_static_passthrough_recognises_zero_param() {
     // Direct recognition assertion: `detect_static_passthrough` exposes the
     // candidate set explicitly.
     let m = module_for("proc reset {} { uplevel 1 {set counter 0} }\n");
-    let candidates = detect_static_passthrough(&m);
+    let candidates = detect_static_passthrough(&m, &reg());
     assert_eq!(candidates.len(), 1);
     assert!(candidates.contains_key("::reset"));
 }
@@ -1073,9 +1073,9 @@ fn detect_static_passthrough_rejects_param_and_frame_reach() {
     // A param proc is not the *static* zero-param shape, and a nested upvar
     // body fails the frame-reach gate — both excluded from the static set.
     let with_param = module_for("proc reset {x} { uplevel 1 {set counter 0} }\n");
-    assert!(detect_static_passthrough(&with_param).is_empty());
+    assert!(detect_static_passthrough(&with_param, &reg()).is_empty());
     let nested_reach = module_for("proc bind {} { uplevel 1 {upvar foo bar} }\n");
-    assert!(detect_static_passthrough(&nested_reach).is_empty());
+    assert!(detect_static_passthrough(&nested_reach, &reg()).is_empty());
 }
 
 #[test]
@@ -1084,11 +1084,11 @@ fn body_has_frame_reach_flags_uplevel_and_upvar() {
     // callsite's materialised body. A plain assignment does not reach; an
     // `uplevel` / `upvar` body does.
     let plain = module_for("set x 1\n");
-    assert!(!body_has_frame_reach(&plain.top_level));
+    assert!(!body_has_frame_reach(&plain.top_level, &reg()));
     let reaches = module_for("uplevel 1 {set x 1}\n");
-    assert!(body_has_frame_reach(&reaches.top_level));
+    assert!(body_has_frame_reach(&reaches.top_level, &reg()));
     let upvar = module_for("upvar 1 foo bar\n");
-    assert!(body_has_frame_reach(&upvar.top_level));
+    assert!(body_has_frame_reach(&upvar.top_level, &reg()));
 }
 
 // --- TestInliningIdempotence -----------------------------------------------
@@ -1167,7 +1167,7 @@ fn param_body_wrong_arity_at_call_site_stays_call() {
 fn param_body_multiple_params_not_recognised() {
     // Two params fail the single-body-param gate at *detection* time.
     let m = module_for("proc dispatcher2 {a body} { uplevel 1 $body }\n");
-    assert!(detect_passthrough_candidates(&m).is_empty());
+    assert!(detect_passthrough_candidates(&m, &reg()).is_empty());
     let out = uplevel_inlined(
         "proc dispatcher2 {a body} { uplevel 1 $body }\nproc caller {} { dispatcher2 x {set x 1} }\n",
     );
@@ -1183,14 +1183,14 @@ fn param_body_multiple_params_not_recognised() {
 fn param_body_non_param_var_reference_not_recognised() {
     // The body `$other` is not the sole param name.
     let m = module_for("proc dispatcher {body} { uplevel 1 $other }\n");
-    assert!(detect_passthrough_candidates(&m).is_empty());
+    assert!(detect_passthrough_candidates(&m, &reg()).is_empty());
 }
 
 #[test]
 fn param_body_explicit_level_other_than_one_not_recognised() {
     // `uplevel 2 $body` is a deeper shift with different semantics.
     let m = module_for("proc dispatcher {body} { uplevel 2 $body }\n");
-    assert!(detect_passthrough_candidates(&m).is_empty());
+    assert!(detect_passthrough_candidates(&m, &reg()).is_empty());
 }
 
 #[test]
@@ -1199,7 +1199,7 @@ fn param_body_shape_carries_param_name() {
     // shape and records the sole parameter name (exercising the public
     // `PassthroughShape` enum directly).
     let m = module_for("proc dispatcher {body} { uplevel 1 $body }\n");
-    let candidates = detect_passthrough_candidates(&m);
+    let candidates = detect_passthrough_candidates(&m, &reg());
     match candidates.get("::dispatcher") {
         Some(PassthroughShape::ParamBody { param_name }) => assert_eq!(param_name, "body"),
         other => panic!("expected ParamBody {{ body }}, got {other:?}"),
@@ -1210,7 +1210,7 @@ fn param_body_shape_carries_param_name() {
 fn static_shape_carries_body() {
     // The Static shape carries the pre-lowered body to splice.
     let m = module_for("proc reset {} { uplevel 1 {set counter 0} }\n");
-    let candidates = detect_passthrough_candidates(&m);
+    let candidates = detect_passthrough_candidates(&m, &reg());
     match candidates.get("::reset") {
         Some(PassthroughShape::Static { body }) => {
             assert!(!body.statements.is_empty(), "static body is non-empty");

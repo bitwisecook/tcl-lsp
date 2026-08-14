@@ -120,8 +120,8 @@ The `expand_syntax` field of `LexerConfig`
 is populated from the active dialect's `LexerGrammar`
 (`rust/tcl-dialect/src/profile.rs`):
 
-- **Enabled** by `GRAMMAR_TCL8X` and `GRAMMAR_TCL9X` — all Tcl
-  8.5 / 8.6 / 9.x profiles and every dialect whose base Tcl version is
+- **Enabled** by `GRAMMAR_TCL85`, `GRAMMAR_TCL86`, and `GRAMMAR_TCL9X` — all
+  Tcl 8.5 / 8.6 / 9.x profiles and every dialect whose base Tcl version is
   at least 8.5 (f5-iapps, f5-tmsh, EDA vendors, Expect).
 - **Disabled** by `GRAMMAR_TCL84` and `GRAMMAR_IRULES` (`tcl8.4`,
   `f5-irules`) because `{*}` did not exist in Tcl 8.4 — the lexer must

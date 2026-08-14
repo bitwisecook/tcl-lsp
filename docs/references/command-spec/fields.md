@@ -1300,6 +1300,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `TCLOO_BINDS_METHOD_ALIAS` | binds bareword aliases for methods of the current object |
 | `TCLOO_REQUIRES_METHOD_FRAME` | calling it needs a real method invocation, not just an object frame |
 | `DECLARES_NAMESPACE` | declares the namespace its NamespaceName word names |
+| `TK_GEOMETRY_MANAGER` | a Tk geometry manager that claims a container |
 
 ### Value types
 

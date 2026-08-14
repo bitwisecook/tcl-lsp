@@ -1571,9 +1571,16 @@ pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
 /// Extract iteration-variable elements from a foreach list arg
 /// that is a literal (no `$` / `[` substitution).
 ///
+/// `list_text` must already be delimiter-stripped by the segmenter (the shape
+/// `Statement::Foreach`'s `list_arg` is built in, and the shape every caller
+/// of this function must pass) — a second strip here would wrongly peel a
+/// single-element list like `{{a b} {c d}}` (segmented to `{a b} {c d}`) down
+/// to the elements `a` and `b}`. See `cfg_builder::list_literal_nonempty` and
+/// `analyser::bounds_checks` for the same contract.
+///
 /// Behaviour:
-/// - Strip whitespace, one level of `{…}` or `"…"` wrapping.
-/// - Split on ASCII whitespace.
+/// - Strip whitespace.
+/// - Split on Tcl list semantics (`Tcl_SplitList`), not ASCII whitespace.
 /// - Returns `None` for anything that starts with `$` or `[` so
 ///   callers fall through to
 ///   [`resolve_foreach_list_via_lattice`].
@@ -1586,17 +1593,10 @@ pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
     if stripped.starts_with('[') || stripped.starts_with('$') {
         return None;
     }
-    let inner = if (stripped.starts_with('{') && stripped.ends_with('}'))
-        || (stripped.starts_with('"') && stripped.ends_with('"'))
-    {
-        &stripped[1..stripped.len() - 1]
-    } else {
-        stripped
-    };
     // List-aware split (Tcl_SplitList semantics): a nested-brace list like
-    // `{a {b c} d}` yields the three elements `a`, `b c`, `d` — not the four
+    // `a {b c} d` yields the three elements `a`, `b c`, `d` — not the four
     // whitespace runs `a`, `{b`, `c}`, `d` a naive split would produce.
-    Some(split_list_values(inner))
+    Some(split_list_values(stripped))
 }
 
 /// Resolve `$var` / `${var}` to a `Vec<String>` of list elements
@@ -1802,7 +1802,12 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     // `[llength LIST]` with a literal or lattice-resolvable list.
     if cmd == "llength" {
         let arg = rest?.trim();
-        if let Some(elements) = extract_foreach_elements(arg) {
+        // Unlike `foreach`'s `list_arg` (already delimiter-stripped by the
+        // segmenter), `arg` here is raw source text straight out of the
+        // `[...]` command substitution, so it still carries its own
+        // `{…}`/`"…"` wrapping that `extract_foreach_elements` no longer
+        // strips — peel exactly one level before splitting.
+        if let Some(elements) = extract_foreach_elements(strip_one_level(arg)) {
             let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
@@ -2681,14 +2686,9 @@ mod tests {
 
     #[test]
     fn extract_foreach_elements_literal_list() {
-        assert_eq!(
-            extract_foreach_elements("{a b c}"),
-            Some(vec!["a".into(), "b".into(), "c".into()])
-        );
-        assert_eq!(
-            extract_foreach_elements("\"a b c\""),
-            Some(vec!["a".into(), "b".into(), "c".into()])
-        );
+        // `list_text` is already delimiter-stripped by the segmenter, matching
+        // the shape `foreach v {a b c}`'s `list_arg` is built in: the word's
+        // own `{…}` is gone, leaving plain whitespace-separated text.
         assert_eq!(
             extract_foreach_elements("a b c"),
             Some(vec!["a".into(), "b".into(), "c".into()])
@@ -2703,17 +2703,17 @@ mod tests {
 
     #[test]
     fn extract_foreach_elements_splits_nested_braces_as_tcl_list() {
-        // `{a {b c} d}` is a three-element Tcl list — `a`, `b c`, `d` — not the
+        // `a {b c} d` is a three-element Tcl list — `a`, `b c`, `d` — not the
         // four whitespace runs `a`, `{b`, `c}`, `d`. A naive `split_ascii_whitespace`
         // corrupted the CONSTSET; the list-aware split fixes it.
         assert_eq!(
-            extract_foreach_elements("{a {b c} d}"),
+            extract_foreach_elements("a {b c} d"),
             Some(vec!["a".into(), "b c".into(), "d".into()])
         );
-        // Backslash-escaped whitespace groups an element too: `{a\ b c}` is two
+        // Backslash-escaped whitespace groups an element too: `a\ b c` is two
         // elements `a b` and `c`.
         assert_eq!(
-            extract_foreach_elements("{a\\ b c}"),
+            extract_foreach_elements("a\\ b c"),
             Some(vec!["a b".into(), "c".into()])
         );
     }
@@ -2721,13 +2721,55 @@ mod tests {
     #[test]
     fn extract_foreach_elements_empty_list_returns_empty() {
         assert_eq!(extract_foreach_elements(""), Some(Vec::new()));
-        assert_eq!(extract_foreach_elements("{}"), Some(Vec::new()));
+    }
+
+    // Regression tests for issue #1433: `list_text` already has its outer
+    // `foreach`-word delimiter removed by the segmenter (see
+    // `Statement::Foreach::list_arg`'s construction in
+    // `lowering::structured`), so a value that itself starts with `{` / `"`
+    // is a *nested* list element, not a delimiter to peel a second time.
+    #[test]
+    fn extract_foreach_elements_single_element_braced_list_not_double_stripped() {
+        // Source `foreach v {{a b c}}`: the segmenter strips the word's own
+        // outer `{…}`, leaving the single-element list `{a b c}` as
+        // `list_text`. Splitting it as a Tcl list yields the one element
+        // `a b c`, not the three whitespace-separated words `a`, `b`, `c`
+        // a second brace-strip-then-split would wrongly produce.
+        assert_eq!(
+            extract_foreach_elements("{a b c}"),
+            Some(vec!["a b c".into()])
+        );
+    }
+
+    #[test]
+    fn extract_foreach_elements_two_braced_elements_not_double_stripped() {
+        // Source `foreach v {{a b} {c d}}`: `list_text` is `{a b} {c d}`.
+        // The pre-fix double-strip peeled the text's own outer `{`/`}` too,
+        // yielding the corrupted split `a`, `b}`, `{c`, `d` (lenient split of
+        // `a b} {c d`). The correct split is the two nested-list elements.
+        assert_eq!(
+            extract_foreach_elements("{a b} {c d}"),
+            Some(vec!["a b".into(), "c d".into()])
+        );
+    }
+
+    #[test]
+    fn extract_foreach_elements_quoted_word_already_delimiter_stripped() {
+        // Source `foreach v "a b c"`: the segmenter strips the word's own
+        // `"…"` delimiters the same way it strips `{…}`, so `list_text` is
+        // plain `a b c` — no quote handling is needed (or wanted) here.
+        assert_eq!(
+            extract_foreach_elements("a b c"),
+            Some(vec!["a".into(), "b".into(), "c".into()])
+        );
     }
 
     #[test]
     fn evaluate_def_foreach_literal_list_folds_constset() {
+        // `list` mirrors `list_arg` as the segmenter hands it: source
+        // `foreach v {1 2 3}`'s outer `{…}` is already stripped.
         let mut ssa = bare_ssa();
-        let stmt = foreach_stmt(&mut ssa, "v", "{1 2 3}", 1);
+        let stmt = foreach_stmt(&mut ssa, "v", "1 2 3", 1);
         let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
         match result {
             LatticeValue::ConstSet(ref vs) => {
@@ -2758,12 +2800,36 @@ mod tests {
 
     #[test]
     fn evaluate_def_foreach_single_element_folds_const() {
+        // `list` mirrors `list_arg` for source `foreach v {only}`: the
+        // segmenter's delimiter strip leaves the bare word `only`.
         let mut ssa = bare_ssa();
-        let stmt = foreach_stmt(&mut ssa, "v", "{only}", 1);
+        let stmt = foreach_stmt(&mut ssa, "v", "only", 1);
         assert_eq!(
             evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::String("only".into()))
         );
+    }
+
+    #[test]
+    fn evaluate_def_foreach_nested_braced_elements_folds_constset() {
+        // Regression test for issue #1433: source `foreach v {{a b} {c d}}`
+        // hands `list_arg` = `{a b} {c d}` (only the word's own outer `{…}`
+        // is stripped by the segmenter). Before the fix, `evaluate_def`
+        // wrongly peeled a *second* level of bracing off this already
+        // delimiter-stripped text, folding `v` to the corrupted CONSTSET
+        // {"a", "b}"} instead of the two list elements.
+        let mut ssa = bare_ssa();
+        let stmt = foreach_stmt(&mut ssa, "v", "{a b} {c d}", 1);
+        let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
+        match result {
+            LatticeValue::ConstSet(ref vs) => {
+                assert_eq!(vs.len(), 2);
+                assert!(vs.contains(&ConstValue::String("a b".into())));
+                assert!(vs.contains(&ConstValue::String("c d".into())));
+                assert!(!vs.contains(&ConstValue::String("b}".into())));
+            }
+            other => panic!("expected ConstSet, got {other:?}"),
+        }
     }
 
     #[test]
@@ -2799,7 +2865,7 @@ mod tests {
     fn evaluate_def_foreach_multi_var_widens() {
         // 2-element defs → no constset extraction.
         let mut ssa = bare_ssa();
-        let mut stmt = foreach_stmt(&mut ssa, "v", "{a b}", 1);
+        let mut stmt = foreach_stmt(&mut ssa, "v", "a b", 1);
         let Statement::Call { defs, .. } = &mut stmt.statement else {
             panic!();
         };
@@ -3162,6 +3228,45 @@ mod tests {
                 .iter()
                 .any(|cb| cb.condition.contains("$i == 10")),
             "an unknown loop bound must not fold the post-loop branch"
+        );
+    }
+
+    #[test]
+    fn sccp_foreach_nested_braced_list_constset_not_corrupted() {
+        // End-to-end regression test for issue #1433. `foreach v {{a b} {c d}}`
+        // lowers `list_arg` to the segmenter-stripped text `{a b} {c d}`
+        // (only the word's own outer braces are gone). Before the fix, SCCP's
+        // foreach constset extraction peeled a *second* level of bracing off
+        // this already-stripped text, corrupting `v`'s CONSTSET to the two
+        // elements `a` and `b}` (from the lenient split of `a b} {c d`) and
+        // wrongly proving `if {$v eq "c d"}` false. It must fold to the two
+        // correct elements `a b` and `c d` instead.
+        let c = cu(
+            "proc ::p {} { foreach v {{a b} {c d}} { if {$v eq \"c d\"} { set r yes } else { set r no } } }",
+        );
+        let fu = c.function("::p").unwrap();
+        let r = sccp_no_traces(&fu.cfg, &fu.ssa, None, FoldPolicy::default());
+        let v = fu.ssa.var_symbol("v").expect("v must be an SSA symbol");
+        let const_sets: Vec<_> = r
+            .values
+            .iter()
+            .filter(|((sym, _), _)| *sym == v)
+            .filter_map(|(_, val)| match val {
+                LatticeValue::ConstSet(vs) => Some(vs.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !const_sets
+                .iter()
+                .any(|vs| vs.contains(&ConstValue::String("b}".into()))),
+            "v's CONSTSET must not contain the corrupted element \"b}}\": {const_sets:?}"
+        );
+        assert!(
+            const_sets.iter().any(|vs| vs.len() == 2
+                && vs.contains(&ConstValue::String("a b".into()))
+                && vs.contains(&ConstValue::String("c d".into()))),
+            "expected a CONSTSET {{\"a b\", \"c d\"}} among v's lattice values, got {const_sets:?}"
         );
     }
 

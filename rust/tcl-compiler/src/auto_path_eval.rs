@@ -495,90 +495,245 @@ fn collect_writes(
     base_offset: u32,
     out: &mut Vec<PathConstantWrite>,
 ) {
+    let registry = tcl_registry::registry_for_dialect(dialect);
     for seg in commands {
         let words = &seg.texts;
         if words.is_empty() {
             continue;
         }
-        match words[0].as_str() {
-            "set" if words.len() == 3 => {
-                collect_set_write(seg, ns_prefix, base_offset, out);
+        let head = words[0].strip_prefix("::").unwrap_or(&words[0]);
+        // A computed head has no spec to read, so nothing about it is known —
+        // the same residual `poison_mutated_variables` documents.
+        if head.contains('$') || head.contains('[') {
+            continue;
+        }
+        let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+        if let Some(body_index) = namespace_body_index(registry, head, &args) {
+            let ctx = NamespaceDescent {
+                registry,
+                head,
+                dialect,
+                ns_prefix,
+                base_offset,
+            };
+            descend_namespace_body(&ctx, seg, &args, body_index, out);
+            continue;
+        }
+        let pairs = assigned_name_value_indices(registry, head, &args);
+        if pairs.is_empty() {
+            poison_mutated_variables(seg, dialect, ns_prefix, base_offset, out);
+            continue;
+        }
+        // A declaring writer (`variable`) binds in the *current* namespace with
+        // no global fallback; a plain assigning writer (`set`, `const`) follows
+        // Tcl's current-then-global resolution.  Which one this is comes from
+        // the spec's own `CREATES_SCOPE_ALIAS`, not from the command's name.
+        let declares = registry.get(head).is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
+        });
+        for (name_index, value_index) in pairs {
+            let Some(name) = args.get(name_index) else {
+                break;
+            };
+            if !is_plain_scalar_name(name) {
+                break;
             }
-            "variable" if words.len() >= 2 => {
-                // `variable ?name value…? name ?value?` — value'd pairs
-                // assign, a trailing lone name declares.  Names resolve in
-                // the current namespace (no global fallback — `variable`'s
-                // own rule, unlike `set`'s).
-                let mut i = 1;
-                while i < words.len() {
-                    let name = words[i].as_str();
-                    if !is_plain_scalar_name(name) {
-                        break;
-                    }
-                    let key = qualified_key(ns_prefix, name);
-                    let value = if i + 1 < words.len() {
-                        PathConstantValue::Raw {
-                            text: words[i + 1].clone(),
-                            literal: seg
-                                .argv
-                                .get(i + 1)
-                                .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
-                                && seg.single_token_word.get(i + 1) == Some(&true),
-                        }
-                    } else {
-                        PathConstantValue::Declared
-                    };
-                    out.push(PathConstantWrite {
-                        name: key,
-                        ns: ns_prefix.to_owned(),
-                        at: base_offset + seg.span.start(),
-                        value,
-                    });
-                    i += 2;
-                }
-            }
-            "namespace"
-                if words.len() == 4
-                    && words[1] == "eval"
-                    && is_plain_scalar_name(&words[2])
-                    && !words[2].contains('$') =>
-            {
-                // Literal name + braced body only: braces mean the body text
-                // reached us unsubstituted, so re-segmenting it walks the
-                // commands Tcl would run.
-                let body_is_braced = seg
-                    .argv
-                    .get(3)
-                    .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
-                    && seg.single_token_word.get(3) == Some(&true);
-                if !body_is_braced {
-                    continue;
-                }
-                // Always `::`-rooted, unlike a variable key (whose bare
-                // global spelling `qualified_key` preserves): this is a
-                // namespace name, and `::alited` is its only canonical form.
-                let child_prefix = if words[2].starts_with("::") {
-                    canon(&words[2])
-                } else {
-                    canon(&format!("{ns_prefix}::{}", words[2]))
-                };
-                let body_base = base_offset
-                    + seg
-                        .argv
-                        .get(3)
-                        .map_or(0, |tok| tok.span.start() + u32::from(tok.content_offset));
-                let body_commands = segment_commands_with_offset_and_config(
-                    &words[3],
-                    0,
-                    tcl_lexer::LexerConfig::for_dialect(dialect),
-                );
-                collect_writes(&body_commands, dialect, &child_prefix, body_base, out);
-            }
-            _ => {
-                poison_mutated_variables(seg, dialect, ns_prefix, base_offset, out);
+            // Argument indices exclude the command word; `seg.texts` includes
+            // it, so a word index is one past its argument index.
+            let value_word = value_index.filter(|i| *i < args.len()).map(|i| i + 1);
+            if declares {
+                out.push(PathConstantWrite {
+                    name: qualified_key(ns_prefix, name),
+                    ns: ns_prefix.to_owned(),
+                    at: base_offset + seg.span.start(),
+                    value: value_word.map_or(PathConstantValue::Declared, |w| raw_value(seg, w)),
+                });
+            } else if let Some(word) = value_word {
+                collect_set_write(seg, name, word, ns_prefix, base_offset, out);
             }
         }
     }
+}
+
+/// The `PathConstantValue::Raw` for the word at `word_index` (an index into
+/// `seg.texts`, i.e. counting the command word).
+fn raw_value(seg: &crate::segmenter::SegmentedCommand, word_index: usize) -> PathConstantValue {
+    PathConstantValue::Raw {
+        text: seg.texts[word_index].clone(),
+        literal: seg
+            .argv
+            .get(word_index)
+            .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
+            && seg.single_token_word.get(word_index) == Some(&true),
+    }
+}
+
+/// The argument index of the body of a *namespace-declaring* invocation
+/// (`namespace eval NAME { … }`), or `None` when this call is not one.
+///
+/// Registry-driven: the invocation carries
+/// [`tcl_registry::Traits::DECLARES_NAMESPACE`] — the trait whose sole
+/// carrier today is `namespace eval`, and whose doc records why `namespace
+/// inscope` (identical argument layout, same lowering hook) must *not* count
+/// — and the words are found through [`tcl_registry::ArgRole::NamespaceName`]
+/// and [`tcl_registry::ArgRole::Body`] rather than the fixed indices 2 and 3
+/// with a `words[1] == "eval"` test (issue #1390).
+///
+/// The body must be the last word, keeping the previous restriction to the
+/// single-braced-word form: `namespace eval ns a b` concatenates its trailing
+/// words into a script, which this tier does not model.
+fn namespace_body_index(
+    registry: &tcl_registry::CommandRegistry,
+    head: &str,
+    args: &[&str],
+) -> Option<usize> {
+    let spec = registry.get(head)?;
+    let declares = spec
+        .traits
+        .contains(tcl_registry::Traits::DECLARES_NAMESPACE)
+        || args
+            .first()
+            .and_then(|word| spec.resolve_subcommand(word))
+            .is_some_and(|sub| {
+                sub.traits
+                    .contains(tcl_registry::Traits::DECLARES_NAMESPACE)
+            });
+    if !declares {
+        return None;
+    }
+    let bodies = registry.arg_indices_for_role(head, args, tcl_registry::ArgRole::Body);
+    let [body_index] = bodies.as_slice() else {
+        return None;
+    };
+    (*body_index + 1 == args.len()).then_some(*body_index)
+}
+
+/// The walk context a `namespace eval` descent needs: where it is, what
+/// dialect the body re-segments under, and which registry answers the
+/// argument roles.
+#[derive(Clone, Copy)]
+struct NamespaceDescent<'a> {
+    registry: &'a tcl_registry::CommandRegistry,
+    head: &'a str,
+    dialect: &'a str,
+    ns_prefix: &'a str,
+    base_offset: u32,
+}
+
+/// Re-segment a `namespace eval NAME { … }` body and collect its writes under
+/// the child namespace.
+///
+/// The body runs unconditionally at load time, exactly like the commands
+/// around it.  A dynamic namespace name or a substituted body stays invisible,
+/// the same accepted blindness as an `if` body.
+fn descend_namespace_body(
+    ctx: &NamespaceDescent<'_>,
+    seg: &crate::segmenter::SegmentedCommand,
+    args: &[&str],
+    body_index: usize,
+    out: &mut Vec<PathConstantWrite>,
+) {
+    let NamespaceDescent {
+        registry,
+        head,
+        dialect,
+        ns_prefix,
+        base_offset,
+    } = *ctx;
+    let names = registry.arg_indices_for_role(head, args, tcl_registry::ArgRole::NamespaceName);
+    let Some(&name_index) = names.first() else {
+        return;
+    };
+    let Some(name) = args.get(name_index) else {
+        return;
+    };
+    if !is_plain_scalar_name(name) {
+        return;
+    }
+    // Literal name + braced body only: braces mean the body text reached us
+    // unsubstituted, so re-segmenting it walks the commands Tcl would run.
+    let body_word = body_index + 1;
+    let body_is_braced = seg
+        .argv
+        .get(body_word)
+        .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
+        && seg.single_token_word.get(body_word) == Some(&true);
+    if !body_is_braced {
+        return;
+    }
+    // Always `::`-rooted, unlike a variable key (whose bare global spelling
+    // `qualified_key` preserves): this is a namespace name, and `::alited` is
+    // its only canonical form.
+    let child_prefix = if name.starts_with("::") {
+        canon(name)
+    } else {
+        canon(&format!("{ns_prefix}::{name}"))
+    };
+    let body_base = base_offset
+        + seg
+            .argv
+            .get(body_word)
+            .map_or(0, |tok| tok.span.start() + u32::from(tok.content_offset));
+    let body_commands = segment_commands_with_offset_and_config(
+        &seg.texts[body_word],
+        0,
+        tcl_lexer::LexerConfig::for_dialect(dialect),
+    );
+    collect_writes(&body_commands, dialect, &child_prefix, body_base, out);
+}
+
+/// The `(name index, value index)` argument pairs a load-time command
+/// *assigns* — the registry's answer to what `set` and `variable` were
+/// recognised by name for (issue #1390).
+///
+/// Two shapes, both spec-declared:
+///
+/// * a **repeating** name/value tail — a
+///   [`tcl_registry::repeated::RepeatedArgLayout`] of
+///   [`tcl_registry::ArgRole::VarWrite`] at stride 2 anchored on
+///   [`tcl_registry::CommandSpec::assigns_variable_at`], which is `variable n
+///   v n v`'s declaration;
+/// * a **single** assignment whose value is the one word after the name —
+///   `assigns_variable_at` with exactly that write and exactly two arguments,
+///   which is `set name value` (and, for free, Tcl 9's `const name value`).
+///
+/// Read-modify-write commands are excluded by
+/// [`tcl_registry::Traits::READS_BEFORE_WRITE`] (`append` / `incr` /
+/// `lappend` do not assign the word after the name), and whole-array writers
+/// by [`tcl_registry::Traits::WHOLE_ARRAY_ARG`] (`$name` is not the value of
+/// an `array set`).  Everything else falls through to
+/// [`poison_mutated_variables`], which is the safe direction.
+fn assigned_name_value_indices(
+    registry: &tcl_registry::CommandRegistry,
+    head: &str,
+    args: &[&str],
+) -> Vec<(usize, Option<usize>)> {
+    let Some(spec) = registry.get(head) else {
+        return Vec::new();
+    };
+    if spec.traits.intersects(
+        tcl_registry::Traits::READS_BEFORE_WRITE.union(tcl_registry::Traits::WHOLE_ARRAY_ARG),
+    ) {
+        return Vec::new();
+    }
+    let Some(base) = spec.assigns_variable_at.map(usize::from) else {
+        return Vec::new();
+    };
+    let writes = registry.arg_indices_for_role(head, args, tcl_registry::ArgRole::VarWrite);
+    let paired_tail = spec.repeated_args.iter().any(|layout| {
+        layout.role == tcl_registry::ArgRole::VarWrite
+            && layout.stride == 2
+            && usize::from(layout.start) == base
+            && !layout.conditional_binding
+    });
+    if paired_tail {
+        return writes.into_iter().map(|i| (i, Some(i + 1))).collect();
+    }
+    if spec.repeated_args.is_empty() && writes == [base] && args.len() == base + 2 {
+        return vec![(base, Some(base + 1))];
+    }
+    Vec::new()
 }
 
 /// Record one `set NAME VALUE` write, attributing it the way Tcl resolves
@@ -589,15 +744,12 @@ fn collect_writes(
 /// than one guessed — see [`collect_writes`] for the whole rule set.
 fn collect_set_write(
     seg: &crate::segmenter::SegmentedCommand,
+    name: &str,
+    value_word: usize,
     ns_prefix: &str,
     base_offset: u32,
     out: &mut Vec<PathConstantWrite>,
 ) {
-    let words = &seg.texts;
-    let name = words[1].as_str();
-    if !is_plain_scalar_name(name) {
-        return;
-    }
     let seen = |out: &Vec<PathConstantWrite>, key: &str| out.iter().any(|w| w.name == key);
     let at = base_offset + seg.span.start();
     let push = move |out: &mut Vec<PathConstantWrite>, key: String, value| {
@@ -608,14 +760,7 @@ fn collect_set_write(
             value,
         });
     };
-    let raw = PathConstantValue::Raw {
-        text: words[2].clone(),
-        literal: seg
-            .argv
-            .get(2)
-            .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
-            && seg.single_token_word.get(2) == Some(&true),
-    };
+    let raw = raw_value(seg, value_word);
     if name.starts_with("::") {
         push(out, canon(name), raw);
     } else if name.contains("::") {
@@ -666,9 +811,10 @@ fn poison_mutated_variables(
 ) {
     let words = &seg.texts;
     let head = words[0].strip_prefix("::").unwrap_or(&words[0]);
-    // A 2-word `set` is a read; its 3-word write has its own arm.  A
-    // computed head has no spec.
-    if head == "set" || head.contains('$') || head.contains('[') {
+    // A computed head has no spec.  A read (`set var`) needs no name check:
+    // the registry reports no `VarWrite` for it, so nothing is poisoned; an
+    // assignment never reaches here at all.
+    if head.contains('$') || head.contains('[') {
         return;
     }
     let registry = tcl_registry::registry_for_dialect(dialect);

@@ -183,6 +183,125 @@ pub struct LexerGrammar {
     pub expr_comments: ExprCommentStyle,
     /// Which numeric literal forms the release accepts — see [`NumberSyntax`].
     pub numbers: NumberSyntax,
+    /// Which backslash-escape grammar the release decodes — see
+    /// [`EscapeSyntax`].
+    pub escapes: EscapeSyntax,
+}
+
+/// The backslash-escape grammar of a Tcl release: how many hex digits `\x`
+/// swallows, whether `\U` exists at all, how far an octal escape runs, and
+/// whether a decoded scalar above the basic multilingual plane survives.
+///
+/// `TclParseBackslash` changed twice across the supported range, and every
+/// change moves both the *value* and the *width* of an escape — so a
+/// version-blind decoder mis-reads real scripts *and* mis-measures them.
+/// `\x4142` is `B` under 8.5 (one character, six bytes consumed) and `A42`
+/// under 8.6 (three characters, four bytes consumed); `\U0001F600` is the
+/// literal `U0001F600` under 8.5, U+FFFD under 8.6, and an emoji under 9.0.
+///
+/// Each variant below is evidenced from the release's own
+/// `generic/tclParse.c`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum EscapeSyntax {
+    /// Tcl 8.4 and 8.5: `\x` runs unbounded, `\U` does not exist, and an octal
+    /// escape always takes up to three digits.
+    ///
+    /// `TclParseBackslash`'s `case 'x'` passes `numBytes-2` — the whole
+    /// remaining input — as `TclParseHex`'s digit budget and then keeps
+    /// `(unsigned char) result` (`tcl8.4.20/generic/tclParse.c:616-625`,
+    /// `tcl8.5.19/generic/tclParse.c:903-914`), so `\x4142` consumes four
+    /// digits and yields 0x42. There is no `case 'U'` at all, so `\U…` falls
+    /// through to the default arm and is the literal character `U`. The octal
+    /// arm takes a third digit whenever one is present, without 8.6's
+    /// `result >= 0x20` guard (`tcl8.4.20:648-670`, `tcl8.5.19:938-957`), so
+    /// `\400` is one NUL byte where 8.6 reads `\40` plus a literal `0`.
+    Tcl84,
+    /// Tcl 8.6: TIP 388 caps `\x` at two digits and adds `\U`, but the stock
+    /// build is UTF-16-internal, so any scalar above U+FFFF degrades to U+FFFD.
+    ///
+    /// `case 'x'` passes `(numBytes > 3) ? 2 : numBytes-2`
+    /// (`tcl8.6.16/generic/tclParse.c:900`) and `case 'U'` appears at
+    /// `:934-946`. `tcl.h:2199` leaves `TCL_UTF_MAX` at 3, which makes
+    /// `Tcl_UniCharToUtf` fall through its `ch <= 0x10FFFF` arm to
+    /// `ch = 0xFFFD` for anything past the basic multilingual plane
+    /// (`tcl8.6.16/generic/tclUtf.c`) — tclsh 8.6.14 confirms
+    /// `string length [subst \\U0001F600]` is 1 and the character is U+FFFD.
+    /// The *width* is 9.0's: the escape still consumes its digits.
+    Tcl86,
+    /// Tcl 9.0 and 9.1 (and the unversioned default): 8.6's grammar with a
+    /// UCS-4 internal representation, so `\U0001F600` really is U+1F600.
+    ///
+    /// `TclParseBackslash` is byte-identical at 9.0.4 (`tclParse.c:846-870`)
+    /// and 9.1b0; `tcl.h:2094` raises `TCL_UTF_MAX` to 4.
+    #[default]
+    Tcl90,
+}
+
+impl EscapeSyntax {
+    /// Every escape grammar, oldest first — the counterpart of
+    /// [`NumberSyntax::ALL`], for callers that must answer a question across
+    /// all of them.
+    pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl86, Self::Tcl90];
+
+    /// The grammar of `profile`, or the permissive 9.x default when no profile
+    /// is loaded.
+    #[must_use]
+    pub fn of_profile(profile: Option<&crate::DialectProfile>) -> Self {
+        profile.map_or(Self::default(), |p| p.grammar.escapes)
+    }
+
+    /// The grammar of the dialect `name` resolves to, or the 9.x default when
+    /// `name` is [`None`].
+    #[must_use]
+    pub fn of_dialect_name(name: Option<&str>) -> Self {
+        name.map_or(Self::default(), |n| {
+            crate::DialectProfile::by_name(n).grammar.escapes
+        })
+    }
+
+    /// How many hex digits `\x` may consume. [`None`] means unbounded — the
+    /// 8.4/8.5 rule, where only the low byte of the accumulated value survives.
+    #[must_use]
+    pub fn hex_escape_digits(self) -> Option<usize> {
+        match self {
+            Self::Tcl84 => None,
+            Self::Tcl86 | Self::Tcl90 => Some(2),
+        }
+    }
+
+    /// Whether `\UHHHHHHHH` is an escape at all (TIP 388, 8.6 onward). When
+    /// false, `\U` is the literal character `U` and the digits are word text.
+    #[must_use]
+    pub fn has_wide_unicode(self) -> bool {
+        !matches!(self, Self::Tcl84)
+    }
+
+    /// Whether an octal escape takes a **third** digit given the value its
+    /// first two produced.
+    ///
+    /// 8.6 onward refuses one once the two-digit value has reached 0x20, so
+    /// `\400` is `\40` plus a literal `0`; 8.4/8.5 always take it and truncate
+    /// the result to a byte, so `\400` is a single NUL.
+    #[must_use]
+    pub fn octal_takes_third_digit(self, two_digit_value: u32) -> bool {
+        match self {
+            Self::Tcl84 => true,
+            Self::Tcl86 | Self::Tcl90 => two_digit_value < 0x20,
+        }
+    }
+
+    /// Whether a decoded scalar above U+FFFF degrades to U+FFFD because the
+    /// release's internal string representation is UTF-16 — true for 8.6's
+    /// stock `TCL_UTF_MAX 3` build.
+    ///
+    /// 8.4/8.5 are UTF-16 internally too, but no escape they *have* can reach
+    /// past U+FFFF (`\u` stops at four digits and `\x` keeps one byte), so the
+    /// flag is answered on its own terms rather than folded into the release
+    /// order.
+    #[must_use]
+    pub fn is_bmp_only(self) -> bool {
+        matches!(self, Self::Tcl84 | Self::Tcl86)
+    }
 }
 
 /// The numeric-literal grammar of a Tcl release: which radix prefixes exist,
@@ -329,13 +448,14 @@ impl Default for LexerGrammar {
             script_skips_leading_bom: true,
             expr_comments: ExprCommentStyle::Hash,
             numbers: NumberSyntax::Tcl90,
+            escapes: EscapeSyntax::Tcl90,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{BracedVarStyle, ExprCommentStyle, LexerGrammar};
+    use super::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar};
 
     #[test]
     fn nesting_rule_is_tcl9_only() {
@@ -359,5 +479,39 @@ mod tests {
         assert_eq!(g.braced_var, BracedVarStyle::Tcl9Nesting);
         assert!(g.script_skips_leading_bom);
         assert_eq!(g.expr_comments, ExprCommentStyle::Hash);
+        assert_eq!(g.escapes, EscapeSyntax::Tcl90);
+    }
+
+    #[test]
+    fn escape_rules_follow_the_release() {
+        // `\x` is unbounded up to 8.5 and two digits from 8.6 (TIP 388).
+        assert_eq!(EscapeSyntax::Tcl84.hex_escape_digits(), None);
+        assert_eq!(EscapeSyntax::Tcl86.hex_escape_digits(), Some(2));
+        assert_eq!(EscapeSyntax::Tcl90.hex_escape_digits(), Some(2));
+        // `\U` arrives with the same TIP.
+        assert!(!EscapeSyntax::Tcl84.has_wide_unicode());
+        assert!(EscapeSyntax::Tcl86.has_wide_unicode());
+        assert!(EscapeSyntax::Tcl90.has_wide_unicode());
+        // The octal third-digit guard is 8.6's; 8.4/8.5 always take it.
+        assert!(EscapeSyntax::Tcl84.octal_takes_third_digit(0x20));
+        assert!(!EscapeSyntax::Tcl86.octal_takes_third_digit(0x20));
+        assert!(EscapeSyntax::Tcl86.octal_takes_third_digit(0x1F));
+        // Only 9.0 has a UCS-4 internal representation.
+        assert!(EscapeSyntax::Tcl84.is_bmp_only());
+        assert!(EscapeSyntax::Tcl86.is_bmp_only());
+        assert!(!EscapeSyntax::Tcl90.is_bmp_only());
+        assert_eq!(EscapeSyntax::default(), EscapeSyntax::Tcl90);
+    }
+
+    #[test]
+    fn every_escape_grammar_is_listed() {
+        // `ALL` must stay exhaustive: a variant missing from it silently
+        // narrows every cross-release sweep built on it.
+        for syntax in EscapeSyntax::ALL {
+            match syntax {
+                EscapeSyntax::Tcl84 | EscapeSyntax::Tcl86 | EscapeSyntax::Tcl90 => {}
+            }
+        }
+        assert_eq!(EscapeSyntax::ALL.len(), 3);
     }
 }

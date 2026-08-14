@@ -46,6 +46,7 @@ use tcl_bigip::model::ModelObject;
 use tcl_bigip::parser::{BigipConfig, Placed, parse_bigip_conf};
 use tcl_bigip_io::paths::read_path;
 use tcl_cli_support::registry_for_dialect;
+use tcl_dialect::DialectProfile;
 use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
 use tcl_lsp_core::minify::{minify_tcl, minify_tcl_aggressive, minify_tcl_compact};
 
@@ -1151,8 +1152,20 @@ fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
 
 // format / minify
 
-fn build_formatter_config(formatter: &IruleFormatterArgs) -> FormatterConfig {
-    let mut config = FormatterConfig::default();
+/// The formatter knobs from the command line, aimed at `profile`.
+///
+/// The profile is the formatter's whole dialect story (issue #1465): with
+/// `--dialect f5-irules` (this command's default, and its `irules` /
+/// `tcl-irule` alias spellings) the formatter tokenises with the iRules
+/// grammar, so an iRule's `}{` re-emits as `} {` and a `{*}` stays the
+/// literal braced word TMM's 8.4 core reads it as. Starting from
+/// `FormatterConfig::default()` instead formatted every iRule with the
+/// modern Tcl 9 lexer.
+fn build_formatter_config(
+    formatter: &IruleFormatterArgs,
+    profile: &'static DialectProfile,
+) -> FormatterConfig {
+    let mut config = FormatterConfig::for_profile(profile);
     if let Some(size) = formatter.indent_size {
         config.indent_size = size;
     }
@@ -1187,8 +1200,12 @@ fn run_format(
     formatter: &IruleFormatterArgs,
 ) -> Result<u8, u8> {
     let loaded = resolve_irule_inputs(input)?;
+    // One resolved profile drives both the registry and the formatter, so the
+    // command table and the lexer can never disagree about the dialect
+    // (`registry_for_dialect` resolves the same profile by name).
+    let profile = DialectProfile::by_name(&input.dialect);
     let registry = registry_for_dialect(&input.dialect);
-    let config = build_formatter_config(formatter);
+    let config = build_formatter_config(formatter, profile);
 
     let rendered: Vec<String> = loaded
         .inputs

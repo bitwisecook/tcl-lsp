@@ -2580,3 +2580,108 @@ proc NewArrays {varNames value} {
         codes(src, D)
     );
 }
+
+// ---------------------------------------------------------------------------
+// FP-RBS-21 — a barriered structured loop still binds its literal loop
+// variables (issue #1380)
+// ---------------------------------------------------------------------------
+//
+// A structured loop whose words carry a `{*}` expansion cannot be lowered to
+// an `IRForeach` — the argv shape is unknowable — so it stays a
+// `Statement::Barrier`.  Its body still runs in the caller's frame and is
+// scanned for reads, so without the barrier contributing its
+// `ArgRole::LoopVarList` names as defs, every read of a loop variable inside
+// that body read as read-before-set.
+//
+// `foreach` showed this before #1380 (it was one of the nine names the old
+// expansion barrier knew); `lmap` / `dict for` / `array for` / `foreachLine`
+// were silent only because they fabricated an `IRForeach` over the
+// *un-expanded* words — the wrong IR, which the same issue removed.
+//
+// Oracle (tclsh 9.0.4, identical in 8.6.16 — `{*}` exists from 8.5):
+//   set spec {{a b}}
+//   foreach i {*}$spec {puts $i}          → a
+//                                           b
+//   lmap i {*}$spec {string toupper $i}   → A B
+
+#[test]
+fn fp_rbs_21_expanded_loops_bind_their_literal_loop_variables() {
+    for src in [
+        "set spec {{a b}}\nforeach i {*}$spec {puts $i}\n",
+        "set spec {{a b}}\nlmap i {*}$spec {puts $i}\n",
+        "set spec {{a 1}}\ndict for {k v} {*}$spec {puts $k$v}\n",
+    ] {
+        assert!(
+            !fires(src, D, "W210"),
+            "FP-RBS-21: a barriered loop still binds its literal loop vars; \
+             src {src:?} emitted: {:?}",
+            codes(src, D)
+        );
+    }
+}
+
+#[test]
+fn fp_rbs_21_tp_a_genuinely_unset_read_in_an_expanded_loop_body_still_fires() {
+    // TP control: binding the loop variable must not silence an unrelated
+    // undefined name in the same body.
+    let src = "set spec {{a b}}\nlmap i {*}$spec {puts $nope}\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-21 TP: an unset non-loop name still fires; emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_21_tp_unexpanded_loops_are_unchanged() {
+    // TP control: the ordinary (lowered) forms keep both halves — the loop
+    // variable is bound, an unrelated undefined name still fires.
+    let quiet = "foreach i {a b} {puts $i}\n";
+    assert!(
+        !fires(quiet, D, "W210"),
+        "FP-RBS-21 TP: a plain foreach binds its loop var; emitted: {:?}",
+        codes(quiet, D)
+    );
+    let loud = "foreach i {a b} {puts $nope}\n";
+    assert!(
+        fires(loud, D, "W210"),
+        "FP-RBS-21 TP: a plain foreach still reports an unset read; emitted: {:?}",
+        codes(loud, D)
+    );
+}
+
+// FP-RBS-21b — a *brace-quoted* var-list word binds the names it literally
+// spells, `$` and `[` included.
+//
+// The barrier harvest used to test the reconstructed word text for `$` / `[`,
+// which conflates "the word's value contains a dollar" with "the word
+// substitutes".  A braced word substitutes nothing, so `{$x}` is a
+// one-element list naming the variable `$x` — a legal Tcl name that the byte
+// test dropped from the def set (PR #1481 review of issue #1380).
+//
+// Oracle (tclsh 8.6.16 and 9.0.4 both print `1`):
+//   set spec {{1}}
+//   foreach {{$x}} {*}$spec {puts ${$x}}   → 1
+
+#[test]
+fn fp_rbs_21b_braced_var_list_binds_a_literal_dollar_name() {
+    let src = "set spec {{1}}\nforeach {{$x}} {*}$spec {puts ${$x}}\n";
+    assert!(
+        !fires(src, D, "W210"),
+        "FP-RBS-21b: a braced var-list word binds the name it literally spells; \
+         emitted: {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn fp_rbs_21b_tp_a_substituted_var_list_still_harvests_nothing() {
+    // TP control: a var-list word that genuinely substitutes names nothing
+    // statically, so a body read of the bound name still reports.
+    let src = "set spec {{1}}\nset names {x}\nforeach $names {*}$spec {puts $x}\n";
+    assert!(
+        fires(src, D, "W210"),
+        "FP-RBS-21b TP: a substituted var-list contributes no def; emitted: {:?}",
+        codes(src, D)
+    );
+}

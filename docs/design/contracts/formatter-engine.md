@@ -43,6 +43,19 @@ the formatter's registry lookups agree with the analyser's.
 6. The formatter never rewrites an *existing* docstring. Docstring generation
    is an explicit code action — see
    [docstring-handling.md](docstring-handling.md).
+7. **The dialect reaches the formatter as one resolved profile.**
+   `FormatterConfig::profile` (a `&'static DialectProfile`) is the single
+   dialect fact; the three the engine needs are derived accessors on it —
+   `lexer_config()` (the grammar it tokenises with, including the iRules `}{`
+   ghost separator and whether `{*}` expands), `dialect_bits()` (the
+   availability mask that filters per-release rewrite candidates), and
+   `target_range()` (the forward range a rewrite must stay correct across).
+   Callers build the config with `FormatterConfig::for_profile` /
+   `for_dialect`, never by setting the derived facts, so a caller cannot set a
+   strict subset and format an iRule with a modern-Tcl lexer (issue #1465).
+   The default profile is the permissive modern-Tcl one. The only independent
+   knob is `target_range_override`, for a document that must also keep working
+   on a release *older* than its own profile.
 
 ## File-path anchors
 

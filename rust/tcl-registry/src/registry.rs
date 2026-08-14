@@ -572,6 +572,22 @@ impl CommandRegistry {
         self.profile
     }
 
+    /// The availability mask a consumer resolves hooks and calls against
+    /// when honouring **this registry's own** dialect: the attached
+    /// profile's [`availability_mask`](tcl_dialect::DialectProfile::availability_mask),
+    /// or the empty (dialect-blind) mask for a profile-less registry.
+    ///
+    /// This is what lets a version-pinned compile pipeline (issues
+    /// #1462/#1463) suppress a structured lowering or codegen hook for a
+    /// command the emulated release does not have — `lmap` under a tcl8.4
+    /// registry resolves to no spec, so the call reaches the runtime's
+    /// availability gate as a generic dispatch instead of being inlined.
+    #[must_use]
+    pub fn own_availability_mask(&self) -> DialectSet {
+        self.profile
+            .map_or_else(DialectSet::empty, |p| p.availability_mask)
+    }
+
     /// Insert an owned command spec, **leaking it** for the process lifetime.
     ///
     /// The registry indexes `&'static CommandSpec`, so an owned spec has to be

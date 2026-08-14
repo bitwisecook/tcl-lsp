@@ -853,6 +853,29 @@ fn cmp(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
     }
 }
 
+/// Eager (non-short-circuit) logical AND/OR: pop both operands, coerce each
+/// to boolean, and push the boolean result.
+///
+/// Codegen never emits [`Op::LAND`]/[`Op::LOR`] directly — `&&`/`||` compile
+/// to short-circuit jump sequences instead
+/// (`tcl_compiler::codegen::expressions::emit_expr_binary`) — but the two
+/// opcodes are still reachable through [`Op::from_binop`] (which maps
+/// `BinOp::And`/`BinOp::Or` to them) and are part of the artifact's public
+/// surface, so dispatch gives them real semantics rather than falling
+/// through to an "opcode not implemented" error.
+fn land_lor(f: &mut Frame, is_and: bool) -> Result<(), Completion<Value>> {
+    let b = pop(f);
+    let a = pop(f);
+    let a_true = a.as_bool().map_err(|e| err(e.message))?;
+    let b_true = b.as_bool().map_err(|e| err(e.message))?;
+    f.stack.push(Value::bool(if is_and {
+        a_true && b_true
+    } else {
+        a_true || b_true
+    }));
+    Ok(())
+}
+
 fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
     let v = pop(f);
     match expr::unary(op, &v) {
@@ -2853,6 +2876,8 @@ impl Vm {
             Op::BITAND => try_op!(bin(f, BinOp::BitAnd)),
             Op::BITOR => try_op!(bin(f, BinOp::BitOr)),
             Op::BITXOR => try_op!(bin(f, BinOp::BitXor)),
+            Op::LAND => try_op!(land_lor(f, true)),
+            Op::LOR => try_op!(land_lor(f, false)),
 
             // -- comparisons --
             Op::EQ => try_op!(cmp(f, BinOp::Eq)),
@@ -3888,13 +3913,6 @@ impl Vm {
             }
             Op::TCLOO_NEXT => try_op!(self.tcloo_next(f, instr, false)),
             Op::TCLOO_NEXT_CLASS => try_op!(self.tcloo_next(f, instr, true)),
-
-            other => {
-                return Tick::Return(err(format!(
-                    "opcode {} not implemented in tcl-vm",
-                    other.mnemonic()
-                )));
-            }
         }
 
         Tick::Continue

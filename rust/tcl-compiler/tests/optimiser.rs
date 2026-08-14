@@ -183,12 +183,14 @@ fn proc_body_and_direct_expr_substitution() {
     // spurious rewrite, value preserved).
     assert_eq!(optimised("set v [expr {3}]", TCL), "set v [expr {3}]");
 
-    // Escaping command substitution ([eval $s]) is non-removable; the constant
-    // store `set n 1` still forwards into `puts $n` (O102 → `puts 1`).
+    // Escaping command substitution ([eval $s]) is non-removable. Since
+    // issue #1374 the opaque `eval $s` script also blinds the whole frame's
+    // value lattice (its body may install a variable trace on `n` or reach
+    // any name), so the O102 forward of `set n 1` into `puts $n` abstains
+    // too and the source stays byte-identical — sound, just conservative.
     let esc = "set n [eval $s]\nset n 1\nputs $n\n";
-    let esc_out = optimised(esc, TCL);
-    assert_eq!(esc_out.lines().next().unwrap(), "set n [eval $s]");
-    assert!(opt_fires(esc, TCL, "O102"));
+    assert_eq!(optimised(esc, TCL), esc);
+    assert!(!opt_fires(esc, TCL, "O102"));
 }
 
 #[test]
@@ -372,7 +374,11 @@ fn instcombine_boolean_simplifications() {
     // !!(boolean) collapses: ==/!=/< are already boolean (tclsh sweep == ).
     assert!(optimised("set v [expr {!!($a == $b)}]", TCL).contains("set v [expr {$a == $b}]"));
     assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("set v [expr {$a != $b}]"));
-    assert!(optimised("set v [expr {!($a < $b)}]", TCL).contains("set v [expr {$a >= $b}]"));
+    // The ordered comparisons invert only on operands proved non-NaN — an
+    // untyped `$a` may hold NaN, for which `!($a < 1)` is 1 while `$a >= 1` is 0
+    // (issue #1437). The `int_x` wrapper supplies the proof.
+    assert!(!optimised("set v [expr {!($a < $b)}]", TCL).contains("$a >= $b"));
+    assert!(optimised(&int_x("set v [expr {!($x < 1)}]"), TCL).contains("set v [expr {$x >= 1}]"));
 
     // The optimiser does NOT simplify `!($a in $b)` → `$a ni $b` here (no
     // optimisation fires); a known gap.
@@ -387,13 +393,15 @@ fn instcombine_de_morgan() {
     assert!(opt_fires("set v [expr {!($a || $b)}]", TCL, "O110"));
 
     // De Morgan + comparison inversion via fixpoint (tclsh 4-var sweep == ).
+    // `==` inverts unconditionally; the ordered `$c < $d` half keeps its `!`
+    // because neither operand is proved non-NaN (issue #1437).
     assert!(
         optimised("set v [expr {!($a == $b && $c < $d)}]", TCL)
-            .contains("set v [expr {$a != $b || $c >= $d}]")
+            .contains("set v [expr {$a != $b || !($c < $d)}]")
     );
     assert!(
         optimised("set v [expr {!($a == $b || $c < $d)}]", TCL)
-            .contains("set v [expr {$a != $b && $c >= $d}]")
+            .contains("set v [expr {$a != $b && !($c < $d)}]")
     );
 
     // De Morgan inside an `if` condition.
@@ -415,9 +423,13 @@ fn instcombine_de_morgan() {
 
 #[test]
 fn instcombine_self_comparison_tautologies() {
-    // tclsh sweep: x == x ⇒ 1, x != x ⇒ 0 (constant regardless of $x).
-    assert!(optimised("set v [expr {$x == $x}]", TCL).contains("set v 1"));
-    assert!(optimised("set v [expr {$x != $x}]", TCL).contains("set v 0"));
+    // tclsh sweep: x == x ⇒ 1, x != x ⇒ 0 — but NOT for NaN, where tclsh gives
+    // 0 and 1 respectively, so the fold needs $x proved non-NaN (issue #1437).
+    assert!(optimised(&int_x("set v [expr {$x == $x}]"), TCL).contains("set v 1"));
+    assert!(optimised(&int_x("set v [expr {$x != $x}]"), TCL).contains("set v 0"));
+    // Untyped $x keeps the comparison.
+    assert!(optimised("set v [expr {$x == $x}]", TCL).contains("$x == $x"));
+    assert!(optimised("set v [expr {$x != $x}]", TCL).contains("$x != $x"));
 }
 
 #[test]
@@ -670,6 +682,28 @@ fn unused_variable_elimination_o126() {
 // ---------------------------------------------------------------------------
 // Constant var-ref propagation — O100 / O105 (string interpolation)
 // ---------------------------------------------------------------------------
+
+#[test]
+fn branch_condition_ending_in_a_nested_empty_pair_rewrites_the_whole_word() {
+    // Issue #1423. The branch condition span is the lexer's word span, so
+    // it stops one byte short of the outer `}`. Deciding the widening from
+    // the slice's last byte read `{$n == 0 && $y eq {}` as already whole —
+    // it does end in a `}`, the *inner* empty pair's — so the pass unwrapped
+    // an opener with no matching closer and emitted the unbalanced
+    // replacement `{0 == 0 && $y eq {}`.
+    let src = "proc p {y} {\n    set n 0\n    if {$n == 0 && $y eq {}} { puts a }\n}\n";
+    let rewrites = opt_rewrites(src, TCL);
+    let o100: Vec<&str> = rewrites
+        .iter()
+        .filter(|(code, _)| code == "O100")
+        .map(|(_, replacement)| replacement.as_str())
+        .collect();
+    assert_eq!(o100, vec!["{0 == 0 && $y eq {}}"], "{rewrites:?}");
+    assert_eq!(
+        optimised(src, TCL),
+        "proc p {y} {\n    set n 0\n    if {0 == 0 && $y eq {}} { puts a }\n}\n",
+    );
+}
 
 #[test]
 fn constant_propagation_into_commands_o100() {
@@ -1605,4 +1639,210 @@ mod cross_event_dse {
             "same-event dead store kept:\n{out}"
         );
     }
+}
+
+// ===========================================================================
+// Issues #1374 / #1377 / #1402 — the dynamic-name value-motion barrier and
+// the whole-module variable-trace fact. Every source below currently
+// miscompiled (or mis-reported) before the shared
+// `FunctionUnit::dynamic_barrier_blocks_value_motion` gate and the
+// `Module::traced_variables` widening landed; each pin asserts the
+// optimiser abstains. tclsh oracles cited per test.
+// ===========================================================================
+
+// tclsh 8.6/9.0: `f acc` returns `zzz b` — folding the chain to
+// `set acc {a b}` (O130) walks straight past the dynamic write.
+#[test]
+fn dynamic_name_write_blocks_o130_chain_fold_issue_1374() {
+    let src =
+        "proc f {name} { set acc {}; lappend acc a; set $name zzz; lappend acc b; return $acc }";
+    assert!(!opt_fires(src, TCL, "O130"));
+    assert!(!opt_fires(src, TCL, "O104"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// tclsh 8.6/9.0: `f x` prints `2` — forwarding `puts $x` to `puts 1`
+// (O102, or O100 off the SCCP lattice) ignores that `set $name 2` can
+// rewrite `x`.
+#[test]
+fn dynamic_name_write_blocks_o102_forwarding_issue_1374() {
+    let src = "proc f {name} { set x 1; set $name 2; puts $x }";
+    assert!(!opt_fires(src, TCL, "O102"));
+    assert!(!opt_fires(src, TCL, "O100"));
+    assert!(!opt_fires(src, TCL, "O109"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// tclsh 8.6/9.0: `f flag 1` prints `zzz` — sinking `set flag hello` past
+// the dynamic write into the branch (O125) makes it print `hello`.
+#[test]
+fn dynamic_name_write_blocks_o125_sinking_issue_1374() {
+    let src = "proc f {name c} { set flag hello; if {$c} { set $name zzz; puts $flag } }";
+    assert!(!opt_fires(src, TCL, "O125"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// O119 moves and deletes `set` statements, so the same barrier applies.
+#[test]
+fn dynamic_name_write_blocks_o119_packing_issue_1374() {
+    let src = "set $name q\nset a 1\nset b 2\nset c 3\n";
+    assert!(!opt_fires(src, TCL, "O119"));
+    // Control: the clean top-level sibling still packs under tcl8.6 (top
+    // level, because inside a proc the unused-variable O126 deletions win
+    // overlap selection over the pack either way).
+    let clean = "set a 1\nset b 2\nset c 3\n";
+    assert!(opt_fires(clean, TCL, "O119"));
+}
+
+// tclsh 8.6/9.0: each `set` fires the `::onw` write trace (prints `trace`
+// twice) — deleting `set g 1` as a dead store (O109) drops a callback.
+// The trace spells `::g`, the stores are unqualified; both name the same
+// top-level global.
+#[test]
+fn traced_global_store_is_not_a_dead_store_issue_1377() {
+    let src = "proc onw {a b c} { puts trace }\ntrace add variable ::g write ::onw\nset g 1\nset g 2\nputs $g\n";
+    assert!(!opt_fires(src, TCL, "O109"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// tclsh 8.6/9.0: the `lappend`s fire the `::acc` write trace — folding to
+// `set acc {a b}` (O130) collapses three observable writes into one.
+#[test]
+fn traced_list_chain_is_not_folded_issue_1377() {
+    let src = "proc onw {a b c} { puts trace }\ntrace add variable ::acc write ::onw\nset acc {}\nlappend acc a\nlappend acc b\n";
+    assert!(!opt_fires(src, TCL, "O130"));
+    assert_eq!(optimised(src, TCL), src);
+}
+
+// A computed command head (`$cmd $x`) lowers to a `Statement::Barrier`
+// whose retained words reference `$x` and raises no dynamic-name flag;
+// treating a barrier as referencing no variable let O125 sink `set x 1`
+// into the branch, leaving `f 0 puts` to read an unset `x` (tclsh:
+// `can't read "x"`). A dynamic `eval` spelling of the trailing reference
+// abstains too (that one via the issue-#1374 opaque-script barrier).
+#[test]
+fn barrier_reference_blocks_o125_issue_1402() {
+    let src = "proc f {flag cmd} {\nset x 1\nif {$flag} { puts $x }\n$cmd $x\n}";
+    assert!(!opt_fires(src, TCL, "O125"));
+    let eval_src = "proc f {flag} {\nset x 1\nif {$flag} { puts $x }\neval [list puts $x]\n}";
+    assert!(!opt_fires(eval_src, TCL, "O125"));
+}
+
+// ===========================================================================
+// Issue #1385 — code motion and deletion must share one "is this block
+// executable" fact.
+//
+// The owner is `SccpResult::executable_blocks` (`sccp.rs:199`), the
+// optimistic set SCCP fills in while it folds constant branches. The
+// deletion side already reads it: `optimiser/elimination.rs:392`
+// (`unreachable_blocks`, the O107 source), and O112's constant-condition
+// deletions in `optimiser/structure_elimination.rs` are the structured-IR
+// view of the same constant facts. GVN's PRE and LICM used to answer the
+// question themselves with a plain terminator-successor walk, so a block
+// behind a constant-false branch still looked executable and drew an O106
+// hoist / O105 partial-redundancy offer into a region O112 was
+// simultaneously offering to delete.
+//
+// `find_loop_invariants` / `find_partial_redundancies` now take that set,
+// and `*_for_function` seed it from `fu.sccp.executable_blocks`.
+// ===========================================================================
+
+/// `src` compiled to a unit whose top level carries the SCCP result the
+/// deletion passes read.
+fn top_level_unit(src: &str) -> tcl_compiler::compilation_unit::CompilationUnit {
+    let registry = registry_for_dialect(TCL);
+    tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(src, registry, false, TCL)
+}
+
+/// `(licm, pre)` finding counts under the executable set the deletion passes
+/// use — the same seeding `find_loop_invariants_for_function` /
+/// `find_partial_redundancies_for_function` do internally.
+fn gvn_offers_under_sccp(src: &str) -> (usize, usize) {
+    let registry = registry_for_dialect(TCL);
+    let cu = top_level_unit(src);
+    let fu = &cu.top_level;
+    let executable = &fu.sccp.executable_blocks;
+    (
+        tcl_compiler::gvn::find_loop_invariants(registry, &fu.cfg, &fu.ssa, executable, Some(TCL))
+            .len(),
+        tcl_compiler::gvn::find_partial_redundancies(
+            registry,
+            &fu.cfg,
+            &fu.ssa,
+            executable,
+            Some(TCL),
+        )
+        .len(),
+    )
+}
+
+// A constant-false `if` wrapping a loop: O112 deletes the whole `if`, so the
+// loop body must draw no O106 hoist. Structural (which code fires), not
+// Tcl-observable: tclsh 8.6/9.0 runs neither the loop nor any hoisted copy,
+// so both the original and the O112 rewrite produce no output.
+#[test]
+fn licm_offers_no_hoist_inside_a_block_o112_deletes_issue_1385() {
+    let dead = "set lst $argv\nif {0} {\n    for {set i 0} {$i < 3} {incr i} {\n        lindex $lst 0\n    }\n}\n";
+    assert!(
+        opt_fires(dead, TCL, "O112"),
+        "the constant-false if must still be offered for deletion"
+    );
+    assert_eq!(
+        gvn_offers_under_sccp(dead).0,
+        0,
+        "no O106 hoist may be offered inside the region O112 deletes"
+    );
+
+    // Control: the same loop outside the dead branch keeps its hoist, so the
+    // executable fact is pruning dead code and not disabling LICM.
+    let live = "set lst $argv\nfor {set i 0} {$i < 3} {incr i} {\n    lindex $lst 0\n}\n";
+    assert!(!opt_fires(live, TCL, "O112"));
+    assert_eq!(gvn_offers_under_sccp(live).0, 1);
+}
+
+// The same pairing for O105 partial redundancy: the diamond and its merge
+// point both sit inside the constant-false `if` O112 deletes.
+#[test]
+fn pre_offers_no_hoist_inside_a_block_o112_deletes_issue_1385() {
+    let dead = "set lst $argv\nif {0} {\n    if {$argc} {\n        lindex $lst 0\n    }\n    lindex $lst 0\n}\n";
+    assert!(
+        opt_fires(dead, TCL, "O112"),
+        "the constant-false if must still be offered for deletion"
+    );
+    assert_eq!(
+        gvn_offers_under_sccp(dead).1,
+        0,
+        "no O105 partial-redundancy hoist may be offered inside the region O112 deletes"
+    );
+
+    // Control: the same diamond outside the dead branch still reports.
+    let live = "set lst $argv\nif {$argc} {\n    lindex $lst 0\n}\nlindex $lst 0\n";
+    assert!(!opt_fires(live, TCL, "O112"));
+    assert_eq!(gvn_offers_under_sccp(live).1, 1);
+}
+
+// The production entries carry the same contract without the caller having
+// to seed the set: they read `fu.sccp.executable_blocks` themselves.
+#[test]
+fn production_gvn_entries_read_the_sccp_executable_fact_issue_1385() {
+    let registry = registry_for_dialect(TCL);
+    let dead = "set lst $argv\nif {0} {\n    for {set i 0} {$i < 3} {incr i} {\n        lindex $lst 0\n    }\n    if {$argc} {\n        llength $lst\n    }\n    llength $lst\n}\n";
+    let cu = top_level_unit(dead);
+    let fu = &cu.top_level;
+    assert!(
+        fu.cfg
+            .blocks
+            .keys()
+            .any(|b| !fu.sccp.executable_blocks.contains(b)),
+        "the reproducer must actually contain SCCP-dead blocks"
+    );
+    assert!(
+        tcl_compiler::gvn::find_loop_invariants_for_function(registry, fu, Some(TCL)).is_empty(),
+        "O106 must not fire inside SCCP-dead code"
+    );
+    assert!(
+        tcl_compiler::gvn::find_partial_redundancies_for_function(registry, fu, Some(TCL))
+            .is_empty(),
+        "O105-PRE must not fire inside SCCP-dead code"
+    );
 }

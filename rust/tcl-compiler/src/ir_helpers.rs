@@ -24,13 +24,14 @@
 //! modified before an exception, and at condition sites to track
 //! definitions produced by command substitutions.
 
-use tcl_lexer::{Lexer, SourceMap, TokenType};
+use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::expr_ast::ExprNode;
-use crate::ir::{Script, Statement};
+use crate::ir::{CommandTokens, Script, Statement, WordExpr, WordPart};
 use crate::naming::normalise_var_name;
+use crate::segmenter::SegmentedCommand;
 
 /// The nested script bodies a structured-control-flow statement contains —
 /// every shape a flow-*insensitive* whole-body walk needs to recurse into
@@ -282,9 +283,15 @@ pub fn defs_from_expr(expr: &ExprNode, registry: &CommandRegistry) -> Vec<String
 ///
 /// Scans the body text for commands with `ArgRole::VarWrite` arguments
 /// (e.g. `set x 1` inside a `catch` body).
+///
+/// Split under the default grammar: no dialect config reaches this
+/// expression-level harvest, and its result is suppress-only (it can only
+/// silence a read-before-set warning, never assert one).  The
+/// soundness-carrying consumer of the same splitter — the dynamic-name
+/// barrier — passes the document's config instead (issue #1393).
 fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<String> {
     let mut defs = Vec::new();
-    for words in tokenise_command_words(body_text) {
+    for words in tokenise_command_words(body_text, LexerConfig::default()) {
         let Some((cmd_word, arg_words)) = words.split_first() else {
             continue;
         };
@@ -453,7 +460,8 @@ fn script_text_out_vars_at(
     out: &mut Vec<String>,
     depth: u32,
 ) {
-    for words in tokenise_command_words(body) {
+    // Suppress-only and dialect-config-free, as `defs_from_body_script` is.
+    for words in tokenise_command_words(body, LexerConfig::default()) {
         cmd_substitution_out_vars(&words, registry, out, depth + 1);
     }
 }
@@ -551,8 +559,14 @@ fn collect_expr_commands_at(expr: &ExprNode, out: &mut Vec<String>, depth: u32) 
 }
 
 /// Tokenise source text into a flat list of words (single command).
+///
+/// Dialect-blind on purpose: the callers are expression-level harvests
+/// (`[cmd …]` text lifted out of an `ExprNode`) whose facts are
+/// suppress-only, and no dialect config reaches them.  The
+/// soundness-carrying caller — the dynamic-name barrier — passes the
+/// document's own config to [`tokenise_command_words`] instead.
 fn tokenise_to_words(source: &str) -> Vec<CommandWord> {
-    tokenise_command_words(source)
+    tokenise_command_words(source, LexerConfig::default())
         .into_iter()
         .next()
         .unwrap_or_default()
@@ -560,22 +574,24 @@ fn tokenise_to_words(source: &str) -> Vec<CommandWord> {
 
 /// One word of a tokenised command, in both spellings its consumers need.
 ///
-/// The lexer's `token_text` strips a token's `$` / `${` / `[` / `{` / `"`
-/// prefix, which is what a name-harvesting caller wants (`{set x 1}` → the
-/// script text) but which erases the distinction that decides whether a word
-/// *is* a name: `set $x 1` and `set x 1` both reduce to `["set", "x", "1"]`.
-/// Carrying both spellings plus the two quoting facts lets every consumer ask
-/// its own question of one tokenisation.
+/// The segmenter's reconstructed word text canonicalises a substitution to its
+/// braced spelling (`$x` → `${x}`) and de-braces a braced word (`{s}` → `s`),
+/// which is what a name-harvesting caller wants but which erases the
+/// distinction that decides whether a word *is* a name: `set {$x} 1` names a
+/// variable literally called `$x`.  Carrying the written spelling plus the two
+/// quoting facts lets every consumer ask its own question of one tokenisation.
 #[derive(Debug, Clone)]
 pub(crate) struct CommandWord {
-    /// Concatenated token **content** — `$x` → `x`, `{s}` → `s`.
+    /// The segmenter's reconstructed word text — `$x` → `${x}`, `{s}` → `s`.
+    /// The same spelling [`crate::ir::Statement`] arguments carry, so a
+    /// consumer reads one text convention whichever side it arrives from.
     pub text: String,
-    /// Concatenated **verbatim** source spelling — `$x` stays `$x`.  A
-    /// delimited token's closer is one past its span (the inner-end
-    /// convention), so a braced word reads back as `{s` — enough to answer
-    /// "does the name position substitute?", not enough to re-parse.
+    /// The word's **verbatim** source spelling, its whole written span — `$x`
+    /// stays `$x`.  A delimited word's closer is one past its span (the
+    /// inner-end convention), so a braced word reads back as `{s` — enough to
+    /// answer "does the name position substitute?", not enough to re-parse.
     pub raw: String,
-    /// Some constituent token is a `$` / `[` substitution, so the word's
+    /// Some constituent fragment is a `$` / `[` substitution, so the word's
     /// value is not its source text.
     pub substituted: bool,
     /// The word is a single brace-quoted token (`{…}`): Tcl leaves its
@@ -584,52 +600,66 @@ pub(crate) struct CommandWord {
 }
 
 /// Tokenise source text into a list of commands, each a list of words.
-pub(crate) fn tokenise_command_words(source: &str) -> Vec<Vec<CommandWord>> {
+///
+/// One splitter, one dialect: this is
+/// [`crate::segmenter::segment_commands_with_offset_and_config`] mapped onto
+/// the four facts the name-harvesting consumers ask for.  `config` decides
+/// where the word boundaries fall — `{*}` expands only where the dialect has
+/// it (never under Tcl 8.4 or iRules), and only iRules treats `}{` as a word
+/// separator, so `cmd {a}{b}` is two words in Tcl and three in an iRule.  A
+/// second, differently-configured tokenisation would disagree with the IR
+/// about *which* argument sits in a variable-name position, which is a wrong
+/// fact rather than a coarse one for a caller such as
+/// [`crate::dynamic_names`] (issue #1393).
+pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<Vec<CommandWord>> {
     let sm = SourceMap::new(source);
-    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
-        return Vec::new();
-    };
+    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+        .iter()
+        .filter(|command| !command.argv.is_empty())
+        .map(|command| command_words(&sm, command))
+        .collect()
+}
 
-    let mut commands = Vec::new();
-    let mut words: Vec<CommandWord> = Vec::new();
-    let mut prev_is_sep = true;
+/// Map one segmented command onto its per-word [`CommandWord`] facts.
+fn command_words(sm: &SourceMap<'_>, command: &SegmentedCommand) -> Vec<CommandWord> {
+    let tokens = CommandTokens::from_segmented(command);
+    command
+        .argv
+        .iter()
+        .enumerate()
+        .map(|(idx, token)| CommandWord {
+            text: command.texts.get(idx).cloned().unwrap_or_default(),
+            raw: sm.text(token.span).to_owned(),
+            substituted: tokens.words().get(idx).is_some_and(word_substitutes),
+            // `{…}` and nothing welded to it — the same question
+            // `CommandTokens::arg_is_braced_literal` answers for an IR
+            // statement's arguments, asked here in whole-argv indexing.
+            braced_literal: token.kind == TokenType::Str
+                && command.single_token_word.get(idx).copied().unwrap_or(false),
+        })
+        .collect()
+}
 
-    for tok in &tokens {
-        match tok.kind {
-            TokenType::Eol | TokenType::Eof => {
-                if !words.is_empty() {
-                    commands.push(std::mem::take(&mut words));
-                }
-                prev_is_sep = true;
-            }
-            TokenType::Sep | TokenType::Comment => {
-                prev_is_sep = true;
-            }
-            _ => {
-                let substituted = matches!(tok.kind, TokenType::Var | TokenType::Cmd);
-                match words.last_mut() {
-                    Some(last) if !prev_is_sep => {
-                        last.text.push_str(sm.token_text(*tok));
-                        last.raw.push_str(sm.text(tok.span));
-                        last.substituted |= substituted;
-                        // A compound word (`{a}$b`) is no longer literal.
-                        last.braced_literal = false;
-                    }
-                    _ => words.push(CommandWord {
-                        text: sm.token_text(*tok).to_owned(),
-                        raw: sm.text(tok.span).to_owned(),
-                        substituted,
-                        braced_literal: tok.kind == TokenType::Str,
-                    }),
-                }
-                prev_is_sep = false;
-            }
+/// Whether a word's value comes from run-time data rather than its own source
+/// text — the [`WordExpr`] forms that substitute.
+///
+/// `Template` is the compound case (`a$b`, `{a}[c]`): one substituting part is
+/// enough, exactly as the whole word's value stops being its written text.
+/// `Expand` wraps the word `{*}` expands and answers for that word.
+fn word_substitutes(word: &WordExpr) -> bool {
+    match word {
+        WordExpr::Variable { .. } | WordExpr::CommandSubstitution { .. } => true,
+        WordExpr::Template { parts, .. } => parts.iter().any(|part| {
+            matches!(
+                part,
+                WordPart::Variable { .. } | WordPart::CommandSubstitution { .. }
+            )
+        }),
+        WordExpr::Expand { word, .. } => word_substitutes(word),
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } | WordExpr::Opaque { .. } => {
+            false
         }
     }
-    if !words.is_empty() {
-        commands.push(words);
-    }
-    commands
 }
 
 #[cfg(test)]
@@ -825,9 +855,12 @@ mod tests {
         let words = tokenise_to_words("set $x {a $b}");
         let texts: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
         let raws: Vec<&str> = words.iter().map(|w| w.raw.as_str()).collect();
-        // Content drops the `$`; raw keeps it. A delimited token's closer is
-        // one past its span, so the braced word's raw spelling stops at `b`.
-        assert_eq!(texts, vec!["set", "x", "a $b"]);
+        // The reconstructed text canonicalises the substitution to its braced
+        // spelling (`$x` → `${x}`, the same form an IR statement's arguments
+        // carry) and de-braces a braced word; raw keeps what was written. A
+        // delimited word's closer is one past its span, so the braced word's
+        // raw spelling stops at `b`.
+        assert_eq!(texts, vec!["set", "${x}", "a $b"]);
         assert_eq!(raws, vec!["set", "$x", "{a $b"]);
         assert_eq!(
             words.iter().map(|w| w.substituted).collect::<Vec<_>>(),

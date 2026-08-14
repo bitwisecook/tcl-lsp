@@ -81,6 +81,26 @@ impl LoweringCommand<'_> {
         self.arg_kinds.get(idx) == Some(&ArgTokenKind::Str)
             && self.single_token_word.get(idx + 1).copied().unwrap_or(true)
     }
+
+    /// Whether **argument** `idx` (0-based) is a single substitution-free
+    /// literal word — a `{braced}` (`Str`) or a plain bareword (`Esc`), the
+    /// two shapes whose value is the text exactly as spelled.
+    ///
+    /// The hook-view sibling of the lowering's own `seg_word_is_static_literal`
+    /// body gate (issue #1375): a word built from several tokens (`x$y`,
+    /// `a($i)`, or — under a grammar with no `{*}` expansion — `{*}$n`) still
+    /// reports a literal *representative* kind while its value is computed at
+    /// run time, so the single-token flag is the half that carries the answer.
+    ///
+    /// Backslash escapes stay literal: `\$x` is one `Esc` token naming the
+    /// variable `$x`, which no substitution produced.
+    #[must_use]
+    pub fn arg_is_static_literal(&self, idx: usize) -> bool {
+        matches!(
+            self.arg_kinds.get(idx),
+            Some(ArgTokenKind::Str | ArgTokenKind::Esc)
+        ) && self.single_token_word.get(idx + 1).copied().unwrap_or(true)
+    }
 }
 
 /// Simplified token kind for hook arg inspection.
@@ -248,6 +268,28 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
     // substitute it. Thread this through every assignment shape `set` lowers to.
     let name_braced = matches!(cmd.arg_kinds.first(), Some(ArgTokenKind::Str))
         && cmd.single_token_word.get(1).copied().unwrap_or(false);
+
+    // A *compound* name word computes the name too, and the arg-kind check
+    // above cannot see it: only the word's representative token is consulted,
+    // so under a grammar with no `{*}` expansion (8.4, iRules) `set {*}$n 1`
+    // reads as a `Str` word while its value is the literal `*` welded to
+    // whatever `$n` holds (issue #1484). Every assignment shape below is a
+    // *static* store — `AssignConst` / `AssignValue` / `AssignExpr` names are
+    // static by contract and `dynamic_names::scan_statement` never inspects
+    // them — so a computed name must stay a generic `Call`, the form
+    // `scan_command` does inspect and which raises the dynamic-write barrier
+    // the value-motion passes need.
+    //
+    // Only a word that really substitutes is examined, because
+    // `names_a_dynamic_variable` reads text alone: `set \$x 1` is one literal
+    // token naming the variable `$x`, and `set {$n} 1` names `$n`, neither of
+    // which substitutes anything. Conversely a computed array *key*
+    // (`set a($i) 1`) is not a computed name — the array is named statically
+    // and codegen's `push_array_key` builds the key at run time — which is the
+    // same line `names_a_dynamic_variable` already draws for `scan_command`.
+    if !cmd.arg_is_static_literal(0) && crate::dynamic_names::names_a_dynamic_variable(name) {
+        return make_call(cmd);
+    }
 
     // Content span of the value word when it is a verbatim source slice —
     // the writable provenance for command-name-in-variable rename.
@@ -685,6 +727,80 @@ fn parse_decimal_int(text: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The statement `src` lowers to under `dialect` — the configuration a
+    /// real host builds, so the `{*}` grammar matches the document's.
+    fn first_stmt_for_dialect(src: &str, dialect: &str) -> Statement {
+        let registry = tcl_registry::registry_for_dialect(dialect);
+        let m = crate::lowering::lower_to_ir_with_config(
+            src,
+            registry,
+            tcl_lexer::LexerConfig::for_dialect(dialect),
+        );
+        m.top_level.statements[0].clone()
+    }
+
+    /// Issue #1484 — a computed name may not wear a static-assign shape.
+    ///
+    /// Under a grammar with no `{*}` expansion the word `{*}$n` is the literal
+    /// `*` welded to `$n`, whose *representative* token is the braced `{*}` —
+    /// literal enough to slip past the arg-kind check, computed enough that
+    /// `AssignConst`'s static-name contract is a lie.  It must stay a `Call`,
+    /// the form `dynamic_names::scan_command` inspects.
+    #[test]
+    fn lower_set_refuses_a_computed_name_under_an_expansionless_grammar() {
+        for dialect in ["tcl8.4", "f5-irules"] {
+            for src in ["set {*}$n 1", "set x$n 1", "set pre[f] 1"] {
+                let stmt = first_stmt_for_dialect(src, dialect);
+                assert!(
+                    matches!(&stmt, Statement::Call { command, .. } if command == "set"),
+                    "{dialect}: {src:?} must stay a Call, got {stmt:?}",
+                );
+            }
+        }
+    }
+
+    /// The gate reads the *word*, not just its text: these names are spelled
+    /// out (a backslash-escaped `$`, a brace-quoted `$n`) or name a static
+    /// array whose key alone is computed, so they keep their typed assignment.
+    #[test]
+    fn lower_set_keeps_the_static_assign_for_a_spelled_out_name() {
+        for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
+            for src in ["set x 1", "set {$n} 1", "set \\$x 1", "set a($i) 1"] {
+                let stmt = first_stmt_for_dialect(src, dialect);
+                assert!(
+                    matches!(
+                        &stmt,
+                        Statement::AssignConst { .. }
+                            | Statement::AssignValue { .. }
+                            | Statement::AssignExpr { .. }
+                    ),
+                    "{dialect}: {src:?} must keep its typed assignment, got {stmt:?}",
+                );
+            }
+        }
+    }
+
+    /// Under 9.0 `{*}$n` is a real expansion, which `has_expansion` has always
+    /// rejected — the #1484 gate must not be what decides this case.
+    #[test]
+    fn lower_set_leaves_the_expanded_name_word_on_its_existing_path() {
+        for dialect in ["tcl9.0", "tcl8.6"] {
+            let stmt = first_stmt_for_dialect("set {*}$n 1", dialect);
+            let Statement::Call {
+                command, tokens, ..
+            } = &stmt
+            else {
+                panic!("{dialect}: expected Call, got {stmt:?}");
+            };
+            assert_eq!(command, "set");
+            assert_eq!(
+                tokens.as_ref().and_then(|t| t.expand_word.clone()),
+                Some(vec![false, true, false]),
+                "{dialect}: the word must still be marked as expanded",
+            );
+        }
+    }
 
     #[test]
     fn lower_set_preserves_leading_zeros() {
