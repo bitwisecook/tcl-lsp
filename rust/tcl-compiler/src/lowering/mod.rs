@@ -215,6 +215,31 @@ fn seg_word_is_static_literal(seg: &SegmentedCommand, idx: usize) -> bool {
             .is_some_and(|t| matches!(t.kind, TokenType::Str | TokenType::Esc))
 }
 
+/// Whether word `idx` runs a `$var` / `[cmd]` substitution when it is
+/// evaluated — so its value is run-time data rather than the text as written.
+///
+/// Weaker than the negation of [`seg_word_is_static_literal`], and
+/// deliberately so: a **compound** literal word (`{body}x`, two literal tokens
+/// welded together) is still spelled out in the source, so a body walk that
+/// clamps it with [`crate::segmenter::body_text_in_region`] rebases honest
+/// spans (issue #1325). `{*}$n` under an expansionless grammar looks the same
+/// from the representative token alone — braced, multi-token — yet its second
+/// fragment substitutes, so its value appears nowhere in the document.
+///
+/// Falls back to the representative token kind when the per-word fragments are
+/// unavailable, matching the coarse view the other word gates here take.
+fn seg_word_substitutes(seg: &SegmentedCommand, idx: usize) -> bool {
+    match seg.word_fragments.get(idx) {
+        Some(fragments) if !fragments.is_empty() => fragments
+            .iter()
+            .any(|fragment| matches!(fragment.token.kind, TokenType::Var | TokenType::Cmd)),
+        _ => seg
+            .argv
+            .get(idx)
+            .is_some_and(|tok| matches!(tok.kind, TokenType::Var | TokenType::Cmd)),
+    }
+}
+
 /// True iff `nm` is a static instance-variable name (not a `$var` /
 /// `[cmd]` substitution and not an option flag). Dynamic names are
 /// skipped — conservative.
@@ -2321,17 +2346,50 @@ impl<'r> Lowerer<'r> {
     }
 
     fn lower_namespace_eval(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        // The body is walked from its *written* spelling, rebased by the body
+        // word's own content offset, so the word must not substitute (issue
+        // #1375's gate).  A `$body` / `[list …]` word's value is run-time data
+        // that appears nowhere in this document: rebasing its unsubstituted
+        // spelling fabricates statement spans that overrun the source —
+        // `namespace eval ::ns [list $o fw]` rebases the whole `[list $o fw]`
+        // text past the opening `[`, one byte off the end.
+        // [`Self::guarded_body_text`] deliberately passes such words through
+        // untouched because clamping run-time data proves nothing; refusing to
+        // walk them is the caller-side half of that contract.  The namespace is
+        // still entered at run time — the `Barrier` below re-emits the call —
+        // the body just stays opaque to static analysis, exactly as
+        // [`Self::lower_apply`] and [`Self::lower_array_for`] leave a dynamic
+        // body opaque.
+        if !seg_word_substitutes(seg, 3) {
+            self.walk_namespace_eval_body(seg, namespace);
+        }
+
+        Statement::Barrier {
+            span: seg.span,
+            reason: "namespace eval".into(),
+            command: "namespace".into(),
+            canonical_command: None,
+            args: seg.args().to_vec(),
+            tokens: Some(Self::cmd_tokens(seg)),
+        }
+    }
+
+    /// Walk a `namespace eval` body inline and record it as a body unit.
+    ///
+    /// Only reached for a body word that does not substitute — see
+    /// [`Self::lower_namespace_eval`] for why.
+    fn walk_namespace_eval_body(&mut self, seg: &SegmentedCommand, namespace: &str) {
         let args = seg.args();
         let child_ns = join_namespace(namespace, &args[1]);
-        let prev = self.in_namespace_eval;
-        self.in_namespace_eval = true;
         let body_tok = seg.arg_tokens()[2];
-        // `namespace eval` inlines whatever body word it is given, including a
-        // compound `{…}x` one, so the rebase below needs the #1325 guard (see
-        // [`Self::guarded_body_text`]) — both for the body itself and for the
-        // body unit's span derived from its length.
+        // `namespace eval` inlines whatever literal body word it is given,
+        // including a compound `{…}x` one, so the rebase below needs the #1325
+        // guard (see [`Self::guarded_body_text`]) — both for the body itself and
+        // for the body unit's span derived from its length.
         let body_text = self.guarded_body_text(body_tok, &args[2]);
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        let prev = self.in_namespace_eval;
+        self.in_namespace_eval = true;
         let body = self.lower_body(body_text, body_offset, &child_ns);
         self.in_namespace_eval = prev;
 
@@ -2358,15 +2416,6 @@ impl<'r> Lowerer<'r> {
             body,
             false,
         );
-
-        Statement::Barrier {
-            span: seg.span,
-            reason: "namespace eval".into(),
-            command: "namespace".into(),
-            canonical_command: None,
-            args: args.to_vec(),
-            tokens: Some(Self::cmd_tokens(seg)),
-        }
     }
 
     /// Default lowering: generic [`Statement::Call`] with registry-based

@@ -332,3 +332,51 @@ fn a_compound_body_lowers_at_the_offsets_it_is_written_at() {
         );
     }
 }
+
+/// The other half of #1375's literal gate: a body word that *substitutes*.
+///
+/// Its value is run-time data that appears nowhere in the document, so its
+/// written spelling is not a script sitting at those offsets.  `namespace eval`
+/// walked one anyway and rebased the whole `[list $o fw]` text past the opening
+/// `[`, putting the inner statement one byte off the end of the source — the
+/// shape `tcl-vm`'s `forward_target_resolves_in_object_namespace_not_caller`
+/// tripped `debug_assert_spans_in_source` on.
+#[test]
+fn a_substituted_body_word_is_not_lowered_at_its_written_offsets() {
+    for src in [
+        "namespace eval ::ns [list $o fw]",
+        "namespace eval ::ns [list $o fw]\n",
+        "namespace eval ::ns $body",
+        "namespace eval ::ns $body\n",
+        "set o x\nnamespace eval ::ns [list $o fw]",
+        "namespace eval ::ns [list $o fw]\u{200b}",
+    ] {
+        assert_lowered_spans_are_sliceable(src, "tcl8.6");
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        assert!(
+            module.body_units.is_empty(),
+            "a run-time body must register no body unit; {src:?} produced {:?}",
+            module.body_units.keys().collect::<Vec<_>>(),
+        );
+    }
+}
+
+/// The literal bodies must keep their body unit — the gate above narrows the
+/// walk, it does not switch it off.
+#[test]
+fn a_literal_namespace_eval_body_still_registers_its_unit() {
+    for src in [
+        "namespace eval ::ns {set x 1}",
+        "namespace eval ::ns {set x 1}\n",
+    ] {
+        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let module = tcl_compiler::lowering::lower_to_ir(src, registry);
+        assert_eq!(
+            module.body_units.len(),
+            1,
+            "expected one body unit for {src:?}, got {:?}",
+            module.body_units.keys().collect::<Vec<_>>(),
+        );
+    }
+}

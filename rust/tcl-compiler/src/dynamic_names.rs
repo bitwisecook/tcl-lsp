@@ -1207,4 +1207,56 @@ computed; got {b:?}"
             assert!(b.is_clear(), "{dialect}: got {b:?}");
         }
     }
+
+    /// Issue #1484 — the same expansionless `{*}` word as a *statement* of its
+    /// own, not buried in a `[…]` the text walk re-segments.
+    ///
+    /// Under 8.4 / iRules `set {*}$n 1` is the literal `*` welded to `$n`: a
+    /// computed name.  The lowering used to specialise it to `AssignConst`,
+    /// whose name is static by contract, so [`scan_statement`] never looked at
+    /// it and the write barrier stayed down — leaving the value-motion passes
+    /// free to move stores across a write that can land on any name.
+    #[test]
+    fn an_expansionless_computed_name_statement_raises_the_write_barrier() {
+        for dialect in ["tcl8.4", "f5-irules"] {
+            let b = barrier_for_dialect("proc f {n} { set {*}$n 1; return ok }\n", dialect);
+            assert!(
+                b.writes,
+                "{dialect}: `set {{*}}$n 1` names `*$n` — a computed name; got {b:?}",
+            );
+        }
+    }
+
+    /// The 9.0 grammar reaches the same answer by the path it always did:
+    /// `{*}$n` really is an expansion there, so the word is a plain `$n`
+    /// substitution and `set` was never specialised in the first place.  Pinned
+    /// so the #1484 gate cannot be credited with a result the old path already
+    /// produced — or quietly change it.
+    #[test]
+    fn an_expanded_computed_name_statement_still_raises_the_write_barrier() {
+        for dialect in ["tcl9.0", "tcl8.6"] {
+            let b = barrier_for_dialect("proc f {n} { set {*}$n 1; return ok }\n", dialect);
+            assert!(
+                b.writes,
+                "{dialect}: expanded `{{*}}$n` write missed; got {b:?}"
+            );
+        }
+    }
+
+    /// TN control for #1484: a fully spelled-out `set` names one variable, so
+    /// the gate must not blind a function that computes nothing.  The array
+    /// element with a computed *key* is the near miss — its array is named
+    /// statically, which is the line [`names_a_dynamic_variable`] draws.
+    #[test]
+    fn a_spelled_out_set_stays_clear_under_every_dialect() {
+        for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
+            for body in ["set x 1", "set a($i) 1", "set x 1; set y $x"] {
+                let b = barrier_for_dialect(
+                    &format!("proc f {{i}} {{ {body}; return ok }}\n"),
+                    dialect,
+                );
+                assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
+            }
+        }
+    }
 }
