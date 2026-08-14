@@ -329,7 +329,17 @@ impl Lowerer<'_> {
         if args.len() != 4 || arg_tokens.len() < 4 {
             return Self::barrier(seg, "malformed for");
         }
-        if !(arg_single[0] && arg_single[1] && arg_single[2] && arg_single[3]) {
+        // `init`, `next`, and `body` are all lowered via `lower_body_from_tok`,
+        // which rebases the segmenter-reconstructed word text at the token's
+        // span — safe only for a substitution-free literal (`seg_word_is_static_literal`,
+        // matching `TclCompileForCmd`'s `TCL_TOKEN_SIMPLE_WORD` check). A single-token
+        // but dynamic word (`$body`, `[cmd]`) must barrier rather than be
+        // lowered as if it were the literal text (issue #1375).
+        if !arg_single[1]
+            || !super::seg_word_is_static_literal(seg, 1)
+            || !super::seg_word_is_static_literal(seg, 3)
+            || !super::seg_word_is_static_literal(seg, 4)
+        {
             return Self::barrier(seg, "for with dynamic arguments");
         }
         // A body/next that redefines break/continue must run through the runtime
@@ -380,7 +390,13 @@ impl Lowerer<'_> {
         if args.len() != 2 || arg_tokens.len() < 2 {
             return Self::barrier(seg, "malformed while");
         }
-        if !(arg_single[0] && arg_single[1]) {
+        // The body is lowered via `lower_body_from_tok`, which rebases the
+        // segmenter-reconstructed word text at the token's span — safe only
+        // for a substitution-free literal (matching `TclCompileWhileCmd`'s
+        // `TCL_TOKEN_SIMPLE_WORD` check on the body). A single-token but
+        // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
+        // as if it were the literal text (issue #1375).
+        if !arg_single[0] || !super::seg_word_is_static_literal(seg, 2) {
             return Self::barrier(seg, "while with dynamic arguments");
         }
         // See `lower_for`: a body redefining break/continue must use the runtime
@@ -421,7 +437,6 @@ impl Lowerer<'_> {
     ) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
 
         if args.len() < 3 || args.len().is_multiple_of(2) {
             return Self::barrier(seg, "malformed foreach");
@@ -429,7 +444,13 @@ impl Lowerer<'_> {
 
         let body_idx = args.len() - 1;
         let body_tok = arg_tokens.get(body_idx);
-        if body_tok.is_none() || body_idx >= arg_single.len() || !arg_single[body_idx] {
+        // The body is lowered via `lower_body_from_tok`, which rebases the
+        // segmenter-reconstructed word text at the token's span — safe only
+        // for a substitution-free literal (matching `TclCompileForeachCmd`'s
+        // `TCL_TOKEN_SIMPLE_WORD` check on the body). A single-token but
+        // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
+        // as if it were the literal text (issue #1375).
+        if body_tok.is_none() || !super::seg_word_is_static_literal(seg, body_idx + 1) {
             return Self::barrier(seg, "foreach with dynamic body");
         }
 
@@ -546,7 +567,6 @@ impl Lowerer<'_> {
     ) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
 
         // `foreachLine varName filename body` — exactly three args.
         if args.len() != 3 {
@@ -560,8 +580,7 @@ impl Lowerer<'_> {
         // word is still dynamic and must not be compiled as a
         // static loop body.
         let body_tok = arg_tokens.get(2);
-        let body_is_braced_literal = body_tok.is_some_and(|t| t.kind == TokenType::Str);
-        if !body_is_braced_literal || arg_single.get(2).copied() != Some(true) {
+        if !super::seg_word_is_static_braced(seg, 3) {
             return Self::barrier(seg, "foreachLine with dynamic body");
         }
 
@@ -600,7 +619,6 @@ impl Lowerer<'_> {
     pub(super) fn lower_catch(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
 
         if args.is_empty() {
             return Self::barrier(seg, "malformed catch");
@@ -612,10 +630,7 @@ impl Lowerer<'_> {
         // `eval_catch`, which calls `eval_script` on the substituted
         // value.  Without the kind check, ``catch $cmd res`` would
         // be compiled as "call the proc named by ``$cmd``" — wrong.
-        if arg_tokens.is_empty()
-            || !arg_single.first().copied().unwrap_or(false)
-            || arg_tokens[0].kind != TokenType::Str
-        {
+        if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
             return Self::barrier(seg, "catch with dynamic body");
         }
 
@@ -653,7 +668,13 @@ impl Lowerer<'_> {
         if args.is_empty() {
             return Self::barrier(seg, "malformed try");
         }
-        if arg_tokens.is_empty() || !arg_single.first().copied().unwrap_or(false) {
+        // The body is lowered via `lower_body_from_tok`, which rebases the
+        // segmenter-reconstructed word text at the token's span — safe only
+        // for a brace-literal (`Str`) token, matching `lower_catch`'s body
+        // guard. A single-token but dynamic body (`$body`, `[cmd]`) must
+        // barrier rather than be lowered as if it were the literal text
+        // (issue #1375).
+        if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
             return Self::barrier(seg, "try with dynamic body");
         }
 
@@ -974,7 +995,6 @@ impl Lowerer<'_> {
     pub(super) fn lower_dict(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let arg_single = seg.arg_single_token();
         let sub = &args[0];
         let sub_args = &args[1..];
 
@@ -983,7 +1003,14 @@ impl Lowerer<'_> {
                 let var_names = parse_param_names(&sub_args[0]);
                 let body_idx = 3; // index in original args
                 let body_tok = arg_tokens.get(body_idx);
-                if body_tok.is_none() || body_idx >= arg_single.len() || !arg_single[body_idx] {
+                // The body is lowered via `lower_body_from_tok`, which
+                // rebases the segmenter-reconstructed word text at the
+                // token's span — safe only for a brace-literal (`Str`)
+                // token, matching `lower_catch`'s body guard. A
+                // single-token but dynamic body (`$body`, `[cmd]`) must
+                // barrier rather than be lowered as if it were the literal
+                // text (issue #1375).
+                if body_tok.is_none() || !super::seg_word_is_static_braced(seg, body_idx + 1) {
                     return Self::barrier(seg, &format!("dict {sub} with dynamic body"));
                 }
                 let body = self.lower_body_from_tok(&sub_args[2], body_tok, namespace);
@@ -1424,6 +1451,59 @@ mod tests {
                 is_dict_iteration: true,
                 ..
             }
+        ));
+    }
+
+    // issue #1375: `while`/`for`/`foreach`/`try`/`dict for` gated their body
+    // word on single-token-ness alone, not the token's kind. `$body` is a
+    // single VAR token, so it passed the old gate and was lowered as if its
+    // reconstructed text (`${body}`) were the literal script — miscompiling,
+    // or (when the reconstruction lengthened the word, as `${body}` does
+    // over `$body`) panicking in codegen on an out-of-bounds span. Each must
+    // now barrier instead, mirroring `catch_dollar_var_body_falls_through_to_barrier`.
+
+    #[test]
+    fn while_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("while {1} $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "while with dynamic arguments"
+        ));
+    }
+
+    #[test]
+    fn for_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("for {} {1} {} $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "for with dynamic arguments"
+        ));
+    }
+
+    #[test]
+    fn foreach_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("foreach x $l $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "foreach with dynamic body"
+        ));
+    }
+
+    #[test]
+    fn try_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("try $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "try with dynamic body"
+        ));
+    }
+
+    #[test]
+    fn dict_for_dollar_var_body_falls_through_to_barrier() {
+        let m = lower_to_ir("dict for {k v} $d $body", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "dict for with dynamic body"
         ));
     }
 }

@@ -288,9 +288,14 @@ fn emit_loop<E: Emit>(
     emit.end_loop();
 }
 
-/// Slice `source` to a span's byte range.
+/// Slice `source` to a span's byte range. A span past the end of `source`
+/// or landing off a UTF-8 character boundary degrades to an empty slice
+/// rather than panicking — a bad IR span (e.g. from a mis-lowered
+/// dynamic body, issue #1375) must not abort the compiler.
 fn slice(source: &str, span: Span) -> &str {
-    &source[span.start() as usize..span.end() as usize]
+    source
+        .get(span.start() as usize..span.end() as usize)
+        .unwrap_or_default()
 }
 
 /// The expression / clause source text for `span`, stripping a wrapping
