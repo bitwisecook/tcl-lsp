@@ -45,7 +45,7 @@
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
 
-use tcl_lexer::{Token, TokenType};
+use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::events::{EventProps, EventRegistry, EventRequires};
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
@@ -491,7 +491,8 @@ impl Analyser {
     /// registry's argument roles already describe (issue #1390).
     fn irules_event_bodies(&mut self) -> &[(String, Vec<String>)] {
         if self.irules_event_bodies.is_none() {
-            let bodies = collect_event_bodies(&self.source, self.registry.as_deref());
+            let bodies =
+                collect_event_bodies(&self.source, self.registry.as_deref(), self.lexer_config());
             self.irules_event_bodies = Some(bodies);
         }
         self.irules_event_bodies.as_deref().unwrap_or_default()
@@ -910,28 +911,39 @@ impl Analyser {
 /// still indexed.  Non-literal event names (`when $ev { … }`) are skipped —
 /// as they were before — because the cross-event note needs a name to look
 /// up.
+///
+/// `config` is the document's own dialect [`LexerConfig`]
+/// ([`super::Analyser::lexer_config`]) and is threaded through every recursive
+/// scan.  Segmenting with the default config instead dropped the profile at
+/// the first nested body — and, at the top level, dropped the TMM `}{` ghost
+/// separator, so `when {HTTP_REQUEST}{ … }` was not seen as an event handler
+/// at all and IRULE4003 silently lost every handler written that way
+/// (PR #1481 review of issue #1390).
 fn collect_event_bodies(
     source: &str,
     registry: Option<&CommandRegistry>,
+    config: LexerConfig,
 ) -> Vec<(String, Vec<String>)> {
     let mut out: Vec<(String, Vec<String>)> = Vec::new();
     if let Some(registry) = registry {
-        collect_event_bodies_into(source, registry, &mut out, 0);
+        collect_event_bodies_into(source, registry, config, &mut out, 0);
     }
     out
 }
 
-/// Recursive worker for [`collect_event_bodies`], descending body arguments.
+/// Recursive worker for [`collect_event_bodies`], descending body arguments
+/// under the caller's dialect `config`.
 fn collect_event_bodies_into(
     script: &str,
     registry: &CommandRegistry,
+    config: LexerConfig,
     out: &mut Vec<(String, Vec<String>)>,
     depth: u32,
 ) {
     if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         return;
     }
-    for cmd in crate::segmenter::segment_commands(script) {
+    for cmd in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
         let args = cmd.args();
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let body_indices = registry.arg_indices_for_role(cmd.name(), &arg_refs, ArgRole::Body);
@@ -954,7 +966,7 @@ fn collect_event_bodies_into(
         }
         for &idx in &body_indices {
             if let Some(body) = args.get(idx) {
-                collect_event_bodies_into(body, registry, out, depth + 1);
+                collect_event_bodies_into(body, registry, config, out, depth + 1);
             }
         }
     }
@@ -1159,6 +1171,12 @@ mod tests {
 
     fn has(source: &str, code: &str) -> bool {
         codes(source).iter().any(|(c, _)| c == code)
+    }
+
+    /// The lexer config an `f5-irules` document analyses under — the one
+    /// [`Analyser::lexer_config`] hands the event-body collector.
+    fn irules_config() -> LexerConfig {
+        LexerConfig::for_dialect("f5-irules")
     }
 
     #[test]
@@ -1458,8 +1476,11 @@ mod tests {
     #[test]
     fn collect_event_bodies_extracts_priority_form() {
         let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
-        let blocks =
-            super::collect_event_bodies("when HTTP_REQUEST priority 5 { body1 }", Some(registry));
+        let blocks = super::collect_event_bodies(
+            "when HTTP_REQUEST priority 5 { body1 }",
+            Some(registry),
+            irules_config(),
+        );
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].0, "HTTP_REQUEST");
         assert_eq!(blocks[0].1[0].trim(), "body1");
@@ -1474,9 +1495,51 @@ mod tests {
         let source = "# when HTTP_REQUEST { log local0. $x }\n\
                       log local0. \"when LB_SELECTED { set y 1 }\"\n\
                       when CLIENT_ACCEPTED { set z 1 }\n";
-        let blocks = super::collect_event_bodies(source, Some(registry));
+        let blocks = super::collect_event_bodies(source, Some(registry), irules_config());
         let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
         assert_eq!(names, vec!["CLIENT_ACCEPTED"]);
+    }
+
+    /// TMM accepts a handler written with no separator before its body —
+    /// `when {HTTP_REQUEST}{ … }` — because the `}{` sequence acts as a
+    /// command-word separator in the iRules grammar.  The collector must
+    /// segment with the *document's* dialect config to see it; segmenting
+    /// with `LexerConfig::default()` read the whole line as one malformed
+    /// word, found no event handler, and silently dropped every handler
+    /// written that way from IRULE4003's index (PR #1481 review of
+    /// issue #1390).
+    #[test]
+    fn collect_event_bodies_honours_the_tmm_ghost_separator() {
+        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let source = "when {HTTP_REQUEST}{ set token abc }\n\
+                      when {CLIENT_DATA}{ log local0. $token }\n";
+        let blocks = super::collect_event_bodies(source, Some(registry), irules_config());
+        let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
+        assert_eq!(names, vec!["HTTP_REQUEST", "CLIENT_DATA"]);
+    }
+
+    #[test]
+    fn irule4003_fires_across_ghost_separated_events() {
+        let src = "when {HTTP_REQUEST}{ set token abc }\n\
+                   when {CLIENT_DATA}{ log local0. $token }";
+        assert!(
+            has(src, "IRULE4003"),
+            "the `}}{{` ghost separator must not hide the second handler; got {:?}",
+            codes(src)
+        );
+    }
+
+    #[test]
+    fn irule4003_fires_across_spaced_events_the_same_way() {
+        // Control: the spaced spelling of the same two handlers, which the
+        // default-config segmentation already saw.
+        let src = "when {HTTP_REQUEST} { set token abc }\n\
+                   when {CLIENT_DATA} { log local0. $token }";
+        assert!(
+            has(src, "IRULE4003"),
+            "the spaced spelling must keep reporting; got {:?}",
+            codes(src)
+        );
     }
 
     #[test]
