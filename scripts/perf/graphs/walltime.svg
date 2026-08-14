@@ -11,59 +11,84 @@
     .note { font-size: 10px; opacity: 0.75; }
     .series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
     .hatch { stroke: #1F2328; stroke-width: 1.2; opacity: 0.75; }
-    .s0 { stroke: #E69F00; }
-    .f0 { fill: #E69F00; }
-    .s1 { stroke: #56B4E9; }
-    .f1 { fill: #56B4E9; }
-    .s2 { stroke: #009E73; }
-    .f2 { fill: #009E73; }
-    .s3 { stroke: #F0E442; }
-    .f3 { fill: #F0E442; }
-    .s4 { stroke: #0072B2; }
-    .f4 { fill: #0072B2; }
-    .s5 { stroke: #D55E00; }
-    .f5 { fill: #D55E00; }
-    .s6 { stroke: #CC79A7; }
-    .f6 { fill: #CC79A7; }
-    .s7 { stroke: #000000; }
-    .f7 { fill: #000000; }
-    .s8 { stroke: #E69F00; }
-    .f8 { fill: #E69F00; }
-    .s8 { stroke-dasharray: 7 3; }
-    .s9 { stroke: #56B4E9; }
-    .f9 { fill: #56B4E9; }
-    .s9 { stroke-dasharray: 7 3; }
-    .s10 { stroke: #009E73; }
-    .f10 { fill: #009E73; }
-    .s10 { stroke-dasharray: 7 3; }
-    .s11 { stroke: #F0E442; }
-    .f11 { fill: #F0E442; }
-    .s11 { stroke-dasharray: 7 3; }
-    .s12 { stroke: #0072B2; }
-    .f12 { fill: #0072B2; }
-    .s12 { stroke-dasharray: 7 3; }
-    .s13 { stroke: #D55E00; }
-    .f13 { fill: #D55E00; }
-    .s13 { stroke-dasharray: 7 3; }
-    .s14 { stroke: #CC79A7; }
-    .f14 { fill: #CC79A7; }
-    .s14 { stroke-dasharray: 7 3; }
-    .s15 { stroke: #000000; }
-    .f15 { fill: #000000; }
-    .s15 { stroke-dasharray: 7 3; }
-    .s16 { stroke: #E69F00; }
-    .f16 { fill: #E69F00; }
-    .s16 { stroke-dasharray: 2 3; }
-    .s17 { stroke: #56B4E9; }
-    .f17 { fill: #56B4E9; }
-    .s17 { stroke-dasharray: 2 3; }
+    .hist { stroke-width: 1.4; }
+    .current { stroke-width: 3.6; }
+    .legend-current { font-weight: 700; }
+    .s0 { stroke: #C6CCD3; }
+    .f0 { fill: #C6CCD3; }
+    .s1 { stroke: #BFC5CD; }
+    .f1 { fill: #BFC5CD; }
+    .s2 { stroke: #B8BFC6; }
+    .f2 { fill: #B8BFC6; }
+    .s3 { stroke: #B2B8C0; }
+    .f3 { fill: #B2B8C0; }
+    .s4 { stroke: #ABB2B9; }
+    .f4 { fill: #ABB2B9; }
+    .s5 { stroke: #A4ABB3; }
+    .f5 { fill: #A4ABB3; }
+    .s6 { stroke: #9DA4AC; }
+    .f6 { fill: #9DA4AC; }
+    .s7 { stroke: #969EA6; }
+    .f7 { fill: #969EA6; }
+    .s8 { stroke: #9097A0; }
+    .f8 { fill: #9097A0; }
+    .s9 { stroke: #899099; }
+    .f9 { fill: #899099; }
+    .s10 { stroke: #828A93; }
+    .f10 { fill: #828A93; }
+    .s11 { stroke: #7B838C; }
+    .f11 { fill: #7B838C; }
+    .s12 { stroke: #747D86; }
+    .f12 { fill: #747D86; }
+    .s13 { stroke: #6D767F; }
+    .f13 { fill: #6D767F; }
+    .s14 { stroke: #676F79; }
+    .f14 { fill: #676F79; }
+    .s15 { stroke: #606972; }
+    .f15 { fill: #606972; }
+    .s16 { stroke: #59626C; }
+    .f16 { fill: #59626C; }
+    .s17 { stroke: #0A66FF; }
+    .f17 { fill: #0A66FF; }
     @media (prefers-color-scheme: dark) {
       :root { color: #E6EDF3; }
       .hatch { stroke: #E6EDF3; }
-      .s7 { stroke: #FFFFFF; }
-      .f7 { fill: #FFFFFF; }
-      .s15 { stroke: #FFFFFF; }
-      .f15 { fill: #FFFFFF; }
+      .s0 { stroke: #444D57; }
+      .f0 { fill: #444D57; }
+      .s1 { stroke: #4B545E; }
+      .f1 { fill: #4B545E; }
+      .s2 { stroke: #515A64; }
+      .f2 { fill: #515A64; }
+      .s3 { stroke: #58616B; }
+      .f3 { fill: #58616B; }
+      .s4 { stroke: #5F6872; }
+      .f4 { fill: #5F6872; }
+      .s5 { stroke: #656E78; }
+      .f5 { fill: #656E78; }
+      .s6 { stroke: #6C757F; }
+      .f6 { fill: #6C757F; }
+      .s7 { stroke: #727B86; }
+      .f7 { fill: #727B86; }
+      .s8 { stroke: #79828D; }
+      .f8 { fill: #79828D; }
+      .s9 { stroke: #808993; }
+      .f9 { fill: #808993; }
+      .s10 { stroke: #868F9A; }
+      .f10 { fill: #868F9A; }
+      .s11 { stroke: #8D96A1; }
+      .f11 { fill: #8D96A1; }
+      .s12 { stroke: #949DA7; }
+      .f12 { fill: #949DA7; }
+      .s13 { stroke: #9AA3AE; }
+      .f13 { fill: #9AA3AE; }
+      .s14 { stroke: #A1AAB5; }
+      .f14 { fill: #A1AAB5; }
+      .s15 { stroke: #A7B0BB; }
+      .f15 { fill: #A7B0BB; }
+      .s16 { stroke: #AEB7C2; }
+      .f16 { fill: #AEB7C2; }
+      .s17 { stroke: #58A6FF; }
+      .f17 { fill: #58A6FF; }
     }
   </style>
   <text class="title" x="78.00" y="30.00">Per-check wall time by version</text>
@@ -1051,6 +1076,6 @@
   <rect class="f16" x="78.00" y="548.00" width="12" height="12" rx="2"/>
   <text x="96.00" y="558.00">2.1.17</text>
   <rect class="f17" x="273.00" y="548.00" width="12" height="12" rx="2"/>
-  <text x="291.00" y="558.00">2.1.18</text>
-  <text class="note" x="78.00" y="586.00">hatched, dashed bars are checks that failed or timed out (value is the timeout budget)</text>
+  <text class="legend-current" x="291.00" y="558.00">2.1.18 — this release</text>
+  <text class="note" x="78.00" y="586.00">hatched, dashed bars are checks that failed or timed out (value is the timeout budget) — 2.1.18 is drawn in blue; earlier releases fade with age</text>
 </svg>

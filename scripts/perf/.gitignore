@@ -5,3 +5,6 @@ servers/
 .build/
 ci-results/
 ci-graphs/
+# CI's render input: the committed results plus this run's measurement, merged
+# so neither source directory is clobbered (see .github/workflows/perf.yml).
+render/

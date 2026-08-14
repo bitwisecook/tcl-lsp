@@ -49,12 +49,26 @@ GitHub renders release notes on both a light and a dark page, and an SVG embedde
 via `![](...)` is loaded as an image, so it cannot inherit the page's colours. The
 SVG therefore carries its own `@media (prefers-color-scheme: dark)` block and all
 chrome (axes, ticks, text) is painted from `currentColor`, which that block flips.
-Series colours come from the Okabe-Ito categorical palette so the lines stay
-distinguishable to colour-blind readers; its black entry is the one colour that
-cannot survive both backgrounds, so it is swapped per scheme.
+
+Why one release is blue and the rest are grey
+---------------------------------------------
+These graphs are read in release notes, where the question is never "how does
+2.1.7 compare with 2.1.9" — it is "where does *this* release sit". Twenty
+equally-loud categorical colours answer neither: past eight series the palette
+wraps, and the reader has to hunt the legend for the line they actually came for.
+So the release being cut is drawn in a bright, saturated blue at double stroke
+width and painted last (on top of everything), and every earlier release is drawn
+on a neutral ramp that fades with age. The result separates by hue, by lightness,
+by stroke width and by z-order at once, which survives greyscale printing and
+every form of colour-vision deficiency.
+
+`--no-highlight` restores the flat Okabe-Ito categorical palette for the other
+job these graphs occasionally do: comparing two arbitrary versions against each
+other, where no single series is the subject.
 
 Usage:
     python3 report.py --results scripts/perf/results --out scripts/perf/graphs
+    python3 report.py --highlight 2.1.19          # default: the newest result
     python3 report.py --no-log --only 2.1.13,2.1.14,2.1.15
 """
 
@@ -90,6 +104,8 @@ KIB_PER_MIB = 1024.0
 #: eight or fewer series is unchanged.
 DASH_CYCLE: tuple[str, ...] = ("", "7 3", "2 3", "11 3 2 3")
 
+#: Reached only under `--no-highlight`; the default release-notes rendering uses
+#: HIGHLIGHT + HISTORY_RAMP below.
 PALETTE: tuple[tuple[str, str], ...] = (
     ("#E69F00", "#E69F00"),  # orange
     ("#56B4E9", "#56B4E9"),  # sky blue
@@ -100,6 +116,37 @@ PALETTE: tuple[tuple[str, str], ...] = (
     ("#CC79A7", "#CC79A7"),  # reddish purple
     ("#000000", "#FFFFFF"),  # black / white — the scheme-dependent slot
 )
+
+#: The release being cut, as (light-page, dark-page). The one saturated colour
+#: on the chart, and the only one that is a hue at all once the history goes
+#: grey — so "which line is the new release" is answered without the legend.
+#: Two values because a single blue cannot be vivid on both pages: #0A66FF is
+#: near-black on a dark ground and #58A6FF washes out on a white one.
+HIGHLIGHT: tuple[str, str] = ("#0A66FF", "#58A6FF")
+
+#: Ends of the neutral ramp the *earlier* releases are drawn on, oldest first,
+#: as (light-page, dark-page) at each end. Runs arrive semver-ordered, so ramp
+#: position is release age: the fan darkens (light page) / brightens (dark page)
+#: toward the present, which makes "older" readable off the chart itself rather
+#: than only off the legend. Both ends stay well clear of HIGHLIGHT's chroma so
+#: no history line can be mistaken for the current one.
+HISTORY_RAMP: tuple[tuple[str, str], tuple[str, str]] = (
+    ("#C6CCD3", "#444D57"),  # oldest release in the set
+    ("#59626C", "#AEB7C2"),  # the release immediately before the current one
+)
+
+#: Suffix appended to the highlighted series' legend label. Colour alone is not
+#: enough here: a reader who prints the notes, or who has the graph open next to
+#: a different release's, needs the chart to say which version it is about.
+CURRENT_SUFFIX = " — this release"
+
+# Stroke weights, as the literal CSS text so the emitted bytes are exactly these.
+# `.series` is unchanged from the flat-palette rendering, which keeps
+# `--no-highlight` output byte-identical to what it always was; the other two
+# apply only when a release is highlighted.
+SERIES_W = "2"
+HISTORY_W = "1.4"  # thin enough that eighteen of them read as one context fan
+CURRENT_W = "3.6"  # well over double, so z-order is not the only thing on top
 
 # Chrome colours. Everything structural is drawn in `currentColor`, and these
 # two values are what `color` resolves to per scheme.
@@ -495,13 +542,65 @@ def make_scale(
 # --------------------------------------------------------------------------
 
 
-def _stylesheet(series_count: int) -> str:
+def _rgb(value: str) -> tuple[int, int, int]:
+    """Split `#RRGGBB` into integer channels."""
+    v = value.lstrip("#")
+    return int(v[0:2], 16), int(v[2:4], 16), int(v[4:6], 16)
+
+
+def _mix(a: str, b: str, t: float) -> str:
+    """Blend two `#RRGGBB` colours, `t` running 0.0 (all `a`) to 1.0 (all `b`).
+
+    Rounds by adding a half and truncating rather than calling `round()`, whose
+    banker's rounding turns an exact .5 into a value that depends on the channel
+    it lands in — a needless way for the committed bytes to become surprising.
+    """
+    return "#{:02X}{:02X}{:02X}".format(
+        *(int(x + (y - x) * t + 0.5) for x, y in zip(_rgb(a), _rgb(b)))
+    )
+
+
+def series_colours(count: int, highlight: int | None) -> list[tuple[str, str]]:
+    """Per-series `(light-page, dark-page)` colours, in series order.
+
+    With a `highlight` index — the default, and what the release notes want —
+    that series takes `HIGHLIGHT` and every other one is placed on the
+    `HISTORY_RAMP` by its position among the remaining series. Because runs are
+    semver-ordered, that position is release age.
+
+    With `highlight=None` every series gets a categorical Okabe-Ito colour, for
+    comparing arbitrary versions where none of them is *the* subject.
+    """
+    if highlight is None:
+        return [PALETTE[i % len(PALETTE)] for i in range(count)]
+
+    (old_l, old_d), (new_l, new_d) = HISTORY_RAMP
+    # Position of each non-highlighted series within the history, precomputed so
+    # this stays linear rather than scanning the list once per series.
+    history_pos = {
+        idx: pos for pos, idx in enumerate(i for i in range(count) if i != highlight)
+    }
+    span = max(len(history_pos) - 1, 1)
+    out: list[tuple[str, str]] = []
+    for i in range(count):
+        if i == highlight:
+            out.append(HIGHLIGHT)
+            continue
+        # A lone history series sits at the recent end of the ramp rather than
+        # the faint end: with one line of context, faint is just hard to read.
+        t = history_pos[i] / span if len(history_pos) > 1 else 1.0
+        out.append((_mix(old_l, new_l, t), _mix(old_d, new_d, t)))
+    return out
+
+
+def _stylesheet(series_count: int, highlight: int | None) -> str:
     """Per-document CSS: scheme-aware chrome plus one class per series.
 
     Series colours are emitted as classes rather than inline `stroke=` so the
-    dark-mode override for the black palette slot is a single rule instead of a
-    per-element branch.
+    per-scheme override (the black palette slot, and every ramp step once a
+    release is highlighted) is one rule rather than a per-element branch.
     """
+    colours = series_colours(series_count, highlight)
     rules = [
         f":root {{ color: {INK_LIGHT}; }}",
         ".chrome { stroke: currentColor; fill: none; stroke-width: 1; }",
@@ -513,15 +612,25 @@ def _stylesheet(series_count: int) -> str:
         ".title { font-size: 15px; font-weight: 600; }",
         ".axis-title { font-size: 12px; }",
         ".note { font-size: 10px; opacity: 0.75; }",
-        ".series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }",
+        f".series {{ fill: none; stroke-width: {SERIES_W};"
+        " stroke-linejoin: round; stroke-linecap: round; }",
         # Not `currentColor`: inside a <pattern> its resolution varies between
         # renderers (it produced nothing under QuickLook's), and the hatch marks
         # a failed check — a signal that must not silently disappear. The
         # dark-mode block below overrides it explicitly instead.
         f".hatch {{ stroke: {INK_LIGHT}; stroke-width: 1.2; opacity: 0.75; }}",
     ]
+    if highlight is not None:
+        rules += [
+            # Weight and z-order carry the distinction on their own, so the
+            # graph still reads when printed in greyscale or seen by someone who
+            # cannot separate the blue from the grey by hue.
+            f".hist {{ stroke-width: {HISTORY_W}; }}",
+            f".current {{ stroke-width: {CURRENT_W}; }}",
+            ".legend-current { font-weight: 700; }",
+        ]
     for i in range(series_count):
-        light, _dark = PALETTE[i % len(PALETTE)]
+        light, _dark = colours[i]
         rules.append(f".s{i} {{ stroke: {light}; }}")
         rules.append(f".f{i} {{ fill: {light}; }}")
         # Past the end of the palette the colours repeat, and two versions
@@ -531,16 +640,20 @@ def _stylesheet(series_count: int) -> str:
         # carry the same pattern (see the legend renderer) so the key still
         # identifies a line. Applies to strokes only; bars are keyed by
         # position within their group, so a repeated fill is unambiguous there.
-        dash = DASH_CYCLE[(i // len(PALETTE)) % len(DASH_CYCLE)]
-        if dash:
-            rules.append(f".s{i} {{ stroke-dasharray: {dash}; }}")
+        #
+        # Highlighted rendering does not wrap — the ramp is continuous and the
+        # subject line must stay solid — so the dashes are palette-mode only.
+        if highlight is None:
+            dash = DASH_CYCLE[(i // len(PALETTE)) % len(DASH_CYCLE)]
+            if dash:
+                rules.append(f".s{i} {{ stroke-dasharray: {dash}; }}")
 
     dark_rules = [
         f":root {{ color: {INK_DARK}; }}",
         f".hatch {{ stroke: {INK_DARK}; }}",
     ]
     for i in range(series_count):
-        light, dark = PALETTE[i % len(PALETTE)]
+        light, dark = colours[i]
         if dark != light:
             dark_rules.append(f".s{i} {{ stroke: {dark}; }}")
             dark_rules.append(f".f{i} {{ fill: {dark}; }}")
@@ -557,7 +670,13 @@ def _stylesheet(series_count: int) -> str:
     )
 
 
-def _svg_open(width: float, height: float, title: str, series_count: int) -> list[str]:
+def _svg_open(
+    width: float,
+    height: float,
+    title: str,
+    series_count: int,
+    highlight: int | None,
+) -> list[str]:
     """Document preamble: sizing, accessible title, stylesheet.
 
     No background rect is drawn — the page shows through, which is what lets one
@@ -571,7 +690,7 @@ def _svg_open(width: float, height: float, title: str, series_count: int) -> lis
             f' role="img" aria-labelledby="chart-title">'
         ),
         f'  <title id="chart-title">{esc(title)}</title>',
-        _stylesheet(series_count),
+        _stylesheet(series_count, highlight),
     ]
 
 
@@ -621,7 +740,13 @@ def _hatch_rect(x: float, y: float, w: float, h: float) -> list[str]:
 
 
 def _legend(
-    items: Sequence[str], x: float, y: float, width: float, *, lines: bool = False
+    items: Sequence[str],
+    x: float,
+    y: float,
+    width: float,
+    *,
+    lines: bool = False,
+    highlight: int | None = None,
 ) -> list[str]:
     """Swatch-and-label legend, laid out left to right in fixed-width columns.
 
@@ -630,25 +755,33 @@ def _legend(
     its dash pattern (see `DASH_CYCLE`) is identifiable from the key. A filled
     square cannot show a dash pattern, which would leave two versions with
     identical swatches on any sweep of more than eight.
+
+    The highlighted entry is named as well as coloured: it carries
+    `CURRENT_SUFFIX` in bold, so a printed or screenshotted graph still says
+    which release it is about.
     """
     out: list[str] = []
     col_w = width / LEGEND_COLS
     for i, label in enumerate(items):
+        current = i == highlight
         col = i % LEGEND_COLS
         row = i // LEGEND_COLS
         lx = x + col * col_w
         ly = y + row * LEGEND_ROW_H
         if lines:
+            weight = " current" if current else " hist" if highlight is not None else ""
             out.append(
-                f'  <line class="series s{i}" x1="{fnum(lx)}" y1="{fnum(ly - 2)}" '
+                f'  <line class="series s{i}{weight}" x1="{fnum(lx)}" y1="{fnum(ly - 2)}" '
                 f'x2="{fnum(lx + 14)}" y2="{fnum(ly - 2)}"/>'
             )
         else:
             out.append(
                 f'  <rect class="f{i}" x="{fnum(lx)}" y="{fnum(ly - 8)}" width="12" height="12" rx="2"/>'
             )
+        text = f"{label}{CURRENT_SUFFIX}" if current else label
+        cls = ' class="legend-current"' if current else ""
         out.append(
-            f'  <text x="{fnum(lx + 18)}" y="{fnum(ly + 2)}">{esc(label)}</text>'
+            f'  <text{cls} x="{fnum(lx + 18)}" y="{fnum(ly + 2)}">{esc(text)}</text>'
         )
     return out
 
@@ -746,12 +879,17 @@ def line_chart(
     y_title: str,
     series: Sequence[tuple[str, Sequence[tuple[float, float]]]],
     footnote: str = "",
+    highlight: int | None = None,
 ) -> str:
     """Render a multi-series line chart, one line per (label, points) pair.
 
     Single-point series are drawn as a dot: a `polyline` with one vertex is
     invisible, and a version whose run produced exactly one sample should still
     show up rather than silently disappearing from the legend's story.
+
+    `highlight` is an index into `series`. That line is drawn thick, in
+    `HIGHLIGHT`, and — critically — *last*, so eighteen releases' worth of
+    context can never paint over the one the reader came for.
     """
     labels = [name for name, _ in series]
     legend_h = legend_height(len(labels))
@@ -768,7 +906,7 @@ def line_chart(
     x0, y0 = float(MARGIN_LEFT), float(MARGIN_TOP)
     x1, y1 = x0 + PLOT_W, y0 + PLOT_H
 
-    out = _svg_open(width, height, title, len(labels))
+    out = _svg_open(width, height, title, len(labels), highlight)
     out.append(
         f'  <text class="title" x="{fnum(x0)}" y="{fnum(MARGIN_TOP - 26)}">{esc(title)}</text>'
     )
@@ -801,22 +939,33 @@ def line_chart(
         y_title,
     )
 
-    for i, (_name, points) in enumerate(series):
+    # Highlighted line last: with eighteen releases on one set of axes, a
+    # bright-blue line painted in version order is repeatedly crossed and
+    # partially hidden by the greys drawn after it.
+    order = [i for i in range(len(series)) if i != highlight]
+    if highlight is not None:
+        order.append(highlight)
+    for i in order:
+        _name, points = series[i]
         if not points:
             continue
+        weight = ""
+        if highlight is not None:
+            weight = " current" if i == highlight else " hist"
         if len(points) == 1:
             px, py = sx(points[0][0]), sy(points[0][1])
+            radius = 5 if i == highlight else 3
             out.append(
-                f'  <circle class="f{i}" cx="{fnum(px)}" cy="{fnum(py)}" r="3"/>'
+                f'  <circle class="f{i}" cx="{fnum(px)}" cy="{fnum(py)}" r="{radius}"/>'
             )
             continue
         coords = " ".join(f"{fnum(sx(x))},{fnum(sy(y))}" for x, y in points)
-        out.append(f'  <polyline class="series s{i}" points="{coords}"/>')
+        out.append(f'  <polyline class="series s{i}{weight}" points="{coords}"/>')
 
     legend_y = y1 + AXIS_LABEL_H + 12
     # Line swatches: past eight series the palette wraps and the dash pattern
     # is what tells two same-coloured lines apart, so the key has to show it.
-    out += _legend(labels, x0, legend_y, PLOT_W, lines=True)
+    out += _legend(labels, x0, legend_y, PLOT_W, lines=True, highlight=highlight)
     if footnote:
         out.append(
             f'  <text class="note" x="{fnum(x0)}" y="{fnum(legend_y + legend_h + 10)}">{esc(footnote)}</text>'
@@ -841,6 +990,7 @@ def grouped_bar_chart(
     series: Sequence[tuple[str, Sequence[Bar | None]]],
     log: bool,
     footnote: str = "",
+    highlight: int | None = None,
 ) -> str:
     """Render grouped bars: one group per check, one bar per version.
 
@@ -852,6 +1002,11 @@ def grouped_bar_chart(
     Failed checks are drawn hatched with a dashed outline. Their `wall_s` is a
     timeout budget, so showing them as an ordinary bar would assert a duration
     that was never observed.
+
+    `highlight` colours one version's bar in every group `HIGHLIGHT` blue while
+    the rest ride the ageing ramp. Bars occupy disjoint slots, so this is purely
+    about colour — but with nineteen 2px bars per group it is the whole reason
+    the reader can find the release in the picture at all.
     """
     labels = [name for name, _ in series]
     legend_h = legend_height(len(labels))
@@ -862,7 +1017,7 @@ def grouped_bar_chart(
     x0, y0 = float(MARGIN_LEFT), float(MARGIN_TOP)
     x1, y1 = x0 + PLOT_W, y0 + PLOT_H
 
-    out = _svg_open(width, height, title, len(labels))
+    out = _svg_open(width, height, title, len(labels), highlight)
     out.append(
         f'  <text class="title" x="{fnum(x0)}" y="{fnum(MARGIN_TOP - 26)}">{esc(title)}</text>'
     )
@@ -892,11 +1047,20 @@ def grouped_bar_chart(
     # Leave 20% of each group as a gutter so adjacent groups stay readable.
     bar_w = (group_w * 0.8) / max(len(series), 1)
 
+    # Same reasoning as the line chart: the highlighted version is emitted last
+    # within each group. Bars do not overlap, so this only matters for the
+    # dashed failure outline, which is 1.5px wide and can bleed into the
+    # neighbouring 2px slot.
+    bar_order = [i for i in range(len(series)) if i != highlight]
+    if highlight is not None:
+        bar_order.append(highlight)
+
     x_ticks: list[tuple[float, str]] = []
     for gi, label in enumerate(group_labels):
         centre = x0 + group_w * (gi + 0.5)
         x_ticks.append((centre, label))
-        for si, (_name, bars) in enumerate(series):
+        for si in bar_order:
+            _name, bars = series[si]
             bar = bars[gi] if gi < len(bars) else None
             if bar is None:
                 continue
@@ -934,7 +1098,7 @@ def grouped_bar_chart(
     )
 
     legend_y = y1 + bar_label_h + 8
-    out += _legend(labels, x0, legend_y, PLOT_W)
+    out += _legend(labels, x0, legend_y, PLOT_W, highlight=highlight)
     note = "hatched, dashed bars are checks that failed or timed out (value is the timeout budget)"
     if footnote:
         note = f"{note} — {footnote}"
@@ -950,25 +1114,42 @@ def grouped_bar_chart(
 # --------------------------------------------------------------------------
 
 
-def build_memory_svg(runs: Sequence[Run]) -> str:
+def _highlight_note(runs: Sequence[Run], highlight: int | None) -> str:
+    """Footnote clause naming the highlighted release, or empty when there is none."""
+    if highlight is None:
+        return ""
+    return f"{runs[highlight].version} is drawn in blue; earlier releases fade with age"
+
+
+def build_memory_svg(runs: Sequence[Run], highlight: int | None = None) -> str:
     series = [(r.version, rss_series(r)) for r in runs]
+    note = "a line that keeps climbing to the right never plateaued — that is the leak shape"
+    if extra := _highlight_note(runs, highlight):
+        note = f"{extra} — {note}"
     return line_chart(
         "Resident memory over the benchmark run",
         "elapsed (s)",
         "RSS (MiB)",
         series,
-        footnote="a line that keeps climbing to the right never plateaued — that is the leak shape",
+        footnote=note,
+        highlight=highlight,
     )
 
 
-def build_cpu_svg(runs: Sequence[Run]) -> str:
+def build_cpu_svg(runs: Sequence[Run], highlight: int | None = None) -> str:
     series = [(r.version, cpu_series(r)) for r in runs]
+    note = (
+        "derived from cumulative CPU seconds; above 100% means more than one core busy"
+    )
+    if extra := _highlight_note(runs, highlight):
+        note = f"{extra} — {note}"
     return line_chart(
         "CPU utilisation over the benchmark run",
         "elapsed (s)",
         "CPU (%)",
         series,
-        footnote="derived from cumulative CPU seconds; above 100% means more than one core busy",
+        footnote=note,
+        highlight=highlight,
     )
 
 
@@ -988,7 +1169,9 @@ def collect_groups(runs: Sequence[Run]) -> list[str]:
     return [cid for cid, _ in sorted(ords.items(), key=lambda kv: (kv[1], kv[0]))]
 
 
-def build_walltime_svg(runs: Sequence[Run], log: bool) -> str:
+def build_walltime_svg(
+    runs: Sequence[Run], log: bool, highlight: int | None = None
+) -> str:
     groups = collect_groups(runs)
     series: list[tuple[str, list[Bar | None]]] = []
     for run in runs:
@@ -1006,6 +1189,8 @@ def build_walltime_svg(runs: Sequence[Run], log: bool) -> str:
         groups,
         series,
         log=log,
+        footnote=_highlight_note(runs, highlight),
+        highlight=highlight,
     )
 
 
@@ -1018,7 +1203,61 @@ def _md_cell(value: float) -> str:
     return f"{value:.2f}"
 
 
-def build_summary_md(runs: Sequence[Run], log: bool) -> str:
+def _pct_delta(current: float, previous: float) -> str:
+    """Signed percentage change, or `n/a` when the baseline is zero."""
+    if previous == 0.0:
+        return "n/a"
+    return f"{100.0 * (current - previous) / previous:+.1f}%"
+
+
+def build_comparison_lines(runs: Sequence[Run], highlight: int) -> list[str]:
+    """Head-to-head of the highlighted release against the one before it.
+
+    This is the number a release note actually wants, and computing it here
+    rather than by eye is what stops it being quietly wrong.
+
+    Emitted only when both runs were measured on the same host. Half of the
+    committed history was recorded on an Apple M1 Max and the rest on a
+    four-core Linux runner; a "+180% CPU" derived across that boundary would be
+    a statement about the hardware presented as a statement about the release.
+    """
+    if highlight <= 0:
+        return []
+    current, previous = runs[highlight], runs[highlight - 1]
+    if (current.platform, current.host_cpu) != (previous.platform, previous.host_cpu):
+        return [
+            (
+                f"_`{current.version}` and `{previous.version}` were measured on "
+                f"different hosts ({previous.host_cpu} → {current.host_cpu}), so no "
+                "release-over-release delta is quoted: the difference would be "
+                "mostly hardware._"
+            ),
+            "",
+        ]
+    rows = [
+        ("Peak RSS (MiB)", current.peak_rss_mib, previous.peak_rss_mib),
+        ("RSS growth (MiB)", current.rss_growth_mib, previous.rss_growth_mib),
+        ("Total CPU (s)", current.total_cpu_s, previous.total_cpu_s),
+        ("Total wall (s)", current.total_wall_s, previous.total_wall_s),
+    ]
+    out = [
+        f"**`{current.version}` vs `{previous.version}`** (same host — "
+        f"{current.host_cpu}, {current.host_cores} cores)",
+        "",
+        f"| Measure | {previous.version} | {current.version} | Change |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    out += [
+        f"| {name} | {_md_cell(prev)} | {_md_cell(cur)} | {_pct_delta(cur, prev)} |"
+        for name, cur, prev in rows
+    ]
+    out.append("")
+    return out
+
+
+def build_summary_md(
+    runs: Sequence[Run], log: bool, highlight: int | None = None
+) -> str:
     """Assemble the release-notes fragment.
 
     Starts at `##` deliberately: this is pasted inside a release-notes document
@@ -1030,14 +1269,24 @@ def build_summary_md(runs: Sequence[Run], log: bool) -> str:
         lines += ["_No benchmark results were found._", ""]
         return "\n".join(lines)
 
+    if highlight is not None:
+        lines += [
+            f"`{runs[highlight].version}` is this release: it is the blue line in "
+            "every graph below, and the bold row in the table. Earlier releases are "
+            "drawn in grey, fading with age.",
+            "",
+        ]
+
     lines += [
         "| Version | Peak RSS (MiB) | Final RSS (MiB) | RSS growth (MiB) | Total CPU (s) | Total wall (s) | Failed checks |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
-    for run in runs:
+    for i, run in enumerate(runs):
         lines.append(
             "| {v} | {peak} | {final} | {growth} | {cpu} | {wall} | {failed} |".format(
-                v=run.version,
+                # Bold, not a marker character: the emphasis survives the table
+                # being pasted anywhere GitHub-flavoured Markdown renders.
+                v=f"**{run.version}**" if i == highlight else run.version,
                 peak=_md_cell(run.peak_rss_mib),
                 final=_md_cell(run.final_rss_mib),
                 growth=_md_cell(run.rss_growth_mib),
@@ -1047,6 +1296,9 @@ def build_summary_md(runs: Sequence[Run], log: bool) -> str:
             )
         )
     lines.append("")
+
+    if highlight is not None:
+        lines += build_comparison_lines(runs, highlight)
 
     # Name the failures explicitly. A "1" in the table above is easy to skim
     # past; the check that timed out is the thing a reader needs.
@@ -1140,7 +1392,48 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help="comma-separated list of versions to include (default: all)",
     )
+    parser.add_argument(
+        "--highlight",
+        default=None,
+        metavar="VERSION",
+        help=(
+            "version to draw as the current release — bright blue, thick, on top,"
+            " with every other version on a neutral ageing ramp"
+            " (default: the newest result present)"
+        ),
+    )
+    parser.add_argument(
+        "--no-highlight",
+        action="store_true",
+        help=(
+            "give every version an equal categorical colour instead, for comparing"
+            " arbitrary versions where none of them is the subject"
+        ),
+    )
     return parser.parse_args(argv)
+
+
+def resolve_highlight(runs: Sequence[Run], args: argparse.Namespace) -> int | None:
+    """Index of the series to draw as the current release, or None.
+
+    An explicit `--highlight` that matches nothing is a hard error rather than a
+    silent fallback to the newest: the usual way to reach it is a typo or a
+    benchmark that never got run, and both produce a graph that says "here is
+    where 2.1.19 sits" while showing 2.1.18 in blue.
+    """
+    if args.no_highlight or not runs:
+        return None
+    if not args.highlight:
+        return len(runs) - 1
+    wanted = args.highlight.lstrip("v")
+    for i, run in enumerate(runs):
+        if run.version == wanted:
+            return i
+    available = ", ".join(r.version for r in runs)
+    raise ValueError(
+        f"--highlight {args.highlight!r} matches no loaded result "
+        f"(have: {available or 'none'})"
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1160,19 +1453,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not runs:
         print(f"warning: no results matched in {args.results}", file=sys.stderr)
 
-    for run in runs:
+    try:
+        highlight = resolve_highlight(runs, args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    for i, run in enumerate(runs):
+        marker = " <- highlighted as the current release" if i == highlight else ""
         print(
             f"{run.version}: peak {run.peak_rss_mib:.2f} MiB, final {run.final_rss_mib:.2f} MiB "
             f"(growth {run.rss_growth_mib:+.2f} MiB), cpu {run.total_cpu_s:.2f}s, "
             f"wall {run.total_wall_s:.2f}s, {len(run.checks)} checks, "
-            f"{run.failed_checks} failed, {len(run.timeline)} samples"
+            f"{run.failed_checks} failed, {len(run.timeline)} samples{marker}"
         )
 
     written = [
-        write_text(args.out / "memory.svg", build_memory_svg(runs)),
-        write_text(args.out / "cpu.svg", build_cpu_svg(runs)),
-        write_text(args.out / "walltime.svg", build_walltime_svg(runs, args.log)),
-        write_text(args.out / "summary.md", build_summary_md(runs, args.log)),
+        write_text(args.out / "memory.svg", build_memory_svg(runs, highlight)),
+        write_text(args.out / "cpu.svg", build_cpu_svg(runs, highlight)),
+        write_text(
+            args.out / "walltime.svg", build_walltime_svg(runs, args.log, highlight)
+        ),
+        write_text(
+            args.out / "summary.md", build_summary_md(runs, args.log, highlight)
+        ),
     ]
     for path in written:
         print(f"wrote {path}")

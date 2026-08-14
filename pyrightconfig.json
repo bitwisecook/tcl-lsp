@@ -17,7 +17,8 @@
     "scripts/perf/.stage",
     "scripts/perf/.build",
     "scripts/perf/ci-results",
-    "scripts/perf/ci-graphs"
+    "scripts/perf/ci-graphs",
+    "scripts/perf/render"
   ],
   "stubPath": "typings",
   "venvPath": ".",

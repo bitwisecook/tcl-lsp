@@ -25,6 +25,12 @@ python3 bench.py --server servers/v2.1.15/tcl-lsp-server --version 2.1.15 --scop
 python3 report.py                              # ./graphs/{memory,cpu,walltime}.svg + summary.md
 ```
 
+**Cutting a release?** Do not run these by hand —
+`scripts/release/perf_release.sh X.Y.Z` (or `make release-perf V=X.Y.Z`) does
+the build, the corpus check, the benchmark, the manifest entry and the
+re-render as one step, and refuses to silently overwrite a committed result.
+See [the release process](#the-release-process) below.
+
 Whole sweep:
 
 ```bash
@@ -203,6 +209,21 @@ binary users actually ran, and a rebuild can differ in toolchain and flags.
 
 ## Reading the graphs
 
+**One release is blue; every other one is grey.** The release being cut is
+drawn in a saturated blue, at more than double the stroke width, and painted
+last so nothing can cover it. Every earlier release is on a neutral ramp that
+fades with age — palest is oldest, and the bars in a wall-time group therefore
+run left-to-right from the first release to this one. Four signals carry the
+distinction at once (hue, lightness, stroke weight, z-order), so it survives a
+greyscale printout and every form of colour-vision deficiency.
+
+`report.py` highlights the newest result by default. `--highlight VERSION`
+names a different one — and errors rather than falling back if that version has
+no result, because a graph captioned "here is 2.1.20" that is actually
+highlighting 2.1.19 looks entirely correct. `--no-highlight` returns to the flat
+Okabe-Ito categorical palette, which is the right choice for the other job these
+graphs do: comparing two arbitrary versions where neither is *the* subject.
+
 - `memory.svg` — RSS against elapsed time, one line per version. A line that
   climbs and never flattens is the leak shape. Lines end at different x
   values because slower versions take longer to complete the same suite.
@@ -212,3 +233,40 @@ binary users actually ran, and a rebuild can differ in toolchain and flags.
   0.001 s to 30 s and a linear axis makes the fast ones invisible. Hatched,
   dashed bars are checks that failed or timed out; their height is the
   timeout budget, not a measurement.
+- `summary.md` — the table, with the highlighted release's row in bold, plus a
+  release-over-release delta. That delta is only printed when both runs were
+  measured on the same host; across the macOS→CI boundary it would be a claim
+  about hardware dressed up as a claim about the release, so the fragment says
+  so instead of quoting a number.
+
+## The release process
+
+The graphs are release-notes artefacts, so producing them is part of cutting a
+release rather than something to remember afterwards.
+`scripts/release/rust_release.sh` drives the whole 2.1.x pre-release sequence;
+each step is idempotent and separately runnable:
+
+```bash
+scripts/release/rust_release.sh next patch      # -> 2.1.20
+scripts/release/rust_release.sh prepare 2.1.20  # preflight, bench, graphs, notes, verify, commit
+#   ...open + merge the notes PR against `rust`, then pull and:
+scripts/release/rust_release.sh tag 2.1.20
+```
+
+`prepare` builds the server from the tree about to be tagged, benchmarks it into
+`results/2.1.20.json`, adds `v2.1.20` to `MANIFEST.toml`, re-renders `graphs/`
+with 2.1.20 highlighted, and writes the performance section of
+`RELEASE_NOTES.md` — including the four release-asset URLs that are the easiest
+thing in the whole release to leave pointing at the previous version.
+
+`verify` (also `make release-verify V=X.Y.Z`) is the gate: it re-renders the
+graphs into a scratch directory and diffs them against the committed ones, so a
+`graphs/` that no longer matches `results/` cannot reach a tag. `tag` re-runs it
+before handing off to `tag.sh`.
+
+The committed result is the release record and is measured wherever the
+maintainer chose to run it. `.github/workflows/perf.yml` measures the tag again
+on its own runner for the trend line, but when a committed result already exists
+for that version the committed one is what gets rendered and attached to the
+GitHub Release — see the CI-vs-macOS warning above for why that ordering is
+deliberate.
