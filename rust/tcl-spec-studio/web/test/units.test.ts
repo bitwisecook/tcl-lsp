@@ -49,6 +49,47 @@ import {
   versionFromFileName,
   type Release,
 } from "../src/releases.js";
+import { mapSelectionThroughFormat } from "../src/textSelection.js";
+
+describe("mapSelectionThroughFormat", () => {
+  it("keeps a caret after its text when formatting inserts indentation", () => {
+    const source = "command foo {\nsummary bar\n}";
+    const formatted = "command foo {\n    summary bar\n}";
+    const caret = source.indexOf("bar") + "bar".length;
+
+    assert.deepEqual(mapSelectionThroughFormat(source, formatted, { start: caret, end: caret }), {
+      start: formatted.indexOf("bar") + "bar".length,
+      end: formatted.indexOf("bar") + "bar".length,
+    });
+  });
+
+  it("keeps the caret at the end of indentation before the next token", () => {
+    const source = "command foo {\n summary bar\n}";
+    const formatted = "command foo {\n    summary bar\n}";
+    const caret = source.indexOf("summary");
+
+    assert.deepEqual(mapSelectionThroughFormat(source, formatted, { start: caret, end: caret }), {
+      start: formatted.indexOf("summary"),
+      end: formatted.indexOf("summary"),
+    });
+  });
+
+  it("maps both ends of a selection through whitespace-only edits", () => {
+    const source = "command foo {\nsummary bar\n}";
+    const formatted = "command foo {\n    summary bar\n}";
+
+    assert.deepEqual(
+      mapSelectionThroughFormat(source, formatted, {
+        start: source.indexOf("summary"),
+        end: source.indexOf("bar") + "bar".length,
+      }),
+      {
+        start: formatted.indexOf("summary"),
+        end: formatted.indexOf("bar") + "bar".length,
+      },
+    );
+  });
+});
 
 /** A scripted reply. */
 interface Scripted {

@@ -41,6 +41,7 @@ import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "
 import type { EditorHost, MonacoHostModule } from "./editorHost.js";
 import * as idb from "./idb.js";
 import { initReleasesPanel } from "./importReleases.js";
+import { mapSelectionThroughFormat } from "./textSelection.js";
 import type {
   CommandIndex,
   DialectEntry,
@@ -1802,11 +1803,14 @@ async function mountEditorHost(): Promise<void> {
 /** Push text into whichever surface is live, without echoing a change back. */
 function writeDsl(source: string, preserveSelection = false): void {
   const textarea = byId<HTMLTextAreaElement>("dslText");
+  const previous = textarea.value;
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
+  const direction = textarea.selectionDirection ?? "none";
   textarea.value = source;
   if (preserveSelection && !usingMonaco()) {
-    textarea.setSelectionRange(Math.min(start, source.length), Math.min(end, source.length));
+    const mapped = mapSelectionThroughFormat(previous, source, { start, end });
+    textarea.setSelectionRange(mapped.start, mapped.end, direction);
   }
   editorHost?.setDslText(source);
 }

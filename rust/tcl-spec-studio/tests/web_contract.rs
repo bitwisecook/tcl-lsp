@@ -28,7 +28,8 @@ fn every_code_pane_has_the_required_initial_language() {
 fn every_pack_source_update_passes_through_the_shared_formatter() {
     assert!(STUDIO_TS.contains("wasm.format_pack(source)"));
     assert!(STUDIO_TS.contains("state.pack.source = formatted"));
-    assert!(STUDIO_TS.contains("writeDsl(formatted)"));
+    assert!(STUDIO_TS.contains("writeDsl(formatted, opts.fromDsl)"));
+    assert!(STUDIO_TS.contains("mapSelectionThroughFormat(previous, source"));
 }
 
 #[test]
