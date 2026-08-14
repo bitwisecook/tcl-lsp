@@ -42,6 +42,9 @@
 //! - [`render_stub`] — draft → `# tcl-lsp: stub` block or `.tcl.stubs` file.
 //! - [`render_spectcl`] — draft → `.tclspec` spec pack, the loader's inverse.
 //! - [`infer`] — Tcl package sources → draft specs, via the real analyser.
+//! - [`versions`] — the same, over several *releases* of one package, so the
+//!   lifecycle fields carry a range the releases actually witness rather than
+//!   whatever version the newest snapshot happens to declare.
 //! - [`corpus`] — the shape heuristics the importer layers on top: option
 //!   tables, mode-word subcommands, closed value sets and callback arity, read
 //!   deterministically out of a proc's body with an evidence line each.
@@ -73,6 +76,7 @@ pub mod render_stub;
 pub mod sample;
 pub mod schema;
 pub mod store;
+pub mod versions;
 
 pub use tcl_spectcl::catalogue;
 pub use tcl_spectcl::loader as spectcl;
