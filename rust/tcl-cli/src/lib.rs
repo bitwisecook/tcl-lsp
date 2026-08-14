@@ -242,5 +242,6 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
         Command::Pkg { action } => commands::pkg::run(action),
         Command::Venv { action } => commands::venv::run(action),
         Command::Docker { action } => commands::docker::run(action),
+        Command::Spec { action } => commands::spec::run(action),
     }
 }

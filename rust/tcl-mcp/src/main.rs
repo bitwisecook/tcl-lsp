@@ -41,6 +41,7 @@ mod diag_meta;
 mod fakecmp;
 mod irule_gen;
 mod irule_test;
+mod spec_import;
 mod spectcl;
 mod tk;
 mod tools;

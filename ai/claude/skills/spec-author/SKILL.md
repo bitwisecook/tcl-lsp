@@ -1,7 +1,7 @@
 ---
 name: spec-author
 description: "Build command specs for a private Tcl library: scan its sources with the compiler, infer each command's signature and behaviour, and produce stub sidecars or registry-ready spec drafts. Use when a user's own package commands are unknown to tcl-lsp, when annotating a private library, or when preparing a command-spec contribution."
-allowed-tools: mcp__tcl-lsp__read_proc_docs, mcp__tcl-lsp__analyze, mcp__tcl-lsp__command_info, mcp__tcl-lsp__spectcl_check, Read, Write, Glob, Grep
+allowed-tools: mcp__tcl-lsp__read_proc_docs, mcp__tcl-lsp__analyze, mcp__tcl-lsp__command_info, mcp__tcl-lsp__spectcl_check, mcp__tcl-lsp__spec_import, Read, Write, Glob, Grep, Bash
 ---
 
 # Spec Author
@@ -75,6 +75,66 @@ the compiler's own inference — never guesswork from names.
 8. Report: commands covered, evidence per guess, anything skipped, and
    open questions only the author can answer (side effects, taint,
    version history).
+
+## Deriving version ranges from release history
+
+Steps 1–8 read *one* snapshot of the library, so they can only say what it
+looks like now. Stamping `introduced_version` from that snapshot's own
+`package provide` claims every command arrived in the newest release, which
+is almost never true. If the library has releases, derive the ranges from
+them instead — the importer only writes a lifecycle field when two releases
+disagree about whether something exists, and reports everything else as
+evidence.
+
+9. **Get the releases.** In preference order:
+   - **Network available** — `tcl spec import --github OWNER/REPO` enumerates
+     the repository's tags, maps each to a version label (a leading `v` and a
+     project prefix are stripped: `v1.2` → `1.2`, `tcllib-1.20` → `1.20`) and
+     fetches each release tarball. Narrow the set first:
+     `--tag-pattern 'v*'` keeps only matching tags (`*` any run, `?` one
+     character, the whole tag must match) and `--limit 8` keeps the newest
+     eight. Run it once with `--list-tags` to see exactly what would be
+     fetched before fetching anything. Set `GITHUB_TOKEN` if the
+     unauthenticated rate limit bites; standard proxy variables are honoured.
+   - **No network, but a checkout** — export one directory per release and
+     label it yourself:
+
+     ```sh
+     git clone --bare https://…/pkg.git pkg.git
+     git -C pkg.git tag --list 'v*'
+     for tag in v1.0 v1.2 v2.0; do
+         mkdir -p snapshots/${tag#v}
+         git -C pkg.git archive "$tag" | tar -x -C "snapshots/${tag#v}"
+     done
+     ```
+
+     then `tcl spec import --snapshot 1.0=snapshots/1.0 --snapshot
+     1.2=snapshots/1.2 --snapshot 2.0=snapshots/2.0`. A snapshot path may
+     equally be a `.zip` or `.tar.gz` — release archives need no unpacking.
+   - **Already-local artefacts, no shell** — the MCP `spec_import` tool takes
+     `snapshots: [{version, path}]` (local directories or archives only; it
+     has no fetcher by design), plus `dialect`, `package` and
+     `complete_history`, and returns the same pack, per-command ranges and
+     warnings as JSON.
+10. **Say whether the history is complete.** `--complete-history` (MCP:
+    `complete_history: true`) declares the snapshots are *every* release, which
+    is the only thing that makes presence in the earliest one an introduction.
+    It is off by default. Claim it only when you have checked the full tag
+    list — a wrong `introduced_version` cannot be told from a derived one
+    afterwards.
+11. **Read the header before the body.** The rendered pack opens with `#`
+    comment lines carrying the releases analysed, every contradiction the
+    derivation raised (a command that vanishes and returns, a snapshot whose
+    `package provide` disagrees with its label), the `version-gate:` notes for
+    facts no spec field can hold yet (per-argument value ranges), and every
+    field the render could not carry. Keep them: they are the evidence for
+    each range, and a reviewer overruling a guess needs them. Resolve or
+    answer each one in your report rather than deleting it.
+12. **Validate as usual.** Feed the rendered pack to
+    `mcp__tcl-lsp__spectcl_check` exactly as step 6 does, then merge in the
+    hand-written fields the importer cannot infer (taint, side effects,
+    hover prose you have better wording for). The import is a starting point
+    carrying its evidence, not an assertion.
 
 ## Recognising the common shapes
 

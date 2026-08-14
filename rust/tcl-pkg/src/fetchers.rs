@@ -79,37 +79,71 @@ fn fetch_error(message: impl Into<String>) -> TclPkgError {
 pub fn fetch_tarball(url: &str, dest: &Path, timeout: u64) -> Result<(), TclPkgError> {
     std::fs::create_dir_all(dest)
         .map_err(|e| fetch_error(format!("cannot create {}: {e}", dest.display())))?;
-
     let bytes = download(url, timeout)?;
+    extract_archive(&bytes, dest, url)
+}
+
+/// Extract an archive already in memory into `dest`, exactly as
+/// [`fetch_tarball`] extracts a downloaded one.
+///
+/// `name_hint` is the archive's URL or filename; only its extension is read, to
+/// choose the zip or tar path (a gzip magic sniff covers an extensionless tar).
+/// Both extractors are the hardened ones — zip-slip rejection, symlink and
+/// hardlink skipping, and the 256 MiB uncompressed cap — and a singular
+/// top-level directory is stripped the same way, so a caller that already holds
+/// the bytes (a local `.zip` snapshot, say) gets the identical guarantees
+/// without a second implementation. Added for `tcl spec import`, which reads
+/// release archives off disk as well as off the network.
+pub fn extract_archive(bytes: &[u8], dest: &Path, name_hint: &str) -> Result<(), TclPkgError> {
+    std::fs::create_dir_all(dest)
+        .map_err(|e| fetch_error(format!("cannot create {}: {e}", dest.display())))?;
+
     let staging = dest.join(".staging");
     std::fs::create_dir_all(&staging)
         .map_err(|e| fetch_error(format!("cannot create staging dir: {e}")))?;
 
-    let lower = url.to_lowercase();
+    let lower = name_hint.to_lowercase();
     if lower.ends_with(".zip") {
-        extract_zip(&bytes, &staging)?;
+        extract_zip(bytes, &staging)?;
     } else {
-        extract_tar(&bytes, &staging, &lower)?;
+        extract_tar(bytes, &staging, &lower)?;
     }
 
-    strip_top_level(&staging, dest)?;
-    Ok(())
+    strip_top_level(&staging, dest)
 }
 
 fn download(url: &str, timeout: u64) -> Result<Vec<u8>, TclPkgError> {
+    fetch_bytes(url, timeout, &[])
+}
+
+/// GET `url` and return the body, capped at the same 256 MiB an archive is.
+///
+/// The transport every fetch in this module shares: ureq with a global timeout,
+/// HTTP status checked explicitly, and the proxy taken from the standard
+/// environment variables ureq reads (`HTTPS_PROXY`, `NO_PROXY`, …). `headers`
+/// adds request headers to the built-in `User-Agent` — an API that demands its
+/// own agent string or an `Authorization:` needs them, and routing such a call
+/// through here keeps it on the one hardened path.
+pub fn fetch_bytes(
+    url: &str,
+    timeout: u64,
+    headers: &[(&str, &str)],
+) -> Result<Vec<u8>, TclPkgError> {
     let agent = ureq::config::Config::builder()
         .http_status_as_error(false)
         .timeout_global(Some(Duration::from_secs(timeout)))
         .build()
         .new_agent();
-    let mut resp = agent
-        .get(url)
-        .header("User-Agent", "tclpkg/0.1")
+    let mut request = agent.get(url).header("User-Agent", "tclpkg/0.1");
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let mut resp = request
         .call()
-        .map_err(|e| fetch_error(format!("failed to fetch tarball from {url}: {e}")))?;
+        .map_err(|e| fetch_error(format!("failed to fetch {url}: {e}")))?;
     if resp.status().as_u16() >= 400 {
         return Err(fetch_error(format!(
-            "failed to fetch tarball from {url}: HTTP {}",
+            "failed to fetch {url}: HTTP {}",
             resp.status().as_u16()
         )));
     }
@@ -117,7 +151,7 @@ fn download(url: &str, timeout: u64) -> Result<Vec<u8>, TclPkgError> {
         .with_config()
         .limit(MAX_EXTRACT_BYTES)
         .read_to_vec()
-        .map_err(|e| fetch_error(format!("failed to read tarball from {url}: {e}")))
+        .map_err(|e| fetch_error(format!("failed to read {url}: {e}")))
 }
 
 /// Validate that `name` resolves inside `dest_root`, returning the safe target.

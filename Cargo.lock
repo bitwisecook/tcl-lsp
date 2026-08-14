@@ -4125,7 +4125,9 @@ dependencies = [
  "tcl-pkg",
  "tcl-registry",
  "tcl-sandbox",
+ "tcl-spec-studio",
  "tcl-version",
+ "zip",
 ]
 
 [[package]]
@@ -4135,11 +4137,14 @@ dependencies = [
  "anstream",
  "anstyle",
  "rpassword",
+ "serde_json",
  "tabled",
  "tcl-compiler",
  "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-pkg",
  "tcl-registry",
+ "tcl-spec-studio",
  "tcl-spectcl",
  "temp-env",
  "thiserror 2.0.20",
@@ -4377,6 +4382,7 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-cli",
+ "tcl-cli-support",
  "tcl-compiler",
  "tcl-diagram",
  "tcl-dialect",

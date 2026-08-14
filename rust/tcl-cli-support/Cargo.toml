@@ -35,6 +35,14 @@ tcl-lsp-core = { path = "../tcl-lsp-core" }
 # The EDA vendor libraries ship as bundled `.tclspec` loadables, so the CLI
 # needs the pack loader to see them (`docs/design/spec-packs.md`).
 tcl-spectcl = { path = "../tcl-spectcl" }
+# `spec_import` derives version ranges with the studio's versioned importer and
+# renders the result with its `.tclspec` renderer — the same code the Spec
+# Studio runs, so the CLI and the MCP server cannot drift from the UI.
+tcl-spec-studio = { path = "../tcl-spec-studio" }
+# Archive snapshots are unpacked with the package manager's hardened
+# extractor (zip-slip / symlink / bomb safe) rather than a second one here.
+tcl-pkg = { path = "../tcl-pkg" }
+serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
 anstream = "1"
 anstyle = "1"
