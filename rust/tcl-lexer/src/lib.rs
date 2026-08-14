@@ -36,6 +36,10 @@
 //!   a caller anchoring a diagnostic or slicing a word's raw text wants:
 //!   it returns the whole written word, closing delimiter included, where
 //!   [`Token::span`] alone stops at the end of the word's *content*.
+//! - [`close_quote_offset`] — the same closer question for a `"…"` word
+//!   answered from a bare byte offset, for callers holding source and an
+//!   offset rather than a token (it skips `\`-escapes and whole `[…]`
+//!   command substitutions).
 //! - [`Lexer`], [`LexerConfig`], [`LexError`] — the lexer itself.
 //!   Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens; every other
 //!   construct is surfaced as a `SyntaxError` (in strict-quoting mode)
@@ -66,7 +70,9 @@ pub use highlight::{
 };
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
-pub use ranges::{word_append_offset, word_closer_offset, word_end_position, word_span};
+pub use ranges::{
+    close_quote_offset, word_append_offset, word_closer_offset, word_end_position, word_span,
+};
 pub use source_map::SourceMap;
 pub use span::Span;
 pub use structural_index::{

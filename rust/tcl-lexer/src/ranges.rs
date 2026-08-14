@@ -37,11 +37,17 @@
 //! resolved on demand through a [`SourceMap`].  These accessors
 //! therefore take `&SourceMap` to recover a word's source geometry.
 //!
+//! [`close_quote_offset`] is the token-free member of the family: it
+//! answers the same "where does this word close?" question for a `"…"`
+//! word from a bare byte offset, for callers that hold source and an
+//! offset rather than a lexed [`Token`].
+//!
 //! [`Token`]: crate::Token
 //! [`Span`]: crate::Span
 //! [`SourceMap`]: crate::SourceMap
 
 use crate::source_map::SourceMap;
+use crate::substitution::backslash_escape_end;
 use crate::tokens::{ByteCol, SourcePosition, Token};
 
 /// The closing delimiter for an opening `"` / `{` / `[`, or `None`.
@@ -239,6 +245,93 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
     }
     let last_inner = sm.source().as_bytes().get(end.offset as usize).copied();
     closer_position(end, last_inner)
+}
+
+/// Byte offset of the `"` that closes the quoted word opening at
+/// *`open_quote`*, or `None` when there is none.
+///
+/// The token-free sibling of [`word_closer_offset`], for a caller that
+/// holds source text and a byte offset rather than a lexed [`Token`] — a
+/// rewrite pass that has only an argv span, or a minifier folding a
+/// `"…"` argument in place.  Such callers used to hand-roll the scan, and
+/// the copies drifted: one skipped `\`-escapes but not command
+/// substitutions, so `"a[foo "b"]c"` closed at the quote *opening* the
+/// inner `"b"` and any edit made against that offset truncated the word
+/// mid-substitution (issue #1424).
+///
+/// The scan follows the same rules the lexer's own quoted-word and
+/// command-substitution parsers use:
+///
+/// * a `\`-escape is skipped as one unit via [`backslash_escape_end`], so
+///   `\"` is content and `\[` opens nothing;
+/// * a `[…]` command substitution is skipped whole — quotes inside it
+///   belong to the substituted command, not to this word — with brackets
+///   nesting and a `]` inside a braced or quoted word of the inner
+///   command left inert.
+///
+/// Returns `None` when *`open_quote`* does not point at a `"`, when the
+/// word runs to end of input unterminated, or when an inner command
+/// substitution is itself unterminated (no offset can then be trusted).
+/// The offset is the closer itself, so an exclusive end is one past it.
+///
+/// ```
+/// use tcl_lexer::close_quote_offset;
+/// let src = r#"set x "a[foo "b"]c""#;
+/// assert_eq!(close_quote_offset(src, 6), Some(src.len() - 1));
+/// assert_eq!(close_quote_offset(r#""""#, 0), Some(1));
+/// assert_eq!(close_quote_offset(r#""abc"#, 0), None);
+/// ```
+#[must_use]
+pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    if bytes.get(open_quote) != Some(&b'"') {
+        return None;
+    }
+    let mut pos = open_quote + 1;
+    while pos < bytes.len() {
+        match bytes[pos] {
+            b'"' => return Some(pos),
+            b'\\' => pos = backslash_escape_end(source, pos),
+            b'[' => pos = command_subst_end(source, pos)?,
+            _ => pos += 1,
+        }
+    }
+    None
+}
+
+/// Byte offset one past the `]` closing the command substitution opening
+/// at *`open_bracket`*, or `None` when it is unterminated.
+///
+/// Mirrors the lexer's `parse_command` state: brackets nest, a `\`-escape
+/// is inert, and a `]` inside a braced or quoted word of the inner
+/// command does not close the substitution.
+fn command_subst_end(source: &str, open_bracket: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut pos = open_bracket + 1;
+    let mut depth: u32 = 1;
+    let mut braces: u32 = 0;
+    let mut in_quotes = false;
+    while pos < bytes.len() {
+        match bytes[pos] {
+            b'\\' => {
+                pos = backslash_escape_end(source, pos);
+                continue;
+            }
+            b'"' if braces == 0 => in_quotes = !in_quotes,
+            b'{' if !in_quotes => braces += 1,
+            b'}' if !in_quotes => braces = braces.saturating_sub(1),
+            b'[' if braces == 0 && !in_quotes => depth += 1,
+            b']' if braces == 0 && !in_quotes => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(pos + 1);
+                }
+            }
+            _ => {}
+        }
+        pos += 1;
+    }
+    None
 }
 
 #[cfg(test)]
@@ -551,6 +644,109 @@ mod tests {
         assert_eq!(body.kind, TokenType::Cmd);
         let off = word_append_offset(&sm, body);
         assert_eq!(off, u32::try_from(src.len()).unwrap());
+    }
+
+    #[test]
+    fn close_quote_plain_word() {
+        let src = "\"abc\"";
+        assert_eq!(close_quote_offset(src, 0), Some(4));
+    }
+
+    #[test]
+    fn close_quote_empty_word() {
+        // `""` — the closer is the very next byte.
+        assert_eq!(close_quote_offset("\"\"", 0), Some(1));
+    }
+
+    #[test]
+    fn close_quote_skips_escaped_quote() {
+        // `"a\"b"` — the `\"` is content, not the closer.
+        let src = "\"a\\\"b\"";
+        assert_eq!(close_quote_offset(src, 0), Some(5));
+        assert_eq!(src.as_bytes()[5], b'"');
+    }
+
+    #[test]
+    fn close_quote_skips_multi_byte_escape() {
+        // `\x41` is one escape unit; a naive "+2" would resume on `4`.
+        let src = "\"\\x41\"";
+        assert_eq!(close_quote_offset(src, 0), Some(5));
+    }
+
+    #[test]
+    fn close_quote_skips_quote_inside_command_substitution() {
+        // The issue #1424 shape: the `"b"` belongs to the substituted
+        // command, so the word closes at the final `"`.
+        let src = "\"a[foo \"b\"]c\"";
+        let close = close_quote_offset(src, 0).unwrap();
+        assert_eq!(close, src.len() - 1);
+        assert_eq!(&src[..=close], src);
+    }
+
+    #[test]
+    fn close_quote_skips_nested_command_substitutions() {
+        // `[a [b "c"] d]` — brackets nest and the inner quote is inert.
+        let src = "\"x[a [b \"c\"] d]y\"";
+        let close = close_quote_offset(src, 0).unwrap();
+        assert_eq!(close, src.len() - 1);
+    }
+
+    #[test]
+    fn close_quote_ignores_escaped_open_bracket() {
+        // `\[` is a literal `[`, so it opens no substitution and the
+        // following `"` closes the word.
+        let src = "\"a\\[b\" tail";
+        assert_eq!(close_quote_offset(src, 0), Some(5));
+    }
+
+    #[test]
+    fn close_quote_ignores_bracket_inside_braced_word_of_a_substitution() {
+        // `[puts {]}]` — the `]` inside the braced word is inert, so the
+        // substitution ends at the final `]`.
+        let src = "\"a[puts {]}]b\"";
+        let close = close_quote_offset(src, 0).unwrap();
+        assert_eq!(close, src.len() - 1);
+    }
+
+    #[test]
+    fn close_quote_unterminated_word_is_none() {
+        assert_eq!(close_quote_offset("\"abc", 0), None);
+    }
+
+    #[test]
+    fn close_quote_unterminated_command_substitution_is_none() {
+        // No trustworthy closer exists once the `[` never closes.
+        assert_eq!(close_quote_offset("\"a[foo \"", 0), None);
+    }
+
+    #[test]
+    fn close_quote_requires_an_opening_quote() {
+        assert_eq!(close_quote_offset("plain", 0), None);
+        assert_eq!(close_quote_offset("\"abc\"", 99), None);
+    }
+
+    #[test]
+    fn close_quote_from_a_mid_source_offset() {
+        // The optimiser/minifier call shape: an offset into a larger script.
+        let src = "puts \"$a $b\" ; puts done";
+        assert_eq!(close_quote_offset(src, 5), Some(11));
+    }
+
+    #[test]
+    fn close_quote_agrees_with_the_token_accessor() {
+        // Where a quoted word lexes as a single token, the token-bearing
+        // sibling must land on the same byte — including the escaped-quote
+        // shape that trips a naive "first `\"` wins" scan.
+        for src in ["puts \"ab\"", "puts \"a\\\"b\"", "puts \"\""] {
+            let sm = SourceMap::new(src);
+            let tok = nth_word(src, 1);
+            let by_offset = close_quote_offset(src, tok.span.start() as usize).unwrap();
+            assert_eq!(
+                word_closer_offset(&sm, tok),
+                Some(u32::try_from(by_offset).unwrap()),
+                "for {src:?}",
+            );
+        }
     }
 
     #[test]

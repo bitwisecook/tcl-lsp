@@ -4387,6 +4387,28 @@ mod tests {
         assert!(fold("proc ::p {} { return 1 }\nputs [::p]").is_empty());
     }
 
+    /// Issue #1424: the folded command substitution carries its own quoted
+    /// argument, so the rewrite span has to cross that inner `"b"`. A
+    /// scanner that stopped at the first unescaped `"` produced a span
+    /// covering only `"a[string toupper "`, and applying the fix left the
+    /// tail `b"]c"` behind as a stray fragment. Applying the rewrite must
+    /// yield well-formed source.
+    #[test]
+    fn o129_interpolation_fold_replaces_the_whole_quoted_word() {
+        let src = "puts \"a[string toupper \"b\"]c\"\n";
+        let opts = crate::optimiser::optimise_raw(src, &registry(), None);
+        let fold = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O129 && !o.hint_only)
+            .unwrap_or_else(|| panic!("expected an applicable O129, got {opts:?}"));
+        let mut rewritten = src.to_owned();
+        rewritten.replace_range(
+            fold.span.start() as usize..fold.span.end() as usize,
+            &fold.replacement,
+        );
+        assert_eq!(rewritten, "puts \"aBc\"\n");
+    }
+
     #[test]
     fn o129_concat_trailing_backslash_space_word_is_not_folded() {
         // `Tcl_ConcatObj`'s trailing-whitespace trim in the VM, when it lands

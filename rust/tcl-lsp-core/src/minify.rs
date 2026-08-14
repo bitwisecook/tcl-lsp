@@ -133,7 +133,7 @@ use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr};
-use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType, close_quote_offset};
 use tcl_registry::abbrev::{KeywordTable, PrefixMatching};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -2422,7 +2422,7 @@ fn collect_folds_for_scope(
                             if has_unsafe_tainted_inputs(content, &uses, &fu.taints, &fu.ssa) {
                                 continue;
                             }
-                            if let Some(close) = find_close_quote(source, arg_off + 1) {
+                            if let Some(close) = close_quote_offset(source, arg_off) {
                                 edits.push((
                                     arg_off,
                                     close - arg_off + 1,
@@ -2465,7 +2465,7 @@ fn try_fold_region(
         return;
     };
     let abs_start = start + q;
-    let Some(close) = find_close_quote(source, abs_start + 1) else {
+    let Some(close) = close_quote_offset(source, abs_start) else {
         return;
     };
     let inner = &source[abs_start + 1..close];
@@ -2609,34 +2609,6 @@ fn parse_var_ref(text: &str, pos: usize) -> (usize, Option<&str>) {
         }
     }
     (end, Some(&text[start..end]))
-}
-
-/// Find the closing `"` from `start`, skipping `\`-escapes and
-/// `[…]` command substitutions.
-fn find_close_quote(source: &str, start: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
-    let mut pos = start;
-    while pos < bytes.len() {
-        match bytes[pos] {
-            b'"' => return Some(pos),
-            b'\\' => pos += 2,
-            b'[' => {
-                let mut depth = 1;
-                pos += 1;
-                while pos < bytes.len() && depth > 0 {
-                    match bytes[pos] {
-                        b'[' => depth += 1,
-                        b']' => depth -= 1,
-                        b'\\' => pos += 1,
-                        _ => {}
-                    }
-                    pos += 1;
-                }
-            }
-            _ => pos += 1,
-        }
-    }
-    None
 }
 
 /// Build a replacement token for a folded static string: bare when
@@ -3913,6 +3885,20 @@ mod tests {
         assert_eq!(out, "set x 5\nputs n=5\n");
         assert_eq!(count, 1);
         assert!(map.values().any(|v| v == "n=5"), "{map:?}");
+    }
+
+    /// Issue #1424: the quoted word embeds a command substitution whose own
+    /// argument is quoted. The shared close-quote scanner skips the whole
+    /// `[…]`, so no edit is ever anchored on the inner `"b"` — a scanner
+    /// stopping there would splice a replacement over `"a[string toupper "`
+    /// and leave `b"] $x"` dangling.
+    #[test]
+    fn static_fold_keeps_a_quoted_command_substitution_well_formed() {
+        let registry = CommandRegistry::build_default();
+        let src = "set x 5\nputs \"a[string toupper \"b\"] $x\"\n";
+        let (out, count, _) = fold_static_substrings(src, "tcl8.6", &registry);
+        assert_eq!(count, 0, "a command substitution is not SCCP-foldable");
+        assert_eq!(out, src, "source must come back untouched, not truncated");
     }
 
     #[test]

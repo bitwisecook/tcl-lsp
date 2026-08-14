@@ -28,6 +28,13 @@ denormalised copy of it.
    `end + 1` overshoots, and a trailing empty `{}` swallows the enclosing
    body's `}`. The accessors detect emptiness from the lexer's content
    geometry and stay correct for backslash-escaped quoted words too.
+   A caller holding source and a byte offset rather than a token uses the
+   token-free sibling `tcl_lexer::close_quote_offset` for a `"…"` word — one
+   scanner, skipping `\`-escapes and whole `[…]` command substitutions, shared
+   by the optimiser's rewrite spans and the minifier's static folds. Hand-rolled
+   copies drifted: one skipped escapes but not substitutions, so
+   `"a[foo "b"]c"` closed on the inner quote and the rewrite truncated the word
+   mid-substitution (issue #1424).
 5. Command and word *ranges* owned by the segmenter use the inner-end
    convention and widen only where they need the closer
    (`SourceMap::range_positions`, the segmenter's `command_span`). Callers

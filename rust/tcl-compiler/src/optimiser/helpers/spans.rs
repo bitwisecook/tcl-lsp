@@ -146,32 +146,25 @@ pub fn statement_delete_rewrite_range(
 /// A composite word like `"$a $b $c"` segments into many tokens
 /// and `CommandTokens::argv[i]` holds only the representative
 /// token (the opening `"`). To rewrite the *whole* string we need
-/// the span to reach the closing quote — this helper scans the
-/// source forward from the argv start through `\"` escapes until
-/// the matching close quote. Returns the input span unchanged
-/// when the first byte isn't `"` or no close quote is found.
+/// the span to reach the closing quote — this is the span assembly
+/// around [`tcl_lexer::close_quote_offset`], the shared scanner that
+/// skips `\`-escapes and whole `[…]` command substitutions.
+///
+/// Returns the input span unchanged when the first byte isn't `"` or
+/// no close quote is found, so a rewrite anchored on the result either
+/// covers the whole string or does not fire. Scanning without the
+/// command-substitution rule stopped `"a[foo "b"]c"` at the quote
+/// opening the inner `"b"`, and O129's auto-fix then replaced that
+/// truncated prefix and left `]c"` behind (issue #1424).
 #[must_use]
 pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
-    let bytes = source.as_bytes();
-    let start = argv_span.start() as usize;
-    if start >= bytes.len() || bytes[start] != b'"' {
+    let Some(close) = tcl_lexer::close_quote_offset(source, argv_span.start() as usize) else {
         return argv_span;
-    }
-    let mut i = start + 1;
-    while i < bytes.len() {
-        if bytes[i] == b'\\' && i + 1 < bytes.len() {
-            i += 2;
-            continue;
-        }
-        if bytes[i] == b'"' {
-            return Span::new(
-                argv_span.start(),
-                u32::try_from(i + 1).unwrap_or(argv_span.end()),
-            );
-        }
-        i += 1;
-    }
-    argv_span
+    };
+    let Ok(end) = u32::try_from(close + 1) else {
+        return argv_span;
+    };
+    Span::new(argv_span.start(), end)
 }
 
 /// Simpler variant for single-word argv spans. The lexer reports
@@ -331,6 +324,33 @@ mod tests {
         assert_eq!(
             full_quoted_string_span(source, Span::new(0, 3)),
             Span::new(0, 3),
+        );
+    }
+
+    #[test]
+    fn full_quoted_string_span_spans_quote_inside_command_substitution() {
+        // Issue #1424: the `"b"` belongs to the substituted command, so
+        // the span must reach the *final* `"` — stopping at the inner
+        // quote would make O129's auto-fix replace `"a[foo "` and leave
+        // `b"]c"` behind as a stray fragment.
+        let source = "set x \"a[foo \"b\"]c\"";
+        let span = full_quoted_string_span(source, Span::new(6, 8));
+        assert_eq!(
+            span,
+            Span::new(6, u32::try_from(source.len()).unwrap()),
+            "span must cover the whole quoted word",
+        );
+        assert_eq!(&source[span.as_range()], "\"a[foo \"b\"]c\"");
+    }
+
+    #[test]
+    fn full_quoted_string_span_unterminated_unchanged() {
+        // No close quote at all — the span is returned untouched so no
+        // rewrite anchors on a guessed offset.
+        let source = "puts \"abc";
+        assert_eq!(
+            full_quoted_string_span(source, Span::new(5, 7)),
+            Span::new(5, 7),
         );
     }
 
