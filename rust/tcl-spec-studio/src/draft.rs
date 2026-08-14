@@ -228,23 +228,56 @@ pub(crate) fn arg_type_map(entries: &[(u8, ArgTypeHint)]) -> Value {
     )
 }
 
-pub(crate) fn arg_value(value: &ArgValue) -> Value {
-    json!({
-        "value": value.value,
-        "detail": value.detail,
-        "min_tcl": value.min_tcl.map_or(Value::Null, |v| json!(catalogue::variant_name(&v))),
-        "code": value.code.map_or(Value::Null, |c| json!(c)),
-    })
+/// Draft form of one literal argument value, plus whether it round-tripped.
+///
+/// The value rides **two** version axes and carries both: `min_tcl` is the
+/// Tcl-core rung it needs, the lifecycle keys are the owning package's
+/// releases (`hover.rs`'s `ArgValue`).
+pub(crate) fn arg_value(value: &ArgValue) -> (Value, bool) {
+    let mut d = Map::new();
+    d.insert("value".into(), json!(value.value));
+    d.insert("detail".into(), json!(value.detail));
+    d.insert(
+        "min_tcl".into(),
+        value
+            .min_tcl
+            .map_or(Value::Null, |v| json!(catalogue::variant_name(&v))),
+    );
+    let complete = insert_lifecycle(&mut d, value.lifecycle);
+    d.insert("code".into(), value.code.map_or(Value::Null, |c| json!(c)));
+    (Value::Object(d), complete)
 }
 
-fn arg_value_map(entries: &[(u8, &'static [ArgValue])]) -> Value {
+/// Draft rows for one nested table, noting `key` when a row's lifecycle
+/// carried a callback quick-fix whose Rust path seeding cannot name.
+fn nested_rows<T>(
+    items: &[T],
+    key: &'static str,
+    lost: &mut Unrecovered,
+    row: impl Fn(&T) -> (Value, bool),
+) -> Value {
+    Value::Array(
+        items
+            .iter()
+            .map(|item| {
+                let (value, complete) = row(item);
+                if !complete {
+                    lost.note(key);
+                }
+                value
+            })
+            .collect(),
+    )
+}
+
+fn arg_value_map(entries: &[(u8, &'static [ArgValue])], lost: &mut Unrecovered) -> Value {
     Value::Array(
         entries
             .iter()
             .map(|(i, values)| {
                 json!({
                     "index": i,
-                    "values": Value::Array(values.iter().map(arg_value).collect()),
+                    "values": nested_rows(values, "arg_values", lost, arg_value),
                 })
             })
             .collect(),
@@ -338,6 +371,22 @@ pub(crate) struct OptionDraftCompleteness {
 
 /// Draft form of an option, plus whether it round-tripped completely.
 pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) {
+    // A value row's own quick-fix hook is unrecoverable for the same reason the
+    // option's is, and is filled in at the same place — inside this option's
+    // row editor — so it rides the same completeness flag.
+    let mut values_complete = true;
+    let values: Vec<Value> = match opt.value {
+        OptionValue::Takes(arg) => arg
+            .values
+            .iter()
+            .map(|value| {
+                let (row, complete) = arg_value(value);
+                values_complete &= complete;
+                row
+            })
+            .collect(),
+        OptionValue::Flag => Vec::new(),
+    };
     let (value, arity_hook) = match opt.value {
         OptionValue::Flag => (Value::Null, true),
         OptionValue::Takes(arg) => {
@@ -348,7 +397,7 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) 
                     "role": catalogue::variant_name(&arg.role),
                     "also_role": arg.also_role.map_or(Value::Null, |r| json!(catalogue::variant_name(&r))),
                     "body_kind": catalogue::variant_name(&arg.body_kind),
-                    "values": Value::Array(arg.values.iter().map(arg_value).collect()),
+                    "values": Value::Array(values),
                     "closed": arg.closed,
                     "integer": integer_domain(arg.integer),
                     "hint": arg.hint,
@@ -376,27 +425,35 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) 
         }),
         OptionDraftCompleteness {
             arity_hook,
-            deprecation_fix_hook,
+            deprecation_fix_hook: deprecation_fix_hook && values_complete,
         },
     )
 }
 
-pub(crate) fn form_spec(form: &FormSpec) -> Value {
-    json!({
-        "kind": catalogue::variant_name(&form.kind),
-        "synopsis": form.synopsis,
-        "dialects": dialects(form.dialects),
-    })
+pub(crate) fn form_spec(form: &FormSpec) -> (Value, bool) {
+    let mut d = Map::new();
+    d.insert("kind".into(), json!(catalogue::variant_name(&form.kind)));
+    d.insert("synopsis".into(), json!(form.synopsis));
+    d.insert("dialects".into(), dialects(form.dialects));
+    let complete = insert_lifecycle(&mut d, form.lifecycle);
+    (Value::Object(d), complete)
 }
 
-pub(crate) fn side_effect(effect: &SideEffect) -> Value {
-    json!({
-        "target": catalogue::variant_name(&effect.target),
-        "reads": effect.reads,
-        "writes": effect.writes,
-        "connection_side": catalogue::variant_name(&effect.connection_side),
-        "dialects": dialects(effect.dialects),
-    })
+pub(crate) fn side_effect(effect: &SideEffect) -> (Value, bool) {
+    let mut d = Map::new();
+    d.insert(
+        "target".into(),
+        json!(catalogue::variant_name(&effect.target)),
+    );
+    d.insert("reads".into(), json!(effect.reads));
+    d.insert("writes".into(), json!(effect.writes));
+    d.insert(
+        "connection_side".into(),
+        json!(catalogue::variant_name(&effect.connection_side)),
+    );
+    d.insert("dialects".into(), dialects(effect.dialects));
+    let complete = insert_lifecycle(&mut d, effect.lifecycle);
+    (Value::Object(d), complete)
 }
 
 pub(crate) fn setter_constraint(constraint: &SetterConstraint) -> Value {
@@ -465,13 +522,14 @@ pub(crate) fn hover(value: Option<HoverSnippet>) -> Value {
     }
 }
 
-pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> Value {
-    json!({
-        "name": sub.name,
-        "detail": sub.detail,
-        "synopsis": sub.synopsis,
-        "dialects": dialects(sub.dialects),
-    })
+pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
+    let mut d = Map::new();
+    d.insert("name".into(), json!(sub.name));
+    d.insert("detail".into(), json!(sub.detail));
+    d.insert("synopsis".into(), json!(sub.synopsis));
+    d.insert("dialects".into(), dialects(sub.dialects));
+    let complete = insert_lifecycle(&mut d, sub.lifecycle);
+    (Value::Object(d), complete)
 }
 
 /// The Rust expression for a [`VarWriteTyping`], fully qualified.
@@ -703,8 +761,12 @@ fn dialect_set_expr(set: DialectSet) -> String {
     )
 }
 
-fn option_constraints_expr(constraints: &[OptionConstraint]) -> String {
-    let items: Vec<String> = constraints
+/// The Rust expression for a `&'static [OptionConstraint]` field.
+///
+/// A full struct literal per constraint, `lifecycle` included: a conflict can
+/// itself be gated — it only exists once both options do.
+fn option_constraints_expr(constraints: &[OptionConstraint]) -> Option<String> {
+    let items: Option<Vec<String>> = constraints
         .iter()
         .map(|constraint| {
             let options = constraint
@@ -717,10 +779,13 @@ fn option_constraints_expr(constraints: &[OptionConstraint]) -> String {
                 || "None".to_owned(),
                 |set| format!("Some({})", dialect_set_expr(set)),
             );
-            format!("OptionConstraint {{ options: &[{options}], dialects: {dialects} }}")
+            Some(format!(
+                "OptionConstraint {{ options: &[{options}], dialects: {dialects}, lifecycle: {} }}",
+                lifecycle_expr(constraint.lifecycle)?,
+            ))
         })
         .collect();
-    format!("&[{}]", items.join(", "))
+    Some(format!("&[{}]", items?.join(", ")))
 }
 
 /// A draft value for a descriptor field: the rendered Rust expression when the
@@ -930,18 +995,19 @@ fn option_rows(options: &[OptionSpec], lost: &mut Unrecovered) -> Value {
 /// Options, values, availability, behaviour flags, taint, and effects.
 fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("options".into(), option_rows(sub.options, lost));
-    d.insert(
-        "option_constraints".into(),
-        expr_or_null(!sub.option_constraints.is_empty(), || {
-            option_constraints_expr(sub.option_constraints)
-        }),
-    );
+    let option_constraints = if sub.option_constraints.is_empty() {
+        Value::Null
+    } else {
+        option_constraints_expr(sub.option_constraints)
+            .map_or_else(|| lost.expr("option_constraints", true), |expr| json!(expr))
+    };
+    d.insert("option_constraints".into(), option_constraints);
     d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
     d.insert(
         "prefix_matching".into(),
         json!(catalogue::variant_name(&sub.prefix_matching)),
     );
-    d.insert("arg_values".into(), arg_value_map(sub.arg_values));
+    d.insert("arg_values".into(), arg_value_map(sub.arg_values, lost));
     let versioned_arg_values = if sub.versioned_arg_values.is_empty() {
         Value::Null
     } else {
@@ -1008,7 +1074,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("xc_operation".into(), opt_str(sub.xc_operation));
     d.insert(
         "side_effects".into(),
-        Value::Array(sub.side_effects.iter().map(side_effect).collect()),
+        nested_rows(sub.side_effects, "side_effects", lost, side_effect),
     );
     d.insert("destructive".into(), json!(sub.destructive));
     d.insert("returns_path".into(), json!(sub.returns_path));
@@ -1016,7 +1082,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("cfg_rewrite_name".into(), opt_str(sub.cfg_rewrite_name));
     d.insert(
         "sub_subcommands".into(),
-        Value::Array(sub.sub_subcommands.iter().map(sub_subcommand).collect()),
+        nested_rows(sub.sub_subcommands, "sub_subcommands", lost, sub_subcommand),
     );
     d.insert(
         "defines_command_at".into(),
@@ -1149,7 +1215,7 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("hover".into(), hover(spec.hover));
     d.insert(
         "forms".into(),
-        Value::Array(spec.forms.iter().map(form_spec).collect()),
+        nested_rows(spec.forms, "forms", lost, form_spec),
     );
     d.insert(
         "command_forms".into(),
@@ -1207,7 +1273,7 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "side_effects".into(),
-        Value::Array(spec.side_effects.iter().map(side_effect).collect()),
+        nested_rows(spec.side_effects, "side_effects", lost, side_effect),
     );
     d.insert(
         "world_effects".into(),
@@ -1278,17 +1344,18 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         ),
     );
     d.insert("options".into(), option_rows(spec.options, lost));
-    d.insert(
-        "option_constraints".into(),
-        expr_or_null(!spec.option_constraints.is_empty(), || {
-            option_constraints_expr(spec.option_constraints)
-        }),
-    );
+    let option_constraints = if spec.option_constraints.is_empty() {
+        Value::Null
+    } else {
+        option_constraints_expr(spec.option_constraints)
+            .map_or_else(|| lost.expr("option_constraints", true), |expr| json!(expr))
+    };
+    d.insert("option_constraints".into(), option_constraints);
     d.insert(
         "reserved_trailing_words".into(),
         json!(spec.reserved_trailing_words),
     );
-    d.insert("arg_values".into(), arg_value_map(spec.arg_values));
+    d.insert("arg_values".into(), arg_value_map(spec.arg_values, lost));
     let versioned_arg_values = if spec.versioned_arg_values.is_empty() {
         Value::Null
     } else {

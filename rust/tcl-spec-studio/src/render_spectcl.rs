@@ -78,7 +78,7 @@ use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_
 
 /// The DSL **vocabulary** version a rendered pack declares — the word after
 /// the pack name in `speclib <pack> <version> { … }`.
-pub const DSL_VERSION: &str = "1.0";
+pub const DSL_VERSION: &str = "1.1";
 
 /// Column the renderer tries to keep rows inside before continuing a row with
 /// a `\`, matching the ports' own wrapping.
@@ -226,17 +226,14 @@ pub const GAPS: &[Gap] = &[
     },
     // --- the draft has it; the loader does not read it yet -----------------
     //
-    // Ten keys left this bucket when the loader grew their readers: the three
-    // `{VARIANT payload …}` element-structure facts, `default_form_first_word`,
-    // `setter_constraints`, `format_string_type`, `deprecation_fix`,
-    // `byte_array_payload`, `defines_symbol`, and `byte_array_effect`'s
-    // payload-carrying `Rebinarifies` variant. They round-trip now, so what
-    // remains here is the one gap that is still real.
-    Gap {
-        key: OPTION_DEPRECATION_FIX_HOOK_KEY,
-        spelling: "option … -deprecation-fix …",
-        kind: GapKind::LoaderGap,
-    },
+    // Empty. Eleven keys left this bucket as the loader grew their readers:
+    // the three `{VARIANT payload …}` element-structure facts,
+    // `default_form_first_word`, `setter_constraints`, `format_string_type`,
+    // `deprecation_fix`, `byte_array_payload`, `defines_symbol`,
+    // `byte_array_effect`'s payload-carrying `Rebinarifies` variant, and — with
+    // vocabulary 1.1 — the option row's `-deprecation-fix {…}`. What a pack
+    // still cannot say is above (no value in the draft) or below (excluded by
+    // design), not here.
     // --- excluded by design -------------------------------------------------
     Gap {
         key: "completion",
@@ -450,6 +447,35 @@ fn push_flag(row: &mut Vec<String>, lost: &mut bool, flag: &str, spelling: Optio
     }
 }
 
+/// Push the three lifecycle flags a gateable row's draft object carries, in
+/// the order `README.md` documents them.
+///
+/// Every level the registry can gate spells its lifecycle the same way — the
+/// option row's flags, unchanged, reused by `form`, `side_effect`,
+/// `option_conflict`, `sub_subcommand` and a `values` table row.
+fn push_lifecycle_flags(row: &mut Vec<String>, lost: &mut bool, entry: &Value) {
+    for (key, flag) in [
+        ("introduced_version", "-introduced"),
+        ("deprecated_version", "-deprecated"),
+        ("retired_version", "-retired"),
+    ] {
+        if let Some(version) = entry[key].as_str() {
+            push_flag(row, lost, flag, word(version));
+        }
+    }
+}
+
+/// Whether a row's draft object declares any lifecycle release at all.
+fn has_lifecycle(entry: &Value) -> bool {
+    [
+        "introduced_version",
+        "deprecated_version",
+        "retired_version",
+    ]
+    .iter()
+    .any(|key| entry[key].is_string())
+}
+
 /// Write a row, or report the field when one of its words had no faithful
 /// spelling.
 fn emit_row(out: &mut Out, key: &str, row: &[String], lost: bool, break_before: &str) {
@@ -648,6 +674,11 @@ impl ValueTables {
                     if let Some(version) = value["min_tcl"].as_str() {
                         row.push("-min-tcl".to_owned());
                         row.push(tcl_version_word(version));
+                    }
+                    let mut lost = false;
+                    push_lifecycle_flags(&mut row, &mut lost, value);
+                    if lost {
+                        unwritable(out, "arg_values");
                     }
                     if let Some(code) = value["code"].as_i64() {
                         row.push("-code".to_owned());
@@ -1092,6 +1123,7 @@ fn option_conflict_rows(expr: &str) -> Option<Vec<Vec<String>>> {
             row.push("-dialects".to_owned());
             row.push(dialect_words(&dialect_names(inner)?)?);
         }
+        push_literal_lifecycle_flags(&mut row, fields.get("lifecycle").copied())?;
         rows.push(row);
     }
     Some(rows)
@@ -1147,6 +1179,32 @@ fn binds_handle_word(expr: &str) -> Option<String> {
     braced(&parts.join(" "))
 }
 
+/// Push the three lifecycle flags out of a rendered `Lifecycle { … }` literal.
+///
+/// `None` for a literal this reader cannot take apart, which makes the whole
+/// row a reported loss rather than a half-written one; an absent field is the
+/// registry's own `..DEFAULT`, so it contributes no flag.
+fn push_literal_lifecycle_flags(row: &mut Vec<String>, literal: Option<&str>) -> Option<()> {
+    let Some(literal) = literal else {
+        return Some(());
+    };
+    let fields = struct_fields(literal)?;
+    for (field, flag) in [
+        ("introduced", "-introduced"),
+        ("deprecated", "-deprecated"),
+        ("retired", "-retired"),
+    ] {
+        let Some(value) = fields.get(field) else {
+            continue;
+        };
+        if let Some(inner) = unwrap_some(value) {
+            row.push(flag.to_owned());
+            row.push(word(&rust_str(inner)?)?);
+        }
+    }
+    Some(())
+}
+
 /// `versioned_arg_value N VALUE …` rows from a rendered gate table.
 fn versioned_arg_value_rows(expr: &str) -> Option<Vec<Vec<String>>> {
     let mut rows = Vec::new();
@@ -1157,17 +1215,7 @@ fn versioned_arg_value_rows(expr: &str) -> Option<Vec<Vec<String>>> {
             (*fields.get("index")?).to_owned(),
             word(&rust_str(fields.get("value")?)?)?,
         ];
-        let lifecycle = struct_fields(fields.get("lifecycle")?)?;
-        for (field, flag) in [
-            ("introduced", "-introduced"),
-            ("deprecated", "-deprecated"),
-            ("retired", "-retired"),
-        ] {
-            if let Some(inner) = unwrap_some(lifecycle.get(field)?) {
-                row.push(flag.to_owned());
-                row.push(word(&rust_str(inner)?)?);
-            }
-        }
+        push_literal_lifecycle_flags(&mut row, fields.get("lifecycle").copied())?;
         rows.push(row);
     }
     Some(rows)
@@ -1565,8 +1613,14 @@ fn push_values(
     if entries.is_empty() {
         return;
     }
+    // Anything the inline `-values {…}` word cannot carry — a detail, either
+    // version axis, or a completion code — hoists the whole set to a
+    // pack-level table, which has a row per value and room for all of it.
     let plain = entries.iter().all(|entry| {
-        str_of(&entry["detail"]).is_empty() && entry["min_tcl"].is_null() && entry["code"].is_null()
+        str_of(&entry["detail"]).is_empty()
+            && entry["min_tcl"].is_null()
+            && entry["code"].is_null()
+            && !has_lifecycle(entry)
     });
     if plain {
         let words: Vec<&str> = entries
@@ -1664,13 +1718,23 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         row.push("-min-abbrev".to_owned());
         row.push(n.to_string());
     }
-    for (key, flag) in [
-        ("introduced_version", "-introduced"),
-        ("deprecated_version", "-deprecated"),
-        ("retired_version", "-retired"),
-    ] {
-        if let Some(version) = option[key].as_str() {
-            push_flag(&mut row, &mut lost, flag, word(version));
+    push_lifecycle_flags(&mut row, &mut lost, option);
+    // The data form of the quick-fix hook: the same flags the command-level
+    // `deprecation_fix` statement takes, wrapped in one block word. The
+    // callback variant has no data to write, so it stays a reported loss.
+    let mut unwritable_fix = option[draft::OPTION_DEPRECATION_FIX_UNRECOVERABLE_KEY]
+        .as_bool()
+        .unwrap_or(false);
+    if let Some(expr) = option["deprecation_fix"].as_str() {
+        match deprecation_fix_row(expr)
+            .map(|words| words[1..].join(" "))
+            .and_then(|flags| braced(&flags))
+        {
+            Some(block) => {
+                row.push("-deprecation-fix".to_owned());
+                row.push(block);
+            }
+            None => unwritable_fix = true,
         }
     }
     let detail = str_of(&option["detail"]);
@@ -1678,16 +1742,16 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         push_flag(&mut row, &mut lost, "-detail", braced(detail));
     }
     emit_row(out, "options", &row, lost, "-detail");
-    if option[draft::OPTION_DEPRECATION_FIX_UNRECOVERABLE_KEY]
-        .as_bool()
-        .unwrap_or(false)
-        || !option["deprecation_fix"].is_null()
-    {
+    if unwritable_fix {
         out.indented(|out| {
             out.comment(&format!(
-                "TODO(spectcl): `{name}` carries a lifecycle deprecation fix; \
-                 the option row has no flag for one yet."
+                "TODO(spectcl): `{name}` carries a contextual deprecation fix; \
+                 `-deprecation-fix {{…}}` writes the data form only."
             ));
+            out.losses.push(Loss {
+                key: OPTION_DEPRECATION_FIX_HOOK_KEY.to_owned(),
+                reason: "the fix is a registry callback, not data".to_owned(),
+            });
         });
     }
 }
@@ -1978,6 +2042,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
 
     // --- options -----------------------------------------------------------
     option_block(out, ctx, draft);
+    versioned_arg_value_rows_for(out, ctx, draft);
 
     // --- documentation -----------------------------------------------------
     if ctx.set(draft, "forms") {
@@ -1994,6 +2059,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
                     dialect_set_word(&Value::Array(dialects.clone())),
                 );
             }
+            push_lifecycle_flags(&mut row, &mut lost, form);
             emit_row(out, "forms", &row, lost, "");
         }
     }
@@ -2030,6 +2096,25 @@ fn option_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     }
 }
 
+/// The `versioned_arg_value N VALUE …` rows of a command or subcommand body —
+/// one spelling, both levels, since 1.1 made the statement legal at either.
+fn versioned_arg_value_rows_for(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "versioned_arg_values") {
+        return;
+    }
+    let Some(expr) = draft["versioned_arg_values"].as_str() else {
+        return;
+    };
+    match versioned_arg_value_rows(expr) {
+        Some(rows) => {
+            for row in rows {
+                out.row(&row, "");
+            }
+        }
+        None => todo(out, "versioned_arg_values"),
+    }
+}
+
 fn side_effect_rows(out: &mut Out, draft: &Draft) {
     for effect in as_array(draft.get("side_effects").unwrap_or(&Value::Null)) {
         let mut row = vec![
@@ -2056,6 +2141,7 @@ fn side_effect_rows(out: &mut Out, draft: &Draft) {
                 dialect_set_word(&Value::Array(dialects.clone())),
             );
         }
+        push_lifecycle_flags(&mut row, &mut lost, effect);
         emit_row(out, "side_effects", &row, lost, "");
     }
 }
@@ -2288,18 +2374,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     text(out_body, ctx, sub, "xc_operation");
 
     option_block(out_body, ctx, sub);
-    if ctx.set(sub, "versioned_arg_values")
-        && let Some(expr) = sub["versioned_arg_values"].as_str()
-    {
-        match versioned_arg_value_rows(expr) {
-            Some(rows) => {
-                for row in rows {
-                    out_body.row(&row, "");
-                }
-            }
-            None => todo(out_body, "versioned_arg_values"),
-        }
-    }
+    versioned_arg_value_rows_for(out_body, ctx, sub);
     for row in as_array(sub.get("sub_subcommands").unwrap_or(&Value::Null)) {
         let mut words = vec!["sub_subcommand".to_owned(), name_word(str_of(&row["name"]))];
         let mut lost = false;
@@ -2319,6 +2394,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
                 dialect_set_word(&Value::Array(dialects.clone())),
             );
         }
+        push_lifecycle_flags(&mut words, &mut lost, row);
         emit_row(out_body, "sub_subcommands", &words, lost, "-detail");
     }
     hover_block(out_body, ctx, sub);
@@ -2365,7 +2441,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
 ///
 /// The pack takes its name from the dialect the draft was seeded from
 /// ([`SOURCE_DIALECT_KEY`]) when it has one, which is what the ports do —
-/// `speclib tcl 1.0`, `speclib f5-irules 1.0`.
+/// `speclib tcl 1.1`, `speclib f5-irules 1.1`.
 #[must_use]
 pub fn render(draft: &Draft) -> String {
     let pack = draft
@@ -2451,7 +2527,7 @@ mod tests {
     #[test]
     fn a_default_draft_renders_a_pack_that_says_nothing_else() {
         let text = render_pack(&[drafted("mycommand")], "probe");
-        assert!(text.contains("speclib probe 1.0 {"));
+        assert!(text.contains(&format!("speclib probe {DSL_VERSION} {{")));
         assert!(text.contains("command mycommand {"));
         let statements: Vec<&str> = text
             .lines()
@@ -2460,7 +2536,10 @@ mod tests {
             .collect();
         assert_eq!(
             statements,
-            vec!["speclib probe 1.0 {", "command mycommand {"],
+            vec![
+                format!("speclib probe {DSL_VERSION} {{").as_str(),
+                "command mycommand {"
+            ],
             "a default draft must emit only what the author actually set:\n{text}"
         );
     }

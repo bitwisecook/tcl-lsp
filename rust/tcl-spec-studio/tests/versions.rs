@@ -288,9 +288,19 @@ fn an_option_that_appears_later_gets_its_own_introduction() {
 }
 
 #[test]
-fn a_value_joining_a_closed_set_becomes_a_version_gate_note() {
+fn a_value_joining_a_closed_set_becomes_a_command_level_gate() {
     let import = imported(true);
     let encode = find(&import, "fakepkg::encode");
+    assert_eq!(
+        encode.draft["versioned_arg_values"],
+        json!(
+            "&[VersionedArgValue { index: 0, value: \"utf-8\", lifecycle: Lifecycle { \
+             introduced: Some(\"1.2\"), deprecated: None, retired: None, \
+             deprecation_fix: None } }]"
+        ),
+        "the gate belongs in the command's own draft field: {:?}",
+        encode.draft["versioned_arg_values"]
+    );
     assert!(
         has_note(
             encode,
@@ -298,8 +308,7 @@ fn a_value_joining_a_closed_set_becomes_a_version_gate_note() {
                 "{VERSION_GATE_NOTE} command=fakepkg::encode arg=0 value=utf-8 introduced=1.2"
             )
         ),
-        "a command-level value gate has no draft field yet, so it must be a \
-         structured note: {:?}",
+        "the machine-readable note stays as the field's evidence: {:?}",
         encode.notes
     );
     assert!(

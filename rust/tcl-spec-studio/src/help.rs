@@ -267,7 +267,9 @@ synopsis and argument count — most usefully a read form and a write form: \
 `$w cget -opt` versus `$w configure -opt value`, or `testConstraint NAME` \
 (getter) versus `testConstraint NAME value` (setter). The right form is \
 picked by argument count, so each can carry its own purity and effects: a \
-getter is harmless where its setter is not.",
+getter is harmless where its setter is not.\n\nA form can also come and go \
+with the package: each row carries the same three releases the command does, \
+so a form added in 1.4 and dropped in 2.0 says so on its own row.",
     ),
     (
         "command_forms",
@@ -651,7 +653,11 @@ and also labels the command's origin in completion.",
         "The version of the owning package (or of Tcl itself, for core \
 commands) that first shipped the command — `8.5` for `dict`, `8.6` for \
 `try`. Using the command under an older target dialect is then reported, \
-which is how \"this needs Tcl 8.6\" warnings work.",
+which is how \"this needs Tcl 8.6\" warnings work.\n\nThe same three \
+releases sit on everything a version can gate, not just the command: an \
+option, a subcommand, a second-level subcommand, an invocation form, a side \
+effect, an option conflict, and a single enumerable argument value each carry \
+their own, edited in their own row.",
     ),
     (
         "deprecated_version",
@@ -671,7 +677,10 @@ this version are reported as errors, not warnings.",
 \"replace this word with the new spelling\", with a safety level saying \
 whether the replacement is semantically identical. Carried as an \
 expression; name the replacement and whether arguments change in the \
-issue notes.",
+issue notes.\n\nAn option row carries its own, so a renamed flag can offer \
+the new spelling without the whole command being deprecated. A fix that is a \
+registry callback rather than a replacement word cannot be written down here \
+— the studio says so rather than dropping it.",
     ),
     (
         "warn_missing_import",

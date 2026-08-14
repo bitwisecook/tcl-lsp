@@ -310,6 +310,9 @@ fn arg_value_expr(entry: &Value, indent: &str) -> String {
     if let Some(min_tcl) = entry["min_tcl"].as_str() {
         parts.push(format!("{indent}    min_tcl: Some(TclVersion::{min_tcl}),"));
     }
+    if let Some(lifecycle) = lifecycle_expr(entry) {
+        parts.push(format!("{indent}    lifecycle: {lifecycle},"));
+    }
     if let Some(code) = entry["code"].as_i64() {
         parts.push(format!("{indent}    code: Some({code}),"));
     }
@@ -577,32 +580,64 @@ fn option_expr(entry: &Value, indent: &str) -> String {
     )
 }
 
-fn form_expr(entry: &Value, indent: &str) -> String {
-    let inner = format!("{indent}    ");
-    let dialects = entry["dialects"].as_array().map_or_else(
-        || "None".to_owned(),
-        |d| format!("Some({})", dialect_set(d)),
-    );
+/// A row literal: only the fields that differ from the type's `DEFAULT`, then
+/// the spread — the same shape every hand-written spec has used since the
+/// registry-wide `..DEFAULT` conversion.
+fn row_literal(name: &str, parts: &[String], indent: &str) -> String {
     format!(
-        "{indent}FormSpec {{\n{inner}kind: FormKind::{},\n{inner}synopsis: {},\n{inner}dialects: {dialects},\n{indent}}},",
-        as_str(&entry["kind"]),
-        rust_string(as_str(&entry["synopsis"])),
+        "{indent}{name} {{\n{}\n{indent}    ..{name}::DEFAULT\n{indent}}},",
+        parts.join("\n")
     )
 }
 
+/// `Some(<dialect set>)` for a present dialect gate, or nothing for an absent
+/// one — the field's own default.
+fn dialects_line(entry: &Value, indent: &str) -> Option<String> {
+    let dialects = entry["dialects"].as_array()?;
+    Some(format!(
+        "{indent}    dialects: Some({}),",
+        dialect_set(dialects)
+    ))
+}
+
+fn form_expr(entry: &Value, indent: &str) -> String {
+    let mut parts = Vec::new();
+    let kind = as_str(&entry["kind"]);
+    if kind != "Default" {
+        parts.push(format!("{indent}    kind: FormKind::{kind},"));
+    }
+    parts.push(format!(
+        "{indent}    synopsis: {},",
+        rust_string(as_str(&entry["synopsis"]))
+    ));
+    parts.extend(dialects_line(entry, indent));
+    if let Some(lifecycle) = lifecycle_expr(entry) {
+        parts.push(format!("{indent}    lifecycle: {lifecycle},"));
+    }
+    row_literal("FormSpec", &parts, indent)
+}
+
 fn side_effect_expr(entry: &Value, indent: &str) -> String {
-    let inner = format!("{indent}    ");
-    let dialects = entry["dialects"].as_array().map_or_else(
-        || "None".to_owned(),
-        |d| format!("Some({})", dialect_set(d)),
-    );
-    format!(
-        "{indent}SideEffect {{\n{inner}target: SideEffectTarget::{},\n{inner}reads: {},\n{inner}writes: {},\n{inner}connection_side: ConnectionSide::{},\n{inner}dialects: {dialects},\n{indent}}},",
-        as_str(&entry["target"]),
-        as_bool(&entry["reads"]),
-        as_bool(&entry["writes"]),
-        as_str(&entry["connection_side"]),
-    )
+    let mut parts = vec![format!(
+        "{indent}    target: SideEffectTarget::{},",
+        as_str(&entry["target"])
+    )];
+    for (key, field) in [("reads", "reads"), ("writes", "writes")] {
+        if as_bool(&entry[key]) {
+            parts.push(format!("{indent}    {field}: true,"));
+        }
+    }
+    let side = as_str(&entry["connection_side"]);
+    if side != "None" {
+        parts.push(format!(
+            "{indent}    connection_side: ConnectionSide::{side},"
+        ));
+    }
+    parts.extend(dialects_line(entry, indent));
+    if let Some(lifecycle) = lifecycle_expr(entry) {
+        parts.push(format!("{indent}    lifecycle: {lifecycle},"));
+    }
+    row_literal("SideEffect", &parts, indent)
 }
 
 fn setter_constraint_expr(entry: &Value, indent: &str) -> String {
@@ -647,17 +682,21 @@ fn hover_expr(value: &Value, indent: &str) -> String {
 }
 
 fn sub_subcommand_expr(entry: &Value, indent: &str) -> String {
-    let inner = format!("{indent}    ");
-    let dialects = entry["dialects"].as_array().map_or_else(
-        || "None".to_owned(),
-        |d| format!("Some({})", dialect_set(d)),
-    );
-    format!(
-        "{indent}SubSubCommand {{\n{inner}name: {},\n{inner}detail: {},\n{inner}synopsis: {},\n{inner}dialects: {dialects},\n{indent}}},",
-        rust_string(as_str(&entry["name"])),
-        rust_string(as_str(&entry["detail"])),
-        rust_string(as_str(&entry["synopsis"])),
-    )
+    let mut parts = vec![format!(
+        "{indent}    name: {},",
+        rust_string(as_str(&entry["name"]))
+    )];
+    for key in ["detail", "synopsis"] {
+        let text = as_str(&entry[key]);
+        if !text.is_empty() {
+            parts.push(format!("{indent}    {key}: {},", rust_string(text)));
+        }
+    }
+    parts.extend(dialects_line(entry, indent));
+    if let Some(lifecycle) = lifecycle_expr(entry) {
+        parts.push(format!("{indent}    lifecycle: {lifecycle},"));
+    }
+    row_literal("SubSubCommand", &parts, indent)
 }
 
 /// Render a `&[...]` literal from `items`, one entry per line, or `None` when
@@ -1409,7 +1448,9 @@ mod tests {
             "representation_effect: Some(RepresentationEffect::CopyOnWriteContainerMutation { variable_arg: 0, minimum_arguments: 2 }),"
         ));
         assert!(out.contains(
-            "option_constraints: &[OptionConstraint { options: &[\"-encoding\", \"-nopkg\"], dialects: None }],"
+            "option_constraints: &[OptionConstraint { options: &[\"-encoding\", \"-nopkg\"], \
+             dialects: None, lifecycle: Lifecycle { introduced: None, deprecated: None, \
+             retired: None, deprecation_fix: None } }],"
         ));
         assert!(out.contains(
             "deprecation_fix: Some(DeprecationFixHook::ReplaceMatchedWord { replacement: \"children\", description: \"Use interp children\", safety: DeprecationFixSafety::SemanticsEquivalent })"

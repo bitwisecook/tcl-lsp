@@ -7,7 +7,7 @@
 #
 #     <pack file>\t<severity>\t<context>\t<message>
 #
-# tab-separated, sorted, one line per occurrence — 49 of them today, in four
+# tab-separated, sorted, one line per occurrence — 52 of them today, in five
 # groups. `tests/spec_corpus.rs`
 # compares the notices of every pack against this file as a multiset and fails
 # on any difference in either direction, so a notice that gets fixed must also
@@ -17,8 +17,8 @@
 # `specs/` — the six bundled EDA loadables, the packs an installed tcl-lsp
 # actually loads — appears NOWHERE below. All 346 of their commands load
 # without a single notice. Every entry here belongs to a design artefact under
-# `docs/design/spec-dsl-examples/`, and each is a known, named gap rather than
-# a defect:
+# `docs/design/spec-dsl-examples/`, and each is a known, named gap — or, in the
+# last group, a named defect in a draft that no shipped pack repeats:
 #
 #   `unknown property `object_class` dropped` (13 lines, all four external
 #       drafts) — a REAL LOADER GAP, and the most useful thing this baseline
@@ -53,19 +53,31 @@
 #       them because the ports were written against the *design*, and the
 #       notices are the honest record of the distance left.
 #
+#   `pack declares SpecTcl vocabulary X` (3, the SpiceGenTcl, apave and
+#       ticklecharts drafts) — not a loader gap but a mis-authored word, and
+#       exactly what the check exists to find. `speclib`'s second word is the
+#       **DSL vocabulary** version (`1`, `1.0`, `1.1` today), not the library's;
+#       those three drafts wrote the library's release there (`0.71`, `4.9`,
+#       `3.2`). The pack loads in full — the word gates nothing but this notice
+#       — and the drafts are design artefacts, so the fix belongs with whoever
+#       next revises them.
+#
 # Adding a line here is therefore an admission with a reason attached. Adding
 # one for a file under `specs/` would be a regression in the only tier that
 # ships.
+docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	pack	pack declares SpecTcl vocabulary 0.71; this loader knows 1.1 — newer words may be dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-body-kind` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-repeats` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `Plain` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `row {…` on `arg` dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	pack	pack declares SpecTcl vocabulary 4.9; this loader knows 1.1 — newer words may be dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse / object_class ::fileutil::traverse / method foreach	unknown flag `-body-kind` on `arg` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse / object_class ::fileutil::traverse / method foreach	unknown flag `Plain` on `arg` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command struct::tree / object_class ::struct::tree	`arg_role_resolver` hook body on `method walk` is not yet bindable; the field abstains
+docs/design/spec-dsl-examples/external/ticklecharts.tclspec	Warning	pack	pack declares SpecTcl vocabulary 3.2; this loader knows 1.1 — newer words may be dropped
 docs/design/spec-dsl-examples/foreach.tclspec	Warning	command foreach	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 docs/design/spec-dsl-examples/if.tclspec	Warning	command if	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`state_transitions` row `argument_shape` is not yet loadable; dropped

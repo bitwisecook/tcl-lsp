@@ -197,6 +197,86 @@ fn default_statement() -> CommandSpec {
     )
 }
 
+/// One documentation key of a `hover { … }` block, as the analyser sees it:
+/// a command ambient inside that body and nowhere else.
+const fn hover_key(
+    name: &'static str,
+    detail: &'static str,
+    snippet: &'static str,
+) -> ScopedCommand {
+    ScopedCommand {
+        name,
+        arity: Arity::exact(1),
+        subcommands: &[],
+        allow_unknown_subcommands: false,
+        detail,
+        hover: Some(HoverSnippet {
+            summary: detail,
+            synopsis: &[],
+            snippet,
+            source: SOURCE,
+            examples: "",
+            return_value: "",
+        }),
+    }
+}
+
+/// The six keys of a `hover { … }` block.
+///
+/// Kept in step with the block's grammar
+/// ([`SPECTCL_HOVER_GRAMMAR`](crate::definer::SPECTCL_HOVER_GRAMMAR)) by
+/// `tcl-spectcl/tests/spectcl_dialect_analysis.rs`: the grammar is what folds
+/// and paints the block, this is what resolves its words as *commands*, and a
+/// key missing from either half is invisible in one of the two.
+const SPECTCL_HOVER_KEYS: &[ScopedCommand] = &[
+    hover_key(
+        "summary",
+        "The one-line summary at the top of the hover card.",
+        "One sentence, present tense, no trailing full stop needed — the first line of the hover card and the completion detail. `HoverSnippet::summary`.",
+    ),
+    hover_key(
+        "synopsis",
+        "One synopsis line of the call's shape.",
+        "Repeatable, and the rows keep their order: `HoverSnippet::synopsis` is a list, one entry per written row. The *scalar* `synopsis` property outside a `hover` block is a different field — `SubCommand::synopsis`.",
+    ),
+    hover_key(
+        "description",
+        "The prose body of the hover card.",
+        "Renamed from its Rust field name `HoverSnippet::snippet`, because the field is prose and not a snippet. Every byte between the braces is the value, newlines included.",
+    ),
+    hover_key(
+        "source",
+        "Where the documentation came from.",
+        "A citation line — `Tcl lsort(n)`, `F5 iRules HTTP::header`. `HoverSnippet::source`. Inside a `hover` block this is a documentation key, not Tcl's own `source` command.",
+    ),
+    hover_key(
+        "example",
+        "One worked example, or several separated by blank lines.",
+        "Renamed from `HoverSnippet::examples`. Write **one** block, not a row per example: repeated rows join with a single newline, which would flatten examples separated by a blank line.",
+    ),
+    hover_key(
+        "returns",
+        "What the call evaluates to.",
+        "Renamed from `HoverSnippet::return_value`.",
+    ),
+];
+
+/// The `hover { … }` body's command environment.
+///
+/// A block key is a *word in a body*, so the analyser resolves it exactly the
+/// way it resolves any curated body vocabulary — through the definer's
+/// `body_scope` (`scoped.rs`: "adding another scoped-body command … is a
+/// matter of writing a `ScopedCommandEnv` and hanging it off the command's
+/// spec"). That is what keeps the vocabulary context-sensitive: `summary` is a
+/// command inside a `hover` block and unknown everywhere else, and Tcl's real
+/// `source` is not shadowed outside one.
+const SPECTCL_HOVER_ENV: ScopedCommandEnv = ScopedCommandEnv {
+    name: "SpecTcl hover block",
+    commands: SPECTCL_HOVER_KEYS,
+    include_sibling_definitions: false,
+    allow_unknown_commands: false,
+};
+
 /// Every block-shaped `SpecTcl` statement.
 pub(super) fn specs() -> Vec<CommandSpec> {
     vec![
@@ -212,12 +292,15 @@ pub(super) fn specs() -> Vec<CommandSpec> {
         descriptor(),
         default_statement(),
         // --- documentation ---
-        block(
-            "hover",
-            &crate::definer::SPECTCL_HOVER_GRAMMAR,
-            "Documentation for the enclosing command or subcommand.",
-            "Three words are renamed from their Rust field names — `snippet` becomes `description`, `examples` becomes `example` (repeatable), `return_value` becomes `returns`. A braced word keeps real newlines and literal backslashes, so a multi-line example is written as itself; nothing is stripped, joined, dedented, or wrapped.",
-        ),
+        CommandSpec {
+            body_scope: Some(&SPECTCL_HOVER_ENV),
+            ..block(
+                "hover",
+                &crate::definer::SPECTCL_HOVER_GRAMMAR,
+                "Documentation for the enclosing command or subcommand.",
+                "Three words are renamed from their Rust field names — `snippet` becomes `description`, `examples` becomes `example` (repeatable), `return_value` becomes `returns`. A braced word keeps real newlines and literal backslashes, so a multi-line example is written as itself; nothing is stripped, joined, dedented, or wrapped.",
+            )
+        },
         // --- clause and case shapes ---
         block(
             "clause_grammar",

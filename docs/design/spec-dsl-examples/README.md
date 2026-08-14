@@ -67,6 +67,26 @@ is what the `speclib` version word already does. A pack containing
 `pragma` therefore hits the ordinary unknown-property rule below: dropped
 with a logged notice.
 
+The current vocabulary is **1.1**. `1`, `1.0` and `1.1` all name a
+vocabulary the loader reads in full; any other word still loads the pack,
+with a notice saying which vocabulary the loader knows — a pack is never
+refused for being newer than the server, it only loses the words that
+server has never heard of.
+
+### Vocabulary changelog
+
+Additive only, so nothing written against 1.0 has to change.
+
+| version | what it adds |
+|---|---|
+| **1.0** | the vocabulary the eleven ports froze |
+| **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
+
+Every 1.1 word is one the option row already spelled, moved outward: the
+flags are `Lifecycle`'s own three releases, on the entity's own package
+axis. On a `value` row they sit *beside* `-min-tcl`, which stays the Tcl
+core axis — the two are independent, exactly as `ArgValue` documents them.
+
 **Statement separation is ordinary Tcl.** Statements end at a newline or
 at a `;`, so a short declaration can be written on one line —
 `subcommand at { arity 1 ; detail {Get header name by index.} ;
@@ -163,6 +183,13 @@ option's own fields are `-detail`, `-aliases`, `-dialects`,
 `-min-abbrev`, and the four lifecycle flags `-introduced` /
 `-deprecated` / `-retired` / `-deprecation-fix`.
 
+`-deprecation-fix {…}` takes **one block word** carrying the same flags the
+command-level `deprecation_fix` statement takes — `{-replace WORD
+?-replace-arg N|-replace-invocation? -description {…} -safety S}` — because a
+hook is more than one word and every other flag value is exactly one. Only
+the data form has a spelling; the contextual-callback variant names registry
+code and stays reference-only.
+
 `-arity` takes the static shapes only (`{Fixed N}`; `One` is the
 default). `OptionArity`'s third variant is a hook, and it gets its own
 flag, `-arity-hook {words ctx} { … }` (or `-arity-hook -native ID`),
@@ -184,6 +211,21 @@ sub_subcommand isa -detail {…} -synopsis {…}
 oo_context_fact class DefiningClass
 versioned_arg_value 0 utf-8 -introduced 8.6
 ```
+
+**Every one of these rows a version can gate takes the three lifecycle
+flags** (vocabulary 1.1), written last on the row and in this order:
+
+```tcl
+form Default {chan close chan ?direction?} -introduced 8.6
+side_effect FileIo -writes -introduced 1.4 -deprecated 2.0 -retired 3.0
+option_conflict {-glob -regexp} -introduced 8.5
+sub_subcommand call -detail {…} -introduced 9.0
+```
+
+`versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?`
+is legal in a `command` body as well as in a `subcommand` one, and means the
+same thing at both: one literal value of one argument index, gated on the
+owning package's axis.
 
 ### Documentation
 
@@ -215,6 +257,7 @@ values is-classes {
     value alnum -detail {Any Unicode alphabet or digit character.}
     value dict  -min-tcl tcl9.0 -detail {Any proper dict structure …}
     value ok    -code 0 -detail {…}
+    value gzip  -introduced 1.4 -retired 3.0 -detail {…}
 }
 descriptor world_effects class-factory-effects { … }
 hook ascii-only-length {words ctx} { … }
@@ -236,7 +279,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 | block | inner words |
 |---|---|
 | `hover` | `summary`, `synopsis`*, `description`, `source`, `example`*, `returns` |
-| `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N?`* |
+| `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N? ?-introduced V? ?-deprecated V? ?-retired V?`* |
 | `case_list` | `subject_args`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `keyword_patterns {…} ?-final-only?` |
 | `clause_grammar` | `head {slots}`, `repeated KEYWORD {slots}`*, `tail ?KEYWORD? {slots}` |
 | `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
@@ -961,7 +1004,7 @@ schema order. "excluded" rows carry the reason.
 | `prefix_matching` | `prefix_matching Enabled\|Strict` |  |
 | `default_form_first_word` | `default_form_first_word Integer` |  |
 | `hover` | `hover { … }` | block; see the hover statements below |
-| `forms` | `form KIND {synopsis} ?-dialects {…}?` | one row per form |
+| `forms` | `form KIND {synopsis} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per form; the three releases are `FormSpec.lifecycle` |
 | `command_forms` | **excluded** | per-form arity/roles/options/hook bundles; the studio carries it as one opaque Rust expression and `forms` covers the getter/setter split every pack has needed. A command needing it is a contribution. |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
@@ -975,7 +1018,7 @@ schema order. "excluded" rows carry the reason.
 | `bpf_op` | `bpf_op -native ID` | BPF dialect only; reference-only |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
-| `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}?` | one row per effect |
+| `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per effect; the three releases are `SideEffect.lifecycle` |
 | `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only |
 | `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID` |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
@@ -992,9 +1035,10 @@ schema order. "excluded" rows carry the reason.
 | `side_switch_target` | `side_switch_target Client\|Server` |  |
 | `event_handler_priority` | `event_handler_priority -default N ?-warn-implicit?` |  |
 | `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
-| `option_constraints` | `option_conflict {-a -b} ?-dialects {…}?` | one row per constraint |
+| `option_constraints` | `option_conflict {-a -b} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per constraint; a conflict only exists once both options do, which is what its own three releases say |
 | `reserved_trailing_words` | `reserved_trailing_words N` |  |
-| `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table |
+| `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
+| `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the command-level mirror of the subcommand rows, legal at either scope since 1.1 |
 | `body_kind` | `body_kind Plain\|Structural` |  |
 | `body_arg_implicit_args` | `body_arg_implicit_args N` |  |
 | `taint_output_sink` | `taint_output_sink CODE` |  |
@@ -1017,7 +1061,7 @@ schema order. "excluded" rows carry the reason.
 | `introduced_version` | `introduced_version V` | `Lifecycle.introduced` |
 | `deprecated_version` | `deprecated_version V` | `Lifecycle.deprecated` |
 | `retired_version` | `retired_version V` | `Lifecycle.retired` |
-| `deprecation_fix` | `deprecation_fix -replace WORD -description {…} -safety S` | `Lifecycle.deprecation_fix`; the contextual-callback variant is reference-only |
+| `deprecation_fix` | `deprecation_fix -replace WORD -description {…} -safety S` | `Lifecycle.deprecation_fix`; an option row spells the same data as one block word, `-deprecation-fix {…}`. The contextual-callback variant is reference-only at both levels |
 | `warn_missing_import` | `warn_missing_import ?yes\|no?` |  |
 | `is_namespace_exported` | `is_namespace_exported ?yes\|no?` |  |
 | `xc_translatable` | `xc_translatable yes\|no` | argument required — absent means unset |
@@ -1070,11 +1114,11 @@ schema order. "excluded" rows carry the reason.
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
-| `option_constraints` | `option_conflict {-a -b} ?-dialects {…}?` | one row per constraint |
+| `option_constraints` | `option_conflict {-a -b} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per constraint; a conflict only exists once both options do, which is what its own three releases say |
 | `min_abbrev` | `min_abbrev N` |  |
 | `prefix_matching` | `prefix_matching Enabled\|Strict` |  |
-| `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table |
-| `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate |
+| `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
+| `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the same statement is legal in a `command` body since 1.1 |
 | `subcommand_forms` | **excluded** | the subcommand-level twin of `command_forms`, excluded for the same reason |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
@@ -1082,7 +1126,7 @@ schema order. "excluded" rows carry the reason.
 | `introduced_version` | `introduced_version V` | `Lifecycle.introduced` |
 | `deprecated_version` | `deprecated_version V` | `Lifecycle.deprecated` |
 | `retired_version` | `retired_version V` | `Lifecycle.retired` |
-| `deprecation_fix` | `deprecation_fix -replace WORD -description {…} -safety S` | `Lifecycle.deprecation_fix`; the contextual-callback variant is reference-only |
+| `deprecation_fix` | `deprecation_fix -replace WORD -description {…} -safety S` | `Lifecycle.deprecation_fix`; an option row spells the same data as one block word, `-deprecation-fix {…}`. The contextual-callback variant is reference-only at both levels |
 | `safe_on_uninit` | `safe_on_uninit {SET …}` |  |
 | `loop_list_header` | `loop_list_header ?yes\|no?` |  |
 | `creates_scope_alias` | `creates_scope_alias ?yes\|no?` |  |
@@ -1110,6 +1154,6 @@ schema order. "excluded" rows carry the reason.
 | `returns_path` | `returns_path ?yes\|no?` |  |
 | `is_unescape` | `is_unescape ?yes\|no?` |  |
 | `cfg_rewrite_name` | `cfg_rewrite_name NAME` |  |
-| `sub_subcommands` | `sub_subcommand NAME ?-detail {…}? ?-synopsis {…}? ?-dialects {…}?` | one row per second-level word |
+| `sub_subcommands` | `sub_subcommand NAME ?-detail {…}? ?-synopsis {…}? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per second-level word; the three releases are `SubSubCommand.lifecycle` |
 | `defines_command_at` | `defines_command_at N` |  |
 | `max_leading_option_words` | `max_leading_option_words N` |  |

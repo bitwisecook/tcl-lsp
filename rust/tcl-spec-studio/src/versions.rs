@@ -60,10 +60,11 @@
 //!    command exists, and gated the same way. An option that later disappears
 //!    is kept in the merged row list carrying its `retired_version`, because
 //!    dropping the row would drop the fact.
-//! 7. **Closed value sets** — diffed by membership. On a subcommand-shaped
-//!    draft the result is written to `versioned_arg_values`, the draft
-//!    vocabulary's existing per-value gate. Command-level values have no field
-//!    to hold a gate yet, so those become structured notes instead (below).
+//! 7. **Closed value sets** — diffed by membership, and written to
+//!    `versioned_arg_values` at whichever level they were seen: the draft
+//!    vocabulary's per-value gate exists on a command as well as on a
+//!    subcommand. A command-level gate also leaves the structured note below,
+//!    as the human-readable evidence for the field.
 //! 8. **Arity and role changes** — reported, never invented: the registry
 //!    cannot express a versioned arity, so a change is a note naming both
 //!    releases and both shapes.
@@ -74,9 +75,9 @@
 //!
 //! ## `version-gate:` notes
 //!
-//! Facts the draft model cannot yet carry as a field are emitted as notes with
-//! the stable [`VERSION_GATE_NOTE`] prefix, so a later pass can mechanically
-//! upgrade them into fields once the registry extension lands:
+//! A command-level value gate is *also* written as a note with the stable
+//! [`VERSION_GATE_NOTE`] prefix — the evidence beside the
+//! `versioned_arg_values` field it now populates:
 //!
 //! ```text
 //! version-gate: command=encode arg=0 value=utf-8 introduced=1.2
@@ -84,7 +85,8 @@
 //! ```
 //!
 //! The fields are space-separated `key=value` pairs in that order;
-//! `introduced` and `retired` appear only when derived.
+//! `introduced` and `retired` appear only when derived. The note is a
+//! restatement, not a substitute: the same gate is in the draft.
 //!
 //! Every derived fact carries its evidence in [`crate::infer::Inferred::notes`],
 //! the same discipline the single-snapshot importer keeps — the studio shows
@@ -100,8 +102,8 @@ use crate::draft::Draft;
 use crate::infer::{Import, Inferred, SourceFile, import_package};
 use crate::render_rs::rust_string;
 
-/// The prefix every structured note carries when it records a version fact the
-/// draft model has no field for yet.
+/// The prefix every structured note carries when it restates a derived
+/// command-level value gate in one machine-readable line.
 pub const VERSION_GATE_NOTE: &str = "version-gate:";
 
 /// One released version of a package, as its own set of sources.
@@ -466,7 +468,7 @@ impl History<'_> {
         let gated = self.gate_subcommands(name, subcommands, by_release, files, out);
         draft.insert("subcommands".into(), Value::Array(gated));
 
-        self.command_value_gates(name, by_release, present, files, out);
+        self.command_value_gates(name, by_release, present, files, draft, out);
     }
 
     /// The bounds `input`'s presence pattern witnesses, with the evidence for
@@ -650,14 +652,20 @@ impl History<'_> {
             .collect()
     }
 
-    /// Command-level closed value sets, which no draft field can gate yet, so
-    /// they leave a [`VERSION_GATE_NOTE`] note a later pass can lift.
+    /// Command-level closed value sets, written into the command's own
+    /// `versioned_arg_values` — the field `CommandSpec` grew to mirror the
+    /// subcommand gates.
+    ///
+    /// The [`VERSION_GATE_NOTE`] line stays, but only as human evidence: it is
+    /// now a readable restatement of a field the draft really carries, not the
+    /// only place the fact lives.
     fn command_value_gates(
         &self,
         command: &str,
         by_release: &BTreeMap<usize, &Inferred>,
         present: &[usize],
         files: &BTreeMap<usize, String>,
+        draft: &mut Draft,
         out: &mut Evidence,
     ) {
         let per_release: BTreeMap<usize, BTreeMap<u64, BTreeSet<String>>> = present
@@ -665,6 +673,12 @@ impl History<'_> {
             .map(|at| (*at, value_sets(by_release[at].draft.get("arg_values"))))
             .collect();
         let gates = self.diff_values(&format!("`{command}`"), &per_release, present, files, out);
+        if !gates.is_empty() {
+            draft.insert(
+                "versioned_arg_values".into(),
+                json!(gate_expression(&gates)),
+            );
+        }
         for gate in &gates {
             out.notes.push(gate_note(command, gate));
         }
