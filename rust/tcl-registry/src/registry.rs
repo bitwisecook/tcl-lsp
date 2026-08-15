@@ -6422,27 +6422,31 @@ mod tests {
         );
 
         let tcl84 = crate::registry_for_dialect("tcl8.4");
-        let two_arg_switch = ["-regexp", "default {puts hit}"];
-        assert!(
-            tcl84
-                .case_invocation("switch", &two_arg_switch, DialectSet::TCL84)
-                .is_none(),
-            "Tcl 8.4 scans -regexp in the two-word form and rejects its missing subject"
-        );
-        assert!(
-            tcl84
-                .arg_indices_for_role("switch", &two_arg_switch, ArgRole::Body)
-                .is_empty(),
-            "Tcl 8.4 must not assign the second word a body role"
-        );
-        assert_eq!(
-            tcl84
-                .resolve_option_terminator("switch", &two_arg_switch, DialectSet::TCL84)
-                .expect("switch declares --")
-                .reserved_trailing_words,
-            0,
-            "Tcl 8.4 must scan both words in the option-like two-word form"
-        );
+        for two_arg_switch in [
+            ["-regexp", "default {puts hit}"],
+            ["--", "default {puts hit}"],
+        ] {
+            assert!(
+                tcl84
+                    .case_invocation("switch", &two_arg_switch, DialectSet::TCL84)
+                    .is_none(),
+                "Tcl 8.4 scans the option-like first word and rejects the missing subject: {two_arg_switch:?}"
+            );
+            assert!(
+                tcl84
+                    .arg_indices_for_role("switch", &two_arg_switch, ArgRole::Body)
+                    .is_empty(),
+                "Tcl 8.4 must not assign the second word a body role: {two_arg_switch:?}"
+            );
+            assert_eq!(
+                tcl84
+                    .resolve_option_terminator("switch", &two_arg_switch, DialectSet::TCL84)
+                    .expect("switch declares --")
+                    .reserved_trailing_words,
+                0,
+                "Tcl 8.4 must scan both words in the option-like two-word form: {two_arg_switch:?}"
+            );
+        }
         for args in [
             &["subject", "default {puts hit}"][..],
             &["-regexp", "subject", "default {puts hit}"][..],
@@ -6476,25 +6480,30 @@ mod tests {
             ("tcl9.0", DialectSet::TCL90),
         ] {
             let registry = crate::registry_for_dialect(dialect);
-            assert!(
-                registry
-                    .case_invocation("switch", &two_arg_switch, availability)
-                    .is_some(),
-                "{dialect} accepts the optionless two-word switch form"
-            );
-            assert_eq!(
-                registry.arg_indices_for_role("switch", &two_arg_switch, ArgRole::Body),
-                vec![1],
-                "{dialect} assigns the clause-list word a body role"
-            );
-            assert_eq!(
-                registry
-                    .resolve_option_terminator("switch", &two_arg_switch, availability)
-                    .expect("switch declares --")
-                    .reserved_trailing_words,
-                2,
-                "{dialect} reserves the subject and clause-list words"
-            );
+            for two_arg_switch in [
+                ["-regexp", "default {puts hit}"],
+                ["--", "default {puts hit}"],
+            ] {
+                assert!(
+                    registry
+                        .case_invocation("switch", &two_arg_switch, availability)
+                        .is_some(),
+                    "{dialect} accepts the optionless two-word switch form: {two_arg_switch:?}"
+                );
+                assert_eq!(
+                    registry.arg_indices_for_role("switch", &two_arg_switch, ArgRole::Body),
+                    vec![1],
+                    "{dialect} assigns the clause-list word a body role: {two_arg_switch:?}"
+                );
+                assert_eq!(
+                    registry
+                        .resolve_option_terminator("switch", &two_arg_switch, availability)
+                        .expect("switch declares --")
+                        .reserved_trailing_words,
+                    2,
+                    "{dialect} reserves the subject and clause-list words: {two_arg_switch:?}"
+                );
+            }
         }
         assert!(
             tcl85

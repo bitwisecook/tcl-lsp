@@ -694,19 +694,22 @@ mod my_method_dispatch {
     /// from this LSP consumer.
     #[test]
     fn two_argument_switch_body_follows_tcl_release() {
-        let src =
-            "proc hit {} { return hit }\nswitch -regexp {\n    default {\n        hit\n    }\n}\n";
-        assert_eq!(
-            refs_at_dialect(src, "tcl8.4", 0, 5),
-            vec![0],
-            "Tcl 8.4 must not descend the invalid two-argument switch word"
-        );
-        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
-            assert_eq!(
-                refs_at_dialect(src, dialect, 0, 5),
-                vec![0, 3],
-                "{dialect} must descend the valid two-argument switch body"
+        for subject in ["-regexp", "--"] {
+            let src = format!(
+                "proc hit {{}} {{ return hit }}\nswitch {subject} {{\n    default {{\n        hit\n    }}\n}}\n"
             );
+            assert_eq!(
+                refs_at_dialect(&src, "tcl8.4", 0, 5),
+                vec![0],
+                "Tcl 8.4 must not descend the invalid two-argument switch word {subject:?}"
+            );
+            for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+                assert_eq!(
+                    refs_at_dialect(&src, dialect, 0, 5),
+                    vec![0, 3],
+                    "{dialect} must descend the valid two-argument switch body with subject {subject:?}"
+                );
+            }
         }
     }
 

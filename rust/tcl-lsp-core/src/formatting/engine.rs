@@ -2118,18 +2118,20 @@ mod tests {
                 "{dialect} must format a normal case-list body:\n{out}"
             );
         }
-        let ambiguous = "switch -regexp {\ndefault {\nputs hit\n}\n}\n";
-        let old = fmt_dialect(ambiguous, "tcl8.4");
-        assert!(
-            !old.contains("        puts hit"),
-            "Tcl 8.4 must not descend the invalid option-like two-word form:\n{old}"
-        );
-        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
-            let out = fmt_dialect(ambiguous, dialect);
+        for subject in ["-regexp", "--"] {
+            let ambiguous = format!("switch {subject} {{\ndefault {{\nputs hit\n}}\n}}\n");
+            let old = fmt_dialect(&ambiguous, "tcl8.4");
             assert!(
-                out.contains("    default {\n        puts hit\n    }"),
-                "{dialect} must format the optionless two-word case list:\n{out}"
+                !old.contains("        puts hit"),
+                "Tcl 8.4 must not descend the invalid option-like two-word form {subject:?}:\n{old}"
             );
+            for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+                let out = fmt_dialect(&ambiguous, dialect);
+                assert!(
+                    out.contains("    default {\n        puts hit\n    }"),
+                    "{dialect} must format the optionless two-word case list with subject {subject:?}:\n{out}"
+                );
+            }
         }
     }
 

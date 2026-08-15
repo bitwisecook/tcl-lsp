@@ -665,9 +665,7 @@ impl CaseListSpec {
     fn two_arg_optionless_form_is_available(self, args: &[&str], dialect: DialectSet) -> bool {
         args.len() != 2
             || self.subject_args != 1
-            || args
-                .first()
-                .is_none_or(|word| !word.starts_with('-') || *word == "--")
+            || args.first().is_none_or(|word| !word.starts_with('-'))
             || self
                 .two_arg_optionless_dialects
                 .is_none_or(|available| available.intersects(dialect))
