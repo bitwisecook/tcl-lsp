@@ -16,6 +16,8 @@ bump this file when you bump those.
 | `vscode-jsonrpc` | 9.0.1 | MIT | <https://github.com/microsoft/vscode-languageserver-node> |
 | `vscode-languageserver-protocol` | 3.18.2 | MIT | <https://github.com/microsoft/vscode-languageserver-node> |
 | `vscode-languageserver-types` | 3.18.0 | MIT | <https://github.com/microsoft/vscode-languageserver-node> |
+| `vscode-oniguruma` | 2.0.1 | MIT | <https://github.com/microsoft/vscode-oniguruma> |
+| `vscode-textmate` | 9.3.2 | MIT | <https://github.com/microsoft/vscode-textmate> |
 
 `vscode-languageserver-types` is a transitive dependency of
 `vscode-languageserver-protocol` and is bundled with it.
@@ -80,6 +82,12 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+## vscode-oniguruma and vscode-textmate
+
+Both Microsoft packages carry the same MIT notice printed above for the
+language-server packages. `vscode-oniguruma` also incorporates Oniguruma, whose
+BSD-2-Clause notice is retained inside the package and the shipped `onig.wasm`.
 
 ## What is *not* third-party
 

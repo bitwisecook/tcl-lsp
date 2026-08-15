@@ -7,6 +7,7 @@
 const HTML: &str = include_str!("../web/studio.html");
 const STUDIO_TS: &str = include_str!("../web/src/studio.ts");
 const MONACO_TS: &str = include_str!("../web/src/monacoHost.ts");
+const TEXTMATE_TS: &str = include_str!("../web/src/textmateHost.ts");
 const BUILD_INFO_TS: &str = include_str!("../web/src/buildInfo.ts");
 const BUILD_MJS: &str = include_str!("../web/build.mjs");
 
@@ -22,6 +23,25 @@ fn every_code_pane_has_the_required_initial_language() {
     assert!(MONACO_TS.contains(r#"RUST_URI, "rust", null"#));
     assert!(MONACO_TS.contains(r#"STUB_URI, TCL_LANGUAGE, "spectcl""#));
     assert!(STUDIO_TS.contains(r#"dialect: "spectcl""#));
+}
+
+#[test]
+fn monaco_preserves_the_servers_semantic_token_identifiers() {
+    assert!(MONACO_TS.contains("tokenTypes: [...client.legend.tokenTypes]"));
+    assert!(!MONACO_TS.contains("SCOPE_BY_TOKEN_TYPE"));
+    assert!(MONACO_TS.contains(r"file:///__tcl_spec_studio__/pack.tclspec"));
+    assert!(!MONACO_TS.contains("inmemory://studio"));
+    assert!(MONACO_TS.contains("registerTclGrammar"));
+    assert!(TEXTMATE_TS.contains("source.tcl"));
+    assert!(TEXTMATE_TS.contains("vscode-textmate"));
+}
+
+#[test]
+fn importing_a_pack_activates_a_renderable_command() {
+    assert!(STUDIO_TS.contains("firstWritten ??= found.name"));
+    assert!(
+        STUDIO_TS.contains("if (view.pack) loadDraft(view.pack, packOrigin(view), firstWritten)")
+    );
 }
 
 #[test]

@@ -1112,10 +1112,12 @@ function readFiles(fileList: FileList | null, opts: { directory?: boolean } = {}
 function writeDraftsToPack(commands: { name: string; draft: Draft }[]): {
   written: number;
   failed: string[];
+  firstWritten: string | null;
 } {
   let source = state.pack.source;
   let written = 0;
   const failed: string[] = [];
+  let firstWritten: string | null = null;
   for (const found of commands) {
     try {
       const out = unwrap<PackWrite>(
@@ -1123,18 +1125,30 @@ function writeDraftsToPack(commands: { name: string; draft: Draft }[]): {
       );
       source = out.source;
       written += 1;
+      firstWritten ??= found.name;
     } catch {
       failed.push(found.name);
     }
   }
   state.pack.open = null;
   setPackSource(source);
-  return { written, failed };
+  return { written, failed, firstWritten };
 }
 
 function addImportedToPack(): void {
   if (!state.imported.length) return;
-  const { written, failed } = writeDraftsToPack(state.imported);
+  const { written, failed, firstWritten } = writeDraftsToPack(state.imported);
+  // The generated-code panes render the active draft, not the pack as a
+  // whole. Import used to write a perfectly good `.tclspec` and leave the
+  // boot-time `mycommand` placeholder active, so Rust and stub output looked
+  // as though generation had failed. Make the first successfully imported
+  // command the active pack draft while leaving the author on the Import tab.
+  if (firstWritten) {
+    const view = unwrap<PackCommandView>(
+      wasm.pack_command(state.pack.source, firstWritten, state.dialect),
+    );
+    if (view.pack) loadDraft(view.pack, packOrigin(view), firstWritten);
+  }
   setStatus(
     "importStatus",
     `${written} command(s) written into pack ${state.pack.view?.pack ?? ""}` +
@@ -1759,6 +1773,8 @@ async function mountEditorHost(): Promise<void> {
     editorHost = await chunk.mountEditors({
       workerUrl: assetUrl(activeBuildInfo, "lsp-worker", `${LSP_WORKER_DIR}/worker.js`),
       stylesheetUrl: assetUrl(activeBuildInfo, "editor-style", "assets/monaco-host.css"),
+      grammarUrl: assetUrl(activeBuildInfo, "tcl-grammar", "assets/tcl.tmLanguage.json"),
+      onigurumaUrl: assetUrl(activeBuildInfo, "oniguruma", "assets/onig.wasm"),
       dialect: state.dialect,
       report,
       dsl: {
