@@ -4104,6 +4104,28 @@ mod tests {
     }
 
     #[test]
+    fn analyse_braced_expect_clause_regexp_records_literal_and_const_var_patterns() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "set pat {(a+)+$}\nexpect {-regexp {^lit$} { puts lit } -re $pat { puts var }}\n",
+            "expect",
+        );
+        let patterns: Vec<_> = r
+            .regex_patterns
+            .iter()
+            .filter(|p| p.command == "expect")
+            .collect();
+        assert!(
+            patterns.iter().any(|pattern| pattern.pattern == "^lit$"),
+            "literal per-clause regexp missing: {patterns:?}"
+        );
+        assert!(
+            patterns.iter().any(|pattern| pattern.pattern == "(a+)+$"),
+            "const variable per-clause regexp missing: {patterns:?}"
+        );
+    }
+
+    #[test]
     fn analyse_switch_regexp_skips_default_arm() {
         let mut a = Analyser::new();
         let r = a.analyse(

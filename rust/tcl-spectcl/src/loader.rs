@@ -2260,6 +2260,11 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
             "clause_flags" => spec.clause_flags = leak_strs(&list_words(&value)),
             "clause_regex_flag" => spec.clause_regex_flag = Some(leak_str(&value)),
             "clause_value_flags" => spec.clause_value_flags = leak_strs(&list_words(&value)),
+            "clause_end_options_flag" => spec.clause_end_options_flag = Some(leak_str(&value)),
+            "clause_force_inline_flag" => spec.clause_force_inline_flag = Some(leak_str(&value)),
+            "clause_force_list_flag" => spec.clause_force_list_flag = Some(leak_str(&value)),
+            "allow_omitted_final_body" => spec.allow_omitted_final_body = parse_flag(stmt.tail()),
+            "warn_unbraced_bodies" => spec.warn_unbraced_bodies = parse_flag(stmt.tail()),
             "keyword_patterns" => {
                 spec.keyword_patterns = leak_strs(&list_words(&value));
                 spec.keyword_patterns_require_final =
@@ -4026,6 +4031,23 @@ fn versioned_arg_value_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn case_list_loader_preserves_every_clause_shape_field() {
+        let pack = load_pack(
+            "speclib probe 1.1 { command demo { case_list { \
+             clause_end_options_flag --; clause_force_inline_flag -nobrace; \
+             clause_force_list_flag -brace; allow_omitted_final_body 1; \
+             warn_unbraced_bodies 1 } } }",
+        );
+        let case = pack.command("demo").unwrap().spec.case_list.unwrap();
+        assert_eq!(case.clause_end_options_flag, Some("--"));
+        assert_eq!(case.clause_force_inline_flag, Some("-nobrace"));
+        assert_eq!(case.clause_force_list_flag, Some("-brace"));
+        assert!(case.allow_omitted_final_body);
+        assert!(case.warn_unbraced_bodies);
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+    }
 
     /// The loader resolves a `-native ID` by matching the catalogue's own
     /// spelling, so its value tables have to name every variant the catalogue

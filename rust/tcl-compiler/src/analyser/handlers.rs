@@ -4285,11 +4285,27 @@ impl Analyser {
                 body_tok,
                 &case,
             );
+            let shape = tcl_syntax::case_list::CaseListShape {
+                clause_flags: case.clause_flags,
+                clause_value_flags: case.clause_value_flags,
+            };
+            let clause_regexp: Vec<bool> =
+                tcl_syntax::case_list::split_case_list(&body_text, &shape)
+                    .iter()
+                    .map(|clause| {
+                        clause.flags.iter().any(|flag| {
+                            body_text
+                                .get(flag.start..flag.end)
+                                .and_then(|word| shape.resolve_flag(word))
+                                == case.clause_regex_flag
+                        })
+                    })
+                    .collect();
             let clause_count = clauses.len();
             for (clause_index, ((pat_text, pat_tok), (body_text, body_tok))) in
                 clauses.iter().enumerate()
             {
-                if invocation_is_regexp {
+                if invocation_is_regexp || clause_regexp.get(clause_index) == Some(&true) {
                     self.record_switch_regexp_pattern(
                         cmd_name,
                         case,
