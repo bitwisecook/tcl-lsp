@@ -287,6 +287,35 @@ pub fn compute_file_profiles(
     expanded
 }
 
+/// [`compute_file_profiles`] with resolved command heads.
+///
+/// The profile inventory is an event-handler consumer, so it must make the
+/// same offset-sensitive alias/rename decision as diagnostics, outlines, and
+/// graphs. The resolver is supplied by the compiler/LSP boundary; this crate
+/// deliberately does not infer command-table mutations itself.
+#[must_use]
+pub fn compute_file_profiles_with_registry_and_head_resolver(
+    source: &str,
+    events: &crate::events::EventRegistry,
+    profiles: &ProfileRegistry,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn crate::events::CommandHeadResolver,
+) -> Vec<String> {
+    let mut seed: FxHashSet<String> = parse_profile_directive(source);
+    for event in scan_file_events_with_registry_and_head_resolver(source, registry, resolver) {
+        if let Some(props) = events.get_props(&event) {
+            seed.extend(props.implied_profiles.iter().map(|p| p.to_uppercase()));
+        }
+    }
+    let seed_refs: Vec<&str> = seed.iter().map(String::as_str).collect();
+    let mut expanded: Vec<String> = profiles
+        .expand_profile_stack(&seed_refs)
+        .into_iter()
+        .collect();
+    expanded.sort_unstable();
+    expanded
+}
+
 /// Parse a leading `# profiles: HTTP, CLIENTSSL` directive.  Scans at most
 /// the first 20 lines and stops at
 /// the first non-comment, non-blank line.  Names are uppercased and split on
@@ -337,6 +366,21 @@ pub fn scan_file_events(source: &str) -> FxHashSet<String> {
     crate::events::scan_when_events(source)
         .into_iter()
         .collect()
+}
+
+/// [`scan_file_events`] with resolved command heads.
+#[must_use]
+pub fn scan_file_events_with_registry_and_head_resolver(
+    source: &str,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn crate::events::CommandHeadResolver,
+) -> FxHashSet<String> {
+    crate::events::recursive_when_handlers_with_registry_and_head_resolver(
+        source, registry, resolver,
+    )
+    .into_iter()
+    .map(|handler| handler.event)
+    .collect()
 }
 
 // Full static data — auto-generated.

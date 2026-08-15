@@ -78,6 +78,8 @@
 //! a position, and guessing one of the two is exactly the fallback-to-spelling
 //! this module exists to remove.
 
+use std::borrow::Cow;
+
 use crate::alias::{detect_interp_alias, detect_interp_alias_delete, detect_rename};
 use crate::segmenter::segment_commands_with_offset_and_config;
 use rustc_hash::FxHashMap;
@@ -95,6 +97,22 @@ pub enum HeadIdentity<'a> {
     /// does not model: a `rename` moved the built-in away, a user `proc`
     /// redefined it, or an alias bound it to an unresolvable target.  No
     /// registry grammar applies.
+    Rebound,
+}
+
+/// A binding fact without borrowing the head spelling supplied by the caller.
+///
+/// This is the cross-crate form of [`HeadIdentityMap`] lookup: a consumer can
+/// preserve its own written text when no fact applies, while a resolved target
+/// borrows from the map. That separation avoids making a syntax/registry
+/// caller manufacture compiler-owned copies merely to compare a command head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeadBinding<'a> {
+    /// No applicable fact; the written spelling remains the identity.
+    Unchanged,
+    /// A proven alias/import/rename target.
+    Command(&'a str),
+    /// The spelling was provably rebound away from registry semantics.
     Rebound,
 }
 
@@ -206,15 +224,30 @@ impl HeadIdentityMap {
     /// With no applicable fact the head keeps its own spelling.
     #[must_use]
     pub fn resolve<'a>(&'a self, head: &'a str, at: u32) -> HeadIdentity<'a> {
+        match self.binding_at(head, at) {
+            HeadBinding::Unchanged => HeadIdentity::Command(head),
+            HeadBinding::Command(name) => HeadIdentity::Command(name),
+            HeadBinding::Rebound => HeadIdentity::Rebound,
+        }
+    }
+
+    /// The command-table fact applicable to `head` at `at`, if any.
+    ///
+    /// Unlike [`Self::resolve`], this never borrows the caller's spelling, so
+    /// registry-owned recursive walkers can use it through
+    /// [`tcl_registry::events::CommandHeadResolver`] without a dependency from
+    /// the registry back into the compiler.
+    #[must_use]
+    pub fn binding_at(&self, head: &str, at: u32) -> HeadBinding<'_> {
         let Some(facts) = self.facts.get(head) else {
-            return HeadIdentity::Command(head);
+            return HeadBinding::Unchanged;
         };
         let Some(fact) = facts.iter().filter(|f| f.from <= at).max_by_key(|f| f.from) else {
-            return HeadIdentity::Command(head);
+            return HeadBinding::Unchanged;
         };
         fact.target
             .as_deref()
-            .map_or(HeadIdentity::Rebound, HeadIdentity::Command)
+            .map_or(HeadBinding::Rebound, HeadBinding::Command)
     }
 
     /// The effective identity of `head` when the call's byte offset is not
@@ -292,6 +325,16 @@ impl HeadIdentityMap {
         let bare = name.strip_prefix("::").unwrap_or(name);
         self.record(bare, target.clone(), from);
         self.record(&format!("::{bare}"), target, from);
+    }
+}
+
+impl tcl_registry::events::CommandHeadResolver for HeadIdentityMap {
+    fn resolve<'a>(&'a self, written: &str, offset: u32) -> Cow<'a, str> {
+        match self.binding_at(written, offset) {
+            HeadBinding::Unchanged => Cow::Owned(written.to_owned()),
+            HeadBinding::Command(name) => Cow::Borrowed(name),
+            HeadBinding::Rebound => Cow::Borrowed(""),
+        }
     }
 }
 
@@ -867,5 +910,35 @@ mod tests {
         // every registry query answer "unknown" without a variant check.
         let registry = tcl_registry::registry_for_dialect("tcl");
         assert!(registry.get(HeadIdentity::Rebound.spec_name()).is_none());
+    }
+
+    #[test]
+    fn resolved_event_handlers_drive_profile_inference() {
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let events = tcl_registry::events::EventRegistry::build();
+        let profiles = tcl_registry::profiles::ProfileRegistry::build();
+        let aliased = "interp alias {} event {} when\nevent HTTP_REQUEST {}\n";
+        let identities = command_head_identities(aliased, "f5-irules", registry);
+        let inferred =
+            tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(
+                aliased,
+                &events,
+                &profiles,
+                registry,
+                &identities,
+            );
+        assert!(inferred.contains(&"HTTP".to_owned()));
+
+        let rebound = "proc when {args} {}\nwhen HTTP_REQUEST {}\n";
+        let identities = command_head_identities(rebound, "f5-irules", registry);
+        let inferred =
+            tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(
+                rebound,
+                &events,
+                &profiles,
+                registry,
+                &identities,
+            );
+        assert!(!inferred.contains(&"HTTP".to_owned()));
     }
 }

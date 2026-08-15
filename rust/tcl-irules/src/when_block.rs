@@ -7,7 +7,6 @@
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::LexerConfig;
-use tcl_syntax::event_handler::event_handlers;
 
 /// One syntactically complete `when EVENT { … }` handler.
 pub type WhenBlock = tcl_syntax::event_handler::EventHandler;
@@ -20,7 +19,15 @@ pub type WhenBlock = tcl_syntax::event_handler::EventHandler;
 /// that need handler bodies must use this entry point.
 #[must_use]
 pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
-    event_handlers(source, LexerConfig::for_file_dialect("f5-irules"))
+    let config = LexerConfig::for_file_dialect("f5-irules");
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let identities =
+        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+    tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
+        source,
+        registry,
+        &identities,
+    )
 }
 
 /// Return handlers recursively nested inside handler bodies, with spans kept
@@ -28,7 +35,15 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
 /// the top-level execution surface.
 #[must_use]
 pub fn when_blocks_recursive(source: &str) -> Vec<WhenBlock> {
-    tcl_registry::events::recursive_when_handlers(source)
+    let config = LexerConfig::for_file_dialect("f5-irules");
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let identities =
+        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+    tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
+        source,
+        registry,
+        &identities,
+    )
 }
 
 /// Whether a discovered handler body contains no executable command.  This
@@ -73,6 +88,39 @@ mod tests {
     }
 
     #[test]
+    fn resolves_event_handler_aliases_and_renames_at_their_offsets() {
+        let source = "alias_before HTTP_REQUEST {}\n\
+                      interp alias {} alias_before {} when\n\
+                      alias_before CLIENT_DATA {}\n\
+                      rename alias_before renamed\n\
+                      ::renamed SERVER_DATA {}\n";
+        let blocks = when_blocks(source);
+        assert_eq!(
+            blocks
+                .iter()
+                .map(|block| block.event.as_str())
+                .collect::<Vec<_>>(),
+            ["CLIENT_DATA", "SERVER_DATA"],
+            "an identity fact applies only after its defining command, and to rooted aliases too"
+        );
+    }
+
+    #[test]
+    fn a_rebound_when_spelling_is_not_an_event_handler() {
+        let source = "when HTTP_REQUEST {}\n\
+                      proc when {args} {}\n\
+                      when CLIENT_DATA {}\n";
+        let blocks = when_blocks(source);
+        assert_eq!(
+            blocks
+                .iter()
+                .map(|block| block.event.as_str())
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST"]
+        );
+    }
+
+    #[test]
     fn recursively_finds_nested_rooted_handlers_with_absolute_spans() {
         let source =
             "when http_request {\n  if {1} {\n    :::when client_data { pool p }\n  }\n}\n";
@@ -89,6 +137,27 @@ mod tests {
             ":::when client_data { pool p }"
         );
         assert_eq!(&source[blocks[1].body_span.as_range()], " pool p ");
+    }
+
+    #[test]
+    fn recursive_discovery_resolves_heads_before_following_script_descriptors() {
+        let source = "interp alias {} branch {} if\n\
+                      interp alias {} event {} ::when\n\
+                      branch {1} { ::event HTTP_REQUEST {} }\n";
+        let blocks = when_blocks_recursive(source);
+        assert_eq!(
+            blocks
+                .iter()
+                .map(|block| block.event.as_str())
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST"]
+        );
+
+        let rebound = "proc if {args} {}\nif {1} { when CLIENT_DATA {} }\n";
+        assert!(
+            when_blocks_recursive(rebound).is_empty(),
+            "a user command named `if` does not inherit the registry body grammar"
+        );
     }
 
     #[test]

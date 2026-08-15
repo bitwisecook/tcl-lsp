@@ -36,10 +36,28 @@ pub struct EventHandler {
 /// the lexer rather than being reimplemented by each event consumer.
 #[must_use]
 pub fn event_handlers(source: &str, config: LexerConfig) -> Vec<EventHandler> {
+    event_handlers_with_head_predicate(source, config, |head, _| {
+        head.trim_start_matches("::") == "when"
+    })
+}
+
+/// Parse complete event handlers whose command head satisfies `is_handler`.
+///
+/// This remains a syntax-layer parser: it owns word splitting and the common
+/// `EVENT ?priority N? { body }` boundary grammar, but does not decide which
+/// command binding a written head denotes.  A higher layer that has resolved
+/// command identity (for example after `interp alias` or `rename`) supplies
+/// that decision with the head's byte offset in this script region.
+#[must_use]
+pub fn event_handlers_with_head_predicate(
+    source: &str,
+    config: LexerConfig,
+    is_handler: impl Fn(&str, u32) -> bool,
+) -> Vec<EventHandler> {
     let mut handlers = Vec::new();
     let sm = SourceMap::new(source);
     for command in script_commands(source, config) {
-        if let Some(handler) = parse_handler(source, source, 0, &sm, &command.words) {
+        if let Some(handler) = parse_handler(source, source, 0, &sm, &command.words, &is_handler) {
             handlers.push(handler);
         }
     }
@@ -98,12 +116,13 @@ fn parse_handler(
     base: u32,
     sm: &SourceMap<'_>,
     words: &[Vec<Token>],
+    is_handler: &impl Fn(&str, u32) -> bool,
 ) -> Option<EventHandler> {
     let [head] = words.first()?.as_slice() else {
         return None;
     };
     let canonical = crate::naming::canonical_written_command(sm.token_text(*head));
-    if canonical.trim_start_matches("::") != "when" {
+    if !is_handler(&canonical, word_span_at(text, head.span).start()) {
         return None;
     }
     let [event_token] = words.get(1)?.as_slice() else {

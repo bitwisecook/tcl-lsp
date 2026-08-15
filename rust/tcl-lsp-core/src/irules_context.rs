@@ -90,6 +90,20 @@ mod tests {
     }
 
     #[test]
+    fn context_inventory_uses_resolved_event_handler_identity() {
+        let src = "interp alias {} event {} when\n\
+                   event HTTP_REQUEST { set x 1 }\n\
+                   proc when {args} {}\n\
+                   when CLIENT_DATA { set y 1 }\n";
+        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
+        assert_eq!(
+            find_enclosing_when_event(src, 1, D),
+            Some("HTTP_REQUEST".to_owned())
+        );
+        assert_eq!(find_enclosing_when_event(src, 3, D), None);
+    }
+
+    #[test]
     fn top_level_after_close_has_no_event() {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\nset top 1\n";
         // Line 3 sits past the closing brace — back at the top level.

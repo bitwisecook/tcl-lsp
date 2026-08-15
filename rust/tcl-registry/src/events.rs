@@ -22,6 +22,8 @@
 //! layer, connection side, required profiles, flow properties,
 //! and canonical firing order.
 
+use std::borrow::Cow;
+
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_lexer::{LexerConfig, SourceMap, Span, TokenType, word_span_at};
 
@@ -971,7 +973,71 @@ impl EventRegistry {
 /// Parse top-level iRules event handlers through the shared syntax owner.
 #[must_use]
 pub fn top_level_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
-    tcl_syntax::event_handler::event_handlers(source, LexerConfig::for_file_dialect("f5-irules"))
+    let resolver = WrittenHeadResolver;
+    top_level_when_handlers_with_registry_and_head_resolver(
+        source,
+        crate::registry_for_dialect("f5-irules"),
+        &resolver,
+    )
+}
+
+/// Resolve a written command head at its absolute document offset.
+///
+/// The registry owns recursive traversal because command specs declare which
+/// words are executable scripts.  It cannot itself infer Tcl command-table
+/// mutations, so a compiler or editor that has such facts supplies them here.
+/// An empty answer deliberately means a proven rebound: it cannot resolve a
+/// registry spec or open a script surface.
+pub trait CommandHeadResolver {
+    /// Return the effective registry spelling for `written` at `offset`.
+    fn resolve<'a>(&'a self, written: &str, offset: u32) -> Cow<'a, str>;
+}
+
+/// The lexical fallback for consumers without document identity facts.
+struct WrittenHeadResolver;
+
+impl CommandHeadResolver for WrittenHeadResolver {
+    fn resolve<'a>(&'a self, written: &str, _offset: u32) -> Cow<'a, str> {
+        Cow::Owned(written.to_owned())
+    }
+}
+
+/// Whether an effective head opens the shared event-handler boundary grammar.
+///
+/// iRules registers that fact with `IS_EVENT_HANDLER`. The lexical `when`
+/// fallback keeps the shared recursive walker useful for Tcl/Expect script
+/// surfaces in tests and tooling that inventory embedded iRules snippets under
+/// a non-iRules registry; importantly it applies to the **resolved** head, so
+/// a proven rebinding still cannot reopen the grammar.
+fn is_event_handler_head(registry: &crate::CommandRegistry, resolved: &str) -> bool {
+    registry
+        .get(resolved)
+        .is_some_and(|spec| spec.traits.contains(crate::Traits::IS_EVENT_HANDLER))
+        || resolved.trim_start_matches("::") == "when"
+}
+
+/// Parse top-level event handlers after resolving each command head.
+///
+/// Handler layout remains syntax-owned, while the registry decides whether the
+/// effective command carries [`crate::Traits::IS_EVENT_HANDLER`].
+#[must_use]
+pub fn top_level_when_handlers_with_registry_and_head_resolver(
+    source: &str,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn CommandHeadResolver,
+) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let config = registry.profile().map_or_else(
+        || LexerConfig::for_file_dialect("f5-irules"),
+        |profile| LexerConfig::from_grammar(profile.grammar),
+    );
+    tcl_syntax::event_handler::event_handlers_with_head_predicate(
+        source,
+        config,
+        |written, offset| {
+            let effective_head = resolver.resolve(written, offset);
+            is_event_handler_head(registry, effective_head.as_ref())
+        },
+    )
 }
 
 /// Parse iRules event handlers recursively through registry-declared script
@@ -983,7 +1049,12 @@ pub fn top_level_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::E
 /// regardless of their containing argument role.
 #[must_use]
 pub fn recursive_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
-    recursive_when_handlers_with_registry(source, crate::registry_for_dialect("f5-irules"))
+    let resolver = WrittenHeadResolver;
+    recursive_when_handlers_with_registry_and_head_resolver(
+        source,
+        crate::registry_for_dialect("f5-irules"),
+        &resolver,
+    )
 }
 
 /// Registry-resolved recursive event discovery.
@@ -992,6 +1063,23 @@ pub fn recursive_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::E
 pub fn recursive_when_handlers_with_registry(
     source: &str,
     registry: &crate::CommandRegistry,
+) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let resolver = WrittenHeadResolver;
+    recursive_when_handlers_with_registry_and_head_resolver(source, registry, &resolver)
+}
+
+/// Registry-resolved recursive event discovery with effective command heads.
+///
+/// `resolver` is queried at the absolute offset of every head, before both
+/// handler recognition and script-descriptor lookup. This makes a proven
+/// alias/rename of the event command visible while keeping a spelling that was
+/// rebound to a user command out of every registry-driven traversal path.
+#[must_use]
+#[allow(clippy::too_many_lines)] // One worklist keeps offsets, caps, and region context atomic.
+pub fn recursive_when_handlers_with_registry_and_head_resolver(
+    source: &str,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn CommandHeadResolver,
 ) -> Vec<tcl_syntax::event_handler::EventHandler> {
     let config = registry.profile().map_or_else(
         || LexerConfig::for_file_dialect("f5-irules"),
@@ -1018,9 +1106,16 @@ pub fn recursive_when_handlers_with_registry(
         };
         if inspect_handlers {
             out.extend(
-                tcl_syntax::event_handler::event_handlers(text, config.at_depth(depth))
-                    .into_iter()
-                    .map(|handler| shift_handler(handler, base)),
+                tcl_syntax::event_handler::event_handlers_with_head_predicate(
+                    text,
+                    config.at_depth(depth),
+                    |written, offset| {
+                        let effective_head = resolver.resolve(written, base.saturating_add(offset));
+                        is_event_handler_head(registry, effective_head.as_ref())
+                    },
+                )
+                .into_iter()
+                .map(|handler| shift_handler(handler, base)),
             );
         }
         let sm = SourceMap::new(text);
@@ -1053,8 +1148,10 @@ pub fn recursive_when_handlers_with_registry(
             let [head_token] = head_word.as_slice() else {
                 continue;
             };
-            let head = tcl_syntax::naming::canonical_written_command(sm.token_text(*head_token));
-            let head = head.trim_start_matches("::");
+            let written = tcl_syntax::naming::canonical_written_command(sm.token_text(*head_token));
+            let head_offset = base.saturating_add(word_span_at(text, head_token.span).start());
+            let effective_head = resolver.resolve(&written, head_offset);
+            let head = effective_head.as_ref();
             let args: Vec<&str> = command
                 .words
                 .iter()

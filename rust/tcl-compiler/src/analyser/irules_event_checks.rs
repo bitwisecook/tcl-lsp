@@ -229,11 +229,18 @@ impl Analyser {
         if self.dialect() != "f5-irules" {
             return;
         }
-        self.irules_file_profiles = Some(tcl_registry::profiles::compute_file_profiles(
-            &self.source,
-            event_registry(),
-            profile_registry(),
-        ));
+        let Some(registry) = self.registry.as_deref() else {
+            return;
+        };
+        self.irules_file_profiles = Some(
+            tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(
+                &self.source,
+                event_registry(),
+                profile_registry(),
+                registry,
+                &self.head_identities,
+            ),
+        );
     }
 
     /// **IRULE1001.** A command used in an iRules event where it is invalid or

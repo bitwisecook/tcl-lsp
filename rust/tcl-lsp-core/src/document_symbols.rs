@@ -1976,6 +1976,25 @@ mod tests {
     }
 
     #[test]
+    fn irule_event_outline_uses_resolved_head_identity() {
+        let src = concat!(
+            "interp alias {} event {} when\n",
+            "event HTTP_REQUEST {}\n",
+            "proc when {args} {}\n",
+            "when CLIENT_DATA {}\n",
+        );
+        let symbols = document_symbols(src, IRULES);
+        assert_eq!(
+            symbols
+                .iter()
+                .filter(|symbol| symbol.kind == SymbolKind::Event)
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST"]
+        );
+    }
+
+    #[test]
     fn event_handler_range_spans_the_body_and_selects_the_event_name() {
         let src = "when HTTP_REQUEST {\n    set host [HTTP::host]\n}\n";
         let symbols = document_symbols(src, IRULES);

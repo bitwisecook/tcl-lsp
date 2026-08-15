@@ -1095,7 +1095,17 @@ impl Analyser {
         // lightweight named definition to the outline.  Void handler — it only
         // records the symbol; the body still recurses via the generic
         // `ArgRole::Body` walk below.
-        self.handle_defines_symbol(cmd_name, args, arg_tokens, arg_single, scope_path);
+        // Definition and body descriptors are registry semantics, so read the
+        // document's offset-keyed identity before asking either one.  This is
+        // what lets an iRules event handler reached through a proven alias or
+        // rename contribute the same outline/context as `when`, while a
+        // spelling a user `proc` took over cannot inherit `when`'s body.
+        let descriptor_name = self
+            .head_identities
+            .head_words(cmd_name, cmd_tok.span.start())
+            .resolved
+            .to_owned();
+        self.handle_defines_symbol(&descriptor_name, args, arg_tokens, arg_single, scope_path);
         // The tcllib `<NS>::import <alias>` wrapper idiom — recognised by
         // the call's own `::import` tail, not a registry name.
         self.handle_tcllib_import_wrapper(cmd_name, cmd_tok, args, scope_path);
@@ -1112,7 +1122,7 @@ impl Analyser {
         // For `when EVENT { body }` the iRules dialect spec
         // marks arg 1 as BODY; set `current_event` for the body
         // walk so race-detection diagnostics see the event name.
-        self.dispatch_body_arguments(cmd_name, args, arg_tokens, arg_single, scope_path);
+        self.dispatch_body_arguments(&descriptor_name, args, arg_tokens, arg_single, scope_path);
     }
 
     /// Resolve the [`AnalyserHookId`] for a command head, mirroring the

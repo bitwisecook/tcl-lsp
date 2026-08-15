@@ -2446,7 +2446,7 @@ pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
 /// for ordinary Tcl (no `when` blocks), so it is strictly gateable against the
 /// Tcl corpus; the `when`-handler behaviour is pinned by a Rust unit test.
 #[must_use]
-pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
+pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str) -> Value {
     use std::collections::HashMap;
 
     use tcl_registry::events::EventRegistry;
@@ -2461,7 +2461,15 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
     }
 
     let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
-    for (matched, handler) in tcl_registry::events::top_level_when_handlers(source)
+    let command_registry = registry_for_dialect(dialect);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, &command_registry);
+    for (matched, handler) in
+        tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            &command_registry,
+            &identities,
+        )
         .into_iter()
         .enumerate()
     {
@@ -3036,7 +3044,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     );
     out.insert(
         "eventOrder".to_owned(),
-        serialise_event_order(&result.source, &li),
+        serialise_event_order(&result.source, &li, &result.dialect),
     );
     out.insert(
         "asm".to_owned(),

@@ -586,7 +586,19 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     // Parse through the shared event-handler owner, then order into canonical
     // firing order rather than alphabetical order (which scrambles the
     // lifecycle, e.g. CLIENTSSL_HANDSHAKE ahead of CLIENT_ACCEPTED).
-    let events = event_registry().order_events(&tcl_registry::events::scan_when_events(&body));
+    let command_registry = tcl_registry::registry_for_dialect("f5-irules");
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(&body, "f5-irules", command_registry);
+    let discovered: Vec<String> =
+        tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
+            &body,
+            command_registry,
+            &identities,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
+    let events = event_registry().order_events(&discovered);
     let fp = bstr(f, "full-path");
     // `.refs` is the engine's synthesised iRule reference sub-object.
     let refs: Map<String, J> = match f.get("refs") {
