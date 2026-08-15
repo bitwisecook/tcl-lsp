@@ -73,6 +73,8 @@
             factoryClass="com.tcllsp.jetbrains.SpecStudioToolWindowFactory"
             icon="/icons/tcl.svg"
             secondary="true"/>
+        <postStartupActivity
+            implementation="com.tcllsp.jetbrains.SpecStudioStartupActivity"/>
 
         <!-- Notification group for error messages -->
         <notificationGroup id="Tcl LSP" displayType="BALLOON"/>

@@ -23,6 +23,31 @@ const filenames: Record<Surface, string> = {
 
 let current: SpecStudioSession | undefined;
 
+const studioIgnore = "*\n";
+
+/**
+ * Remove sessions which could only have survived an editor crash, and make
+ * every subsequently materialised projection invisible to Git. This runs
+ * before the language client starts, so an abandoned highest-precedence pack
+ * can never enter the server's initial discovery snapshot.
+ */
+export async function prepareSpecStudioStorage(): Promise<void> {
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    const root = vscode.Uri.joinPath(folder.uri, ".tcl-lsp", ".spec-studio");
+    const abandoned = vscode.Uri.joinPath(root, "vscode");
+    try {
+      await vscode.workspace.fs.delete(abandoned, { recursive: true, useTrash: false });
+    } catch (error) {
+      if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) throw error;
+    }
+    await vscode.workspace.fs.createDirectory(root);
+    await vscode.workspace.fs.writeFile(
+      vscode.Uri.joinPath(root, ".gitignore"),
+      Buffer.from(studioIgnore, "utf8"),
+    );
+  }
+}
+
 function injectNativeBridge(html: string, nativeModule: string): string {
   const source = JSON.stringify(nativeModule).replace(/</g, "\\u003c");
   const bridge = `<script>const vscode=acquireVsCodeApi();window.__tclSpecStudioHost={postMessage:(message)=>vscode.postMessage(message)};window.__tclSpecStudioNativeModuleUrl=URL.createObjectURL(new Blob([${source}],{type:'text/javascript'}));</script>`;

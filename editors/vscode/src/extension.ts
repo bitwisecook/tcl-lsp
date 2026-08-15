@@ -72,7 +72,7 @@ import {
   openCompilerExplorer,
 } from "./compilerExplorer";
 import { openTkPreview, tkPreviewDocChanged, tkPreviewEditorChanged } from "./tkPreviewPanel";
-import { openSpecStudio } from "./specStudio";
+import { openSpecStudio, prepareSpecStudioStorage } from "./specStudio";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
@@ -350,6 +350,7 @@ function resolveAllFeatureToggles(): Record<string, boolean> {
 
 export async function activate(context: ExtensionContext) {
   setDiagramPanelExtensionUri(context.extensionUri);
+  await prepareSpecStudioStorage();
   const activateStart = Date.now();
   const ch = getOutputChannel();
   const config = workspace.getConfiguration("tclLsp");
