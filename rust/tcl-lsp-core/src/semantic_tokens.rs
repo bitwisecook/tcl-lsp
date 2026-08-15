@@ -3377,6 +3377,16 @@ fn insert_case_list_override(
             && let Some(clauses) = spec.inline_clauses(&args, start)
         {
             for clause in clauses {
+                for flag_index in clause.flag_indices {
+                    if let Some(tok) = seg.argv.get(flag_index + 1) {
+                        overrides.insert(tok.span.start(), ArgOverride::Decorator);
+                    }
+                }
+                if clause.mode == tcl_registry::spec::CaseMatchMode::Regexp
+                    && let Some(tok) = seg.argv.get(clause.pattern_index + 1)
+                {
+                    mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
+                }
                 if let Some(body_index) = clause.body_index
                     && let Some(tok) = seg.argv.get(body_index + 1)
                     && matches!(tok.kind, TokenType::Str)
@@ -6544,21 +6554,44 @@ mod tests {
     }
 
     #[test]
-    fn expect_abbreviated_regex_clause_flag_is_a_decorator_and_enables_regex_tokens() {
-        let source = "expect {\n    -re {a+} {\n        puts matched\n    }\n}\n";
-        let tokens = decode_full(source, "expect", &expect_reg());
-        assert!(
-            tokens.iter().any(|&(line, col, len, kind, _)| {
-                (line, col, len, kind) == (1, 4, 3, TokenKind::Decorator as u32)
-            }),
-            "-re must be a clause decorator: {tokens:?}"
-        );
-        assert!(
-            tokens
-                .iter()
-                .any(|&(_, _, _, kind, _)| kind == TokenKind::RegexpQuantifier as u32),
-            "-re must enable regexp tokenisation for its pattern: {tokens:?}"
-        );
+    fn expect_canonical_and_abbreviated_regex_flags_tokenise_in_both_shapes() {
+        for (label, source, flag) in [
+            (
+                "braced canonical",
+                "expect {\n    -regexp {a+} {\n        puts matched\n    }\n}\n",
+                "-regexp",
+            ),
+            (
+                "braced abbreviation",
+                "expect {\n    -re {a+} {\n        puts matched\n    }\n}\n",
+                "-re",
+            ),
+            (
+                "inline canonical",
+                "expect -regexp {a+} {\n    puts matched\n    puts again\n}\n",
+                "-regexp",
+            ),
+            (
+                "inline abbreviation",
+                "expect -re {a+} {\n    puts matched\n    puts again\n}\n",
+                "-re",
+            ),
+        ] {
+            let tokens = decode_full(source, "expect", &expect_reg());
+            let flag_len = u32::try_from(flag.len()).unwrap();
+            assert!(
+                tokens.iter().any(|&(_, _, len, kind, _)| {
+                    len == flag_len && kind == TokenKind::Decorator as u32
+                }),
+                "{label}: {flag} must be a clause decorator: {tokens:?}"
+            );
+            assert!(
+                tokens
+                    .iter()
+                    .any(|&(_, _, _, kind, _)| kind == TokenKind::RegexpQuantifier as u32),
+                "{label}: {flag} must enable regexp tokenisation: {tokens:?}"
+            );
+        }
     }
 
     #[test]

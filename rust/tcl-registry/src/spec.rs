@@ -373,8 +373,10 @@ pub struct CaseInvocation {
 }
 
 /// A validated inline pattern/action pair.  Indices are post-command-name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InlineCaseClause {
+    /// Leading clause-flag word indices (values of value-taking flags omitted).
+    pub flag_indices: Vec<usize>,
     /// Pattern word index in the invocation.
     pub pattern_index: usize,
     /// Action-body word index in the invocation.
@@ -441,7 +443,7 @@ impl CaseListSpec {
         clause_force_inline_flag: Some("-nobrace"),
         clause_force_list_flag: Some("-brace"),
         allow_omitted_final_body: true,
-        keyword_patterns: &["timeout", "eof", "default", "full_buffer"],
+        keyword_patterns: &["timeout", "eof", "default", "full_buffer", "null"],
         keyword_patterns_require_final: false,
         warn_unbraced_bodies: false,
     };
@@ -609,11 +611,13 @@ impl CaseListSpec {
         while i < args.len() {
             let mut mode = CaseMatchMode::Exact;
             let mut options_ended = false;
+            let mut flag_indices = Vec::new();
             while let Some(word) = args.get(i).copied() {
                 if options_ended || !word.starts_with('-') {
                     break;
                 }
                 let flag = shape.resolve_flag(word)?;
+                flag_indices.push(i);
                 i += 1;
                 if self.clause_end_options_flag == Some(flag) {
                     options_ended = true;
@@ -635,6 +639,7 @@ impl CaseListSpec {
                 return None;
             }
             clauses.push(InlineCaseClause {
+                flag_indices,
                 pattern_index,
                 body_index,
                 mode,

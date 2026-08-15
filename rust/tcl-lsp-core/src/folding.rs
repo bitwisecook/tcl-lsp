@@ -438,11 +438,11 @@ fn collect_body_folds(
         // block folded (issue #1216).  Which word holds the list, and how the
         // list is shaped, is registry data (`CommandSpec::case_list`), so this
         // walk names no command.
-        let case_list = [head.resolved, head.written].into_iter().find_map(|name| {
-            let spec = ctx.registry.get(name)?.case_list?;
+        let case_list = ctx.registry.get(head.resolved).and_then(|spec| {
+            let case = spec.case_list?;
             ctx.registry
-                .case_invocation(name, &args_borrow, ctx.availability)
-                .and_then(|(_, invocation)| invocation.clause_list_index.map(|index| (spec, index)))
+                .case_invocation(head.resolved, &args_borrow, ctx.availability)
+                .and_then(|(_, invocation)| invocation.clause_list_index.map(|index| (case, index)))
         });
 
         // The grammar the recursion into THIS command's bodies should carry:
@@ -1780,6 +1780,24 @@ mod tests {
         assert!(
             !body_fold_on_call_line(&format!("rename while loop\n{WRITTEN_CALL}")),
             "a renamed-away `while` must not keep the built-in's body grammar"
+        );
+    }
+
+    #[test]
+    fn folding_abstains_when_a_renamed_away_expect_spelling_is_written() {
+        let source = concat!(
+            "rename expect other\n",
+            "expect {\n",
+            "    default {\n",
+            "        puts no\n",
+            "        puts fold\n",
+            "    }\n",
+            "}\n",
+        );
+        let regions = fold_lines(&folding_ranges_expect(source), FoldKind::Region);
+        assert!(
+            regions.is_empty(),
+            "a renamed-away Expect spelling must not inherit registry folds: {regions:?}"
         );
     }
 
