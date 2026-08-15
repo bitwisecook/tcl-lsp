@@ -4046,13 +4046,18 @@ mod tests {
         let pack = load_pack(
             "speclib probe 1.1 { command demo { case_list { \
              clause_end_options_flag --; clause_force_inline_flag -nobrace; \
-             clause_force_list_flag -brace; allow_omitted_final_body 1; \
+             clause_force_list_flag -brace; clause_force_list_shape first_arg_only_remainder; \
+             allow_omitted_final_body 1; \
              warn_unbraced_bodies 1 } } }",
         );
         let case = pack.command("demo").unwrap().spec.case_list.unwrap();
         assert_eq!(case.clause_end_options_flag, Some("--"));
         assert_eq!(case.clause_force_inline_flag, Some("-nobrace"));
         assert_eq!(case.clause_force_list_flag, Some("-brace"));
+        assert_eq!(
+            case.clause_force_list_shape,
+            Some(tcl_registry::CaseForceListShape::FirstArgOnlyRemainder)
+        );
         assert!(case.allow_omitted_final_body);
         assert!(case.warn_unbraced_bodies);
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);

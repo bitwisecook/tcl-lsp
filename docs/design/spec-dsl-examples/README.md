@@ -559,7 +559,7 @@ it, and the loader warns if a `clause_grammar` command omits it.
 Case lists are the other clause shape and stay a separate field, because
 they are a *value* (`{pattern body …}` inside one word) rather than a
 word grammar. `case_list switch` names the shipped descriptor;
-`case_list { … }` spells out all seventeen plain-data fields, which is
+`case_list { … }` spells out all eighteen plain-data fields, which is
 what a private Expect-like command needs.
 
 ## Derivations, exactly
@@ -836,7 +836,7 @@ finding alive. Silence is defined per field in the table above.
 temptation is to treat every `RustExpr` field in the studio schema as
 un-authorable. Most of them are plain data that the studio simply edits
 as one text box: `frame_effect` is two closed enums, `event_requires` is
-eight scalars, `case_list` seventeen, `binds_handle` three,
+eight scalars, `case_list` eighteen, `binds_handle` three,
 `defines_symbol` four, `byte_array_payload` two. Porting `upvar` and
 `HTTP::header` is what surfaced this — both look like hard cases in the
 `.rs` and are trivial in the DSL.
@@ -1072,7 +1072,7 @@ schema order. "excluded" rows carry the reason.
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |
 | `manufacturer_methods` | `manufacturer KEYWORD ?-unexported? ?-names-instance-at N? ?-definition-body-at N? -constructor-args-from N` | one row per method |
-| `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the 17 plain-data fields inline |
+| `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the 18 plain-data fields inline |
 | `oo_context_facts` | `oo_context_fact WORD FACT` | one row per fact |
 | `self_receiver_words` | `self_receiver_words {WORD …}` |  |
 | `object_class` | `object_class NAME` \| `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }` | `method` rows reuse the `subcommand` body grammar |
