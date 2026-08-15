@@ -774,10 +774,8 @@ pub fn completions(
     // top-level guard and duplicate-event decline.  Only `f5-irules`
     // carries those templates, so skip the segmentation otherwise.
     let (current_event, file_events) = if dialect == "f5-irules" {
-        (
-            crate::irules_context::find_enclosing_when_event(source, line, dialect),
-            crate::irules_context::scan_file_events(source, dialect),
-        )
+        let facts = crate::irules_context::EventHandlerFacts::new(source, dialect);
+        (facts.enclosing_event(line), facts.file_events())
     } else {
         (None, Vec::new())
     };

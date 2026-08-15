@@ -1004,16 +1004,13 @@ impl CommandHeadResolver for WrittenHeadResolver {
 
 /// Whether an effective head opens the shared event-handler boundary grammar.
 ///
-/// iRules registers that fact with `IS_EVENT_HANDLER`. The lexical `when`
-/// fallback keeps the shared recursive walker useful for Tcl/Expect script
-/// surfaces in tests and tooling that inventory embedded iRules snippets under
-/// a non-iRules registry; importantly it applies to the **resolved** head, so
-/// a proven rebinding still cannot reopen the grammar.
+/// This is exclusively a registry trait on the effective, offset-resolved
+/// command binding. In particular, a Tcl user proc spelled `when` is not an
+/// iRules event handler merely because its written head happens to match.
 fn is_event_handler_head(registry: &crate::CommandRegistry, resolved: &str) -> bool {
     registry
         .get(resolved)
         .is_some_and(|spec| spec.traits.contains(crate::Traits::IS_EVENT_HANDLER))
-        || resolved.trim_start_matches("::") == "when"
 }
 
 /// Parse top-level event handlers after resolving each command head.
@@ -4496,17 +4493,6 @@ mod tests {
             .map(|handler| handler.event)
             .collect();
         assert_eq!(events, ["CLIENT_DATA", "SERVER_DATA", "HTTP_REQUEST"]);
-
-        let expect_source =
-            "expect { foo { when RULE_INIT {} } timeout { when CLIENT_CLOSED {} } }";
-        let events: Vec<_> = recursive_when_handlers_with_registry(
-            expect_source,
-            crate::registry_for_dialect("expect"),
-        )
-        .into_iter()
-        .map(|handler| handler.event)
-        .collect();
-        assert_eq!(events, ["RULE_INIT", "CLIENT_CLOSED"]);
     }
 
     #[test]
@@ -4523,7 +4509,10 @@ mod tests {
             .into_iter()
             .map(|handler| handler.event)
             .collect();
-        assert_eq!(events, ["HTTP_REQUEST", "CLIENT_DATA", "SERVER_DATA"]);
+        assert!(
+            events.is_empty(),
+            "Tcl's user-level `when` is not an iRules handler"
+        );
 
         let source = r"
             snit::type S { method m {} { when RULE_INIT {} } }
@@ -4534,6 +4523,23 @@ mod tests {
                 .into_iter()
                 .map(|handler| handler.event)
                 .collect();
-        assert_eq!(events, ["RULE_INIT", "CLIENT_ACCEPTED"]);
+        assert!(
+            events.is_empty(),
+            "non-iRules dialects have no event-handler trait"
+        );
+    }
+
+    #[test]
+    fn a_user_proc_named_when_is_not_an_event_handler() {
+        let source = r"
+            proc when {event body} { puts $event }
+            when HTTP_REQUEST {}
+        ";
+        let events: Vec<_> =
+            recursive_when_handlers_with_registry(source, crate::registry_for_dialect("tcl9.0"))
+                .into_iter()
+                .map(|handler| handler.event)
+                .collect();
+        assert!(events.is_empty());
     }
 }

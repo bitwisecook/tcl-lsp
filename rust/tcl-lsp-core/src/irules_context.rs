@@ -18,55 +18,111 @@
 
 //! Shared iRules `when`-context detection.
 //!
-//! Both `find_enclosing_when_event` and `scan_file_events` feed the
-//! context-aware snippet templates: `find_enclosing_when_event`
-//! supplies the `current_event` top-level guard (event templates only
-//! offer outside any `when` block) and `scan_file_events` supplies
+//! [`EventHandlerFacts`] feeds the context-aware snippet templates:
+//! `enclosing_event` supplies the `current_event` top-level guard (event
+//! templates only offer outside any `when` block) and `file_events` supplies
 //! `file_events` (event templates decline when their event is already
-//! declared).
+//! declared). The compatibility helpers below each construct a short-lived
+//! inventory, while callers that need both facts reuse one inventory.
 //!
 //! Two deliberate design choices, both documented here:
 //!
 //! * The conf-wrapped `embedded_rules` mode (scoping the search to the
 //!   rule body containing the cursor in a BIG-IP `.conf` wrapper) is not
 //!   modelled — the raw iRule body is analysed directly.
-//! * `scan_file_events` walks the segmenter rather than a
-//!   `\bwhen\s+([A-Z_]…)` regex (the project never parses Tcl with
-//!   regex).  Both collect every `when EVENT` at any brace nesting; they
-//!   differ only on the pathological case of the literal text `when X`
-//!   sitting in a position that is *not* a command word (a comment or a
-//!   non-script string), which the parse-accurate walk correctly skips.
+//! * Discovery uses the registry's recursive script-boundary walker rather
+//!   than a `\bwhen\s+([A-Z_]…)` regex (the project never parses Tcl with
+//!   regex). It accepts only an offset-resolved command whose active dialect
+//!   registry marks it as an event handler, so a user Tcl proc named `when`
+//!   is never misclassified.
 
 use tcl_lexer::LineIndex;
+
+/// One request-local inventory of resolved iRules event-handler boundaries.
+///
+/// The constructor builds the document's [`HeadIdentityMap`]
+/// (`tcl_compiler::head_identity::HeadIdentityMap`) exactly once, then hands
+/// it to the registry's recursive boundary owner. Callers can derive both the
+/// enclosing event and the deduplicated file inventory without a global cache
+/// or a second identity scan.
+pub struct EventHandlerFacts {
+    handlers: Vec<tcl_irules::WhenBlock>,
+    line_index: LineIndex,
+}
+
+impl EventHandlerFacts {
+    /// Build resolved event-handler boundaries for one request/document.
+    #[must_use]
+    pub fn new(source: &str, dialect: &str) -> Self {
+        #[cfg(test)]
+        FACT_BUILD_COUNT.with(|count| count.set(count.get() + 1));
+
+        let handlers = if dialect == "f5-irules" {
+            let config = tcl_lexer::LexerConfig::for_file_dialect(dialect);
+            let registry = tcl_registry::registry_for_dialect(dialect);
+            let identities = tcl_compiler::head_identity::command_head_identities_with_config(
+                source, config, registry,
+            );
+            tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
+                source,
+                registry,
+                &identities,
+            )
+        } else {
+            Vec::new()
+        };
+        Self {
+            handlers,
+            line_index: LineIndex::new(source),
+        }
+    }
+
+    /// The innermost event handler enclosing `line` (0-based), if any.
+    #[must_use]
+    pub fn enclosing_event(&self, line: u32) -> Option<String> {
+        self.handlers
+            .iter()
+            .filter(|block| {
+                let start = self.line_index.line_at(block.span.start());
+                let end = self.line_index.line_at(block.span.end());
+                start <= line && line <= end
+            })
+            .min_by_key(|block| block.span.end() - block.span.start())
+            .map(|block| block.event.clone())
+    }
+
+    /// Every distinct resolved event name, uppercased and sorted.
+    #[must_use]
+    pub fn file_events(&self) -> Vec<String> {
+        let mut events: Vec<String> = self
+            .handlers
+            .iter()
+            .map(|block| block.event.clone())
+            .collect();
+        events.sort();
+        events.dedup();
+        events
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static FACT_BUILD_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 
 /// Find the enclosing `when EVENT { … }` event at `line` (0-based), or
 /// `None` at the top level.  The innermost enclosing event wins (nested
 /// `when` blocks shadow their parents).
 #[must_use]
-pub fn find_enclosing_when_event(source: &str, line: u32, _dialect: &str) -> Option<String> {
-    let line_index = LineIndex::new(source);
-    tcl_irules::when_blocks_recursive(source)
-        .into_iter()
-        .filter(|block| {
-            let start = line_index.line_at(block.span.start());
-            let end = line_index.line_at(block.span.end());
-            start <= line && line <= end
-        })
-        .min_by_key(|block| block.span.end() - block.span.start())
-        .map(|block| block.event)
+pub fn find_enclosing_when_event(source: &str, line: u32, dialect: &str) -> Option<String> {
+    EventHandlerFacts::new(source, dialect).enclosing_event(line)
 }
 
 /// Every distinct `when EVENT` name declared in `source` (uppercased,
 /// sorted), at any brace nesting.
 #[must_use]
-pub fn scan_file_events(source: &str, _dialect: &str) -> Vec<String> {
-    let mut events: Vec<String> = tcl_irules::when_blocks_recursive(source)
-        .into_iter()
-        .map(|block| block.event)
-        .collect();
-    events.sort();
-    events.dedup();
-    events
+pub fn scan_file_events(source: &str, dialect: &str) -> Vec<String> {
+    EventHandlerFacts::new(source, dialect).file_events()
 }
 
 #[cfg(test)]
@@ -215,5 +271,18 @@ mod tests {
 
         let _ = find_enclosing_when_event(&src, 1, D);
         let _ = scan_file_events(&src, D);
+    }
+
+    #[test]
+    fn one_fact_inventory_serves_context_and_file_events() {
+        let before = FACT_BUILD_COUNT.with(std::cell::Cell::get);
+        let facts = EventHandlerFacts::new("when HTTP_REQUEST { set x 1 }", D);
+        assert_eq!(facts.enclosing_event(0), Some("HTTP_REQUEST".to_owned()));
+        assert_eq!(facts.file_events(), ["HTTP_REQUEST"]);
+        assert_eq!(
+            FACT_BUILD_COUNT.with(std::cell::Cell::get),
+            before + 1,
+            "one request-local inventory performs one identity/boundary build"
+        );
     }
 }
