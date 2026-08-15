@@ -453,6 +453,7 @@ then independently verify every pin before running the sweep:
 ```sh
 # Use a newly-created empty directory: verification checks repository pins,
 # while fp-sweep deliberately scans every matching file below its corpus root.
+set -eu
 CORPUS_PARENT=$(mktemp -d)
 trap 'rm -rf -- "$CORPUS_PARENT"' EXIT
 CORPUS_DIR="$CORPUS_PARENT/issue-1181-small-corpus"
