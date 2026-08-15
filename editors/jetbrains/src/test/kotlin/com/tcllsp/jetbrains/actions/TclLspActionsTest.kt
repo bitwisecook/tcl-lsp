@@ -371,6 +371,19 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun trapSourceOrderUsesProjectedTclListElements() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -code ${'$'}code","completion":"dynamic_return_or_error"}],"handlers":[
+              {"kind_handler":"trap","match":"A {B C}","trap_pattern":["A","B C"],"fallthrough":false,"body":[{"kind":"action","label":"first trap"}]},
+              {"kind_handler":"trap","match":"A \"B C\"","trap_pattern":["A","B C"],"fallthrough":false,"body":[{"kind":"action","label":"shadowed trap"}]},
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"error"}]}
+            ]}]}],"procedures":[]}"""
+        )))
+        assertEquals(1, mermaid.lines().count { it.startsWith("n2 -->|trap|") }, mermaid)
+    }
+
+    @Test
     fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
         fun render(finallyCompletion: String? = null): String {
             val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""

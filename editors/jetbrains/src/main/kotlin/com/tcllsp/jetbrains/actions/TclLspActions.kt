@@ -321,15 +321,16 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             PossibleCompletion.UNKNOWN_OTHER -> false
                         }
                     }
-                    fun trapSubsumes(previous: String?, candidate: String?): Boolean {
-                        if (previous == candidate || previous == "*" || previous.isNullOrBlank()) return true
+                    fun trapPattern(handler: Handler): List<String>? = handler.data.array("trap_pattern")
+                        ?.mapNotNull { it.takeIf { value -> value.isJsonPrimitive }?.asString }
+                    fun trapSubsumes(previous: List<String>?, candidate: List<String>?): Boolean {
+                        if (previous == null || candidate == null) return false
+                        if (previous == candidate || previous.isEmpty()) return true
                         // `trap` patterns are error-code list prefixes. A
                         // concrete prefix claims every longer error code with
                         // that prefix; otherwise retain the candidate because
                         // it may still match an unclaimed error-code class.
-                        val prior = previous.trim().split(Regex("\\s+"))
-                        val next = candidate?.trim()?.split(Regex("\\s+")) ?: return false
-                        return prior.size <= next.size && prior.zip(next).all { (a, b) -> a == b }
+                        return previous.size <= candidate.size && previous.zip(candidate).all { (a, b) -> a == b }
                     }
 
                     val exits = mutableListOf<Tail>()
@@ -358,15 +359,15 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             }
                             for (outcome in possible) {
                                 var caughtByOn = false
-                                val claimedTrapPatterns = mutableListOf<String?>()
+                                val claimedTrapPatterns = mutableListOf<List<String>?>()
                                 for ((index, handler) in handlers.withIndex()) {
                                     when (handler.data.string("kind_handler")) {
                                         "trap" -> if (outcome == PossibleCompletion.ERROR &&
-                                            claimedTrapPatterns.none { trapSubsumes(it, handler.data.string("match")) }
+                                            claimedTrapPatterns.none { trapSubsumes(it, trapPattern(handler)) }
                                         ) {
                                             connect(bodyExit.id, handler.start, "trap")
                                             exits += renderHandler(index)
-                                            claimedTrapPatterns += handler.data.string("match")
+                                            claimedTrapPatterns += trapPattern(handler)
                                         }
                                         "on" -> if (onMatches(handler, outcome)) {
                                             connect(bodyExit.id, handler.start, "on")
