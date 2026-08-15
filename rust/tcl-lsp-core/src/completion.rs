@@ -669,6 +669,9 @@ pub fn completions(
     let partial = word_partial_at_position(source, line, character);
     // Shared by the position lookups below instead of each rebuilding its own.
     let line_index = tcl_lexer::LineIndex::new(source);
+    // Canonicalise once so every dialect-sensitive path below agrees on the
+    // interned profile identity, including legacy iRules aliases.
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
 
     // Context-aware completions — switch + subcommand + event-name.
     // All three require the caller-provided registry to look up
@@ -677,13 +680,7 @@ pub fn completions(
     // so fall through to plain command + proc completion.
     if let Some(registry) = registry
         && let Some(items) = context_aware_completions(
-            source,
-            line,
-            character,
-            analysis,
-            registry,
-            &partial,
-            tcl_dialect::DialectProfile::by_name(dialect),
+            source, line, character, analysis, registry, &partial, profile,
         )
     {
         return items;
@@ -699,11 +696,7 @@ pub fn completions(
     if let Some(registry) = registry
         && crate::expr_context::expr_arg_context_at(source, line, character, &line_index, registry)
     {
-        items.extend(math_function_completions(
-            registry,
-            tcl_dialect::DialectProfile::by_name(dialect),
-            &partial,
-        ));
+        items.extend(math_function_completions(registry, profile, &partial));
     }
     if let Some(registry) = registry {
         // Tk commands are dialect-gated to Tcl/`tk` already, but they are also
@@ -771,17 +764,17 @@ pub fn completions(
     let scope_vars: Vec<String> = analysis.global_scope.variables.keys().cloned().collect();
     let snippet_partial = snippet_partial_at_position(source, line, character);
     // `current_event` / `file_events` drive the iRules event templates'
-    // top-level guard and duplicate-event decline.  Only `f5-irules`
-    // carries those templates, so skip the segmentation otherwise.
-    let (current_event, file_events) = if dialect == "f5-irules" {
-        let facts = crate::irules_context::EventHandlerFacts::new(source, dialect);
+    // top-level guard and duplicate-event decline. Only the canonical iRules
+    // profile carries those templates, including its accepted aliases.
+    let (current_event, file_events) = if profile.is_irules() {
+        let facts = crate::irules_context::EventHandlerFacts::for_profile(source, profile);
         (facts.enclosing_event(line), facts.file_events())
     } else {
         (None, Vec::new())
     };
     items.extend(crate::snippets::snippet_completions(
         &crate::snippets::SnippetContext {
-            dialect,
+            profile,
             indent_unit: "    ",
             scope_vars: &scope_vars,
             partial: &snippet_partial,
@@ -3777,15 +3770,30 @@ mod tests {
     #[test]
     fn irules_event_snippets_surface_at_top_level() {
         // `irule` partial at a top-level command position in the iRules
-        // dialect offers every event template.
+        // dialect, including canonicalised legacy aliases, offers every
+        // event template.
+        for dialect in ["f5-irules", "irules", "tcl-irule"] {
+            let labels = irule_snippet_labels("irule", 0, 5, dialect);
+            assert!(
+                labels.iter().any(|l| l == "iRule RULE_INIT"),
+                "{dialect}: expected RULE_INIT; got {labels:?}",
+            );
+            assert!(
+                labels.iter().any(|l| l == "iRule HTTP_REQUEST"),
+                "{dialect}: expected HTTP_REQUEST; got {labels:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn completion_builds_resolved_event_facts_once_per_request() {
+        let before = crate::irules_context::expensive_build_count();
         let labels = irule_snippet_labels("irule", 0, 5, "f5-irules");
-        assert!(
-            labels.iter().any(|l| l == "iRule RULE_INIT"),
-            "expected RULE_INIT; got {labels:?}",
-        );
-        assert!(
-            labels.iter().any(|l| l == "iRule HTTP_REQUEST"),
-            "expected HTTP_REQUEST; got {labels:?}",
+        assert!(labels.iter().any(|label| label == "iRule RULE_INIT"));
+        assert_eq!(
+            crate::irules_context::expensive_build_count(),
+            before + 1,
+            "completion must reuse one precomputed identity/boundary inventory"
         );
     }
 

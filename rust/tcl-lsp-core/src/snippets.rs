@@ -31,8 +31,8 @@ use crate::completion::{CompletionItem, CompletionKind};
 /// Immutable context for snippet generation (brace style is always
 /// K&R, i.e. a bare `{`).
 pub struct SnippetContext<'a> {
-    /// Dialect string (`tcl8.6`, `f5-irules`, …).
-    pub dialect: &'a str,
+    /// Canonical dialect profile controlling template availability.
+    pub profile: &'static tcl_dialect::DialectProfile,
     /// One indent level (e.g. `"    "` or `"\t"`).
     pub indent_unit: &'a str,
     /// Variable names accessible at the cursor (for `${n|choices|}`).
@@ -71,7 +71,7 @@ struct Template {
 pub fn snippet_completions(ctx: &SnippetContext) -> Vec<CompletionItem> {
     let mut out = Vec::new();
     for tmpl in TEMPLATES {
-        if tmpl.irules_only && ctx.dialect != "f5-irules" {
+        if tmpl.irules_only && !ctx.profile.is_irules() {
             continue;
         }
         if tmpl.requires_top_level && ctx.current_event.is_some() {
@@ -468,7 +468,7 @@ mod tests {
 
     fn ctx<'a>(partial: &'a str, vars: &'a [String]) -> SnippetContext<'a> {
         SnippetContext {
-            dialect: "tcl8.6",
+            profile: tcl_dialect::DialectProfile::by_name("tcl8.6"),
             indent_unit: "    ",
             scope_vars: vars,
             partial,
@@ -481,7 +481,7 @@ mod tests {
     /// events.
     fn irule_ctx<'a>(partial: &'a str, events: &'a [String]) -> SnippetContext<'a> {
         SnippetContext {
-            dialect: "f5-irules",
+            profile: tcl_dialect::DialectProfile::irules(),
             indent_unit: "    ",
             scope_vars: &[],
             partial,
@@ -580,7 +580,7 @@ mod tests {
     fn irules_event_templates_require_top_level() {
         let events: Vec<String> = Vec::new();
         let nested = SnippetContext {
-            dialect: "f5-irules",
+            profile: tcl_dialect::DialectProfile::irules(),
             indent_unit: "    ",
             scope_vars: &[],
             partial: "irule",

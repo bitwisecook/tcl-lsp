@@ -51,23 +51,12 @@ pub struct EventHandlerFacts {
 }
 
 impl EventHandlerFacts {
-    /// Build resolved event-handler boundaries for one request/document.
+    /// Build resolved event-handler boundaries for one request/document and
+    /// canonical profile.
     #[must_use]
-    pub fn new(source: &str, dialect: &str) -> Self {
-        #[cfg(test)]
-        FACT_BUILD_COUNT.with(|count| count.set(count.get() + 1));
-
-        let handlers = if dialect == "f5-irules" {
-            let config = tcl_lexer::LexerConfig::for_file_dialect(dialect);
-            let registry = tcl_registry::registry_for_dialect(dialect);
-            let identities = tcl_compiler::head_identity::command_head_identities_with_config(
-                source, config, registry,
-            );
-            tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
-                source,
-                registry,
-                &identities,
-            )
+    pub fn for_profile(source: &str, profile: &'static tcl_dialect::DialectProfile) -> Self {
+        let handlers = if profile.is_irules() {
+            build_event_handlers(source, profile)
         } else {
             Vec::new()
         };
@@ -75,6 +64,15 @@ impl EventHandlerFacts {
             handlers,
             line_index: LineIndex::new(source),
         }
+    }
+
+    /// Build resolved event-handler boundaries for one request/document.
+    ///
+    /// This name-based convenience entry point canonicalises once, then
+    /// delegates all policy to [`DialectProfile::is_irules`].
+    #[must_use]
+    pub fn new(source: &str, dialect: &str) -> Self {
+        Self::for_profile(source, tcl_dialect::DialectProfile::by_name(dialect))
     }
 
     /// The innermost event handler enclosing `line` (0-based), if any.
@@ -105,9 +103,37 @@ impl EventHandlerFacts {
     }
 }
 
+/// The one expensive identity-and-boundary construction for an iRules file.
+///
+/// Keeping this separate from `EventHandlerFacts` construction makes the
+/// sharing contract testable: a second map/recursive traversal is another
+/// call to this function, not merely another cheap view of its output.
+fn build_event_handlers(
+    source: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Vec<tcl_irules::WhenBlock> {
+    #[cfg(test)]
+    EXPENSIVE_BUILD_COUNT.with(|count| count.set(count.get() + 1));
+
+    let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+    let registry = tcl_registry::registry_for_profile(profile);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+    tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
+        source,
+        registry,
+        &identities,
+    )
+}
+
 #[cfg(test)]
 thread_local! {
-    static FACT_BUILD_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static EXPENSIVE_BUILD_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn expensive_build_count() -> usize {
+    EXPENSIVE_BUILD_COUNT.with(std::cell::Cell::get)
 }
 
 /// Find the enclosing `when EVENT { … }` event at `line` (0-based), or
@@ -275,14 +301,27 @@ mod tests {
 
     #[test]
     fn one_fact_inventory_serves_context_and_file_events() {
-        let before = FACT_BUILD_COUNT.with(std::cell::Cell::get);
-        let facts = EventHandlerFacts::new("when HTTP_REQUEST { set x 1 }", D);
+        let before = expensive_build_count();
+        let facts = EventHandlerFacts::for_profile(
+            "when HTTP_REQUEST { set x 1 }",
+            tcl_dialect::DialectProfile::irules(),
+        );
         assert_eq!(facts.enclosing_event(0), Some("HTTP_REQUEST".to_owned()));
         assert_eq!(facts.file_events(), ["HTTP_REQUEST"]);
         assert_eq!(
-            FACT_BUILD_COUNT.with(std::cell::Cell::get),
+            expensive_build_count(),
             before + 1,
             "one request-local inventory performs one identity/boundary build"
         );
+    }
+
+    #[test]
+    fn canonical_irules_profile_and_aliases_build_event_facts() {
+        for dialect in ["f5-irules", "irules", "tcl-irule"] {
+            let facts = EventHandlerFacts::new("when HTTP_REQUEST {}", dialect);
+            assert_eq!(facts.file_events(), ["HTTP_REQUEST"], "{dialect}");
+        }
+        let tcl = EventHandlerFacts::new("when HTTP_REQUEST {}", "tcl9.0");
+        assert!(tcl.file_events().is_empty());
     }
 }
