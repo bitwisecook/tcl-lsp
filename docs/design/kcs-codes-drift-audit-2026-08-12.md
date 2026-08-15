@@ -52,11 +52,11 @@ explicitly replaced.
 
 ## Source-level finding surfaced by the audit
 
-`CommandSpec::safe_on_uninit` / `SubCommand::safe_on_uninit` have **no
-production consumer**: every lowering site constructs
-`safe_on_uninit: false`, so `use_site_safe_initialises` can only fire on
-`Statement::Incr`. W210 is actually kept quiet by `ArgRole::VarWrite`
-defs. The spec-side data is stamped and correct; the wiring through
-lowering is the open gap. Recorded in
-[command-registry.md](compiler/command-registry.md) and the CommandSpec
+At the time of this 2026-08-12 audit, `CommandSpec::safe_on_uninit` /
+`SubCommand::safe_on_uninit` had no production consumer: lowering wrote
+`safe_on_uninit: false`, so W210 relied only on `ArgRole::VarWrite` defs.
+That wiring gap was closed on 2026-08-15: resolved registry semantics now
+flow through the active dialect profile into the IR statement flag consumed
+by W210, and profile-less lowering abstains conservatively. See the current
+[command-registry.md](compiler/command-registry.md) and CommandSpec
 reference.

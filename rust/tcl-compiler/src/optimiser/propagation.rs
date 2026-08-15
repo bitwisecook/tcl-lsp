@@ -480,6 +480,14 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     use std::collections::BTreeSet;
     use tcl_dialect::DialectProfile;
 
+    // Like O102, O127 moves a value across statements. A dynamic or opaque
+    // variable name can change either the stored name or a name read by the
+    // expression under an unseen spelling, so this whole-function rewrite
+    // must honour the same fail-closed barrier (issue #1497).
+    if fu.dynamic_barrier_blocks_value_motion() {
+        return;
+    }
+
     let Some(registry) = ctx.registry else {
         return;
     };
@@ -1292,6 +1300,16 @@ fn run_function(
     namespace: &str,
     extra_escaping: &std::collections::HashSet<String>,
 ) {
+    // A computed or opaque variable name can rewrite any local binding under
+    // a spelling absent from SCCP's per-name lattice.  Do not let its raw
+    // constants reach the text-level folds below: unlike
+    // `run_load_forwarding`, this path used to bypass the shared dynamic-name
+    // guard and could emit (for example) `return 1` after a depth-capped
+    // nested substitution may have run `set $name 2` (issue #1497).
+    if fu.dynamic_barrier_blocks_value_motion() {
+        return;
+    }
+
     // Project the per-function SCCP lattice into a name → literal
     // map that survives only when every tracked version of the
     // variable collapses to the same single constant value. No
@@ -3640,6 +3658,40 @@ mod tests {
             opts.iter()
                 .all(|o| !matches!(o.code, DiagCode::O100 | DiagCode::O102)),
             "must not forward the pre-dynamic-write literal 1, got {opts:?}",
+        );
+    }
+
+    /// Issue #1497 — the native-stack depth cap is not evidence that no
+    /// dynamic write exists below it. Keep the actual O100/O102 consumer in
+    /// this regression: the source mutation is hidden past the cap, yet it
+    /// must still prevent forwarding the stale `x = 1` into the return.
+    #[test]
+    fn depth_exhaustion_blocks_dynamic_name_load_forwarding() {
+        let mut nested = "[set $name 2]".to_owned();
+        for _ in 0..=crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.0 {
+            nested = format!("[list {nested}]");
+        }
+        let source = format!("proc ::f {{name}} {{ set x 1; set sink {nested}; return $x }}");
+        let reg = registry();
+        let cu = CompilationUnit::build_for(&source, &reg, false);
+        assert_eq!(
+            cu.function("::f")
+                .expect("procedure analysed")
+                .dynamic_names,
+            crate::dynamic_names::DynamicNameBarrier::OPAQUE_SCRIPT,
+            "the depth cap must fail closed before the optimiser runs"
+        );
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&reg);
+        ctx.ir_module = Some(&cu.ir_module);
+        run(&mut ctx, &cu);
+        let opts = ctx.optimisations;
+        assert!(
+            opts.iter().all(|opt| {
+                !matches!(opt.code, DiagCode::O100 | DiagCode::O102)
+                    || opt.replacement != "return 1"
+            }),
+            "a hidden dynamic write must block the stale return fold: {opts:?}"
         );
     }
 

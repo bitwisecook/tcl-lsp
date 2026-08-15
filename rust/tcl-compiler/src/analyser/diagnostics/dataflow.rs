@@ -1252,24 +1252,6 @@ file; this call falls through to the 'unknown' handler."
             if barrier_body_locally_sets(stmt_opt, var, self.registry.as_deref()) {
                 continue;
             }
-            // A read-modify-write command (`lappend` / `append`) that
-            // auto-creates its target is not a read-before-set: it both
-            // reads and defines the variable, creating it from an empty
-            // default when absent. `unset` also carries
-            // `reads_own_defs` but is destructive, not auto-creating — its
-            // missing-variable case is exactly the W213 handled just below,
-            // so it must not be skipped here.
-            if let Some(Statement::Call {
-                reads_own_defs: true,
-                command,
-                defs,
-                ..
-            }) = stmt_opt
-                && command != "unset"
-                && defs.iter().any(|d| d == var)
-            {
-                continue;
-            }
             // Skip the existence-query word itself and
             // reads narrowed by an enclosing `[info exists X]` guard.
             if existence_exempt(stmt_opt, var, exists_guards, &fu.ssa, &use_site.block) {
@@ -2614,7 +2596,11 @@ fn use_site_safe_initialises(stmt: Option<&crate::ir::Statement>, var: &str) -> 
             defs,
             ..
         }) => *safe_on_uninit && defs.iter().any(|d| d == var),
-        Some(Statement::Incr { name, .. }) => crate::naming::normalise_var_name(name) == var,
+        Some(Statement::Incr {
+            name,
+            safe_on_uninit,
+            ..
+        }) => *safe_on_uninit && crate::naming::normalise_var_name(name) == var,
         _ => false,
     }
 }

@@ -194,7 +194,7 @@ pub mod prelude {
         VariableCellAliasTransition,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
-    pub use crate::taint::{SetterConstraint, TaintColour};
+    pub use crate::taint::{SetterConstraint, TaintColour, TaintColourAtom};
     pub use crate::traits::Traits;
     pub use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
     pub use crate::world_effect::{
@@ -286,7 +286,7 @@ pub use state_transition::{
     TransitionSubject, VariableAliasTarget, VariableCellAliasTransition,
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
-pub use taint::{SetterConstraint, TaintColour};
+pub use taint::{SetterConstraint, TaintColour, TaintColourAtom};
 pub use traits::{FRAME_REACH_TRAITS, Traits, UNIT_LINKAGE_TRAITS};
 pub use types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 pub use world_effect::{

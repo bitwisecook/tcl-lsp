@@ -1097,7 +1097,7 @@ impl Lowerer<'_> {
                     defs: vec![var_name],
                     reads: vec![],
                     reads_own_defs: true,
-                    safe_on_uninit: false,
+                    safe_on_uninit: self.safe_on_uninit(seg.name(), args),
                     tokens: Some(Self::cmd_tokens(seg)),
                     foreach_groups: None,
                 }

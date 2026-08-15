@@ -50,7 +50,8 @@
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
-use tcl_registry::registry_for_dialect;
+use tcl_compiler::ir::Statement;
+use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 /// Default dialect: the C Tcl 9 truth oracle (issue #941). The scoping
 /// constructs exercised here behave identically on 8.4–9.0.
@@ -360,5 +361,74 @@ mod read_before_set_tps {
             "namespace eval ::n {}\nproc ::n::f {} { return $missing }\n",
             "W210"
         ));
+    }
+
+    /// Issue #1403 — safe read-modify-write is a registry and dialect fact,
+    /// rather than a blanket `reads_own_defs` exemption. Tcl 8.6's declared
+    /// self-initialisers are silent, while `incr` under Tcl 8.4 keeps W210.
+    #[test]
+    fn safe_on_uninit_is_lowered_from_the_active_dialect_profile() {
+        for source in [
+            "proc f {} { append value x }\n",
+            "proc f {} { lappend value x }\n",
+            "proc f {} { dict set value key x }\n",
+            "proc f {} { incr value }\n",
+        ] {
+            assert!(
+                !codes(source, "tcl8.6").iter().any(|code| code == "W210"),
+                "safe Tcl 8.6 self-initialiser fired W210: {source:?}"
+            );
+        }
+        assert!(
+            codes("proc f {} { incr value }\n", "tcl8.4")
+                .iter()
+                .any(|code| code == "W210"),
+            "Tcl 8.4 must not inherit Tcl 8.5+'s incr self-initialisation"
+        );
+        for source in [
+            "proc f {} { append value x }\n",
+            "proc f {} { lappend value x }\n",
+        ] {
+            assert!(
+                !codes(source, "tcl8.4").iter().any(|code| code == "W210"),
+                "safe Tcl 8.4 self-initialiser fired W210: {source:?}"
+            );
+            assert!(
+                !codes(source, "f5-irules").iter().any(|code| code == "W210"),
+                "safe iRules self-initialiser fired W210: {source:?}"
+            );
+        }
+        assert!(
+            codes("proc f {} { incr value }\n", "f5-irules")
+                .iter()
+                .any(|code| code == "W210"),
+            "iRules' Tcl 8.4 base must not inherit Tcl 8.5+'s incr self-initialisation"
+        );
+    }
+
+    #[test]
+    fn profileless_registry_abstains_in_the_lowered_ir() {
+        // A profile-less registry is the union command table, not evidence of
+        // one release's runtime behaviour. The typed IR must therefore retain
+        // the conservative false fact before W210 consumes it.
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for("proc f {} { incr value }\n", &registry, false);
+        let f = cu.function("::f").expect("procedure analysed");
+        assert!(
+            f.cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .any(|stmt| {
+                    matches!(
+                        stmt,
+                        Statement::Incr {
+                            safe_on_uninit: false,
+                            ..
+                        }
+                    )
+                }),
+            "profile-less lowering must not claim Tcl 8.5+ incr semantics"
+        );
     }
 }

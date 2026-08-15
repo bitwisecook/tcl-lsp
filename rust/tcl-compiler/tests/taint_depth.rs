@@ -174,6 +174,8 @@ mod colour_masks {
             TaintColour::IP_ADDRESS,
             TaintColour::PORT,
             TaintColour::FQDN,
+            TaintColour::PATH_JOINED,
+            TaintColour::CHANNEL,
         ] {
             assert!(TaintColour::ALL.contains(c), "ALL missing {c:?}");
         }

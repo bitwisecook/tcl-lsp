@@ -51,7 +51,10 @@ pub fn spec() -> CommandSpec {
         byte_array_effect: ByteArrayEffect::Coerces,
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
-        safe_on_uninit: Some(DialectSet::ALL_TCL),
+        // iRules embeds Tcl 8.4.6 and retains append's documented
+        // auto-creation behaviour. Its bare availability mask therefore
+        // needs an explicit membership bit alongside the ordinary Tcl cores.
+        safe_on_uninit: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         return_type: Some(TclType::String),
         arg_types: &[(
             0,

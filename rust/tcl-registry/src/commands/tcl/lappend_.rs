@@ -39,7 +39,10 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
-        safe_on_uninit: Some(DialectSet::ALL_TCL),
+        // iRules embeds Tcl 8.4.6 and retains lappend's documented
+        // auto-creation behaviour; its bare profile mask needs explicit
+        // membership alongside the ordinary Tcl cores.
+        safe_on_uninit: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         return_type: Some(TclType::List),
         var_elements_effect: Some(VarElementsEffect::AppendsListElements { values_from: 1 }),
         representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
