@@ -6472,7 +6472,7 @@ mod tests {
                 .case_invocation("expect", &args, DialectSet::EXPECT)
                 .expect("outer Expect value option followed by a final pattern");
             assert_eq!(invocation.clause_list_index, None, "{args:?}");
-            assert_eq!(invocation.inline_clause_start, Some(0), "{args:?}");
+            assert_eq!(invocation.inline_clause_start, Some(2), "{args:?}");
             let clauses = crate::CaseListSpec::EXPECT
                 .inline_clauses(&args, invocation.inline_clause_start.unwrap())
                 .expect("one action-less inline clause");

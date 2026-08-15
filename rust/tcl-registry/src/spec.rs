@@ -539,7 +539,7 @@ impl CaseListSpec {
                 mode,
                 nocase,
             })
-        } else if remaining == 1 && !force_inline {
+        } else if remaining == 1 && !force_inline && (self.subject_args == 1 || sole_clause_list) {
             // Validate the list grammar first, then its registry-declared
             // clause grammar.  Strict pattern/body parity is sufficient for
             // `switch`, but not for Expect: a clause may start with `-re` or
