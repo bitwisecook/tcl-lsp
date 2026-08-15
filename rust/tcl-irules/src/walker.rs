@@ -264,10 +264,17 @@ fn walk(
                 && matches!(tok.kind, TokenType::Str | TokenType::Cmd)
                 && !inner_is_empty(full, tok)
             {
-                let mut child = scope.child();
-                recurse_token(ctx, tok, &mut child, out, depth + 1);
-                if matches!(tok.kind, TokenType::Cmd) {
+                if tok.kind == TokenType::Cmd {
+                    // A command substitution supplying a body runs now, in
+                    // the caller's frame; only the script value it returns is
+                    // later evaluated as the body.  Running the substitution
+                    // in a child scope loses Tcl-visible writes such as
+                    // `catch [set p new]`.
+                    recurse_token(ctx, tok, scope, out, depth + 1);
                     recursed.insert((tok.span.start(), tok.span.end()));
+                } else {
+                    let mut child = scope.child();
+                    recurse_token(ctx, tok, &mut child, out, depth + 1);
                 }
             }
         }
@@ -282,8 +289,18 @@ fn walk(
                 && matches!(tok.kind, TokenType::Str | TokenType::Esc)
                 && !inner_is_empty(full, tok)
             {
-                let mut child = scope.child();
-                recurse_token(ctx, tok, &mut child, out, depth + 1);
+                // Expr command substitutions are evaluated once, before the
+                // command runs, and in the caller's live frame.  Record any
+                // same-span lexer tokens so the generic substitution pass
+                // below cannot visit them a second time.
+                recurse_token(ctx, tok, scope, out, depth + 1);
+                for nested in cmd.all_tokens.iter().filter(|nested| {
+                    nested.kind == TokenType::Cmd
+                        && tok.span.start() <= nested.span.start()
+                        && nested.span.end() <= tok.span.end()
+                }) {
+                    recursed.insert((nested.span.start(), nested.span.end()));
+                }
             }
         }
 
@@ -739,6 +756,30 @@ mod tests {
                       pool $p\n\
                       }\n";
         assert_eq!(ref_names(source), vec!["/Common/second".to_owned()]);
+    }
+
+    #[test]
+    fn body_role_command_substitution_runs_once_in_the_live_scope() {
+        let source = "when HTTP_REQUEST {\n\
+                      set p /Common/old\n\
+                      catch [set p /Common/new]\n\
+                      pool $p\n\
+                      }\n";
+        assert_eq!(ref_names(source), vec!["/Common/new".to_owned()]);
+    }
+
+    #[test]
+    fn expr_role_substitutions_run_live_without_duplicate_references() {
+        let source = "when HTTP_REQUEST {\n\
+                      set p /Common/old\n\
+                      if {[set p /Common/new] ne {}} { set seen 1 }\n\
+                      if {[active_members /Common/expr_pool] > 0} { set seen 1 }\n\
+                      pool $p\n\
+                      }\n";
+        assert_eq!(
+            ref_names(source),
+            vec!["/Common/expr_pool".to_owned(), "/Common/new".to_owned()]
+        );
     }
 
     /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual
