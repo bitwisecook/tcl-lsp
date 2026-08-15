@@ -783,6 +783,21 @@ fn http_event_generates_http_profile() {
 }
 
 #[test]
+fn profile_action_accepts_canonical_irules_aliases() {
+    for dialect in ["f5-irules", "irules", "tcl-irule"] {
+        let mut lsp = Lsp::tcl();
+        let source =
+            format!("# tcl-dialect: {dialect}\nwhen HTTP_REQUEST {{\n    HTTP::respond 200\n}}\n");
+        let sa = profile_source_actions(&mut lsp, &source);
+        assert_eq!(
+            ca_new_texts(&json!(sa)),
+            ["# Profiles: HTTP\n"],
+            "{dialect} must receive the iRules profile action"
+        );
+    }
+}
+
+#[test]
 fn existing_matching_directive_no_action() {
     let mut lsp = Lsp::irules();
     let sa = profile_source_actions(

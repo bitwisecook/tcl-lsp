@@ -962,8 +962,8 @@ fn st_irules_object_ref_suppresses_overlapping_string_in_single_line_body() {
 
 #[test]
 fn st_irules_object_overlay_absent_in_plain_tcl() {
-    // The object overlay is gated on `dialect == "f5-irules"`; under plain
-    // `tcl8.6` the same source yields no `object` token.
+    // The object overlay is gated by the canonical iRules profile; under
+    // plain `tcl8.6` the same source yields no `object` token.
     let src = "when HTTP_REQUEST {\n  pool web_pool\n}\n";
     assert!(
         !type_set(src, "tcl8.6").contains("object"),

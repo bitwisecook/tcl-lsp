@@ -3449,7 +3449,8 @@ async fn refine_and_lift_diagnostics(
     let optimiser_enabled = inputs.optimiser_enabled;
     let style_line_length = inputs.style_line_length;
     let dialect = inputs.dialect.to_owned();
-    let xc_for_irules = inputs.xc_diagnostics && inputs.dialect == "f5-irules";
+    let xc_for_irules =
+        inputs.xc_diagnostics && tcl_dialect::DialectProfile::by_name(inputs.dialect).is_irules();
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
         // `analyser_diags` includes opt-in callback checks when enabled; direct
@@ -12628,7 +12629,7 @@ impl Backend {
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
-        let xc_for_irules = dialect == "f5-irules" && xc_on;
+        let xc_for_irules = tcl_dialect::DialectProfile::by_name(&dialect).is_irules() && xc_on;
         // Cross-file resolution + the workspace W120 / W123 refinements,
         // matching the push path — and shared verbatim with
         // `textDocument/codeAction`, which lifts its quick-fixes from this
@@ -14395,7 +14396,7 @@ fn push_dialect_code_actions(
             source, range, uri_str,
         ));
     }
-    if dialect == "f5-irules"
+    if tcl_dialect::DialectProfile::by_name(dialect).is_irules()
         && let Some(a) = core_code_actions::profiles_action(source, analysis, registry)
     {
         actions.push(a);
@@ -24799,13 +24800,23 @@ mod tests {
                 .as_object()
                 .unwrap(),
         );
-        let on = backend
-            .full_diagnostics_for(&uri, Arc::from(src), "f5-irules".to_owned(), "tcl-irule")
+        for dialect in ["f5-irules", "irules", "tcl-irule"] {
+            let on = backend
+                .full_diagnostics_for(&uri, Arc::from(src), dialect.to_owned(), "tcl-irule")
+                .await;
+            assert!(
+                diag_codes(&on).iter().any(|c| c == "XC100"),
+                "{dialect}: expected XC100 once xcDiagnostics is enabled, got: {:?}",
+                diag_codes(&on),
+            );
+        }
+        let tcl = backend
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl9.0".to_owned(), "tcl")
             .await;
         assert!(
-            diag_codes(&on).iter().any(|c| c == "XC100"),
-            "expected XC100 once xcDiagnostics is enabled, got: {:?}",
-            diag_codes(&on),
+            !diag_codes(&tcl).iter().any(|c| c.starts_with("XC")),
+            "plain Tcl must not receive XC diagnostics: {:?}",
+            diag_codes(&tcl),
         );
     }
 
