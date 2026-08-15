@@ -480,6 +480,39 @@ fn switch_double_dash_terminator_in_case_list() {
 }
 
 #[test]
+fn switch_double_dash_uses_document_dialect_without_a_registry_profile() {
+    let registry = CommandRegistry::build_default();
+    let out = minify_tcl(
+        "switch -- -x {\n  -x {\n    puts hit\n  }\n  default {\n    puts miss\n  }\n}\n",
+        "tcl8.6",
+        &registry,
+    );
+    assert_eq!(out, "switch -- -x {-x {puts hit} default {puts miss}}");
+}
+
+#[test]
+fn expect_case_lists_minify_without_a_generic_body_role() {
+    assert_eq!(
+        min_dialect(
+            "expect {\n  -re {a+} {\n    puts hit\n  }\n  default {\n    puts miss\n  }\n}\n",
+            "expect",
+        ),
+        "expect {-re {a+} {puts hit} default {puts miss}}"
+    );
+    assert_eq!(
+        min_dialect(
+            "expect -brace {\n  default {\n    puts hit\n  }\n}\n",
+            "expect",
+        ),
+        "expect -brace {default {puts hit}}"
+    );
+    assert_eq!(
+        min_dialect("expect -re {a+} {\n  puts hit\n}\n", "expect"),
+        "expect -re {a+} {puts hit}"
+    );
+}
+
+#[test]
 fn switch_quoted_body_keeps_quotes() {
     // A `"…"`-quoted BODY (not braced) is re-quoted by `minify_switch_case_list`
     // (the `*body_quoted` arm) so it stays one word.

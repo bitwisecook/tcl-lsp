@@ -2779,22 +2779,39 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
     // data, never a spelled command name (issue #1197).
     let case_list_spec = registry.get(head).and_then(|s| s.case_list);
     let dialect = tcl_dialect::DialectProfile::by_name(env.dialect).availability_mask;
-    let is_case_list = registry
-        .case_invocation(head, &post_refs, dialect)
-        .is_some_and(|(_, invocation)| invocation.clause_list_index.is_some());
+    let case_invocation = registry.case_invocation(head, &post_refs, dialect);
+    let clause_list_index = case_invocation
+        .as_ref()
+        .and_then(|(_, invocation)| invocation.clause_list_index)
+        .map(|index| index + 1);
+    let inline_body_indices: Vec<usize> = case_invocation
+        .as_ref()
+        .and_then(|(spec, invocation)| {
+            invocation
+                .inline_clause_start
+                .and_then(|start| spec.inline_clauses(&post_refs, start))
+        })
+        .map(|clauses| {
+            clauses
+                .into_iter()
+                .filter_map(|clause| clause.body_index.map(|index| index + 1))
+                .collect()
+        })
+        .unwrap_or_default();
 
     let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
     for (i, arg) in cmd_args.iter().enumerate() {
         let single_braced = arg.is_braced && arg.tokens.len() == 1;
-        if body_indices.contains(&i) && single_braced {
+        if clause_list_index == Some(i) && single_braced {
             let inner = sm.token_text(arg.tokens[0]);
-            let minified = match case_list_spec {
-                Some(cl) if is_case_list && i == cmd_args.len() - 1 => {
-                    minify_case_list(inner, cl, env, depth + 1)
-                }
-                _ => minify_body(inner, env, depth + 1),
-            };
+            let minified = case_list_spec.map_or_else(
+                || minify_body(inner, env, depth + 1),
+                |cl| minify_case_list(inner, cl, env, depth + 1),
+            );
             out.push(format!("{{{minified}}}"));
+        } else if (inline_body_indices.contains(&i) || body_indices.contains(&i)) && single_braced {
+            let inner = sm.token_text(arg.tokens[0]);
+            out.push(format!("{{{}}}", minify_body(inner, env, depth + 1)));
         } else if lambda_indices.contains(&i) && single_braced {
             out.push(minify_lambda_literal(sm, arg.tokens[0], env, depth + 1));
         } else if expr_indices.contains(&i) && single_braced {
@@ -3080,25 +3097,41 @@ fn minify_case_list(
         return String::new();
     }
 
-    // Walk clauses with the registry-declared shape (clause flags may
-    // precede a pattern — Expect's `-re` / `-timeout 5`).
-    let is_flag = |el: &CaseElement| -> bool {
-        !el.braced && cl.clause_flags.contains(&&inner[el.value.clone()])
-    };
-    let takes_value = |el: &CaseElement| -> bool {
-        !el.braced && cl.clause_value_flags.contains(&&inner[el.value.clone()])
+    // Walk clauses with the shared registry-derived shape (clause flags may
+    // precede a pattern — Expect's `-re` / `-timeout 5`).  In particular,
+    // this resolves the same unique abbreviations as the compiler, folding,
+    // and semantic-token walkers.
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: cl.clause_flags,
+        clause_value_flags: cl.clause_value_flags,
     };
 
     let mut parts: Vec<String> = Vec::new();
     let mut i = 0usize;
     while i < elements.len() {
+        let mut options_ended = false;
         // Leading clause flags (and their value words).
-        while i < elements.len() && is_flag(&elements[i]) {
+        while !shape.clause_flags.is_empty()
+            && i < elements.len()
+            && !options_ended
+            && !elements[i].braced
+        {
             let flag = &elements[i];
+            let word = &inner[flag.value.clone()];
+            if !word.starts_with('-') {
+                break;
+            }
+            let Some(canonical_flag) = shape.resolve_flag(word) else {
+                // An option-shaped word that is neither canonical nor a
+                // unique abbreviation is an Expect error.  Retain the
+                // source rather than accidentally reclassifying its words.
+                return inner.to_owned();
+            };
             parts.push(case_element_text(inner, flag).to_owned());
-            let consumed_value = takes_value(flag);
             i += 1;
-            if consumed_value && i < elements.len() {
+            if canonical_flag == "--" {
+                options_ended = true;
+            } else if shape.flag_takes_value(canonical_flag) && i < elements.len() {
                 parts.push(case_element_text(inner, &elements[i]).to_owned());
                 i += 1;
             }
