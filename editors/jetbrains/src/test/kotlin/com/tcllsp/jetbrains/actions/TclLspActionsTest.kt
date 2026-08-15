@@ -186,7 +186,7 @@ class TclLspActionsTest {
         val payload = JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
               {"kind":"action","label":"fail","completion":"error"}],"handlers":[
-              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"recover"}]}
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"recover"}]}
             ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
         )
 
@@ -235,8 +235,8 @@ class TclLspActionsTest {
         val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
               {"kind":"action","label":"return -code error","completion":"return"}],"handlers":[
-              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"wrong"}]},
-              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"handled"}]}
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"wrong"}]},
+              {"kind_handler":"on","match":"return","completion_code":2,"fallthrough":false,"body":[{"kind":"action","label":"handled"}]}
             ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
         )))
         kotlin.test.assertFalse(mermaid.contains("wrong"), mermaid)
@@ -351,6 +351,26 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun exactStandardCompletionsUseCanonicalHandlerCodesNotSelectorSpellings() {
+        for ((completion, selector, code) in listOf(
+            Triple(null, "00", 0),
+            Triple("error", "+1", 1),
+            Triple("return", "02", 2),
+            Triple("break", "0x3", 3),
+            Triple("continue", "04", 4),
+        )) {
+            val completionField = completion?.let { ",\"completion\":\"$it\"" } ?: ""
+            val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+                """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+                  {"kind":"action","label":"body"$completionField}],"handlers":[
+                  {"kind_handler":"on","match":"$selector","completion_code":$code,"fallthrough":false,"body":[{"kind":"action","label":"handled"}]}
+                ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+            )))
+            assertContains(mermaid, "after", message = selector)
+        }
+    }
+
+    @Test
     fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
         fun render(finallyCompletion: String? = null): String {
             val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""
@@ -373,8 +393,8 @@ class TclLspActionsTest {
         val payload = JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
               {"kind":"action","label":"fail","completion":"error"}],"handlers":[
-              {"kind_handler":"on","match":"error","fallthrough":true,"body":[]},
-              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"shared body"}]}
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":true,"body":[]},
+              {"kind_handler":"on","match":"return","completion_code":2,"fallthrough":false,"body":[{"kind":"action","label":"shared body"}]}
             ],"finally":[{"kind":"action","label":"cleanup"}]}]}],"procedures":[]}"""
         )
 

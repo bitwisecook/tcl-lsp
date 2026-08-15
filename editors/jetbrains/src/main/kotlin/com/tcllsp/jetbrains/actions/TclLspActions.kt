@@ -286,15 +286,15 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                                 outcome == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
                         }
                         if (handler.data.string("kind_handler") != "on") return false
+                        val code = handler.data.get("completion_code")?.takeIf { it.isJsonPrimitive }?.asInt
                         return when (outcome) {
-                            DiagramCompletion.NORMAL -> handler.data.string("match") == "ok" || handler.data.string("match") == "0"
-                            DiagramCompletion.ERROR -> handler.data.string("match") == "error" || handler.data.string("match") == "1"
-                            DiagramCompletion.RETURN -> handler.data.string("match") == "return" || handler.data.string("match") == "2"
-                            DiagramCompletion.BREAK -> handler.data.string("match") == "break" || handler.data.string("match") == "3"
-                            DiagramCompletion.CONTINUE -> handler.data.string("match") == "continue" || handler.data.string("match") == "4"
+                            DiagramCompletion.NORMAL -> code == 0
+                            DiagramCompletion.ERROR -> code == 1
+                            DiagramCompletion.RETURN -> code == 2
+                            DiagramCompletion.BREAK -> code == 3
+                            DiagramCompletion.CONTINUE -> code == 4
                             DiagramCompletion.DYNAMIC -> false
-                            DiagramCompletion.DYNAMIC_RETURN_OR_ERROR ->
-                                (handler.data.string("match") in listOf("error", "return", "1", "2"))
+                            DiagramCompletion.DYNAMIC_RETURN_OR_ERROR -> code == 1 || code == 2
                             DiagramCompletion.EXACT_CUSTOM -> false
                             DiagramCompletion.PROCESS_EXIT -> false
                             DiagramCompletion.TERMINAL -> false
