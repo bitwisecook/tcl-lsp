@@ -278,6 +278,134 @@ enum Count {
     None,
 }
 
+/// One recognised `binary format`/`scan` field.  This is the shared grammar
+/// view used by editor consumers; the runtime pack/unpack paths below keep
+/// their value handling, but must recognise the same field letters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Specifier {
+    /// Byte offset of the field letter within the format string.
+    pub letter_start: usize,
+    /// Byte offset immediately after the field (including modifier/count).
+    pub end: usize,
+    /// Field letter (`a`, `i`, `q`, …).
+    pub letter: u8,
+    /// Optional signedness modifier (`u`/`s`) after an integer field.
+    pub modifier: Option<u8>,
+    /// Whether the field uses `*` rather than a numeric count.
+    pub star: bool,
+    /// Parsed count, when present and representable.
+    pub count: Option<usize>,
+}
+
+/// Return whether `letter` is a real binary field type in the shared runtime
+/// grammar.  In particular, `q` and `Q` are the little-/big-endian 64-bit
+/// floating-point fields; editor tables must not omit them.
+#[must_use]
+pub fn is_specifier(letter: u8) -> bool {
+    matches!(
+        letter,
+        b'a' | b'A'
+            | b'b'
+            | b'B'
+            | b'h'
+            | b'H'
+            | b'c'
+            | b's'
+            | b'S'
+            | b't'
+            | b'i'
+            | b'I'
+            | b'n'
+            | b'w'
+            | b'W'
+            | b'm'
+            | b'r'
+            | b'R'
+            | b'f'
+            | b'd'
+            | b'q'
+            | b'Q'
+            | b'x'
+            | b'X'
+            | b'@'
+    )
+}
+
+/// Whether Tcl's signedness suffix (`u` / `s`) is part of the resolved
+/// binary-field grammar.  Keep this decision with the binary owner so LSP
+/// surfaces cannot drift or re-derive a release comparison independently.
+#[must_use]
+pub fn signedness_available(profile: &tcl_dialect::DialectProfile) -> bool {
+    profile.runtime_base.is_some()
+        && profile
+            .availability_mask
+            .intersects(tcl_dialect::DialectSet::TCL85_PLUS)
+}
+
+#[must_use]
+fn is_integer_specifier(letter: u8) -> bool {
+    matches!(
+        letter,
+        b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm'
+    )
+}
+
+/// Parse all recognised binary fields, retaining source positions for editor
+/// consumers.  `allow_modifier` is the resolved dialect decision for Tcl's
+/// 8.5+ `u`/`s` signedness suffix; when false the suffix remains ordinary text.
+#[must_use]
+pub fn specifiers(fmt: &[u8], allow_modifier: bool) -> Vec<Specifier> {
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while i < fmt.len() {
+        if fmt[i].is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+        let letter_start = i;
+        let letter = fmt[i];
+        if !is_specifier(letter) {
+            i += 1;
+            continue;
+        }
+        i += 1;
+        let modifier = if allow_modifier
+            && is_integer_specifier(letter)
+            && fmt.get(i).is_some_and(|b| matches!(b, b'u' | b's'))
+        {
+            let m = Some(fmt[i]);
+            i += 1;
+            m
+        } else {
+            None
+        };
+        let star = fmt.get(i) == Some(&b'*');
+        let count = if star {
+            i += 1;
+            None
+        } else {
+            let start = i;
+            let mut count = 0usize;
+            while fmt.get(i).is_some_and(u8::is_ascii_digit) {
+                count = count
+                    .saturating_mul(10)
+                    .saturating_add(usize::from(fmt[i] - b'0'));
+                i += 1;
+            }
+            (i > start).then_some(count)
+        };
+        out.push(Specifier {
+            letter_start,
+            end: i,
+            letter,
+            modifier,
+            star,
+            count,
+        });
+    }
+    out
+}
+
 /// Parse the optional count following a type char (advancing `i`).
 fn parse_count(fmt: &[u8], i: &mut usize) -> Count {
     if fmt.get(*i) == Some(&b'*') {
@@ -865,6 +993,25 @@ fn scan_field_result(count: &Count, vals: Vec<Vec<u8>>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_specifier_table_covers_q_and_q_and_release_gate() {
+        let modern = specifiers(
+            b"q Q su",
+            signedness_available(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+        );
+        assert_eq!(
+            modern.iter().map(|s| s.letter).collect::<Vec<_>>(),
+            vec![b'q', b'Q', b's']
+        );
+        assert_eq!(modern[2].modifier, Some(b'u'));
+
+        let old = specifiers(
+            b"su",
+            signedness_available(tcl_dialect::DialectProfile::by_name("tcl8.4")),
+        );
+        assert_eq!(old[0].modifier, None);
+    }
 
     #[test]
     fn scan_a_field_with_huge_count_does_not_panic() {

@@ -694,6 +694,86 @@ fn render(c: &Civil, fmt: &str, offset: i32, epoch: i64) -> String {
     out
 }
 
+/// One clock format conversion recognised by the shared renderer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Specifier {
+    /// Byte offset of `%` in the format string.
+    pub start: usize,
+    /// Byte offset immediately after the conversion.
+    pub end: usize,
+    /// The conversion letter.
+    pub letter: u8,
+}
+
+/// Whether `letter` is implemented by the shared clock renderer/parser.
+/// Keeping this list next to `render` prevents editor-only POSIX additions
+/// from being presented as Tcl features.
+#[must_use]
+pub fn is_specifier(letter: u8) -> bool {
+    matches!(
+        letter,
+        b'a' | b'A'
+            | b'b'
+            | b'B'
+            | b'C'
+            | b'd'
+            | b'D'
+            | b'e'
+            | b'H'
+            | b'I'
+            | b'j'
+            | b'k'
+            | b'l'
+            | b'm'
+            | b'M'
+            | b'n'
+            | b'p'
+            | b'R'
+            | b'r'
+            | b's'
+            | b'S'
+            | b't'
+            | b'T'
+            | b'u'
+            | b'w'
+            | b'x'
+            | b'y'
+            | b'Y'
+            | b'z'
+            | b'Z'
+            | b'%'
+    )
+}
+
+/// Scan a clock format using the same supported conversion set as the
+/// runtime. `%E`/`%O` are intentionally not treated as locale modifiers: the
+/// runtime does not implement them and emits them literally.
+#[must_use]
+pub fn specifiers(fmt: &str) -> Vec<Specifier> {
+    let bytes = fmt.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i] != b'%' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        if let Some(&letter) = bytes.get(i)
+            && is_specifier(letter)
+        {
+            i += 1;
+            out.push(Specifier {
+                start,
+                end: i,
+                letter,
+            });
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

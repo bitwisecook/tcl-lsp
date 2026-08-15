@@ -33,30 +33,109 @@
     clippy::cast_possible_wrap
 )]
 
-/// A transient numeric value for math-function dispatch — `i64` or `f64` (the
-/// double rung is where the float functions compute). Each consumer converts its
-/// own value (`TclValue` / a `Tcl_Obj` read off the tower) to/from this.
+/// A transient numeric value for math-function dispatch. Integer-preserving
+/// functions keep the arbitrary-precision `B` rung; floating-point functions
+/// widen through [`BigIntOps::to_f64`](crate::number_tower::BigIntOps::to_f64).
+/// Each consumer converts its own value to and from this shared shape.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Num {
+pub enum NumValue<B> {
     /// Integer.
     Int(i64),
+    /// Arbitrary-precision integer.
+    Big(B),
     /// IEEE-754 double.
     Float(f64),
 }
 
-impl Num {
+/// Numeric shape for callers that have no arbitrary-precision backend.
+pub type Num = NumValue<NoBig>;
+
+/// Uninhabited backend used by [`Num`]; a `NumValue<NoBig>` can never contain
+/// the [`NumValue::Big`] variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NoBig {}
+
+impl super::super::number_tower::BigIntOps for NoBig {
+    fn from_i64(_: i64) -> Self {
+        unreachable!()
+    }
+    fn to_i64(&self) -> Option<i64> {
+        match *self {}
+    }
+    fn to_i64_wrapping(&self) -> i64 {
+        match *self {}
+    }
+    fn is_zero(&self) -> bool {
+        match *self {}
+    }
+    fn is_negative(&self) -> bool {
+        match *self {}
+    }
+    fn add(&self, _: &Self) -> Self {
+        match *self {}
+    }
+    fn sub(&self, _: &Self) -> Self {
+        match *self {}
+    }
+    fn mul(&self, _: &Self) -> Self {
+        match *self {}
+    }
+    fn div_floor(&self, _: &Self) -> Self {
+        match *self {}
+    }
+    fn mod_floor(&self, _: &Self) -> Self {
+        match *self {}
+    }
+    fn neg(&self) -> Self {
+        match *self {}
+    }
+    fn pow_u32(&self, _: u32) -> Self {
+        match *self {}
+    }
+    fn shl(&self, _: u32) -> Self {
+        match *self {}
+    }
+    fn shr(&self, _: usize) -> Self {
+        match *self {}
+    }
+    fn bitand(&self, _: &Self) -> Self {
+        match *self {}
+    }
+    fn bitor(&self, _: &Self) -> Self {
+        match *self {}
+    }
+    fn bitxor(&self, _: &Self) -> Self {
+        match *self {}
+    }
+    fn bit_len(&self) -> u64 {
+        match *self {}
+    }
+    fn to_f64(&self) -> f64 {
+        match *self {}
+    }
+}
+
+impl<B> NumValue<B> {
     /// As an `f64` (widening an integer).
     #[must_use]
-    pub fn as_f64(self) -> f64 {
+    pub fn as_f64(&self) -> f64
+    where
+        B: super::super::number_tower::BigIntOps,
+    {
         match self {
-            Num::Int(i) => i as f64,
-            Num::Float(f) => f,
+            NumValue::Int(i) => *i as f64,
+            NumValue::Big(b) => b.to_f64(),
+            NumValue::Float(f) => *f,
         }
     }
-    fn is_truthy(self) -> bool {
+    fn is_truthy(&self) -> bool
+    where
+        B: super::super::number_tower::BigIntOps,
+    {
         match self {
-            Num::Int(i) => i != 0,
-            Num::Float(f) => f != 0.0,
+            NumValue::Int(i) => *i != 0,
+            NumValue::Big(b) => !b.is_zero(),
+            NumValue::Float(f) => *f != 0.0,
         }
     }
 }
@@ -67,6 +146,16 @@ impl Num {
 /// "fall through" contract). `rand`/`srand` are the caller's responsibility.
 #[must_use]
 pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
+    dispatch_with_backend(name, args)
+}
+
+/// Dispatch through the same math-function table while preserving the
+/// caller's arbitrary-precision integer backend.
+#[must_use]
+pub fn dispatch_with_backend<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+) -> Option<NumValue<B>> {
     match name {
         "min" | "max" => min_max(name, args),
         "sqrt" | "exp" | "log" | "log10" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan"
@@ -100,6 +189,35 @@ pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
 #[must_use]
 pub fn accepts_boolean_operand(name: &str) -> bool {
     name == "bool"
+}
+
+/// Whether a failed operand parse uses Tcl's floating-point error wording.
+/// This belongs beside the shared math-function table so runtimes do not
+/// re-derive the operand family from command names.
+#[must_use]
+pub fn expects_floating_operand_error(name: &str) -> bool {
+    matches!(
+        name,
+        "sqrt"
+            | "floor"
+            | "ceil"
+            | "pow"
+            | "sin"
+            | "cos"
+            | "tan"
+            | "asin"
+            | "acos"
+            | "atan"
+            | "sinh"
+            | "cosh"
+            | "tanh"
+            | "exp"
+            | "log"
+            | "log10"
+            | "atan2"
+            | "hypot"
+            | "fmod"
+    )
 }
 
 /// The Tcl core release an `expr` math function first appeared in.
@@ -438,12 +556,12 @@ fn spec_tcl91(name: &str) -> Option<MathFuncSpec> {
 
 /// `isunordered(x, y)` — 1 if either operand is NaN (they cannot be ordered),
 /// else 0 (C's `ExprIsUnorderedFunc`). Integers convert to finite doubles.
-fn is_unordered(vals: &[Num]) -> Option<Num> {
+fn is_unordered<B>(vals: &[NumValue<B>]) -> Option<NumValue<B>> {
     if vals.len() != 2 {
         return None;
     }
-    let nan = |v: Num| matches!(v, Num::Float(f) if f.is_nan());
-    Some(Num::Int(i64::from(nan(vals[0]) || nan(vals[1]))))
+    let nan = |v: &NumValue<B>| matches!(v, NumValue::Float(f) if f.is_nan());
+    Some(NumValue::Int(i64::from(nan(&vals[0]) || nan(&vals[1]))))
 }
 
 // `i64::MAX as f64` rounds up to 2^63, so the positive bound is
@@ -491,45 +609,68 @@ fn exact_isqrt(i: i64) -> i64 {
     r
 }
 
-fn has_nan(vals: &[Num]) -> bool {
+fn has_nan<B>(vals: &[NumValue<B>]) -> bool {
     vals.iter()
-        .any(|v| matches!(v, Num::Float(f) if f.is_nan()))
+        .any(|v| matches!(v, NumValue::Float(f) if f.is_nan()))
 }
 
-fn min_max(name: &str, vals: &[Num]) -> Option<Num> {
+fn min_max<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    vals: &[NumValue<B>],
+) -> Option<NumValue<B>> {
     if vals.is_empty() || has_nan(vals) {
         return None;
     }
-    if vals.iter().all(|v| matches!(v, Num::Int(_))) {
-        let ints = vals.iter().map(|v| match v {
-            Num::Int(i) => *i,
-            Num::Float(_) => unreachable!(),
-        });
-        let r = if name == "min" {
-            ints.min().unwrap()
-        } else {
-            ints.max().unwrap()
-        };
-        Some(Num::Int(r))
+    if vals
+        .iter()
+        .all(|v| matches!(v, NumValue::Int(_) | NumValue::Big(_)))
+    {
+        let mut best = vals[0].clone();
+        for value in &vals[1..] {
+            let better = match (&best, value) {
+                (NumValue::Int(a), NumValue::Int(b)) => {
+                    (name == "min" && b < a) || (name == "max" && b > a)
+                }
+                (NumValue::Big(a), NumValue::Big(b)) => {
+                    (name == "min" && b < a) || (name == "max" && b > a)
+                }
+                (NumValue::Int(a), NumValue::Big(b)) => {
+                    let a = B::from_i64(*a);
+                    (name == "min" && b < &a) || (name == "max" && b > &a)
+                }
+                (NumValue::Big(a), NumValue::Int(b)) => {
+                    let b = B::from_i64(*b);
+                    (name == "min" && &b < a) || (name == "max" && &b > a)
+                }
+                _ => false,
+            };
+            if better {
+                best = value.clone();
+            }
+        }
+        Some(best)
     } else {
         // At least one argument is a `Float`, but the *winner* need not be —
         // real Tcl returns the winning argument's own value, preserving its
         // type (`expr {min(3, 5.5)}` is `3`, an int, not `3.0`): compare
         // numerically via `as_f64()`, but keep `best` as the original `Num`
         // rather than re-widening it, so an `Int` winner stays an `Int`.
-        let mut best = vals[0];
-        for &v in &vals[1..] {
+        let mut best = vals[0].clone();
+        for v in &vals[1..] {
             if (name == "min" && v.as_f64() < best.as_f64())
                 || (name == "max" && v.as_f64() > best.as_f64())
             {
-                best = v;
+                best = v.clone();
             }
         }
         Some(best)
     }
 }
 
-fn unary_float(name: &str, vals: &[Num]) -> Option<Num> {
+fn unary_float<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    vals: &[NumValue<B>],
+) -> Option<NumValue<B>> {
     if vals.len() != 1 {
         return None;
     }
@@ -577,7 +718,7 @@ fn unary_float(name: &str, vals: &[Num]) -> Option<Num> {
     if r.is_nan() {
         None
     } else {
-        Some(Num::Float(r))
+        Some(NumValue::Float(r))
     }
 }
 
@@ -597,7 +738,10 @@ fn logb_impl(x: f64) -> f64 {
     }
 }
 
-fn binary_float(name: &str, vals: &[Num]) -> Option<Num> {
+fn binary_float<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    vals: &[NumValue<B>],
+) -> Option<NumValue<B>> {
     if vals.len() != 2 {
         return None;
     }
@@ -621,7 +765,7 @@ fn binary_float(name: &str, vals: &[Num]) -> Option<Num> {
     if r.is_nan() {
         None
     } else {
-        Some(Num::Float(r))
+        Some(NumValue::Float(r))
     }
 }
 
@@ -629,11 +773,11 @@ fn binary_float(name: &str, vals: &[Num]) -> Option<Num> {
 /// `ldexp` takes a genuine `int` exponent (Tcl's `ExprBinaryDIFunc` reads it
 /// with `Tcl_GetIntFromObj`, which rejects a double operand outright), so
 /// this doesn't fit the `binary_float` `fn(f64, f64) -> f64` shape.
-fn ldexp_fn(vals: &[Num]) -> Option<Num> {
+fn ldexp_fn<B: super::super::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> Option<NumValue<B>> {
     if vals.len() != 2 {
         return None;
     }
-    let Num::Int(exp) = vals[1] else {
+    let NumValue::Int(exp) = vals[1] else {
         return None;
     };
     let m = vals[0].as_f64();
@@ -645,7 +789,7 @@ fn ldexp_fn(vals: &[Num]) -> Option<Num> {
     if r.is_nan() {
         None
     } else {
-        Some(Num::Float(r))
+        Some(NumValue::Float(r))
     }
 }
 
@@ -653,7 +797,7 @@ fn ldexp_fn(vals: &[Num]) -> Option<Num> {
 /// via the portable `libm` fused multiply-add so results stay identical
 /// across every backend (native, WASM, eBPF) regardless of hardware FMA
 /// support.
-fn fma_fn(vals: &[Num]) -> Option<Num> {
+fn fma_fn<B: super::super::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> Option<NumValue<B>> {
     if vals.len() != 3 {
         return None;
     }
@@ -664,67 +808,85 @@ fn fma_fn(vals: &[Num]) -> Option<Num> {
     if r.is_nan() {
         None
     } else {
-        Some(Num::Float(r))
+        Some(NumValue::Float(r))
     }
 }
 
-fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
+fn type_conv<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    vals: &[NumValue<B>],
+) -> Option<NumValue<B>> {
     if vals.len() != 1 {
         return None;
     }
-    let v = vals[0];
+    let v = &vals[0];
     match name {
-        "isinf" => Some(Num::Int(i64::from(
-            matches!(v, Num::Float(f) if f.is_infinite()),
+        "isinf" => Some(NumValue::Int(i64::from(
+            matches!(v, NumValue::Float(f) if f.is_infinite()),
         ))),
-        "isnan" => Some(Num::Int(i64::from(
-            matches!(v, Num::Float(f) if f.is_nan()),
+        "isnan" => Some(NumValue::Int(i64::from(
+            matches!(v, NumValue::Float(f) if f.is_nan()),
         ))),
         "isfinite" => match v {
-            Num::Int(_) => Some(Num::Int(1)),
-            Num::Float(f) => Some(Num::Int(i64::from(f.is_finite()))),
+            NumValue::Int(_) | NumValue::Big(_) => Some(NumValue::Int(1)),
+            NumValue::Float(f) => Some(NumValue::Int(i64::from(f.is_finite()))),
         },
         // `fpclassify`-based predicates (C's `DoubleObjIsClass`): an integer
         // operand converts to a finite double first.
-        "isnormal" => Some(Num::Int(i64::from(
+        "isnormal" => Some(NumValue::Int(i64::from(
             v.as_f64().classify() == core::num::FpCategory::Normal,
         ))),
-        "issubnormal" => Some(Num::Int(i64::from(
+        "issubnormal" => Some(NumValue::Int(i64::from(
             v.as_f64().classify() == core::num::FpCategory::Subnormal,
         ))),
         // TIP 745: `signbit` reads the sign bit directly (matches C's
         // `signbit()`, which is well-defined on NaN and never a domain
         // error) — an integer operand's sign stands in for the bit test
         // since Tcl's own `ExprSignBitFunc` special-cases each numeric type.
-        "signbit" => Some(Num::Int(i64::from(match v {
-            Num::Int(i) => i < 0,
-            Num::Float(f) => f.is_sign_negative(),
+        "signbit" => Some(NumValue::Int(i64::from(match v {
+            NumValue::Int(i) => *i < 0,
+            NumValue::Big(b) => b.is_negative(),
+            NumValue::Float(f) => f.is_sign_negative(),
         }))),
-        _ if matches!(v, Num::Float(f) if f.is_nan()) => None,
+        _ if matches!(v, NumValue::Float(f) if f.is_nan()) => None,
         "abs" => match v {
-            Num::Int(i) => i.checked_abs().map(Num::Int),
-            Num::Float(f) => Some(Num::Float(f.abs())),
+            NumValue::Int(i) => i.checked_abs().map_or_else(
+                || Some(NumValue::Big(B::from_i64(*i).neg())),
+                |m| Some(NumValue::Int(m)),
+            ),
+            NumValue::Big(b) => Some(NumValue::Big(b.abs())),
+            NumValue::Float(f) => Some(NumValue::Float(f.abs())),
         },
-        "int" | "entier" | "wide" => match v {
-            Num::Int(i) => Some(Num::Int(i)),
-            Num::Float(f) => finite_trunc_to_i64(f).map(Num::Int),
+        "entier" => match v {
+            NumValue::Int(i) => Some(NumValue::Int(*i)),
+            NumValue::Big(b) => Some(NumValue::Big(b.clone())),
+            NumValue::Float(f) => finite_trunc_to_i64(*f).map(NumValue::Int),
         },
-        "double" => Some(Num::Float(v.as_f64())),
-        "bool" => Some(Num::Int(i64::from(v.is_truthy()))),
+        "int" | "wide" => match v {
+            NumValue::Int(i) => Some(NumValue::Int(*i)),
+            NumValue::Big(b) => Some(NumValue::Int(b.to_i64_wrapping())),
+            NumValue::Float(f) => finite_trunc_to_i64(*f).map(NumValue::Int),
+        },
+        "double" => Some(NumValue::Float(v.as_f64())),
+        "bool" => Some(NumValue::Int(i64::from(v.is_truthy()))),
         "round" => match v {
-            Num::Int(i) => Some(Num::Int(i)),
-            Num::Float(f) => finite_round_to_i64(f).map(Num::Int),
+            NumValue::Int(i) => Some(NumValue::Int(*i)),
+            NumValue::Big(b) => Some(NumValue::Big(b.clone())),
+            NumValue::Float(f) => finite_round_to_i64(*f).map(NumValue::Int),
         },
-        "ceil" => Some(Num::Float(v.as_f64().ceil())),
-        "floor" => Some(Num::Float(v.as_f64().floor())),
+        "ceil" => Some(NumValue::Float(v.as_f64().ceil())),
+        "floor" => Some(NumValue::Float(v.as_f64().floor())),
         // A `Float` operand is truncated toward zero first, then the exact
         // integer square root is taken (oracle: `isqrt(9.5)` is `3`, same as
         // `isqrt(9)`; `isqrt(-1.0)` is a domain error, same as `isqrt(-1)`;
         // confirmed tclsh8.6/9.0) — real Tcl accepts a float operand here,
         // it isn't `Int`-only.
         "isqrt" => match v {
-            Num::Int(i) if i >= 0 => Some(Num::Int(exact_isqrt(i))),
-            Num::Float(f) if f >= 0.0 => finite_trunc_to_i64(f).map(exact_isqrt).map(Num::Int),
+            NumValue::Int(i) if *i >= 0 => Some(NumValue::Int(exact_isqrt(*i))),
+            NumValue::Big(b) => super::super::number_tower::int_sqrt(b).map(NumValue::Big),
+            NumValue::Float(f) if *f >= 0.0 => {
+                finite_trunc_to_i64(*f).map(exact_isqrt).map(NumValue::Int)
+            }
             _ => None,
         },
         _ => None,
@@ -812,6 +974,46 @@ mod tests {
             dispatch("isinf", &[Num::Float(f64::NAN)]),
             Some(Num::Int(0))
         );
+    }
+
+    #[cfg(feature = "num-bigint")]
+    #[test]
+    fn bignum_mathfunc_rung_is_exact() {
+        use num_bigint::BigInt;
+        let two_200: BigInt = BigInt::from(1u8) << 200;
+        let two_100: BigInt = BigInt::from(1u8) << 100;
+        let nums = |n: BigInt| NumValue::<BigInt>::Big(n);
+        assert_eq!(
+            dispatch_with_backend("abs", &[NumValue::<BigInt>::Int(i64::MIN)]),
+            Some(nums(BigInt::from(1u8) << 63))
+        );
+        assert_eq!(
+            dispatch_with_backend("round", &[nums(two_200.clone())]),
+            Some(nums(two_200.clone()))
+        );
+        assert_eq!(
+            dispatch_with_backend("isqrt", &[nums(two_200.clone())]),
+            Some(nums(two_100))
+        );
+        assert_eq!(
+            dispatch_with_backend("max", &[nums(BigInt::from(7)), NumValue::<BigInt>::Int(9)]),
+            Some(NumValue::<BigInt>::Int(9))
+        );
+        assert_eq!(
+            dispatch_with_backend(
+                "min",
+                &[nums(BigInt::from(-7)), NumValue::<BigInt>::Int(-9)]
+            ),
+            Some(NumValue::<BigInt>::Int(-9))
+        );
+        for n in 0..=256i64 {
+            let expected = (n as f64).sqrt() as i64;
+            assert_eq!(
+                dispatch("isqrt", &[Num::Int(n)]),
+                Some(Num::Int(expected)),
+                "isqrt({n})"
+            );
+        }
     }
 
     #[test]

@@ -157,8 +157,12 @@ fn parse(spec: &str, len: usize, numbers: Numbers) -> Option<i64> {
         return None;
     }
     let operand = parse_int_whole(rest[1..].trim(), numbers)?;
-    let offset = if connector == b'-' { -operand } else { operand };
-    Some(base + offset)
+    let offset = if connector == b'-' {
+        operand.saturating_neg()
+    } else {
+        operand
+    };
+    Some(base.saturating_add(offset))
 }
 
 /// [`ParseFlags`](tcl_syntax::number::ParseFlags) for an index integer: reject a

@@ -31,6 +31,7 @@ authors.workspace = true
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
+tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-core-types = { path = "../tcl-core-types" }

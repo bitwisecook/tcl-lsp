@@ -58,8 +58,12 @@ pub struct ChannelTable {
 }
 
 impl ChannelTable {
+    pub(crate) fn names(&self) -> Vec<Vec<u8>> {
+        self.map.keys().cloned().collect()
+    }
+
     /// Open `path` for `mode` (`r`/`w`/`a`/`r+`/`w+`/`a+`), returning the id.
-    fn open(&mut self, path: &str, mode: &[u8]) -> std::io::Result<Vec<u8>> {
+    pub(crate) fn open(&mut self, path: &str, mode: &[u8]) -> std::io::Result<Vec<u8>> {
         let read = mode.first() == Some(&b'r') || mode.contains(&b'+');
         let write =
             mode.first() == Some(&b'w') || mode.first() == Some(&b'a') || mode.contains(&b'+');

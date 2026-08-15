@@ -230,9 +230,11 @@ pub fn document_symbols_from_analysis(
 /// `ItemTree::from_analysis` uses, so the outline and the item tree agree
 /// about where a definition lives.
 fn enclosing_namespace(qualified: &str) -> String {
-    match qualified.rsplit_once("::") {
-        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
-        _ => "::".to_string(),
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qualified);
+    if holder.is_empty() {
+        "::".to_string()
+    } else {
+        holder.to_string()
     }
 }
 
@@ -240,13 +242,7 @@ fn enclosing_namespace(qualified: &str) -> String {
 /// the absolute-reset rule (`namespace eval ::a { namespace eval ::b {…} }`
 /// creates `::b`, not `::a::b`).
 fn join_namespace(prefix: &str, name: &str) -> String {
-    if name.starts_with("::") {
-        name.to_string()
-    } else if prefix == "::" {
-        format!("::{name}")
-    } else {
-        format!("{prefix}::{name}")
-    }
+    tcl_syntax::naming::qualify(prefix, name)
 }
 
 /// Insert `symbol` under the namespace node named `home`, descending
@@ -856,6 +852,24 @@ mod tests {
             find(&outer.children, "inner").is_some(),
             "inner should be nested under outer"
         );
+    }
+
+    #[test]
+    fn outline_homes_colon_run_qualified_names_consistently() {
+        let source = concat!(
+            "namespace eval a:::b {}\n",
+            "proc a::b::q {} {}\n",
+            "proc : {} {}\n",
+            "proc ::a:::b {} {}\n",
+            "proc foo::: {} {}\n",
+        );
+        let symbols = document_symbols(source, "tcl8.6");
+        let names = flat(&symbols);
+        assert!(names.iter().any(|(name, _)| name == "q"), "{names:?}");
+        assert!(names.iter().any(|(name, _)| name == ":"), "{names:?}");
+        assert!(names.iter().any(|(name, _)| name.is_empty()), "{names:?}");
+        let ns = find(&symbols, "a:::b").expect("a:::b namespace");
+        assert!(find(&ns.children, "q").is_some(), "{symbols:?}");
     }
 
     // ---- issue #790: tcltest `test` names in the outline ----

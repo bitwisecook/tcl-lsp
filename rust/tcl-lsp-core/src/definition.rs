@@ -1335,11 +1335,11 @@ pub(crate) fn instance_method_at_cursor(
         }
         head_tokens[0]
     };
-    if let Some(rest) = head.strip_prefix('$') {
+    if head.starts_with('$') {
         // `$var` / `${var}` receiver — a variable holding an object.
-        let inst = rest
-            .strip_prefix('{')
-            .map_or(rest, |r| r.strip_suffix('}').unwrap_or(r));
+        // `var_reference` deliberately leaves an unclosed `${x` decorated,
+        // so malformed input cannot resolve as the real variable `x`.
+        let inst = tcl_syntax::naming::var_reference(head);
         if inst.is_empty() {
             return None;
         }
@@ -6788,6 +6788,45 @@ mod tests {
         let src = "$d bark\n";
         let got = instance_method_at_cursor(src, 0, 4);
         assert_eq!(got, Some(("d".to_string(), "bark".to_string(), true)));
+    }
+
+    #[test]
+    fn instance_method_var_decoration_vectors_keep_unclosed_braces() {
+        assert_eq!(
+            instance_method_at_cursor("${x} bark\n", 0, 5),
+            Some(("x".to_string(), "bark".to_string(), true))
+        );
+        assert_eq!(
+            instance_method_at_cursor("$x bark\n", 0, 3),
+            Some(("x".to_string(), "bark".to_string(), true))
+        );
+        assert_eq!(
+            instance_method_at_cursor("$arr(idx) bark\n", 0, 10),
+            Some(("arr(idx)".to_string(), "bark".to_string(), true))
+        );
+        assert_eq!(
+            instance_method_at_cursor("$::a:::b bark\n", 0, 9),
+            Some(("::a:::b".to_string(), "bark".to_string(), true))
+        );
+        assert_eq!(
+            instance_method_at_cursor("$foo::: bark\n", 0, 9),
+            Some(("foo:::".to_string(), "bark".to_string(), true))
+        );
+        // The malformed source is tokenised before this feature sees it;
+        // assert the shared codec's contract directly, while the following
+        // feature-level test proves it cannot resolve the real `x` object.
+        assert_eq!(tcl_syntax::naming::var_reference("${x"), "{x");
+    }
+
+    #[test]
+    fn definition_does_not_resolve_an_unclosed_braced_instance_head() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset x [Dog new]\n${x bark\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 4, 4, &analysis);
+        assert!(
+            locs.is_empty(),
+            "unclosed `${{x` must not dispatch through real `x`: {locs:?}"
+        );
     }
 
     #[test]

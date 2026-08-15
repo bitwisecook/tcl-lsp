@@ -109,9 +109,8 @@ pub(crate) fn matches_query(name: &str, lower_query: &str) -> bool {
 /// The enclosing namespace of a qualified name, or `None` when it names a
 /// global.
 pub(crate) fn namespace_of(qname: &str) -> Option<String> {
-    let stripped = qname.strip_prefix("::").unwrap_or(qname);
-    let last_sep = stripped.rfind("::")?;
-    Some(format!("::{}", &stripped[..last_sep]))
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+    (!holder.is_empty() && holder != "::").then(|| holder.to_string())
 }
 
 #[cfg(test)]
@@ -147,11 +146,30 @@ mod tests {
     }
 
     #[test]
+    fn namespace_container_uses_constructed_name_codec() {
+        assert_eq!(namespace_of("::foo"), None);
+        assert_eq!(namespace_of("::a::b"), Some("::a".to_string()));
+        assert_eq!(namespace_of("::::::"), Some(":::".to_string()));
+        assert_eq!(namespace_of("::foo::"), Some("::foo".to_string()));
+    }
+
+    #[test]
     fn a_qualified_name_matches_the_query_too() {
         let syms = symbols("namespace eval util { proc helper {} {} }\n", "util::help");
         assert_eq!(syms.len(), 1, "{syms:?}");
         assert_eq!(syms[0].name, "helper");
         assert_eq!(syms[0].container_name.as_deref(), Some("::util"));
+    }
+
+    #[test]
+    fn qualified_colon_run_names_keep_their_workspace_container() {
+        let syms = symbols(
+            "namespace eval a:::b {}\nproc a::b::q {} {}\nproc : {} {}\nproc foo::: {} {}\n",
+            "q",
+        );
+        assert_eq!(syms.len(), 1, "{syms:?}");
+        assert_eq!(syms[0].name, "q");
+        assert_eq!(syms[0].container_name.as_deref(), Some("::a::b"));
     }
 
     // class methods

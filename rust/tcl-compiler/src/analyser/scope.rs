@@ -872,6 +872,7 @@ impl Analyser {
         // safe.
         if let Some(registry) = self.registry.as_deref() {
             let mut extra: Vec<VarReadSite> = Vec::new();
+            let lexer_config = self.lexer_config();
             let cmd_name = cmd.texts.first().map_or("", String::as_str);
             let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
             let expr_idx: std::collections::HashSet<usize> = registry
@@ -881,13 +882,13 @@ impl Analyser {
             // Top-level command-substitution tokens.
             for tok in &cmd.all_tokens {
                 if tok.kind == tcl_lexer::TokenType::Cmd {
-                    collect_cmd_subst_reads(&self.source, *tok, registry, &mut extra);
+                    collect_cmd_subst_reads(&self.source, *tok, registry, lexer_config, &mut extra);
                 }
             }
             // Braced expr arguments.
             for (i, arg) in cmd.argv.iter().enumerate().skip(1) {
                 if arg.kind == tcl_lexer::TokenType::Str && expr_idx.contains(&(i - 1)) {
-                    collect_expr_reads(&self.source, *arg, registry, &mut extra);
+                    collect_expr_reads(&self.source, *arg, registry, lexer_config, &mut extra);
                 }
             }
             // Registry `VarRead`-role name words of this command itself
@@ -2240,13 +2241,15 @@ fn collect_cmd_subst_reads(
     source: &str,
     cmd_tok: Token,
     registry: &tcl_registry::CommandRegistry,
+    lexer_config: tcl_lexer::LexerConfig,
     out: &mut Vec<VarReadSite>,
 ) {
     let Some((inner, base)) = inner_of(source, cmd_tok) else {
         return;
     };
-    for cmd in crate::segmenter::segment_commands_with_offset(inner, base) {
-        collect_script_command_reads(source, &cmd, registry, out);
+    for cmd in crate::segmenter::segment_commands_with_offset_and_config(inner, base, lexer_config)
+    {
+        collect_script_command_reads(source, &cmd, registry, lexer_config, out);
     }
 }
 
@@ -2257,6 +2260,7 @@ fn collect_script_command_reads(
     source: &str,
     cmd: &crate::segmenter::SegmentedCommand,
     registry: &tcl_registry::CommandRegistry,
+    lexer_config: tcl_lexer::LexerConfig,
     out: &mut Vec<VarReadSite>,
 ) {
     let head_span = cmd.argv.first().map(|t| t.span);
@@ -2266,7 +2270,7 @@ fn collect_script_command_reads(
                 out.push(VarReadSite::substituted(name, tok.span));
             }
         } else if tok.kind == tcl_lexer::TokenType::Cmd {
-            collect_cmd_subst_reads(source, *tok, registry, out);
+            collect_cmd_subst_reads(source, *tok, registry, lexer_config, out);
         }
     }
     // The substituted command's own `VarRead`-role name words — `puts [set
@@ -2292,13 +2296,17 @@ fn collect_script_command_reads(
         }
         let pidx = i - 1;
         if expr_idx.contains(&pidx) {
-            collect_expr_reads(source, *arg, registry, out);
+            collect_expr_reads(source, *arg, registry, lexer_config, out);
         } else if body_idx.contains(&pidx) && !structural {
             // Plain body inside a substitution — same scope, and the
             // main walk never reached it.
             if let Some((inner, base)) = inner_of(source, *arg) {
-                for sub in crate::segmenter::segment_commands_with_offset(inner, base) {
-                    collect_script_command_reads(source, &sub, registry, out);
+                for sub in crate::segmenter::segment_commands_with_offset_and_config(
+                    inner,
+                    base,
+                    lexer_config,
+                ) {
+                    collect_script_command_reads(source, &sub, registry, lexer_config, out);
                 }
             }
         }
@@ -2312,6 +2320,7 @@ fn collect_expr_reads(
     source: &str,
     expr_tok: Token,
     registry: &tcl_registry::CommandRegistry,
+    lexer_config: tcl_lexer::LexerConfig,
     out: &mut Vec<VarReadSite>,
 ) {
     let Some((inner, base)) = inner_of(source, expr_tok) else {
@@ -2333,6 +2342,7 @@ fn collect_expr_reads(
                     source,
                     Token::new(tcl_lexer::TokenType::Cmd, abs),
                     registry,
+                    lexer_config,
                     out,
                 );
             }
@@ -2791,6 +2801,49 @@ mod tests {
     fn w127_quiet_for_allowed_value() {
         let src = "when HTTP_REQUEST { HTTP::version \"1.1\" }";
         assert!(!diag_codes(src, "f5-irules").contains(&"W127".to_string()));
+    }
+
+    #[test]
+    fn configured_scope_scanners_preserve_irules_brace_boundary_and_84_literals() {
+        // Mutation proof for both recursive scope sites (#1495): the
+        // configured segmenter sees the iRules `}{` boundary as a second
+        // argument, while the 8.4 config keeps `{*}` literal.
+        let source = "set out [expr {$x + [set y]}] cmd {a}{b}";
+        let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
+        let cmd = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            .into_iter()
+            .next()
+            .expect("fixture command");
+        assert_eq!(
+            cmd.args().len(),
+            5,
+            "configured iRules words: {:?}",
+            cmd.texts
+        );
+        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let mut reads = Vec::new();
+        collect_script_command_reads(source, &cmd, registry, config, &mut reads);
+        assert!(reads.iter().any(|r| r.name == "x"));
+        assert!(reads.iter().any(|r| r.name == "y"));
+
+        let eight_four = tcl_lexer::LexerConfig::for_dialect("tcl8.4");
+        let old =
+            crate::segmenter::segment_commands_with_offset_and_config("cmd {*}$x", 0, eight_four);
+        assert!(old[0].expand_word.is_none(), "8.4 must keep {{*}} literal");
+        let first_close = "set x ${a{b}c}\n";
+        let tokens =
+            tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(first_close), eight_four)
+                .tokenise_all()
+                .expect("8.4 first-close vector lexes");
+        let map = tcl_lexer::SourceMap::new(first_close);
+        assert_eq!(
+            tokens
+                .iter()
+                .find(|token| token.kind == tcl_lexer::TokenType::Var)
+                .map(|token| map.token_text(*token)),
+            Some("a{b"),
+            "8.4 uses the first-close ${{...}} rule"
+        );
     }
 
     #[test]

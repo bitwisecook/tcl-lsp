@@ -34,7 +34,7 @@ use crate::ir::{
     CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure, Script, Statement,
 };
 use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
-use crate::naming::{normalise_qualified_name, normalise_var_name};
+use crate::naming::normalise_var_name;
 use crate::segmenter::{
     SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
 };
@@ -72,22 +72,17 @@ fn arg_token_kind(kind: TokenType) -> ArgTokenKind {
 
 /// Join a parent namespace with a child name.
 fn join_namespace(parent: &str, child: &str) -> String {
-    if child.starts_with("::") {
-        return normalise_qualified_name(child);
-    }
-    if parent == "::" {
-        return normalise_qualified_name(&format!("::{child}"));
-    }
-    normalise_qualified_name(&format!("{parent}::{child}"))
+    tcl_syntax::naming::qualify(parent, child)
 }
 
 /// The namespace a procedure body lowers in — everything up to the
 /// last `::` of its qualified name, or `::` for a global proc.
 fn proc_namespace(qname: &str) -> String {
-    let n = normalise_qualified_name(qname);
-    match n.rfind("::") {
-        Some(0) | None => "::".to_string(),
-        Some(idx) => n[..idx].to_string(),
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+    if holder.is_empty() {
+        "::".to_string()
+    } else {
+        holder.to_string()
     }
 }
 
@@ -257,13 +252,7 @@ fn canonical_matches(command: &str, canonical: Option<&str>, bare: &str) -> bool
 
 /// Qualify a procedure name relative to a namespace.
 fn qualify_proc_name(namespace: &str, proc_name: &str) -> String {
-    if proc_name.starts_with("::") {
-        return normalise_qualified_name(proc_name);
-    }
-    if namespace == "::" {
-        return normalise_qualified_name(&format!("::{proc_name}"));
-    }
-    normalise_qualified_name(&format!("{namespace}::{proc_name}"))
+    tcl_syntax::naming::qualify(namespace, proc_name)
 }
 
 /// The namespace a `proc`'s **body** resolves names against: the namespace the
@@ -4816,6 +4805,13 @@ mod tests {
     #[test]
     fn qualify_proc_name_already_qualified() {
         assert_eq!(qualify_proc_name("::ns", "::abs"), "::abs");
+    }
+
+    #[test]
+    fn qualify_proc_name_preserves_colon_named_namespace_keys() {
+        assert_eq!(qualify_proc_name(":::", ":"), "::::::");
+        assert_eq!(qualify_proc_name("::a", "a:::b"), "::a::a::b");
+        assert_eq!(proc_namespace("::::::"), ":::");
     }
 
     #[test]

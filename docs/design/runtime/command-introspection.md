@@ -93,9 +93,10 @@ no importer cascade to deactivate (an `Imported` redirect re-resolves
 its source by name on every dispatch and simply starts failing), no
 stored name slot to rewrite, and no lookup cache to flush.
 
-**Hiding a command that does not exist is a silent no-op.** C Tcl
-raises `unknown command "X"`; this runtime returns an empty result. The
-same is true of a child path that does not resolve.
+**Hiding a command that does not exist raises `unknown command "X"`, matching
+C Tcl's `Tcl_HideCommand` and preventing a typo from being silently swallowed
+while configuring a security-sensitive command surface.** A child path that
+does not resolve still reports the interpreter-path error.
 
 ### 2.3 `interp expose` semantics
 

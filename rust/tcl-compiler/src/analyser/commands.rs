@@ -1549,17 +1549,26 @@ impl Analyser {
     ) {
         let registry = self.registry.as_deref();
         let loop_diags = super::bounds_checks::loop_termination_diagnostics(
-            cmd_name, args, arg_tokens, registry,
+            cmd_name,
+            args,
+            arg_tokens,
+            registry,
+            self.lexer_config(),
         );
-        let idx_diags = super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens);
+        let numbers = self.profile.grammar.numbers;
+        let idx_diags =
+            super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens, numbers);
         let lset_diags = super::bounds_checks::lset_index_diagnostics(
             cmd_name,
             args,
             arg_tokens,
             &self.source,
             registry,
+            self.lexer_config(),
+            numbers,
         );
-        let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
+        let str_diags =
+            super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens, numbers);
         self.result.diagnostics.extend(loop_diags);
         self.result.diagnostics.extend(idx_diags);
         self.result.diagnostics.extend(lset_diags);
@@ -1685,6 +1694,7 @@ impl Analyser {
         self.emit_w200_binary_format_modifiers(cmd_name, args, arg_tokens);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
         self.emit_w108_non_ascii(arg_tokens);
+        self.emit_w148_numeral_release(args, arg_tokens);
         self.emit_bounds_family_diagnostics(cmd_name, args, arg_tokens);
         self.emit_registry_argument_diagnostics(site);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
@@ -1710,6 +1720,41 @@ impl Analyser {
             cmd_tok,
             scope_path,
         );
+    }
+
+    /// Report modern numeral spellings which the resolved document grammar
+    /// rejects (W148). Dynamic/substituted words and words that are not valid
+    /// Tcl 9 numerals are deliberately ignored.
+    fn emit_w148_numeral_release(&mut self, args: &[String], tokens: &[Token]) {
+        let syntax = self.profile.grammar.numbers;
+        for (arg, token) in args.iter().zip(tokens.iter()) {
+            if !matches!(token.kind, TokenType::Str | TokenType::Esc)
+                || arg.contains('$')
+                || arg.contains('[')
+                || tcl_syntax::number::parse_whole_with(
+                    arg.trim(),
+                    tcl_syntax::number::ParseFlags::for_syntax(tcl_dialect::NumberSyntax::Tcl90),
+                )
+                .is_none()
+                || tcl_syntax::number::parse_whole_with(
+                    arg.trim(),
+                    tcl_syntax::number::ParseFlags::for_syntax(syntax),
+                )
+                .is_some()
+            {
+                continue;
+            }
+            self.result.diagnostics.push(Diagnostic {
+                code: DiagCode::W148,
+                span: token.span,
+                message: format!(
+                    "Numeral '{}' is not accepted by the resolved Tcl numeral grammar.",
+                    arg.trim()
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
     }
 
     /// Generic EXPR-argument walk via the command registry's
@@ -2004,11 +2049,9 @@ impl Analyser {
             if imp.ns != cur_ns && imp.ns != "::" {
                 continue;
             }
-            let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
-                format!("{prefix}{cmd_name}")
-            } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
-                imp.pattern.clone()
-            } else {
+            let Some(candidate) =
+                tcl_cmd_core::namespace::imported_command_candidate(&imp.pattern, cmd_name)
+            else {
                 continue;
             };
             let idxs = registry.arg_indices_for_role(

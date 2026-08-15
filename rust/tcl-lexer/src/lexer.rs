@@ -42,16 +42,18 @@
 //!   as an `STR` token whose span covers just the `$`. Unterminated
 //!   `${` and `$arr(` tokenize best-effort (warning collection reports
 //!   them as diagnostics).
-//! - **CMD** — command substitution `[…]`. The scanner tracks three
+//! - **CMD** — command substitution `[…]`. The scanner tracks four
 //!   pieces of state while inside the command body: outer bracket
-//!   nesting (`level`), brace nesting (`blevel`), and whether we are
-//!   inside a `"…"` quoted sub-region (`in_quotes`). A `[` increments
-//!   `level` only when not inside braces or quotes; a `]` closes the
-//!   command only when the outer bracket is the innermost nesting.
-//!   Backslash escapes consume two characters (CRLF counted as one
-//!   line advance); `${…}` sub-scans exist to stop a `)` or `}` inside
-//!   a braced variable name from fooling the counter. Unterminated
-//!   `[` tokenizes best-effort.
+//!   nesting (`level`), brace nesting (`blevel`), whether we are
+//!   inside a `"…"` quoted sub-region (`in_quotes`), and Tcl comment
+//!   state (`in_comment` / `at_command_start`). A `[` increments
+//!   `level` only when not inside braces, quotes, or a comment; a `]`
+//!   closes the command only when the outer bracket is the innermost
+//!   nesting and it is not commented out. Backslash escapes consume
+//!   two characters (CRLF counted as one line advance); `${…}`
+//!   sub-scans exist to stop a `)` or `}` inside a braced variable
+//!   name from fooling the counter. Unterminated `[` tokenizes
+//!   best-effort.
 //! - **STR** — braced strings `{…}`. Emitted when a `{` appears
 //!   at a word boundary (the previous token was `EOL` / `SEP` / `STR`
 //!   / `EXPAND`). The body is scanned with balanced `{` / `}` counting;
@@ -805,24 +807,9 @@ impl<'src> Lexer<'src> {
         // ASCII ones") — `$café` names the variable `caf` and `é` is ordinary
         // word text, and a `$` before a non-ASCII letter is a literal `$`.
         let name_start = self.pos;
-        while let Some(ch) = self.current_char() {
-            if ch.is_ascii_alphanumeric() || ch == '_' {
-                self.pos += 1;
-                continue;
-            }
-            if ch == ':' && self.peek_byte(1) == Some(b':') {
-                // C Tcl (`Tcl_ParseVarName`) consumes the *entire* colon run
-                // once a `::` starts it, not two colons per separator:
-                // `$a:::b` names the variable `a:::b`.
-                self.pos += 2;
-                while self.current_byte() == Some(b':') {
-                    self.pos += 1;
-                }
-                continue;
-            }
-            break;
-        }
-
+        let name_end =
+            tcl_core_types::naming::scan_var_name_end(self.source().as_bytes(), self.pos as usize);
+        self.pos = u32::try_from(name_end).expect("source offset fits u32");
         // `$arr(idx)` array-index form
         if self.current_byte() == Some(b'(') {
             self.scan_array_index_body(0)?;
@@ -1399,6 +1386,80 @@ impl<'src> Lexer<'src> {
         }
     }
 
+    /// Advance one character/escape while inside a command-position comment
+    /// nested in `[...]`. Returns `true` only when an unescaped newline ends
+    /// the comment. Escape width comes from the canonical decoder, including
+    /// CRLF continuations and their swallowed indentation.
+    fn advance_command_comment(&mut self, ch: char) -> bool {
+        match ch {
+            '\n' => {
+                self.pos += 1;
+                true
+            }
+            '\\' => {
+                let end = crate::substitution::backslash_escape_end_in(
+                    self.source(),
+                    self.pos as usize,
+                    self.config.escapes,
+                );
+                self.pos = u32::try_from(end).expect("source offset fits u32");
+                false
+            }
+            _ => {
+                self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
+                false
+            }
+        }
+    }
+
+    /// Consume a recovery ghost `]` at the current position. Ghosts close a
+    /// command unconditionally: their derivation already vetoed inert brace,
+    /// escape, and `${...}` positions. Returns `None` when there is no ghost,
+    /// or `Some(true)` when this one closes the outermost substitution.
+    fn advance_command_ghost(&mut self, level: &mut u32) -> Option<bool> {
+        (self.ghost_at(self.pos) == Some(b']')).then(|| {
+            *level -= 1;
+            if *level == 0 {
+                true
+            } else {
+                // It is a zero-width insertion: remove it and re-examine the
+                // real byte at this offset on the next iteration.
+                self.ghosts.remove(&self.pos);
+                false
+            }
+        })
+    }
+
+    /// Finish a `[...]` token after its body scan stopped at a real/ghost
+    /// closer or EOF. Empty command bodies include their real closer so the
+    /// inner-end span still lands on it; recovery ghosts remain zero-width.
+    fn finish_command_token(
+        &mut self,
+        bracket_pos: u32,
+        content_start: u32,
+    ) -> Result<Token, LexError> {
+        let content_empty = self.pos == content_start;
+        let close_is_ghost = self.ghost_at(self.pos) == Some(b']');
+        let has_close_bracket = self.current_byte() == Some(b']');
+        let span_end = if content_empty && has_close_bracket && !close_is_ghost {
+            self.pos + 1
+        } else {
+            self.pos
+        };
+        if close_is_ghost {
+            self.ghosts.remove(&self.pos);
+        } else if has_close_bracket {
+            self.pos += 1;
+        } else {
+            self.warn_or_error("missing close-bracket")?;
+        }
+        Ok(Token::with_content_offset(
+            TokenType::Cmd,
+            Span::new(bracket_pos, span_end),
+            1,
+        ))
+    }
+
     fn parse_command(&mut self) -> Result<Token, LexError> {
         let bracket_pos = self.pos;
         self.pos += 1; // skip '['
@@ -1407,42 +1468,50 @@ impl<'src> Lexer<'src> {
         let mut level: u32 = 1;
         let mut blevel: u32 = 0;
         let mut in_quotes = false;
+        // A command substitution contains a Tcl script, so its command
+        // position is independent of the outer lexer.  Keep this pair with
+        // the delimiter counters: a `#` is a comment only outside quotes /
+        // braces, after the `[` or a top-level `;` / newline (issue #1483).
+        let mut in_comment = false;
+        let mut at_command_start = true;
 
         while let Some(ch) = self.current_char() {
-            // A recovery ghost `]` is a deliberate insertion that
-            // closes this command *unconditionally* — even inside a `"…"`
-            // sub-region or brace run the quote/brace counters would
-            // otherwise keep open. Without this, a mid-word `"` (`[foo abc"`)
-            // toggles `in_quotes`, and the ghost `]` that E201 recovery placed
-            // before the following command would be swallowed as quoted text,
-            // leaving that command unrecovered. The ghost was vetoed from inert
-            // (brace / escape / `${…}`) positions when it was derived, so it is
-            // always a sound structural closer here.
-            if self.ghost_at(self.pos) == Some(b']') {
-                level -= 1;
-                if level == 0 {
-                    // Leave `self.pos` at the ghost `]`; the post-loop code
-                    // consumes it zero-width.
+            if let Some(closed) = self.advance_command_ghost(&mut level) {
+                if closed {
                     break;
                 }
-                // A ghost is a virtual insertion, so consuming one is
-                // zero-width even when it does not fully close the command
-                // (nesting ≥ 2): remove the ghost and re-examine the *real*
-                // byte at this offset on the next iteration. The previous
-                // `self.pos += 1` skipped that real byte and left the ghost in
-                // place, mis-boundarying recovery and (for a ghost at EOF)
-                // driving `pos` to `len + 1` — a span past the buffer that
-                // panics `SourceMap::text`.
-                self.ghosts.remove(&self.pos);
                 continue;
             }
+
+            // `#` comments are parsed by the nested Tcl script, not by the
+            // outer lexer.  In particular, a `]` in a command-position
+            // comment is content and must not close this substitution.  A
+            // backslash-newline continues the comment, matching
+            // `parse_comment` and C Tcl's TclParse.c rule.
+            if in_comment {
+                if self.advance_command_comment(ch) {
+                    in_comment = false;
+                    at_command_start = true;
+                }
+                continue;
+            }
+
+            if ch == '#' && at_command_start && blevel == 0 && !in_quotes {
+                in_comment = true;
+                self.pos += 1;
+                continue;
+            }
+
             match ch {
                 '"' if blevel == 0 => {
                     in_quotes = !in_quotes;
+                    at_command_start = false;
                     self.pos += 1;
                 }
                 '[' if blevel == 0 && !in_quotes => {
                     level += 1;
+                    // A nested command substitution starts a fresh script.
+                    at_command_start = true;
                     self.pos += 1;
                 }
                 ']' if blevel == 0 && !in_quotes => {
@@ -1453,9 +1522,12 @@ impl<'src> Lexer<'src> {
                         // include it in the span and consume it.
                         break;
                     }
+                    at_command_start = false;
                     self.pos += 1;
                 }
                 '\\' => {
+                    let continuation =
+                        crate::substitution::is_line_continuation(self.source(), self.pos as usize);
                     // Consume the backslash and the next character
                     // as a pair (CRLF counted as one): skip the
                     // backslash, then skip the escaped char.
@@ -1474,6 +1546,11 @@ impl<'src> Lexer<'src> {
                             // Trailing backslash at EOF — leave as is.
                         }
                     }
+                    // A continuation substitutes to whitespace and keeps
+                    // command position; every other escape is word content.
+                    if !continuation {
+                        at_command_start = false;
+                    }
                 }
                 '$' if !in_quotes && blevel == 0 => {
                     // `${…}` inside a command body: sub-scan to the matching `}`
@@ -1484,47 +1561,34 @@ impl<'src> Lexer<'src> {
                     } else {
                         self.pos += 1;
                     }
+                    at_command_start = false;
                 }
                 '{' if !in_quotes => {
                     blevel += 1;
+                    at_command_start = false;
                     self.pos += 1;
                 }
                 '}' if !in_quotes => {
                     blevel = blevel.saturating_sub(1);
+                    at_command_start = false;
+                    self.pos += 1;
+                }
+                '\n' | ';' if blevel == 0 && !in_quotes => {
+                    at_command_start = true;
+                    self.pos += 1;
+                }
+                ' ' | '\t' | '\r' | '\u{0b}' | '\u{0c}' if blevel == 0 && !in_quotes => {
+                    // Leading whitespace preserves command position.
                     self.pos += 1;
                 }
                 _ => {
+                    at_command_start = false;
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
                 }
             }
         }
 
-        // At this point `self.pos` is at the closing `]` or at EOF.
-        let content_empty = self.pos == content_start;
-        // `current_byte` reports a ghost `]` too; distinguish so the
-        // ghost is consumed zero-width.
-        let close_is_ghost = self.ghost_at(self.pos) == Some(b']');
-        let has_close_bracket = self.current_byte() == Some(b']');
-        let span_end = if content_empty && has_close_bracket && !close_is_ghost {
-            self.pos + 1 // include the real `]` so the end lands on it
-        } else {
-            self.pos
-        };
-        if has_close_bracket {
-            if close_is_ghost {
-                self.ghosts.remove(&self.pos); // zero-width: don't advance
-            } else {
-                self.pos += 1;
-            }
-        } else {
-            self.warn_or_error("missing close-bracket")?;
-        }
-
-        Ok(Token::with_content_offset(
-            TokenType::Cmd,
-            Span::new(bracket_pos, span_end),
-            1,
-        ))
+        self.finish_command_token(bracket_pos, content_start)
     }
 }
 
@@ -2507,6 +2571,55 @@ mod tests {
     fn cmd_multiline_body() {
         let (rows, _) = cmd_token_rows("[a\nb\nc]");
         assert_eq!(rows[0], (TokenType::Cmd, "a\nb\nc".into()));
+    }
+
+    #[test]
+    fn cmd_comment_hides_closing_bracket() {
+        // The `]` after `#` is in a command-position comment.  The command
+        // token must therefore extend through the following command and end
+        // at the final `]` (issue #1483).
+        let (rows, _) = cmd_token_rows("[\n# ] hidden\nset y \"b\"\n]");
+        assert_eq!(
+            rows[0],
+            (TokenType::Cmd, "\n# ] hidden\nset y \"b\"\n".into())
+        );
+    }
+
+    #[test]
+    fn cmd_comment_after_separator_hides_closing_bracket() {
+        let (rows, _) = cmd_token_rows("[set x 1; # ] hidden\nset y 2]");
+        assert_eq!(
+            rows[0],
+            (TokenType::Cmd, "set x 1; # ] hidden\nset y 2".into())
+        );
+    }
+
+    #[test]
+    fn cmd_hash_mid_command_is_not_a_comment() {
+        // A hash after the first word is ordinary word content.  This keeps
+        // the command-position guard from becoming an over-broad `#` rule.
+        let (rows, _) = cmd_token_rows("[set #not-a-comment]");
+        assert_eq!(rows[0], (TokenType::Cmd, "set #not-a-comment".into()));
+    }
+
+    #[test]
+    fn cmd_hash_in_quote_or_brace_is_not_a_comment() {
+        let (rows, _) = cmd_token_rows("[\"# ]\"]");
+        assert_eq!(rows[0], (TokenType::Cmd, "\"# ]\"".into()));
+        let (rows, _) = cmd_token_rows("[{# ]}]");
+        assert_eq!(rows[0], (TokenType::Cmd, "{# ]}".into()));
+    }
+
+    #[test]
+    fn cmd_comment_continuation_hides_closing_bracket() {
+        let (rows, _) = cmd_token_rows("[\n# hidden \\\n] still comment\nset y 2]");
+        assert_eq!(
+            rows[0],
+            (
+                TokenType::Cmd,
+                "\n# hidden \\\n] still comment\nset y 2".into()
+            )
+        );
     }
 
     #[test]

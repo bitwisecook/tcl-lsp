@@ -1293,11 +1293,12 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
 /// The instance-variable name in a `$obj` / `${obj}` command head, or
 /// `None` when the head is not a single bare variable reference.
 fn strip_instance_var(cmd: &str) -> Option<String> {
-    let rest = cmd.strip_prefix('$')?;
-    let inner = rest
-        .strip_prefix('{')
-        .and_then(|r| r.strip_suffix('}'))
-        .unwrap_or(rest);
+    if !cmd.starts_with('$') {
+        return None;
+    }
+    // An unclosed `${x` is not the same spelling as `$x`; keep its braces so
+    // completion cannot dispatch through a real instance named `x`.
+    let inner = tcl_syntax::naming::var_reference(cmd);
     (!inner.is_empty()
         && inner
             .bytes()
@@ -2421,6 +2422,27 @@ mod tests {
             "{:?}",
             eat.detail
         );
+    }
+
+    #[test]
+    fn malformed_braced_instance_head_does_not_offer_method_completion() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset x [Dog new]\n${x ba\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 4, 6, &analysis, Some(&registry), None, "tcl8.6");
+        assert!(
+            !items.iter().any(|item| item.label == "bark"),
+            "malformed `${{x` must not dispatch through real `x`: {items:?}"
+        );
+        assert_eq!(strip_instance_var("${x}"), Some("x".to_owned()));
+        assert_eq!(strip_instance_var("$x"), Some("x".to_owned()));
+        // Completion intentionally only dispatches simple scalar handles;
+        // the shared codec still parses the array decoration, but this
+        // feature's documented name validation rejects it.
+        assert_eq!(strip_instance_var("$arr(idx)"), None);
+        assert_eq!(strip_instance_var("$::a:::b"), Some("::a:::b".to_owned()));
+        assert_eq!(strip_instance_var("$foo:::").as_deref(), Some("foo:::"));
+        assert_eq!(strip_instance_var("${x").as_deref(), None);
     }
 
     #[test]

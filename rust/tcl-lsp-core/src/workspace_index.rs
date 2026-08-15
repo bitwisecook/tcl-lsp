@@ -1658,12 +1658,12 @@ impl DocumentRecords {
         // invocation actually writes (issue #923 idx 18).
         for imp in &analysis.namespace_imports {
             if imp.pattern.contains(['*', '?', '[']) {
-                if let Some((source_ns, tail_pattern)) = imp.pattern.rsplit_once("::") {
+                if let Some((source_ns, tail_pattern)) = import_pattern_parts(&imp.pattern) {
                     self.glob_imports.push(WorkspaceGlobImport {
                         uri: uri.to_owned(),
                         ns: imp.ns.clone(),
-                        source_ns: global_rooted(source_ns).to_owned(),
-                        tail_pattern: tail_pattern.to_owned(),
+                        source_ns: global_rooted(&source_ns).to_owned(),
+                        tail_pattern: tail_pattern.clone(),
                         at: imp.range.start(),
                         enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
                         forced: imp.forced,
@@ -1671,7 +1671,7 @@ impl DocumentRecords {
                 }
                 continue;
             }
-            let Some(tail) = imp.pattern.rsplit("::").find(|s| !s.is_empty()) else {
+            let Some((source_ns, tail)) = import_pattern_parts(&imp.pattern) else {
                 continue;
             };
             // An exact import is export-gated exactly like a glob one — real
@@ -1691,19 +1691,19 @@ impl DocumentRecords {
             // no-op leaving `info commands ::dst::*` empty (oracle 8.6.14 /
             // 9.0.4). `::` is its source namespace, the same spelling every
             // global-level `namespace export` record already carries.
-            let import_gate = (!imp.conjectured)
-                .then(|| imp.pattern.rsplit_once("::"))
-                .flatten()
-                .map(|(source_ns, _)| WorkspaceImportGate {
-                    source_ns: global_rooted(source_ns).to_owned(),
-                    name: tail.to_owned(),
-                    at: imp.range.start(),
-                    enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
-                    forced: imp.forced,
-                });
+            let import_gate =
+                (!imp.conjectured)
+                    .then_some(source_ns)
+                    .map(|source_ns| WorkspaceImportGate {
+                        source_ns: global_rooted(&source_ns).to_owned(),
+                        name: tail.clone(),
+                        at: imp.range.start(),
+                        enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
+                        forced: imp.forced,
+                    });
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
-                linked_qname: tcl_syntax::naming::qualify(&imp.ns, tail),
+                linked_qname: tcl_syntax::naming::qualify(&imp.ns, &tail),
                 target_qname: normalise_qualified_name(&imp.pattern),
                 target_span: Some(imp.range),
                 nested: analysis.offset_is_inside_any_definition_body(imp.range.start()),
@@ -4582,9 +4582,7 @@ impl WorkspaceIndex {
             return None;
         }
         for cand in resolution_candidates {
-            let Some((prefix, tail)) = cand.rsplit_once("::") else {
-                continue;
-            };
+            let (prefix, tail) = tcl_syntax::naming::key_holder_and_tail(cand);
             if tail != word {
                 continue;
             }
@@ -5072,14 +5070,9 @@ impl<'a> WildcardImportIndex<'a> {
             return false;
         }
         resolution_candidates.iter().any(|cand| {
-            cand.rsplit_once("::").is_some_and(|(prefix, tail)| {
-                tail == name
-                    && self.forced_shadow_at(
-                        if prefix.is_empty() { "::" } else { prefix },
-                        name,
-                        call,
-                    )
-            })
+            let (prefix, tail) = tcl_syntax::naming::key_holder_and_tail(cand);
+            tail == name
+                && self.forced_shadow_at(if prefix.is_empty() { "::" } else { prefix }, name, call)
         })
     }
 
@@ -5466,9 +5459,29 @@ impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot 
 /// The namespace an imported name is installed *into*, read off the link's
 /// `linked_qname` (`::app::helper` → `::app`, a global-level import → `::`).
 fn importing_namespace_of(linked_qname: &str) -> &str {
-    linked_qname
-        .rsplit_once("::")
-        .map_or("::", |(ns, _)| if ns.is_empty() { "::" } else { ns })
+    let (ns, _) = tcl_syntax::naming::key_holder_and_tail(linked_qname);
+    if ns.is_empty() { "::" } else { ns }
+}
+
+/// Split a written `namespace import` pattern at its final colon run.  The
+/// command core owns this operation because Tcl treats `::a:::b` as the
+/// qualifier `::a` and tail `b`; a pairwise `rsplit_once("::")` would invent
+/// a different source namespace.  The `Qualifier` tri-state also keeps the
+/// absolute marker on `::name` instead of collapsing it to an unqualified
+/// pattern (issue #1493 / #1454).
+fn import_pattern_parts(pattern: &str) -> Option<(String, String)> {
+    use tcl_cmd_core::namespace::{Qualifier, qualifier, tail};
+
+    let tail = std::str::from_utf8(tail(pattern.as_bytes()))
+        .ok()?
+        .to_owned();
+    let source = match qualifier(pattern.as_bytes()) {
+        Qualifier::Absolute(ns) | Qualifier::Relative(ns) => {
+            Some(std::str::from_utf8(ns).ok()?.to_owned())
+        }
+        Qualifier::Unqualified => None,
+    }?;
+    Some((source, tail))
 }
 
 /// The source namespace an import pattern names, reading the empty prefix a
@@ -6904,6 +6917,65 @@ mod tests {
             call_from("file:///caller.tcl"),
         );
         assert_eq!(resolved.as_deref(), Some("::mymod::helper"));
+    }
+
+    #[test]
+    fn colon_run_glob_import_drives_cross_file_navigation_references_and_w123() {
+        // Mutation guard for #1454: `rsplit_once("::")` sees the final two
+        // colons in `::src:::im*`, while the Tcl owner sees source `::src`
+        // and tail glob `im*`.  The same fixture proves the indexed target,
+        // linked cross-file reference, and analyser W123 suppression.
+        let src = analyse(
+            "namespace eval ::src {\n    proc image {} {}\n    namespace export image\n}\n",
+        );
+        let app_src = "namespace eval ::app {\n    namespace import ::src:::im*\n    proc run {} { image }\n}\n";
+        let app = analyse(app_src);
+        assert!(
+            app.diagnostics
+                .iter()
+                .all(|d| d.code != tcl_core_types::DiagCode::W123),
+            "imported image must suppress W123: {:?}",
+            app.diagnostics
+        );
+        let index =
+            WorkspaceIndex::from_documents([("file:///src.tcl", &src), ("file:///app.tcl", &app)]);
+        let call = index.linked_invocations_of("::src::image", "file:///src.tcl");
+        assert!(
+            call.iter()
+                .any(|inv| inv.uri == "file:///app.tcl" && inv.name == "image"),
+            "glob import must link the cross-file call: {call:?}"
+        );
+        let direct = index.invocations_of("::src::image", "file:///src.tcl");
+        assert!(
+            direct.is_empty(),
+            "direct view must retain the local imported name"
+        );
+        assert_eq!(
+            index.resolve_wildcard_import(
+                "helper",
+                &["::app::helper".to_owned(), "::helper".to_owned()],
+                call_from("file:///caller.tcl"),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn non_suffix_glob_import_resolves_cross_file_reference() {
+        let src = analyse(
+            "namespace eval ::src {\n    proc helper {} {}\n    namespace export helper\n}\n",
+        );
+        let app = analyse(
+            "namespace eval ::app {\n    namespace import ::src::he*r\n    proc run {} { helper }\n}\n",
+        );
+        let index =
+            WorkspaceIndex::from_documents([("file:///src.tcl", &src), ("file:///app.tcl", &app)]);
+        let resolved = index.resolve_wildcard_import(
+            "helper",
+            &["::app::helper".to_owned(), "::helper".to_owned()],
+            call_from("file:///caller.tcl"),
+        );
+        assert_eq!(resolved.as_deref(), Some("::src::helper"));
     }
 
     #[test]

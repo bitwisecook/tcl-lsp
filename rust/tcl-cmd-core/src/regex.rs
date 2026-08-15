@@ -107,6 +107,7 @@ pub trait RegexEngine {
 // shared error & result shapes
 
 /// A `regexp`/`regsub` failure: the full, ready-to-report message bytes.
+#[derive(Debug)]
 pub struct RegexError(pub Vec<u8>);
 
 /// The outcome of [`regexp`] for the adapter to apply (var writes stay in the
@@ -202,10 +203,6 @@ fn notbol_at(cps: &[i32], offset: usize) -> bool {
     }
 }
 
-fn parse_isize(b: &[u8]) -> Option<isize> {
-    core::str::from_utf8(b).ok()?.trim().parse::<isize>().ok()
-}
-
 /// Resolve a `-start` index spec (integer / `end` / `end±N`) against the
 /// character length, clamped to `0` (Tcl resets negatives to the start).
 ///
@@ -216,20 +213,11 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
 /// `offset >= char_len` check then yields no match) and a too-large `-N` becomes
 /// the start, both the intended clamp behaviour.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-fn resolve_start(spec: &[u8], char_len: usize) -> usize {
-    let len = char_len as isize;
-    let idx = if spec == b"end" {
-        len - 1
-    } else if let Some(rest) = spec.strip_prefix(b"end") {
-        match rest.first() {
-            Some(b'-') => parse_isize(&rest[1..]).map_or(0, |n| (len - 1).saturating_sub(n)),
-            Some(b'+') => parse_isize(&rest[1..]).map_or(0, |n| (len - 1).saturating_add(n)),
-            _ => 0,
-        }
-    } else {
-        parse_isize(spec).unwrap_or(0)
-    };
-    if idx < 0 { 0 } else { idx as usize }
+fn resolve_start_checked(spec: &[u8], char_len: usize) -> Result<usize, RegexError> {
+    let text = core::str::from_utf8(spec).map_err(|_| RegexError(b"bad index".to_vec()))?;
+    let idx = crate::index::resolve(text, char_len)
+        .map_err(|e| RegexError(e.into_message().into_bytes()))?;
+    Ok(usize::try_from(idx).unwrap_or(0))
 }
 
 /// The compile flags + `-all`/`-start` shared by both commands' option sets.
@@ -367,7 +355,7 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
     let mut offset = c
         .start
         .as_ref()
-        .map_or(0, |spec| resolve_start(spec, char_len));
+        .map_or(Ok(0), |spec| resolve_start_checked(spec, char_len))?;
 
     // Tcl's `all` doubles as flag + counter: starts 1 if `-all`, else 0.
     let mut all_count: i64 = i64::from(c.all);
@@ -577,7 +565,7 @@ pub fn regsub<E: RegexEngine>(args: &[&[u8]]) -> Result<RegsubResult, RegexError
     let mut offset = c
         .start
         .as_ref()
-        .map_or(0, |spec| resolve_start(spec, char_len));
+        .map_or(Ok(0), |spec| resolve_start_checked(spec, char_len))?;
 
     let mut result: Vec<u8> = Vec::new();
     let mut count: i64 = 0;
@@ -694,14 +682,18 @@ mod tests {
     fn resolve_start_handles_integer_and_end_forms() {
         // regexp `-start` index (cmd-core regex.rs had no unit coverage):
         // integer / end / end±N against char length, clamped to 0.
-        assert_eq!(resolve_start(b"5", 10), 5);
-        assert_eq!(resolve_start(b"0", 10), 0);
-        assert_eq!(resolve_start(b"end", 10), 9);
-        assert_eq!(resolve_start(b"end-2", 10), 7);
-        assert_eq!(resolve_start(b"end+1", 10), 10);
-        assert_eq!(resolve_start(b"-3", 10), 0); // Tcl resets negatives to start
-        assert_eq!(resolve_start(b"bad", 10), 0); // unparseable → 0
-        assert_eq!(resolve_start(b"end", 0), 0); // end of empty clamps to 0
+        assert_eq!(resolve_start_checked(b"5", 10).unwrap(), 5);
+        assert_eq!(resolve_start_checked(b"0", 10).unwrap(), 0);
+        assert_eq!(resolve_start_checked(b"end", 10).unwrap(), 9);
+        assert_eq!(resolve_start_checked(b"end-2", 10).unwrap(), 7);
+        assert_eq!(resolve_start_checked(b"end+1", 10).unwrap(), 10);
+        assert_eq!(resolve_start_checked(b"1+1", 10).unwrap(), 2);
+        assert_eq!(resolve_start_checked(b"0x2", 10).unwrap(), 2);
+        assert_eq!(resolve_start_checked(b"+5", 10).unwrap(), 5);
+        assert_eq!(resolve_start_checked(b"-3", 10).unwrap(), 0); // Tcl clamps negatives.
+        assert!(resolve_start_checked(b"bad", 10).is_err());
+        assert!(resolve_start_checked(b"end - 2", 10).is_err());
+        assert_eq!(resolve_start_checked(b"end", 0).unwrap(), 0);
     }
 
     #[test]
@@ -711,10 +703,16 @@ mod tests {
         // happen — `saturating_*` pins it instead: `end+N` to "past the end" (the
         // match loop then finds nothing), `end-N` back to the start.
         let big = b"end+9223372036854775800"; // close to isize::MAX, parses fine
-        assert_eq!(resolve_start(big, 10), isize::MAX as usize);
-        assert_eq!(resolve_start(b"end-9223372036854775800", 10), 0);
-        // A value too big to even parse as isize falls back to 0 (also panic-free).
-        assert_eq!(resolve_start(b"end+99999999999999999999999", 10), 0);
+        assert_eq!(
+            resolve_start_checked(big, 10).unwrap(),
+            usize::try_from(i64::MAX).unwrap_or(usize::MAX)
+        );
+        assert_eq!(
+            resolve_start_checked(b"end-9223372036854775800", 10).unwrap(),
+            0
+        );
+        // A bignum operand is a bad index, not a silent reset to zero.
+        assert!(resolve_start_checked(b"end+99999999999999999999999", 10).is_err());
     }
 
     #[test]
@@ -732,14 +730,5 @@ mod tests {
         assert_eq!(slice_match(bytes, &byteoff, 4, 1), b"");
         // The `NO_MATCH` sentinel as an index → empty (never indexes).
         assert_eq!(slice_match(bytes, &byteoff, NO_MATCH, NO_MATCH), b"");
-    }
-
-    #[test]
-    fn parse_isize_trims_and_rejects_garbage() {
-        assert_eq!(parse_isize(b"42"), Some(42));
-        assert_eq!(parse_isize(b"-5"), Some(-5));
-        assert_eq!(parse_isize(b"  3  "), Some(3));
-        assert_eq!(parse_isize(b"x"), None);
-        assert_eq!(parse_isize(b""), None);
     }
 }

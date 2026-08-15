@@ -3483,7 +3483,7 @@ impl Vm {
         if self.ns_fallback_targets_global(&qualified, name) {
             return name.to_string();
         }
-        qualified
+        format!("::{qualified}")
     }
 
     /// Does the Tcl 8.x namespace-scope fallback send bare `name` (whose
@@ -3496,6 +3496,7 @@ impl Vm {
     /// applies it to key a trace, and they must agree or a trace fires on the
     /// wrong variable (issue #1328).
     fn ns_fallback_targets_global(&self, qualified: &str, name: &str) -> bool {
+        let qualified = qualified.strip_prefix("::").unwrap_or(qualified);
         self.ns_var_global_fallback()
             && self.frames.first().is_some_and(|global| {
                 !global.locals.contains_key(qualified) && global.locals.contains_key(name)
@@ -4296,12 +4297,43 @@ impl Vm {
         self.locate_from(name, self.frames.len().saturating_sub(1))
     }
 
+    /// Canonicalise a written qualified variable name using the shared Tcl
+    /// naming owner.  Qualified relative names are rooted at the current
+    /// namespace; absolute names retain their root.  `canonical_written_command`
+    /// collapses colon runs (`a:::b` → `a::b`) and preserves a trailing run as
+    /// the empty variable name (`foo:::` → `foo::`).
+    fn canonical_var_name(&self, name: &str) -> String {
+        if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
+            return name.to_owned();
+        }
+        tcl_syntax::naming::qualify(self.current_ns(), name)
+    }
+
+    /// Validate the namespace portion of a qualified variable write.  Tcl's
+    /// `TclGetNamespaceForQualName` rejects a missing parent namespace rather
+    /// than creating it implicitly.
+    fn validate_var_parent(&self, name: &str) -> Result<(), Completion<Value>> {
+        if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
+            return Ok(());
+        }
+        let rooted = self.canonical_var_name(name);
+        let (parent, _) = tcl_syntax::naming::key_holder_and_tail(&rooted);
+        let parent = parent.strip_prefix("::").unwrap_or(parent);
+        if !self.namespace_exists(parent) {
+            return Err(err(format!(
+                "can't set \"{name}\": parent namespace doesn't exist"
+            )));
+        }
+        Ok(())
+    }
+
     /// Like [`Self::locate`] but begins link resolution at frame `start` (used
     /// to resolve an array base that an `upvar`/`variable` link landed on at a
     /// non-top frame level).
     fn locate_from(&self, name: &str, start: usize) -> (usize, String) {
-        let stripped = name.strip_prefix("::").unwrap_or(name);
-        let qualified = stripped.contains("::") || name.starts_with("::");
+        let canonical = self.canonical_var_name(name);
+        let stripped = canonical.strip_prefix("::").unwrap_or(&canonical);
+        let qualified = tcl_syntax::naming::is_qualified(canonical.as_bytes());
         let mut level = if qualified { 0 } else { start };
         let mut nm = if qualified {
             stripped.to_owned()
@@ -4453,6 +4485,7 @@ impl Vm {
     /// Write a scalar, firing `write` traces afterwards (the old value is
     /// restored if a trace callback aborts the write).
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        self.validate_var_parent(name)?;
         if self.is_constant(name) {
             return Err(err(format!("can't set \"{name}\": variable is a constant")));
         }
@@ -4777,7 +4810,7 @@ impl Vm {
             .first()
             .is_some_and(|g| g.locals.contains_key(&q))
         {
-            Some(q)
+            Some(format!("::{q}"))
         } else {
             None
         }
@@ -4790,6 +4823,7 @@ impl Vm {
         key: &str,
         value: Value,
     ) -> Result<(), Completion<Value>> {
+        self.validate_var_parent(name)?;
         let resolved = self.ns_var_fallback(name);
         let name = resolved.as_deref().unwrap_or(name);
         let (lvl, nm) = self.locate(name);

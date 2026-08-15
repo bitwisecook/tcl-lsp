@@ -56,6 +56,49 @@ fn last_sep_run(s: &[u8]) -> Option<(usize, usize)> {
     None
 }
 
+/// The namespace portion of a written qualified name, retaining whether the
+/// spelling is rooted.  `namespace qualifiers` intentionally erases this
+/// distinction for its public string result, but name resolution cannot: a
+/// leading `::` means the global namespace, even when there is no separator
+/// before the command tail (`::lassign`).  This is the three-way contract used
+/// by `TclGetNamespaceForQualName` in `tclNamesp.c`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Qualifier<'a> {
+    /// A rooted name; the slice is the written namespace prefix (`b"::"` for
+    /// a global command, `b"::a"` for a command in namespace `a`).
+    Absolute(&'a [u8]),
+    /// A namespace-relative qualified name (`a::b`).
+    Relative(&'a [u8]),
+    /// An unqualified name (`b`).
+    Unqualified,
+}
+
+/// Split a written command/name into its resolution qualifier while retaining
+/// the absolute marker.  The public [`qualifiers`] operation below continues
+/// to return the historical empty string for `::lassign`.
+#[must_use]
+pub fn qualifier(name: &[u8]) -> Qualifier<'_> {
+    let rooted = name.starts_with(b"::");
+    match last_sep_run(name) {
+        Some((start, _)) => {
+            // The leading root is itself the qualifier when the only `::`
+            // run is the rooted marker (`::name`, `::`, or `:::`).
+            let prefix = if rooted && start == 0 {
+                &name[..2]
+            } else {
+                &name[..start]
+            };
+            if rooted {
+                Qualifier::Absolute(prefix)
+            } else {
+                Qualifier::Relative(prefix)
+            }
+        }
+        None if rooted => Qualifier::Absolute(b"::"),
+        None => Qualifier::Unqualified,
+    }
+}
+
 /// `namespace qualifiers string` — everything before the last `::` run (the
 /// empty string when `string` is unqualified).
 #[must_use]
@@ -73,6 +116,26 @@ pub fn tail(name: &[u8]) -> &[u8] {
     match last_sep_run(name) {
         Some((_, end)) => &name[end..],
         None => name,
+    }
+}
+
+/// Expand a static `namespace import` pattern for a bare command name.
+///
+/// This is the shared glob decision seam for analyser and LSP consumers:
+/// Tcl uses the full `*`/`?`/bracket-class grammar, while the source
+/// namespace follows the colon-run qualifier rules above.
+#[must_use]
+pub fn imported_command_candidate(pattern: &str, name: &str) -> Option<String> {
+    let pattern_tail = std::str::from_utf8(tail(pattern.as_bytes())).ok()?;
+    if !string_match(pattern_tail, name) {
+        return None;
+    }
+    match qualifier(pattern.as_bytes()) {
+        Qualifier::Absolute(ns) | Qualifier::Relative(ns) => {
+            let ns = std::str::from_utf8(ns).ok()?;
+            Some(tcl_syntax::naming::qualify(ns, name))
+        }
+        Qualifier::Unqualified => (pattern_tail == name).then(|| name.to_owned()),
     }
 }
 
@@ -193,5 +256,35 @@ mod tests {
         // A trailing simple separator.
         assert_eq!(qualifiers(b"::foo::"), b"::foo");
         assert_eq!(tail(b"::foo::"), b"");
+        assert_eq!(qualifier(b"::lassign"), Qualifier::Absolute(b"::"));
+        assert_eq!(qualifier(b"a:::b"), Qualifier::Relative(b"a"));
+        assert_eq!(qualifier(b"::a:::b"), Qualifier::Absolute(b"::a"));
+        assert_eq!(qualifier(b"foo:::"), Qualifier::Relative(b"foo"));
+        assert_eq!(qualifier(b"b"), Qualifier::Unqualified);
+    }
+
+    #[test]
+    fn imported_command_candidate_uses_tcl_globs_and_colon_runs() {
+        assert_eq!(
+            imported_command_candidate("::src:::im*", "image"),
+            Some("::src::image".to_owned())
+        );
+        assert_eq!(
+            imported_command_candidate("::src::he*r", "helper"),
+            Some("::src::helper".to_owned())
+        );
+        assert_eq!(
+            imported_command_candidate("::src::helpe?", "helper"),
+            Some("::src::helper".to_owned())
+        );
+        assert_eq!(
+            imported_command_candidate("::src::[lp]*", "lookup"),
+            Some("::src::lookup".to_owned())
+        );
+        assert_eq!(
+            imported_command_candidate("foo:::", ""),
+            Some("::foo::".to_owned())
+        );
+        assert_eq!(imported_command_candidate("::src::im*", "other"), None);
     }
 }

@@ -48,7 +48,7 @@
 //! command that is neither backed nor classified (a genuinely new gap) or any
 //! stale classification entry (a name no longer in the registry, or now backed).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
@@ -538,6 +538,87 @@ fn scan_handlers(root: &std::path::Path) -> Result<BTreeSet<String>> {
     Ok(names)
 }
 
+/// Read the runtime file ensemble declaration and dispatch arms. This is
+/// deliberately source-level: the standalone runtime cannot be made a normal
+/// workspace dependency of xtask, while a literal registration alone cannot
+/// prove that the registry's subcommand/arity surface is implemented.
+type FileArityMap = BTreeMap<String, (u16, u16)>;
+type FileSurface = (BTreeSet<String>, FileArityMap);
+
+fn scan_file_surface(root: &std::path::Path) -> Result<FileSurface> {
+    let path = root.join("runtime/rust/src/cmd_fs.rs");
+    let text = fs::read_to_string(&path)?;
+    let table = text
+        .split("const FILE_RUNTIME_ARITIES:")
+        .nth(1)
+        .and_then(|s| s.split("];\n\nfn file_cmd").next())
+        .unwrap_or("");
+    let arity_re = Regex::new(r#"\(\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*\)"#)
+        .expect("static file arity regex");
+    let mut arities = BTreeMap::new();
+    for cap in arity_re.captures_iter(table) {
+        arities.insert(
+            cap[1].to_owned(),
+            (cap[2].parse().unwrap_or(0), cap[3].parse().unwrap_or(0)),
+        );
+    }
+    let dispatch = text
+        .split("match sub.as_slice()")
+        .nth(1)
+        .and_then(|s| s.split("_ => unreachable!").next())
+        .unwrap_or("");
+    let arm_re = Regex::new(r#"b"([a-zA-Z][a-zA-Z0-9_]*)"\s*(?:\||=>)"#)
+        .expect("static file dispatch regex");
+    let arms = arm_re
+        .captures_iter(dispatch)
+        .map(|c| c[1].to_owned())
+        .collect();
+    Ok((arms, arities))
+}
+
+fn file_fidelity_errors(root: &std::path::Path) -> Result<Vec<String>> {
+    let (arms, arities) = scan_file_surface(root)?;
+    let specs = tcl_registry::commands::tcl::tcl_command_specs();
+    let file = specs
+        .iter()
+        .find(|s| s.name == "file")
+        .context("registry has no file command")?;
+    let registry: BTreeMap<String, (u16, u16)> = file
+        .subcommands
+        .iter()
+        .map(|s| (s.name.to_owned(), (s.arity.min, s.arity.max)))
+        .collect();
+    Ok(compare_file_surface(&arms, &arities, &registry))
+}
+
+fn compare_file_surface(
+    arms: &BTreeSet<String>,
+    arities: &BTreeMap<String, (u16, u16)>,
+    registry: &BTreeMap<String, (u16, u16)>,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    for (name, &(min, max)) in registry {
+        if !arms.contains(name) {
+            errors.push(format!("file {name}: no runtime dispatch arm"));
+        }
+        match arities.get(name) {
+            None => errors.push(format!("file {name}: no runtime arity declaration")),
+            Some(&(rmin, rmax)) if (rmin, rmax) != (min, max) => errors.push(format!(
+                "file {name}: runtime arity {rmin}..={rmax} != registry {min}..={max}"
+            )),
+            _ => {}
+        }
+    }
+    for name in arities.keys() {
+        if !registry.contains_key(name) {
+            errors.push(format!(
+                "file {name}: runtime arity has no registry subcommand"
+            ));
+        }
+    }
+    errors
+}
+
 fn classify(name: &str, backed: &BTreeSet<String>) -> Status {
     let c = canon(name);
     if backed.contains(c) {
@@ -621,6 +702,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let core = core_commands();
     let backed = scan_handlers(&root)?;
+    let file_fidelity = file_fidelity_errors(&root)?;
 
     // Gaps: a core command that is neither backed nor classified.
     let gaps: Vec<&String> = core
@@ -688,6 +770,13 @@ pub fn run(check: bool) -> Result<ExitCode> {
         }
         failed = true;
     }
+    if !file_fidelity.is_empty() {
+        eprintln!("runtime file command fidelity failures:");
+        for error in &file_fidelity {
+            eprintln!("  - {error}");
+        }
+        failed = true;
+    }
     if failed {
         return Ok(ExitCode::from(1));
     }
@@ -700,7 +789,10 @@ pub fn run(check: bool) -> Result<ExitCode> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HANDLER_EXTRA, KNOWN_UNBACKED, NOT_REQUIRED, STDLIB, Status, canon, classify};
+    use super::{
+        HANDLER_EXTRA, KNOWN_UNBACKED, NOT_REQUIRED, STDLIB, Status, canon, classify,
+        compare_file_surface, file_fidelity_errors, scan_file_surface,
+    };
     use super::{core_commands, render_report, scan_handler_source, scan_handlers};
     use crate::util::repo_root;
     use std::collections::BTreeSet;
@@ -726,6 +818,40 @@ mod tests {
         assert_eq!(
             scan_handler_source(source),
             BTreeSet::from(["literal".to_owned(), "string".to_owned()]),
+        );
+    }
+
+    #[test]
+    fn file_surface_matches_registry_subcommands_and_arities() {
+        let root = repo_root();
+        let (arms, arities) = scan_file_surface(&root).expect("scan file runtime surface");
+        assert!(arms.contains("atime"));
+        assert_eq!(arities.get("stat"), Some(&(1, 2)));
+        assert!(
+            file_fidelity_errors(&root)
+                .expect("compare file runtime surface")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn file_fidelity_rejects_missing_arm_and_wrong_arity() {
+        let arms = BTreeSet::from(["copy".to_owned()]);
+        let arities = std::collections::BTreeMap::from([("copy".to_owned(), (1, 2))]);
+        let registry = std::collections::BTreeMap::from([
+            ("copy".to_owned(), (2, u16::MAX)),
+            ("link".to_owned(), (1, 2)),
+        ]);
+        let errors = compare_file_surface(&arms, &arities, &registry);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("file copy: runtime arity"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("file link: no runtime dispatch arm"))
         );
     }
 

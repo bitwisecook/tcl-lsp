@@ -1276,13 +1276,10 @@ impl Analyser {
                     .iter()
                     .filter(|imp| imp.ns == cur_ns || imp.ns == "::")
                     .find_map(|imp| {
-                        let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
-                            format!("{prefix}{cmd_name}")
-                        } else if imp.pattern.rsplit("::").next() == Some(cmd_name) {
-                            imp.pattern.clone()
-                        } else {
-                            return None;
-                        };
+                        let candidate = tcl_cmd_core::namespace::imported_command_candidate(
+                            &imp.pattern,
+                            cmd_name,
+                        )?;
                         registry.defines_symbol(&candidate, dialect).copied()
                     })
             }
@@ -2260,7 +2257,11 @@ impl Analyser {
             }
             TokenType::Cmd => {
                 let (inner, base) = super::scope::inner_of(&self.source, arg_tok)?;
-                let segmented = crate::segmenter::segment_commands_with_offset(inner, base);
+                let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+                    inner,
+                    base,
+                    self.lexer_config(),
+                );
                 let [cmd] = segmented.as_slice() else {
                     return None;
                 };
@@ -9545,6 +9546,30 @@ impl Analyser {
 mod tests {
     use super::*;
     use tcl_lexer::Span;
+
+    #[test]
+    fn dynamic_apply_scanner_uses_irules_brace_boundary_config() {
+        // Mutation proof for the handler scanner at the #1495 site:
+        // `{set y}{set z}` is two list elements under iRules' `}{` rule, but
+        // one composite element under the default Tcl lexer.
+        let source = "[list {p} {set y}{set z}]";
+        let mut analyser = Analyser::new();
+        analyser.source = source.to_owned();
+        analyser.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let token = tcl_lexer::Lexer::with_source_map(
+            tcl_lexer::SourceMap::new(source),
+            tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+        )
+        .tokenise_all()
+        .expect("valid command substitution")
+        .into_iter()
+        .find(|token| token.kind == tcl_lexer::TokenType::Cmd)
+        .expect("command token");
+        let elements = analyser
+            .resolve_dynamic_apply_lambda(token, &[])
+            .expect("literal list lambda");
+        assert_eq!(elements.len(), 3, "iRules list elements: {elements:?}");
+    }
 
     #[test]
     fn builtin_next_completion_requires_the_actual_mro_end() {

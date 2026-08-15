@@ -210,6 +210,31 @@ fn namespace_delete_collapses_runs() {
     assert_eq!(res, "0 1");
 }
 
+// Tcl 8.6/9.0 (`Tcl_ParseVarName` in `generic/tclParse.c`) consumes the
+// complete separator run before variable lookup.  These vectors exercise the
+// execution path, rather than only the low-level scanner: `a:::b` and
+// `::a:::b` address `::a::b`, while a trailing run is part of the variable
+// name.  The array cases ensure the run is consumed before the index opener.
+#[test]
+fn variable_substitution_consumes_colon_runs() {
+    let (ok, res, _) = run("namespace eval a {}\n\
+         set ::a::b VALUE\n\
+         set ::a::arr(k) ARRAY\n\
+         list $a:::b $::a:::b $a:::arr(k) $::a:::arr(k)");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "VALUE VALUE ARRAY ARRAY");
+
+    let (ok, res, _) = run("namespace eval foo {}\n\
+         set ::foo::: EMPTY\n\
+         list $foo:::");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "EMPTY");
+
+    let (ok, msg, _) = run("set x $missing:::b");
+    assert!(!ok);
+    assert_eq!(msg, "can't read \"missing:::b\": no such variable");
+}
+
 // ===========================================================================
 // namespace import / forget through colon runs
 // ===========================================================================
@@ -245,4 +270,59 @@ fn forget_with_root_qualified_pattern_is_a_quiet_no_op() {
     );
     assert!(ok, "got: {res}");
     assert_eq!(res, "imp");
+}
+
+// ===========================================================================
+// Qualified variable names
+// ===========================================================================
+
+/// Qualified variable names use the same colon-run and namespace-parent
+/// contract as command names (`TclGetNamespaceForQualName`, `tclNamesp.c`).
+#[test]
+fn qualified_variable_names_canonicalise_runs_and_require_parent_namespaces() {
+    // tclsh8.6/9.0: absolute and relative forms address the same canonical
+    // variable; a missing parent is an error; a trailing run names the empty
+    // variable in its parent namespace.
+    let (ok, res, _) = run("namespace eval a {}\n\
+         set ::a:::b one\n\
+         set a::b two\n\
+         set ::a::b");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "two");
+
+    let (ok, res, _) = run("namespace eval n { namespace eval a {}\n\
+             namespace eval foo {}\n\
+             set a:::b three\n\
+             set foo::: four\n\
+             list [set ::n::a::b] [set ::n::foo::] }");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "three four");
+    let (ok, msg, _) = run("set ::missing:::b 1");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "can't set \"::missing:::b\": parent namespace doesn't exist"
+    );
+
+    let (ok, msg, _) = run("namespace eval n {set a:::b 1}");
+    assert!(!ok);
+    assert_eq!(msg, "can't set \"a:::b\": parent namespace doesn't exist");
+}
+
+/// A rooted single-segment import names the global namespace, not the current
+/// namespace.  This is the VM-side regression for #1493.
+#[test]
+fn import_global_builtin_keeps_absolute_marker() {
+    // tclsh8.6/9.0: the exact reproducer succeeds without an explicit export
+    // (global builtins are not exported by default).  A second run exports it
+    // so the resulting redirect is observable; `namespace qualifiers
+    // ::lassign` itself remains `{}`.
+    let (ok, res, _) = run("namespace eval n {namespace import ::lassign}");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "");
+    let (ok, res, _) = run("namespace export lassign\n\
+         namespace eval n {namespace import ::lassign}\n\
+         n::lassign {a b} x y; list $x $y");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "a b");
 }

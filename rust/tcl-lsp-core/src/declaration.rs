@@ -325,12 +325,16 @@ fn token_text(source: &str, span: Span) -> &str {
 /// Reduce a declaration name to its bare form: strip a `$` / `${…}`
 /// decoration and any leading `::` namespace qualifier.
 fn bare_name(raw: &str) -> &str {
-    let mut s = raw.trim();
-    if let Some(rest) = s.strip_prefix('$') {
-        s = rest;
-    }
-    s = s.trim_start_matches('{').trim_end_matches('}');
-    s.trim_start_matches(':')
+    let s = raw.trim();
+    let s = if s.starts_with('$') {
+        // An incomplete `${x` remains decorated and cannot alias `x`.
+        tcl_syntax::naming::var_reference(s)
+    } else {
+        s
+    };
+    // Declaration arguments may carry an absolute root marker; preserve the
+    // remainder verbatim, including interior colon-runs such as `a:::b`.
+    s.strip_prefix("::").unwrap_or(s)
 }
 
 #[cfg(test)]
@@ -493,6 +497,27 @@ mod tests {
         let locs = declaration(src, 1, 2, "tcl8.6", &analysis, &reg());
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 0);
+    }
+
+    #[test]
+    fn declaration_var_decoration_vectors_preserve_incomplete_braces() {
+        assert_eq!(bare_name("${x}"), "x");
+        assert_eq!(bare_name("$x"), "x");
+        assert_eq!(bare_name("$arr(idx)"), "arr(idx)");
+        assert_eq!(bare_name("$::a:::b"), "a:::b");
+        assert_eq!(bare_name("$foo:::"), "foo:::");
+        assert_eq!(bare_name("${x"), "{x");
+    }
+
+    #[test]
+    fn declaration_does_not_resolve_an_unclosed_braced_reference() {
+        let src = "proc p {} {\n    global x\n    puts ${x\n}\n";
+        let analysis = analyse(src);
+        let locs = declaration(src, 2, 9, "tcl8.6", &analysis, &reg());
+        assert!(
+            locs.is_empty(),
+            "malformed `${{x` must not resolve to the real `x`: {locs:?}"
+        );
     }
 
     /// Issue #1275 — the declaration scan must resolve a command head's
