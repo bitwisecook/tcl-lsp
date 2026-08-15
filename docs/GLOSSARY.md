@@ -125,11 +125,12 @@ flowchart LR
 
 The lossless, position-independent syntax tree the segmenter builds, and the
 representation the formatter, minifier, AOT lowering, and per-command tooling
-read from. It follows the Roslyn / rust-analyzer **red-green** split:
-the *green* tree stores only *widths* and children (so identical subtrees are
-shareable and an edit shifts a subtree for free), and a *red* overlay resolves
-absolute positions lazily, reproducing the exact `Token` offsets the lexer
-emits. **Trivia** (whitespace, end-of-line, comments) is *attached* to the
+read from. It follows the Roslyn / rust-analyzer **red-green** split: the
+*green* tree stores only *widths* and children, with structurally identical
+subtrees comparing equal by value. Children are inline, so the current CST
+does not pointer-share subtrees or provide cross-edit reuse; a *red* overlay
+resolves absolute positions lazily, reproducing the exact `Token` offsets the
+lexer emits. **Trivia** (whitespace, end-of-line, comments) is *attached* to the
 adjacent token rather than living as sibling tokens, so a command is pure
 syntax while every byte still round-trips. `SegmentedCommand`s are derived from
 it byte-identically. Implemented in `tcl_compiler::parsing::syntax`.
