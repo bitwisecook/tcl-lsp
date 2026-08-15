@@ -1981,7 +1981,7 @@ impl Vm {
     /// deleting an implementation that is already unreachable, not exposing
     /// a command to Tcl code.  User-facing removal must use [`Self::take_command`].
     pub(crate) fn take_command_unchecked(&mut self, name: &str) -> Option<Command> {
-        let key = self.resolve_command_fqn(self.current_ns(), name)?;
+        let key = self.resolve_command_fqn_raw(self.current_ns(), name)?;
         self.take_command_unchecked_key(&key)
     }
 
@@ -3452,7 +3452,7 @@ impl InterpState {
                 return hit.clone();
             }
         }
-        let res = self.resolve_command_fqn_uncached(cxt, name);
+        let res = self.resolve_command_fqn_uncached(cxt, name, true);
         let mut cache = self.cmd_resolve_cache.borrow_mut();
         if cache.0 != epoch {
             cache.0 = epoch;
@@ -3467,8 +3467,23 @@ impl InterpState {
         res
     }
 
+    /// Resolve a registered command for VM/embedder teardown without applying
+    /// the emulated release's public command-surface filter.
+    ///
+    /// This deliberately bypasses only availability filtering. Namespace,
+    /// namespace-path, and global candidate ordering remain the active Tcl
+    /// release's resolution rules. Never use this for Tcl-visible dispatch.
+    fn resolve_command_fqn_raw(&self, cxt: &str, name: &str) -> Option<String> {
+        self.resolve_command_fqn_uncached(cxt, name, false)
+    }
+
     /// The uncached resolution rule — see [`Self::resolve_command_fqn`].
-    fn resolve_command_fqn_uncached(&self, cxt: &str, name: &str) -> Option<String> {
+    fn resolve_command_fqn_uncached(
+        &self,
+        cxt: &str,
+        name: &str,
+        filter_public_surface: bool,
+    ) -> Option<String> {
         // Collapse separator runs up front — C treats any colon run as one
         // separator, so `foo:::bar` dispatches `foo::bar` and `quux:::` the
         // `{}` command `quux::` (tclsh8.6-verified). The key form keeps the
@@ -3508,9 +3523,9 @@ impl InterpState {
         };
         tcl_syntax::naming::resolve_command_with(cxt, &rooted, &name, |candidate| {
             let key = unroot(candidate);
-            self.commands
-                .get(&key)
-                .is_some_and(|command| self.builtin_command_visible_for_surface(&key, command))
+            self.commands.get(&key).is_some_and(|command| {
+                !filter_public_surface || self.builtin_command_visible_for_surface(&key, command)
+            })
         })
         .map(|winner| unroot(&winner))
     }

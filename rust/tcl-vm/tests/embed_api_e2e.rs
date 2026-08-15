@@ -146,6 +146,28 @@ fn native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles() {
     assert!(!vm.invoke_command("finite2", &[]).code.is_ok());
 }
 
+#[test]
+fn embedder_can_remove_a_builtin_hidden_by_the_current_release() {
+    let mut vm = vm();
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    assert!(
+        !vm.invoke_command("lassign", &[]).code.is_ok(),
+        "lassign is outside Tcl 8.4's public surface"
+    );
+
+    assert!(
+        vm.remove_command("lassign"),
+        "embedder teardown must see the raw registered command"
+    );
+    assert!(!vm.command_names().iter().any(|name| name == "lassign"));
+
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    assert!(
+        !vm.invoke_command("lassign", &[]).code.is_ok(),
+        "changing release must not revive a command removed by the embedder"
+    );
+}
+
 /// A loop whose body really dispatches — `[$cmd length abc]` resolves a
 /// computed command name, so each iteration is a command the limit charges.
 const DISPATCHING_LOOP: &str =
