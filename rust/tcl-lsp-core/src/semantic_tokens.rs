@@ -1915,14 +1915,11 @@ fn insert_oo_member_overrides(
     }
 }
 
-/// Regex-pattern overrides for a `pattern_type == Regex` command.
+/// Regex-pattern overrides for registry-declared pattern arguments.
 ///
-/// Both facts are registry data: the *language* from
-/// [`tcl_registry::CommandSpec::pattern_type`], and the *position* from the
-/// [`tcl_registry::ArgRole::Pattern`] role the spec's resolver reports —
-/// which is what shifts the pattern past a call's leading switches without
-/// this walker re-implementing option parsing (issue #1185). The paired
-/// `regsub` replacement template is claimed by
+/// [`CommandRegistry::pattern_args`] pairs the language and position for this
+/// concrete call, including `lsearch -regexp`'s option-selected grammar. The
+/// paired `regsub` replacement template is claimed by
 /// [`insert_format_overrides`] through its own `FormatType::Regsub` family.
 fn insert_regex_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -1931,13 +1928,6 @@ fn insert_regex_overrides(
     arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    if !registry
-        .get(head)
-        .and_then(|s| s.pattern_type)
-        .is_some_and(|p| p == tcl_registry::patterns::PatternType::Regex)
-    {
-        return;
-    }
     // Sub-tokenise only the *literal* fragments of the pattern word as regex:
     // in `"abc$var.*"` the `abc` / `.*` fragments are regex, but `$var` is
     // variable interpolation Tcl resolves before `regexp` sees it (and
@@ -1945,18 +1935,16 @@ fn insert_regex_overrides(
     // literal fragments — not the whole word — leaves the `Var` / `Cmd`
     // fragments to the default classifier, so they render as Tcl and never
     // overlap the regex sub-tokens.
-    let declared = registry.arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Pattern);
-    let positions: Vec<usize> = if declared.is_empty() {
-        // A `Regex` command whose spec does not (yet) declare where its
-        // pattern sits: fall back to the first positional word past the
-        // leading switches, the layout every stock regex command shares.
-        let options = registry.get(head).map_or(&[][..], |spec| spec.options);
-        let idx = tcl_registry::first_positional_index(options, arg_texts, 0);
-        vec![idx]
-    } else {
-        declared
-    };
-    for idx in positions {
+    // Pattern positions are required registry data.  In particular, a
+    // consumer must not guess that `-start` has a value or that the first
+    // non-switch word is a pattern: those are command grammars owned by the
+    // declared `OptionSpec` and `arg_role_resolver`.
+    for found in registry
+        .pattern_args(head, arg_texts)
+        .into_iter()
+        .filter(|found| found.kind == tcl_registry::patterns::PatternType::Regex)
+    {
+        let idx = usize::from(found.index);
         if let Some(tok) = seg.argv.get(idx + 1) {
             mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
         }
@@ -2098,12 +2086,16 @@ fn role_claimed_by_token_pass(role: Option<tcl_registry::ArgRole>) -> bool {
 /// prefix (two distinct options share it, e.g. `lsort -i`) or no match returns
 /// `None`.  A bare `-` never prefix-matches (only an exact-declared `-` /
 /// `--` option does).
-fn resolve_option_prefix<'a>(word: &str, names: &[&'a str]) -> Option<&'a str> {
+fn resolve_option_prefix<'a>(
+    word: &str,
+    names: &[&'a str],
+    prefix_matching: tcl_registry::abbrev::PrefixMatching,
+) -> Option<&'a str> {
     if let Some(exact) = names.iter().copied().find(|n| *n == word) {
         return Some(exact);
     }
     // Prefix matching needs at least one character past the leading dash.
-    if word.len() < 2 {
+    if !prefix_matching.accepts_prefixes() || word.len() < 2 {
         return None;
     }
     let mut matched: Option<&'a str> = None;
@@ -2134,6 +2126,7 @@ fn insert_option_and_subcommand_overrides(
     // command-form's options.  Dialect-agnostic (`None`): a switch is still
     // visually an option even when it was introduced in a later Tcl release.
     let mut option_names = spec.switch_names(None);
+    let mut option_prefix_matching = spec.prefix_matching;
 
     // Value-taking options whose value is a *generic* value — those get the
     // distinct `OptionValue` colour (the option/value split of issue #748).
@@ -2175,6 +2168,7 @@ fn insert_option_and_subcommand_overrides(
         && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
     {
         option_names.extend(sub.switch_names(None, spec.dialects));
+        option_prefix_matching = sub.prefix_matching;
         collect_value_options(sub.options);
         if let Some(tok) = seg.argv.get(1) {
             overrides
@@ -2206,7 +2200,8 @@ fn insert_option_and_subcommand_overrides(
         // (`Tcl_GetIndexFromObj`) does; an ambiguous prefix (`lsort -i`) is not
         // a recognised option.
         if text.starts_with('-')
-            && let Some(canonical) = resolve_option_prefix(text, &option_names)
+            && let Some(canonical) =
+                resolve_option_prefix(text, &option_names, option_prefix_matching)
             && let Some(tok) = seg.argv.get(i)
         {
             overrides
@@ -6664,14 +6659,35 @@ mod tests {
     }
 
     #[test]
+    fn lsearch_regexp_pattern_uses_the_registry_selected_language() {
+        let ks = kinds("lsearch -regexp {a b} {a+}\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::Regexp as u32)), "{ks:?}");
+        // The default glob form must not acquire regex subtokens merely
+        // because lsearch also supports -regexp.
+        let glob = kinds("lsearch {a b} {a+}\n", "tcl", &reg());
+        assert!(!glob.contains(&(TokenKind::Regexp as u32)), "{glob:?}");
+    }
+
+    #[test]
     fn resolve_option_prefix_resolves_and_rejects() {
         let names = ["-increasing", "-index", "-nocase", "-real"];
-        assert_eq!(resolve_option_prefix("-nocase", &names), Some("-nocase")); // exact
-        assert_eq!(resolve_option_prefix("-noc", &names), Some("-nocase")); // unique prefix
-        assert_eq!(resolve_option_prefix("-r", &names), Some("-real")); // unique prefix
-        assert_eq!(resolve_option_prefix("-in", &names), None); // ambiguous
-        assert_eq!(resolve_option_prefix("-", &names), None); // bare dash
-        assert_eq!(resolve_option_prefix("-zzz", &names), None); // unknown
+        let prefix = tcl_registry::abbrev::PrefixMatching::Enabled;
+        assert_eq!(
+            resolve_option_prefix("-nocase", &names, prefix),
+            Some("-nocase")
+        ); // exact
+        assert_eq!(
+            resolve_option_prefix("-noc", &names, prefix),
+            Some("-nocase")
+        ); // unique prefix
+        assert_eq!(resolve_option_prefix("-r", &names, prefix), Some("-real")); // unique prefix
+        assert_eq!(resolve_option_prefix("-in", &names, prefix), None); // ambiguous
+        assert_eq!(resolve_option_prefix("-", &names, prefix), None); // bare dash
+        assert_eq!(resolve_option_prefix("-zzz", &names, prefix), None); // unknown
+        assert_eq!(
+            resolve_option_prefix("-noc", &names, tcl_registry::abbrev::PrefixMatching::Strict,),
+            None
+        );
     }
 
     #[test]

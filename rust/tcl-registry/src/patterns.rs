@@ -36,6 +36,23 @@ pub enum PatternType {
     Regex,
 }
 
+/// One concrete pattern-bearing argument of an invocation.
+///
+/// Most commands use one static [`PatternType`] plus an [`ArgRole::Pattern`]
+/// position. Commands such as `lsearch` select the language with an option,
+/// so their registry resolver returns this paired fact rather than forcing an
+/// LSP consumer to understand `-regexp` itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PatternArg {
+    /// Index into the post-head argument list.
+    pub index: u8,
+    /// Embedded language accepted at this position.
+    pub kind: PatternType,
+}
+
+/// Resolve a command's call-specific pattern arguments.
+pub type PatternArgResolver = fn(&[&str]) -> Vec<PatternArg>;
+
 impl PatternType {
     /// Stable lowercase tag (`"glob"` / `"regex"`) — used by the audit
     /// dumper so both sides normalise identically.

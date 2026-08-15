@@ -49,8 +49,10 @@ use std::collections::HashMap;
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
+use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::CommandRegistry;
 
 use crate::definition::utf16_col_to_char_col;
@@ -545,10 +547,129 @@ enum PositionHover {
     FallThrough,
 }
 
+/// Resolve pattern and format-string hovers from the same segmented command
+/// and registry role walk used by semantic tokens.  In particular, do not
+/// inspect whichever literal happens to contain the cursor: the registry's
+/// `ArgRole` indices identify the one argument that actually carries the
+/// embedded language (issue #1386).
+fn registry_pattern_format_hover(
+    source: &str,
+    line: u32,
+    character: u32,
+    registry: &CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Hover> {
+    let line_index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let config = LexerConfig::for_file_dialect(profile.name);
+
+    for command in segment_commands_with_offset_and_config(source, 0, config) {
+        if cursor < command.span.start() || cursor > command.span.end() {
+            continue;
+        }
+        let Some(head) = command.texts.first() else {
+            continue;
+        };
+        let args: Vec<&str> = command.texts.iter().skip(1).map(String::as_str).collect();
+        let Some(_resolved) =
+            registry.resolve_call(head, &args, tcl_registry::dialects::DialectSet::empty())
+        else {
+            continue;
+        };
+
+        for pattern in registry.pattern_args(head, &args) {
+            let Some(token) = command.argv.get(usize::from(pattern.index) + 1) else {
+                continue;
+            };
+            if let Some(text) = literal_at_token(source, *token, cursor) {
+                return Some(Hover::markdown(match pattern.kind {
+                    tcl_registry::patterns::PatternType::Glob => glob_hover_text(&text),
+                    tcl_registry::patterns::PatternType::Regex => regex_hover_text(&text),
+                }));
+            }
+        }
+
+        for format in registry.format_string_args(head, &args) {
+            let Some(token) = command.argv.get(format.index + 1) else {
+                continue;
+            };
+            let Some(text) = literal_at_token(source, *token, cursor) else {
+                continue;
+            };
+            let hover = match format.kind {
+                tcl_registry::patterns::FormatType::Sprintf if text.contains('%') => {
+                    sprintf_format_hover_text(&text)
+                }
+                tcl_registry::patterns::FormatType::Clock if text.contains('%') => {
+                    clock_format_hover_text(&text)
+                }
+                tcl_registry::patterns::FormatType::Binary => {
+                    let subcmd = args.first().copied().unwrap_or_default().to_owned();
+                    let trailing = args
+                        .get(format.index + 1..)
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|arg| (*arg).to_owned())
+                        .collect();
+                    binary_format_hover_text(&BinaryContext {
+                        text,
+                        subcmd,
+                        args: trailing,
+                    })
+                }
+                tcl_registry::patterns::FormatType::Regsub
+                    if !scan_regsub_backrefs(&text).is_empty() =>
+                {
+                    regsub_hover_text(&text)
+                }
+                _ => continue,
+            };
+            return Some(Hover::markdown(hover));
+        }
+    }
+    None
+}
+
+/// Return a literal token's Tcl word text under the cursor. Token spans are
+/// absolute source byte ranges, so this remains correct across lines and
+/// continuation commands (unlike the former line splitter). Bare words are
+/// valid format and pattern arguments too (`binary format c2s value`), and
+/// are deliberately preserved rather than requiring quote/braces delimiters.
+fn literal_at_token(source: &str, token: Token, cursor: u32) -> Option<String> {
+    if !matches!(token.kind, TokenType::Str | TokenType::Esc)
+        || cursor < token.span.start()
+        || cursor > token.span.end()
+    {
+        return None;
+    }
+    let text = source.get(token.span.start() as usize..token.span.end() as usize)?;
+    let bytes = text.as_bytes();
+    if bytes.is_empty() {
+        return None;
+    }
+    if !matches!(bytes[0], b'{' | b'"') {
+        return Some(text.to_owned());
+    }
+    let close = if bytes[0] == b'{' { b'}' } else { b'"' };
+    let content_start = token.span.start() as usize + 1;
+    let content_end = if bytes.last() == Some(&close) {
+        token.span.end() as usize - 1
+    } else {
+        let rest = source.get(token.span.end() as usize..)?;
+        token.span.end() as usize + rest.find(char::from(close))?
+    };
+    if cursor as usize > content_end {
+        return None;
+    }
+    source.get(content_start..content_end).map(str::to_owned)
+}
+
 /// The format-string hovers: when the cursor sits on the format-string
 /// argument of a known format-bearing command, render a table of the
 /// specifiers it contains.  Covers `clock format` / `clock scan`, `format` /
 /// `scan`, `binary format` / `binary scan`, and `regsub`'s subspec.
+#[cfg(test)]
+#[allow(dead_code)]
 fn format_string_hover(source: &str, line: u32, character: u32) -> Option<Hover> {
     if let Some(text) = clock_format_string_at_position(source, line, character) {
         return Some(Hover::markdown(clock_format_hover_text(&text)));
@@ -638,14 +759,11 @@ fn hover_impl(
         return crate::namespace_symbol::namespace_hover_text(analysis, &cell).map(Hover::markdown);
     }
 
-    if let Some(hover) = format_string_hover(source, line, character) {
+    let hover_registry = registry.unwrap_or_else(|| tcl_registry::registry_for_profile(profile));
+    if let Some(hover) =
+        registry_pattern_format_hover(source, line, character, hover_registry, profile)
+    {
         return Some(hover);
-    }
-    if let Some(text) = glob_pattern_at_position(source, line, character) {
-        return Some(Hover::markdown(glob_hover_text(&text)));
-    }
-    if let Some(text) = regex_pattern_at_position(source, line, character) {
-        return Some(Hover::markdown(regex_hover_text(&text)));
     }
 
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
@@ -1378,6 +1496,7 @@ fn sprintf_format_hover_text(text: &str) -> String {
 /// format-string argument and return the literal text.
 /// `format <fmtString> ?arg arg ...?` — the first arg is the
 /// format.  Single-line context only.
+#[cfg(test)]
 fn sprintf_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
     let tokens: Vec<&str> = line_text.split_whitespace().collect();
@@ -1394,6 +1513,7 @@ fn sprintf_format_string_at_position(source: &str, line: u32, character: u32) ->
 /// AND has at least one `%` in it.  Helper shared between
 /// `clock_format_string_at_position` and
 /// `sprintf_format_string_at_position`.
+#[cfg(test)]
 fn string_literal_with_percent_at(line_text: &str, character: u32) -> Option<String> {
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
@@ -1795,6 +1915,7 @@ fn center(s: &str, width: usize) -> String {
 /// surrounding command's argument list.  Returns the format
 /// text plus the `format`/`scan` subcommand and the trailing
 /// argument tokens (best-effort, single-line).
+#[cfg(test)]
 fn binary_format_context_at_position(
     source: &str,
     line: u32,
@@ -1829,6 +1950,7 @@ fn binary_format_context_at_position(
 /// Return `(token_index, token_text)` for the whitespace-delimited token that
 /// contains `character` (UTF-16 column), or `None` when the cursor is on
 /// whitespace / past the end.
+#[cfg(test)]
 fn word_token_at(line_text: &str, character: u32) -> Option<(usize, String)> {
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
@@ -1859,6 +1981,7 @@ fn word_token_at(line_text: &str, character: u32) -> Option<(usize, String)> {
 /// `["val"]` rather than `["{a4", "i}", "val"]`.  The first
 /// `skip` argv positions (incl. the format string itself) are
 /// dropped.
+#[cfg(test)]
 fn binary_trailing_args(line_text: &str, skip: usize) -> Vec<String> {
     let chars: Vec<char> = line_text.chars().collect();
     let mut tokens: Vec<String> = Vec::new();
@@ -1981,6 +2104,7 @@ fn regsub_hover_text(text: &str) -> String {
 /// text.  `regsub ?switches? exp string subSpec ?varName?`
 /// — `subSpec` is the 4th positional arg (after switches).
 /// Single-line only.
+#[cfg(test)]
 fn regsub_subspec_at_position(source: &str, line: u32, character: u32) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
     let tokens: Vec<&str> = line_text.split_whitespace().collect();
@@ -2026,6 +2150,7 @@ fn regsub_subspec_at_position(source: &str, line: u32, character: u32) -> Option
 /// cursor.  Shared between hover providers that need
 /// literal-context detection but don't care whether the
 /// literal contains `%`.
+#[cfg(test)]
 fn string_literal_at(line_text: &str, character: u32) -> Option<String> {
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
@@ -2151,6 +2276,8 @@ fn glob_hover_text(text: &str) -> String {
 /// `string match <pat> ...`, `glob <pat>...`, and `lsearch
 /// -glob <pat> ...` — three common entry points for glob
 /// matching in Tcl.  Single-line only.
+#[cfg(test)]
+#[allow(dead_code)]
 fn glob_pattern_at_position(source: &str, line: u32, character: u32) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
     let tokens: Vec<&str> = line_text.split_whitespace().collect();
@@ -2402,6 +2529,8 @@ fn regex_hover_text(text: &str) -> String {
 /// Recognises `regexp <pat> ...`, `regsub <pat> ...` (the
 /// pattern arg, not the subspec), and `lsearch -regexp <pat>
 /// ...`.  Single-line only.
+#[cfg(test)]
+#[allow(dead_code)]
 fn regex_pattern_at_position(source: &str, line: u32, character: u32) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
     let tokens: Vec<&str> = line_text.split_whitespace().collect();
@@ -2510,6 +2639,7 @@ fn classify_ipv6(addr: std::net::Ipv6Addr) -> &'static str {
 /// `clock scan` format-string argument and return the
 /// literal text.  Single-line only — multi-line literals
 /// are not handled.
+#[cfg(test)]
 fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
     let line_text = source.split('\n').nth(line as usize)?;
     // Tokenise the line on whitespace — the first two tokens
@@ -4465,17 +4595,17 @@ mod tests {
 
     #[test]
     fn clock_format_string_at_position_detects_braced_literal() {
-        let src = "clock format $time {%Y-%m-%d}\n";
+        let src = "clock format $time -format {%Y-%m-%d}\n";
         // Cursor inside the `{...}` literal.
-        let found = clock_format_string_at_position(src, 0, 22);
+        let found = clock_format_string_at_position(src, 0, 30);
         assert_eq!(found.as_deref(), Some("%Y-%m-%d"));
     }
 
     #[test]
     fn clock_format_string_at_position_detects_quoted_literal() {
-        let src = "clock format $time \"%Y\"\n";
+        let src = "clock format $time -format \"%Y\"\n";
         // Cursor inside the `"..."` literal.
-        let found = clock_format_string_at_position(src, 0, 22);
+        let found = clock_format_string_at_position(src, 0, 30);
         assert_eq!(found.as_deref(), Some("%Y"));
     }
 
@@ -4488,11 +4618,11 @@ mod tests {
 
     #[test]
     fn hover_fires_for_clock_format_specifier() {
-        let src = "clock format $time {%Y-%m-%d}\n";
+        let src = "clock format $time -format {%Y-%m-%d}\n";
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         // Cursor inside the format literal.
-        let h = hover(src, 0, 22, &analysis, None).expect("hover");
+        let h = hover(src, 0, 30, &analysis, None).expect("hover");
         assert!(
             h.value.contains("Clock format string"),
             "expected clock hover, got: {value}",
@@ -4710,6 +4840,29 @@ mod tests {
         let analysis = a.analyse(src, "tcl8.6").clone();
         let h = hover(src, 0, 17, &analysis, None).expect("hover");
         assert!(h.value.contains("binary format"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_fires_for_bare_binary_format_specifier() {
+        // Tcl accepts an unquoted format word.  The registry identifies it as
+        // the `FormatString`; hover must not require braces or quotes.
+        let src = "binary format c2s value\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let h = hover(src, 0, 15, &analysis, None).expect("hover");
+        assert!(h.value.contains("binary format"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_uses_lsearchs_registry_selected_pattern_language() {
+        // `-regexp` changes lsearch's embedded language, while an exact or
+        // abbreviated option still shifts list/pattern positions through the
+        // registry's OptionSpec grammar.
+        let src = "lsearch -regexp {a b} {a+}\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let h = hover(src, 0, 24, &analysis, None).expect("hover");
+        assert!(h.value.contains("Regex pattern"), "{}", h.value);
     }
 
     // regsub substitution-spec hover

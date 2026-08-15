@@ -29,12 +29,12 @@ advertised. Both are deliberate, and they are two halves of one rule:
   advertises the capability whether or not it will use it — would otherwise
   get neither push (suppressed) nor pull (unadvertised): zero diagnostics.
 
-The `textDocument/diagnostic` and `workspace/diagnostic` handlers are
-implemented and answer correctly, backed by `pull_diag_cache`, and the
-`tclLsp.features.pullDiagnostics` setting exists in the VS Code contribution
-schema (default `false`). Nothing in the server currently reads that setting
-or flips the advertisement, so pull remains unreachable through configuration
-alone; the handlers serve a client that requests them directly.
+The `textDocument/diagnostic` and `workspace/diagnostic` handlers remain
+implemented and answer correctly, backed by `pull_diag_cache`, for clients
+that request them directly. Pull is intentionally not exposed as a contributed
+editor setting: changing the delivery model requires a different capability
+advertised during `initialize`, and cannot be switched safely by a later
+configuration refresh without a server restart and client reinitialisation.
 
 Whatever the delivery channel, a pull response and a push notification are
 built from the same `finalise_diagnostics` path, so the two cannot disagree

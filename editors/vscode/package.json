@@ -3503,13 +3503,6 @@
             "description": "Override workspace file operations (auto-rewrite source paths on rename). When null, enabled.",
             "order": 20
           },
-          "tclLsp.features.pullDiagnostics": {
-            "scope": "language-overridable",
-            "type": "boolean",
-            "default": false,
-            "description": "Enable pull-model diagnostics (textDocument/diagnostic, workspace/diagnostic). Off by default: turning this on causes most clients to stop honouring push notifications.",
-            "order": 21
-          },
           "tclLsp.features.willSaveWaitUntil": {
             "scope": "language-overridable",
             "type": "boolean",

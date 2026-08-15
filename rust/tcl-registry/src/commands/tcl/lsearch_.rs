@@ -228,6 +228,49 @@ static OPTIONS: &[OptionSpec] = &[
     // `analyse_no_w304_for_lsearch` regression test depends on this.
 ];
 
+/// `lsearch ?options? list pattern` has one list operand followed by its
+/// pattern.  The option table is the grammar: `-start`/`-index`/`-stride`
+/// consume their declared values, and a unique abbreviation consumes exactly
+/// the same layout as its canonical spelling.
+fn lsearch_pattern_args(args: &[&str]) -> Vec<PatternArg> {
+    let mut option_end = 0;
+    let mut kind = Some(PatternType::Glob);
+    while let Some(&word) = args.get(option_end) {
+        let Some(option) = resolve_option_prefix(OPTIONS, word) else {
+            break;
+        };
+        // The matching-style options are mutually overriding: the final one
+        // Tcl accepts decides the embedded language. Exact and sorted forms
+        // have no pattern mini-language, so they intentionally produce none.
+        kind = match option.name {
+            "-glob" => Some(PatternType::Glob),
+            "-regexp" => Some(PatternType::Regex),
+            "-exact" | "-sorted" => None,
+            _ => kind,
+        };
+        option_end += 1 + option.value_word_count(args, option_end);
+        if option.name == "--" {
+            break;
+        }
+    }
+    let pattern = option_end.saturating_add(1); // skip list
+    kind.filter(|_| pattern < args.len())
+        .and_then(|kind| {
+            u8::try_from(pattern)
+                .ok()
+                .map(|index| PatternArg { index, kind })
+        })
+        .into_iter()
+        .collect()
+}
+
+fn lsearch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    lsearch_pattern_args(args)
+        .into_iter()
+        .map(|arg| (arg.index, ArgRole::Pattern))
+        .collect()
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsearch",
@@ -244,6 +287,8 @@ pub fn spec() -> CommandSpec {
         // style per call, but the registry's `pattern_type` is a single
         // per-command fact, so it records the default.
         pattern_type: Some(PatternType::Glob),
+        arg_role_resolver: Some(lsearch_arg_roles),
+        pattern_arg_resolver: Some(lsearch_pattern_args),
         options: OPTIONS,
         hover: Some(HoverSnippet {
             summary: "Search a list for an element matching a pattern.",

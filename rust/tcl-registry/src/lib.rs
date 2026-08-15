@@ -169,7 +169,7 @@ pub mod prelude {
         LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
         LiteralValidationDecline,
     };
-    pub use crate::patterns::{FormatType, PatternType};
+    pub use crate::patterns::{FormatType, PatternArg, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::repeated::RepeatedArgLayout;
     pub use crate::representation::RepresentationEffect;
@@ -182,7 +182,8 @@ pub mod prelude {
     pub use crate::spec::{
         BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
         DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-        SubCommand, SubSubCommand, VersionedArgValue,
+        SubCommand, SubSubCommand, VersionedArgValue, leading_option_word_count,
+        leading_option_word_count_with, resolve_option_prefix, resolve_option_prefix_with,
     };
     pub use crate::state_transition::{
         CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,

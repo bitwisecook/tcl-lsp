@@ -63,8 +63,6 @@ class TclLspSettingsPanel {
     private val featureDocumentHighlight = JBCheckBox("Document highlight")
     private val featureCodeLens = JBCheckBox("Code lens")
     private val featureWorkspaceFileOps = JBCheckBox("Auto-rewrite source paths on rename")
-    private val featurePullDiagnostics =
-        JBCheckBox("Pull diagnostics (opt-in; restart required)")
     private val featureImplementation = JBCheckBox("Go to implementation")
     private val featureTypeDefinition = JBCheckBox("Go to type definition")
     private val featureDeclaration = JBCheckBox("Go to declaration")
@@ -328,7 +326,6 @@ class TclLspSettingsPanel {
                 featureCallHierarchy,
                 featureDocumentLinks, featureSelectionRange,
                 featureDocumentHighlight, featureCodeLens, featureWorkspaceFileOps,
-                featurePullDiagnostics,
                 featureImplementation, featureTypeDefinition, featureDeclaration,
                 featureLinkedEditingRange,
             )
@@ -526,7 +523,6 @@ class TclLspSettingsPanel {
             featureDocumentHighlight.isSelected != s.featureDocumentHighlight ||
             featureCodeLens.isSelected != s.featureCodeLens ||
             featureWorkspaceFileOps.isSelected != s.featureWorkspaceFileOps ||
-            featurePullDiagnostics.isSelected != s.featurePullDiagnostics ||
             featureImplementation.isSelected != s.featureImplementation ||
             featureTypeDefinition.isSelected != s.featureTypeDefinition ||
             featureDeclaration.isSelected != s.featureDeclaration ||
@@ -772,7 +768,6 @@ class TclLspSettingsPanel {
         s.featureDocumentHighlight = featureDocumentHighlight.isSelected
         s.featureCodeLens = featureCodeLens.isSelected
         s.featureWorkspaceFileOps = featureWorkspaceFileOps.isSelected
-        s.featurePullDiagnostics = featurePullDiagnostics.isSelected
         s.featureImplementation = featureImplementation.isSelected
         s.featureTypeDefinition = featureTypeDefinition.isSelected
         s.featureDeclaration = featureDeclaration.isSelected
@@ -1036,7 +1031,6 @@ class TclLspSettingsPanel {
         featureDocumentHighlight.isSelected = s.featureDocumentHighlight
         featureCodeLens.isSelected = s.featureCodeLens
         featureWorkspaceFileOps.isSelected = s.featureWorkspaceFileOps
-        featurePullDiagnostics.isSelected = s.featurePullDiagnostics
         featureImplementation.isSelected = s.featureImplementation
         featureTypeDefinition.isSelected = s.featureTypeDefinition
         featureDeclaration.isSelected = s.featureDeclaration

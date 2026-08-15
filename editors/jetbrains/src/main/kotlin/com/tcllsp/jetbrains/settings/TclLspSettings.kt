@@ -65,9 +65,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureDocumentHighlight: Boolean = true
     var featureCodeLens: Boolean = true
     var featureWorkspaceFileOps: Boolean = true
-    // Pull diagnostics are opt-in: advertising diagnosticProvider flips
-    // most LSP clients into pull mode and disables the push pipeline.
-    var featurePullDiagnostics: Boolean = false
     var featureWillSaveWaitUntil: Boolean = false
     var featureImplementation: Boolean = true
     var featureTypeDefinition: Boolean = true
@@ -340,7 +337,6 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "documentHighlight" to featureDocumentHighlight,
                 "codeLens" to featureCodeLens,
                 "workspaceFileOps" to featureWorkspaceFileOps,
-                "pullDiagnostics" to featurePullDiagnostics,
                 "implementation" to featureImplementation,
                 "typeDefinition" to featureTypeDefinition,
                 "declaration" to featureDeclaration,

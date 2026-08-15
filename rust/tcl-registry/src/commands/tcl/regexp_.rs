@@ -48,8 +48,9 @@ const FORMS: &[FormSpec] = &[
 fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let i = first_positional_index(REGEXP_OPTIONS, args, 0);
     let capture_start = i + 2; // skip pattern + string
-    (capture_start..args.len())
-        .filter_map(|j| u8::try_from(j).ok().map(|j| (j, ArgRole::VarWrite)))
+    std::iter::once((i, ArgRole::Pattern))
+        .chain((capture_start..args.len()).map(|index| (index, ArgRole::VarWrite)))
+        .filter_map(|(index, role)| u8::try_from(index).ok().map(|index| (index, role)))
         .collect()
 }
 
@@ -165,6 +166,9 @@ pub fn spec() -> CommandSpec {
         // `string`, no `-about`) is consequently not caught by this
         // coarse check.
         arity: Arity::at_least(1),
+        // `Tcl_RegexpObjCmd` uses `TCL_EXACT`: unlike the common
+        // Tcl_GetIndexFromObj tables, `-sta` is an error rather than -start.
+        prefix_matching: PrefixMatching::Strict,
         return_type: Some(TclType::Int),
         // `regexp` writes matched substrings to its capture variables while
         // returning the match *count* (or 0/1).  The captures are strings, not

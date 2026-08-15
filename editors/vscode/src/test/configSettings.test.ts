@@ -65,7 +65,7 @@ suite("Configuration Settings", () => {
   const cfg = () => vscode.workspace.getConfiguration("tclLsp");
 
   // Feature toggles — all default to null (inherit from editor globals or
-  // default to enabled), except pullDiagnostics which defaults to false.
+  // default to enabled).
   const triStateFeatureKeys = [
     "hover",
     "completion",
@@ -93,10 +93,6 @@ suite("Configuration Settings", () => {
       assert.strictEqual(value, null, `features.${key} should default to null`);
     });
   }
-
-  test("features.pullDiagnostics defaults to false", () => {
-    assert.strictEqual(cfg().get<boolean>("features.pullDiagnostics"), false);
-  });
 
   // Tri-state inheritance: null feature toggles inherit from editor globals.
   // These tests change a VS Code editor global, verify the feature toggle

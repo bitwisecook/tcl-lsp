@@ -245,6 +245,15 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    // This is a native resolver over a command's own OptionSpec table. Packs
+    // can describe the table and static pattern facts, but not arbitrary
+    // option-selected language dispatch yet; keeping it excluded makes the
+    // native-only boundary explicit until a declarative selector exists.
+    Gap {
+        key: "pattern_arg_resolver",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
     Gap {
         key: "command_forms",
         spelling: "",

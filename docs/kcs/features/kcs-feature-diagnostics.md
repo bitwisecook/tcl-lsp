@@ -23,7 +23,7 @@ all-editors, MCP, Claude skill, diagnostic, warning
 
 The analyser produces diagnostics in categories: errors (E-codes), security (S-codes), taint (T-codes), performance/style (W-codes), and optimiser suggestions (O-codes). Diagnostics are published on every document change via the LSP `textDocument/publishDiagnostics` notification (the default push model).
 
-The server also supports pull-model diagnostics — `textDocument/diagnostic` for one document and `workspace/diagnostic` for the whole workspace — for editors that prefer to request diagnostics on demand. Pull responses return the same set the push model publishes, and an unchanged document is answered with a cheap `Unchanged` report. Pull mode is off by default and is enabled with `tclLsp.features.pullDiagnostics`; turning it on causes most clients to stop honouring the push notifications, so use one model or the other, not both.
+The server also answers pull-model requests — `textDocument/diagnostic` for one document and `workspace/diagnostic` for the whole workspace — from the same cache, for clients that request them directly. Pull is not a user setting: switching delivery models changes the capability advertised during `initialize`, so it must be agreed by the client and server for a fresh session. Push publication remains the editor default.
 
 ## Failure modes
 

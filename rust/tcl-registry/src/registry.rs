@@ -301,9 +301,10 @@ fn push_repeated_roles(
 /// (primary or secondary) equals `role`.
 ///
 /// Walks `args` from `scan_start` (1 to skip a subcommand word, else 0),
-/// matching option names/aliases literally — so `-1`, `$x`, `[cmd]` are treated
-/// as positionals, never flags — and advancing past each recognised option and
-/// the value word(s) it consumes ([`OptionSpec::value_indices`], which honours
+/// resolving option names, aliases, and unique abbreviations through the
+/// declared table — so `-1`, `$x`, `[cmd]`, and ambiguous abbreviations are
+/// treated as positionals — and advancing past each recognised option and the
+/// value word(s) it consumes ([`OptionSpec::value_indices`], which honours
 /// arity and the `--` terminator). The emitted indices are absolute into `args`,
 /// exactly like the positional roles, so consumers map them via `argv[idx + 1]`
 /// unchanged. A two-way binding (`role: VarWrite, also_role: VarRead`) emits its
@@ -321,7 +322,7 @@ fn push_option_value_roles(
         if args[i] == "--" {
             break;
         }
-        if let Some(opt) = options.iter().find(|o| o.matches(args[i])) {
+        if let Some(opt) = crate::spec::resolve_option_prefix(options, args[i]) {
             let vals = opt.value_indices(args, i);
             if opt.value_role() == Some(role) || opt.value_also_role() == Some(role) {
                 out.extend(vals.iter().copied());
@@ -347,7 +348,7 @@ fn push_command_prefix_options(
         if args[i] == "--" {
             break;
         }
-        if let Some(opt) = options.iter().find(|o| o.matches(args[i])) {
+        if let Some(opt) = crate::spec::resolve_option_prefix(options, args[i]) {
             let vals = opt.value_indices(args, i);
             if opt.value_role() == Some(ArgRole::CommandPrefix) {
                 let arity = opt.value_appended_arity();
@@ -2370,6 +2371,34 @@ impl CommandRegistry {
         out
     }
 
+    /// The pattern-bearing arguments of one concrete invocation.
+    ///
+    /// This pairs each declared position with its embedded language. A static
+    /// command derives the positions from [`ArgRole::Pattern`]; an
+    /// option-selected command supplies the paired facts through its registry
+    /// resolver. Consumers therefore never need command-name or `-regexp`
+    /// branches of their own.
+    #[must_use]
+    pub fn pattern_args(&self, name: &str, args: &[&str]) -> Vec<crate::patterns::PatternArg> {
+        let Some(spec) = self.get(name) else {
+            return Vec::new();
+        };
+        if let Some(resolve) = spec.pattern_arg_resolver {
+            return resolve(args);
+        }
+        let sub = (!spec.subcommands.is_empty())
+            .then(|| args.first().and_then(|word| spec.resolve_subcommand(word)))
+            .flatten();
+        let Some(kind) = sub.and_then(|sub| sub.pattern_type).or(spec.pattern_type) else {
+            return Vec::new();
+        };
+        self.arg_indices_for_role(name, args, ArgRole::Pattern)
+            .into_iter()
+            .filter_map(|index| u8::try_from(index).ok())
+            .map(|index| crate::patterns::PatternArg { index, kind })
+            .collect()
+    }
+
     /// How a formatter should **present** argument `index` of a call to
     /// `name` — the layout fact that refines the argument's semantic
     /// [`ArgRole`] (issue #1186).
@@ -3870,6 +3899,46 @@ mod tests {
             !found("regsub", &["-command", "--", "e", "$s", "cb"])
                 .iter()
                 .any(|(i, _, _)| *i == 3)
+        );
+    }
+
+    /// Pattern locations come from the owning specs' option descriptors, not
+    /// from an LSP walk guessing where a `-start` value ends.  Exercise the
+    /// three shapes that previously drifted: abbreviations, value-taking
+    /// options, and glob's unbounded pattern tail.
+    #[test]
+    fn pattern_roles_follow_declared_option_prefixes() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role("lsearch", &["-sta", "2", "{a b c}", "b*"], ArgRole::Pattern,),
+            vec![3],
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("string", &["match", "-noc", "a*", "abc"], ArgRole::Pattern,),
+            vec![2],
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("glob", &["-di", "tmp", "*.tcl", "*.tm"], ArgRole::Pattern,),
+            vec![2, 3],
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("glob", &["--", "-literal", "*.tcl"], ArgRole::Pattern),
+            vec![1, 2],
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("regexp", &["-start", "2", "a+", "aaa"], ArgRole::Pattern,),
+            vec![2],
+        );
+        assert_eq!(
+            reg.pattern_args("lsearch", &["-regexp", "{a b}", "a+"]),
+            vec![crate::patterns::PatternArg {
+                index: 2,
+                kind: crate::patterns::PatternType::Regex,
+            }],
+        );
+        assert!(
+            reg.pattern_args("lsearch", &["-exact", "{a b}", "a+"])
+                .is_empty()
         );
     }
 

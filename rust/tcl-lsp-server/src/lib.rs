@@ -10818,16 +10818,17 @@ impl Backend {
         serde_json::json!({ "events": names })
     }
 
-    /// Handle `tcl-lsp.diagramData`: extract the `when EVENT` event names from
-    /// a source string.
-    fn diagram_data_command(args: &[serde_json::Value]) -> Option<serde_json::Value> {
+    /// Handle `tcl-lsp.diagramData` through the shared structured diagram
+    /// projection.  The CLI and MCP use the same `tcl-diagram` entry point;
+    /// keeping the LSP on it preserves the full `{events, procedures}` shape
+    /// (including flow, priority, and multiplicity) consumed by the editors.
+    async fn diagram_data_command(&self, args: &[serde_json::Value]) -> Option<serde_json::Value> {
         let source = args.first().and_then(serde_json::Value::as_str)?;
-        let events: Vec<serde_json::Value> =
-            tcl_lsp_core::irules_context::scan_file_events(source, "f5-irules")
-                .into_iter()
-                .map(|name| serde_json::json!({ "name": name }))
-                .collect();
-        Some(serde_json::json!({ "events": events }))
+        let dialect = "f5-irules";
+        let registry = self.registry_for_dialect(dialect).await;
+        Some(tcl_diagram::diagram_data_for_dialect(
+            source, &registry, dialect,
+        ))
     }
 
     /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping
@@ -17063,7 +17064,7 @@ impl LanguageServer for Backend {
                 self.describe_irule_command_command(&params.arguments).await
             }
             "tcl-lsp.listIruleEvents" => Ok(Some(Self::list_irule_events_command())),
-            "tcl-lsp.diagramData" => Ok(Self::diagram_data_command(&params.arguments)),
+            "tcl-lsp.diagramData" => Ok(self.diagram_data_command(&params.arguments).await),
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
@@ -21507,9 +21508,10 @@ fn build_server_capabilities(
         // silently disables our richer push pipeline (`publish_diagnostics`)
         // and makes clients render each diagnostic twice (#721).  The
         // `textDocument/diagnostic` + `workspace/diagnostic` handlers still
-        // exist for a client that opts in via `tclLsp.features.pullDiagnostics`
-        // (registered dynamically on that path), but the default capability set
-        // leaves this absent so push stays the sole delivery channel.
+        // exist for a client that requests them directly, but the default
+        // capability set leaves this absent so push stays the sole delivery
+        // channel. Switching models is an initialize-time client/server
+        // contract, not a live feature toggle.
         diagnostic_provider: None,
         // Editor-invoked workspace commands (currently the
         // minify-document command family).
@@ -23457,10 +23459,14 @@ mod tests {
         assert_eq!(names, sorted, "events must be sorted");
     }
 
-    #[test]
-    fn diagram_data_command_extracts_when_events() {
+    #[tokio::test]
+    async fn diagram_data_command_extracts_structured_flow() {
+        let backend = test_backend();
         let src = "when HTTP_REQUEST {\n}\nwhen CLIENT_ACCEPTED {\n}\n";
-        let out = Backend::diagram_data_command(&[serde_json::json!(src)]).expect("some");
+        let out = backend
+            .diagram_data_command(&[serde_json::json!(src)])
+            .await
+            .expect("some");
         let events: Vec<&str> = out
             .get("events")
             .and_then(|v| v.as_array())
@@ -23470,8 +23476,13 @@ mod tests {
             .collect();
         assert!(events.contains(&"HTTP_REQUEST"), "{events:?}");
         assert!(events.contains(&"CLIENT_ACCEPTED"), "{events:?}");
+        assert!(
+            out.get("procedures")
+                .and_then(serde_json::Value::as_array)
+                .is_some()
+        );
         // No string argument → None (not an empty result).
-        assert!(Backend::diagram_data_command(&[]).is_none());
+        assert!(backend.diagram_data_command(&[]).await.is_none());
     }
 
     #[tokio::test]
