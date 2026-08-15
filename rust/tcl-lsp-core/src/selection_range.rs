@@ -314,8 +314,21 @@ fn command_span_at(
                 *best = Some(span);
             }
             let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+            let canonical = tcl_syntax::naming::canonical_written_command(command.name());
+            let semantic_head = if registry.get(&canonical).is_some() {
+                canonical
+            } else if canonical.starts_with("::") {
+                let rooted_name = canonical.trim_start_matches("::");
+                if registry.get(rooted_name).is_some() {
+                    rooted_name.to_owned()
+                } else {
+                    canonical
+                }
+            } else {
+                canonical
+            };
             for index in
-                registry.arg_indices_for_role(command.name(), &args, tcl_registry::ArgRole::Body)
+                registry.arg_indices_for_role(&semantic_head, &args, tcl_registry::ArgRole::Body)
             {
                 let Some(token) = command.arg_tokens().get(index) else {
                     continue;
@@ -650,7 +663,7 @@ mod tests {
 
     #[test]
     fn nested_proc_command_is_innermost_with_and_without_analysis() {
-        let src = "proc p {} {\n if {1} {\n  set value [string toupper \\\n+    local]\n }\n}\n";
+        let src = "proc p {} {\n ::if {1} {\n  set value [string toupper \\\n+    local]\n }\n}\n";
         let cursor = u32::try_from(src.find("local").unwrap()).unwrap();
         let source_len = u32::try_from(src.len()).unwrap();
         let analysed = analyse(src);
