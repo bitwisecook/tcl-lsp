@@ -76,6 +76,8 @@ The current owners and their semantic axes are:
 | Option words / subcommands | `tcl-cmd-core::prefix` + registry tables | release/dialect surface |
 | Expr grammar / evaluation | `tcl-syntax::expr` + `RuntimeExprSurface` | per release |
 | Command / word segmentation | `tcl-compiler::segmenter` over the red-green CST | `LexerConfig` per document dialect |
+| Tcl comment lines | `tcl-lexer::comment_line_starts` plus registry-declared script bodies | resolved `LexerConfig` and registry |
+| iRules `when EVENT` blocks | `tcl-irules::when_blocks` | `f5-irules` `LexerConfig` |
 | Per-command knowledge | `tcl-registry::CommandSpec` and descriptors | per release/dialect |
 | Dialect / release facts | `tcl-dialect::DialectProfile` | resolved profile axis |
 

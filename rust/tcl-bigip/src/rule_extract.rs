@@ -38,8 +38,9 @@
 //! sources — every BIG-IP config in practice — byte offsets coincide with
 //! code-point offsets.
 
-use tcl_lexer::LineIndex;
+use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType, word_span_at};
 
+use crate::parser::helpers::extract_blocks;
 use crate::range::Range;
 
 /// An iRule block found inside a BIG-IP configuration file.
@@ -78,14 +79,15 @@ pub fn is_conf_wrapped_irules(source: &str) -> bool {
 
 /// Find all `ltm rule` and `gtm rule` blocks in `source`.
 ///
-/// Brace-balanced extraction that skips braces inside double-quoted
-/// strings and honours backslash escapes.
+/// The enclosing tmsh stanza comes from [`extract_blocks`], whose quote-aware
+/// grammar is correct for tmsh. Its iRules body boundary is then resolved by
+/// the f5-irules lexer, whose braced-word grammar deliberately counts braces
+/// inside quotes.
 #[must_use]
 pub fn find_embedded_rules(source: &str) -> Vec<EmbeddedRule> {
     let line_index = LineIndex::new(source);
-    let bytes = source.as_bytes();
-    let len = bytes.len();
     let mut rules = Vec::new();
+    let blocks = extract_blocks(source);
 
     for header_match in find_rule_headers(source) {
         let RuleHeader {
@@ -100,40 +102,12 @@ pub fn find_embedded_rules(source: &str) -> Vec<EmbeddedRule> {
             .unwrap_or(&full_path)
             .to_owned();
 
-        // Scan from just after the opening `{`, tracking brace depth.
-        let mut pos = brace_pos + 1;
-        let mut depth: i32 = 1;
-        while pos < len && depth > 0 {
-            match bytes[pos] {
-                b'{' => depth += 1,
-                b'}' => depth -= 1,
-                b'"' => {
-                    // Skip a quoted string — braces inside quotes are not
-                    // structural.
-                    pos += 1;
-                    while pos < len && bytes[pos] != b'"' {
-                        // Bounds-guard the escape skip (as in `helpers.rs`): a
-                        // trailing `\` inside an unterminated quote must not
-                        // advance `pos` past the buffer, which pushed the body
-                        // range out of range and silently emptied the extracted
-                        // rule body (issue 191).
-                        if bytes[pos] == b'\\' && pos + 1 < len {
-                            pos += 1; // skip escaped char
-                        }
-                        pos += 1;
-                    }
-                }
-                b'\\' => pos += 1, // skip escaped char
-                _ => {}
-            }
-            pos += 1;
-        }
-
-        // `pos` now sits one past the closing `}`. The body excludes both
-        // braces; `pos - 1` is the closing `}`.
-        let block_end_offset = pos;
+        let Some(outer) = blocks.iter().find(|block| block.start_offset == brace_pos) else {
+            continue;
+        };
+        let (body_end_offset, block_end_offset) =
+            irules_body_end(source, brace_pos, outer.end_offset);
         let body_start_offset = brace_pos + 1;
-        let body_end_offset = pos.saturating_sub(1);
         let body = source
             .get(body_start_offset..body_end_offset)
             .unwrap_or("")
@@ -160,6 +134,34 @@ pub fn find_embedded_rules(source: &str) -> Vec<EmbeddedRule> {
     }
 
     rules
+}
+
+/// Resolve a tmsh stanza's Tcl boundary with the iRules brace grammar.
+///
+/// `outer_end` is only a fallback for malformed input. In valid input the
+/// lexer returns the first Tcl close brace, including one written inside a
+/// quoted Tcl word, as TMM does.
+fn irules_body_end(source: &str, opening_brace: usize, outer_end: usize) -> (usize, usize) {
+    let tail = &source[opening_brace..outer_end.min(source.len())];
+    let Ok(tokens) = Lexer::with_config(tail, LexerConfig::for_dialect("f5-irules")).tokenise_all()
+    else {
+        return (outer_end.saturating_sub(1), outer_end);
+    };
+    let Some(token) = tokens
+        .into_iter()
+        .find(|token| token.kind == TokenType::Str)
+    else {
+        return (outer_end.saturating_sub(1), outer_end);
+    };
+    let whole = word_span_at(tail, token.span);
+    let whole_end = usize::try_from(whole.end())
+        .unwrap_or(outer_end)
+        .min(tail.len());
+    if whole_end <= 1 || tail.as_bytes().get(whole_end - 1) != Some(&b'}') {
+        return (outer_end.saturating_sub(1), outer_end);
+    }
+    let closing = opening_brace + whole_end - 1;
+    (closing, closing + 1)
 }
 
 /// Return the [`EmbeddedRule`] whose block contains `offset`, or `None`.

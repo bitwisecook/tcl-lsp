@@ -248,5 +248,6 @@
     "taint",
     "thread_safety"
   ],
-  "irules_event_pattern": "^\\s*when\\s+([A-Z][A-Z0-9_]{2,})\\b"
+  "irules_event_pattern": "^\\s*when\\s+([A-Z][A-Z0-9_]{2,})\\b",
+  "irules_event_boundary_owner": "tcl-irules::when_blocks (configured f5-irules segmenter; do not use the recognition regex for body extraction)"
 }

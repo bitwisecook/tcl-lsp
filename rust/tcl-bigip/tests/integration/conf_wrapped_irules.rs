@@ -405,6 +405,17 @@ fn embedded_rule_fields_populated() {
     assert!(r.body.starts_with("\n    when HTTP_REQUEST"));
 }
 
+#[test]
+fn embedded_rule_uses_tcl_quote_blind_brace_boundary() {
+    let source =
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST {\n    log local0. \"unexpected }\"\n}\n}\n";
+    let rules = find_embedded_rules(source);
+    assert_eq!(rules.len(), 1);
+    let rule = &rules[0];
+    assert_eq!(source.as_bytes()[rule.body_end_offset], b'}');
+    assert!(rule.body.contains("unexpected "));
+}
+
 /// `replace_rule_body` swaps the body bytes between the braces, leaving the
 /// header and closing brace intact.
 #[test]

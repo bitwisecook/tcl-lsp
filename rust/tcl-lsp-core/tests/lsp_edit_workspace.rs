@@ -730,6 +730,7 @@ fn style_orchestrator_merges_checks_and_respects_disabled_set() {
         &no_disable(),
         &no_suppress(),
         None,
+        "tcl9.0",
     );
     let codes: HashSet<&str> = all.iter().map(|d| d.code).collect();
     assert!(codes.contains("W111"), "{all:?}");
@@ -744,6 +745,7 @@ fn style_orchestrator_merges_checks_and_respects_disabled_set() {
         &disabled,
         &no_suppress(),
         None,
+        "tcl9.0",
     );
     assert!(filtered.iter().all(|d| d.code != "W112"), "{filtered:?}");
     assert!(
@@ -765,6 +767,7 @@ fn style_orchestrator_honours_line_suppression_for_line_codes() {
         &no_disable(),
         &suppressed,
         None,
+        "tcl9.0",
     );
     assert!(
         diags.iter().all(|d| d.code != "W112"),

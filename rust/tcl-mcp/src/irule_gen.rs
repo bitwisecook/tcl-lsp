@@ -89,11 +89,6 @@ const HOT_EVENTS: &[&str] = &[
 
 static IRULE_CMD_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b([A-Z][A-Z0-9]*::[a-z_][a-z0-9_]*)\b").expect("valid regex"));
-static POOL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\bpool\s+(\S+)").expect("valid regex"));
-static CLASS_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bclass\s+(?:match|lookup)\s+\S+\s+\S+\s+(\S+)").expect("valid regex")
-});
 static STATIC_VAR_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?:set\s+|[\$])static::(\w+)").expect("valid regex"));
 static SET_INCR_STATIC_RE: LazyLock<Regex> =
@@ -127,14 +122,21 @@ struct Variables {
 pub fn generate_irule_test(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
 
-    let ordered_events = EventRegistry::build().order_events_for_file(source);
+    // Discover handlers once at the request boundary. Lower-level registry
+    // code only orders these owner-derived names and never re-scans source.
+    let when_blocks = tcl_irules::when_blocks(source);
+    let event_names: Vec<String> = when_blocks
+        .iter()
+        .map(|block| block.event.clone())
+        .collect();
+    let ordered_events = EventRegistry::build().order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
-    let commands_used = extract_irule_commands(source);
-    let objects = extract_object_refs(source);
-    let variables = extract_variables(source);
+    let commands_used = extract_irule_commands(source, &when_blocks);
+    let objects = extract_object_refs(source, &when_blocks);
+    let variables = extract_variables(source, &when_blocks);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
-    let multi_tmm = needs_multi_tmm(source, &commands_used, &variables);
+    let multi_tmm = needs_multi_tmm(source, &when_blocks, &commands_used, &variables);
 
     let ctx = ScriptContext {
         basename: "irule.tcl",
@@ -176,16 +178,16 @@ pub fn generate_irule_test(args: &Value) -> Value {
 
 /// Extract the iRule command names used in `source` (`_extract_irule_commands`):
 /// `NS::cmd` tokens plus any bareword top-level commands, sorted + deduped.
-fn extract_irule_commands(source: &str) -> Vec<String> {
+fn extract_irule_commands(source: &str, blocks: &[tcl_irules::WhenBlock]) -> Vec<String> {
     let mut commands: BTreeSet<String> = BTreeSet::new();
-    for cap in IRULE_CMD_RE.captures_iter(source) {
-        commands.insert(cap[1].to_owned());
-    }
-    for &cmd in TOPLEVEL_CMDS {
-        // `\b<cmd>\b` — the toplevel names are all `\w`, so word boundaries
-        // reduce to surrounding non-word characters.
-        if word_present(source, cmd) {
-            commands.insert(cmd.to_owned());
+    for body in handler_bodies(source, blocks) {
+        for cap in IRULE_CMD_RE.captures_iter(body) {
+            commands.insert(cap[1].to_owned());
+        }
+        for &cmd in TOPLEVEL_CMDS {
+            if word_present(body, cmd) {
+                commands.insert(cmd.to_owned());
+            }
         }
     }
     commands.into_iter().collect()
@@ -220,20 +222,35 @@ fn clean_ref(raw: &str) -> &str {
 }
 
 /// Extract pool / data-group / node / virtual references (`_extract_object_refs`).
-fn extract_object_refs(source: &str) -> ObjectRefs {
+fn extract_object_refs(source: &str, blocks: &[tcl_irules::WhenBlock]) -> ObjectRefs {
     let mut pools: BTreeSet<String> = BTreeSet::new();
     let mut datagroups: BTreeSet<String> = BTreeSet::new();
 
-    for cap in POOL_RE.captures_iter(source) {
-        let name = clean_ref(&cap[1]);
-        if !name.is_empty() && !name.starts_with('$') && name != "member" {
-            pools.insert(name.to_owned());
-        }
-    }
-    for cap in CLASS_RE.captures_iter(source) {
-        let name = clean_ref(&cap[1]);
-        if !name.is_empty() && !name.starts_with('$') {
-            datagroups.insert(name.to_owned());
+    for body in handler_bodies(source, blocks) {
+        for command in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            body,
+            0,
+            tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
+        ) {
+            if command.name() == "pool" {
+                let Some(raw) = command.args().first() else {
+                    continue;
+                };
+                let name = clean_ref(raw);
+                if !name.is_empty() && !name.starts_with('$') && name != "member" {
+                    pools.insert(name.to_owned());
+                }
+            } else if command.name() == "class" {
+                let args = command.args();
+                if matches!(args.first().map(String::as_str), Some("match" | "lookup"))
+                    && let Some(raw) = args.last()
+                {
+                    let name = clean_ref(raw);
+                    if !name.is_empty() && !name.starts_with('$') {
+                        datagroups.insert(name.to_owned());
+                    }
+                }
+            }
         }
     }
 
@@ -244,10 +261,12 @@ fn extract_object_refs(source: &str) -> ObjectRefs {
 }
 
 /// Extract `static::` variable names (`_extract_variables`), sorted + deduped.
-fn extract_variables(source: &str) -> Variables {
+fn extract_variables(source: &str, blocks: &[tcl_irules::WhenBlock]) -> Variables {
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
-    for cap in STATIC_VAR_RE.captures_iter(source) {
-        static_vars.insert(cap[1].to_owned());
+    for body in handler_bodies(source, blocks) {
+        for cap in STATIC_VAR_RE.captures_iter(body) {
+            static_vars.insert(cap[1].to_owned());
+        }
     }
     Variables {
         static_vars: static_vars.into_iter().collect(),
@@ -277,49 +296,50 @@ fn infer_profiles(events: &[String]) -> Vec<String> {
 
 /// Detect whether an iRule should be tested in multi-TMM mode
 /// (`_needs_multi_tmm`).
-fn needs_multi_tmm(source: &str, commands_used: &[String], variables: &Variables) -> bool {
+fn needs_multi_tmm(
+    source: &str,
+    blocks: &[tcl_irules::WhenBlock],
+    commands_used: &[String],
+    variables: &Variables,
+) -> bool {
     let has_static_vars = !variables.static_vars.is_empty();
     let uses_table = commands_used.iter().any(|c| c == "table");
 
     // Pattern 1: static:: written in a hot event body.
     let static_in_hot = HOT_EVENTS.iter().any(|event| {
-        event_body(source, event).is_some_and(|body| SET_INCR_STATIC_RE.is_match(body))
+        event_body(source, blocks, event).is_some_and(|body| SET_INCR_STATIC_RE.is_match(body))
     });
 
     // Pattern 2: rate-limiting / counter patterns.
-    let has_counter = COUNTER_RE.is_match(source);
+    let has_counter = handler_bodies(source, blocks).any(|body| COUNTER_RE.is_match(body));
 
     // Pattern 3: table used for shared state.
-    let uses_shared_table = uses_table && TABLE_STATE_RE.is_match(source);
+    let uses_shared_table =
+        uses_table && handler_bodies(source, blocks).any(|body| TABLE_STATE_RE.is_match(body));
 
     static_in_hot || (has_counter && has_static_vars) || uses_shared_table
 }
 
-/// The (rough) body of a `when EVENT { ... }` block — the first `{` after the
-/// event name to its first `}`. Mirrors the non-greedy
-/// `when\s+EVENT\s*\{(.*?)\}` heuristic (stops at the first `}`).
-fn event_body<'a>(source: &'a str, event: &str) -> Option<&'a str> {
-    let mut search_from = 0;
-    while let Some(rel) = source[search_from..].find("when") {
-        let when_idx = search_from + rel;
-        // Require a word boundary before "when".
-        if when_idx > 0 && is_word_byte(source.as_bytes()[when_idx - 1]) {
-            search_from = when_idx + 4;
-            continue;
-        }
-        let after_when = &source[when_idx + 4..];
-        let trimmed = after_when.trim_start();
-        if let Some(rest) = trimmed.strip_prefix(event) {
-            let rest = rest.trim_start();
-            if let Some(body) = rest.strip_prefix('{') {
-                // `.*?\}` stops at the first `}` in the body.
-                let end = body.find('}').unwrap_or(body.len());
-                return Some(&body[..end]);
-            }
-        }
-        search_from = when_idx + 4;
-    }
-    None
+/// Return the segmented Tcl bodies of every live event handler.
+fn handler_bodies<'a>(
+    source: &'a str,
+    blocks: &'a [tcl_irules::WhenBlock],
+) -> impl Iterator<Item = &'a str> {
+    blocks
+        .iter()
+        .filter_map(|block| source.get(block.body_span.as_range()))
+}
+
+/// The segmented body of the first live handler for `event`.
+fn event_body<'a>(
+    source: &'a str,
+    blocks: &'a [tcl_irules::WhenBlock],
+    event: &str,
+) -> Option<&'a str> {
+    blocks
+        .iter()
+        .find(|block| block.event == event)
+        .and_then(|block| source.get(block.body_span.as_range()))
 }
 
 // ── Test-script rendering ─────────────────────────────────────────────
@@ -1114,6 +1134,37 @@ mod tests {
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/admin""#)),
             "{lines:?}"
+        );
+    }
+
+    #[test]
+    fn extractors_ignore_commented_out_handlers() {
+        let src = "# when HTTP_REQUEST { pool stale }\nwhen HTTP_REQUEST { pool live }\n";
+        let blocks = tcl_irules::when_blocks(src);
+        assert_eq!(
+            extract_object_refs(src, &blocks).pools,
+            vec!["live".to_owned()]
+        );
+        assert!(!extract_irule_commands(src, &blocks).contains(&"stale".to_owned()));
+    }
+
+    #[test]
+    fn extractors_ignore_commented_pool_inside_live_handler() {
+        let src = "when HTTP_REQUEST {\n # pool stale\n pool live\n}\n";
+        let blocks = tcl_irules::when_blocks(src);
+        assert_eq!(
+            extract_object_refs(src, &blocks).pools,
+            vec!["live".to_owned()]
+        );
+    }
+
+    #[test]
+    fn object_refs_ignore_inline_comments_and_pool_like_data() {
+        let src = "when HTTP_REQUEST {\n set x 1; # pool stale\n set quoted \"pool quoted\"\n set braced {pool braced}\n pool live\n}\n";
+        let blocks = tcl_irules::when_blocks(src);
+        assert_eq!(
+            extract_object_refs(src, &blocks).pools,
+            vec!["live".to_owned()]
         );
     }
 }

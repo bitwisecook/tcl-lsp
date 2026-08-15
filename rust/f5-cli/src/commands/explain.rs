@@ -25,7 +25,6 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
-use regex::Regex;
 use serde::Serialize;
 use serde_json::Value;
 use tcl_bigip::parser::BigipConfig;
@@ -170,7 +169,6 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
     }
     sections.push(("profiles", or_none(profiles)));
 
-    let event_re = Regex::new(r"\bwhen\s+([A-Z][A-Z0-9_]*)\b").expect("valid regex");
     let mut rules = Vec::new();
     for v in list_items(vs.get("rules")) {
         let Some(rref) = v.as_str() else { continue };
@@ -179,9 +177,9 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
             .unwrap_or_else(|| rref.to_owned());
         if let Some(rule) = model.get("rule", &resolved) {
             let body = rule.get("source").and_then(Value::as_str).unwrap_or("");
-            let events: BTreeSet<String> = event_re
-                .captures_iter(body)
-                .map(|c| c[1].to_owned())
+            let events: BTreeSet<String> = tcl_irules::when_blocks(body)
+                .into_iter()
+                .map(|block| block.event)
                 .collect();
             let loc = count_irule_lines(body);
             let event_str = if events.is_empty() {

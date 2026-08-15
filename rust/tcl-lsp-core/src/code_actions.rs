@@ -412,8 +412,7 @@ pub fn code_actions_in_program(
     actions.extend(continuation_comment_actions(
         source,
         range,
-        analysis,
-        &line_index,
+        &analysis.dialect,
     ));
     actions.extend(ip_conversion_actions(source, range, &line_index));
     actions.extend(expr_rewrite_actions(source, range, &line_index));
@@ -1019,60 +1018,34 @@ fn already_required(source: &str, pkg: &str) -> bool {
 
 // W115 — convert a backslash-continued comment to per-line comments.
 
-fn continuation_comment_actions(
-    source: &str,
-    range: LspRange,
-    analysis: &AnalysisResult,
-    line_index: &LineIndex,
-) -> Vec<CodeAction> {
-    // Only offer when a W115 diagnostic overlaps the range OR the start line is
-    // a backslash-continued comment (the editor may drive this with a
-    // fabricated W115 it computed client-side, so detect the shape directly).
+fn continuation_comment_actions(source: &str, range: LspRange, dialect: &str) -> Vec<CodeAction> {
+    // The shared W115 detector is also enough for clients that request source
+    // actions without forwarding server diagnostics.
     let lines: Vec<&str> = source.split('\n').collect();
     let start_line = range.start_line as usize;
     if start_line >= lines.len() {
         return Vec::new();
     }
-    let first = lines[start_line];
-    let trimmed = first.trim_start();
-    if !trimmed.starts_with('#') || !first.trim_end().ends_with('\\') {
-        // Not a continued comment at the range start — only offer the fix when
-        // a W115 diagnostic actually *overlaps* the requested range. A
-        // file-wide "any W115" check would rewrite an unrelated
-        // backslash-continued command on a different line as commented text.
-        let has_overlapping_w115 = analysis.diagnostics.iter().any(|d| {
-            if d.code != DiagCode::W115 {
-                return false;
-            }
-            let start = line_index.position_at_utf16(d.span.start(), source);
-            let end = line_index.position_at_utf16(d.span.end(), source);
-            ranges_overlap(
-                LspRange {
-                    start_line: start.line,
-                    start_character: start.character.get(),
-                    end_line: end.line,
-                    end_character: end.character.get(),
-                },
-                range,
-            )
-        });
-        if !has_overlapping_w115 {
-            return Vec::new();
-        }
-    }
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let comments = tcl_compiler::analyser::utils::script_comment_lines(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_registry::cache::registry_for_profile(profile),
+    );
+    let Some(block_end) =
+        crate::source_style::comment_continuation_run_with_facts(&lines, &comments, start_line)
+    else {
+        return Vec::new();
+    };
     // Gather the continuation run starting at `start_line`.
-    let mut idx = start_line;
     let mut block: Vec<String> = Vec::new();
-    loop {
-        if idx >= lines.len() {
-            break;
-        }
-        let line = lines[idx];
-        let stripped = line.trim_end();
-        let continues = stripped.ends_with('\\');
+    for line in &lines[start_line..block_end] {
+        let line = *line;
+        let without_cr = line.trim_end_matches('\r');
+        let continues = without_cr.ends_with('\\');
         // Strip the trailing backslash; preserve leading indentation.
         let body = if continues {
-            stripped[..stripped.len() - 1].trim_end()
+            without_cr[..without_cr.len() - 1].trim_end()
         } else {
             line.trim_end()
         };
@@ -1088,25 +1061,22 @@ fn continuation_comment_actions(
         } else {
             block.push(format!("{indent}# {content}"));
         }
-        if !continues {
-            break;
-        }
-        idx += 1;
-    }
-    if idx <= start_line {
-        return Vec::new();
     }
     let new_text = block.join("\n");
+    let end_line = block_end - 1;
     vec![CodeAction {
         title: "Convert to per-line comments".to_string(),
         edits: vec![crate::rename::TextEdit {
             range: LspRange {
                 start_line: range.start_line,
                 start_character: 0,
-                end_line: u32::try_from(idx).unwrap_or(range.start_line),
+                end_line: u32::try_from(end_line).unwrap_or(range.start_line),
                 // LSP columns are UTF-16 code units — use the line's UTF-16
                 // length, not its codepoint count.
-                end_character: char_col_to_utf16_local(lines[idx], lines[idx].chars().count()),
+                end_character: char_col_to_utf16_local(
+                    lines[end_line],
+                    lines[end_line].chars().count(),
+                ),
             },
             new_text,
         }],
@@ -3159,6 +3129,28 @@ mod tests {
             }),
             "{actions:?}",
         );
+    }
+
+    #[test]
+    fn w115_action_ignores_braced_and_quoted_pseudo_comments() {
+        for src in [
+            "set payload {# pseudo \\\nputs live}\n",
+            "set payload \"# pseudo \\\nputs live\"\n",
+        ] {
+            let analysis = analyse(src);
+            let actions = code_actions(
+                src,
+                whole_document_range(src),
+                Some(&analysis),
+                &analysis.diagnostics,
+            );
+            assert!(
+                !actions
+                    .iter()
+                    .any(|action| action.title.contains("continued comment")),
+                "pseudo-comment offered W115 action: {actions:?}"
+            );
+        }
     }
 
     #[test]

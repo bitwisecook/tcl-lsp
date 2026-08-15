@@ -415,13 +415,12 @@ fn rule_irule_deprecated_command(view: &ModelView<'_>, out: &mut Vec<Finding>) {
 
 /// `irule-empty-when` (info/irule): a `when EVENT { }` block with only
 /// whitespace / comments inside.
-fn rule_irule_empty_when(
-    view: &ModelView<'_>,
-    empty_when_re: &regex::Regex,
-    out: &mut Vec<Finding>,
-) {
+fn rule_irule_empty_when(view: &ModelView<'_>, out: &mut Vec<Finding>) {
     for (path, rule) in view.rules.iter() {
-        if empty_when_re.is_match(&rule.source) {
+        if tcl_irules::when_blocks(&rule.source)
+            .iter()
+            .any(|block| tcl_irules::when_block_is_empty(&rule.source, block))
+        {
             out.push(Finding {
                 rule_id: "irule-empty-when".to_owned(),
                 severity: "info",
@@ -435,28 +434,22 @@ fn rule_irule_empty_when(
 
 /// `irule-unknown-event` (warning/irule): a `when EVENT` naming an event the
 /// f5-irules registry does not know.
-fn rule_irule_unknown_event(
-    view: &ModelView<'_>,
-    when_re: &regex::Regex,
-    events: &EventRegistry,
-    out: &mut Vec<Finding>,
-) {
+fn rule_irule_unknown_event(view: &ModelView<'_>, events: &EventRegistry, out: &mut Vec<Finding>) {
     for (path, rule) in view.rules.iter() {
-        // Collect `_WHEN_RE` matches into a set; dedup first-seen so a
+        // Collect canonical boundary matches into a set; dedup first-seen so a
         // repeated event fires at most one finding per rule.
-        let mut seen: HashSet<&str> = HashSet::new();
-        for cap in when_re.captures_iter(&rule.source) {
-            let event = cap.get(1).map_or("", |m| m.as_str());
-            if !seen.insert(event) {
+        let mut seen: HashSet<String> = HashSet::new();
+        for block in tcl_irules::when_blocks(&rule.source) {
+            if !seen.insert(block.event.clone()) {
                 continue;
             }
-            if !events.is_known(event) {
+            if !events.is_known(&block.event) {
                 out.push(Finding {
                     rule_id: "irule-unknown-event".to_owned(),
                     severity: "warning",
                     category: "irule",
                     full_path: path.to_owned(),
-                    message: format!("iRule references unknown event {}", py_repr(event)),
+                    message: format!("iRule references unknown event {}", py_repr(&block.event)),
                 });
             }
         }
@@ -604,9 +597,6 @@ pub fn run_lint(
         ModelView::build(configs[0].1)
     };
 
-    let when_re = regex::Regex::new(r"\bwhen\s+([A-Z][A-Z0-9_]*)\b").expect("static regex");
-    let empty_when_re = regex::Regex::new(r"when\s+[A-Z_][A-Z0-9_]*\s*\{\s*(?:#[^\n]*\n\s*)*\}")
-        .expect("static regex");
     let events = EventRegistry::build();
     let irules_registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
@@ -625,8 +615,8 @@ pub fn run_lint(
     }
     if run_irule {
         rule_irule_deprecated_command(&view, &mut findings);
-        rule_irule_empty_when(&view, &empty_when_re, &mut findings);
-        rule_irule_unknown_event(&view, &when_re, &events, &mut findings);
+        rule_irule_empty_when(&view, &mut findings);
+        rule_irule_unknown_event(&view, &events, &mut findings);
         rule_irule_missing_object(&view, irules_registry, &mut findings);
     }
 

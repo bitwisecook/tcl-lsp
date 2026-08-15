@@ -43,6 +43,7 @@ tcl-spec-studio = { path = "../tcl-spec-studio" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-bigip = { path = "../tcl-bigip" }
+tcl-irules = { path = "../tcl-irules" }
 tcl-cli = { path = "../tcl-cli" }
 # `spec_import` runs the same local-snapshot pipeline `tcl spec import` does.
 # It is in the support crate, not in `tcl-cli`, precisely so this binary gains

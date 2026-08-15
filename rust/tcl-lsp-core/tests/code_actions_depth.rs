@@ -241,6 +241,30 @@ fn w115_no_conversion_on_plain_comment() {
 }
 
 #[test]
+fn w115_no_conversion_when_trailing_space_breaks_backslash() {
+    let src = "# note \\ \nputs next\n";
+    let analysis = analyse(src);
+    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+    assert!(find(&actions, "per-line comments").is_none(), "{actions:?}");
+}
+
+#[test]
+fn w115_no_conversion_for_braced_or_quoted_pseudo_comments() {
+    for (source, request) in [
+        ("set payload {# pseudo \\\nputs live}\n", cursor(0, 14)),
+        ("set payload \"# pseudo \\\nputs live\"\n", cursor(0, 14)),
+    ] {
+        let analysis = analyse(source);
+        let actions = code_actions(source, request, Some(&analysis), &analysis.diagnostics);
+        assert!(
+            find(&actions, "per-line comments").is_none(),
+            "pseudo-comment must not expose W115 conversion: {:?}",
+            titles(&actions),
+        );
+    }
+}
+
+#[test]
 fn w115_no_conversion_on_continued_code_line() {
     // A backslash-continued *code* line (not a comment) must NOT be rewritten
     // as commented text — the gate requires the run to start with `#`. This is

@@ -38,18 +38,18 @@
 //!   namespace scope body spans on the analyser side; today
 //!   they only live in the scope tree, which the selection-
 //!   range provider doesn't walk.
-//! * Multi-line command segments — a single-line `;`-aware
-//!   scan is used, so continuation lines and embedded `[…]` /
-//!   `{…}` tokens aren't handled.
+//! * Partial commands use the segmenter's recovery span; an unfinished edit
+//!   may therefore have a wider command link until its closer is written.
 //! * Containment-invariant validation against VS Code's
 //!   requirement that each parent strictly contains its
 //!   child; the chain is built so parents always contain
 //!   children by construction.
 
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span};
 
-use crate::definition::{LspRange, byte_offset_at, utf16_col_to_char_col, utf16_len};
+use crate::definition::{LspRange, byte_offset_at, utf16_len};
 use crate::hover::find_word_span_at_position;
 
 /// One link in the selection-range chain.
@@ -77,9 +77,7 @@ pub struct SelectionRange {
 /// Chain order (each link strictly contains the next):
 ///
 /// 1. Word at cursor — when the cursor sits on an identifier.
-/// 2. Command segment on the same line — when distinct from
-///    the line range (i.e. the line has `;` separators or
-///    leading / trailing whitespace).
+/// 2. Segmented command — when distinct from the enclosing line.
 /// 3. Enclosing line.
 /// 4. Enclosing proc / class bodies — one link per containing
 ///    body, innermost first.  Only present when `analysis`
@@ -91,6 +89,21 @@ pub fn selection_range(
     line: u32,
     character: u32,
     analysis: Option<&AnalysisResult>,
+) -> Vec<SelectionRange> {
+    selection_range_for_dialect(source, line, character, analysis, "tcl9.0")
+}
+
+/// Compute the selection-range chain using the document's resolved dialect.
+///
+/// The command link is a segmented CST command span, not a source scan for
+/// semicolons, so literal separators inside Tcl words cannot truncate it.
+#[must_use]
+pub fn selection_range_for_dialect(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: Option<&AnalysisResult>,
+    dialect: &str,
 ) -> Vec<SelectionRange> {
     let mut ranges: Vec<LspRange> = Vec::new();
 
@@ -113,22 +126,26 @@ pub fn selection_range(
         }
     });
 
-    // Command-segment link — sits between the word and the
-    // line.  Emit it only when it doesn't coincide with the
+    // Command-segment link normally sits between the word and the
+    // line.  A multiline command instead becomes the direct parent;
+    // a physical line cannot contain it.
     // line range (otherwise the chain would have two
     // identical-shape links, which the LSP client treats as
     // a no-op grow).
-    if let Some(line_text) = source.split('\n').nth(line as usize)
-        && let Some((seg_start, seg_end)) = command_segment_on_line(line_text, character)
-    {
-        let seg_range = LspRange {
-            start_line: line,
-            start_character: seg_start,
-            end_line: line,
-            end_character: seg_end,
-        };
+    let line_index = LineIndex::new(source);
+    let cursor_offset = byte_offset_at(&line_index, source, line, character);
+    let mut command_is_multiline = false;
+    if let Some(span) = command_span_at(
+        source,
+        cursor_offset,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+    ) {
+        let seg_range = span_to_range(source, &line_index, span);
+        command_is_multiline = seg_range.start_line != seg_range.end_line;
         let coincident_with_line = line_range.as_ref().is_some_and(|lr| {
-            lr.start_character == seg_range.start_character
+            lr.start_line == seg_range.start_line
+                && lr.end_line == seg_range.end_line
+                && lr.start_character == seg_range.start_character
                 && lr.end_character == seg_range.end_character
         });
         if !coincident_with_line {
@@ -136,7 +153,9 @@ pub fn selection_range(
         }
     }
 
-    if let Some(lr) = line_range {
+    // A physical line cannot contain a multiline command.  Omitting it keeps
+    // every LSP parent link a true containing range.
+    if !command_is_multiline && let Some(lr) = line_range {
         ranges.push(lr);
     }
 
@@ -144,8 +163,6 @@ pub fn selection_range(
     // span contains the cursor's byte offset.  Order is
     // innermost first so the chain stays outward-growing.
     if let Some(analysis) = analysis {
-        let line_index = LineIndex::new(source);
-        let cursor_offset = byte_offset_at(&line_index, source, line, character);
         for span in enclosing_body_spans(analysis, cursor_offset) {
             ranges.push(span_to_range(source, &line_index, span));
         }
@@ -190,6 +207,10 @@ pub fn selection_range(
             r.end_character = parent_end.1;
         }
     }
+
+    // Clamping can collapse a command/body link onto its parent. LSP ranges
+    // must grow strictly at every parent edge, so discard equal neighbours.
+    ranges.dedup();
 
     // Wire `parent_index` so each link points to its outward
     // neighbour.  The outermost link has `None`.
@@ -261,51 +282,16 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
     }
 }
 
-/// Command-segment boundaries on a single line.  Walks left
-/// from `character` to find the most recent `;` separator (or
-/// the start of the line) and right to find the next `;` (or
-/// the end of the line).  Strips leading and trailing
-/// whitespace from the resulting span.  Returns `None` when
-/// the segment is empty.
-///
-/// **Single-line only.**  Continuation lines, embedded `[…]`
-/// / `{…}` token nesting, and full segmenter semantics are not
-/// handled.  For the common single-line editor
-/// cases this is sufficient.
-fn command_segment_on_line(line_text: &str, character: u32) -> Option<(u32, u32)> {
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-
-    let mut start: usize = 0;
-    for i in (0..col).rev() {
-        if chars[i] == ';' {
-            start = i + 1;
-            break;
-        }
-    }
-    let mut end: usize = chars.len();
-    for (offset, c) in chars.iter().enumerate().skip(col) {
-        if *c == ';' {
-            end = offset;
-            break;
-        }
-    }
-
-    while start < end && chars[start].is_whitespace() {
-        start += 1;
-    }
-    while end > start && chars[end - 1].is_whitespace() {
-        end -= 1;
-    }
-
-    if start >= end {
-        return None;
-    }
-    let prefix: String = chars[..start].iter().collect();
-    let segment: String = chars[start..end].iter().collect();
-    let start_u32 = utf16_len(&prefix);
-    let end_u32 = start_u32.saturating_add(utf16_len(&segment));
-    Some((start_u32, end_u32))
+/// The segmented command span containing `cursor_offset`.
+fn command_span_at(
+    source: &str,
+    cursor_offset: u32,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Span> {
+    segment_commands_with_offset_and_config(source, 0, config)
+        .into_iter()
+        .find(|command| command.span.start() <= cursor_offset && cursor_offset < command.span.end())
+        .map(|command| command.span)
 }
 
 #[cfg(test)]
@@ -440,18 +426,34 @@ mod tests {
     }
 
     #[test]
-    fn command_segment_helper_finds_segment_between_semicolons() {
+    fn command_segment_uses_segmenter_between_semicolons() {
         let line = "a 1; b 2; c 3";
-        // Cursor in the middle segment (`b 2`).
-        let (start, end) = command_segment_on_line(line, 6).expect("segment");
-        assert_eq!(&line[start as usize..end as usize], "b 2");
+        let spans = selection_range(line, 0, 6, None);
+        assert!(
+            spans.iter().any(|range| {
+                range.range.start_character == 5 && range.range.end_character == 8
+            })
+        );
     }
 
     #[test]
-    fn command_segment_helper_trims_whitespace() {
+    fn command_segment_trims_whitespace() {
         let line = "  set x 1  ";
-        let (start, end) = command_segment_on_line(line, 5).expect("segment");
-        assert_eq!(&line[start as usize..end as usize], "set x 1");
+        let spans = selection_range(line, 0, 5, None);
+        assert!(
+            spans.iter().any(|range| {
+                range.range.start_character == 2 && range.range.end_character == 9
+            })
+        );
+    }
+
+    #[test]
+    fn command_segment_does_not_split_literal_semicolon_in_braces() {
+        let src = "foo {a; b} c";
+        let spans = selection_range(src, 0, 6, None);
+        assert!(spans.iter().any(|range| {
+            range.range.start_character == 0 && range.range.end_character == utf16_len(src)
+        }));
     }
 
     // enclosing-body links
@@ -557,5 +559,30 @@ mod tests {
                 "expected innermost-first body ordering, got {bodies:?}",
             );
         }
+    }
+
+    #[test]
+    fn continuation_and_multiline_bracket_cursor_keep_command_parent_nested() {
+        let src = "set result [format %s \\\n    [string toupper value]]\n";
+        // Cursor on the second physical line, inside the nested bracket word.
+        let ranges = selection_range(src, 1, 19, None);
+        assert!(ranges.len() >= 3, "{ranges:?}");
+        let command = &ranges[1].range;
+        assert_eq!((command.start_line, command.end_line), (0, 1), "{ranges:?}");
+        // The immediate parent is the multiline command, never the second
+        // physical line; every parent remains a true containment range.
+        for link in &ranges {
+            if let Some(parent) = link.parent_index {
+                let parent = &ranges[parent].range;
+                assert!(
+                    (parent.start_line, parent.start_character)
+                        <= (link.range.start_line, link.range.start_character)
+                        && (link.range.end_line, link.range.end_character)
+                            <= (parent.end_line, parent.end_character),
+                    "non-nested selection chain: {ranges:?}"
+                );
+            }
+        }
+        assert!(ranges.windows(2).all(|pair| pair[0].range != pair[1].range));
     }
 }

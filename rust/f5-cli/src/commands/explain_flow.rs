@@ -75,10 +75,6 @@ const EVENT_ORDER: &[&str] = &[
     "SERVER_CLOSED",
 ];
 
-/// `when EVENT {` opener.
-static EVENT_BLOCK_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)\bwhen\s+([A-Z][A-Z0-9_]*)\s*\{").expect("event regex"));
-
 /// iRule command invocation inside `[ ... ]`.
 static HUD_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\[\s*(HTTP::|SSL::|IP::|TCP::|LB::|SNI\b)([^\]\n]*?)\s*\]").expect("hud regex")
@@ -413,25 +409,11 @@ fn profile_types_for_virtual(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<
 /// a duplicate event, with the first-seen position preserved.
 fn extract_event_blocks(rule_source: &str) -> IndexMap<String, String> {
     let mut blocks: IndexMap<String, String> = IndexMap::new();
-    let bytes = rule_source.as_bytes();
-    let n = bytes.len();
-    for caps in EVENT_BLOCK_RE.captures_iter(rule_source) {
-        let event = caps.get(1).expect("group 1").as_str().to_owned();
-        let start = caps.get(0).expect("whole match").end();
-        let mut depth = 1i32;
-        let mut i = start;
-        while i < n && depth > 0 {
-            match bytes[i] {
-                b'{' => depth += 1,
-                b'}' => depth -= 1,
-                _ => {}
-            }
-            i += 1;
-        }
-        if depth == 0 {
-            let body = rule_source[start..i - 1].to_owned();
-            blocks.insert(event, body);
-        }
+    for block in tcl_irules::when_blocks(rule_source) {
+        blocks.insert(
+            block.event,
+            rule_source[block.body_span.as_range()].to_owned(),
+        );
     }
     blocks
 }

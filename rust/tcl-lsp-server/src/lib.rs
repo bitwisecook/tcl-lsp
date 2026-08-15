@@ -1454,6 +1454,7 @@ async fn run_diagnostics_f5_dialect(
         inputs.text,
         inputs.decode_report.as_ref(),
         inputs.disabled,
+        inputs.dialect,
     ));
     finalise_diagnostics(&mut diags, inputs.severity_overrides, encoding_abstains);
     // Publish only when this version is still current (the same revision
@@ -3310,6 +3311,7 @@ async fn publish_fast_tier(
     let decode_report = lift_inputs.decode_report;
     let severity_overrides = lift_inputs.severity_overrides.clone();
     let style_line_length = lift_inputs.style_line_length;
+    let dialect = lift_inputs.dialect.to_owned();
     let lifted = crate::rt::spawn_blocking(move || {
         let mut diagnostics = lift_analyser_diagnostics(&text, &fast);
         diagnostics.extend(lift_source_style_diagnostics(
@@ -3318,6 +3320,7 @@ async fn publish_fast_tier(
             &analysis_lifts.suppressed_lines,
             &disabled,
             style_line_length as usize,
+            &dialect,
         ));
         finalise_diagnostics(
             &mut diagnostics,
@@ -3445,6 +3448,7 @@ async fn refine_and_lift_diagnostics(
     let opt_disabled = inputs.opt_disabled.clone();
     let optimiser_enabled = inputs.optimiser_enabled;
     let style_line_length = inputs.style_line_length;
+    let dialect = inputs.dialect.to_owned();
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect == "f5-irules";
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
@@ -3467,6 +3471,7 @@ async fn refine_and_lift_diagnostics(
             &analysis_lifts.suppressed_lines,
             &disabled,
             style_line_length as usize,
+            &dialect,
         ));
         // Opt-in: append the XC100-301 translatability diagnostics
         // for `f5-irules` documents when `xcDiagnostics` is enabled.
@@ -12607,6 +12612,7 @@ impl Backend {
                 &text,
                 decode_report.as_ref(),
                 &disabled,
+                &dialect,
             ));
             finalise_diagnostics(&mut diagnostics, &severity_overrides, encoding_abstains);
             return diagnostics;
@@ -12649,6 +12655,7 @@ impl Backend {
                 &analysis.suppressed_lines,
                 &disabled,
                 style_line_length as usize,
+                &dialect,
             ));
             // Opt-in: XC100-301 translatability diagnostics for
             // `f5-irules` documents when `xcDiagnostics` is enabled (mirrors
@@ -17191,11 +17198,12 @@ impl LanguageServer for Backend {
             positions
                 .into_iter()
                 .map(|pos| {
-                    let chain = core_selection_range::selection_range(
+                    let chain = core_selection_range::selection_range_for_dialect(
                         &doc.text,
                         pos.line,
                         pos.character,
                         Some(&analysis),
+                        &doc.dialect,
                     );
                     // The LSP spec requires `result[i]` to answer
                     // `positions[i]`, so every position must yield a range.
@@ -20704,6 +20712,7 @@ fn lift_source_style_diagnostics(
     suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
     user_disabled: &std::collections::HashSet<String>,
     line_length: usize,
+    dialect: &str,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, style_diagnostics};
 
@@ -20723,6 +20732,7 @@ fn lift_source_style_diagnostics(
         &disabled,
         suppressed,
         decode_report,
+        dialect,
     ))
 }
 
@@ -20775,6 +20785,7 @@ fn lift_f5_source_integrity_diagnostics(
     text: &str,
     decode_report: Option<&tcl_lsp_core::source_decode::DecodeReport>,
     user_disabled: &std::collections::HashSet<String>,
+    dialect: &str,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let mut disabled = tcl_compiler::analyser::utils::parse_file_suppression(text);
     disabled.extend(user_disabled.iter().cloned());
@@ -20783,7 +20794,8 @@ fn lift_f5_source_integrity_diagnostics(
         .filter(|d| !disabled.contains("*") && !disabled.contains(d.code))
         .collect();
     let mut diagnostics = lift_style_diagnostics(encoding);
-    let bidi = tcl_compiler::analyser::filtered_bidi_control_diagnostics(text, user_disabled);
+    let bidi =
+        tcl_compiler::analyser::filtered_bidi_control_diagnostics(text, user_disabled, dialect);
     diagnostics.extend(lift_analyser_diagnostics(text, &bidi));
     diagnostics
 }
@@ -24470,6 +24482,7 @@ mod tests {
             &std::collections::HashMap::new(),
             &std::collections::HashSet::new(),
             tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
+            "tcl9.0",
         );
         let codes: Vec<String> = diags
             .iter()
@@ -24504,6 +24517,7 @@ mod tests {
             &suppressed,
             &std::collections::HashSet::new(),
             tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
+            "tcl9.0",
         );
         let codes: Vec<String> = diags
             .iter()
@@ -24724,6 +24738,7 @@ mod tests {
             &text,
             Some(&report),
             &disabled,
+            "f5-tmsh",
         ));
         finalise_diagnostics(
             &mut diagnostics,

@@ -43,6 +43,9 @@ pub use walker::{IrulesObjectReference, extract_irules_object_references, object
 mod event_handlers;
 pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
 
+mod when_block;
+pub use when_block::{WhenBlock, when_block_is_empty, when_blocks};
+
 mod specs {
     use super::Deserialize;
 

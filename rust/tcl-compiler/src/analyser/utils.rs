@@ -101,17 +101,41 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
 ///
 /// Bare ``# noqa`` (no ``: CODE`` list) is recorded with the `"*"`
 /// sentinel that the suppression filter treats as "every code".
+#[cfg(test)]
 #[must_use]
 pub fn parse_noqa_line_suppressions(
     source: &str,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
+    parse_noqa_line_suppressions_for_dialect(source, "tcl9.0")
+}
+
+/// Dialect-aware [`parse_noqa_line_suppressions`].
+#[must_use]
+pub fn parse_noqa_line_suppressions_for_dialect(
+    source: &str,
+    dialect: &str,
+) -> std::collections::HashMap<i32, HashSet<String>> {
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    parse_noqa_line_suppressions_with_registry(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_registry::cache::registry_for_profile(profile),
+    )
+}
+
+fn parse_noqa_line_suppressions_with_registry(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+) -> std::collections::HashMap<i32, HashSet<String>> {
     let mut result: std::collections::HashMap<i32, HashSet<String>> =
         std::collections::HashMap::new();
+    let comment_lines = script_comment_lines(source, config, registry);
     for (idx, line) in source.split('\n').enumerate() {
-        let stripped = line.trim();
-        if !stripped.starts_with('#') {
+        if !comment_lines.contains(&idx) {
             continue;
         }
+        let stripped = line.trim();
         let lower = stripped.to_ascii_lowercase();
         let Some(noqa_pos) = lower.find("noqa") else {
             continue;
@@ -136,6 +160,97 @@ pub fn parse_noqa_line_suppressions(
         result.entry(next_line).or_default().extend(codes);
     }
     result
+}
+
+/// Physical lines occupied by command-position comments in the document's
+/// top-level script or a registry-declared script body. Braced data arguments
+/// are never recursively tokenised as scripts.
+/// Physical comment lines, using lexer facts and registry-declared script
+/// bodies.  Callers must pass the document's resolved lexer configuration and
+/// registry; there is deliberately no implicit Tcl profile here.
+#[must_use]
+pub fn script_comment_lines(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashSet<usize> {
+    #[allow(clippy::too_many_arguments)] // traversal state is intentionally explicit
+    fn visit(
+        script: &str,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+        whole: &str,
+        base_offset: u32,
+        depth: u32,
+        visited: &mut HashSet<(u32, u32)>,
+        lines: &mut HashSet<usize>,
+    ) {
+        // A corrupt or recovery span may bisect UTF-8.  Do not re-slice it:
+        // comments in that ambiguous body are preferable to a server panic.
+        if depth > 64
+            || !visited.insert((base_offset, u32::try_from(script.len()).unwrap_or(u32::MAX)))
+        {
+            return;
+        }
+        let whole_index = tcl_lexer::LineIndex::new(whole);
+        let base_line = whole_index.line_at(base_offset);
+        for local_line in tcl_lexer::comment_line_starts(script, config.at_depth(depth)) {
+            let global = base_line.saturating_add(local_line);
+            if let Ok(global) = usize::try_from(global) {
+                lines.insert(global);
+            }
+        }
+        for command in crate::segmenter::segment_commands_with_offset_and_config(
+            script,
+            0,
+            config.at_depth(depth),
+        ) {
+            let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+            for index in
+                registry.arg_indices_for_role(command.name(), &args, tcl_registry::ArgRole::Body)
+            {
+                let Some(token) = command.arg_tokens().get(index) else {
+                    continue;
+                };
+                if token.kind != tcl_lexer::TokenType::Str {
+                    continue;
+                }
+                let whole_word = tcl_lexer::word_span_at(script, token.span);
+                let start = usize::try_from(whole_word.start()).unwrap_or(script.len());
+                let end = usize::try_from(whole_word.end()).unwrap_or(script.len());
+                if end <= start + 1 || script.as_bytes().get(start) != Some(&b'{') {
+                    continue;
+                }
+                let Some(body) = script.get(start + 1..end - 1) else {
+                    continue;
+                };
+                visit(
+                    body,
+                    config,
+                    registry,
+                    whole,
+                    base_offset.saturating_add(u32::try_from(start + 1).unwrap_or(u32::MAX)),
+                    depth.saturating_add(1),
+                    visited,
+                    lines,
+                );
+            }
+        }
+    }
+
+    let mut lines = HashSet::new();
+    let mut visited = HashSet::new();
+    visit(
+        source,
+        config,
+        registry,
+        source,
+        0,
+        0,
+        &mut visited,
+        &mut lines,
+    );
+    lines
 }
 
 /// Scan `source` for inline ``# tcl-lsp: stub <name> ...``
@@ -1406,6 +1521,16 @@ mod tests {
         assert!(!map.contains_key(&1));
         // ``# noqa`` on line 1 → suppresses line 2.
         assert!(map.get(&2).expect("line 2 entry").contains("*"));
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_ignores_braced_data() {
+        let src = "proc example {} {\n    set help {\nline one\n# noqa\n    }\n    puts $undefined_var\n}\n";
+        let map = parse_noqa_line_suppressions(src);
+        assert!(
+            map.is_empty(),
+            "braced data must not become a directive: {map:?}"
+        );
     }
 
     #[test]

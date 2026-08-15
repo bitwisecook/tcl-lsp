@@ -24,7 +24,6 @@
 
 use std::collections::HashMap;
 
-use regex::Regex;
 use tcl_registry::bigip::default_registry;
 
 use crate::graph::{ObjectGraph, ObjectNode};
@@ -181,7 +180,6 @@ pub fn compute_stats(
 
     // iRule LOC + event histogram from the `ltm rule` graph nodes (the `rules`
     // table), in source order.
-    let when_re = Regex::new(r"\bwhen\s+([A-Z][A-Z0-9_]*)\b").expect("valid regex");
     let mut irule_loc: Vec<(String, usize)> = Vec::new();
     let mut irule_events = OrderedCounter::default();
     for node in all_nodes(graph) {
@@ -189,8 +187,8 @@ pub fn compute_stats(
             continue;
         }
         irule_loc.push((node.identifier.clone(), count_irule_lines(&node.body)));
-        for cap in when_re.captures_iter(&node.body) {
-            irule_events.add(&cap[1]);
+        for block in tcl_irules::when_blocks(&node.body) {
+            irule_events.add(&block.event);
         }
     }
 

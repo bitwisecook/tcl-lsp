@@ -175,6 +175,7 @@ fn diagnostics_json() -> String {
         "default_category": "style",
         "review_categories": ["security", "taint", "thread_safety"],
         "irules_event_pattern": r"^\s*when\s+([A-Z][A-Z0-9_]{2,})\b",
+        "irules_event_boundary_owner": "tcl-irules::when_blocks (configured f5-irules segmenter; do not use the recognition regex for body extraction)",
     });
     serde_json::to_string_pretty(&root).expect("serialise diagnostics.json") + "\n"
 }

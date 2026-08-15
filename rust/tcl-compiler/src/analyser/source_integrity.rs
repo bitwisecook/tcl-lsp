@@ -88,9 +88,10 @@ pub(super) fn bidi_control_diagnostics_with_suppressions(
 pub fn filtered_bidi_control_diagnostics<S: BuildHasher>(
     source: &str,
     user_disabled: &HashSet<String, S>,
+    dialect: &str,
 ) -> Vec<Diagnostic> {
     let mut disabled = super::utils::parse_file_suppression(source);
     disabled.extend(user_disabled.iter().cloned());
-    let suppressed_lines = super::utils::parse_noqa_line_suppressions(source);
+    let suppressed_lines = super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect);
     bidi_control_diagnostics_with_suppressions(source, &disabled, &suppressed_lines)
 }

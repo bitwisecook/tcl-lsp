@@ -299,7 +299,12 @@ pub fn folding_ranges(source: &str) -> Vec<FoldingRange> {
         });
     }
 
-    crate::folding::collect_comment_folds(source, &mut seen, &mut ranges);
+    crate::folding::collect_comment_folds(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect("f5-tmsh"),
+        &mut seen,
+        &mut ranges,
+    );
     ranges.sort_by_key(|r| (r.start_line, std::cmp::Reverse(r.end_line)));
     ranges
 }
