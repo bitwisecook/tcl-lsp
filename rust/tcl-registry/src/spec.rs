@@ -725,6 +725,15 @@ impl CaseListSpec {
         let Ok(elements) = tcl_syntax::list::split_list(text) else {
             return false;
         };
+        // Tcl's case-list commands require at least one pattern clause.  An
+        // empty value is a syntactically valid Tcl list, but not a valid
+        // `switch`/Expect case list (Tcl reports wrong # args rather than
+        // evaluating a zero-clause dispatch).  Keep that distinction in the
+        // shared descriptor boundary so every semantic consumer abstains;
+        // formatter recovery can still present an incomplete list locally.
+        if elements.is_empty() {
+            return false;
+        }
         let shape = tcl_syntax::case_list::CaseListShape {
             clause_flags: self.clause_flags,
             clause_value_flags: self.clause_value_flags,

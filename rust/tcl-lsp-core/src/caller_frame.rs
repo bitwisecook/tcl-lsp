@@ -368,9 +368,13 @@ fn collect_bindings_in_region(
     );
     for cmd in &commands {
         bindings_from_call(ctx, cmd, out);
-        for (inner_start, inner_end) in
-            crate::references::nested_dispatch_regions(ctx.source, ctx.dialect, cmd)
-        {
+        for (inner_start, inner_end) in crate::references::nested_dispatch_regions_with_identities(
+            ctx.source,
+            ctx.dialect,
+            tcl_registry::registry_for_dialect(ctx.dialect),
+            ctx.identities,
+            cmd,
+        ) {
             collect_bindings_in_region(ctx, inner_start, inner_end, depth + 1, out);
         }
     }

@@ -1833,9 +1833,14 @@ pub(crate) fn scan_my_method_sites(
     method: &str,
     skip: Option<tcl_lexer::Span>,
 ) -> Vec<tcl_lexer::Span> {
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let ctx = MyMethodScan {
         source,
         dialect,
+        registry,
+        identities: &identities,
         method,
         skip,
     };
@@ -1859,6 +1864,8 @@ pub(crate) fn scan_my_method_sites(
 struct MyMethodScan<'a> {
     source: &'a str,
     dialect: &'a str,
+    registry: &'a tcl_registry::CommandRegistry,
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     method: &'a str,
     skip: Option<tcl_lexer::Span>,
 }
@@ -1949,7 +1956,13 @@ fn scan_my_method_region(
                 }
             }
         }
-        for (inner_start, inner_end) in nested_dispatch_regions(source, ctx.dialect, cmd) {
+        for (inner_start, inner_end) in nested_dispatch_regions_with_identities(
+            source,
+            ctx.dialect,
+            ctx.registry,
+            ctx.identities,
+            cmd,
+        ) {
             scan_my_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
     }
@@ -1994,13 +2007,22 @@ fn scan_next_dispatch_sites_with_target(
     dialect: &str,
     body: tcl_lexer::Span,
 ) -> Vec<(tcl_lexer::Span, Option<String>)> {
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let ctx = NextDispatchScan {
+        source,
+        dialect,
+        registry,
+        identities: &identities,
+    };
     let mut out = Vec::new();
     if body.is_empty() {
         return out;
     }
     let (start, end) = strip_outer_braces(source, body);
     if start < end {
-        scan_next_dispatch_region_with_target(source, dialect, start, end, 0, &mut out);
+        scan_next_dispatch_region_with_target(ctx, start, end, 0, &mut out);
     }
     out
 }
@@ -2009,15 +2031,28 @@ fn scan_next_dispatch_sites_with_target(
 /// `nextto`'s target argument, when present) of every `next` / `nextto`
 /// command, recursing per [`nested_dispatch_regions`]. `depth` guards
 /// against runaway recursion — see [`MAX_DISPATCH_SCAN_DEPTH`].
+#[derive(Clone, Copy)]
+struct NextDispatchScan<'a> {
+    source: &'a str,
+    dialect: &'a str,
+    registry: &'a tcl_registry::CommandRegistry,
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+}
+
 fn scan_next_dispatch_region_with_target(
-    source: &str,
-    dialect: &str,
+    ctx: NextDispatchScan<'_>,
     start: usize,
     end: usize,
     depth: u32,
     out: &mut Vec<(tcl_lexer::Span, Option<String>)>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    let NextDispatchScan {
+        source,
+        dialect,
+        registry,
+        identities,
+    } = ctx;
     if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;
     }
@@ -2058,15 +2093,10 @@ fn scan_next_dispatch_region_with_target(
                 }
             }
         }
-        for (inner_start, inner_end) in nested_dispatch_regions(source, dialect, cmd) {
-            scan_next_dispatch_region_with_target(
-                source,
-                dialect,
-                inner_start,
-                inner_end,
-                depth + 1,
-                out,
-            );
+        for (inner_start, inner_end) in
+            nested_dispatch_regions_with_identities(source, dialect, registry, identities, cmd)
+        {
+            scan_next_dispatch_region_with_target(ctx, inner_start, inner_end, depth + 1, out);
         }
     }
 }
@@ -2524,9 +2554,14 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         return out;
     }
     let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let ctx = ObjMethodScan {
         source,
         dialect,
+        registry,
+        identities: &identities,
         analysis,
         var_set: &var_set,
         lattice_family: &lattice_family,
@@ -2793,6 +2828,8 @@ impl CommandReceivers {
 struct ObjMethodScan<'a> {
     source: &'a str,
     dialect: &'a str,
+    registry: &'a tcl_registry::CommandRegistry,
+    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     analysis: &'a AnalysisResult,
     var_set: &'a FxHashSet<&'a str>,
     /// [`lattice_dispatch_family`] — the classes a `$v` receiver's
@@ -2941,7 +2978,13 @@ fn scan_obj_method_region(
                 }
             }
         }
-        for (inner_start, inner_end) in nested_dispatch_regions(source, ctx.dialect, cmd) {
+        for (inner_start, inner_end) in nested_dispatch_regions_with_identities(
+            source,
+            ctx.dialect,
+            ctx.registry,
+            ctx.identities,
+            cmd,
+        ) {
             scan_obj_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
         let shifted = ctx.frame_shifted();
@@ -3008,14 +3051,37 @@ pub(crate) fn nested_dispatch_regions(
     dialect: &str,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
+    let registry = tcl_registry::registry_for_dialect(dialect);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    nested_dispatch_regions_with_identities(source, dialect, registry, &identities, cmd)
+}
+
+/// [`nested_dispatch_regions`], using the caller's document-wide command
+/// identities.  Scans that already recurse through one document retain this
+/// map instead of rebuilding it for every nested command.
+pub(crate) fn nested_dispatch_regions_with_identities(
+    source: &str,
+    dialect: &str,
+    registry: &tcl_registry::CommandRegistry,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Vec<(usize, usize)> {
     let mut regions: Vec<(usize, usize)> = Vec::new();
     for arg in &cmd.argv {
         regions.extend(cmd_substitution_regions(source, dialect, *arg));
     }
-    let Some(cmd_name) = cmd.texts.first() else {
+    let (Some(head), Some(written_name)) = (cmd.argv.first(), cmd.texts.first()) else {
         return regions;
     };
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    // Command identity is a source-positioned binding fact: `pick` may be a
+    // live alias of `switch` at this exact call, or may have been deleted or
+    // rebound since an earlier alias declaration.  The registry grammar must
+    // follow only the proven resolved identity; an empty resolved spelling is
+    // the shared conservative answer for a rebound head.
+    let cmd_name = identities
+        .head_words(written_name, head.span.start())
+        .resolved;
     let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
     // A `case_list` command (`switch`'s braced-list form, Expect's `expect {
     // ... }`) marks its single trailing clause-list argument `ArgRole::Body`
@@ -5204,14 +5270,110 @@ mod tests {
 
     #[test]
     fn malformed_case_lists_do_not_expose_nested_dispatch_regions() {
-        let source = "switch subject {a {puts hidden} orphan}";
-        let command = tcl_compiler::segmenter::segment_commands(source)
-            .into_iter()
-            .next()
-            .expect("case-list command");
+        for source in [
+            "switch subject {a {puts hidden} orphan}",
+            "switch subject {}",
+        ] {
+            let command = tcl_compiler::segmenter::segment_commands(source)
+                .into_iter()
+                .next()
+                .expect("case-list command");
+            assert!(
+                nested_dispatch_regions(source, "tcl8.6", &command).is_empty(),
+                "semantic references must abstain for malformed case list: {source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn case_list_aliases_use_positioned_resolved_registry_identity() {
+        let source = concat!(
+            "pick subject {default {puts before_alias}}\n",
+            "interp alias {} pick {} switch\n",
+            "pick subject {default {puts through_alias}}\n",
+        );
+        let commands = tcl_compiler::segmenter::segment_commands(source);
         assert!(
-            nested_dispatch_regions(source, "tcl8.6", &command).is_empty(),
-            "semantic references must abstain for an odd case list"
+            nested_dispatch_regions(source, "tcl8.6", &commands[0]).is_empty(),
+            "a later alias must not apply before its declaration"
+        );
+        let regions = nested_dispatch_regions(source, "tcl8.6", &commands[2]);
+        assert!(
+            regions
+                .iter()
+                .any(|&(start, end)| source[start..end].contains("through_alias")),
+            "a live static switch alias must expose its clause body: {regions:?}"
+        );
+    }
+
+    #[test]
+    fn deleted_or_rebound_case_list_aliases_do_not_expose_clause_bodies() {
+        for source in [
+            concat!(
+                "interp alias {} pick {} switch\n",
+                "interp alias {} pick {}\n",
+                "pick subject {default {puts deleted_alias}}\n",
+            ),
+            concat!(
+                "interp alias {} pick {} switch\n",
+                "interp alias {} pick {} puts\n",
+                "pick subject {default {puts rebound_alias}}\n",
+            ),
+        ] {
+            let command = tcl_compiler::segmenter::segment_commands(source)
+                .into_iter()
+                .last()
+                .expect("alias call");
+            assert!(
+                nested_dispatch_regions(source, "tcl8.6", &command).is_empty(),
+                "a deleted or rebound alias must not use switch grammar: {source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rooted_and_namespaced_case_list_aliases_expose_clause_bodies() {
+        let source = concat!(
+            "namespace eval ::case_alias {}\n",
+            "interp alias {} ::root_pick {} ::switch\n",
+            "interp alias {} ::case_alias::pick {} switch\n",
+            "::root_pick subject {default {puts rooted_alias}}\n",
+            "::case_alias::pick subject {default {puts namespaced_alias}}\n",
+        );
+        let commands = tcl_compiler::segmenter::segment_commands(source);
+        for (command, marker) in [
+            (&commands[3], "rooted_alias"),
+            (&commands[4], "namespaced_alias"),
+        ] {
+            let regions = nested_dispatch_regions(source, "tcl8.6", command);
+            assert!(
+                regions
+                    .iter()
+                    .any(|&(start, end)| source[start..end].contains(marker)),
+                "rooted/namespaced alias must use its resolved switch grammar: {marker}; {regions:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn references_reach_my_dispatch_inside_a_static_switch_alias() {
+        let source = concat!(
+            "interp alias {} pick {} switch\n",
+            "oo::class create C {\n",
+            "    method target {} {}\n",
+            "    method caller {} {\n",
+            "        pick subject {default {my target}}\n",
+            "    }\n",
+            "}\n",
+        );
+        let analysis = analyse(source);
+        // `target` begins after the four-space indent plus `method `.
+        let refs = references(source, "tcl", 2, 11, &analysis, true);
+        let lines: Vec<u32> = refs.iter().map(|range| range.start_line).collect();
+        assert!(lines.contains(&2), "declaration missing: {refs:?}");
+        assert!(
+            lines.contains(&4),
+            "`my target` inside the resolved alias case body is missing: {refs:?}"
         );
     }
 

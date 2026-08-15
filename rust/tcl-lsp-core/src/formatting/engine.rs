@@ -2176,6 +2176,15 @@ mod tests {
             assert_fixed_point(ordinary, dialect, "a {\n        puts hit\n    }");
         }
 
+        // An empty list is not a semantic case invocation, but remains a
+        // formatter-local recoverable body position. Rendering it must stay
+        // safe and must not change Tcl's erroneous source into a made-up
+        // clause.
+        let empty = "switch subject {}\n";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert_eq!(fmt_dialect(empty, dialect), empty, "{dialect}");
+        }
+
         let option_like = "switch -regexp {\na {\nputs hit\n}\norphan\n}\n";
         let old = fmt_dialect(option_like, "tcl8.4");
         assert!(

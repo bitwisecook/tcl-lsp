@@ -6822,6 +6822,7 @@ mod tests {
         for args in [
             &[][..],
             &["subject"][..],
+            &["subject", ""][..],
             &["-regexp"][..],
             &["-regexp", "subject"][..],
             &["--"][..],
@@ -6841,6 +6842,7 @@ mod tests {
             &["-nobrace"][..],
             &["-timeout"][..],
             &["-timeout", "5"][..],
+            &[""][..],
         ] {
             assert!(
                 expect
@@ -6859,7 +6861,12 @@ mod tests {
             allow_omitted_final_body: false,
             ..crate::CaseListSpec::EXPECT
         };
-        for args in [&[][..], &["-inline"][..], &["-inline", "subject"][..]] {
+        for args in [
+            &[][..],
+            &["-inline"][..],
+            &["-inline", "subject"][..],
+            &[""][..],
+        ] {
             assert!(
                 custom.invocation(args, &[], DialectSet::ALL_TCL).is_none(),
                 "truncated custom selector invocation must abstain: {args:?}",
