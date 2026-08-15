@@ -1302,9 +1302,27 @@ fn has_case_list_body(
         },
         |profile| profile.availability_mask,
     );
-    registry
+    if registry
         .case_invocation(&cmd.resolved_name, &args, dialect)
         .is_some_and(|(_, invocation)| invocation.clause_list_index.is_some())
+    {
+        return true;
+    }
+
+    // Formatting must recover inside an incomplete case list even when the
+    // semantic invocation correctly abstains. Probe the same registry-owned
+    // outer grammar with a known-valid list in the final word: this proves
+    // that the word occupies the clause-list slot without blessing the
+    // malformed original as executable. Inline pattern/body forms remain
+    // inline because replacing their final body does not change their arity.
+    let Some(last) = args.len().checked_sub(1) else {
+        return false;
+    };
+    let mut recovery_args = args;
+    recovery_args[last] = "default {}";
+    registry
+        .case_invocation(&cmd.resolved_name, &recovery_args, dialect)
+        .is_some_and(|(_, invocation)| invocation.clause_list_index == Some(last))
 }
 
 fn reconstruct_command(
