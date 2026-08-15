@@ -2552,7 +2552,11 @@ impl Vm {
     /// registered builtin derives it from its key; a moved builtin carries it
     /// in [`Self::builtin_identities`].
     fn builtin_identity_for_key(&self, key: &str) -> Option<String> {
-        matches!(self.commands.get(key), Some(Command::Builtin(_))).then(|| {
+        matches!(
+            self.commands.get(key),
+            Some(Command::Builtin(_) | Command::Native(_))
+        )
+        .then(|| {
             self.builtin_identities
                 .get(key)
                 .cloned()
@@ -2580,6 +2584,7 @@ impl Vm {
             _ => None,
         };
         self.hidden_commands.insert(token.to_owned(), command);
+        self.move_command_traces(&source, token);
         if let Some(origin) = import_origin {
             self.hidden_imported_commands
                 .insert(token.to_owned(), origin);
@@ -2609,6 +2614,7 @@ impl Vm {
                 _ => None,
             };
             self.register_command(token, c);
+            self.move_command_traces(cmd, token);
             if let Some(origin) = self.hidden_imported_commands.remove(cmd) {
                 self.imported_commands.insert(token.to_owned(), origin);
             }
@@ -3566,12 +3572,13 @@ impl Vm {
                 // at 8.4 and keeps import chains' provenance meaningful.
                 && self.builtin_command_visible_for_surface(cmd_name, cmd)
             {
-                let builtin_identity = matches!(cmd, Command::Builtin(_)).then(|| {
-                    self.builtin_identities
-                        .get(cmd_name)
-                        .cloned()
-                        .unwrap_or_else(|| cmd_name.clone())
-                });
+                let builtin_identity = matches!(cmd, Command::Builtin(_) | Command::Native(_))
+                    .then(|| {
+                        self.builtin_identities
+                            .get(cmd_name)
+                            .cloned()
+                            .unwrap_or_else(|| cmd_name.clone())
+                    });
                 to_import.push((tail.to_string(), cmd.clone(), builtin_identity));
             }
         }
@@ -4073,6 +4080,23 @@ impl Vm {
             moved_trace = true;
         }
         if moved_trace {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
+        }
+    }
+
+    /// Move trace registrations with a command through the hidden table.  A
+    /// hide/expose is not a Tcl rename, so no callback is fired.
+    fn move_command_traces(&mut self, old_key: &str, new_key: &str) {
+        let mut moved = false;
+        if let Some(entries) = self.cmd_traces.remove(old_key) {
+            self.cmd_traces.insert(new_key.to_owned(), entries);
+            moved = true;
+        }
+        if let Some(entries) = self.exec_traces.remove(old_key) {
+            self.exec_traces.insert(new_key.to_owned(), entries);
+            moved = true;
+        }
+        if moved {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
     }
