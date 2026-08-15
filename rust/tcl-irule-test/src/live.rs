@@ -544,10 +544,12 @@ mod tests {
             "nested { braces }"
         );
 
-        // The legacy Tcl loader's documented brace counter remains quote-blind;
-        // Rust deliberately handles this complete handler through the CST.
+        // Tcl's braced-word scanner is quote-blind: the `}` inside quotes
+        // closes the handler body, leaving a malformed trailing word. Both
+        // boundary owners therefore abstain rather than inventing a complete
+        // handler from invalid source.
         let quoted_close = "when RULE_INIT { log local0. \"quoted }\" }";
-        assert_eq!(tcl_irules::when_blocks(quoted_close).len(), 1);
+        assert!(tcl_irules::when_blocks(quoted_close).is_empty());
         assert!(
             session.load_irule(quoted_close).is_err(),
             "pinned loader carve-out"
