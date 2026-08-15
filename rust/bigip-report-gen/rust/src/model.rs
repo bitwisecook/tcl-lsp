@@ -583,13 +583,10 @@ fn shape_monitor(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
 
 fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     let body = bstr(f, "body").to_string();
-    let re = Regex::new(r"\bwhen\s+([A-Z][A-Z0-9_]+)").expect("valid when regex");
-    // De-dup the `when` events (BTreeSet), then order them into canonical
-    // firing order via the registry — NOT the set's alphabetical order,
-    // which scrambles the lifecycle (e.g. CLIENTSSL_HANDSHAKE ahead of
-    // CLIENT_ACCEPTED). This array renders verbatim in the report.
-    let uniq: BTreeSet<String> = re.captures_iter(&body).map(|c| c[1].to_string()).collect();
-    let events: Vec<String> = event_registry().order_events(&uniq.into_iter().collect::<Vec<_>>());
+    // Parse through the shared event-handler owner, then order into canonical
+    // firing order rather than alphabetical order (which scrambles the
+    // lifecycle, e.g. CLIENTSSL_HANDSHAKE ahead of CLIENT_ACCEPTED).
+    let events = event_registry().order_events(&tcl_registry::events::scan_when_events(&body));
     let fp = bstr(f, "full-path");
     // `.refs` is the engine's synthesised iRule reference sub-object.
     let refs: Map<String, J> = match f.get("refs") {
@@ -2149,6 +2146,26 @@ mod app_tests {
         let b = apps[1].as_object().unwrap();
         assert_eq!(bstr(b, "name"), "store"); // ".app" stripped
         assert_eq!(bstr(b, "source"), "iapp");
+    }
+
+    #[test]
+    fn rule_events_use_recursive_rooted_normalised_owner() {
+        let mut fields = Map::new();
+        fields.insert("name".into(), J::String("r".into()));
+        fields.insert("full-path".into(), J::String("/Common/r".into()));
+        fields.insert(
+            "body".into(),
+            J::String("::when http_request { if {1} { :::when client_data {} } }".into()),
+        );
+        let shaped = shape_rule(&fields, &HashMap::new());
+        let mut events: Vec<&str> = shaped["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(J::as_str)
+            .collect();
+        events.sort_unstable();
+        assert_eq!(events, ["CLIENT_DATA", "HTTP_REQUEST"]);
     }
 }
 

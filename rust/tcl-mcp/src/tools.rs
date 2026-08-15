@@ -240,8 +240,7 @@ fn event_order_list(source: &str) -> Vec<Value> {
 }
 
 /// iRule `when EVENT` handlers as `{name, line}` (0-based line), first
-/// appearance only — mirrors the `_detect_events` regex
-/// `^\s*when\s+([A-Z][A-Z0-9_]{2,})\b`.
+/// appearance only, using the shared top-level event-handler owner.
 fn detect_events(source: &str) -> Vec<Value> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();

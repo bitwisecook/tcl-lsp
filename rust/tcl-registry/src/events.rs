@@ -967,50 +967,37 @@ impl EventRegistry {
     }
 }
 
-/// Scan the distinct `when EVENT` handler names from `source` — a
-/// regex-free scan matching the shape `\bwhen\s+([A-Z_][A-Z0-9_]*)`.
-/// Names are returned in first-seen order (deduplicated); the caller orders
-/// them canonically via [`EventRegistry::order_events`].
+/// Parse top-level iRules event handlers through the shared syntax owner.
+#[must_use]
+pub fn top_level_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    tcl_syntax::event_handler::event_handlers(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
+        tcl_syntax::event_handler::EventHandlerTraversal::TopLevel,
+    )
+}
+
+/// Parse iRules event handlers recursively through the shared syntax owner.
+#[must_use]
+pub fn recursive_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    tcl_syntax::event_handler::event_handlers(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
+        tcl_syntax::event_handler::EventHandlerTraversal::Recursive,
+    )
+}
+
+/// Scan distinct event handlers recursively through the shared Tcl syntax
+/// owner. Names are normalised to upper case and returned in first-seen order;
+/// the caller orders them canonically via [`EventRegistry::order_events`].
 #[must_use]
 pub fn scan_when_events(source: &str) -> Vec<String> {
-    fn is_word(b: u8) -> bool {
-        b.is_ascii_alphanumeric() || b == b'_'
-    }
-    fn is_upper_start(b: u8) -> bool {
-        b.is_ascii_uppercase() || b == b'_'
-    }
-    fn is_upper_rest(b: u8) -> bool {
-        b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
-    }
-
-    let bytes = source.as_bytes();
-    let mut out: Vec<String> = Vec::new();
-    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    let mut i = 0usize;
-    while i + 4 <= bytes.len() {
-        // `\bwhen`: the four chars "when" with a word boundary before.
-        if &bytes[i..i + 4] == b"when" && (i == 0 || !is_word(bytes[i - 1])) {
-            let mut j = i + 4;
-            // `\s+`
-            let ws_start = j;
-            while j < bytes.len() && bytes[j].is_ascii_whitespace() {
-                j += 1;
-            }
-            if j > ws_start && j < bytes.len() && is_upper_start(bytes[j]) {
-                let name_start = j;
-                j += 1;
-                while j < bytes.len() && is_upper_rest(bytes[j]) {
-                    j += 1;
-                }
-                let name = &source[name_start..j];
-                if seen.insert(name) {
-                    out.push(name.to_owned());
-                }
-                i = j;
-                continue;
-            }
+    let mut seen = FxHashSet::default();
+    let mut out = Vec::new();
+    for handler in recursive_when_handlers(source) {
+        if seen.insert(handler.event.clone()) {
+            out.push(handler.event);
         }
-        i += 1;
     }
     out
 }
@@ -4141,5 +4128,13 @@ mod tests {
         let reg = EventRegistry::build();
         assert!(!reg.flow_chains().is_empty());
         assert_eq!(reg.flow_chains()[0].chain_id, "plain_tcp");
+    }
+
+    #[test]
+    fn event_scan_uses_recursive_rooted_normalised_owner() {
+        assert_eq!(
+            scan_when_events("::when http_request { if {1} { :::when client_data {} } }"),
+            ["HTTP_REQUEST", "CLIENT_DATA"]
+        );
     }
 }

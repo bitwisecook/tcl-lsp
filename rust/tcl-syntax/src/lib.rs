@@ -43,6 +43,7 @@
 pub mod backslash;
 pub mod boolean;
 pub mod case_list;
+pub mod event_handler;
 pub mod expr;
 pub mod formal_params;
 pub mod format;

@@ -331,46 +331,12 @@ fn profile_directive_payload(stripped_line: &str) -> Option<&str> {
     (!payload.is_empty()).then_some(payload)
 }
 
-/// Event names from every `when EVENT` occurrence
-/// (`\bwhen\s+([A-Z_][A-Z0-9_]*)`).  The event name is upper-case-led, so a
-/// lower-cased `when foo` does not match (the captured group is
-/// case-sensitive).
+/// Event names from every live handler, through the shared syntax owner.
 #[must_use]
 pub fn scan_file_events(source: &str) -> FxHashSet<String> {
-    let bytes = source.as_bytes();
-    let mut out = FxHashSet::default();
-    for (pos, _) in source.match_indices("when") {
-        // `\b` before `when`: the preceding byte must be a non-word char.
-        if pos > 0 && is_word_byte(bytes[pos - 1]) {
-            continue;
-        }
-        let mut j = pos + "when".len();
-        // `\s+` — at least one whitespace byte after `when`.
-        let ws_start = j;
-        while j < bytes.len() && bytes[j].is_ascii_whitespace() {
-            j += 1;
-        }
-        if j == ws_start {
-            continue;
-        }
-        // `[A-Z_]` — event name must start upper-case or underscore.
-        if j >= bytes.len() || !(bytes[j] == b'_' || bytes[j].is_ascii_uppercase()) {
-            continue;
-        }
-        let name_start = j;
-        while j < bytes.len()
-            && (bytes[j] == b'_' || bytes[j].is_ascii_uppercase() || bytes[j].is_ascii_digit())
-        {
-            j += 1;
-        }
-        out.insert(source[name_start..j].to_string());
-    }
-    out
-}
-
-/// Tcl word byte: alphanumeric or underscore (regex `\w`).
-const fn is_word_byte(b: u8) -> bool {
-    b == b'_' || b.is_ascii_alphanumeric()
+    crate::events::scan_when_events(source)
+        .into_iter()
+        .collect()
 }
 
 // Full static data — auto-generated.
@@ -1989,11 +1955,12 @@ mod tests {
     }
 
     #[test]
-    fn scan_file_events_respects_word_boundary_and_case() {
-        // `awhen` is not a `when` keyword; a lower-cased event name does not
-        // match the upper-case-led capture group.
+    fn scan_file_events_respects_command_identity_and_normalises_case() {
         assert!(scan_file_events("awhen HTTP_REQUEST {}").is_empty());
-        assert!(scan_file_events("when http_request {}").is_empty());
+        assert_eq!(
+            scan_file_events("::when http_request { if {1} { :::when client_data {} } }"),
+            FxHashSet::from_iter(["HTTP_REQUEST".to_owned(), "CLIENT_DATA".to_owned()])
+        );
     }
 
     #[test]

@@ -47,7 +47,7 @@ entry point, or gate moves without this contract being updated.
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | command / word segmentation | `rust/tcl-compiler/src/segmenter.rs` | `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | none |
-| iRules `when EVENT` boundaries | `rust/tcl-irules/src/when_block.rs` | `when_blocks` | `f5-irules` `LexerConfig` | `xtask-gen-ai-diagnostics` |
+| iRules `when EVENT` boundaries | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-irules/src/when_block.rs` | `event_handlers`; `when_blocks`; `when_blocks_recursive` | caller-supplied `LexerConfig`; top-level/recursive traversal | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name` | the resolved dialect/release axis | none |
@@ -141,13 +141,15 @@ entry point, or gate moves without this contract being updated.
   July 2026 and declined — no compiler-independent consumer exists;
   revisit only if one appears.
 
-### `tcl-irules` — event-handler boundaries
+### `tcl-syntax` — event-handler boundaries
 
-- `when_blocks` is the only Rust-side extractor for live `when EVENT { … }`
-  handlers. It consumes the configured command segmenter, so comment position,
-  Tcl's quote-blind braced-word rule, and iRules' `}{` separator all come from
-  the lexer. CLI and MCP helpers must consume its spans rather than match a
-  `when` regular expression and count braces locally.
+- `event_handlers` is the dependency-low extractor for live
+  `when EVENT { … }` handlers. The caller supplies `LexerConfig` and chooses
+  top-level or recursive traversal; comment position, Tcl's quote-blind braced
+  words, rooted colon runs, and iRules' `}{` separator therefore have one
+  lexer/naming contract. `tcl-irules::{when_blocks, when_blocks_recursive}`
+  are iRules-configured compatibility wrappers. Registry, CLI, explorer, LSP,
+  and MCP consumers use these APIs and spans rather than scanning text.
 
 ### `tcl-core-types` — shared vocabulary
 

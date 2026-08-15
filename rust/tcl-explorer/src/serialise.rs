@@ -52,7 +52,7 @@ use tcl_compiler::mixed_region_plan::{
     GuardedCandidateDecision, GuardedCandidateDecline, RegionPlan,
 };
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
-use tcl_compiler::segmenter::{segment_commands, segment_commands_with_offset_and_config};
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_compiler::semantic_analysis::{
     ExecutableAnalysisAvailability, MixedRegionPlanAvailability,
 };
@@ -2461,37 +2461,18 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
     }
 
     let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
-    let mut matched = 0usize;
-    for seg in segment_commands(source) {
-        if seg.texts.first().map(String::as_str) != Some("when") || seg.argv.len() < 3 {
-            continue;
-        }
-        // The body (last word) must be a braced block (`Str`): the guard
-        // requires `body.kind == TokenType::Str`.
-        let Some(body) = seg.argv.last() else {
-            continue;
-        };
-        if body.kind != TokenType::Str {
-            continue;
-        }
-        let event = seg.texts[1].clone();
-        let span = seg.argv[1].span;
-        // `when EVENT priority N { body }` — base priority defaults to 500.
-        // `when EVENT priority N { body }`; a missing/non-integer priority
-        // keeps the 500 default.
-        let mut priority = 500;
-        if seg.texts.len() >= 5
-            && seg.texts[2] == "priority"
-            && let Ok(parsed) = seg.texts[3].parse::<i64>()
-        {
-            priority = parsed;
-        }
+    for (matched, handler) in tcl_registry::events::top_level_when_handlers(source)
+        .into_iter()
+        .enumerate()
+    {
+        let event = handler.event;
+        let span = handler.event_span;
+        let priority = handler.priority.unwrap_or(500);
         per_event.entry(event).or_default().push(Handler {
             priority,
             idx: matched,
             span,
         });
-        matched += 1;
     }
 
     // Each event's handlers fire lowest-priority first, file order breaking ties.
@@ -3620,6 +3601,16 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["priority_offset"], 0);
         assert_eq!(rows[1]["priority_offset"], 1);
+    }
+
+    #[test]
+    fn event_order_uses_rooted_normalised_top_level_handlers_only() {
+        let src = "::when http_request { if {1} { :::when client_data {} } }";
+        let result = run_pipeline(src, "f5-irules");
+        let value = serialise_result(&result);
+        let rows = value["eventOrder"].as_array().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["event"], "HTTP_REQUEST");
     }
 
     #[test]
