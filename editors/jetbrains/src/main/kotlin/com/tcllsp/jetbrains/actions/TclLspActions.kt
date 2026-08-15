@@ -148,15 +148,30 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                     val decision = node("if", "decision")
                     connect(tail, decision)
                     val branches = item.array("branches") ?: JsonArray()
-                    var join: String? = null
+                    val branchTails = mutableListOf<String>()
                     for (branchElement in branches) {
                         val branch = branchElement.takeIf { it.isJsonObject }?.asJsonObject ?: continue
                         val branchStart = node(branch.string("condition") ?: "branch")
                         connect(decision, branchStart, branch.string("condition"))
                         val branchTail = walk(branch.array("body") ?: JsonArray(), branchStart)
-                        join = branchTail ?: branchStart
+                        branchTails += branchTail ?: branchStart
                     }
-                    tail = join ?: decision
+                    if (branchTails.isEmpty()) {
+                        tail = decision
+                    } else {
+                        val join = node("if join", "round")
+                        branchTails.forEach { connect(it, join) }
+                        // A conditional without an explicit else also has a
+                        // fall-through path; keep it connected to the same
+                        // continuation rather than dropping it.
+                        val hasElse = branches.any {
+                            it.isJsonObject && it.asJsonObject.string("condition") == "else"
+                        }
+                        if (!hasElse) {
+                            connect(decision, join, "false")
+                        }
+                        tail = join
+                    }
                 }
                 "switch" -> {
                     val decision = node("switch ${item.string("subject") ?: ""}", "decision")

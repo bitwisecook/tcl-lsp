@@ -46,4 +46,23 @@ class TclLspActionsTest {
         val payload = JsonParser.parseString("{\"events\": []}")
         kotlin.test.assertNull(renderDiagramMermaid(payload))
     }
+
+    @Test
+    fun conditionalBranchesAllJoinAndNoElseKeepsFalsePath() {
+        val payload = JsonParser.parseString(
+            """
+            {"events":[{"name":"HTTP_REQUEST","flow":[{"kind":"if","branches":[
+              {"condition":"a","body":[{"kind":"action","label":"pool a"}]},
+              {"condition":"b","body":[{"kind":"action","label":"pool b"}]}
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}
+            """.trimIndent()
+        )
+
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "pool a")
+        assertContains(mermaid, "pool b")
+        assertContains(mermaid, "|false|")
+        assertContains(mermaid, "after")
+        assertContains(mermaid, "if join")
+    }
 }

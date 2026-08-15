@@ -556,6 +556,8 @@ fn registry_pattern_format_hover(
     source: &str,
     line: u32,
     character: u32,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
     registry: &CommandRegistry,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
@@ -570,6 +572,31 @@ fn registry_pattern_format_hover(
         let Some(head) = command.texts.first() else {
             continue;
         };
+        // The registry is only authoritative after the analyser has confirmed
+        // that this call still names a builtin.  A live proc (including a
+        // namespace-local shadow or command mutation) owns the call and must
+        // not acquire the builtin's embedded-language hover.
+        let call_offset = command
+            .argv
+            .first()
+            .map_or(command.span.start(), |token| token.span.start());
+        let namespace = crate::definition::namespace_context_at(
+            &analysis.global_scope,
+            call_offset,
+            &analysis.namespace_overrides,
+        );
+        if crate::definition::resolve_called_proc(
+            analysis,
+            source,
+            &namespace,
+            head,
+            call_offset,
+            resolution,
+        )
+        .is_some()
+        {
+            continue;
+        }
         let args: Vec<&str> = command.texts.iter().skip(1).map(String::as_str).collect();
         let Some(_resolved) =
             registry.resolve_call(head, &args, tcl_registry::dialects::DialectSet::empty())
@@ -760,9 +787,15 @@ fn hover_impl(
     }
 
     let hover_registry = registry.unwrap_or_else(|| tcl_registry::registry_for_profile(profile));
-    if let Some(hover) =
-        registry_pattern_format_hover(source, line, character, hover_registry, profile)
-    {
+    if let Some(hover) = registry_pattern_format_hover(
+        source,
+        line,
+        character,
+        analysis,
+        ctx,
+        hover_registry,
+        profile,
+    ) {
         return Some(hover);
     }
 
@@ -4630,6 +4663,14 @@ mod tests {
         );
     }
 
+    #[test]
+    fn hover_abstains_for_local_proc_shadowing_format_command() {
+        let src = "proc clock {args} { return 0 }\nclock format $time {%Y}\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        assert!(hover(src, 1, 25, &analysis, None).is_none());
+    }
+
     // sprintf format hover
 
     #[test]
@@ -4999,6 +5040,14 @@ mod tests {
         // Cursor inside the pattern literal.
         let h = hover(src, 0, 10, &analysis, None).expect("hover");
         assert!(h.value.contains("Regex pattern"), "{}", h.value);
+    }
+
+    #[test]
+    fn hover_abstains_for_local_proc_shadowing_regexp_command() {
+        let src = "proc regexp {args} { return 0 }\nregexp {^foo$} $line\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        assert!(hover(src, 1, 10, &analysis, None).is_none());
     }
 
     // IP address hover
