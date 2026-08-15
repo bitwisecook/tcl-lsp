@@ -30,7 +30,7 @@
 //! * The conf-wrapped `embedded_rules` mode (scoping the search to the
 //!   rule body containing the cursor in a BIG-IP `.conf` wrapper) is not
 //!   modelled — the raw iRule body is analysed directly.
-//! * Discovery uses the registry's recursive script-boundary walker rather
+//! * Discovery uses the registry's top-level script-boundary walker rather
 //!   than a `\bwhen\s+([A-Z_]…)` regex (the project never parses Tcl with
 //!   regex). It accepts only an offset-resolved command whose active dialect
 //!   registry marks it as an event handler, so a user Tcl proc named `when`
@@ -75,7 +75,7 @@ impl EventHandlerFacts {
         Self::for_profile(source, tcl_dialect::DialectProfile::by_name(dialect))
     }
 
-    /// The innermost event handler enclosing `line` (0-based), if any.
+    /// The top-level event handler enclosing `line` (0-based), if any.
     #[must_use]
     pub fn enclosing_event(&self, line: u32) -> Option<String> {
         self.handlers
@@ -106,7 +106,7 @@ impl EventHandlerFacts {
 /// The one expensive identity-and-boundary construction for an iRules file.
 ///
 /// Keeping this separate from `EventHandlerFacts` construction makes the
-/// sharing contract testable: a second map/recursive traversal is another
+/// sharing contract testable: a second map/boundary traversal is another
 /// call to this function, not merely another cheap view of its output.
 fn build_event_handlers(
     source: &str,
@@ -137,15 +137,14 @@ pub(crate) fn expensive_build_count() -> usize {
 }
 
 /// Find the enclosing `when EVENT { … }` event at `line` (0-based), or
-/// `None` at the top level.  The innermost enclosing event wins (nested
-/// `when` blocks shadow their parents).
+/// `None` at the top level.
 #[must_use]
 pub fn find_enclosing_when_event(source: &str, line: u32, dialect: &str) -> Option<String> {
     EventHandlerFacts::new(source, dialect).enclosing_event(line)
 }
 
 /// Every distinct `when EVENT` name declared in `source` (uppercased,
-/// sorted), at any brace nesting.
+/// sorted), at top level only.
 #[must_use]
 pub fn scan_file_events(source: &str, dialect: &str) -> Vec<String> {
     EventHandlerFacts::new(source, dialect).file_events()
