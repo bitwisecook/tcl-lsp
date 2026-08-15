@@ -540,9 +540,12 @@ pub fn flatten_case_list_clauses(
             // so mark the complete list element as script-capable; this is
             // what lets `puts;unknown` reach both commands.  Dynamic or
             // backslash-built actions retain their conservative opaque kind.
+            let raw_body = source
+                .get(body.1.span.start() as usize..body.1.span.end() as usize)
+                .unwrap_or_default();
             if body.1.kind == TokenType::Esc
                 && !tcl_syntax::naming::is_dynamic_word(&body.0)
-                && !body.0.contains('\\')
+                && !raw_body.contains('\\')
             {
                 body.1 = Token::with_content_offset(TokenType::Str, body.1.span, 0);
             }

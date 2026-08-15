@@ -12865,6 +12865,18 @@ fn unbraced_expect_action_keeps_its_complete_script_span() {
 }
 
 #[test]
+fn backslash_built_expect_action_stays_an_opaque_barrier() {
+    let codes = codes_for_dialect(
+        r"expect {ready puts\ ok\;expect_backslash_unknown}",
+        "expect",
+    );
+    assert!(
+        !codes.iter().any(|code| code == "W123"),
+        "a decoded list value has no 1:1 source span and must not be partially walked: {codes:?}"
+    );
+}
+
+#[test]
 fn expect_list_comment_and_separator_patterns_still_walk_arm_bodies() {
     for pattern in ["#", ";"] {
         let codes = codes_for_dialect(
