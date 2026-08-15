@@ -1037,24 +1037,18 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
     )
 }
 
-/// Parse iRules event handlers recursively through registry-declared script
-/// surfaces.
-///
-/// The fixed iRules registry is the resolved semantic baseline for this
-/// iRules-only API. Arbitrary braced values are data unless a command spec
-/// declares them as [`crate::ArgRole::Body`]; command substitutions execute
-/// regardless of their containing argument role.
+/// Parse top-level iRules event handlers.
 #[must_use]
 pub fn recursive_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
     let resolver = WrittenHeadResolver;
-    recursive_when_handlers_with_registry_and_head_resolver(
+    top_level_when_handlers_with_registry_and_head_resolver(
         source,
         crate::registry_for_dialect("f5-irules"),
         &resolver,
     )
 }
 
-/// Registry-resolved recursive event discovery.
+/// Legacy registry-resolved event discovery; iRules events are top-level.
 #[must_use]
 #[allow(clippy::too_many_lines)] // One worklist keeps offsets, caps, and region context atomic.
 pub fn recursive_when_handlers_with_registry(
@@ -1062,10 +1056,10 @@ pub fn recursive_when_handlers_with_registry(
     registry: &crate::CommandRegistry,
 ) -> Vec<tcl_syntax::event_handler::EventHandler> {
     let resolver = WrittenHeadResolver;
-    recursive_when_handlers_with_registry_and_head_resolver(source, registry, &resolver)
+    top_level_when_handlers_with_registry_and_head_resolver(source, registry, &resolver)
 }
 
-/// Registry-resolved recursive event discovery with effective command heads.
+/// Legacy registry-resolved event discovery with effective command heads.
 ///
 /// `resolver` is queried at the absolute offset of every head, before both
 /// handler recognition and script-descriptor lookup. This makes a proven
@@ -1073,11 +1067,17 @@ pub fn recursive_when_handlers_with_registry(
 /// rebound to a user command out of every registry-driven traversal path.
 #[must_use]
 #[allow(clippy::too_many_lines)] // One worklist keeps offsets, caps, and region context atomic.
+#[allow(unreachable_code)] // Compatibility name returns the top-level iRules contract.
 pub fn recursive_when_handlers_with_registry_and_head_resolver(
     source: &str,
     registry: &crate::CommandRegistry,
     resolver: &dyn CommandHeadResolver,
 ) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    // Kept as a compatibility name for non-event structural callers. Event
+    // inventories must never descend: F5 iRules permits `when` only at file
+    // top level.
+    return top_level_when_handlers_with_registry_and_head_resolver(source, registry, resolver);
+
     let config = registry.profile().map_or_else(
         || LexerConfig::for_file_dialect("f5-irules"),
         |profile| LexerConfig::from_grammar(profile.grammar),
@@ -1318,14 +1318,14 @@ fn shift_handler(
     handler
 }
 
-/// Scan distinct event handlers recursively through the shared Tcl syntax
+/// Scan distinct top-level event handlers through the shared Tcl syntax
 /// owner. Names are normalised to upper case and returned in first-seen order;
 /// the caller orders them canonically via [`EventRegistry::order_events`].
 #[must_use]
 pub fn scan_when_events(source: &str) -> Vec<String> {
     let mut seen = FxHashSet::default();
     let mut out = Vec::new();
-    for handler in recursive_when_handlers(source) {
+    for handler in top_level_when_handlers(source) {
         if seen.insert(handler.event.clone()) {
             out.push(handler.event);
         }
@@ -4462,26 +4462,26 @@ mod tests {
     }
 
     #[test]
-    fn event_scan_uses_recursive_rooted_normalised_owner() {
+    fn event_scan_uses_top_level_rooted_normalised_owner() {
         assert_eq!(
             scan_when_events("::when http_request { if {1} { :::when client_data {} } }"),
-            ["HTTP_REQUEST", "CLIENT_DATA"]
+            ["HTTP_REQUEST"]
         );
     }
 
     #[test]
-    fn event_scan_recurses_only_through_registry_script_surfaces() {
+    fn event_scan_ignores_nested_script_surfaces() {
         let source = r#"
             set payload {when CLIENT_DATA {}}
             set quoted "when SERVER_DATA {}"
             # when RULE_INIT {}
             ::when http_request { if {1} { :::when client_data {} } }
         "#;
-        assert_eq!(scan_when_events(source), ["HTTP_REQUEST", "CLIENT_DATA"]);
+        assert_eq!(scan_when_events(source), ["HTTP_REQUEST"]);
     }
 
     #[test]
-    fn recursive_event_scan_covers_case_and_lambda_script_surfaces() {
+    fn event_scan_ignores_case_and_lambda_when_words() {
         let registry = crate::registry_for_dialect("f5-irules");
         let source = r"
             switch -- $x { a { when CLIENT_DATA {} } default { when SERVER_DATA {} } }
@@ -4492,7 +4492,7 @@ mod tests {
             .into_iter()
             .map(|handler| handler.event)
             .collect();
-        assert_eq!(events, ["CLIENT_DATA", "SERVER_DATA", "HTTP_REQUEST"]);
+        assert!(events.is_empty());
     }
 
     #[test]
