@@ -88,20 +88,23 @@ mod tests {
     }
 
     #[test]
-    fn resolves_event_handler_aliases_and_renames_at_their_offsets() {
-        let source = "alias_before HTTP_REQUEST {}\n\
-                      interp alias {} alias_before {} when\n\
-                      alias_before CLIENT_DATA {}\n\
-                      rename alias_before renamed\n\
-                      ::renamed SERVER_DATA {}\n";
+    fn unavailable_irules_mutators_do_not_change_when_identity() {
+        // F5 K36322151: iRules disables `interp`, `rename`, and `namespace`.
+        // These Tcl-looking statements therefore cannot alias, move, or import
+        // the event-handler command.
+        let source = "interp alias {} event {} when\n\
+                      rename when event\n\
+                      namespace import ::x::*\n\
+                      event HTTP_REQUEST {}\n\
+                      ::when CLIENT_DATA {}\n";
         let blocks = when_blocks(source);
         assert_eq!(
             blocks
                 .iter()
                 .map(|block| block.event.as_str())
                 .collect::<Vec<_>>(),
-            ["CLIENT_DATA", "SERVER_DATA"],
-            "an identity fact applies only after its defining command, and to rooted aliases too"
+            ["CLIENT_DATA"],
+            "only the rooted, registry-declared iRules event handler is valid"
         );
     }
 
@@ -140,17 +143,19 @@ mod tests {
     }
 
     #[test]
-    fn recursive_discovery_resolves_heads_before_following_script_descriptors() {
+    fn recursive_discovery_ignores_unavailable_irules_aliases() {
         let source = "interp alias {} branch {} if\n\
                       interp alias {} event {} ::when\n\
-                      branch {1} { ::event HTTP_REQUEST {} }\n";
+                      branch {1} { ::event HTTP_REQUEST {} }\n\
+                      if {1} { ::when HTTP_REQUEST {} }\n";
         let blocks = when_blocks_recursive(source);
         assert_eq!(
             blocks
                 .iter()
                 .map(|block| block.event.as_str())
                 .collect::<Vec<_>>(),
-            ["HTTP_REQUEST"]
+            ["HTTP_REQUEST"],
+            "unavailable aliases cannot open script descriptors or event boundaries"
         );
 
         let rebound = "proc if {args} {}\nif {1} { when CLIENT_DATA {} }\n";

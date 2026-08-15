@@ -398,6 +398,23 @@ pub fn command_head_identities_with_config(
     map
 }
 
+/// Whether this profile's command table actually exposes `name`.
+///
+/// `CommandRegistry::get` is deliberately dialect-agnostic for diagnostics
+/// such as W002. Identity facts instead model an executed statement, so an
+/// unavailable Tcl command (notably iRules' disabled `interp`, `rename`, and
+/// `namespace`) must produce no fact.
+fn command_is_available(registry: &CommandRegistry, name: &str) -> bool {
+    registry.profile().map_or_else(
+        || registry.get(name).is_some(),
+        |profile| {
+            registry
+                .get_for_dialect(name, profile.availability_mask)
+                .is_some()
+        },
+    )
+}
+
 /// `rename OLD NEW` — `NEW` inherits `OLD`'s identity and `OLD` stops existing;
 /// `rename OLD {}` deletes `OLD` outright.
 fn record_rename(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
@@ -453,7 +470,9 @@ fn inherited_target(
 ) -> Option<String> {
     match map.resolve(source, at) {
         HeadIdentity::Rebound => None,
-        HeadIdentity::Command(name) => registry.get(name).map(|_| name.to_owned()),
+        HeadIdentity::Command(name) => {
+            command_is_available(registry, name).then(|| name.to_owned())
+        }
     }
 }
 
@@ -515,7 +534,7 @@ fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &C
         // the global-namespace shadow is stated here.
         return;
     }
-    if registry.get(name).is_some() || map.resolves_to_a_command(name, at) {
+    if command_is_available(registry, name) || map.resolves_to_a_command(name, at) {
         map.record_both_spellings(name, None, at);
     }
 }
@@ -538,6 +557,9 @@ fn imported_command_aliases(
     registry: &CommandRegistry,
 ) -> FxHashMap<String, (String, u32)> {
     let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
+    if !command_is_available(registry, "namespace") {
+        return aliases;
+    }
     // Wholesale imports (`ns::*`) and single-name imports (`ns::name`), each
     // tagged with the byte offset of its `namespace import` statement so an
     // alias only applies to heads at or after it (source order).  Only
@@ -585,7 +607,7 @@ fn imported_command_aliases(
             let Some((ns, tail)) = name.rsplit_once("::") else {
                 continue;
             };
-            if tail.is_empty() || registry.get(tail).is_some() {
+            if tail.is_empty() || command_is_available(registry, tail) {
                 continue;
             }
             let ns = ns.trim_start_matches(':');
@@ -597,19 +619,22 @@ fn imported_command_aliases(
             else {
                 continue;
             };
-            if registry.get(name).is_some_and(|s| s.is_namespace_exported) {
+            if command_is_available(registry, name)
+                && registry.get(name).is_some_and(|s| s.is_namespace_exported)
+            {
                 record(tail.to_string(), name.to_string(), off);
             }
         }
     }
     // Single-name imports.
     for (ns, name, off) in &import_one {
-        if registry.get(name).is_some() {
+        if command_is_available(registry, name) {
             continue;
         }
         let qualified = format!("{ns}::{name}");
         if registry
             .get(&qualified)
+            .filter(|_| command_is_available(registry, &qualified))
             .is_some_and(|s| s.is_namespace_exported)
         {
             record(name.clone(), qualified, *off);
@@ -913,15 +938,30 @@ mod tests {
     }
 
     #[test]
-    fn resolved_event_handlers_drive_profile_inference() {
+    fn unavailable_irules_mutators_do_not_change_event_identity() {
         let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let profile = registry.profile().expect("dialect registry has a profile");
+        for command in ["interp", "rename", "namespace"] {
+            assert!(
+                registry
+                    .get_for_dialect(command, profile.availability_mask)
+                    .is_none(),
+                "F5 K36322151 disables {command} in iRules"
+            );
+        }
         let events = tcl_registry::events::EventRegistry::build();
         let profiles = tcl_registry::profiles::ProfileRegistry::build();
-        let aliased = "interp alias {} event {} when\nevent HTTP_REQUEST {}\n";
-        let identities = command_head_identities(aliased, "f5-irules", registry);
+        // F5 K36322151: iRules disables `interp`, `rename`, and `namespace`.
+        // Their Tcl shapes are data/error commands here, never identity facts.
+        let source = "interp alias {} event {} when\nrename when event\nnamespace import ::x::*\nwhen HTTP_REQUEST {}\n";
+        let identities = command_head_identities(source, "f5-irules", registry);
+        assert!(
+            identities.is_empty(),
+            "disabled commands must not produce command-identity facts"
+        );
         let inferred =
             tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(
-                aliased,
+                source,
                 &events,
                 &profiles,
                 registry,
@@ -929,6 +969,8 @@ mod tests {
             );
         assert!(inferred.contains(&"HTTP".to_owned()));
 
+        // `proc` is available, so a genuine, executable rebinding still
+        // removes the registry event-handler grammar.
         let rebound = "proc when {args} {}\nwhen HTTP_REQUEST {}\n";
         let identities = command_head_identities(rebound, "f5-irules", registry);
         let inferred =

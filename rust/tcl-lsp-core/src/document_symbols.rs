@@ -1976,12 +1976,12 @@ mod tests {
     }
 
     #[test]
-    fn irule_event_outline_uses_resolved_head_identity() {
+    fn irule_event_outline_ignores_unavailable_mutators() {
         let src = concat!(
             "interp alias {} event {} when\n",
             "event HTTP_REQUEST {}\n",
-            "proc when {args} {}\n",
-            "when CLIENT_DATA {}\n",
+            "rename when old_when\n",
+            "::when CLIENT_DATA {}\n",
         );
         let symbols = document_symbols(src, IRULES);
         assert_eq!(
@@ -1990,7 +1990,7 @@ mod tests {
                 .filter(|symbol| symbol.kind == SymbolKind::Event)
                 .map(|symbol| symbol.name.as_str())
                 .collect::<Vec<_>>(),
-            ["HTTP_REQUEST"]
+            ["CLIENT_DATA"]
         );
     }
 

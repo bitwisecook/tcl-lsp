@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn inert_when_text_is_neither_context_nor_file_event() {
         let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
-        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
+        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA"]);
         assert_eq!(find_enclosing_when_event(src, 0, D), None);
         assert_eq!(find_enclosing_when_event(src, 1, D), None);
     }
@@ -172,17 +172,17 @@ mod tests {
     }
 
     #[test]
-    fn context_inventory_uses_resolved_event_handler_identity() {
+    fn context_inventory_ignores_unavailable_irules_mutators() {
         let src = "interp alias {} event {} when\n\
+                   rename when event\n\
                    event HTTP_REQUEST { set x 1 }\n\
-                   proc when {args} {}\n\
-                   when CLIENT_DATA { set y 1 }\n";
-        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
+                   ::when CLIENT_DATA { set y 1 }\n";
+        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA"]);
+        assert_eq!(find_enclosing_when_event(src, 2, D), None);
         assert_eq!(
-            find_enclosing_when_event(src, 1, D),
-            Some("HTTP_REQUEST".to_owned())
+            find_enclosing_when_event(src, 3, D),
+            Some("CLIENT_DATA".to_owned())
         );
-        assert_eq!(find_enclosing_when_event(src, 3, D), None);
     }
 
     #[test]

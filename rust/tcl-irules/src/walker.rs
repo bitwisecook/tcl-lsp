@@ -687,30 +687,24 @@ mod tests {
     }
 
     #[test]
-    fn object_refs_follow_an_aliased_command() {
-        assert_eq!(
-            ref_names(&pool_rule("interp alias {} p {} pool\n", "p")),
-            vec!["/Common/web_pool".to_owned()],
-        );
-        // The `::`-qualified spelling of the alias classifies alike.
-        assert_eq!(
-            ref_names(&pool_rule("interp alias {} p {} pool\n", "::p")),
-            vec!["/Common/web_pool".to_owned()],
-        );
-        // Guard: an unbound `p` names no BIG-IP object.
+    fn unavailable_irules_alias_does_not_create_object_ref_command() {
+        // F5 K36322151 disables `interp`, so this cannot create `p`.
+        assert!(ref_names(&pool_rule("interp alias {} p {} pool\n", "p")).is_empty());
         assert!(ref_names(&pool_rule("set y 1\n", "p")).is_empty());
+        assert_eq!(
+            ref_names(&pool_rule("interp alias {} p {} pool\n", "pool")),
+            vec!["/Common/web_pool".to_owned()],
+            "a failed alias cannot take the real pool command away"
+        );
     }
 
     #[test]
     fn categories_follow_registry_returned_object_kinds() {
         let source = concat!(
-            "interp alias {} members {} active_members\n",
-            "interp alias {} retry {} LB::reselect\n",
-            "interp alias {} logger {} HSL::open\n",
             "when HTTP_REQUEST {\n",
-            " set n [::members /Common/active]\n",
-            " retry pool /Common/fallback\n",
-            " set h [logger -proto UDP -pool /Common/logging]\n",
+            " set n [::active_members /Common/active]\n",
+            " LB::reselect pool /Common/fallback\n",
+            " set h [HSL::open -proto UDP -pool /Common/logging]\n",
             " class match x equals /Common/hosts\n",
             "}\n",
         );
@@ -734,15 +728,12 @@ mod tests {
     }
 
     #[test]
-    fn object_refs_follow_a_renamed_command() {
+    fn unavailable_irules_rename_does_not_change_object_ref_command() {
+        assert!(ref_names(&pool_rule("rename pool p\n", "p")).is_empty());
         assert_eq!(
-            ref_names(&pool_rule("rename pool p\n", "p")),
+            ref_names(&pool_rule("rename pool p\n", "pool")),
             vec!["/Common/web_pool".to_owned()],
-        );
-        // The old spelling is gone from the rename onwards.
-        assert!(
-            ref_names(&pool_rule("rename pool p\n", "pool")).is_empty(),
-            "a renamed-away `pool` must not keep the object-reference grammar"
+            "F5 K36322151 disables `rename`, so pool remains available"
         );
     }
 
@@ -772,18 +763,10 @@ mod tests {
         );
     }
 
-    /// The `set`-constant propagation reads the resolved head too, so a pool
-    /// name bound through an aliased `set` still resolves.
+    /// An unavailable `interp alias` cannot make `assign` a `set` command.
     #[test]
-    fn constant_propagation_follows_an_aliased_set() {
+    fn unavailable_irules_alias_does_not_change_constant_propagation() {
         let source = "interp alias {} assign {} set\n\
-                      when HTTP_REQUEST {\n\
-                      assign p /Common/web_pool\n\
-                      pool $p\n\
-                      }\n";
-        assert_eq!(ref_names(source), vec!["/Common/web_pool".to_owned()]);
-        // Guard: without the alias, `assign` binds nothing and `$p` is unknown.
-        let source = "set y 1\n\
                       when HTTP_REQUEST {\n\
                       assign p /Common/web_pool\n\
                       pool $p\n\

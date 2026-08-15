@@ -2879,7 +2879,11 @@ impl CommandRegistry {
         name: &str,
         first_arg: Option<&str>,
     ) -> Option<CommandTableEffect> {
-        let spec = self.get(name)?;
+        // Command-table mutations are executable behaviour, so they must use
+        // this registry's profile-visible command surface. In particular,
+        // iRules intentionally has no `rename` or `interp`, even though the
+        // dialect-agnostic catalogue knows their Tcl specs.
+        let spec = self.spec_for_this_registry(name)?;
         first_arg
             .and_then(|word| spec.subcommand(word))
             .and_then(|sub| sub.command_table_effect)
