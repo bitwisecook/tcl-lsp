@@ -1,6 +1,7 @@
 package com.tcllsp.jetbrains.actions
 
 import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -372,15 +373,39 @@ class TclLspActionsTest {
 
     @Test
     fun trapSourceOrderUsesProjectedTclListElements() {
-        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
-            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
-              {"kind":"action","label":"return -code ${'$'}code","completion":"dynamic_return_or_error"}],"handlers":[
-              {"kind_handler":"trap","match":"A {B C}","trap_pattern":["A","B C"],"fallthrough":false,"body":[{"kind":"action","label":"first trap"}]},
-              {"kind_handler":"trap","match":"A \"B C\"","trap_pattern":["A","B C"],"fallthrough":false,"body":[{"kind":"action","label":"shadowed trap"}]},
-              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"error"}]}
-            ]}]}],"procedures":[]}"""
-        )))
-        assertEquals(1, mermaid.lines().count { it.startsWith("n2 -->|trap|") }, mermaid)
+        fun render(firstMatch: String, secondMatch: String, pattern: List<String>?): String {
+            val projected = pattern?.joinToString(prefix = "[", postfix = "]") { JsonPrimitive(it).toString() } ?: "null"
+            return assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+                """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+                  {"kind":"action","label":"return -code ${'$'}code","completion":"dynamic_return_or_error"}],"handlers":[
+                  {"kind_handler":"trap","match":${JsonPrimitive(firstMatch)},"trap_pattern":$projected,"fallthrough":false,"body":[{"kind":"action","label":"first trap"}]},
+                  {"kind_handler":"trap","match":${JsonPrimitive(secondMatch)},"trap_pattern":$projected,"fallthrough":false,"body":[{"kind":"action","label":"second trap"}]},
+                  {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"error"}]}
+                ]}]}],"procedures":[]}"""
+            )))
+        }
+
+        for ((first, second, pattern) in listOf(
+            Triple("A {B C}", "A \"B C\"", listOf("A", "B C")),
+            Triple("A \\${'$'}B", "A {${'$'}B}", listOf("A", "${'$'}B")),
+            Triple("A \\[B\\]", "A {[B]}", listOf("A", "[B]")),
+            Triple("A C:\\\\tmp", "A {C:\\tmp}", listOf("A", "C:\\tmp")),
+        )) {
+            val mermaid = render(first, second, pattern)
+            assertEquals(1, mermaid.lines().count { it.contains("-->|trap|") }, mermaid)
+            assertContains(mermaid, "first trap")
+            kotlin.test.assertFalse(mermaid.contains("second trap"), mermaid)
+        }
+
+        for ((first, second) in listOf(
+            "A {" to "A }",
+            "${'$'}pattern" to "A ${'$'}pattern",
+        )) {
+            val mermaid = render(first, second, null)
+            assertEquals(2, mermaid.lines().count { it.contains("-->|trap|") }, mermaid)
+            assertContains(mermaid, "first trap")
+            assertContains(mermaid, "second trap")
+        }
     }
 
     @Test

@@ -1290,6 +1290,7 @@ mod tests {
             handlers: vec![TryHandler {
                 kind: "on".into(),
                 match_arg: "error".into(),
+                trap_pattern: None,
                 var_name: Some("e".into()),
                 options_var: None,
                 body: Script::new(),

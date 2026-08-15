@@ -327,7 +327,7 @@ fn walk_try(
                     "kind_handler": h.kind,
                     "match": h.match_arg,
                     "completion_code": handler_completion_code(h, registry),
-                    "trap_pattern": trap_pattern_elements(h),
+                    "trap_pattern": h.trap_pattern,
                     "fallthrough": h.fallthrough,
                     "body": walk_script(&h.body, proc_names, depth + 1, registry),
                 })
@@ -342,21 +342,6 @@ fn walk_try(
         );
     }
     Value::Object(result)
-}
-
-/// A literal `trap` selector is a Tcl list, not whitespace-separated text.
-/// Dynamic substitutions and malformed lists remain null so consumers retain
-/// conservative routing rather than inventing list boundaries.
-fn trap_pattern_elements(handler: &TryHandler) -> Option<Vec<String>> {
-    (handler.kind == "trap")
-        .then(|| tcl_syntax::list::split_list(&handler.match_arg).ok())
-        .flatten()
-        .filter(|elements| {
-            !elements
-                .iter()
-                .any(|element| element.contains('$') || element.contains('['))
-        })
-        .map(|elements| elements.into_iter().map(Into::into).collect())
 }
 
 /// Canonicalise an `on` selector in the shared projection.  Tcl accepts its
@@ -952,18 +937,31 @@ mod tests {
     #[test]
     fn trap_patterns_are_projected_as_tcl_list_elements() {
         let data = diagram_data_for_dialect(
-            "proc paths {} { try { error x } trap {A {B C}} {message options} {} trap {A \"B C\"} {message options} {} }",
+            r#"proc paths {} { try { error x } trap {A \$B} {message options} {} trap {A {$B}} {message options} {} trap {A \[B\]} {message options} {} trap {A {[B]}} {message options} {} trap {A C:\\tmp} {message options} {} trap {A {C:\tmp}} {message options} {} trap "A \{" {message options} {} trap $pattern {message options} {} trap "A $pattern" {message options} {} trap [list A B] {message options} {} }"#,
             tcl_registry::registry_for_dialect("tcl8.6"),
             "tcl8.6",
         );
-        assert_eq!(
-            data.pointer("/procedures/0/flow/0/handlers/0/trap_pattern"),
-            Some(&json!(["A", "B C"]))
-        );
-        assert_eq!(
-            data.pointer("/procedures/0/flow/0/handlers/1/trap_pattern"),
-            Some(&json!(["A", "B C"]))
-        );
+        let expected = [
+            json!(["A", "$B"]),
+            json!(["A", "$B"]),
+            json!(["A", "[B]"]),
+            json!(["A", "[B]"]),
+            json!(["A", r"C:\tmp"]),
+            json!(["A", r"C:\tmp"]),
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+        ];
+        for (index, expected) in expected.iter().enumerate() {
+            assert_eq!(
+                data.pointer(&format!(
+                    "/procedures/0/flow/0/handlers/{index}/trap_pattern"
+                )),
+                Some(expected),
+                "handler {index}: {data}"
+            );
+        }
     }
 
     #[test]

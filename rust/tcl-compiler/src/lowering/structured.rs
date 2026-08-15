@@ -716,6 +716,27 @@ impl Lowerer<'_> {
 
             if (keyword == "on" || keyword == "trap") && i + 3 < args.len() {
                 let match_arg = args[i + 1].clone();
+                // A trap selector is evaluated as one Tcl word and its value
+                // is then parsed as a Tcl list. Preserve the source-level
+                // substitution decision here: inspecting the decoded elements
+                // for `$` or `[` would reject literal data such as `{A {$B}}`
+                // and `{A \$B}`. A substitution-free bare/quoted word still
+                // needs backslash substitution before list parsing, whereas a
+                // braced word's content is already its literal runtime value.
+                let trap_pattern =
+                    if keyword == "trap" && super::seg_word_is_static_literal(seg, i + 2) {
+                        let match_tok = arg_tokens.get(i + 1);
+                        let value = if match_tok.is_some_and(|tok| tok.kind == TokenType::Str) {
+                            std::borrow::Cow::Borrowed(match_arg.as_str())
+                        } else {
+                            tcl_lexer::backslash_subst(&match_arg)
+                        };
+                        tcl_syntax::list::split_list(&value)
+                            .ok()
+                            .map(|elements| elements.into_iter().map(Into::into).collect())
+                    } else {
+                        None
+                    };
                 let var_list = &args[i + 2];
                 let handler_tok = arg_tokens.get(i + 3);
                 let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
@@ -771,6 +792,7 @@ impl Lowerer<'_> {
                 handlers.push(TryHandler {
                     kind: keyword.clone(),
                     match_arg,
+                    trap_pattern,
                     var_name: result_var,
                     options_var,
                     body: handler_body,
@@ -1301,6 +1323,44 @@ mod tests {
         } else {
             panic!("expected Try");
         }
+    }
+
+    #[test]
+    fn try_trap_pattern_projection_preserves_tcl_word_literalness() {
+        let source = r#"try {} \
+            trap {A \$B} {m o} {} \
+            trap {A {$B}} {m o} {} \
+            trap {A \[B\]} {m o} {} \
+            trap {A {[B]}} {m o} {} \
+            trap {A C:\\tmp} {m o} {} \
+            trap {A {C:\tmp}} {m o} {} \
+            trap "A \{" {m o} {} \
+            trap $pattern {m o} {} \
+            trap "A $pattern" {m o} {} \
+            trap [list A B] {m o} {}"#;
+        let module = lower_to_ir(source, &reg());
+        let Statement::Try { handlers, .. } = &module.top_level.statements[0] else {
+            panic!("expected structured try");
+        };
+        let patterns: Vec<_> = handlers
+            .iter()
+            .map(|handler| handler.trap_pattern.clone())
+            .collect();
+        assert_eq!(
+            patterns,
+            vec![
+                Some(vec!["A".into(), "$B".into()]),
+                Some(vec!["A".into(), "$B".into()]),
+                Some(vec!["A".into(), "[B]".into()]),
+                Some(vec!["A".into(), "[B]".into()]),
+                Some(vec!["A".into(), r"C:\tmp".into()]),
+                Some(vec!["A".into(), r"C:\tmp".into()]),
+                None,
+                None,
+                None,
+                None,
+            ]
+        );
     }
 
     #[test]
