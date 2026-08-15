@@ -965,6 +965,24 @@ mod tests {
     }
 
     #[test]
+    fn trap_pattern_projection_preserves_the_dialect_escape_value() {
+        let source =
+            r#"proc paths {} { try { error x } trap "A \U0001F600" {message options} {} }"#;
+        for (dialect, expected) in [("tcl8.6", "\u{fffd}"), ("tcl9.0", "😀")] {
+            let data = diagram_data_for_dialect(
+                source,
+                tcl_registry::registry_for_dialect(dialect),
+                dialect,
+            );
+            assert_eq!(
+                data.pointer("/procedures/0/flow/0/handlers/0/trap_pattern"),
+                Some(&json!(["A", expected])),
+                "{dialect}: {data}",
+            );
+        }
+    }
+
+    #[test]
     fn handler_number_release_vectors_share_tcl_numeric_owner() {
         for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
             let profile = tcl_registry::registry_for_dialect(dialect)

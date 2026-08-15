@@ -729,7 +729,7 @@ impl Lowerer<'_> {
                         let value = if match_tok.is_some_and(|tok| tok.kind == TokenType::Str) {
                             std::borrow::Cow::Borrowed(match_arg.as_str())
                         } else {
-                            tcl_lexer::backslash_subst(&match_arg)
+                            tcl_lexer::backslash_subst_in(&match_arg, self.config.escapes)
                         };
                         tcl_syntax::list::split_list(&value)
                             .ok()
@@ -766,7 +766,7 @@ impl Lowerer<'_> {
                 let body_value = if is_braced {
                     std::borrow::Cow::Borrowed(args[i + 3].as_str())
                 } else {
-                    tcl_lexer::backslash_subst(&args[i + 3])
+                    tcl_lexer::backslash_subst_in(&args[i + 3], self.config.escapes)
                 };
                 let is_fallthrough = handler_single && body_value == "-";
                 // Every handler body that is *not* the fallthrough marker gets
@@ -1361,6 +1361,29 @@ mod tests {
                 None,
             ]
         );
+    }
+
+    #[test]
+    fn try_trap_pattern_projection_uses_the_release_escape_grammar() {
+        // Tcl 8.6 consumes the same wide-unicode escape extent as Tcl 9,
+        // but its UTF-16-internal build replaces a non-BMP scalar with
+        // U+FFFD. Tcl 9 retains the scalar. This is observable in trap's
+        // error-code prefix and therefore must follow the lowerer's profile.
+        let source = r#"try {} trap "A \U0001F600" {m o} {}"#;
+        let pattern = |dialect| {
+            let module = crate::lowering::lower_to_ir_with_config(
+                source,
+                &reg(),
+                tcl_lexer::LexerConfig::for_dialect(dialect),
+            );
+            let Statement::Try { handlers, .. } = &module.top_level.statements[0] else {
+                panic!("expected structured try");
+            };
+            handlers[0].trap_pattern.clone()
+        };
+
+        assert_eq!(pattern("tcl8.6"), Some(vec!["A".into(), "\u{fffd}".into()]));
+        assert_eq!(pattern("tcl9.0"), Some(vec!["A".into(), "😀".into()]));
     }
 
     #[test]
