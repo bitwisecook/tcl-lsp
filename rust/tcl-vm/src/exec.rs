@@ -983,12 +983,8 @@ fn proc_usage(proc: &ProcDef) -> String {
 impl Vm {
     /// Run a module: register its compiled procs, then run the top-level script.
     pub fn run_module(&mut self, module: &ModuleAsm) -> Completion<Value> {
-        if !module.profile.is_fallback() && !std::ptr::eq(module.profile, self.dialect_profile()) {
-            return err(format!(
-                "bytecode compiled for dialect profile {} cannot run under {}",
-                module.profile.name,
-                self.dialect_profile().name
-            ));
+        if let Err(error) = self.validate_module_profile(module) {
+            return crate::command::completion_from_tcl_error(error);
         }
         self.claim_number_grammar();
         self.merge_procs(&module.procedures);

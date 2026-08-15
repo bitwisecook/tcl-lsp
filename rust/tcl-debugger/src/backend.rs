@@ -36,7 +36,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_traced_with_config;
+use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
 use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, DebugAction, DebugSnapshot, Vm};
@@ -174,7 +174,7 @@ impl CompileService for Svc {
         Self::for_profile(profile).compile(src)
     }
     fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let ir = lower_to_ir_traced_with_config(src, self.registry, self.config);
+        let ir = lower_to_ir_traced_with_dialect(src, self.registry, self.config, self.dialect);
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
     }

@@ -4549,8 +4549,25 @@ impl Vm {
             .as_ref()?
             .compile_for_profile(src, self.dialect_profile)
             .ok()?;
+        self.validate_module_profile(&module).ok()?;
         self.merge_procs(&module.procedures);
         Some(Rc::new(module.top_level))
+    }
+
+    /// Enforce the bytecode artifact's exact profile at every consumption
+    /// boundary.  The permissive fallback profile is still a real compile
+    /// target: bytecode lowered with its all-Tcl registry can contain an
+    /// intrinsic unavailable in a named release, so it is only executable by
+    /// a fallback-profile VM.
+    pub(crate) fn validate_module_profile(&self, module: &ModuleAsm) -> Result<(), TclError> {
+        if std::ptr::eq(module.profile, self.dialect_profile) {
+            Ok(())
+        } else {
+            Err(TclError::new(format!(
+                "bytecode compiled for dialect profile {} cannot run under {}",
+                module.profile.name, self.dialect_profile.name
+            )))
+        }
     }
 
     /// Merge a module's pre-compiled proc bodies into the registry.
@@ -4592,6 +4609,9 @@ impl Vm {
         let Ok(module) = recompiled else {
             return proc;
         };
+        if self.validate_module_profile(&module).is_err() {
+            return proc;
+        }
         self.merge_procs(&module.procedures);
         let mut fresh = (*proc).clone();
         fresh.body = Rc::new(module.top_level);
@@ -5919,6 +5939,7 @@ impl Vm {
             c.compile_for_profile(src, self.dialect_profile)
         };
         let m = Rc::new(compiled.map_err(|e| TclError::new(e.0))?);
+        self.validate_module_profile(&m)?;
         let cache = if traced {
             &mut self.eval_cache_traced
         } else {
@@ -5951,6 +5972,7 @@ impl Vm {
     /// counterpart of the nested drive `eval_source` performs.
     pub(crate) fn compile_source_cached(&mut self, src: &str) -> Result<Rc<FunctionAsm>, TclError> {
         let module = self.compile_cached(src)?;
+        self.validate_module_profile(&module)?;
         self.merge_procs(&module.procedures);
         Ok(Rc::new(module.top_level.clone()))
     }

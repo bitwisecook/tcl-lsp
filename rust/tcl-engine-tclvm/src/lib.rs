@@ -52,7 +52,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::{
     first_fatal_parse_error_with_config, lower_to_ir_for_bytecode,
-    lower_to_ir_for_bytecode_with_dialect, lower_to_ir_traced_with_config,
+    lower_to_ir_for_bytecode_with_dialect, lower_to_ir_traced_with_dialect,
 };
 use tcl_dialect::DialectProfile;
 use tcl_engine_api::{Budget, BudgetKind, CompileUnit, Engine, EngineError, HostCommand, Value};
@@ -103,7 +103,7 @@ impl CompileService for VmCompiler {
         if let Some(message) = first_fatal_parse_error_with_config(source, config) {
             return Err(CompileError(message));
         }
-        let ir = lower_to_ir_traced_with_config(source, registry, config);
+        let ir = lower_to_ir_traced_with_dialect(source, registry, config, profile.name);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, registry))
     }

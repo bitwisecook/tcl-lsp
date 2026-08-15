@@ -41,7 +41,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
-use tcl_dialect::TclVersion;
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -60,6 +60,33 @@ impl CompileService for CompilerSvc {
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        compile_exact_profile(src, profile)
+    }
+}
+
+fn compile_exact_profile(
+    src: &str,
+    profile: &'static DialectProfile,
+) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+    let registry = tcl_registry::registry_for_profile(profile);
+    let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+    if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config) {
+        return Err(CompileError(msg));
+    }
+    let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+        src,
+        registry,
+        config,
+        profile.name,
+    );
+    let cfg = build_cfg_codegen(&ir, false);
+    Ok(codegen_module(&cfg, &ir, registry))
 }
 
 #[derive(Clone, Default)]
@@ -79,16 +106,17 @@ impl std::io::Write for Capture {
 /// (the vectors communicate through stdout so the tclsh leg is directly
 /// comparable).
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let profile = DialectProfile::by_name(version.dialect_name());
+    let service = CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    };
+    let asm = service
+        .compile_for_profile(src, profile)
+        .expect("test script compiles for its selected profile");
 
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(service));
     vm.set_runtime_version(version);
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()

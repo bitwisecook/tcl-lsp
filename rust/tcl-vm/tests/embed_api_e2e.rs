@@ -52,6 +52,27 @@ impl CompileService for CompilerSvc {
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+            src,
+            registry,
+            config,
+            profile.name,
+        );
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
 }
 
 fn vm() -> Vm {

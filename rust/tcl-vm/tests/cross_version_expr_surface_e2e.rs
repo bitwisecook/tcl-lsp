@@ -56,7 +56,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-use tcl_dialect::TclVersion;
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -96,6 +96,27 @@ impl CompileService for CompilerSvc {
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+            src,
+            registry,
+            config,
+            profile.name,
+        );
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
 }
 
 /// Run `src` in the VM at `version`, returning its `puts` output.
@@ -105,10 +126,16 @@ impl CompileService for CompilerSvc {
 /// the newest grammar's answer and `set_runtime_version` cannot undo it.
 fn vm_output(src: &str, version: TclVersion) -> String {
     let dialect = version.dialect_name();
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry, tcl_lexer::LexerConfig::default(), dialect);
+    let profile = DialectProfile::by_name(dialect);
+    let registry = tcl_registry::registry_for_profile(profile);
+    let ir = lower_to_ir(
+        src,
+        registry,
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        dialect,
+    );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, registry);
 
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));

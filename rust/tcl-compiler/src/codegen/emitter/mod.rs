@@ -175,14 +175,7 @@ pub fn codegen_module(
         );
     }
     ModuleAsm {
-        // The historic generic lowering spelling `tcl` is an explicit
-        // profile-independent artifact contract, not the named release
-        // profile `tcl9.0`.
-        profile: if dialect == Some("tcl") {
-            tcl_dialect::DialectProfile::plain_tcl()
-        } else {
-            tcl_dialect::DialectProfile::by_opt_name(dialect)
-        },
+        profile: tcl_dialect::DialectProfile::by_opt_name(dialect),
         top_level: top,
         procedures: procs,
     }

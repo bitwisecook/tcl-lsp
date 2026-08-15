@@ -35,7 +35,7 @@
 //! byte-compared against a real interpreter whenever one is on `PATH`
 //! (`TCLSH84` / `TCLSH86` / `TCLSH90` override the binary names).
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
@@ -96,6 +96,81 @@ impl CompileService for CompilerSvc {
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         Self::for_profile(profile).compile(src)
     }
+}
+
+struct CountingCompilerSvc {
+    calls: Rc<Cell<usize>>,
+}
+
+impl CompileService for CountingCompilerSvc {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+        self.compile_for_profile(src, DialectProfile::plain_tcl())
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        CompilerSvc::for_profile(profile).compile(src)
+    }
+}
+
+struct FixedFallbackCompilerSvc;
+
+impl CompileService for FixedFallbackCompilerSvc {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode(src, &registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, &registry))
+    }
+}
+
+struct WrongProfileCompilerSvc;
+
+impl CompileService for WrongProfileCompilerSvc {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+        CompilerSvc::for_profile(DialectProfile::by_name("tcl8.5")).compile(src)
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        _profile: &'static DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compile(src)
+    }
+}
+
+#[test]
+fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
+    let v84 = DialectProfile::by_name("tcl8.4");
+    let mut fixed = Vm::new();
+    fixed.set_dialect_profile(v84);
+    fixed.set_compiler(Box::new(FixedFallbackCompilerSvc));
+    assert_eq!(
+        fixed.eval_source("set x 1").unwrap_err().message,
+        "CompileService does not support dialect profile tcl8.4"
+    );
+
+    let mut mislabelled = Vm::new();
+    mislabelled.set_dialect_profile(v84);
+    mislabelled.set_compiler(Box::new(WrongProfileCompilerSvc));
+    assert_eq!(
+        mislabelled
+            .compile_function("lassign {a b} x")
+            .unwrap_err()
+            .message,
+        "bytecode compiled for dialect profile tcl8.5 cannot run under tcl8.4"
+    );
 }
 
 /// Run `src` on a VM pinned to `profile`, compiling for that profile exactly
@@ -457,6 +532,30 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         foreign_vm.run_module(&aot).result.to_str().as_ref(),
         "bytecode compiled for dialect profile tcl8.5 cannot run under tcl8.4"
     );
+    let generic_registry = tcl_registry::CommandRegistry::build_default();
+    let generic_ir =
+        tcl_compiler::lowering::lower_to_ir_for_bytecode("lassign {a b} x", &generic_registry);
+    let generic_cfg = build_cfg_codegen(&generic_ir, false);
+    let generic_aot = codegen_module(&generic_cfg, &generic_ir, &generic_registry);
+    assert_eq!(
+        foreign_vm.run_module(&generic_aot).result.to_str().as_ref(),
+        "bytecode compiled for dialect profile tcl cannot run under tcl8.4"
+    );
+    let traced_registry = tcl_registry::registry_for_profile(v85);
+    let traced_config = tcl_lexer::LexerConfig::from_grammar(v85.grammar);
+    let traced_ir = tcl_compiler::lowering::lower_to_ir_traced_with_dialect(
+        "lassign {a b} x",
+        traced_registry,
+        traced_config,
+        v85.name,
+    );
+    let traced_cfg = build_cfg_codegen(&traced_ir, false);
+    let traced_aot = codegen_module(&traced_cfg, &traced_ir, traced_registry);
+    assert!(std::ptr::eq(traced_aot.profile, v85));
+    assert_eq!(
+        foreign_vm.run_module(&traced_aot).result.to_str().as_ref(),
+        "bytecode compiled for dialect profile tcl8.5 cannot run under tcl8.4"
+    );
 
     // The reported escape, exactly: a body compiled under 8.5 must not retain
     // its inline lassign lowering after a direct 8.4 flip, and the reverse
@@ -550,6 +649,11 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         .eval_source("catch {c} continuation_msg; set continuation_msg")
         .expect("8.4 continuation probe compiles");
     assert_eq!(
+        continuation.code,
+        Code::Ok,
+        "catch must absorb the stale frame"
+    );
+    assert_eq!(
         continuation.result.to_str().as_ref(),
         "cannot continue bytecode after dialect profile changed"
     );
@@ -573,6 +677,38 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         .eval_source("coroutine c2 apply {{} {yield ready; lassign {a b} x; return $x}}; c2")
         .expect("8.6 coroutine restoration compiles");
     assert_eq!(resumed.result.to_str().as_ref(), "a");
+}
+
+#[test]
+fn tcloo_method_profile_refresh_is_persisted_after_the_first_call() {
+    let calls = Rc::new(Cell::new(0));
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    vm.set_compiler(Box::new(CountingCompilerSvc {
+        calls: Rc::clone(&calls),
+    }));
+    let setup = vm
+        .eval_source("oo::class create C {method m {} {lassign {a b} x; return $x}}; C create o")
+        .expect("class setup compiles");
+    assert!(setup.code.is_ok(), "{}", setup.result.to_str());
+
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    let before = calls.get();
+    let first = vm.invoke_command("o", &[tcl_vm::Value::string("m")]);
+    let after_first = calls.get();
+    let second = vm.invoke_command("o", &[tcl_vm::Value::string("m")]);
+    assert_eq!(first.code, Code::Error);
+    assert_eq!(second.code, Code::Error);
+    assert_eq!(
+        after_first,
+        before + 1,
+        "first call recompiles the method once"
+    );
+    assert_eq!(
+        calls.get(),
+        after_first,
+        "second call reuses the refreshed method"
+    );
 }
 
 /// Renaming an import moves its local key, not its source provenance.  A
