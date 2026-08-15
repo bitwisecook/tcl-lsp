@@ -321,6 +321,7 @@ fn walk_try(
                 json!({
                     "kind_handler": h.kind,
                     "match": h.match_arg,
+                    "completion_code": handler_completion_code(h, registry),
                     "fallthrough": h.fallthrough,
                     "body": walk_script(&h.body, proc_names, depth + 1, registry),
                 })
@@ -335,6 +336,28 @@ fn walk_try(
         );
     }
     Value::Object(result)
+}
+
+/// Canonicalise an `on` selector in the shared projection.  Tcl accepts its
+/// integer grammar here (including `02`, `+2`, and `0x2`); renderers must not
+/// reimplement it. Unknown symbolic selectors cannot be completion codes.
+fn handler_completion_code(handler: &TryHandler, registry: &CommandRegistry) -> Option<i32> {
+    if handler.kind != "on" {
+        return None;
+    }
+    match handler.match_arg.as_str() {
+        "ok" => Some(0),
+        "error" => Some(1),
+        "return" => Some(2),
+        "break" => Some(3),
+        "continue" => Some(4),
+        value => registry
+            .profile()
+            .and_then(|profile| {
+                tcl_syntax::number::Numbers::of_profile(Some(profile)).parse_wide(value)
+            })
+            .and_then(|value| i32::try_from(value).ok()),
+    }
 }
 
 /// Build the `if` flow-node dict from its clauses and optional `else` body.
@@ -816,6 +839,57 @@ mod tests {
             data.pointer("/procedures/0/flow/2/body/0/completion"),
             Some(&Value::String("dynamic".to_owned()))
         );
+    }
+
+    #[test]
+    fn handler_completion_codes_use_the_dialect_numeric_grammar() {
+        let source = "proc paths {} { try { return -options $options payload } on 02 {message options} { set two yes } on +2 {message options} { set duplicate yes } on 0x2 {message options} { set duplicate_hex yes } on return {message options} { set symbolic yes } on nonsense {message options} { set invalid yes } }";
+        // `try` itself begins in Tcl 8.6, so diagram handlers can only be
+        // projected for releases that provide the command.
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let data = diagram_data_for_dialect(
+                source,
+                tcl_registry::registry_for_dialect(dialect),
+                dialect,
+            );
+            let handlers = data
+                .pointer("/procedures/0/flow/0/handlers")
+                .and_then(Value::as_array)
+                .expect("try handlers");
+            let codes: Vec<_> = handlers
+                .iter()
+                .map(|handler| {
+                    handler
+                        .get("completion_code")
+                        .cloned()
+                        .unwrap_or(Value::Null)
+                })
+                .collect();
+            assert_eq!(
+                codes,
+                vec![
+                    Value::from(2),
+                    Value::from(2),
+                    Value::from(2),
+                    Value::from(2),
+                    Value::Null
+                ],
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn handler_number_release_vectors_share_tcl_numeric_owner() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let profile = tcl_registry::registry_for_dialect(dialect)
+                .profile()
+                .expect("dialect profile");
+            let numbers = tcl_syntax::number::Numbers::of_profile(Some(profile));
+            assert_eq!(numbers.parse_wide("02"), Some(2), "{dialect}");
+            assert_eq!(numbers.parse_wide("+2"), Some(2), "{dialect}");
+            assert_eq!(numbers.parse_wide("0x2"), Some(2), "{dialect}");
+        }
     }
 
     #[test]

@@ -308,14 +308,14 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         is PossibleCompletion.CUSTOM, PossibleCompletion.UNKNOWN_OTHER -> DiagramCompletion.TERMINAL
                     }
                     fun onMatches(handler: Handler, possible: PossibleCompletion): Boolean {
-                        val match = handler.data.string("match")
+                        val code = handler.data.get("completion_code")?.takeIf { it.isJsonPrimitive }?.asInt
                         return when (possible) {
-                            PossibleCompletion.NORMAL -> match == "ok" || match == "0"
-                            PossibleCompletion.ERROR -> match == "error" || match == "1"
-                            PossibleCompletion.RETURN -> match == "return" || match == "2"
-                            PossibleCompletion.BREAK -> match == "break" || match == "3"
-                            PossibleCompletion.CONTINUE -> match == "continue" || match == "4"
-                            is PossibleCompletion.CUSTOM -> match == possible.selector
+                            PossibleCompletion.NORMAL -> code == 0
+                            PossibleCompletion.ERROR -> code == 1
+                            PossibleCompletion.RETURN -> code == 2
+                            PossibleCompletion.BREAK -> code == 3
+                            PossibleCompletion.CONTINUE -> code == 4
+                            is PossibleCompletion.CUSTOM -> code == possible.code
                             PossibleCompletion.UNKNOWN_OTHER -> false
                         }
                     }
@@ -345,8 +345,8 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                                 )
                                 val custom = handlers.asSequence()
                                     .filter { it.data.string("kind_handler") == "on" }
-                                    .mapNotNull { it.data.string("match") }
-                                    .filterNot { it in listOf("ok", "error", "return", "break", "continue", "0", "1", "2", "3", "4") }
+                                    .mapNotNull { it.data.get("completion_code")?.takeIf { value -> value.isJsonPrimitive }?.asInt }
+                                    .filterNot { it in 0..4 }
                                     .distinct()
                                     .map { PossibleCompletion.CUSTOM(it) }
                                     .toList()
@@ -497,7 +497,7 @@ private sealed class PossibleCompletion {
     data object RETURN : PossibleCompletion()
     data object BREAK : PossibleCompletion()
     data object CONTINUE : PossibleCompletion()
-    data class CUSTOM(val selector: String) : PossibleCompletion()
+    data class CUSTOM(val code: Int) : PossibleCompletion()
     data object UNKNOWN_OTHER : PossibleCompletion()
 }
 

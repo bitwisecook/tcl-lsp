@@ -250,10 +250,10 @@ class TclLspActionsTest {
         val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
               {"kind":"action","label":"return -options ${'$'}opts","completion":"dynamic"}],"handlers":[
-              {"kind_handler":"on","match":"ok","fallthrough":false,"body":[{"kind":"action","label":"ok path"}]},
-              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"error path"}]},
-              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"return path"}]},
-              {"kind_handler":"on","match":"42","fallthrough":false,"body":[{"kind":"action","label":"other path"}]}
+              {"kind_handler":"on","match":"ok","completion_code":0,"fallthrough":false,"body":[{"kind":"action","label":"ok path"}]},
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"error path"}]},
+              {"kind_handler":"on","match":"return","completion_code":2,"fallthrough":false,"body":[{"kind":"action","label":"return path"}]},
+              {"kind_handler":"on","match":"42","completion_code":42,"fallthrough":false,"body":[{"kind":"action","label":"other path"}]}
             ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
         )))
         // Dynamic -options can be ok, error, return, break, continue, or a
@@ -269,9 +269,9 @@ class TclLspActionsTest {
         val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
               {"kind":"action","label":"return -code ${'$'}code","completion":"dynamic_return_or_error"}],"handlers":[
-              {"kind_handler":"on","match":"ok","fallthrough":false,"body":[{"kind":"action","label":"wrong ok"}]},
-              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"error path"}]},
-              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"return path"}]}
+              {"kind_handler":"on","match":"ok","completion_code":0,"fallthrough":false,"body":[{"kind":"action","label":"wrong ok"}]},
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"error path"}]},
+              {"kind_handler":"on","match":"return","completion_code":2,"fallthrough":false,"body":[{"kind":"action","label":"return path"}]}
             ],"finally":[{"kind":"action","label":"cleanup"}]}]}],"procedures":[]}"""
         )))
         kotlin.test.assertFalse(mermaid.contains("wrong ok"), mermaid)
@@ -284,10 +284,10 @@ class TclLspActionsTest {
         val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
               {"kind":"action","label":"return -code ${'$'}code","completion":"dynamic_return_or_error"}],"handlers":[
-              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"first error"}]},
-              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"duplicate error"}]},
-              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"first return"}]},
-              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"duplicate return"}]}
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"first error"}]},
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"duplicate error"}]},
+              {"kind_handler":"on","match":"return","completion_code":2,"fallthrough":false,"body":[{"kind":"action","label":"first return"}]},
+              {"kind_handler":"on","match":"return","completion_code":2,"fallthrough":false,"body":[{"kind":"action","label":"duplicate return"}]}
             ]}]}],"procedures":[]}"""
         )))
         // Handler nodes are retained for source context, but only the first
@@ -300,10 +300,10 @@ class TclLspActionsTest {
         val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
               {"kind":"action","label":"return -options ${'$'}options","completion":"dynamic"}],"handlers":[
-              {"kind_handler":"on","match":"42","fallthrough":false,"body":[{"kind":"action","label":"first 42"}]},
-              {"kind_handler":"on","match":"42","fallthrough":false,"body":[{"kind":"action","label":"duplicate 42"}]},
-              {"kind_handler":"on","match":"43","fallthrough":false,"body":[{"kind":"action","label":"43 path"}]},
-              {"kind_handler":"on","match":"custom","fallthrough":false,"body":[{"kind":"action","label":"custom path"}]}
+              {"kind_handler":"on","match":"42","completion_code":42,"fallthrough":false,"body":[{"kind":"action","label":"first 42"}]},
+              {"kind_handler":"on","match":"42","completion_code":42,"fallthrough":false,"body":[{"kind":"action","label":"duplicate 42"}]},
+              {"kind_handler":"on","match":"43","completion_code":43,"fallthrough":false,"body":[{"kind":"action","label":"43 path"}]},
+              {"kind_handler":"on","match":"return","completion_code":2,"fallthrough":false,"body":[{"kind":"action","label":"return path"}]}
             ]}]}],"procedures":[]}"""
         )))
         // 42, 43, and custom are independently possible; only duplicate 42
