@@ -966,6 +966,29 @@ fn context_collect_bootstrap_for_irule1006_converts_utf16_columns() {
 }
 
 #[test]
+fn context_collect_bootstrap_anchors_at_nested_rooted_handler() {
+    let src = concat!(
+        "::when HTTP_REQUEST {\n",
+        "    if {1} {\n",
+        "        :::when client_data {\n",
+        "            TCP::payload\n",
+        "        }\n",
+        "    }\n",
+        "}\n",
+    );
+    let diags = vec![ContextDiagnostic {
+        code: "IRULE1005".to_string(),
+        message: "CLIENT_DATA fires without a prior TCP::collect".to_string(),
+        range: selection(2, 16, 27),
+    }];
+
+    let actions = context_diagnostic_actions(src, &diags);
+    let boot = find(&actions, "collect' bootstrap").expect("nested collect bootstrap");
+    assert_eq!(boot.edits[0].range.start_line, 2);
+    assert!(boot.edits[0].new_text.contains("TCP::collect"));
+}
+
+#[test]
 fn context_actions_empty_for_unrelated_code() {
     // A context diagnostic whose code the provider doesn't handle (and a
     // message naming no `$var`) yields no actions. Negative control.

@@ -1930,14 +1930,14 @@ fn payload_operation_at_diagnostic(
 
 /// Line index of the `when` block enclosing `line` (scanning upward), or 0.
 fn enclosing_when_line(source: &str, line: u32) -> u32 {
-    let lines: Vec<&str> = source.split('\n').collect();
-    let start = (line as usize).min(lines.len().saturating_sub(1));
-    for i in (0..=start).rev() {
-        if lines[i].trim_start().starts_with("when ") {
-            return u32::try_from(i).unwrap_or(0);
-        }
-    }
-    0
+    let index = tcl_lexer::LineIndex::new(source);
+    tcl_irules::when_blocks_recursive(source)
+        .into_iter()
+        .filter(|block| {
+            index.line_at(block.span.start()) <= line && line <= index.line_at(block.span.end())
+        })
+        .min_by_key(|block| block.span.end() - block.span.start())
+        .map_or(0, |block| index.line_at(block.span.start()))
 }
 
 /// IRULE1005 / IRULE1006 "missing collect" quick-fixes: insert a bootstrap

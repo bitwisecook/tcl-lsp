@@ -37,150 +37,36 @@
 //!   sitting in a position that is *not* a command word (a comment or a
 //!   non-script string), which the parse-accurate walk correctly skips.
 
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_core_types::RecursionLimit;
-use tcl_lexer::{LexerConfig, LineIndex, TokenType};
-
-/// Cap on brace-nesting depth [`scan_when_context`]/[`collect_when_events`]
-/// will descend into, mirroring the compiler analyser's `MAX_BODY_DEPTH` so
-/// deeply (but validly) nested code still resolves `when`-context / event
-/// lists correctly while pathological/adversarial nesting can't blow the
-/// native stack — see
-/// `docs/design/compiler/recursive-descent-depth-limits.md`.
-const MAX_WHEN_SCAN_DEPTH: RecursionLimit = RecursionLimit(256);
+use tcl_lexer::LineIndex;
 
 /// Find the enclosing `when EVENT { … }` event at `line` (0-based), or
 /// `None` at the top level.  The innermost enclosing event wins (nested
 /// `when` blocks shadow their parents).
 #[must_use]
-pub fn find_enclosing_when_event(source: &str, line: u32, dialect: &str) -> Option<String> {
-    if source.is_empty() {
-        return None;
-    }
+pub fn find_enclosing_when_event(source: &str, line: u32, _dialect: &str) -> Option<String> {
     let line_index = LineIndex::new(source);
-    scan_when_context(source, source, 0, line, dialect, &line_index, 0)
+    tcl_irules::when_blocks_recursive(source)
+        .into_iter()
+        .filter(|block| {
+            let start = line_index.line_at(block.span.start());
+            let end = line_index.line_at(block.span.end());
+            start <= line && line <= end
+        })
+        .min_by_key(|block| block.span.end() - block.span.start())
+        .map(|block| block.event)
 }
 
 /// Every distinct `when EVENT` name declared in `source` (uppercased,
 /// sorted), at any brace nesting.
 #[must_use]
-pub fn scan_file_events(source: &str, dialect: &str) -> Vec<String> {
-    let mut events = Vec::new();
-    collect_when_events(source, source, 0, dialect, &mut events, 0);
+pub fn scan_file_events(source: &str, _dialect: &str) -> Vec<String> {
+    let mut events: Vec<String> = tcl_irules::when_blocks_recursive(source)
+        .into_iter()
+        .map(|block| block.event)
+        .collect();
     events.sort();
     events.dedup();
     events
-}
-
-/// Recursively search `text` (a slice of `full_source` starting at byte
-/// `base`) for the `when` block whose braced body's line range contains
-/// `cursor_line`, descending into nested bodies so the innermost match
-/// wins.
-///
-/// `depth` is the nesting level of this call (0 at the top); past
-/// [`MAX_WHEN_SCAN_DEPTH`] this stops descending into nested bodies rather
-/// than recursing further.
-fn scan_when_context(
-    full_source: &str,
-    text: &str,
-    base: u32,
-    cursor_line: u32,
-    dialect: &str,
-    li: &LineIndex,
-    depth: u32,
-) -> Option<String> {
-    let mut best = None;
-    let cmds = segment_commands_with_offset_and_config(
-        text,
-        base,
-        LexerConfig::for_file_dialect(dialect).at_depth(depth),
-    );
-    for cmd in &cmds {
-        if cmd.texts.first().map(String::as_str) != Some("when") || cmd.texts.len() < 2 {
-            continue;
-        }
-        // The braced body is the first `Str` argument word (barewords —
-        // including the event name — are `Esc`).
-        let Some(body_tok) = cmd.arg_tokens().iter().find(|t| t.kind == TokenType::Str) else {
-            continue;
-        };
-        let start_line = li.line_at(body_tok.span.start());
-        let end_line = li.line_at(body_tok.span.end());
-        if cursor_line < start_line || cursor_line > end_line {
-            continue;
-        }
-        best = Some(cmd.texts[1].to_uppercase());
-        // Descend into the braced body for a deeper nested `when`.
-        if !MAX_WHEN_SCAN_DEPTH.exceeded(depth)
-            && let Some((inner, inner_base)) = brace_body(full_source, body_tok)
-            && let Some(nested) = scan_when_context(
-                full_source,
-                inner,
-                inner_base,
-                cursor_line,
-                dialect,
-                li,
-                depth + 1,
-            )
-        {
-            best = Some(nested);
-        }
-    }
-    best
-}
-
-/// Walk every command in `text`, recording each `when EVENT`, and
-/// recurse into every braced word so nested `when` blocks (and `when`
-/// commands buried in other blocks) are all collected.
-///
-/// `depth` is the nesting level of this call (0 at the top); past
-/// [`MAX_WHEN_SCAN_DEPTH`] this stops descending into nested bodies rather
-/// than recursing further.
-fn collect_when_events(
-    full: &str,
-    text: &str,
-    base: u32,
-    dialect: &str,
-    out: &mut Vec<String>,
-    depth: u32,
-) {
-    if MAX_WHEN_SCAN_DEPTH.exceeded(depth) {
-        return;
-    }
-    let cmds = segment_commands_with_offset_and_config(
-        text,
-        base,
-        LexerConfig::for_file_dialect(dialect).at_depth(depth),
-    );
-    for cmd in &cmds {
-        if cmd.texts.first().map(String::as_str) == Some("when") && cmd.texts.len() >= 2 {
-            out.push(cmd.texts[1].to_uppercase());
-        }
-        for tok in &cmd.argv {
-            if tok.kind == TokenType::Str
-                && let Some((inner, inner_base)) = brace_body(full, tok)
-            {
-                collect_when_events(full, inner, inner_base, dialect, out, depth + 1);
-            }
-        }
-    }
-}
-
-/// Inner-content slice of a braced `Str` token plus its absolute base
-/// offset, or `None` when the span is degenerate / out of bounds.  The
-/// span starts at `{` (skipped via `content_offset`) and, for a
-/// non-degenerate brace, ends just before the closing `}`.
-fn brace_body<'a>(full: &'a str, tok: &tcl_lexer::Token) -> Option<(&'a str, u32)> {
-    let inner_start = tok.span.start() + u32::from(tok.content_offset);
-    let inner_end = tok.span.end();
-    let (s, e) = (
-        usize::try_from(inner_start).ok()?,
-        usize::try_from(inner_end).ok()?,
-    );
-    if s > e || e > full.len() || !full.is_char_boundary(s) || !full.is_char_boundary(e) {
-        return None;
-    }
-    Some((&full[s..e], inner_start))
 }
 
 #[cfg(test)]
@@ -255,6 +141,19 @@ mod tests {
     #[test]
     fn scan_finds_nested_events() {
         let src = "when HTTP_REQUEST {\n    if {1} {\n        when CLIENT_DATA { log local0. x }\n    }\n}\n";
+        assert_eq!(
+            scan_file_events(src, D),
+            vec!["CLIENT_DATA".to_string(), "HTTP_REQUEST".to_string()]
+        );
+    }
+
+    #[test]
+    fn rooted_nested_handlers_use_canonical_names_and_normalised_events() {
+        let src = "::when http_request {\n  if {1} {\n    :::when client_data {\n      log local0. x\n    }\n  }\n}\n";
+        assert_eq!(
+            find_enclosing_when_event(src, 3, D),
+            Some("CLIENT_DATA".to_string())
+        );
         assert_eq!(
             scan_file_events(src, D),
             vec!["CLIENT_DATA".to_string(), "HTTP_REQUEST".to_string()]
