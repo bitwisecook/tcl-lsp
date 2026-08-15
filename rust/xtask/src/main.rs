@@ -44,6 +44,8 @@
 //!   catalog JSON from the registry (`--check` to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
 //!   the one numeral parser (`tcl_syntax::number`).
+//! - `owner-resolution` — verify that the shared semantic-owner contract
+//!   resolves to live source files and drift gates.
 
 #![forbid(unsafe_code)]
 
@@ -66,6 +68,7 @@ mod gen_vscode_package;
 mod gen_zed_queries;
 mod kcs_index_links;
 mod number_drift;
+mod owner_resolution;
 mod registry_oracle;
 mod resolution_drift;
 mod tcltest_sweep;
@@ -203,6 +206,7 @@ enum Command {
 
     /// Flag hand-rolled Tcl radix-prefix recognition outside the one numeral
     /// parser (`tcl_syntax::number`) — the numeric-grammar drift class.
+    #[command(name = "number-drift")]
     NumberDrift {
         /// Accepted for symmetry with the other gates (the lint always
         /// verifies; it never rewrites).
@@ -212,12 +216,18 @@ enum Command {
 
     /// Flag namespace-blind `.name ==` scans over `all_procs`/`all_classes`
     /// outside the shared resolution contract (the M1 drift class).
+    #[command(name = "resolution-drift")]
     ResolutionDrift {
         /// Accepted for symmetry with the other gates (the lint always
         /// verifies; it never rewrites).
         #[arg(long)]
         check: bool,
     },
+
+    /// Verify that the shared semantic-owner contract resolves to live source
+    /// files, public entry points, and registered Makefile drift gates.
+    #[command(name = "owner-resolution")]
+    OwnerResolution,
 
     /// Compare the iRules registry with a local BIG-IP schema/man-page
     /// extract; exact source omissions fail, newer registry entries are
@@ -297,6 +307,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::WorkflowSync { check } => workflow_sync::run(check),
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
+        Command::OwnerResolution => owner_resolution::run(),
         Command::RegistryOracle {
             irules_root,
             output,

@@ -58,6 +58,31 @@ docs/             Design docs, KCS notes, references, perf reports.
 The native LSP end-to-end suite lives at
 `rust/tcl-lsp-server/tests/*_e2e.rs` (30 suites, run by `cargo test`).
 
+## Shared semantic owner map
+
+The full, machine-checked owner map is
+[`docs/design/contracts/shared-utility-contracts-rust.md`](docs/design/contracts/shared-utility-contracts-rust.md).
+The current owners and their semantic axes are:
+
+| Surface | Owner | Axis |
+|---|---|---|
+| Names / namespaces | `tcl-syntax::naming` + `tcl-cmd-core::namespace` | invariant; #1493 absolute marker |
+| Lists | `tcl-syntax::list` | invariant |
+| Dicts | `tcl-syntax::value::ValueOps::dict_pairs` + list codec | invariant |
+| Numbers | `tcl-syntax::number` | `NumberSyntax` per release |
+| Backslash escapes | shared lexer/syntax decoder | `LexerGrammar::escapes` per release |
+| Quotes, braces, word spans | `tcl-lexer::ranges` | close rule per release; tmsh mode per dialect |
+| Indices | `tcl-cmd-core::index` | grammar-parameterised; number axis |
+| Option words / subcommands | `tcl-cmd-core::prefix` + registry tables | release/dialect surface |
+| Expr grammar / evaluation | `tcl-syntax::expr` + `RuntimeExprSurface` | per release |
+| Command / word segmentation | `tcl-compiler::segmenter` over the red-green CST | `LexerConfig` per document dialect |
+| Per-command knowledge | `tcl-registry::CommandSpec` and descriptors | per release/dialect |
+| Dialect / release facts | `tcl-dialect::DialectProfile` | resolved profile axis |
+
+Run `cargo xtask owner-resolution` (included in `make rust-check`) after
+moving an owner or changing one of these axes. Do not add a new owner-shaped
+implementation without updating the contract and its gate.
+
 ## The registry is the source of truth — no per-command logic elsewhere
 
 Per-command knowledge lives in **`tcl-registry`** (`CommandSpec` and its

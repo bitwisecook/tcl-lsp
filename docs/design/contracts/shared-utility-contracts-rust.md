@@ -23,6 +23,36 @@ never re-derives it.
 
 ## Owners
 
+The machine-checked manifest below is the canonical source-to-owner map. An
+owner row names the source files that implement the owner, the public entry
+points consumers use, the semantic axis that must be threaded, and the drift
+gate (if one exists). `cargo xtask owner-resolution` fails when a listed file,
+entry point, or gate moves without this contract being updated.
+
+<!-- owner-resolution-manifest -->
+| Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
+| --- | --- | --- | --- | --- |
+| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail` | invariant; absolute-marker contract from #1493 | `xtask-resolution-drift` |
+| lists | `rust/tcl-syntax/src/list.rs` | `split_list`; `list_element` | invariant | none |
+| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs` | `split_list`; `ValueOps::dict_pairs` | invariant | none |
+| glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_case_match` | invariant | none |
+| switch body grammar | `rust/tcl-syntax/src/switch_body.rs` | `tokenise_switch_body`; `parse_braced_pairs` | invariant | none |
+| numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `NumberSyntax` | `NumberSyntax` per release | `xtask-number-drift` |
+| backslash escapes | `rust/tcl-lexer/src/substitution.rs`; `rust/tcl-syntax/src/backslash.rs`; `rust/tcl-dialect/src/grammar.rs` | `backslash_subst`; `backslash_subst_in`; `decode_bytes_in`; `EscapeSyntax` | `LexerGrammar::escapes` per release | none |
+| boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
+| quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at` | `${...}` close rule per release; tmsh brace mode per dialect | none |
+| indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
+| option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand` | option surface per release/dialect | `xtask-option-registry-drift` |
+| sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
+| command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
+| expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
+| command / word segmentation | `rust/tcl-compiler/src/segmenter.rs` | `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | none |
+| text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
+| per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
+| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name` | the resolved dialect/release axis | none |
+| shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
+<!-- end-owner-resolution-manifest -->
+
 ### `tcl-syntax` — the parse grammars and value seam
 
 - `list` — the Tcl list codec (`split_list`, `list_element` /
