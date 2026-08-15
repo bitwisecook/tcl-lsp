@@ -612,6 +612,18 @@ fn completed_hidden_coroutine_is_retired_from_hidden_state() {
 }
 
 #[test]
+fn completed_hidden_coroutine_fires_its_delete_trace_once() {
+    assert_eq!(
+        result(
+            "proc g {} {yield a; return done}; proc cb args {lappend ::events [lindex $args end]}; \
+             coroutine c g; trace add command c delete cb; interp hide {} c held; \
+             list [interp invokehidden {} held] $::events [interp hidden {}]"
+        ),
+        "done delete {}"
+    );
+}
+
+#[test]
 fn deleting_a_suspended_coroutine() {
     // tclsh 9.0.4: `rename $coro {}` drops a suspended coroutine.
     assert_eq!(
