@@ -36,7 +36,7 @@ use tcl_syntax::value::string_char_len;
 
 use crate::command::{Command, ProcDef};
 use crate::expr;
-use crate::interp::{Vm, err, ok};
+use crate::interp::{CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
 
 /// Active `foreach` iteration state (C Tcl `ForeachInfo` + the loop counters).
@@ -205,7 +205,7 @@ pub(crate) struct Frame {
 /// pushed (popped before firing).
 pub(crate) struct ExecLeaveCtx {
     cmd_string: String,
-    key: String,
+    key: CommandSidecarKey,
     step_scopes: usize,
 }
 
@@ -4018,6 +4018,7 @@ impl Vm {
                 }
             }
         }
+        let key = CommandSidecarKey::visible(key);
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in &own {
             if entry.has_op("enter") {
@@ -4333,6 +4334,7 @@ impl Vm {
                 }
             }
         }
+        let key = CommandSidecarKey::visible(key);
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in &own {
             if entry.has_op("enter") {
@@ -4370,7 +4372,7 @@ impl Vm {
     pub(crate) fn invoke_resolved_command(
         &mut self,
         display_name: &str,
-        trace_key: &str,
+        trace_key: CommandSidecarKey,
         command: Command,
         argv: &[Value],
     ) -> Completion<Value> {
@@ -4380,7 +4382,12 @@ impl Vm {
         if self.trace_in_progress.get()
             || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
         {
-            return self.invoke_resolved_command_inner(display_name, command, argv);
+            return self.invoke_resolved_command_inner(
+                display_name,
+                command,
+                argv,
+                Some(trace_key),
+            );
         }
         let mut words = Vec::with_capacity(argv.len() + 1);
         words.push(Value::string(display_name));
@@ -4400,7 +4407,11 @@ impl Vm {
                 }
             }
         }
-        let own = self.exec_traces.get(trace_key).cloned().unwrap_or_default();
+        let own = self
+            .exec_traces
+            .get(&trace_key)
+            .cloned()
+            .unwrap_or_default();
         for entry in &own {
             if entry.has_op("enter") {
                 let r = self.run_cmd_trace_callback(
@@ -4419,12 +4430,13 @@ impl Vm {
                 pushed += 1;
             }
         }
+        let sidecar = trace_key.clone();
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: trace_key.to_owned(),
+            key: trace_key,
             step_scopes: pushed,
         };
-        let c = self.invoke_resolved_command_inner(display_name, command, argv);
+        let c = self.invoke_resolved_command_inner(display_name, command, argv, Some(sidecar));
         match self.finish_exec_leave(&ctx, &c) {
             Some(replacement) => replacement,
             None => c,
@@ -4485,7 +4497,7 @@ impl Vm {
     /// The untraced invoke body — see [`Self::invoke_command`].
     fn invoke_command_inner(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         match self.lookup_command(name) {
-            Some(command) => self.invoke_resolved_command_inner(name, command, argv),
+            Some(command) => self.invoke_resolved_command_inner(name, command, argv, None),
             None if name != "unknown" => {
                 if let Some(handler) = self.ns_unknown_handler() {
                     let mut handler_words = handler;
@@ -4511,11 +4523,14 @@ impl Vm {
         name: &str,
         command: Command,
         argv: &[Value],
+        sidecar: Option<CommandSidecarKey>,
     ) -> Completion<Value> {
         match command {
             Command::Builtin(bf) => {
                 self.set_invoked_name(name);
+                let saved = std::mem::replace(&mut self.invoked_sidecar, sidecar);
                 let res = bf(self, argv);
+                self.invoked_sidecar = saved;
                 self.settle_native_invoke(res)
             }
             Command::Native(cmd) => {

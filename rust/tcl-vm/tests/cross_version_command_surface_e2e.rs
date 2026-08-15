@@ -490,17 +490,26 @@ fn refused_alias_rename_restores_import_provenance() {
 #[test]
 fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     let mut vm = Vm::new();
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
+        "tcl8.5",
+    ))));
+    let trace_setup = vm
+        .eval_source(
+            "proc on_delete args {lappend ::events delete}\n\
+             proc on_enter args {lappend ::events enter}\n\
+             trace add command lassign delete on_delete\n\
+             trace add execution lassign enter on_enter\n",
+        )
+        .expect("8.5 trace setup compiles");
+    assert!(trace_setup.code.is_ok());
     vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
     vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
         "tcl8.4",
     ))));
     let setup = vm
         .eval_source(
-            "proc on_delete args {lappend ::events delete}\n\
-             proc on_enter args {lappend ::events enter}\n\
-             trace add command lassign delete on_delete\n\
-             trace add execution lassign enter on_enter\n\
-             namespace eval src {interp alias {} ::src::a {} lassign; namespace export a}\n\
+            "namespace eval src {interp alias {} ::src::a {} lassign; namespace export a}\n\
              namespace eval imported {namespace import ::src::a}\n\
              catch {rename ::src::a lassign} message\n\
              list $message [namespace origin ::imported::a] \\
@@ -511,7 +520,7 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     assert!(setup.code.is_ok());
     assert_eq!(
         setup.result.to_str().as_ref(),
-        "{cannot define or rename alias \"lassign\": would create a loop} ::src::a 1 1 0"
+        "{cannot define or rename alias \"lassign\": would create a loop} ::src::a 0 0 0"
     );
 
     vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
@@ -523,6 +532,66 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
         .expect("8.5 probe compiles");
     assert!(probe.code.is_ok());
     assert_eq!(probe.result.to_str().as_ref(), "::src::a b enter");
+}
+
+/// Candidate selection, rather than only final dispatch, owns release
+/// visibility. An unavailable namespace-local builtin must not shadow a later
+/// global command with the same tail.
+#[test]
+fn unavailable_local_candidate_falls_through_to_global_command() {
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
+        "tcl8.5",
+    ))));
+    let setup = vm
+        .eval_source("namespace eval n {}; rename lassign ::n::x; proc ::x {} {return global}\n")
+        .expect("8.5 setup compiles");
+    assert!(setup.code.is_ok());
+
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
+        "tcl8.4",
+    ))));
+    let probe = vm
+        .eval_source("namespace eval n {x}\n")
+        .expect("8.4 probe compiles");
+    assert!(probe.code.is_ok());
+    assert_eq!(probe.result.to_str().as_ref(), "global");
+}
+
+#[test]
+fn equal_hidden_token_does_not_capture_visible_import_provenance() {
+    // Tcl 9.0.4 keeps the imported clone's original lineage when its source is
+    // hidden; it must not chase the unrelated visible `b` import merely
+    // because the hidden token is also `b`.
+    assert_eq!(
+        profile_output(
+            "namespace eval src {proc a {} {return hidden}; namespace export a}\n\
+             namespace eval other {proc b {} {return visible}; namespace export b}\n\
+             namespace import ::src::a; namespace import ::other::b; namespace export a b\n\
+             namespace eval consumer {namespace import ::a}\n\
+             interp hide {} a b\n\
+             list [namespace origin ::consumer::a] [namespace origin ::b] \
+                  [consumer::a] [b] [interp hidden {}]\n",
+            DialectProfile::by_name("tcl9.0"),
+        ),
+        "::src::a ::other::b hidden visible b"
+    );
+}
+
+#[test]
+fn retiring_hidden_cross_alias_does_not_delete_equal_visible_command() {
+    assert_eq!(
+        profile_output(
+            "interp create target; target eval {proc p {} {return target}}\n\
+             interp alias {} a target p; proc b {} {return visible}\n\
+             interp hide {} a b; interp delete target\n\
+             list [b] [interp hidden {}] [info commands b]\n",
+            DialectProfile::by_name("tcl9.0"),
+        ),
+        "visible {} b"
+    );
 }
 
 /// `rename command {}` is deletion, not the failed-rename transaction path:

@@ -104,6 +104,16 @@ fn hidden_command_direct_call_raises_invalid_command_name() {
     );
 }
 
+#[test]
+fn marktrusted_preserves_a_visible_command_colliding_with_hidden_token() {
+    let (ok, out) = run("interp create -safe s\n\
+         s eval {proc open args {return mine}}\n\
+         interp marktrusted s\n\
+         puts [list [s eval {open}] [expr {[lsearch -exact [interp hidden s] open] >= 0}]]\n");
+    assert!(ok, "marktrusted collision vector must complete: {out}");
+    assert_eq!(out, "mine 1");
+}
+
 /// TP: the same hidden command reached via `{*}[list source ...]` — the
 /// runtime must reject this exactly like the direct call, independent of
 /// whether the static W129 lint catches the shape.

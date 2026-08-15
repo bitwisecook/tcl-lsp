@@ -624,6 +624,69 @@ fn completed_hidden_coroutine_fires_its_delete_trace_once() {
 }
 
 #[test]
+fn equal_visible_and_hidden_tokens_keep_distinct_traces_and_coroutines() {
+    // Tcl 9.0.4 oracle: `visible visible-enter visible-leave hidden-enter
+    // hidden-delete b`. The visible `b` survives retirement of the hidden
+    // coroutine whose token is also `b`.
+    assert_eq!(
+        result(
+            "set ev {}; proc g {} {yield first; return hiddenDone}; coroutine a g; \
+             proc b {} {return visible}; \
+             trace add command a delete {apply {{args} {lappend ::ev hidden-delete}}}; \
+             trace add execution a {enter leave} {apply {{args} {lappend ::ev hidden-[lindex $args end]}}}; \
+             trace add command b delete {apply {{args} {lappend ::ev visible-delete}}}; \
+             trace add execution b {enter leave} {apply {{args} {lappend ::ev visible-[lindex $args end]}}}; \
+             interp hide {} a b; set visible [b]; set hidden [interp invokehidden {} b]; \
+             list $visible $hidden $::ev [info commands b] [interp hidden {}]"
+        ),
+        "visible hiddenDone {visible-enter visible-leave hidden-enter hidden-delete} b {}"
+    );
+}
+
+#[test]
+fn equal_hidden_tokens_hold_independent_coroutines_in_distinct_interpreters() {
+    assert_eq!(
+        result(
+            "proc g {tag} {yield $tag; return $tag-done}; \
+             coroutine a g root; proc b {} {return root-visible}; interp hide {} a b; \
+             interp create child; child eval {proc g {tag} {yield $tag; return $tag-done}; \
+                 coroutine a g child; proc b {} {return child-visible}}; \
+             interp hide child a b; \
+             list [b] [child eval b] [interp invokehidden {} b] \
+                  [interp invokehidden child b] [b] [child eval b]"
+        ),
+        "root-visible child-visible root-done child-done root-visible child-visible"
+    );
+}
+
+#[test]
+fn errored_hidden_coroutine_retires_without_touching_equal_visible_command() {
+    assert_eq!(
+        result(
+            "set ev {}; proc g {} {yield first; error boom}; coroutine a g; \
+             proc b {} {return visible}; \
+             trace add command a delete {apply {{args} {lappend ::ev hidden-delete}}}; \
+             trace add command b delete {apply {{args} {lappend ::ev visible-delete}}}; \
+             interp hide {} a b; catch {interp invokehidden {} b} message; \
+             list $message [b] $::ev [interp hidden {}]"
+        ),
+        "boom visible hidden-delete {}"
+    );
+}
+
+#[test]
+fn hidden_alias_to_equal_visible_coroutine_uses_target_domain() {
+    assert_eq!(
+        result(
+            "proc g {} {yield first; return done}; coroutine b g; \
+             interp alias {} a {} b; interp hide {} a b; \
+             list [interp invokehidden {} b] [info commands b] [interp hidden {}]"
+        ),
+        "done {} b"
+    );
+}
+
+#[test]
 fn deleting_a_suspended_coroutine() {
     // tclsh 9.0.4: `rename $coro {}` drops a suspended coroutine.
     assert_eq!(
