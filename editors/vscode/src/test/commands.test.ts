@@ -46,6 +46,7 @@ suite("Command Registration", () => {
     "tclLsp.insertTemplateSnippet",
     "tclLsp.runRuntimeValidation",
     "tclLsp.openCompilerExplorer",
+    "tclLsp.openSpecStudio",
     "tclLsp.openTkPreview",
     "tclLsp.insertIrule",
     "tclLsp.applyFix",

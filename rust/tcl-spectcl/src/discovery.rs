@@ -50,10 +50,12 @@ use std::path::{Path, PathBuf};
 use crate::PACK_EXTENSION;
 
 /// Which discovery tier a file came from. `Ord` is the precedence order —
-/// [`Tier::Workspace`] is the nearest and lowest, so a plain sort puts the
+/// [`Tier::StudioOverride`] is the nearest and lowest, so a plain sort puts the
 /// winner first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tier {
+    /// A live editor-hosted Spec Studio session under `.tcl-lsp/.spec-studio/`.
+    StudioOverride,
     /// The `tclLsp.specPacks` setting, `.tcl-lsp/`, or beside a `tclpkg.tcl`.
     Workspace,
     /// The per-user platform config directory, loaded for every workspace.
@@ -67,6 +69,7 @@ impl Tier {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
+            Tier::StudioOverride => "Spec Studio override",
             Tier::Workspace => "workspace",
             Tier::User => "user",
             Tier::Bundled => "bundled",
@@ -78,6 +81,8 @@ impl Tier {
 /// pack in, which is the first question when an unexpected pack loads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Origin {
+    /// Materialised by an editor-hosted Spec Studio session.
+    StudioOverride,
     /// Named by, or found under a directory named by, `tclLsp.specPacks`.
     Setting,
     /// Found under a `.tcl-lsp/` directory in a workspace folder.
@@ -95,6 +100,7 @@ impl Origin {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
+            Origin::StudioOverride => ".tcl-lsp/.spec-studio/",
             Origin::Setting => "tclLsp.specPacks",
             Origin::DotDir => ".tcl-lsp/",
             Origin::BesideManifest => "beside tclpkg.tcl",
@@ -118,6 +124,9 @@ pub struct PackFile {
 
 /// The directory a workspace folder keeps its own packs in.
 pub const WORKSPACE_PACK_DIR: &str = ".tcl-lsp";
+
+/// Hidden session directory used by native editor-hosted Spec Studio panels.
+pub const STUDIO_OVERRIDE_DIR: &str = ".spec-studio";
 
 /// The package manifest whose directory is scanned for sibling packs.
 pub const PACKAGE_MANIFEST: &str = "tclpkg.tcl";
@@ -248,6 +257,12 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
 
     // --- workspace tier -----------------------------------------------------
     for root in &options.workspace_roots {
+        collect_dir(
+            &root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR),
+            Tier::StudioOverride,
+            Origin::StudioOverride,
+            &mut found,
+        );
         for configured in &options.configured {
             let path = if configured.is_absolute() {
                 configured.clone()
@@ -567,8 +582,12 @@ mod tests {
     }
 
     #[test]
-    fn tiers_sort_workspace_then_user_then_bundled() {
+    fn tiers_sort_studio_workspace_user_then_bundled() {
         let root = tmpdir("tiers");
+        write(
+            &root.join("ws/.tcl-lsp/.spec-studio/session/live.tclspec"),
+            "speclib live 1 {}\n",
+        );
         write(&root.join("ws/.tcl-lsp/w.tclspec"), "speclib w 1 {}\n");
         write(&root.join("user/u.tclspec"), "speclib u 1 {}\n");
         write(&root.join("bundled/b.tclspec"), "speclib b 1 {}\n");
@@ -580,7 +599,15 @@ mod tests {
             ..DiscoveryOptions::default()
         });
         let tiers: Vec<Tier> = found.iter().map(|f| f.tier).collect();
-        assert_eq!(tiers, vec![Tier::Workspace, Tier::User, Tier::Bundled]);
+        assert_eq!(
+            tiers,
+            vec![
+                Tier::StudioOverride,
+                Tier::Workspace,
+                Tier::User,
+                Tier::Bundled
+            ]
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

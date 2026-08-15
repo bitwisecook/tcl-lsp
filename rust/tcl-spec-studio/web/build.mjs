@@ -31,6 +31,7 @@ const distDir = join(here, "dist");
 const assetsDir = join(distDir, "assets");
 const testsDir = join(distDir, "tests");
 const version =
+  process.env.TCL_LSP_VERSION ??
   process.env.TCL_LSP_GIT_DESCRIBE ??
   execFileSync("git", ["describe", "--tags", "--always", "--dirty"], {
     cwd: here,
@@ -99,6 +100,24 @@ await esbuild.build({
   logLevel: "info",
 });
 
+// Editor integrations inject a tiny host bridge and use their ordinary native
+// editors for Pack DSL, Test Tcl, generated Rust, and the generated stub.
+// Keep this separate from Monaco so embedding Studio does not embed an editor
+// inside an editor.
+await esbuild.build({
+  entryPoints: [join(here, "src", "nativeEditorHost.ts")],
+  outfile: join(assetsDir, "native-editor-host.js"),
+  bundle: true,
+  format: "esm",
+  target: "es2020",
+  platform: "browser",
+  minify: true,
+  legalComments: "none",
+  banner: { js: banner },
+  define: { __SPEC_STUDIO_FRONTEND_VERSION__: JSON.stringify(version) },
+  logLevel: "info",
+});
+
 // Monaco has no bundled Tcl syntax. Ship the exact TextMate grammar used by
 // the VS Code extension, plus the same Oniguruma engine that executes it, so
 // the Studio's pre-semantic paint cannot drift into a second Tcl grammar.
@@ -129,5 +148,5 @@ await esbuild.build({
 });
 
 console.log(
-  `spec studio front-end ${version}: built dist/studio.js + dist/assets/monaco-host.{js,css}`,
+  `spec studio front-end ${version}: built dist/studio.js + native/Monaco editor hosts`,
 );

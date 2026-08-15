@@ -72,6 +72,7 @@ const DSL_URI = "file:///__tcl_spec_studio__/pack.tclspec";
 const SAMPLE_URI = "file:///__tcl_spec_studio__/sample.tcl";
 const RUST_URI = "file:///__tcl_spec_studio__/command.rs";
 const STUB_URI = "file:///__tcl_spec_studio__/stubs.tcl";
+const EXPLORER_URI = "file:///__tcl_compiler_explorer__/source.tcl";
 
 /** How long keystrokes settle before the change is pushed on. */
 const SETTLE_MS = 120;
@@ -571,6 +572,60 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
       rust.layout();
       stub.layout();
     },
+    get lspReady() {
+      return ready;
+    },
+  };
+}
+
+/** Options for the Compiler Explorer's single editable Tcl surface. */
+export interface TclEditorOptions {
+  container: HTMLElement;
+  textarea: HTMLTextAreaElement;
+  onChange(text: string): void;
+  dialect: string;
+  workerUrl: string;
+  stylesheetUrl: string;
+  grammarUrl: string;
+  onigurumaUrl: string;
+  report?(message: string, kind?: "ok" | "err"): void;
+}
+
+/** Mount the same Monaco/TextMate/LSP stack for Compiler Explorer on Pages. */
+export async function mountTclEditor(options: TclEditorOptions): Promise<{
+  setDialect(dialect: string): void;
+  layout(): void;
+  readonly lspReady: boolean;
+}> {
+  await loadStylesheet(options.stylesheetUrl);
+  registerLanguages();
+  await registerTclGrammar(monaco, [TCL_LANGUAGE], options.grammarUrl, options.onigurumaUrl);
+  monaco.editor.setTheme(currentTheme());
+  let client: LspClient | null = null;
+  try {
+    client = await startLspClient(options.workerUrl);
+    registerProviders(client);
+  } catch (error) {
+    options.report?.(
+      `language server unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      "err",
+    );
+  }
+  const surface = new Surface(
+    { container: options.container, textarea: options.textarea, onChange: options.onChange },
+    EXPLORER_URI,
+    TCL_LANGUAGE,
+    options.dialect,
+    client,
+  );
+  client?.onDiagnostics((uri, items) => {
+    if (uri === surface.documentUri) surface.setDiagnostics(items);
+  });
+  options.report?.("using the shared Tcl Monaco editor", "ok");
+  const ready = client !== null;
+  return {
+    setDialect: (dialect) => surface.setLanguageId(dialect),
+    layout: () => surface.layout(),
     get lspReady() {
       return ready;
     },

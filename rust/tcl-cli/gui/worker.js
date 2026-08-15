@@ -52,8 +52,9 @@ async function init() {
 
   // `--target no-modules` defines a global `wasm_bindgen` init function
   // with `compile` attached to it.
-  importScripts(baseUrl + "tcl_explorer_wasm.js");
-  await wasm_bindgen(baseUrl + "tcl_explorer_wasm_bg.wasm");
+  const cacheKey = new URL(self.location.href).search;
+  importScripts(baseUrl + "tcl_explorer_wasm.js" + cacheKey);
+  await wasm_bindgen(baseUrl + "tcl_explorer_wasm_bg.wasm" + cacheKey);
 
   ready = true;
   postMessage({ type: "ready", meta: readMeta() });

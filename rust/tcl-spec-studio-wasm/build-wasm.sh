@@ -60,7 +60,7 @@ lspdist="$here/../tcl-lsp-server-wasm/dist"
 dist="$here/dist"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
-version="$(git -C "$here" describe --tags --always --dirty)"
+version="${TCL_LSP_VERSION:-$(git -C "$here" describe --tags --always --dirty)}"
 # Rebuilt from scratch each time: a stale `assets/` or `lsp/` left behind by an
 # older layout would be deployed alongside the new one and served to somebody.
 rm -rf "$dist"
@@ -69,7 +69,7 @@ mkdir -p "$dist/assets" "$dist/lsp"
 echo "==> Spec Studio $version"
 
 echo "==> cargo build --target wasm32-unknown-unknown --release"
-( cd "$here" && cargo build --target wasm32-unknown-unknown --release )
+( cd "$here" && CARGO_TARGET_DIR="$here/target" cargo build --target wasm32-unknown-unknown --release )
 wasm="$here/target/wasm32-unknown-unknown/release/tcl_spec_studio_wasm.wasm"
 
 echo "==> wasm-bindgen (no-modules)"
@@ -122,7 +122,7 @@ else
     echo "    note: node not found — skipping wasm growability check"
 fi
 
-for required in dist/studio.js dist/assets/monaco-host.js dist/assets/monaco-host.css; do
+for required in dist/studio.js dist/assets/monaco-host.js dist/assets/monaco-host.css dist/assets/native-editor-host.js; do
     if [ ! -f "$web/$required" ]; then
         echo "error: $web/$required is missing — build the front-end first:" >&2
         echo "       cd $web && npm ci && npm run build" >&2
@@ -145,23 +145,25 @@ cp "$lspdist/worker.js" "$lspdist/tcl_lsp_server_wasm.js" \
 
 echo "==> copying the editor chunk and shared Tcl grammar into dist/assets/"
 cp "$web/dist/assets/monaco-host.js" "$web/dist/assets/monaco-host.css" \
-   "$web/dist/assets/tcl.tmLanguage.json" "$web/dist/assets/onig.wasm" "$dist/assets/"
+   "$web/dist/assets/native-editor-host.js" "$web/dist/assets/tcl.tmLanguage.json" \
+   "$web/dist/assets/onig.wasm" "$dist/assets/"
 
 echo "==> assembling dist/index.html"
 python3 - \
     "$web/studio.html" "$web/src/studio.css" "$web/dist/studio.js" \
     "$out/tcl_spec_studio_wasm.js" "$out/tcl_spec_studio_wasm_bg.wasm" \
     "$dist/index.html" "$assets" "$dist/assets/monaco-host.js" \
-    "$dist/assets/monaco-host.css" "$dist/assets/tcl.tmLanguage.json" \
+    "$dist/assets/monaco-host.css" "$dist/assets/native-editor-host.js" \
+    "$dist/assets/tcl.tmLanguage.json" \
     "$dist/assets/onig.wasm" "$dist/lsp/worker.js" \
     "$dist/lsp/tcl_lsp_server_wasm.js" "$dist/lsp/tcl_lsp_server_wasm_bg.wasm" \
-    "$version" <<'PY'
+    "$here/../web-shared/site-update.js" "$version" <<'PY'
 import base64, hashlib, json, os, sys
 (
     tmpl_path, css_path, js_path, glue_path, wasm_path, out_path, assets_dir,
-    editor_js_path, editor_css_path, grammar_path, oniguruma_path,
-    lsp_worker_path, lsp_glue_path, lsp_wasm_path, version,
-) = sys.argv[1:16]
+    editor_js_path, editor_css_path, native_editor_js_path, grammar_path, oniguruma_path,
+    lsp_worker_path, lsp_glue_path, lsp_wasm_path, site_update_path, version,
+) = sys.argv[1:18]
 
 def read_bytes(path):
     with open(path, "rb") as stream:
@@ -182,11 +184,13 @@ glue_bytes = read_bytes(glue_path)
 wasm_bytes = read_bytes(wasm_path)
 editor_js_bytes = read_bytes(editor_js_path)
 editor_css_bytes = read_bytes(editor_css_path)
+native_editor_js_bytes = read_bytes(native_editor_js_path)
 grammar_bytes = read_bytes(grammar_path)
 oniguruma_bytes = read_bytes(oniguruma_path)
 lsp_worker_bytes = read_bytes(lsp_worker_path)
 lsp_glue_bytes = read_bytes(lsp_glue_path)
 lsp_wasm_bytes = read_bytes(lsp_wasm_path)
+site_update_bytes = read_bytes(site_update_path)
 tmpl = tmpl_bytes.decode("utf-8")
 css = css_bytes.decode("utf-8")
 js = js_bytes.decode("utf-8")
@@ -211,12 +215,14 @@ build_info = {
         asset("html-shell", tmpl_bytes),
         asset("studio-style", css_bytes),
         asset("studio-controller", js_bytes),
+        asset("site-update-monitor", site_update_bytes),
         asset("studio-wasm-glue", glue_bytes),
         asset("studio-wasm", wasm_bytes),
         asset("logo-light", logo_bytes["__LOGO_TCL_LSP__"]),
         asset("logo-dark", logo_bytes["__LOGO_TCL_LSP_DARK__"]),
         asset("editor-controller", editor_js_bytes),
         asset("editor-style", editor_css_bytes),
+        asset("native-editor-controller", native_editor_js_bytes),
         asset("tcl-grammar", grammar_bytes),
         asset("oniguruma", oniguruma_bytes),
         asset("lsp-worker", lsp_worker_bytes),
@@ -261,6 +267,7 @@ CSP = (
 # payload are safe.
 tmpl = tmpl.replace("__CSP__", CSP)
 tmpl = tmpl.replace("__STYLES__", "<style>" + css + "</style>")
+tmpl = tmpl.replace("<head>", "<head><script>" + site_update_bytes.decode("utf-8") + "</script>", 1)
 tmpl = tmpl.replace(
     "__BUILD_INFO__",
     '<script id="studio-build" type="application/json">' + build_json + "</script>",
@@ -276,6 +283,7 @@ for tok in (
     if tok in tmpl:
         raise SystemExit(f"placeholder {tok} substitution failed")
 open(out_path, "w", encoding="utf-8").write(tmpl)
+open(os.path.join(os.path.dirname(out_path), "build-info.json"), "w", encoding="utf-8").write(build_json + "\n")
 print(f"    wrote {out_path} ({len(tmpl)/1024/1024:.2f} MiB, wasm {len(b64)/1024/1024:.2f} MiB b64)")
 PY
 

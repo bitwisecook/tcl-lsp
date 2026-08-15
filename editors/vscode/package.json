@@ -419,6 +419,11 @@
         "category": "Tcl"
       },
       {
+        "command": "tclLsp.openSpecStudio",
+        "title": "Open Tcl Spec Studio",
+        "category": "Tcl"
+      },
+      {
         "command": "tclLsp.openTkPreview",
         "title": "Open Tk Preview",
         "category": "Tcl"
@@ -716,6 +721,9 @@
           "when": "editorLangId =~ /^tcl/"
         },
         {
+          "command": "tclLsp.openSpecStudio"
+        },
+        {
           "command": "tclLsp.openTkPreview",
           "when": "editorLangId =~ /^tcl/"
         },
@@ -820,6 +828,10 @@
         {
           "command": "tclLsp.openCompilerExplorer",
           "when": "editorLangId =~ /^tcl/",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.openSpecStudio",
           "group": "4_tools"
         },
         {
