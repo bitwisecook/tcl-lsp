@@ -4261,10 +4261,6 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if args.len() < 2 {
-            return false;
-        }
-
         let Some(registry) = self.registry.as_deref() else {
             return true;
         };

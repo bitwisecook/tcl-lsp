@@ -3051,9 +3051,8 @@ pub(crate) fn nested_dispatch_regions(
     // ([`tcl_registry::CaseListSpec`], never a hardcoded "switch" check) and
     // recurse into each clause's own body word instead.
     if let Some(case_list) = registry.get(cmd_name).and_then(|s| s.case_list)
-        && let Some(clause_regions) = case_list_clause_body_regions(
-            source, registry, dialect, cmd_name, case_list, &args, cmd,
-        )
+        && let Some(clause_regions) =
+            case_list_clause_body_regions(source, registry, cmd_name, case_list, &args, cmd)
     {
         regions.extend(clause_regions);
         return regions;
@@ -3318,7 +3317,6 @@ fn definition_body_regions_naming(
 fn case_list_clause_body_regions(
     source: &str,
     registry: &tcl_registry::CommandRegistry,
-    dialect_name: &str,
     name: &str,
     case_list: &tcl_registry::CaseListSpec,
     args: &[&str],
@@ -3326,9 +3324,8 @@ fn case_list_clause_body_regions(
 ) -> Option<Vec<(usize, usize)>> {
     // Locating the list and validating its complete option grammar is the
     // registry's typed case invocation. `None` = inline pairs or invalid.
-    let dialect =
-        tcl_dialect::DialectSet::parse(dialect_name).unwrap_or(tcl_dialect::DialectSet::ALL_TCL);
-    let (_, invocation) = registry.case_invocation(name, args, dialect)?;
+    let profile = registry.profile()?;
+    let (_, invocation) = registry.case_invocation(name, args, profile.availability_mask)?;
     let i = invocation.clause_list_index?;
     // `args` is 0-based post-command-name; `cmd.texts`/`cmd.argv` are
     // 1-based (index 0 is the command name), so the clause-list word is at
@@ -5188,6 +5185,17 @@ mod tests {
             regions
                 .iter()
                 .any(|&(start, end)| source[start..end].contains("puts slow"))
+        );
+    }
+
+    #[test]
+    fn switch_braced_body_references_reach_nested_command() {
+        let source = "proc ready {} {}\nswitch $state { ready {ready} default {set x 1}}\n";
+        let analysis = analyse(source);
+        let refs = references(source, "tcl", 0, 5, &analysis, true);
+        assert!(
+            refs.iter().any(|r| r.start_line == 0) && refs.iter().any(|r| r.start_line == 1),
+            "switch braced body reference missing: {refs:?}"
         );
     }
 }
