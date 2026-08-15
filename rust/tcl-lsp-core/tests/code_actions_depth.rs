@@ -966,7 +966,7 @@ fn context_collect_bootstrap_for_irule1006_converts_utf16_columns() {
 }
 
 #[test]
-fn context_collect_bootstrap_anchors_at_nested_rooted_handler() {
+fn context_collect_bootstrap_never_anchors_at_invalid_nested_handler() {
     let src = concat!(
         "::when HTTP_REQUEST {\n",
         "    if {1} {\n",
@@ -983,9 +983,14 @@ fn context_collect_bootstrap_anchors_at_nested_rooted_handler() {
     }];
 
     let actions = context_diagnostic_actions(src, &diags);
-    let boot = find(&actions, "collect' bootstrap").expect("nested collect bootstrap");
-    assert_eq!(boot.edits[0].range.start_line, 2);
-    assert!(boot.edits[0].new_text.contains("TCP::collect"));
+    assert!(
+        !actions.is_empty()
+            && actions
+                .iter()
+                .all(|action| action.edits[0].range.start_line == 0),
+        "an invalid nested when is not an event boundary; any bootstrap must be \
+         a new top-level handler: {actions:?}"
+    );
 }
 
 #[test]

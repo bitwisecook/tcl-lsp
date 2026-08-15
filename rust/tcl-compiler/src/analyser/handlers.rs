@@ -1172,6 +1172,22 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
+        // A registry symbol definer that is top-level-only in iRules does not
+        // become a definition merely because its invalid nested spelling was
+        // parsed. In particular, nested event-handler syntax must not leak
+        // into document/workspace symbol inventories. Keep this driven by the
+        // placement trait shared with IRULE5006, never by a command name.
+        if self.profile.is_irules()
+            && self.body_depth > 0
+            && self.registry.as_deref().is_some_and(|registry| {
+                registry.get(cmd_name).is_some_and(|spec| {
+                    spec.traits
+                        .contains(tcl_registry::Traits::IRULES_TOP_LEVEL_ONLY)
+                })
+            })
+        {
+            return;
+        }
         let Some(sym) = self.resolve_symbol_definer(cmd_name, scope_path) else {
             return;
         };

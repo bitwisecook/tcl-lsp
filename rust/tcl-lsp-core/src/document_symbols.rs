@@ -2024,9 +2024,9 @@ mod tests {
     }
 
     #[test]
-    fn nested_handlers_nest_in_the_outline() {
-        // A `when` inside a `when` is legal iRules; the inner handler is a
-        // child, not a sibling with an overlapping range.
+    fn invalid_nested_handler_is_not_an_outline_event() {
+        // `when` is strictly top-level in iRules. Its invalid nested spelling
+        // must not manufacture a second event in the outline.
         let src = concat!(
             "when CLIENT_ACCEPTED {\n",
             "    when HTTP_REQUEST {\n",
@@ -2037,8 +2037,13 @@ mod tests {
         let symbols = document_symbols(src, IRULES);
         assert_eq!(names(&symbols), vec!["CLIENT_ACCEPTED"]);
         let outer = &symbols[0];
-        assert_eq!(names(&outer.children), vec!["HTTP_REQUEST"]);
-        assert_eq!(names(&outer.children[0].children), vec!["deep"]);
+        assert_eq!(names(&outer.children), vec!["deep"]);
+        assert!(
+            outer
+                .children
+                .iter()
+                .all(|symbol| symbol.kind != SymbolKind::Event)
+        );
     }
 
     #[test]
