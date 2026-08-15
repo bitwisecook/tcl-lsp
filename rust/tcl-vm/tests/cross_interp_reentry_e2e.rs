@@ -134,6 +134,15 @@ struct Vector {
 }
 
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "TP: deleting a target removes a hidden cross-interpreter alias",
+        script: "interp create target\n\
+                 interp alias {} bridge target set\n\
+                 interp hide {} bridge held\n\
+                 interp delete target\n\
+                 puts [interp hidden {}]\n",
+        want: "",
+    },
     // -- fault 1: parent alias reached across a native re-entry ----------
     Vector {
         name: "TP: a parent alias fires from inside a resumed coroutine",

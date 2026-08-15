@@ -1218,6 +1218,31 @@ impl Vm {
                 });
             }
         }
+        // Hidden aliases are not dispatchable, so a stale/missing backref must
+        // not keep one alive after its target dies.  Sweep the hidden tables as
+        // a defensive counterpart to C's target-side alias list.
+        let hidden_targeting: Vec<(InterpId, String)> = self
+            .interps
+            .iter()
+            .enumerate()
+            .filter_map(|(index, slot)| slot.parked.as_ref().map(|st| (InterpId(index), st)))
+            .flat_map(|(source, st)| {
+                st.hidden_commands.iter().filter_map(move |(key, command)| {
+                    matches!(command, Command::CrossAlias { target, .. } if *target == id)
+                        .then(|| (source, key.clone()))
+                })
+            })
+            .collect();
+        for (source, key) in hidden_targeting {
+            self.in_interp(source, |vm| {
+                vm.hidden_commands.remove(&key);
+                vm.hidden_imported_commands.remove(&key);
+                vm.hidden_builtin_identities.remove(&key);
+                vm.cmd_traces.remove(&key);
+                vm.exec_traces.remove(&key);
+                vm.drop_alias_backref(&key);
+            });
+        }
         self.alias_backrefs.retain(|b| b.target != id);
         let slot = &mut self.interps[id.0];
         slot.dying = true;
