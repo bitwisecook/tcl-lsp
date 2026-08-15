@@ -2238,6 +2238,7 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         clause_value_flags: &[],
         clause_end_options_flag: None,
         clause_force_inline_flag: None,
+        clause_force_list_flag: None,
         allow_omitted_final_body: false,
         keyword_patterns: &[],
         keyword_patterns_require_final: false,

@@ -6574,6 +6574,24 @@ mod tests {
                 .is_some(),
             "-nobrace makes one braced word an action-less pattern"
         );
+        let (_, brace) = expect
+            .case_invocation(
+                "expect",
+                &["-brace", "{default {return FOLDED}}"],
+                DialectSet::EXPECT,
+            )
+            .expect("exact -brace selects a clause list");
+        assert_eq!(brace.clause_list_index, Some(1));
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["-b", "{default {return FOLDED}}"],
+                    DialectSet::EXPECT,
+                )
+                .is_none(),
+            "-brace is exact-only, so -b is not a clause flag abbreviation"
+        );
     }
 
     /// The whole registry-declared boundary surface, resolved by name: every

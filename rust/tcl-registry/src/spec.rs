@@ -331,6 +331,8 @@ pub struct CaseListSpec {
     /// Clause flag that makes a following braced word one pattern rather than
     /// a braced clause list (Expect's `-nobrace`).
     pub clause_force_inline_flag: Option<&'static str>,
+    /// Exact-only outer-shape flag selecting a braced clause list (`-brace`).
+    pub clause_force_list_flag: Option<&'static str>,
     /// Whether a final pattern may omit its action (Expect permits this).
     pub allow_omitted_final_body: bool,
     /// Patterns that are keywords, not match text (`default`; Expect's
@@ -397,6 +399,7 @@ impl CaseListSpec {
         clause_value_flags: &[],
         clause_end_options_flag: None,
         clause_force_inline_flag: None,
+        clause_force_list_flag: None,
         allow_omitted_final_body: false,
         keyword_patterns: &["default"],
         keyword_patterns_require_final: true,
@@ -436,6 +439,7 @@ impl CaseListSpec {
         clause_value_flags: &["-timeout", "-i"],
         clause_end_options_flag: Some("--"),
         clause_force_inline_flag: Some("-nobrace"),
+        clause_force_list_flag: Some("-brace"),
         allow_omitted_final_body: true,
         keyword_patterns: &["timeout", "eof", "default", "full_buffer"],
         keyword_patterns_require_final: false,
@@ -455,6 +459,12 @@ impl CaseListSpec {
         let mut nocase = false;
         let mut saw_regex_value_option = false;
         let mut i = 0usize;
+        let force_list = self
+            .clause_force_list_flag
+            .is_some_and(|flag| args.first() == Some(&flag));
+        let force_inline = self
+            .clause_force_inline_flag
+            .is_some_and(|flag| args.first() == Some(&flag));
         // Segmenters pass a braced Expect clause list as one content word;
         // its first element may itself begin with `-re`/`-timeout`, which is
         // clause grammar, not a command-level option.  A flag-bearing,
@@ -507,7 +517,19 @@ impl CaseListSpec {
             return None;
         }
         let remaining = args.len() - i;
-        if remaining == 1 {
+        if force_list {
+            i = 1;
+            if args.len() != 2 || !self.valid_clause_list(args[i]) {
+                return None;
+            }
+            Some(CaseInvocation {
+                subject_index: None,
+                clause_list_index: Some(i),
+                inline_clause_start: None,
+                mode,
+                nocase,
+            })
+        } else if remaining == 1 && !force_inline {
             // Validate the list grammar first, then its registry-declared
             // clause grammar.  Strict pattern/body parity is sufficient for
             // `switch`, but not for Expect: a clause may start with `-re` or
