@@ -1886,6 +1886,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     enum_word(out, ctx, draft, "body_kind");
     expr_word(out, ctx, draft, "byte_array_effect", byte_array_effect_word);
     enum_word(out, ctx, draft, "pattern_type");
+    gap_todo(out, ctx, draft, "pattern_arg_resolver");
     enum_word(out, ctx, draft, "format_string_type");
     expr_row(
         out,

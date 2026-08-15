@@ -393,10 +393,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("sensitive_headers", Surface::Key("sensitive_headers")),
     f("setter_constraints", Surface::Key("setter_constraints")),
     f("pattern_type", Surface::Key("pattern_type")),
-    f(
-        "pattern_arg_resolver",
-        Surface::Excluded("native, call-specific pattern selection hook"),
-    ),
+    f("pattern_arg_resolver", Surface::Key("pattern_arg_resolver")),
     f("format_string_type", Surface::Key("format_string_type")),
     f("tcllib_package", Surface::Key("tcllib_package")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),

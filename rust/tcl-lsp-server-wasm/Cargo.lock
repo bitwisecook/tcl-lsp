@@ -790,6 +790,16 @@ name = "tcl-core-types"
 version = "0.1.0"
 
 [[package]]
+name = "tcl-diagram"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-compiler",
+ "tcl-lexer",
+ "tcl-registry",
+]
+
+[[package]]
 name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
@@ -900,6 +910,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-compiler",
  "tcl-core-types",
+ "tcl-diagram",
  "tcl-dialect",
  "tcl-explorer",
  "tcl-lexer",

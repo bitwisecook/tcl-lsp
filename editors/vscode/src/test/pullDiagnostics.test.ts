@@ -43,5 +43,4 @@ suite("Push Diagnostics", () => {
       "diagnosticProvider should be absent by default (pull diagnostics opt-in)",
     );
   });
-
 });

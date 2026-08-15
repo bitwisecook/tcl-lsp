@@ -1445,6 +1445,10 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
     );
     d.insert(
+        "pattern_arg_resolver".into(),
+        lost.expr("pattern_arg_resolver", spec.pattern_arg_resolver.is_some()),
+    );
+    d.insert(
         "format_string_type".into(),
         spec.format_string_type
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
