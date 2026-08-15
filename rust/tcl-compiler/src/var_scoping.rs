@@ -31,169 +31,95 @@
 //! representation they care about — `String` names for memory-SSA,
 //! source tokens for the LSP declaration provider.
 
-// global
+use std::sync::OnceLock;
 
-/// Return indices of declared variables in `global var1 var2 ...`.
-///
-/// Every argument whose text does not start with `$` (i.e. is a
-/// bare name, not a substituted reference) is a declaration.
+fn default_registry() -> &'static tcl_registry::CommandRegistry {
+    static REGISTRY: OnceLock<tcl_registry::CommandRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(tcl_registry::CommandRegistry::build_default)
+}
+
+fn registry_role_indices(
+    registry: &tcl_registry::CommandRegistry,
+    command: &str,
+    args: &[String],
+) -> Vec<usize> {
+    if command == "namespace upvar" {
+        let mut lowered = Vec::with_capacity(args.len() + 1);
+        lowered.push("upvar".to_owned());
+        lowered.extend_from_slice(args);
+        let refs: Vec<&str> = lowered.iter().map(String::as_str).collect();
+        return registry
+            .arg_indices_for_role("namespace", &refs, tcl_registry::prelude::ArgRole::VarWrite)
+            .into_iter()
+            .filter_map(|i| i.checked_sub(1))
+            .collect();
+    }
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    registry.arg_indices_for_role(command, &refs, tcl_registry::prelude::ArgRole::VarWrite)
+}
+
+fn default_registry_role_indices(command: &str, args: &[String]) -> Vec<usize> {
+    registry_role_indices(default_registry(), command, args)
+}
+
+/// Registry-backed compatibility helpers for declaration-index consumers.
 #[must_use]
 pub fn global_declaration_indices(args: &[String]) -> Vec<usize> {
-    args.iter()
-        .enumerate()
-        .filter(|(_, a)| !a.is_empty() && !a.starts_with('$'))
-        .map(|(i, _)| i)
+    default_registry_role_indices("global", args)
+        .into_iter()
+        .filter(|&i| {
+            args.get(i)
+                .is_some_and(|a| !a.is_empty() && !a.starts_with('$'))
+        })
         .collect()
 }
 
-// variable
-
-/// Return indices of declared variables in
-/// `variable name ?value? name ?value? ...`.
-///
-/// The `variable` command alternates (name, value?) pairs, so every
-/// even-indexed arg is a name. A bare-name filter matches the
-/// compiler's `!text.starts_with('$')` guard, skipping substituted
-/// references.
 #[must_use]
+/// Return registry-declared `variable` name positions, excluding substitutions.
 pub fn variable_declaration_indices(args: &[String]) -> Vec<usize> {
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < args.len() {
-        if !args[i].is_empty() && !args[i].starts_with('$') {
-            out.push(i);
-        }
-        i += 2;
-    }
-    out
-}
-
-// my variable (TclOO instance-variable binding)
-
-/// Return indices of declared variables in the `TclOO` `my variable name
-/// ?name …?` idiom, given the args of the `my` command (so `args[0]` is the
-/// literal `"variable"` subcommand word).
-///
-/// Unlike the top-level `variable` *command* (which alternates name/value
-/// pairs), the object `variable` *method* of `oo::object` takes plain names
-/// only — every argument after the subcommand word is a declared instance
-/// variable. Substituted (`$`-prefixed) names are skipped, matching the other
-/// declaration helpers. Returns an empty vector when `args[0]` is not
-/// `"variable"`.
-#[must_use]
-pub fn my_variable_declaration_indices(args: &[String]) -> Vec<usize> {
-    if args.first().map(String::as_str) != Some("variable") {
-        return Vec::new();
-    }
-    args.iter()
-        .enumerate()
-        .skip(1)
-        .filter(|(_, a)| !a.is_empty() && !a.starts_with('$'))
-        .map(|(i, _)| i)
+    default_registry_role_indices("variable", args)
+        .into_iter()
+        .filter(|&i| {
+            args.get(i)
+                .is_some_and(|a| !a.is_empty() && !a.starts_with('$'))
+        })
         .collect()
 }
 
-// upvar / namespace upvar
-
-/// Return indices of the *local-alias* tokens in an `upvar`
-/// command.
-///
-/// Returns indices into the caller's own `args` sequence rather
-/// than `(caller, local)` name pairs. Handles both `upvar` and
-/// `namespace upvar` forms, including the lowered form where the
-/// segmenter has spliced `namespace upvar` into a single command
-/// whose first argument is literally `"upvar"`.
-///
-/// `command` is the command word as the caller saw it; `args` is
-/// the command's remaining arguments *excluding* the command word
-/// itself. Returns an empty vector for any unrelated command.
-///
-/// Level detection in the `upvar` form: a bare integer (optionally
-/// prefixed with `-`) or `#<digits>` is treated as the level word.
-/// Anything else makes the level default to 1 and the first
-/// argument becomes the start of the `(otherVar, myVar)` pair list.
-///
-/// Pairs where either side starts with `$` (a substituted
-/// reference) are skipped, matching the compiler's aliasing logic.
 #[must_use]
-pub fn upvar_local_declaration_indices(command: &str, args: &[String]) -> Vec<usize> {
-    if args.is_empty() {
-        return Vec::new();
-    }
-
-    let offset: usize = match command {
-        "namespace" => {
-            // Lowered `namespace upvar ns src dst ...` form.
-            if args[0] != "upvar" {
-                return Vec::new();
-            }
-            2 // skip 'upvar' subcommand + namespace argument
-        }
-        "namespace upvar" => 1, // skip namespace argument
-        "upvar" => usize::from(looks_like_level(&args[0])),
-        _ => return Vec::new(),
-    };
-
-    if offset >= args.len() {
-        return Vec::new();
-    }
-
-    let mut out = Vec::new();
-    // Walk pairs of (otherVar, myVar). Report the myVar index
-    // (offset + i + 1) when neither side is a substituted reference.
-    let mut i = offset;
-    while i + 1 < args.len() {
-        let caller_text = &args[i];
-        let local_text = &args[i + 1];
-        if !caller_text.starts_with('$') && !local_text.starts_with('$') {
-            out.push(i + 1);
-        }
-        i += 2;
-    }
-    out
+/// Return registry-declared `my variable` name positions, excluding substitutions.
+pub fn my_variable_declaration_indices(args: &[String]) -> Vec<usize> {
+    default_registry_role_indices("my", args)
+        .into_iter()
+        .filter(|&i| {
+            args.get(i)
+                .is_some_and(|a| !a.is_empty() && !a.starts_with('$'))
+        })
+        .collect()
 }
 
-/// Return indices of the *local-alias* tokens in an `upvar` /
-/// `namespace upvar` command for **observability** consumers (dead-store /
-/// unused-variable suppression, shimmer alias abstention).
-///
-/// Unlike [`upvar_local_declaration_indices`] — whose pair filter serves
-/// declaration *navigation*, where a `$`-substituted source side means
-/// there is nothing to navigate to — the local name is a real alias in
-/// this scope even when the *other* side is a substituted reference
-/// (`upvar 0 $src local` links `local` all the same), so only
-/// `$`-substituted locals are skipped here.
 #[must_use]
+/// Return registry-declared `upvar` local positions whose source and local are static.
+pub fn upvar_local_declaration_indices(command: &str, args: &[String]) -> Vec<usize> {
+    default_registry_role_indices(command, args)
+        .into_iter()
+        .filter(|&i| {
+            args.get(i).is_some_and(|local| !local.starts_with('$'))
+                && i > 0
+                && args
+                    .get(i - 1)
+                    .is_some_and(|source| !source.starts_with('$'))
+        })
+        .collect()
+}
+
+#[must_use]
+/// Return registry-declared local alias positions, retaining dynamic sources.
 pub fn upvar_local_alias_indices(command: &str, args: &[String]) -> Vec<usize> {
-    if args.is_empty() {
-        return Vec::new();
-    }
-
-    let offset: usize = match command {
-        "namespace" => {
-            if args[0] != "upvar" {
-                return Vec::new();
-            }
-            2
-        }
-        "namespace upvar" => 1,
-        "upvar" => usize::from(looks_like_level(&args[0])),
-        _ => return Vec::new(),
-    };
-
-    if offset >= args.len() {
-        return Vec::new();
-    }
-
-    let mut out = Vec::new();
-    let mut i = offset;
-    while i + 1 < args.len() {
-        if !args[i + 1].starts_with('$') {
-            out.push(i + 1);
-        }
-        i += 2;
-    }
-    out
+    default_registry_role_indices(command, args)
+        .into_iter()
+        .filter(|&i| args.get(i).is_some_and(|local| !local.starts_with('$')))
+        .collect()
 }
 
 /// True when `command` (with `args`) creates a scope alias — `global`,
@@ -229,12 +155,8 @@ pub fn is_scope_alias_call(
 /// Indices (into `args`) of the variable names a scope-alias command binds
 /// **in the current scope**, or empty for any other command.
 ///
-/// Recognition is registry-driven ([`is_scope_alias_call`]); the per-form
-/// grammar comes from this module's shared parsers — the single home for
-/// `global` / `variable` / `upvar` / `namespace upvar` argument layouts.
-/// A subcommand-shaped alias whose spec carries its own role resolver
-/// (`my variable`) resolves through the registry's `ArgRole::VarWrite`
-/// query instead, so its layout stays pure registry data.
+/// Recognition and layout are registry-driven ([`is_scope_alias_call`] and
+/// `ArgRole::VarWrite`); this function only applies the static-name filter.
 #[must_use]
 pub fn scope_alias_local_indices(
     registry: &tcl_registry::CommandRegistry,
@@ -244,27 +166,17 @@ pub fn scope_alias_local_indices(
     if !is_scope_alias_call(registry, command, args) {
         return Vec::new();
     }
-    let canonical = command.trim_start_matches(':');
-    match canonical {
-        "global" => global_declaration_indices(args),
-        "variable" => variable_declaration_indices(args),
-        "upvar" | "namespace" | "namespace upvar" => upvar_local_alias_indices(canonical, args),
-        _ => {
-            // Subcommand-shaped alias (`my variable`): the spec's own
-            // role resolver locates the bound names.
-            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-            registry
-                .arg_indices_for_role(command, &arg_strs, tcl_registry::prelude::ArgRole::VarWrite)
-                .into_iter()
-                .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
-                .collect()
-        }
-    }
+    registry_role_indices(registry, command.trim_start_matches(':'), args)
+        .into_iter()
+        .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
+        .collect()
 }
 
 /// Indices (into `args`) of the variable names a scope-alias command
 /// *declares* for **navigation** consumers (the LSP go-to-declaration
-/// provider), or empty for any other command.
+/// provider), or empty for any other command. Layout and parity come from the
+/// registry's repeated argument descriptors; this function only applies the
+/// navigation-specific source-side filter.
 ///
 /// The navigation twin of [`scope_alias_local_indices`]: recognition is the
 /// same registry-driven [`is_scope_alias_call`], but the `upvar` /
@@ -282,40 +194,21 @@ pub fn scope_alias_declaration_indices(
         return Vec::new();
     }
     let canonical = command.trim_start_matches(':');
-    match canonical {
-        "global" => global_declaration_indices(args),
-        "variable" => variable_declaration_indices(args),
-        "upvar" | "namespace" | "namespace upvar" => {
-            upvar_local_declaration_indices(canonical, args)
-        }
-        _ => {
-            // Subcommand-shaped alias (`my variable`): the spec's own
-            // role resolver locates the bound names.
-            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-            registry
-                .arg_indices_for_role(command, &arg_strs, tcl_registry::prelude::ArgRole::VarWrite)
-                .into_iter()
-                .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
-                .collect()
-        }
-    }
-}
-
-/// True when `head` looks like a Tcl upvar-level word:
-/// - A decimal integer (optionally prefixed with `-`).
-/// - `#<digits>` (absolute frame level).
-///
-/// The bare `#` form (no digit tail) is rejected. Reused by
-/// `var_escape::handlers` so every call site shares one definition.
-pub(crate) fn looks_like_level(head: &str) -> bool {
-    if head.is_empty() {
-        return false;
-    }
-    if let Some(digits) = head.strip_prefix('#') {
-        return !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
-    }
-    let tail = head.strip_prefix('-').unwrap_or(head);
-    !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_digit())
+    registry_role_indices(registry, canonical, args)
+        .into_iter()
+        .filter(|&i| {
+            if args.get(i).is_none_or(|a| a.starts_with('$')) {
+                return false;
+            }
+            match canonical {
+                "upvar" => i > 0 && args.get(i - 1).is_some_and(|a| !a.starts_with('$')),
+                "namespace" | "namespace upvar" => {
+                    i > 0 && args.get(i - 1).is_some_and(|a| !a.starts_with('$'))
+                }
+                _ => true,
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -545,16 +438,14 @@ mod tests {
     }
 
     #[test]
-    fn looks_like_level_covers_forms() {
-        assert!(looks_like_level("0"));
-        assert!(looks_like_level("42"));
-        assert!(looks_like_level("-1"));
-        assert!(looks_like_level("#0"));
-        assert!(looks_like_level("#42"));
-        assert!(!looks_like_level(""));
-        assert!(!looks_like_level("#"));
-        assert!(!looks_like_level("-"));
-        assert!(!looks_like_level("abc"));
-        assert!(!looks_like_level("1x"));
+    fn upvar_uses_argument_count_not_level_text() {
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &v(&["$lvl", "a", "b"])),
+            vec![2]
+        );
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &v(&["1", "b"])),
+            vec![1]
+        );
     }
 }

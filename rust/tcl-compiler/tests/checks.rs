@@ -1258,6 +1258,12 @@ mod unbraced_body {
     }
 
     #[test]
+    fn switch_value_options_do_not_turn_patterns_into_commands() {
+        let src = "switch -matchvar m -- $s {a {puts A} b {puts B}}";
+        assert!(!fires(src, D, "W123"), "{:?}", codes(src, D));
+    }
+
+    #[test]
     fn switch_regexp_unbraced_body_is_error() {
         let ds = of_code("switch -regexp -- $x {^a} \"puts matched\"", D, "W106");
         assert_eq!(ds.len(), 1);

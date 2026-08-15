@@ -26,6 +26,11 @@ const UPVAR_FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec {
     layout: FrameArgLayout::AliasPairs,
 };
 
+const UPVAR_REPEATED_ARGS: &[RepeatedArgLayout] = &[RepeatedArgLayout {
+    optional_leading_word: true,
+    ..RepeatedArgLayout::strided(ArgRole::VarWrite, 1, 2)
+}];
+
 const UPVAR_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,
     StateTransitionDomain::VariableTraces,
@@ -182,6 +187,7 @@ pub fn spec() -> CommandSpec {
         // as its level.  tclsh 9.0.4 / 8.6.14 agree; see
         // `FrameLevelWord::ArityParity` for the pinned table.
         frame_effect: Some(UPVAR_FRAME_EFFECT),
+        repeated_args: UPVAR_REPEATED_ARGS,
         lowering_hook: Some(LoweringHookId::Upvar),
         codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,

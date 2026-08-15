@@ -411,7 +411,14 @@ impl CaseListSpec {
         let mut nocase = false;
         let mut saw_regex_value_option = false;
         let mut i = 0usize;
-        if !(self.subject_args == 1 && args.len() == 2) {
+        // Segmenters pass a braced Expect clause list as one content word;
+        // its first element may itself begin with `-re`/`-timeout`, which is
+        // clause grammar, not a command-level option.  A flag-bearing,
+        // subject-less case list with one remaining word is therefore already
+        // in list form and must bypass the command-option scan.
+        let inline_expect_list =
+            self.subject_args == 0 && !self.clause_flags.is_empty() && args.len() == 1;
+        if !(inline_expect_list || self.subject_args == 1 && args.len() == 2) {
             while let Some(word) = args.get(i).copied() {
                 if !word.starts_with('-') {
                     break;

@@ -1090,7 +1090,14 @@ impl Analyser {
         // `regexp`, `regsub`, `gets`, `binary scan`, `vwait`, …) writes
         // results into named variable arguments; bind them so
         // completion/hover/definition see the destructured / captured names.
-        self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
+        let opaque_upvar_alias = !matches!(cmd_name, "upvar" | "::upvar")
+            && matches!(
+                self.resolve_analyser_hook(cmd_name, args),
+                Some(tcl_registry::hooks::AnalyserHookId::Upvar)
+            );
+        if !opaque_upvar_alias {
+            self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
+        }
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
         // records the symbol; the body still recurses via the generic
@@ -1318,7 +1325,12 @@ impl Analyser {
                 false
             }
             Hook::Upvar => {
-                self.handle_upvar_command(args, arg_tokens, scope_path);
+                // An alias resolving to the upvar spec is not enough evidence
+                // for frame binding: its target may be opaque at analysis
+                // time.  Keep canonical spellings on the semantic handler.
+                if cmd_name == "upvar" || cmd_name == "::upvar" {
+                    self.handle_upvar_command(args, arg_tokens, scope_path);
+                }
                 false
             }
             Hook::NamespaceUpvar => {
@@ -4735,11 +4747,7 @@ fn record_command_invocations(
         // it as one mis-reads a pattern as a command head.  It is
         // special-cased: parse the list
         // into pattern/body pairs and descend each arm *body*.
-        let switch_list_idx = if name == "switch" {
-            switch_list_body_index(&args)
-        } else {
-            None
-        };
+        let switch_list_idx = case_list_body_index(registry, name, &args);
         // Definition commands are excluded from the plain-script body
         // descent for the same reason as `collect_segment_recursive`: their
         // bodies are definer grammars (member keywords, not commands), and
@@ -4752,19 +4760,26 @@ fn record_command_invocations(
         };
         for body in bodies {
             if switch_list_idx == Some(body.index) {
-                let elements = crate::segmenter::flatten_clause_list_elements(
+                let Some((case, _)) = registry.case_invocation(
+                    name,
+                    &args,
+                    registry
+                        .profile()
+                        .map_or(tcl_registry::dialects::DialectSet::ALL_TCL, |profile| {
+                            profile.availability_mask
+                        }),
+                ) else {
+                    continue;
+                };
+                let clauses = crate::segmenter::flatten_case_list_clauses(
                     sm.source(),
                     &body.text,
                     body.token,
+                    &case,
                 );
-                // Elements alternate pattern, body, pattern, body, … —
-                // descend the (odd-indexed) arm bodies only; a `-`
-                // fall-through has no body of its own.
-                let mut k = 1;
-                while k < elements.len() {
-                    let (arm_text, arm_tok) = &elements[k];
+                for (_, (arm_text, arm_tok)) in clauses {
                     if arm_text != "-" && arm_tok.kind == TokenType::Str {
-                        let arm = descend_token(sm, *arm_tok, config);
+                        let arm = descend_token(sm, arm_tok, config);
                         for inner in segments_from_tree(arm.tree(), sm) {
                             record_command_invocations(
                                 sm,
@@ -4776,7 +4791,6 @@ fn record_command_invocations(
                             );
                         }
                     }
-                    k += 2;
                 }
                 continue;
             }
@@ -4932,24 +4946,16 @@ fn definition_handler_owns_body(registry: &CommandRegistry, name: &str) -> bool 
     })
 }
 
-/// For the ``switch ?options? string {pattern body …}`` form, the index
-/// (into `args`, 0-based, excluding the command name) of the single
-/// braced pattern/body list.  `None` for the separate-args form
-/// (``switch string pat body pat body``), whose bodies *are* scripts.
-fn switch_list_body_index(args: &[&str]) -> Option<usize> {
-    let mut i = 0;
-    while i < args.len() && args[i].starts_with('-') {
-        if args[i] == "--" {
-            i += 1;
-            break;
-        }
-        i += 1;
-    }
-    if i >= args.len() {
-        return None;
-    }
-    i += 1; // the `string` argument
-    if i == args.len() - 1 { Some(i) } else { None }
+/// Registry-owned case-list layout for the generic nested-command walker.
+fn case_list_body_index(registry: &CommandRegistry, name: &str, args: &[&str]) -> Option<usize> {
+    let dialect = registry
+        .profile()
+        .map_or(tcl_registry::dialects::DialectSet::ALL_TCL, |profile| {
+            profile.availability_mask
+        });
+    registry
+        .case_invocation(name, args, dialect)
+        .and_then(|(_, invocation)| invocation.clause_list_index)
 }
 
 /// Every arm *body* of a `switch ?options? string {pattern body …}` /
@@ -4983,33 +4989,32 @@ pub fn switch_arm_bodies(
     if args.len() < 2 {
         return out;
     }
-    let mut i = 0;
-    while i < args.len() && args[i].starts_with('-') {
-        if args[i] == "--" {
-            i += 1;
-            break;
-        }
-        i += 1;
-    }
-    i += 1; // the `string` argument
-    if i >= args.len() {
+    let registry = fallback_registry();
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let Some((case, invocation)) = registry.case_invocation(
+        "switch",
+        &refs,
+        registry
+            .profile()
+            .map_or(tcl_registry::dialects::DialectSet::ALL_TCL, |profile| {
+                profile.availability_mask
+            }),
+    ) else {
         return out;
-    }
-    if i == args.len() - 1 {
+    };
+    if let Some(i) = invocation.clause_list_index {
         // Form 2 — single braced body containing all pairs.
         let Some(body_tok) = arg_tokens.get(i).copied() else {
             return out;
         };
-        let elements = crate::segmenter::flatten_clause_list_elements(source, &args[i], body_tok);
-        let mut j = 1;
-        while j < elements.len() {
-            let (body_text, body_tok) = &elements[j];
+        for (_, (body_text, body_tok)) in
+            crate::segmenter::flatten_case_list_clauses(source, &args[i], body_tok, &case)
+        {
             if body_text != "-" {
-                out.push((body_text.clone(), *body_tok));
+                out.push((body_text, body_tok));
             }
-            j += 2;
         }
-    } else {
+    } else if let Some(mut i) = invocation.inline_clause_start {
         // Form 1 — pattern/body pairs inline in args/arg_tokens.
         while i + 1 < args.len() {
             let body_text = &args[i + 1];

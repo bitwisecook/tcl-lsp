@@ -3911,6 +3911,31 @@ mod tests {
         );
     }
 
+    #[test]
+    fn option_value_arity_shifts_registry_argument_roles() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "regexp",
+                &["-start", "2", "pattern", "$text", "match"],
+                ArgRole::VarWrite,
+            ),
+            vec![4]
+        );
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "regsub",
+                &["-start", "2", "pattern", "$text", "replacement", "result"],
+                ArgRole::VarWrite,
+            ),
+            vec![5]
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("upvar", &["$level", "remote", "local"], ArgRole::VarWrite,),
+            vec![2]
+        );
+    }
+
     /// Issue #1186 — `for`'s three script arguments share the semantic
     /// [`ArgRole::Body`], and the *presentation* fact is what separates the
     /// trailing body (block-expanded) from `start` / `next` (inline).

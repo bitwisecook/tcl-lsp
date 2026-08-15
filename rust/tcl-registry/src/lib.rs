@@ -108,6 +108,8 @@ pub mod version;
 pub mod version_range;
 pub mod world_effect;
 
+pub use crate::hover::first_positional_index;
+
 /// Convenience prelude for command spec files.
 ///
 /// `use crate::prelude::*;` in each command file brings in all the
@@ -158,7 +160,7 @@ pub mod prelude {
     };
     pub use crate::hover::{
         ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity,
-        OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome,
+        OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, first_positional_index,
     };
     pub use crate::intrinsic::IntrinsicId;
     pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};

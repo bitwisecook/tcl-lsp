@@ -470,6 +470,37 @@ pub fn flatten_clause_list_elements(
     elements
 }
 
+/// Flatten a registry-described case-list into validated pattern/body pairs.
+/// Clause flags and their value words are consumed by the syntax-layer grammar,
+/// so Expect's per-clause options cannot shift the body token. Returned tokens
+/// retain absolute source spans from the enclosing list token.
+#[must_use]
+pub fn flatten_case_list_clauses(
+    source: &str,
+    text: &str,
+    tok: Token,
+    case: &tcl_registry::CaseListSpec,
+) -> Vec<((String, Token), (String, Token))> {
+    let elements = flatten_clause_list_elements(source, text, tok);
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: case.clause_flags,
+        clause_value_flags: case.clause_value_flags,
+    };
+    tcl_syntax::case_list::split_case_list(text, &shape)
+        .into_iter()
+        .filter_map(|clause| {
+            let (Some(pattern_index), Some(body_index)) = (clause.pattern_index, clause.body_index)
+            else {
+                return None;
+            };
+            Some((
+                elements.get(pattern_index).cloned()?,
+                elements.get(body_index).cloned()?,
+            ))
+        })
+        .collect()
+}
+
 /// Incrementally re-segment `new_text` from the segmentation of
 /// `old_text` (`old_commands`), reusing the unchanged **prefix** of
 /// top-level commands and re-lexing only from the first affected command

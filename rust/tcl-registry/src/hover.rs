@@ -633,6 +633,36 @@ impl OptionSpec {
     }
 }
 
+/// Return the index of the first positional argument after leading options.
+///
+/// The scan starts at `scan_start`, skips each option word and the value words
+/// declared by its [`OptionSpec`], and stops after the `--` terminator. Unknown
+/// option-looking words are treated as flag-shaped words and consume no value;
+/// this preserves the analyser's recovery behaviour for malformed calls while
+/// keeping all known value arities in the registry.
+#[must_use]
+pub fn first_positional_index<S: AsRef<str>>(
+    options: &[OptionSpec],
+    args: &[S],
+    scan_start: usize,
+) -> usize {
+    let mut index = scan_start.min(args.len());
+    while let Some(word) = args.get(index).map(AsRef::as_ref) {
+        if word == "--" {
+            return index + 1;
+        }
+        if !word.starts_with('-') {
+            break;
+        }
+        let consumed = options
+            .iter()
+            .find(|option| option.matches(word))
+            .map_or(0, |option| option.value_word_count(args, index));
+        index = index.saturating_add(1 + consumed);
+    }
+    index
+}
+
 /// Completion / hover metadata for a single enumerable
 /// positional-argument value.
 ///
@@ -822,5 +852,33 @@ mod tests {
             min_abbrev: None,
         };
         assert!(opt.supports_dialect(None, Some(DialectSet::TCL90)));
+    }
+
+    #[test]
+    fn first_positional_index_consumes_declared_values_and_terminator() {
+        let options = [
+            OptionSpec {
+                name: "-flag",
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "-value",
+                value: OptionValue::value("word"),
+                ..OptionSpec::DEFAULT
+            },
+        ];
+        assert_eq!(
+            first_positional_index(&options, &["-flag", "-value", "v", "subject"], 0),
+            3
+        );
+        assert_eq!(
+            first_positional_index(&options, &["-value", "v", "--", "-subject"], 0),
+            3
+        );
+        // Unknown option-looking words remain one-word recovery skips.
+        assert_eq!(
+            first_positional_index(&options, &["-unknown", "subject"], 0),
+            1
+        );
     }
 }

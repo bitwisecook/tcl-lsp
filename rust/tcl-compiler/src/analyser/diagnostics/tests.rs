@@ -1279,19 +1279,18 @@ fn variable_name_positions_are_registry_driven() {
 fn upvar_local_positions_parity() {
     // Only the local names are strict name positions; the paired remote names
     // (indices 1, 3, …) are excluded so a computed `$remote` is not flagged.
+    let registry = tcl_registry::CommandRegistry::build_default();
     assert_eq!(
-        upvar_local_name_positions(&["1".into(), "a".into(), "b".into()]),
+        registry.arg_indices_for_role(
+            "upvar",
+            &["$lvl", "a", "b"],
+            tcl_registry::ArgRole::VarWrite,
+        ),
         vec![2],
     );
     assert_eq!(
-        upvar_local_name_positions(&[
-            "#0".into(),
-            "r1".into(),
-            "l1".into(),
-            "r2".into(),
-            "l2".into(),
-        ]),
-        vec![2, 4],
+        registry.arg_indices_for_role("upvar", &["1", "b"], tcl_registry::ArgRole::VarWrite,),
+        vec![1],
     );
 }
 
@@ -12832,6 +12831,18 @@ fn vendor_command_inherited_options_resolve_cleanly() {
     assert!(
         !codes.iter().any(|c| c == "W004"),
         "inherited expect options must resolve under expect, got {codes:?}"
+    );
+}
+
+#[test]
+fn expect_clause_flags_keep_pattern_and_body_roles_aligned() {
+    let codes = codes_for_dialect(
+        "expect {-re {^ready$} {puts ready} -timeout 5 timeout {puts slow}}",
+        "expect",
+    );
+    assert!(
+        !codes.iter().any(|c| c == "W123"),
+        "Expect clause flags must not make a body look like a command: {codes:?}"
     );
 }
 

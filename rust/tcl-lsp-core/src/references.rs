@@ -3051,8 +3051,9 @@ pub(crate) fn nested_dispatch_regions(
     // ([`tcl_registry::CaseListSpec`], never a hardcoded "switch" check) and
     // recurse into each clause's own body word instead.
     if let Some(case_list) = registry.get(cmd_name).and_then(|s| s.case_list)
-        && let Some(clause_regions) =
-            case_list_clause_body_regions(source, registry, cmd_name, case_list, &args, cmd)
+        && let Some(clause_regions) = case_list_clause_body_regions(
+            source, registry, dialect, cmd_name, case_list, &args, cmd,
+        )
     {
         regions.extend(clause_regions);
         return regions;
@@ -3311,35 +3312,22 @@ fn definition_body_regions_naming(
 /// Returns `None` when the call is instead in the inline pattern/body-pairs
 /// shape (any pair count) — each pair's body argument there is already a
 /// standalone script `plain_body_arg_indices` finds directly, needing no
-/// clause-list unpacking.  Also `None` for a clause list with `clause_flags`
-/// (Expect's `expect { -re pat body … }`) — a clause there may carry a
-/// variable number of leading flag words before its pattern and body, so
-/// naively alternating pattern/body/pattern/body would misassign a flag word
-/// as a body; conservative abstention rather than a wrong split, matching
-/// this codebase's "fall through to the generic path when correctness can't
-/// be proven" rule for constructs the compiler can't safely specialise.  The
-/// option-skip loop is driven entirely by `case_list`'s own fields
-/// (`value_options`, `subject_args`), never a hardcoded command name, so it
-/// applies identically to `switch` and to any future plain (no
-/// `clause_flags`) `case_list` command.
+/// clause-list unpacking. The clause-to-token conversion is shared with the
+/// compiler, so Expect's per-clause flags and value flags are consumed by the
+/// registry grammar rather than shifting pattern/body pairs.
 fn case_list_clause_body_regions(
     source: &str,
     registry: &tcl_registry::CommandRegistry,
+    dialect_name: &str,
     name: &str,
     case_list: &tcl_registry::CaseListSpec,
     args: &[&str],
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Option<Vec<(usize, usize)>> {
-    if !case_list.clause_flags.is_empty() {
-        return None;
-    }
     // Locating the list and validating its complete option grammar is the
     // registry's typed case invocation. `None` = inline pairs or invalid.
-    let dialect = registry
-        .profile()
-        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
-            profile.availability_mask
-        });
+    let dialect =
+        tcl_dialect::DialectSet::parse(dialect_name).unwrap_or(tcl_dialect::DialectSet::ALL_TCL);
     let (_, invocation) = registry.case_invocation(name, args, dialect)?;
     let i = invocation.clause_list_index?;
     // `args` is 0-based post-command-name; `cmd.texts`/`cmd.argv` are
@@ -3348,18 +3336,15 @@ fn case_list_clause_body_regions(
     let (Some(text), Some(tok)) = (cmd.texts.get(i + 1), cmd.argv.get(i + 1).copied()) else {
         return Some(Vec::new());
     };
-    let elements = tcl_compiler::segmenter::flatten_clause_list_elements(source, text, tok);
+    let clauses = tcl_compiler::segmenter::flatten_case_list_clauses(source, text, tok, case_list);
     let mut out = Vec::new();
-    let mut j = 0;
-    while j + 1 < elements.len() {
-        let (body_text, body_tok) = &elements[j + 1];
+    for (_, (body_text, body_tok)) in clauses {
         if body_text != "-" {
             let (start, end) = strip_outer_braces(source, body_tok.span);
             if start < end {
                 out.push((start, end));
             }
         }
-        j += 2;
     }
     Some(out)
 }
@@ -5178,6 +5163,31 @@ mod tests {
         assert!(
             lines.contains(&1),
             "the `greetD` word inside `[list greetD World]` must be reachable too: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn expect_clause_flags_reach_each_clause_body() {
+        let source = "expect {-re {^ready$} {puts ready} -timeout 5 timeout {puts slow}}";
+        let command = tcl_compiler::segmenter::segment_commands(source)
+            .into_iter()
+            .next()
+            .expect("expect command");
+        let regions = nested_dispatch_regions(source, "expect", &command);
+        assert_eq!(
+            regions.len(),
+            2,
+            "Expect clause flags must not shift bodies"
+        );
+        assert!(
+            regions
+                .iter()
+                .any(|&(start, end)| source[start..end].contains("puts ready"))
+        );
+        assert!(
+            regions
+                .iter()
+                .any(|&(start, end)| source[start..end].contains("puts slow"))
         );
     }
 }

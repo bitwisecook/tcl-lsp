@@ -42,32 +42,19 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
-/// Options that consume a following value argument.
-const SWITCH_VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
-
 /// Dynamic arg role resolver for `switch`.
 ///
 /// Skips option flags (including value-consuming options like
 /// `-matchvar`/`-indexvar`), then identifies pattern/body pairs
 /// or a single braced-list body.
 fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut i: usize = 0;
-    // Skip option flags.
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if !a.starts_with('-') {
-            break;
-        }
-        if SWITCH_VALUE_OPTIONS.contains(&a) {
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
+    // Tcl 8.5+'s exact two-argument exception treats a flag-shaped subject as
+    // positional; the case-list descriptor owns the same exception.
+    let mut i = if args.len() == 2 {
+        0
+    } else {
+        first_positional_index(OPTIONS, args, 0)
+    };
     // Skip switch value.
     if i < args.len() {
         i += 1;

@@ -119,6 +119,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         case_list: Some(&CaseListSpec::EXPECT),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
         ..CommandSpec::DEFAULT
     }
 }

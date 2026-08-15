@@ -46,8 +46,7 @@ use crate::var_escape::info_subcommands::{
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
 #[cfg(test)]
 use crate::var_scoping::{
-    global_declaration_indices, looks_like_level, upvar_local_declaration_indices,
-    variable_declaration_indices,
+    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
 
 /// Apply every variable-cell alias declared by the registry invocation.
@@ -170,8 +169,8 @@ pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap
         return;
     }
     let head = &args[0];
-    let is_level_literal = looks_like_level(head);
-    if !is_level_literal && is_dynamic_upvar_level(head) {
+    let is_level_literal = args.len() % 2 == 1;
+    if is_level_literal && is_dynamic_upvar_level(head) {
         // Dynamic level — pessimistic. See the matching block in
         // [`super::super::handlers::handle_upvar`] for the
         // unbounded-upvar rationale.

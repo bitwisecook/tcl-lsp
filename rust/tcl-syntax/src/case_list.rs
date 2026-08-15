@@ -152,6 +152,10 @@ pub struct Clause {
     pub pattern: Option<Element>,
     /// The body element. `None` when the list ends after a pattern.
     pub body: Option<Element>,
+    /// Zero-based element ordinal of `pattern` in the enclosing list.
+    pub pattern_index: Option<usize>,
+    /// Zero-based element ordinal of `body` in the enclosing list.
+    pub body_index: Option<usize>,
 }
 
 /// Split the *content* of a clause list into clauses.
@@ -185,8 +189,10 @@ pub fn split_case_list(inner: &str, shape: &CaseListShape<'_>) -> Vec<Clause> {
             }
         }
 
+        clause.pattern_index = elements.get(i).map(|_| i);
         clause.pattern = elements.get(i).copied();
         i += 1;
+        clause.body_index = elements.get(i).map(|_| i);
         clause.body = elements.get(i).copied();
         i += 1;
 

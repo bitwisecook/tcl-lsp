@@ -1950,17 +1950,8 @@ fn insert_regex_overrides(
         // A `Regex` command whose spec does not (yet) declare where its
         // pattern sits: fall back to the first positional word past the
         // leading switches, the layout every stock regex command shares.
-        let mut idx = 0;
-        while idx < arg_texts.len() && arg_texts[idx].starts_with('-') && arg_texts[idx] != "--" {
-            if arg_texts[idx] == "-start" && idx + 1 < arg_texts.len() {
-                idx += 2;
-            } else {
-                idx += 1;
-            }
-        }
-        if idx < arg_texts.len() && arg_texts[idx] == "--" {
-            idx += 1;
-        }
+        let options = registry.get(head).map_or(&[][..], |spec| spec.options);
+        let idx = tcl_registry::first_positional_index(options, arg_texts, 0);
         vec![idx]
     } else {
         declared

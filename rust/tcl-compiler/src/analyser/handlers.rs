@@ -4282,27 +4282,29 @@ impl Analyser {
             let Some(body_tok) = arg_tokens.get(i).copied() else {
                 return true;
             };
-            let elements =
-                crate::segmenter::flatten_clause_list_elements(&self.source, &body_text, body_tok);
-            let clause_count = elements.len() / 2;
-            let mut j = 0;
-            while j + 1 < elements.len() {
-                let (pat_text, pat_tok) = &elements[j];
-                let (body_text, body_tok) = &elements[j + 1];
+            let clauses = crate::segmenter::flatten_case_list_clauses(
+                &self.source,
+                &body_text,
+                body_tok,
+                &case,
+            );
+            let clause_count = clauses.len();
+            for (clause_index, ((pat_text, pat_tok), (body_text, body_tok))) in
+                clauses.iter().enumerate()
+            {
                 if is_regexp {
                     self.record_switch_regexp_pattern(
                         cmd_name,
                         case,
                         pat_text,
                         *pat_tok,
-                        (j / 2, clause_count),
+                        (clause_index, clause_count),
                         scope_path,
                     );
                 }
                 if case.fallthrough_body != Some(body_text.as_str()) {
                     self.analyse_body(body_text, *body_tok, scope_path);
                 }
-                j += 2;
             }
         } else if let Some(mut i) = invocation.inline_clause_start {
             // Form 1 — pattern/body pairs inline in args/arg_tokens.
@@ -6861,14 +6863,18 @@ impl Analyser {
                 continue;
             };
             if case_call == Some(idx) {
-                let elements =
-                    crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
-                for pair in elements.chunks_exact(2) {
-                    let body_word = &pair[1].0;
-                    let body_token = pair[1].1;
+                let Some((case, _)) =
+                    registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
+                else {
+                    complete = false;
+                    continue;
+                };
+                for (_, (body_word, body_token)) in
+                    crate::segmenter::flatten_case_list_clauses(&self.source, word, token, &case)
+                {
                     if body_token.kind == TokenType::Str
                         || (body_token.kind == TokenType::Esc
-                            && !tcl_syntax::naming::is_dynamic_word(body_word)
+                            && !tcl_syntax::naming::is_dynamic_word(&body_word)
                             && !body_word.contains('\\'))
                     {
                         arms.push(ControlArm {
@@ -6966,10 +6972,10 @@ impl Analyser {
         if let Some(list_index) = invocation.clause_list_index {
             let word = arm.controller.args().get(list_index)?;
             let token = *arm.controller.arg_tokens().get(list_index)?;
-            let elements =
-                crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
-            for pair in elements.chunks_exact(2) {
-                clauses.push((pair[0].0.clone(), pair[1].0.clone(), pair[1].1.span));
+            for ((pattern, _), (body, body_token)) in
+                crate::segmenter::flatten_case_list_clauses(&self.source, word, token, &case)
+            {
+                clauses.push((pattern, body, body_token.span));
             }
         } else {
             let mut idx = invocation.inline_clause_start?;
@@ -7724,10 +7730,17 @@ impl Analyser {
                     continue;
                 };
                 if case_call == Some(body_idx) {
-                    let elements =
-                        crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
-                    for pair in elements.chunks_exact(2) {
-                        let body_token = pair[1].1;
+                    let Some((case, _)) =
+                        registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
+                    else {
+                        continue;
+                    };
+                    for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                        &self.source,
+                        word,
+                        token,
+                        &case,
+                    ) {
                         if body_token.kind != TokenType::Str {
                             continue;
                         }
@@ -7838,10 +7851,17 @@ impl Analyser {
                     continue;
                 };
                 if case_call == Some(body_idx) {
-                    let elements =
-                        crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
-                    for pair in elements.chunks_exact(2) {
-                        let body_token = pair[1].1;
+                    let Some((case, _)) =
+                        registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
+                    else {
+                        continue;
+                    };
+                    for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                        &self.source,
+                        word,
+                        token,
+                        &case,
+                    ) {
                         if body_token.kind != TokenType::Str {
                             continue;
                         }
