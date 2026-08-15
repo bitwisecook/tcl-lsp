@@ -244,7 +244,15 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                 "catch" -> {
                     val block = node("catch", "round")
                     connect(active, block)
-                    active = walk(item.array("body") ?: JsonArray(), listOf(Tail(block)))
+                    val bodyExits = walk(item.array("body") ?: JsonArray(), listOf(Tail(block)))
+                    // `catch` converts every Tcl completion into its own
+                    // normal integer result. Process exit is not a Tcl
+                    // completion and cannot be caught, so it remains abrupt.
+                    val processExits = bodyExits.filter { it.completion == DiagramCompletion.PROCESS_EXIT }
+                    abrupt += processExits
+                    active = bodyExits
+                        .filter { it.completion != DiagramCompletion.PROCESS_EXIT }
+                        .map { Tail(it.id) }
                 }
                 "try" -> {
                     val attempt = node("try", "round")
@@ -358,7 +366,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                                 listOf(PossibleCompletion.ERROR, PossibleCompletion.RETURN)
                             }
                             for (outcome in possible) {
-                                var caughtByOn = false
+                                var certainlyCaught = false
                                 val claimedTrapPatterns = mutableListOf<List<String>?>()
                                 for ((index, handler) in handlers.withIndex()) {
                                     when (handler.data.string("kind_handler")) {
@@ -367,17 +375,26 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                                         ) {
                                             connect(bodyExit.id, handler.start, "trap")
                                             exits += renderHandler(index)
-                                            claimedTrapPatterns += trapPattern(handler)
+                                            val pattern = trapPattern(handler)
+                                            claimedTrapPatterns += pattern
+                                            // The empty Tcl list is a prefix
+                                            // of every error code. No later
+                                            // trap or on-error handler can be
+                                            // selected for this outcome.
+                                            if (pattern?.isEmpty() == true) {
+                                                certainlyCaught = true
+                                                break
+                                            }
                                         }
                                         "on" -> if (onMatches(handler, outcome)) {
                                             connect(bodyExit.id, handler.start, "on")
                                             exits += renderHandler(index)
-                                            caughtByOn = true
+                                            certainlyCaught = true
                                             break
                                         }
                                     }
                                 }
-                                if (!caughtByOn) exits += Tail(bodyExit.id, completionOf(outcome))
+                                if (!certainlyCaught) exits += Tail(bodyExit.id, completionOf(outcome))
                             }
                             continue
                         }
@@ -390,7 +407,9 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         } else emptyList()
                         val effectiveMatches = if (exactCustomMatches.isNotEmpty()) exactCustomMatches else matches
                         val errorIsCertainlyHandled = bodyExit.completion == DiagramCompletion.ERROR && matches.any {
-                            (_, handler) -> handler.data.string("kind_handler") == "on"
+                            (_, handler) -> handler.data.string("kind_handler") == "on" ||
+                                (handler.data.string("kind_handler") == "trap" &&
+                                    trapPattern(handler)?.isEmpty() == true)
                         }
                         if (effectiveMatches.isEmpty() ||
                             (bodyExit.completion == DiagramCompletion.ERROR && !errorIsCertainlyHandled)
@@ -411,7 +430,14 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             for ((index, handler) in effectiveMatches) {
                                 connect(bodyExit.id, handler.start, handler.data.string("kind_handler"))
                                 exits += renderHandler(index)
-                                if (handler.data.string("kind_handler") == "on" && bodyExit.completion != DiagramCompletion.DYNAMIC && bodyExit.completion != DiagramCompletion.DYNAMIC_RETURN_OR_ERROR) break
+                                val exhaustiveEmptyTrap = bodyExit.completion == DiagramCompletion.ERROR &&
+                                    handler.data.string("kind_handler") == "trap" &&
+                                    trapPattern(handler)?.isEmpty() == true
+                                if (exhaustiveEmptyTrap ||
+                                    (handler.data.string("kind_handler") == "on" &&
+                                        bodyExit.completion != DiagramCompletion.DYNAMIC &&
+                                        bodyExit.completion != DiagramCompletion.DYNAMIC_RETURN_OR_ERROR)
+                                ) break
                             }
                         }
                     }

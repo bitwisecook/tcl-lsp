@@ -232,6 +232,70 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun catchAbsorbsEveryTclCompletionButNotProcessExit() {
+        fun render(completion: String, code: Int? = null): String {
+            val completionCode = code?.let { ",\"completion_code\":$it" } ?: ""
+            return assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+                """{"events":[{"name":"E","flow":[{"kind":"catch","body":[
+                  {"kind":"action","label":"caught","completion":"$completion"$completionCode}]},
+                  {"kind":"action","label":"after"}]}],"procedures":[]}"""
+            )))
+        }
+
+        for ((completion, code) in listOf(
+            "error" to null,
+            "return" to null,
+            "break" to null,
+            "custom" to 42,
+        )) {
+            val mermaid = render(completion, code)
+            assertContains(mermaid, "caught", message = completion)
+            assertContains(mermaid, "after", message = completion)
+        }
+
+        val processExit = render("process_exit")
+        assertContains(processExit, "caught")
+        kotlin.test.assertFalse(processExit.contains("after"), processExit)
+    }
+
+    @Test
+    fun emptyTrapExhaustivelyShadowsLaterExactErrorHandlers() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"fail","completion":"error"}],"handlers":[
+              {"kind_handler":"trap","match":"","trap_pattern":[],"fallthrough":false,"body":[{"kind":"action","label":"empty trap body"}]},
+              {"kind_handler":"trap","match":"X","trap_pattern":["X"],"fallthrough":false,"body":[{"kind":"action","label":"shadowed trap body"}]},
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"shadowed on body"}]}
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        assertContains(mermaid, "empty trap body")
+        assertContains(mermaid, "after")
+        kotlin.test.assertFalse(mermaid.contains("shadowed trap body"), mermaid)
+        kotlin.test.assertFalse(mermaid.contains("shadowed on body"), mermaid)
+        assertEquals(1, mermaid.lines().count { it.contains("-->|trap|") }, mermaid)
+        assertEquals(0, mermaid.lines().count { it.contains("-->|on|") }, mermaid)
+    }
+
+    @Test
+    fun emptyTrapExhaustivelyShadowsLaterDynamicErrorHandlers() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"dynamic result","completion":"dynamic_return_or_error"}],"handlers":[
+              {"kind_handler":"trap","match":"","trap_pattern":[],"fallthrough":false,"body":[{"kind":"action","label":"empty trap body"}]},
+              {"kind_handler":"trap","match":"X","trap_pattern":["X"],"fallthrough":false,"body":[{"kind":"action","label":"shadowed trap body"}]},
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"shadowed on body"}]},
+              {"kind_handler":"on","match":"return","completion_code":2,"fallthrough":false,"body":[{"kind":"action","label":"return body"}]}
+            ]}]}],"procedures":[]}"""
+        )))
+        assertContains(mermaid, "empty trap body")
+        assertContains(mermaid, "return body")
+        kotlin.test.assertFalse(mermaid.contains("shadowed trap body"), mermaid)
+        kotlin.test.assertFalse(mermaid.contains("shadowed on body"), mermaid)
+        assertEquals(1, mermaid.lines().count { it.contains("-->|trap|") }, mermaid)
+        assertEquals(1, mermaid.lines().count { it.contains("-->|on|") }, mermaid)
+    }
+
+    @Test
     fun returnCompletionSelectsOnReturnRatherThanOnError() {
         val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
