@@ -117,6 +117,13 @@ impl CompileService for Svc {
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
     }
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        Self::for_profile(profile).compile(src)
+    }
     fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         if let Some(msg) =
             tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
@@ -126,6 +133,13 @@ impl CompileService for Svc {
         let ir = lower_to_ir_traced_with_config(src, self.registry, self.config);
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
+    }
+    fn compile_traced_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        Self::for_profile(profile).compile_traced(src)
     }
 }
 

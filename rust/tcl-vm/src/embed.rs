@@ -36,6 +36,7 @@
 //! - **Bound the work.** [`Vm::set_command_limit`] arms the `commands` limit
 //!   the VM now enforces, and [`Vm::commands_run`] reports the fuel spent.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use tcl_bytecode::FunctionAsm;
@@ -51,16 +52,28 @@ use crate::value::Value;
 /// Holds the compiled activation behind an `Rc`, so invoking it is a pointer
 /// clone rather than a deep copy of the bytecode — the difference between a
 /// hook body that costs its own execution and one that pays for its
-/// compilation shape on every call site.
+/// compilation shape on every call site. It also retains its source solely to
+/// refresh the activation when the owning VM changes dialect profile.
 #[derive(Clone)]
 pub struct FunctionHandle {
+    source: String,
+    state: Rc<RefCell<FunctionHandleState>>,
+}
+
+struct FunctionHandleState {
     asm: Rc<FunctionAsm>,
+    profile_generation: u64,
 }
 
 impl std::fmt::Debug for FunctionHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FunctionHandle")
-            .field("instructions", &self.asm.instructions.len())
+            .field("source", &self.source)
+            .field("instructions", &self.state.borrow().asm.instructions.len())
+            .field(
+                "profile_generation",
+                &self.state.borrow().profile_generation,
+            )
             .finish()
     }
 }
@@ -72,7 +85,11 @@ impl Vm {
     /// runtime-compilation path.
     pub fn compile_function(&mut self, src: &str) -> Result<FunctionHandle, TclError> {
         Ok(FunctionHandle {
-            asm: self.compile_source_cached(src)?,
+            source: src.to_owned(),
+            state: Rc::new(RefCell::new(FunctionHandleState {
+                asm: self.compile_source_cached(src)?,
+                profile_generation: self.profile_generation(),
+            })),
         })
     }
 
@@ -114,6 +131,7 @@ impl Vm {
             body_src: Value::string(body),
             usage_name: None,
             compiled_epoch: 0,
+            compiled_profile_generation: self.profile_generation(),
         });
         Ok(())
     }
@@ -142,7 +160,17 @@ impl Vm {
     /// call.
     #[must_use]
     pub fn invoke_function(&mut self, handle: &FunctionHandle) -> Completion<Value> {
-        self.run_function_rc(Rc::clone(&handle.asm))
+        if handle.state.borrow().profile_generation != self.profile_generation() {
+            let asm = match self.compile_source_cached(&handle.source) {
+                Ok(asm) => asm,
+                Err(error) => return crate::command::completion_from_tcl_error(error),
+            };
+            *handle.state.borrow_mut() = FunctionHandleState {
+                asm,
+                profile_generation: self.profile_generation(),
+            };
+        }
+        self.run_function_rc(Rc::clone(&handle.state.borrow().asm))
     }
 
     /// Register an embedder command carrying its own state.

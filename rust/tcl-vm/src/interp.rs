@@ -505,6 +505,11 @@ pub struct InterpState {
     /// this is consulted on every command resolution). `None` for the
     /// permissive fallback profile, which gates nothing.
     profile_registry: Option<&'static tcl_registry::CommandRegistry>,
+    /// Monotonic invalidation generation for bytecode that depends on the
+    /// selected profile's grammar or command surface. It is deliberately
+    /// independent of `cmd_epoch`: command resolution can be recomputed from
+    /// names, whereas specialised bytecode must be recompiled from source.
+    profile_generation: u64,
     /// Call-frame stack; `frames[0]` is the global scope.
     frames: Vec<CallFrame>,
     /// Command table (builtins + user procs), keyed by canonical name — a
@@ -664,7 +669,7 @@ pub struct InterpState {
     pending_exit: Option<i32>,
     /// Cache of compiled scripts for the runtime-`eval` / command-substitution
     /// path (`eval_source`), keyed by source text. Compilation is a pure
-    /// function of the source and the (fixed) command registry, so a script
+    /// function of the source and the currently selected profile, so a script
     /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
     /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
     /// time. This is the dominant cost in the tcltest workload.
@@ -679,7 +684,8 @@ pub struct InterpState {
     /// each call site — makes every one of them trace-visible with one change
     /// (issue #946 fault 3). Kept as a wholly separate map (not a mode-keyed
     /// entry in `eval_cache`) so the two compiled forms of the same source
-    /// never collide or get served to the wrong mode.
+    /// never collide or get served to the wrong mode. Both maps are cleared
+    /// when the profile changes.
     eval_cache_traced: HashMap<String, Rc<ModuleAsm>>,
     /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
     /// error message followed by `while executing` / `invoked from within`
@@ -1003,6 +1009,17 @@ impl Vm {
         // gate change resolution outcomes, so the command-resolution memo
         // (M16.4) must not survive a version flip.
         self.bump_cmd_epoch();
+        if !std::ptr::eq(self.dialect_profile, profile) {
+            self.profile_generation = self.profile_generation.wrapping_add(1);
+            // Dynamic modules and their precompiled-proc sidecars may contain
+            // profile-sensitive lowerings. ProcDef retains source and is
+            // rebuilt lazily; these cache-only forms do not, so discard them.
+            // Active frames carry this generation and fail closed at the
+            // trampoline seam if a native callback changes profile mid-run.
+            self.eval_cache.clear();
+            self.eval_cache_traced.clear();
+            self.module_procs.clear();
+        }
         self.dialect_profile = profile;
         self.profile_registry =
             (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
@@ -1030,6 +1047,12 @@ impl Vm {
     #[must_use]
     pub fn dialect_profile(&self) -> &'static tcl_dialect::DialectProfile {
         self.dialect_profile
+    }
+
+    /// Generation of the dialect profile used to compile dynamic bytecode.
+    #[must_use]
+    pub(crate) fn profile_generation(&self) -> u64 {
+        self.profile_generation
     }
 
     /// The backslash-escape grammar this VM decodes under — the pinned
@@ -1133,6 +1156,7 @@ impl InterpState {
             runtime_version: tcl_dialect::TclVersion::V9_0,
             dialect_profile: tcl_dialect::DialectProfile::plain_tcl(),
             profile_registry: None,
+            profile_generation: 0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
             fixed_math_builtins: HashMap::new(),
@@ -2294,6 +2318,23 @@ impl Vm {
     /// The [`InterpId`] of a direct child by name, or `None`.
     pub(crate) fn child_id(&self, name: &str) -> Option<InterpId> {
         self.children.get(name).copied()
+    }
+
+    /// Select the dialect profile of a direct child interpreter. This is the
+    /// host-side counterpart to configuring a standalone [`Vm`]: child state
+    /// is parked in the interpreter arena, so route through `in_interp` rather
+    /// than mutating a copied state and thereby skipping its bytecode-cache
+    /// invalidation owner.
+    pub fn set_child_dialect_profile(
+        &mut self,
+        name: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        let Some(id) = self.child_id(name) else {
+            return false;
+        };
+        self.in_interp(id, |child| child.set_dialect_profile(profile));
+        true
     }
 
     /// Whether a child interpreter `name` exists (and is not being torn down).
@@ -4496,7 +4537,11 @@ impl Vm {
     /// top-level compilation runs correctly as a proc body. Any procs the body
     /// itself defines are merged into the registry.
     pub(crate) fn compile_dynamic_body(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
-        let module = self.compiler.as_ref()?.compile(src).ok()?;
+        let module = self
+            .compiler
+            .as_ref()?
+            .compile_for_profile(src, self.dialect_profile)
+            .ok()?;
         self.merge_procs(&module.procedures);
         Some(Rc::new(module.top_level))
     }
@@ -4510,8 +4555,8 @@ impl Vm {
         }
     }
 
-    /// Ensure `proc`'s compiled body matches the interp's current
-    /// trace-deopt epoch, recompiling `body_src` — trace-visible
+    /// Ensure `proc`'s compiled body matches the interp's current trace-deopt
+    /// and dialect-profile generations, recompiling `body_src` — trace-visible
     /// ([`CompileService::compile_traced`]) or fast
     /// ([`CompileService::compile`]), per [`Self::step_trace_active`] —
     /// when it doesn't. This is the general recompile-on-demand mechanism
@@ -4524,7 +4569,8 @@ impl Vm {
     /// running rather than failing the call over a trace-visibility nicety).
     pub(crate) fn ensure_proc_traced(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
         let want_epoch = self.trace_deopt_epoch();
-        if proc.compiled_epoch == want_epoch {
+        let want_profile = self.profile_generation;
+        if proc.compiled_epoch == want_epoch && proc.compiled_profile_generation == want_profile {
             return proc;
         }
         let Some(svc) = self.compiler.clone() else {
@@ -4532,9 +4578,9 @@ impl Vm {
         };
         let src = proc.body_src.to_str();
         let recompiled = if self.step_trace_active() {
-            svc.compile_traced(&src)
+            svc.compile_traced_for_profile(&src, self.dialect_profile)
         } else {
-            svc.compile(&src)
+            svc.compile_for_profile(&src, self.dialect_profile)
         };
         let Ok(module) = recompiled else {
             return proc;
@@ -4543,6 +4589,7 @@ impl Vm {
         let mut fresh = (*proc).clone();
         fresh.body = Rc::new(module.top_level);
         fresh.compiled_epoch = want_epoch;
+        fresh.compiled_profile_generation = want_profile;
         Rc::new(fresh)
     }
 
@@ -4552,7 +4599,9 @@ impl Vm {
     /// under its own key, so later calls while the same trace-deopt epoch
     /// holds reuse the compiled body instead of recompiling on every call.
     pub(crate) fn ensure_proc_ready(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
-        if proc.compiled_epoch == self.trace_deopt_epoch() {
+        if proc.compiled_epoch == self.trace_deopt_epoch()
+            && proc.compiled_profile_generation == self.profile_generation
+        {
             return proc;
         }
         let key = proc.name.clone();
@@ -5858,9 +5907,9 @@ impl Vm {
             ));
         };
         let compiled = if traced {
-            c.compile_traced(src)
+            c.compile_traced_for_profile(src, self.dialect_profile)
         } else {
-            c.compile(src)
+            c.compile_for_profile(src, self.dialect_profile)
         };
         let m = Rc::new(compiled.map_err(|e| TclError::new(e.0))?);
         let cache = if traced {

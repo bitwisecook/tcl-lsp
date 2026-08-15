@@ -91,6 +91,10 @@ pub struct ProcDef {
     /// fast, matching whether a step trace is currently active — when they
     /// differ (issue #946 fault 3). See [`crate::interp::Vm::ensure_proc_traced`].
     pub compiled_epoch: u64,
+    /// The VM dialect-profile generation under which `body` was compiled.
+    /// Profile mutation recompiles stored bodies from [`Self::body_src`] before
+    /// specialised bytecode can run under the new command surface.
+    pub compiled_profile_generation: u64,
 }
 
 /// A registered command.
@@ -412,6 +416,7 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
         compiled_epoch: 0,
+        compiled_profile_generation: vm.profile_generation(),
     });
     Ok(name)
 }
@@ -1227,6 +1232,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body_src: body_text.clone(),
         usage_name: None,
         compiled_epoch: 0,
+        compiled_profile_generation: vm.profile_generation(),
     });
     ok(Value::empty())
 }

@@ -4258,6 +4258,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-dialect",
  "tcl-engine-api",
+ "tcl-lexer",
  "tcl-registry",
  "tcl-vm",
 ]
@@ -4486,6 +4487,7 @@ name = "tcl-runtime-api"
 version = "0.1.0"
 dependencies = [
  "tcl-core-types",
+ "tcl-dialect",
 ]
 
 [[package]]

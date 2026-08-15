@@ -42,7 +42,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_vm::{Code, CompileError, CompileService, Vm};
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -87,6 +87,14 @@ impl CompileService for CompilerSvc {
         let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        Self::for_profile(profile).compile(src)
     }
 }
 
@@ -397,6 +405,155 @@ fn version_mutation_rechecks_an_existing_imports_source_identity() {
         probe.result.to_str().as_ref(),
         "{invalid command name \"imported_lassign\"} {invalid command name \"escaped\"}"
     );
+}
+
+/// Changing a VM's profile is not merely a lookup-cache invalidation: bodies
+/// compiled while a newer surface was active can contain direct bytecode for a
+/// command that the older profile would reject.  Keep the compiler installed
+/// at its original 8.5 construction profile to prove the VM selects the new
+/// profile for every recompile itself.
+#[test]
+#[allow(clippy::too_many_lines)] // One stateful profile lifecycle must stay in one causal vector.
+fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
+    let v85 = DialectProfile::by_name("tcl8.5");
+    let v84 = DialectProfile::by_name("tcl8.4");
+    let v86 = DialectProfile::by_name("tcl8.6");
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(v85);
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(v85)));
+
+    // Prime every cache/body owner that retains executable bytecode: an
+    // ordinary proc, TclOO method, child proc reached through an alias,
+    // reusable host FunctionHandle, eval cache, lexer/parser cache, and a
+    // parked coroutine continuation.
+    let setup = vm
+        .eval_source(
+            "proc p {} {lassign {a b} x; return $x}\n\
+             oo::class create C {method m {} {lassign {a b} x; return $x}}\n\
+             C create o\n\
+             expr {0b10 + 1}",
+        )
+        .expect("8.5 setup compiles");
+    assert!(setup.code.is_ok(), "{}", setup.result.to_str());
+    let handle = vm
+        .compile_function("lassign {a b} handle_x; set handle_x")
+        .expect("8.5 handle compiles");
+
+    // The reported escape, exactly: a body compiled under 8.5 must not retain
+    // its inline lassign lowering after a direct 8.4 flip, and the reverse
+    // flip must compile it back onto the newer surface.
+    vm.set_dialect_profile(v84);
+    let exact_84 = vm
+        .eval_source("catch {p} message; set message")
+        .expect("8.4 exact repro compiles");
+    assert_eq!(
+        exact_84.result.to_str().as_ref(),
+        "invalid command name \"lassign\""
+    );
+    assert_eq!(
+        vm.eval_source("expr {0b10 + 1}")
+            .expect("8.4 expression repro compiles")
+            .code,
+        Code::Error
+    );
+    assert!(
+        vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")
+            .is_err()
+    );
+    vm.set_dialect_profile(v85);
+    assert_eq!(
+        vm.eval_source("list [p] [expr {0b10 + 1}]")
+            .expect("8.5 reverse repro compiles")
+            .result
+            .to_str()
+            .as_ref(),
+        "a 3"
+    );
+
+    // `coroutine` begins in 8.6. Retain the 8.5-built proc/handle above, then
+    // add a live continuation and child-owned profile while the newer surface
+    // is selected.
+    vm.set_dialect_profile(v86);
+    let newer_setup = vm
+        .eval_source(
+            "coroutine c apply {{} {yield ready; lassign {a b} x; return $x}}\n\
+             interp create child\n\
+             child eval {proc p {} {lassign {a b} x; return $x}}\n\
+             interp alias {} child_p child p",
+        )
+        .expect("8.6 coroutine setup compiles");
+    assert!(newer_setup.code.is_ok(), "{}", newer_setup.result.to_str());
+    // This source is lexically accepted on 8.5+ (its eventual runtime
+    // command error is immaterial); retaining its compiled module exercises
+    // the lexer-sensitive eval cache that 8.4 must discard and re-lex.
+    let lexer_86 = vm
+        .eval_source("{*}[list set ::profile_mutation_lexer 1]")
+        .expect("8.5 lexer source compiles");
+    assert_eq!(lexer_86.code, Code::Error);
+
+    assert!(vm.set_child_dialect_profile("child", v84));
+    vm.set_dialect_profile(v84);
+
+    let stale = vm
+        .eval_source(
+            "catch {p} proc_msg; catch {o m} method_msg; catch {child_p} alias_msg; \\
+             list $proc_msg $method_msg $alias_msg",
+        )
+        .expect("8.4 probes compile");
+    assert_eq!(
+        stale.result.to_str().as_ref(),
+        "{invalid command name \"lassign\"} {invalid command name \"lassign\"} {invalid command name \"lassign\"}"
+    );
+    let handle_result = vm.invoke_function(&handle);
+    assert_eq!(handle_result.code, Code::Error);
+    assert_eq!(
+        handle_result.result.to_str().as_ref(),
+        "invalid command name \"lassign\""
+    );
+
+    // The exact same source must not be served from its newer-profile eval cache:
+    // expression grammar and lexer grammar changed with the profile too.
+    assert_eq!(
+        vm.eval_source("expr {0b10 + 1}")
+            .expect("8.4 expr compile")
+            .code,
+        Code::Error
+    );
+    assert!(
+        vm.eval_source("{*}[list set ::profile_mutation_lexer 2]")
+            .is_err()
+    );
+
+    // A coroutine cannot be recompiled in place after it yielded: it owns a
+    // live PC/operand stack. The frame generation guard therefore rejects the
+    // stale continuation before it reaches its old inline lassign opcode.
+    let continuation = vm
+        .eval_source("catch {c} continuation_msg; set continuation_msg")
+        .expect("8.4 continuation probe compiles");
+    assert_eq!(
+        continuation.result.to_str().as_ref(),
+        "cannot continue bytecode after dialect profile changed"
+    );
+
+    // The reverse mutation gets fresh 8.5 bodies (including the child and
+    // alias) rather than retaining the failed 8.4 recompilation.
+    assert!(vm.set_child_dialect_profile("child", v85));
+    vm.set_dialect_profile(v85);
+    let restored = vm
+        .eval_source(
+            "proc q {} {lassign {a b} x; return $x}; \\
+             list [p] [o m] [child_p] [q] [expr {0b10 + 1}]",
+        )
+        .expect("8.5 restoration compiles");
+    assert_eq!(restored.result.to_str().as_ref(), "a a a a 3");
+
+    // And the live-coroutine surface returns normally once a newly-created
+    // continuation is compiled under a release that supports it.
+    vm.set_dialect_profile(v86);
+    let resumed = vm
+        .eval_source("coroutine c2 apply {{} {yield ready; lassign {a b} x; return $x}}; c2")
+        .expect("8.6 coroutine restoration compiles");
+    assert_eq!(resumed.result.to_str().as_ref(), "a");
 }
 
 /// Renaming an import moves its local key, not its source provenance.  A

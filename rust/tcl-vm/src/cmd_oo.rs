@@ -62,6 +62,10 @@ struct Method {
     has_args: bool,
     body: Rc<FunctionAsm>,
     body_src: Value,
+    /// Dialect-profile generation under which `body` was compiled. The
+    /// transient `ProcDef` built for an invocation carries this through the
+    /// shared profile/trace freshness owner.
+    compiled_profile_generation: u64,
     /// `None` for an ordinary method; `Some(prefix)` for a `forward` (invoking
     /// the method evaluates `prefix args…`).
     forward: Option<Vec<Value>>,
@@ -1444,12 +1448,11 @@ fn run_step_inner(
         body_src: m.body_src.clone(),
         usage_name: Some(usage_prefix.clone()),
         compiled_epoch: 0,
+        compiled_profile_generation: m.compiled_profile_generation,
     };
     // A method body is rebuilt fresh from `m.body_src` every call (never
-    // cached back onto the class), so it always picks up the interp's
-    // current trace-deopt mode — no separate epoch bookkeeping needed for
-    // methods; `ensure_proc_traced` only recompiles when it's actually
-    // needed (step_trace_active).
+    // cached back onto the class), so the shared owner can refresh either a
+    // trace-deopt or dialect-profile mismatch without mutating the class.
     let proc = vm.ensure_proc_traced(Rc::new(proc));
     let frame = OoFrame {
         object: obj_key.to_string(),
@@ -1896,6 +1899,7 @@ fn build_method(
         has_args,
         body: compiled,
         body_src: body.clone(),
+        compiled_profile_generation: vm.profile_generation(),
         forward: None,
         exported,
     })
@@ -2065,6 +2069,7 @@ fn def_forward(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Com
         has_args: true,
         body: empty_body(vm),
         body_src: Value::empty(),
+        compiled_profile_generation: vm.profile_generation(),
         forward: Some(prefix.to_vec()),
         exported,
     };

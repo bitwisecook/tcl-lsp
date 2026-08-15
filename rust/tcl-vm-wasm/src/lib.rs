@@ -43,8 +43,10 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::{
-    first_fatal_parse_error, lower_to_ir_for_bytecode, lower_to_ir_traced,
+    first_fatal_parse_error, first_fatal_parse_error_with_config, lower_to_ir_for_bytecode,
+    lower_to_ir_for_bytecode_with_dialect, lower_to_ir_traced, lower_to_ir_traced_with_config,
 };
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -74,6 +76,36 @@ impl CompileService for Svc {
         let ir = lower_to_ir_traced(src, &self.0);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.0))
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = first_fatal_parse_error_with_config(src, config) {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir_for_bytecode_with_dialect(src, registry, config, profile.name);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
+
+    fn compile_traced_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = first_fatal_parse_error_with_config(src, config) {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir_traced_with_config(src, registry, config);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
     }
 }
 

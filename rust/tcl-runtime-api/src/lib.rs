@@ -73,6 +73,23 @@ pub trait CompileService {
     /// Compile `src` to a [`Module`](Self::Module), or report why it could not.
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError>;
 
+    /// Compile `src` for the dialect profile currently selected by the
+    /// interpreter. A VM may change profile after it has cached dynamic
+    /// bodies, so reusing a compiler constructed for an older registry/grammar
+    /// is not sound: an unavailable command could already have been lowered to
+    /// bytecode and bypass normal command dispatch.
+    ///
+    /// Profile-aware services should override this and select the profile's
+    /// registry, lexer grammar, and expression dialect for this invocation.
+    /// The default preserves compatibility for profile-invariant embedders.
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        _profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compile(src)
+    }
+
     /// Compile `src` with every registry-driven inline/structured lowering
     /// hook suppressed: every command compiles to a plain dispatch, so
     /// execution traces — including `enterstep`/`leavestep` step traces —
@@ -88,6 +105,18 @@ pub trait CompileService {
     /// existing behaviour; the divergence stays but nothing breaks).
     fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.compile(src)
+    }
+
+    /// Profile-aware counterpart of [`Self::compile_traced`]. See
+    /// [`Self::compile_for_profile`] for why dynamic recompilation must select
+    /// the VM's current profile rather than a compiler's construction-time
+    /// profile.
+    fn compile_traced_for_profile(
+        &self,
+        src: &str,
+        _profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.compile_traced(src)
     }
 }
 

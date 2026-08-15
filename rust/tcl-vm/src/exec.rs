@@ -120,6 +120,13 @@ struct CaughtState {
 /// pushes its resume value via [`Frame::push_operand`]).
 pub(crate) struct Frame {
     asm: Rc<FunctionAsm>,
+    /// Dialect-profile generation under which this activation's bytecode was
+    /// compiled.
+    /// Stored frames cannot be rewound/recompiled after a profile switch (in
+    /// particular a suspended coroutine has a live PC and operand stack), so
+    /// the trampoline rejects stale execution before another specialised
+    /// opcode can run.
+    profile_generation: u64,
     off2idx: Rc<HashMap<i32, usize>>,
     /// `FOREACH_START` index → paired `FOREACH_STEP` index (the implicit jump).
     foreach_pairs: Rc<HashMap<usize, usize>>,
@@ -306,11 +313,12 @@ enum SubstFold {
 }
 
 impl Frame {
-    pub(crate) fn new(asm: Rc<FunctionAsm>, is_proc: bool) -> Self {
+    pub(crate) fn new(asm: Rc<FunctionAsm>, is_proc: bool, profile_generation: u64) -> Self {
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
         Self {
             asm,
+            profile_generation,
             off2idx,
             foreach_pairs,
             pc: 0,
@@ -336,8 +344,12 @@ impl Frame {
     /// yieldably on the explicit stack (`EVAL_STK`, and the `eval`/`uplevel`
     /// builtins routed through it). `label` is the `errorInfo` body-frame label
     /// (`Some("eval")`/`Some("uplevel")`), or `None` for a command substitution.
-    pub(crate) fn new_script(asm: Rc<FunctionAsm>, label: Option<&'static str>) -> Self {
-        let mut f = Self::new(asm, false);
+    pub(crate) fn new_script(
+        asm: Rc<FunctionAsm>,
+        label: Option<&'static str>,
+        profile_generation: u64,
+    ) -> Self {
+        let mut f = Self::new(asm, false, profile_generation);
         f.is_script = true;
         f.body_label = label;
         f
@@ -346,8 +358,8 @@ impl Frame {
     /// A **catch** activation: the body runs on the explicit stack (yieldable),
     /// but its completion is absorbed by the catch epilogue rather than delivered
     /// to the parent (see [`Frame::catch`]).
-    pub(crate) fn new_catch(req: CatchReq) -> Self {
-        let mut f = Self::new(req.asm, false);
+    pub(crate) fn new_catch(req: CatchReq, profile_generation: u64) -> Self {
+        let mut f = Self::new(req.asm, false, profile_generation);
         f.catch = Some(Box::new(CatchCtx {
             resvar: req.resvar,
             optvar: req.optvar,
@@ -358,8 +370,8 @@ impl Frame {
     /// A **subst** activation: a scanner-driven frame (empty placeholder asm — it
     /// never executes bytecode) carrying the resumable scan state. `tick` runs the
     /// scanner instead of the bytecode dispatch when `subst` is set.
-    pub(crate) fn new_subst(req: SubstReq) -> Self {
-        let mut f = Self::new(Rc::new(FunctionAsm::default()), false);
+    pub(crate) fn new_subst(req: SubstReq, profile_generation: u64) -> Self {
+        let mut f = Self::new(Rc::new(FunctionAsm::default()), false, profile_generation);
         f.subst = Some(Box::new(crate::subst::SubstState::new(
             req.template,
             req.backslashes,
@@ -373,8 +385,8 @@ impl Frame {
     /// asm, like `subst`) carrying the resumable `foreach`/`lmap` iteration
     /// state. `tick` runs the loop driver instead of the bytecode dispatch when
     /// `each_loop` is set.
-    pub(crate) fn new_each_loop(req: EachLoopReq) -> Self {
-        let mut f = Self::new(Rc::new(FunctionAsm::default()), false);
+    pub(crate) fn new_each_loop(req: EachLoopReq, profile_generation: u64) -> Self {
+        let mut f = Self::new(Rc::new(FunctionAsm::default()), false, profile_generation);
         f.each_loop = Some(Box::new(EachLoopState {
             name: req.name,
             collect: req.collect,
@@ -390,8 +402,8 @@ impl Frame {
     /// A **try-phase** activation ([`Frame::try_ctx`]): runs `req.asm` (the
     /// current phase's compiled script) as ordinary bytecode, tagged with the
     /// state `Vm::unwind` hands to `cmd_try::advance_try` on completion.
-    pub(crate) fn new_try(req: crate::cmd_try::TryReq) -> Self {
-        let mut f = Self::new(req.asm, false);
+    pub(crate) fn new_try(req: crate::cmd_try::TryReq, profile_generation: u64) -> Self {
+        let mut f = Self::new(req.asm, false, profile_generation);
         f.try_ctx = Some(Box::new(req.state));
         f
     }
@@ -990,7 +1002,7 @@ impl Vm {
     /// Run an already-`Rc`-wrapped function to completion — the clone-free
     /// path behind [`Vm::invoke_function`].
     pub(crate) fn run_function_rc(&mut self, asm: Rc<FunctionAsm>) -> Completion<Value> {
-        self.run_activation(Frame::new(asm, false))
+        self.run_activation(Frame::new(asm, false, self.profile_generation()))
     }
 
     /// Run one activation stack to completion (the ordinary, non-coroutine path).
@@ -1033,6 +1045,23 @@ impl Vm {
         self.drive(acts, DriveMode::CoroDriver)
     }
 
+    /// Enter an already-validated procedure body.  The frame deliberately
+    /// carries the generation at which the body was compiled, rather than the
+    /// VM's current generation: if a source-less stored body could not be
+    /// refreshed after a profile change, `drive_loop` must reject it before an
+    /// inline opcode can run.
+    fn push_proc_frame(&mut self, acts: &mut Vec<Frame>, proc: &Rc<ProcDef>) {
+        let mut frame = Frame::new(
+            Rc::clone(&proc.body),
+            true,
+            proc.compiled_profile_generation,
+        );
+        if let Some(ctx) = self.pending_exec_leave.take() {
+            frame.exec_leave.push(ctx);
+        }
+        acts.push(frame);
+    }
+
     fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         loop {
             // Enforce `interp limit $i time` for unbounded bytecode loops: the
@@ -1044,6 +1073,11 @@ impl Vm {
                 }
                 continue;
             }
+            match self.unwind_stale_profile_frame(acts) {
+                Ok(false) => {}
+                Ok(true) => continue,
+                Err(exit) => return exit,
+            }
             let tick = {
                 let top = acts.last_mut().expect("activation stack is non-empty");
                 self.tick(top)
@@ -1051,13 +1085,7 @@ impl Vm {
             match tick {
                 Tick::Continue => {}
                 Tick::Call { proc, argv } => match self.enter_proc(&proc, &argv) {
-                    Ok(()) => {
-                        let mut fr = Frame::new(Rc::clone(&proc.body), true);
-                        if let Some(ctx) = self.pending_exec_leave.take() {
-                            fr.exec_leave.push(ctx);
-                        }
-                        acts.push(fr);
-                    }
+                    Ok(()) => self.push_proc_frame(acts, &proc),
                     Err(c) => {
                         // A traced dispatch that failed at proc entry (arity)
                         // still settles its leave with the error.
@@ -1075,7 +1103,7 @@ impl Vm {
                     label,
                     cleanup_proc,
                 } => {
-                    let mut fr = Frame::new_script(asm, label);
+                    let mut fr = Frame::new_script(asm, label, self.profile_generation());
                     fr.cleanup_proc = cleanup_proc;
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
@@ -1083,28 +1111,28 @@ impl Vm {
                     acts.push(fr);
                 }
                 Tick::PushCatch(req) => {
-                    let mut fr = Frame::new_catch(req);
+                    let mut fr = Frame::new_catch(req, self.profile_generation());
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
                     acts.push(fr);
                 }
                 Tick::PushSubst(req) => {
-                    let mut fr = Frame::new_subst(req);
+                    let mut fr = Frame::new_subst(req, self.profile_generation());
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
                     acts.push(fr);
                 }
                 Tick::PushEachLoop(req) => {
-                    let mut fr = Frame::new_each_loop(req);
+                    let mut fr = Frame::new_each_loop(req, self.profile_generation());
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
                     acts.push(fr);
                 }
                 Tick::PushTry(req) => {
-                    let mut fr = Frame::new_try(req);
+                    let mut fr = Frame::new_try(req, self.profile_generation());
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
@@ -1139,6 +1167,27 @@ impl Vm {
                 },
             }
         }
+    }
+
+    /// Reject a frame whose profile changed while it was live. Stored
+    /// activations can have a PC and operand stack in the middle of a lowered
+    /// command, so they cannot be safely recompiled like an unentered proc.
+    /// `Ok(true)` means unwinding consumed the stale frame and the caller must
+    /// continue its drive loop; an empty stack is returned as a completed run.
+    fn unwind_stale_profile_frame(&mut self, acts: &mut Vec<Frame>) -> Result<bool, RunExit> {
+        if acts
+            .last()
+            .is_some_and(|frame| frame.profile_generation != self.profile_generation())
+        {
+            return match self.unwind(
+                acts,
+                err("cannot continue bytecode after dialect profile changed"),
+            ) {
+                Some(done) => Err(RunExit::Done(done)),
+                None => Ok(true),
+            };
+        }
+        Ok(false)
     }
 
     /// Settle a frame's exceptional completion (`Tick::Return`): a live catch
@@ -1389,7 +1438,7 @@ impl Vm {
             if let Some(ctx) = act.try_ctx.take() {
                 match crate::cmd_try::advance_try(self, *ctx, c) {
                     crate::cmd_try::TryOutcome::Push(req) => {
-                        acts.push(Frame::new_try(req));
+                        acts.push(Frame::new_try(req, self.profile_generation()));
                         return None;
                     }
                     crate::cmd_try::TryOutcome::Deliver(fc) => c = fc,
@@ -4559,7 +4608,8 @@ impl Vm {
         // a `yield` inside cannot cross it, exactly like every other
         // `invoke_command` re-entry.
         if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
-            let comp = self.run_activation(Frame::new_script(asm, label));
+            let comp =
+                self.run_activation(Frame::new_script(asm, label, self.profile_generation()));
             if let Some(name) = cleanup_proc {
                 self.take_command_unchecked(&name);
             }
@@ -4569,20 +4619,21 @@ impl Vm {
         // inside cannot cross this native re-entry), then absorb its
         // completion with the catch epilogue.
         if let Some(req) = self.pending_catch.take() {
-            let comp = self.run_activation(Frame::new_script(req.asm, None));
+            let comp =
+                self.run_activation(Frame::new_script(req.asm, None, self.profile_generation()));
             return self.finish_catch(comp, req.resvar.as_ref(), req.optvar.as_ref());
         }
         // A `subst` deferred: run the scanner-driven subst frame via a
         // nested drive (its `[…]` bodies can't yield across this native
         // re-entry), returning its accumulated result.
         if let Some(req) = self.pending_subst.take() {
-            return self.run_activation(Frame::new_subst(req));
+            return self.run_activation(Frame::new_subst(req, self.profile_generation()));
         }
         // A `foreach`/`lmap` runtime-fallback loop deferred: run the
         // scanner-driven each-loop frame via a nested drive (a `yield` in
         // its body can't cross this native re-entry either).
         if let Some(req) = self.pending_each_loop.take() {
-            return self.run_activation(Frame::new_each_loop(req));
+            return self.run_activation(Frame::new_each_loop(req, self.profile_generation()));
         }
         // A `try` deferred its body: run it (and, via `Vm::unwind`'s own
         // `try_ctx` handling, every subsequent phase `advance_try`
@@ -4592,7 +4643,7 @@ impl Vm {
         // `run_activation` call carries the whole construct through to
         // its final completion.
         if let Some(req) = self.pending_try.take() {
-            return self.run_activation(Frame::new_try(req));
+            return self.run_activation(Frame::new_try(req, self.profile_generation()));
         }
         res
     }
@@ -4644,7 +4695,11 @@ impl Vm {
             Command::Proc(p) => {
                 let p = self.ensure_proc_ready(p);
                 match self.enter_proc(&p, argv) {
-                    Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
+                    Ok(()) => self.run_activation(Frame::new(
+                        Rc::clone(&p.body),
+                        true,
+                        p.compiled_profile_generation,
+                    )),
                     Err(c) => c,
                 }
             }
@@ -4703,7 +4758,11 @@ impl Vm {
             self.add_link(local, 0, storage);
         }
         self.oo.call_stack.push(frame);
-        let result = self.run_activation(Frame::new(Rc::clone(&proc.body), true));
+        let result = self.run_activation(Frame::new(
+            Rc::clone(&proc.body),
+            true,
+            proc.compiled_profile_generation,
+        ));
         self.oo.call_stack.pop();
         result
     }
@@ -4772,7 +4831,11 @@ impl Vm {
             Some(parent) => match self.dispatch_words(parent, words) {
                 Ok(Some(Tick::Call { proc, argv })) => match self.enter_proc(&proc, &argv) {
                     Ok(()) => {
-                        let mut fr = Frame::new(Rc::clone(&proc.body), true);
+                        let mut fr = Frame::new(
+                            Rc::clone(&proc.body),
+                            true,
+                            proc.compiled_profile_generation,
+                        );
                         if let Some(ctx) = self.pending_exec_leave.take() {
                             fr.exec_leave.push(ctx);
                         }

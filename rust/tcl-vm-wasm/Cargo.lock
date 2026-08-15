@@ -302,6 +302,7 @@ name = "tcl-runtime-api"
 version = "0.1.0"
 dependencies = [
  "tcl-core-types",
+ "tcl-dialect",
 ]
 
 [[package]]
@@ -342,6 +343,8 @@ version = "0.1.0"
 dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
+ "tcl-dialect",
+ "tcl-lexer",
  "tcl-registry",
  "tcl-vm",
 ]

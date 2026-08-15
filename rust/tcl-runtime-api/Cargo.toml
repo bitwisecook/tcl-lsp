@@ -36,6 +36,7 @@ description = "Family-B runtime-state contract (Code/Completion, handles, role t
 
 [dependencies]
 tcl-core-types = { path = "../tcl-core-types" }
+tcl-dialect = { path = "../tcl-dialect" }
 
 [lints]
 workspace = true

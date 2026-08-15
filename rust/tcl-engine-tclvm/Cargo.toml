@@ -42,6 +42,7 @@ tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-dialect = { path = "../tcl-dialect" }
+tcl-lexer = { path = "../tcl-lexer" }
 
 [lints]
 workspace = true

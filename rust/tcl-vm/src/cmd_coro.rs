@@ -248,10 +248,11 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         return err(format!("coroutine \"{name}\": could not compile body"));
     };
+    let profile_generation = vm.profile_generation();
     vm.coro.live.insert(
         CommandSidecarKey::visible(&fqn),
         CoroState {
-            acts: vec![Frame::new(body, false)],
+            acts: vec![Frame::new(body, false, profile_generation)],
             parked: ParkedFlow::default(),
             status: CoroStatus::Fresh,
             last_suspend: SuspendKind::Yield,
