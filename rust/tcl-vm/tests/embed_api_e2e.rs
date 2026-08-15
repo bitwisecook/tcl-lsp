@@ -121,6 +121,44 @@ fn a_compiled_handle_runs_repeatedly_without_recompiling() {
 }
 
 #[test]
+fn raw_function_execution_is_fallback_only_and_cannot_bypass_module_profile() {
+    let service = CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    };
+    let v85 = DialectProfile::by_name("tcl8.5");
+    let named = service
+        .compile_for_profile("lassign {a b} x; set x", v85)
+        .expect("named-profile module compiles");
+
+    let mut v84_vm = vm();
+    v84_vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    let rejected = v84_vm.run_function(&named.top_level);
+    assert_eq!(rejected.code, Code::Error);
+    assert_eq!(
+        rejected.result.to_str().as_ref(),
+        "profile-less bytecode cannot run under dialect profile tcl8.4"
+    );
+
+    // The low-level opcode/embedder contract remains available deliberately
+    // on the permissive fallback VM, where no named-profile claim is made.
+    let fallback = service
+        .compile("set fallback_ok yes; set fallback_ok")
+        .expect("fallback module compiles");
+    let mut fallback_vm = vm();
+    let completion = fallback_vm.run_function(&fallback.top_level);
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(completion.result.to_str().as_ref(), "yes");
+
+    // The supported named-profile AOT entry remains the profile-bearing
+    // module API, including same-profile execution.
+    let mut v85_vm = vm();
+    v85_vm.set_dialect_profile(v85);
+    let completion = v85_vm.run_module(&named);
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(completion.result.to_str().as_ref(), "a");
+}
+
+#[test]
 fn an_embedder_command_carries_its_own_state() {
     let mut vm = vm();
     let recorder = Rc::new(Recorder {

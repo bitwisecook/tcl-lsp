@@ -988,17 +988,36 @@ impl Vm {
         }
         self.claim_number_grammar();
         self.merge_procs(&module.procedures);
-        self.run_function(&module.top_level)
+        self.run_function_unchecked(&module.top_level)
     }
 
-    /// Run one bytecode function to completion via the NRE trampoline.
+    /// Run one profile-less bytecode function to completion via the NRE
+    /// trampoline.
     ///
-    /// Deep-copies `asm` into the `Rc` the activation needs. An embedder
+    /// A bare [`FunctionAsm`] carries no dialect-profile identity, so this
+    /// low-level assembler API is deliberately available only while the VM is
+    /// using the permissive fallback profile. Named profiles must enter via
+    /// [`run_module`](Self::run_module), whose [`ModuleAsm`] is validated, or
+    /// via a VM-owned [`FunctionHandle`](crate::embed::FunctionHandle).
+    ///
+    /// Deep-copies `asm` into the `Rc` the activation needs. A fallback embedder
     /// invoking the same body repeatedly should hold a
     /// [`FunctionHandle`](crate::embed::FunctionHandle) and call
     /// [`Vm::invoke_function`] instead, which pays that copy once (issue
     /// #1373 finding 3).
     pub fn run_function(&mut self, asm: &FunctionAsm) -> Completion<Value> {
+        if !self.dialect_profile().is_fallback() {
+            return err(format!(
+                "profile-less bytecode cannot run under dialect profile {}",
+                self.dialect_profile().name
+            ));
+        }
+        self.run_function_unchecked(asm)
+    }
+
+    /// Execute a function whose containing module has already passed the
+    /// exact-profile check, or whose ownership is otherwise VM-internal.
+    fn run_function_unchecked(&mut self, asm: &FunctionAsm) -> Completion<Value> {
         self.run_function_rc(Rc::new(asm.clone()))
     }
 
@@ -1011,7 +1030,7 @@ impl Vm {
     /// Run one activation stack to completion (the ordinary, non-coroutine path).
     /// The initial frame's `is_proc` decides whether the outermost body is a proc
     /// call (so `unwind` pops a call-frame + namespace and absorbs `return`):
-    /// `false` for a module top-level ([`run_function`](Self::run_function)),
+    /// `false` for a module top-level,
     /// `true` for [`invoke_command`](Self::invoke_command) running a proc body.
     fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
         let mut acts: Vec<Frame> = vec![initial];
