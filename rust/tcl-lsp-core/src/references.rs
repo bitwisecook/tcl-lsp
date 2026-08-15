@@ -5203,6 +5203,19 @@ mod tests {
     }
 
     #[test]
+    fn malformed_case_lists_do_not_expose_nested_dispatch_regions() {
+        let source = "switch subject {a {puts hidden} orphan}";
+        let command = tcl_compiler::segmenter::segment_commands(source)
+            .into_iter()
+            .next()
+            .expect("case-list command");
+        assert!(
+            nested_dispatch_regions(source, "tcl8.6", &command).is_empty(),
+            "semantic references must abstain for an odd case list"
+        );
+    }
+
+    #[test]
     fn switch_braced_body_references_reach_nested_command() {
         let source = "proc ready {} {}\nswitch $state { ready {ready} default {set x 1}}\n";
         let analysis = analyse(source);

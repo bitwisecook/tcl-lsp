@@ -6611,6 +6611,19 @@ mod tests {
     }
 
     #[test]
+    fn malformed_case_lists_do_not_tokenise_action_words_as_commands() {
+        let source = "switch subject {a {puts hidden} orphan}\n";
+        let tokens = decode_full(source, "tcl8.6", &reg());
+        let puts_col = u32::try_from(source.find("puts hidden").unwrap()).unwrap();
+        assert!(
+            !tokens.iter().any(|&(line, col, len, kind, _)| {
+                line == 0 && col == puts_col && len == 4 && kind == TokenKind::Function as u32
+            }),
+            "semantic tokens must abstain for an odd case list: {tokens:?}"
+        );
+    }
+
+    #[test]
     fn renamed_away_expect_spelling_gets_no_case_list_overrides() {
         let source = "rename expect other\nexpect -re {a+} { puts matched }\n";
         let kinds = kinds(source, "expect", &expect_reg());

@@ -4293,9 +4293,10 @@ mod tests {
         // An odd-length list is a runtime error ("extra switch pattern
         // with no body") whose message quotes the original text — the
         // minifier must not restructure it.
-        let out = min("switch $x {\n    a {puts 1}\n    b\n}\n");
-        assert!(out.contains("a {puts 1}"), "{out}");
-        assert!(out.contains('b'), "{out}");
+        check(
+            "switch $x {\n    a {puts 1}\n    b\n}\n",
+            "switch $x {\n    a {puts 1}\n    b\n}",
+        );
     }
 
     #[test]

@@ -2247,9 +2247,10 @@ impl CommandRegistry {
         };
         let n = args.len();
         let mut out: Vec<usize> = Vec::new();
-        let case_body_roles_allowed = spec
-            .case_list
-            .is_none_or(|case| case.two_arg_body_roles_allowed(args, self.own_availability_mask()));
+        let case_body_roles_allowed = spec.case_list.is_none()
+            || self
+                .case_invocation(name, args, self.own_availability_mask())
+                .is_some();
 
         // Check subcommand (exact or unique-prefix abbreviation).
         if !spec.subcommands.is_empty()

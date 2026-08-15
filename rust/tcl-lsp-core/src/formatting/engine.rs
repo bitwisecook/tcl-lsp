@@ -1277,17 +1277,14 @@ fn keyword_rewrites_for(
 }
 
 /// Reconstruct a single command as formatted text.
-fn has_case_list_body(
+fn case_list_body_index(
     cmd: &ParsedCommand,
     config: &FormatterConfig,
     registry: &CommandRegistry,
-) -> bool {
-    let Some(_case_list) = registry
+) -> Option<usize> {
+    let _case_list = registry
         .get(&cmd.resolved_name)
-        .and_then(|spec| spec.case_list)
-    else {
-        return false;
-    };
+        .and_then(|spec| spec.case_list)?;
     let args: Vec<&str> = cmd
         .args
         .iter()
@@ -1302,11 +1299,11 @@ fn has_case_list_body(
         },
         |profile| profile.availability_mask,
     );
-    if registry
+    if let Some(index) = registry
         .case_invocation(&cmd.resolved_name, &args, dialect)
-        .is_some_and(|(_, invocation)| invocation.clause_list_index.is_some())
+        .and_then(|(_, invocation)| invocation.clause_list_index)
     {
-        return true;
+        return Some(index + 1);
     }
 
     // Formatting must recover inside an incomplete case list even when the
@@ -1315,14 +1312,14 @@ fn has_case_list_body(
     // that the word occupies the clause-list slot without blessing the
     // malformed original as executable. Inline pattern/body forms remain
     // inline because replacing their final body does not change their arity.
-    let Some(last) = args.len().checked_sub(1) else {
-        return false;
-    };
+    let last = args.len().checked_sub(1)?;
     let mut recovery_args = args;
     recovery_args[last] = "default {}";
     registry
         .case_invocation(&cmd.resolved_name, &recovery_args, dialect)
-        .is_some_and(|(_, invocation)| invocation.clause_list_index == Some(last))
+        .and_then(|(_, invocation)| {
+            (invocation.clause_list_index == Some(last)).then_some(last + 1)
+        })
 }
 
 fn reconstruct_command(
@@ -1333,7 +1330,7 @@ fn reconstruct_command(
     indent: &str,
     indent_level: usize,
 ) -> String {
-    if has_case_list_body(cmd, config, registry) {
+    if case_list_body_index(cmd, config, registry).is_some() {
         return reconstruct_case_list(sm, cmd, config, indent);
     }
 
@@ -1574,12 +1571,17 @@ pub(crate) fn format_body(
 
         // A registry-declared case-list body is formatted from arg.text via
         // the pattern/body splitter; other bodies recurse normally.
-        let is_case_list = has_case_list_body(&commands[i], config, registry);
+        let case_list_index = case_list_body_index(&commands[i], config, registry);
+        if let Some(index) = case_list_index {
+            // This is formatter-local presentation recovery. Semantic
+            // consumers continue to require a valid `case_invocation`.
+            commands[i].args[index].kind = ArgKind::Body;
+        }
         let arg_count = commands[i].args.len();
         for a in 0..arg_count {
             if commands[i].args[a].kind == ArgKind::Body && commands[i].args[a].is_braced {
                 let body_text = commands[i].args[a].text.clone();
-                let formatted = if is_case_list {
+                let formatted = if case_list_index == Some(a) {
                     format_case_list_body(&body_text, config, registry, identities, inner_level)
                 } else {
                     format_body(&body_text, config, registry, identities, inner_level)
@@ -2151,6 +2153,46 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn incomplete_case_list_recovery_is_presentation_only_and_idempotent() {
+        fn assert_fixed_point(source: &str, dialect: &str, nested: &str) -> String {
+            let once = fmt_dialect(source, dialect);
+            assert!(
+                once.contains(nested),
+                "{dialect} did not present the incomplete case list:\n{once}"
+            );
+            assert_eq!(
+                fmt_dialect(&once, dialect),
+                once,
+                "{dialect} formatter recovery is not idempotent"
+            );
+            once
+        }
+
+        let ordinary = "switch subject {\na {\nputs hit\n}\norphan\n}\n";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert_fixed_point(ordinary, dialect, "a {\n        puts hit\n    }");
+        }
+
+        let option_like = "switch -regexp {\na {\nputs hit\n}\norphan\n}\n";
+        let old = fmt_dialect(option_like, "tcl8.4");
+        assert!(
+            !old.contains("        puts hit"),
+            "Tcl 8.4 must not recover the invalid two-word option form:\n{old}"
+        );
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert_fixed_point(option_like, dialect, "a {\n        puts hit\n    }");
+        }
+
+        let aliased =
+            fmt("interp alias {} pick {} switch\npick subject {\na {\nputs hit\n}\norphan\n}\n");
+        assert!(
+            aliased.contains("a {\n        puts hit\n    }"),
+            "resolved alias did not inherit formatter recovery:\n{aliased}"
+        );
+        assert_eq!(fmt(&aliased), aliased);
     }
 
     #[test]
