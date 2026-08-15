@@ -145,10 +145,6 @@ fn exact_return_completion(
     let mut level = 1_i64;
     while let Some(word) = args.get(i).copied() {
         match word {
-            "--" => {
-                i += 1;
-                break;
-            }
             "-code" => {
                 let value = *args.get(i + 1)?;
                 code = match value {
@@ -6632,6 +6628,14 @@ mod tests {
                 DialectSet::empty(),
             ),
             None
+        );
+        assert_eq!(
+            reg.exact_invocation_completion(
+                "return",
+                &["--", "-code", "error"],
+                DialectSet::empty(),
+            ),
+            Some(ExactInvocationCompletion::Tcl(CompletionCode::Return))
         );
     }
 

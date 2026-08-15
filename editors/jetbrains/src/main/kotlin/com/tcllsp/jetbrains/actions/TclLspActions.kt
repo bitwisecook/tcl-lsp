@@ -150,6 +150,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         "return" -> DiagramCompletion.RETURN
         "break" -> DiagramCompletion.BREAK
         "continue" -> DiagramCompletion.CONTINUE
+        "dynamic" -> DiagramCompletion.DYNAMIC
         "process_exit" -> DiagramCompletion.PROCESS_EXIT
         "terminal" -> DiagramCompletion.TERMINAL
         else -> DiagramCompletion.NORMAL
@@ -284,6 +285,8 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             DiagramCompletion.RETURN -> handler.data.string("match") == "return" || handler.data.string("match") == "2"
                             DiagramCompletion.BREAK -> handler.data.string("match") == "break" || handler.data.string("match") == "3"
                             DiagramCompletion.CONTINUE -> handler.data.string("match") == "continue" || handler.data.string("match") == "4"
+                            DiagramCompletion.DYNAMIC -> handler.data.string("kind_handler") == "on" &&
+                                (handler.data.string("match") == "error" || handler.data.string("match") == "return" || handler.data.string("match") == "1" || handler.data.string("match") == "2")
                             DiagramCompletion.PROCESS_EXIT -> false
                             DiagramCompletion.TERMINAL -> false
                         }
@@ -295,7 +298,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         val errorIsCertainlyHandled = bodyExit.completion == DiagramCompletion.ERROR && matches.any {
                             (_, handler) -> handler.data.string("kind_handler") == "on"
                         }
-                        if (matches.isEmpty() || (bodyExit.completion == DiagramCompletion.ERROR && !errorIsCertainlyHandled)) {
+                        if (matches.isEmpty() || bodyExit.completion == DiagramCompletion.DYNAMIC || (bodyExit.completion == DiagramCompletion.ERROR && !errorIsCertainlyHandled)) {
                             // A `trap` pattern needs error-code detail which
                             // this compact contract intentionally does not
                             // carry.  It is a possible handled path, but not
@@ -401,7 +404,7 @@ private class MermaidIds {
 }
 
 /** Completion states defined by the shared `tcl-diagram` JSON contract. */
-private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, PROCESS_EXIT, TERMINAL }
+private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, PROCESS_EXIT, TERMINAL }
 
 private fun JsonObject.string(name: String): String? =
     get(name)?.takeUnless { it.isJsonNull }?.asString

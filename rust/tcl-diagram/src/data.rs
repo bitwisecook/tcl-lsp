@@ -55,6 +55,7 @@ enum DiagramCompletion {
     Return,
     Break,
     Continue,
+    Dynamic,
     ProcessExit,
     Terminal,
 }
@@ -67,6 +68,7 @@ impl DiagramCompletion {
             Self::Return => Some("return"),
             Self::Break => Some("break"),
             Self::Continue => Some("continue"),
+            Self::Dynamic => Some("dynamic"),
             Self::ProcessExit => Some("process_exit"),
             Self::Terminal => Some("terminal"),
         }
@@ -109,6 +111,14 @@ fn command_completion(
             }
             ExactInvocationCompletion::ProcessExit => DiagramCompletion::ProcessExit,
         };
+    }
+    if registry
+        .resolve_call(command, &arg_refs, DialectSet::empty())
+        .is_some_and(|resolved| {
+            resolved.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Return)
+        })
+    {
+        return DiagramCompletion::Dynamic;
     }
     match registry.invocation_completion(command, &arg_refs, DialectSet::empty()) {
         InvocationCompletion::ReturnsResult(_) => DiagramCompletion::Return,
