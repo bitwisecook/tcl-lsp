@@ -1200,14 +1200,21 @@ impl Vm {
             .map(|b| (b.source, b.key.clone()))
             .collect();
         for (src, key) in targeting {
-            let still_aliased = self.st_of(src).is_some_and(|st| {
-                matches!(st.commands.get(&key),
-                    Some(Command::CrossAlias { target, .. }) if *target == id)
-            });
-            if still_aliased {
+            let visible = self.st_of(src).is_some_and(|st| matches!(st.commands.get(&key), Some(Command::CrossAlias { target, .. }) if *target == id));
+            let hidden = self.st_of(src).is_some_and(|st| matches!(st.hidden_commands.get(&key), Some(Command::CrossAlias { target, .. }) if *target == id));
+            if visible {
                 self.in_interp(src, |vm| {
                     vm.remove_command_exact(&key);
                     vm.on_command_removed(&key);
+                });
+            }
+            if hidden {
+                self.in_interp(src, |vm| {
+                    vm.hidden_commands.remove(&key);
+                    vm.hidden_imported_commands.remove(&key);
+                    vm.hidden_builtin_identities.remove(&key);
+                    vm.cmd_traces.remove(&key);
+                    vm.exec_traces.remove(&key);
                 });
             }
         }
@@ -2521,8 +2528,28 @@ impl Vm {
             };
             vm.bump_cmd_epoch();
             let saved = vm.commands.insert(cmd.to_string(), hidden);
+            let saved_origin = vm
+                .hidden_imported_commands
+                .get(cmd)
+                .cloned()
+                .map(|origin| vm.imported_commands.insert(cmd.to_string(), origin));
+            let saved_identity = vm
+                .hidden_builtin_identities
+                .get(cmd)
+                .cloned()
+                .map(|identity| vm.builtin_identities.insert(cmd.to_string(), identity));
             let r = vm.invoke_command(cmd, args);
             vm.bump_cmd_epoch();
+            if let Some(Some(saved)) = saved_origin {
+                vm.imported_commands.insert(cmd.to_string(), saved);
+            } else {
+                vm.imported_commands.remove(cmd);
+            }
+            if let Some(Some(saved)) = saved_identity {
+                vm.builtin_identities.insert(cmd.to_string(), saved);
+            } else {
+                vm.builtin_identities.remove(cmd);
+            }
             match saved {
                 Some(prev) => {
                     vm.commands.insert(cmd.to_string(), prev);
@@ -3130,8 +3157,28 @@ impl Vm {
             };
             vm.bump_cmd_epoch();
             let saved = vm.commands.insert(cmd.to_string(), hidden);
+            let saved_origin = vm
+                .hidden_imported_commands
+                .get(cmd)
+                .cloned()
+                .map(|origin| vm.imported_commands.insert(cmd.to_string(), origin));
+            let saved_identity = vm
+                .hidden_builtin_identities
+                .get(cmd)
+                .cloned()
+                .map(|identity| vm.builtin_identities.insert(cmd.to_string(), identity));
             let r = vm.invoke_command(cmd, args);
             vm.bump_cmd_epoch();
+            if let Some(Some(saved)) = saved_origin {
+                vm.imported_commands.insert(cmd.to_string(), saved);
+            } else {
+                vm.imported_commands.remove(cmd);
+            }
+            if let Some(Some(saved)) = saved_identity {
+                vm.builtin_identities.insert(cmd.to_string(), saved);
+            } else {
+                vm.builtin_identities.remove(cmd);
+            }
             match saved {
                 Some(prev) => {
                     vm.commands.insert(cmd.to_string(), prev);
