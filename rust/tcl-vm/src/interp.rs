@@ -2980,8 +2980,10 @@ impl Vm {
                     ));
                 }
                 let c = rest[0].to_str();
-                self.child_hide_by_id(id, &c, &c, hide);
-                ok(Value::empty())
+                match self.child_hide_by_id(id, &c, &c, hide) {
+                    Ok(()) => ok(Value::empty()),
+                    Err(message) => err(message),
+                }
             }
             "marktrusted" => {
                 if self.is_safe() {
@@ -3086,19 +3088,24 @@ impl Vm {
 
     /// [`Self::child_hide`] addressing the child by id (the `$child hide/expose`
     /// form, whose id is already resolved).
-    fn child_hide_by_id(&mut self, id: InterpId, cmd: &str, token: &str, hide: bool) -> bool {
+    fn child_hide_by_id(
+        &mut self,
+        id: InterpId,
+        cmd: &str,
+        token: &str,
+        hide: bool,
+    ) -> Result<(), String> {
         if !self.interp_alive(id) {
-            return false;
+            return Err("interpreter no longer exists".to_string());
         }
         // This is the `$child hide` spelling of the same public operation.
         self.in_interp(id, |vm| {
             if hide {
-                let _ = vm.hide_command(cmd, token);
+                vm.hide_command(cmd, token)
             } else {
-                let _ = vm.expose_own_command(cmd, token);
+                vm.expose_own_command(cmd, token)
             }
-        });
-        true
+        })
     }
 
     /// [`Self::invoke_hidden_in_child`] addressing the child by id.
