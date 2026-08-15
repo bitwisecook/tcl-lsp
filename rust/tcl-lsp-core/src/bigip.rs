@@ -875,17 +875,17 @@ ltm virtual /Common/v {
 
     #[test]
     fn comment_blocks_in_embedded_irules_fold_but_data_does_not() {
-        let source = "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        # rule note one\n        # rule note two\n        log local0. \"# data\"\n    }\n}\nltm pool /Common/p {\n    description {\n        # braced data\n        # remains data\n    }\n}\n";
+        let source = "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        set result [switch $kind {\n            alpha {\n                # rule note one\n                # rule note two\n                log local0. \"# data\"\n            }\n        }]\n    }\n}\nltm pool /Common/p {\n    description {\n        # braced data\n        # remains data\n    }\n}\n";
         let folds = folding_ranges(source);
         assert!(
             folds.iter().any(|range| {
-                range.kind == FoldKind::Comment && (range.start_line, range.end_line) == (2, 3)
+                range.kind == FoldKind::Comment && (range.start_line, range.end_line) == (4, 5)
             }),
             "embedded iRule comments missing: {folds:?}"
         );
         assert!(
             !folds.iter().any(|range| {
-                range.kind == FoldKind::Comment && (range.start_line, range.end_line) == (9, 10)
+                range.kind == FoldKind::Comment && (range.start_line, range.end_line) == (14, 15)
             }),
             "braced tmsh data became comments: {folds:?}"
         );

@@ -657,9 +657,8 @@ mod tests {
     }
 
     #[test]
-    fn w115_reaches_a_switch_case_list_arm() {
-        let src =
-            "switch $kind {\n    alpha {\n        # swallowed \\\n        puts hidden\n    }\n}\n";
+    fn w115_reaches_a_switch_case_list_arm_in_a_command_substitution() {
+        let src = "set result [switch $kind {\n    alpha {\n        # swallowed \\\n        puts hidden\n    }\n}]\n";
         let diags = check_comment_continuation_for_dialect(src, "tcl9.0");
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert_eq!(diags[0].code, "W115");

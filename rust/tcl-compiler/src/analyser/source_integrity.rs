@@ -103,8 +103,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn switch_arm_noqa_suppresses_the_following_source_diagnostic() {
-        let source = "switch $kind {\n    alpha {\n        # noqa: W305\n        puts \"\u{202e}\"\n    }\n}\n";
+    fn nested_switch_arm_noqa_suppresses_the_following_source_diagnostic() {
+        let source = "set result [switch $kind {\n    alpha {\n        # noqa: W305\n        puts \"\u{202e}\"\n    }\n}]\n";
         assert_eq!(bidi_control_diagnostics(source).len(), 1);
         assert!(
             filtered_bidi_control_diagnostics(source, &HashSet::new(), "tcl9.0").is_empty(),

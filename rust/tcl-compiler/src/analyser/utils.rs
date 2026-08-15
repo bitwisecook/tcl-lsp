@@ -282,6 +282,7 @@ impl<'a> CommentLineWalker<'a> {
                 self.visit_braced_word(script, token, base_offset, depth, next_grammar);
             }
             self.visit_lambda_literals(script, &command, name, &args, base_offset, depth);
+            self.visit_command_substitutions(script, &command, base_offset, depth);
         }
     }
 
@@ -374,6 +375,40 @@ impl<'a> CommentLineWalker<'a> {
             self.visit(
                 lambda,
                 base_offset.saturating_add(body.start()),
+                depth.saturating_add(1),
+                None,
+            );
+        }
+    }
+
+    /// Descend command-substitution tokens exactly as the CST segmented them.
+    /// A braced word has no command-substitution token, so inert data remains
+    /// opaque; bare and quoted words retain every executable bracketed span
+    /// without a second source scan.
+    fn visit_command_substitutions(
+        &mut self,
+        script: &'a str,
+        command: &crate::segmenter::SegmentedCommand,
+        base_offset: u32,
+        depth: u32,
+    ) {
+        for &token in &command.all_tokens {
+            if token.kind != tcl_lexer::TokenType::Cmd {
+                continue;
+            }
+            let start = token.span.start() as usize + token.content_offset as usize;
+            let end = token.span.end() as usize;
+            let Some(inner) = script.get(start..end) else {
+                continue;
+            };
+            self.visit(
+                inner,
+                base_offset.saturating_add(
+                    token
+                        .span
+                        .start()
+                        .saturating_add(u32::from(token.content_offset)),
+                ),
                 depth.saturating_add(1),
                 None,
             );
@@ -1771,6 +1806,26 @@ mod tests {
         assert!(
             comments.contains(&2),
             "definition-member comment missing: {comments:?}"
+        );
+    }
+
+    #[test]
+    fn script_comment_lines_reaches_nested_command_substitution_case_arms() {
+        let src = "set result [switch $kind {\n    alpha {\n        # nested comment \\\n        hidden\n    }\n}]\nset data {[switch $kind { beta { # inert } }]}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let comments = script_comment_lines(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            comments.contains(&2),
+            "nested comment missing: {comments:?}"
+        );
+        assert_eq!(
+            comments.len(),
+            1,
+            "braced data must stay inert: {comments:?}"
         );
     }
 
