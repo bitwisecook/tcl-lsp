@@ -446,19 +446,28 @@ contract above and `WorldContents::entry` can consume its ordered summaries.
 Tests pin all four production body kinds to `UnknownWorld`; they do not pretend
 that the intentionally caller-selected low-level assumption is unforgeable.
 
-The canonical #1181 small corpus (revision 1; 8 repositories, 113 analysed Tcl
-documents) produced zero O105/O106 findings on both base and candidate. This is
-reproducible in a release build with:
+The canonical #1181 small corpus measurement is the revision-1 pin set: 8
+repositories and 113 Tcl-family source files. Materialise those exact commits,
+then independently verify every pin before running the sweep:
 
 ```sh
+CORPUS_DIR=/path/to/issue-1181-small-corpus
+python3 scripts/perf/fetch_corpus.py \
+  --scope small --dest "$CORPUS_DIR"
+python3 scripts/perf/fetch_corpus.py \
+  --scope small --dest "$CORPUS_DIR" --verify-only
 cargo run --release -p xtask -- fp-sweep \
-  --corpus <issue-1181-small-corpus> --code O105 --code O106
+  --corpus "$CORPUS_DIR" --code O105 --code O106
 ```
 
-The honest diagnostic delta is zero: manufacturing recovered O-codes from an
-unverified workspace boundary would trade false negatives for unsound false
-positives. Timing and RSS observations are intentionally omitted because the
-profiling artefacts are not repository evidence.
+The pinned 113-file sweep produced zero O105/O106 findings on both base and
+candidate. A separate local sweep reported 140 analysed documents from an
+unverified expanded checkout; that count is not attributed to the canonical
+corpus and is excluded from the evidence here. The honest diagnostic delta is
+zero: manufacturing recovered O-codes from an unverified workspace boundary
+would trade false negatives for unsound false positives. Timing and RSS
+observations are intentionally omitted because the profiling artefacts are not
+repository evidence.
 
 ## §9 — Conservative abstentions
 
