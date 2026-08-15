@@ -134,7 +134,10 @@ pub enum ExactInvocationCompletion {
 /// itself propagates `TCL_RETURN` even when its eventual procedure result is
 /// configured as `-code error`; `-level 0` exposes that configured code to the
 /// immediately enclosing script instead.
-fn exact_return_completion(args: &[&str]) -> Option<crate::completion::CompletionCode> {
+fn exact_return_completion(
+    args: &[&str],
+    numbers: tcl_syntax::number::Numbers,
+) -> Option<crate::completion::CompletionCode> {
     use crate::completion::CompletionCode;
 
     let mut i = 0usize;
@@ -154,22 +157,27 @@ fn exact_return_completion(args: &[&str]) -> Option<crate::completion::Completio
                     "return" | "2" => CompletionCode::Return,
                     "break" | "3" => CompletionCode::Break,
                     "continue" | "4" => CompletionCode::Continue,
-                    value => CompletionCode::Other(value.parse::<i32>().ok()?),
+                    value => CompletionCode::Other(i32::try_from(numbers.parse_wide(value)?).ok()?),
                 };
                 i += 2;
             }
             "-level" => {
-                level = args.get(i + 1)?.parse::<i64>().ok()?.max(0);
-                if args.get(i + 1)?.parse::<i64>().ok()? < 0 {
+                level = numbers.parse_wide(args.get(i + 1)?)?;
+                if level < 0 {
                     return None;
                 }
                 i += 2;
             }
             // These options do not alter the code, but `-options` may carry
             // a code/level override so remains deliberately opaque.
-            "-errorcode" | "-errorinfo" | "-errorstack" => i += 2,
-            "-options" => return None,
-            _ if word.starts_with('-') => return None,
+            "-options" => {
+                return None;
+            }
+            // Return options are an extensible key/value dictionary.  An
+            // unrecognised literal option cannot alter `-code`/`-level`, so
+            // retain the concrete completion rather than dropping a valid
+            // custom pair such as `-foo bar`.
+            _ if word.starts_with('-') => i += 2,
             _ => break,
         }
     }
@@ -2021,7 +2029,12 @@ impl CommandRegistry {
             return None;
         }
         if resolved.lowering_hook == Some(LoweringHookId::Return) {
-            return exact_return_completion(args).map(ExactInvocationCompletion::Tcl);
+            let profile = self.profile()?;
+            return exact_return_completion(
+                args,
+                tcl_syntax::number::Numbers::of_profile(Some(profile)),
+            )
+            .map(ExactInvocationCompletion::Tcl);
         }
         let traits =
             resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits);
@@ -3352,7 +3365,7 @@ mod tests {
 
     #[test]
     fn unfilled_trailing_roles_reports_the_optional_capture_variables() {
-        let reg = CommandRegistry::build_default();
+        let reg = crate::registry_for_dialect("tcl8.6");
         // `catch {body}` leaves both `VarWrite` slots open.
         assert_eq!(
             reg.unfilled_trailing_roles("catch", &["{body}"]),
@@ -6567,7 +6580,7 @@ mod tests {
     fn exact_return_options_and_process_exit_are_registry_owned() {
         use crate::completion::CompletionCode;
 
-        let reg = CommandRegistry::build_default();
+        let reg = crate::registry_for_dialect("tcl8.6");
         // Oracle (tclsh 8.6/9.0): the default -level 1 return is caught by
         // `try on return`, even when its eventual procedure result is error.
         assert_eq!(
@@ -6586,6 +6599,20 @@ mod tests {
             ),
             Some(ExactInvocationCompletion::Tcl(CompletionCode::Error))
         );
+        for args in [
+            &["-foo", "bar", "payload"][..],
+            &["-c", "error", "payload"][..],
+            &["-level", "0x0", "-code", "error", "payload"][..],
+        ] {
+            assert_eq!(
+                reg.exact_invocation_completion("return", args, DialectSet::empty()),
+                Some(ExactInvocationCompletion::Tcl(if args[0] == "-level" {
+                    CompletionCode::Error
+                } else {
+                    CompletionCode::Return
+                }))
+            );
+        }
         assert_eq!(
             reg.exact_invocation_completion("exit", &["0"], DialectSet::empty()),
             Some(ExactInvocationCompletion::ProcessExit)
@@ -6594,6 +6621,14 @@ mod tests {
             reg.exact_invocation_completion(
                 "return",
                 &["-options", "$dynamic", "payload"],
+                DialectSet::empty(),
+            ),
+            None
+        );
+        assert_eq!(
+            reg.exact_invocation_completion(
+                "return",
+                &["-code", "$dynamic", "payload"],
                 DialectSet::empty(),
             ),
             None

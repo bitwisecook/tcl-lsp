@@ -782,6 +782,9 @@ mod tests {
             }
             puts [probe {-code error}]
             puts [probe {-level 0 -code error}]
+            puts [probe {-foo bar}]
+            puts [probe {-c error}]
+            puts [probe {-level 0x0 -code error}]
         ";
         let mut child = Command::new("tclsh")
             .stdin(Stdio::piped())
@@ -798,7 +801,7 @@ mod tests {
         assert!(output.status.success(), "{output:?}");
         assert_eq!(
             String::from_utf8(output.stdout).expect("oracle stdout"),
-            "return finally after\nerror finally after\n"
+            "return finally after\nerror finally after\nreturn finally after\nreturn finally after\nerror finally after\n"
         );
     }
 }
