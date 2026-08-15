@@ -668,6 +668,28 @@ fn child_command_hide_and_expose_collisions_propagate_without_mutation() {
     }
 }
 
+#[test]
+fn hide_expose_moves_traces_without_callbacks() {
+    let src = concat!(
+        "proc a {} {return A}; proc cb args {lappend ::events [lindex $args end]}\n",
+        "trace add command a {rename delete} cb; trace add execution a enter cb\n",
+        "interp hide {} a token\n",
+        "interp expose {} token moved\n",
+        "puts \"state=[moved] [llength [trace info command moved]] [llength [trace info execution moved]] $::events\"\n",
+    );
+    let want = "state=A 1 1 enter";
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] hide trace move"
+        );
+    }
+    if let Some(out) = tclsh_output("TCLSH90", &["tclsh9.0"], src) {
+        assert_eq!(out, want, "[TCLSH90] real Tcl oracle");
+    }
+}
+
 /// A `catch` body is compiled at run time through the VM's compile service,
 /// so an 8.5+-only spelling inside it is a *catchable* error under an 8.4
 /// pin — matching C Tcl, which defers a compile-time parse error to a
