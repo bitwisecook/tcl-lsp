@@ -125,9 +125,11 @@ pub fn generate_irule_test(args: &Value) -> Value {
     // Discover handlers once at the request boundary. Lower-level registry
     // code only orders these owner-derived names and never re-scans source.
     let when_blocks = tcl_irules::when_blocks(source);
+    let mut seen_events = BTreeSet::new();
     let event_names: Vec<String> = when_blocks
         .iter()
         .map(|block| block.event.clone())
+        .filter(|event| seen_events.insert(event.clone()))
         .collect();
     let ordered_events = EventRegistry::build().order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
@@ -1163,5 +1165,33 @@ mod tests {
         assert!(refs.pools.contains(&"aliased_pool".to_owned()));
         assert!(refs.pools.contains(&"qualified_pool".to_owned()));
         assert!(refs.datagroups.contains(&"aliased_dg".to_owned()));
+    }
+
+    #[test]
+    fn scaffold_deduplicates_events_and_sets_up_registry_classified_pools() {
+        let src = concat!(
+            "interp alias {} members {} active_members\n",
+            "interp alias {} retry {} LB::reselect\n",
+            "interp alias {} logger {} HSL::open\n",
+            "when HTTP_REQUEST { set n [members /Common/active] }\n",
+            "when HTTP_REQUEST { retry pool /Common/fallback }\n",
+            "when CLIENT_ACCEPTED { set h [::logger -proto UDP -pool /Common/logging] }\n",
+        );
+        let generated = generate_irule_test(&json!({"source": src}));
+        assert_eq!(
+            generated["events"],
+            json!(["CLIENT_ACCEPTED", "HTTP_REQUEST"])
+        );
+        assert_eq!(
+            generated["pools"],
+            json!(["/Common/active", "/Common/fallback", "/Common/logging"])
+        );
+        let script = generated["test_script"].as_str().unwrap();
+        for pool in ["/Common/active", "/Common/fallback", "/Common/logging"] {
+            assert!(
+                script.contains(&format!("::orch::add_pool {pool} ")),
+                "{script}"
+            );
+        }
     }
 }

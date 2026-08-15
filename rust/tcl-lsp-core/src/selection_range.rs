@@ -284,18 +284,21 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
 }
 
 /// The segmented command span containing `cursor_offset`.
+#[allow(clippy::too_many_lines)] // registry bodies and generic substitutions share one recursive walk
 fn command_span_at(
     source: &str,
     cursor_offset: u32,
     config: tcl_lexer::LexerConfig,
     dialect: &str,
 ) -> Option<Span> {
+    #[allow(clippy::too_many_arguments)] // immutable traversal context plus changing slice/base/depth/result
     fn visit(
         script: &str,
         base: u32,
         cursor: u32,
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
+        identities: &tcl_compiler::head_identity::HeadIdentityMap,
         depth: u32,
         best: &mut Option<Span>,
     ) {
@@ -314,7 +317,10 @@ fn command_span_at(
                 *best = Some(span);
             }
             let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-            let canonical = tcl_syntax::naming::canonical_written_command(command.name());
+            let head_offset =
+                base.saturating_add(command.argv.first().map_or(0, |token| token.span.start()));
+            let resolved = identities.head_words(command.name(), head_offset).resolved;
+            let canonical = tcl_syntax::naming::canonical_written_command(resolved);
             let semantic_head = if registry.get_exact(&canonical).is_some() {
                 canonical
             } else if canonical.starts_with("::") {
@@ -327,6 +333,7 @@ fn command_span_at(
             } else {
                 canonical
             };
+            let mut recursed = std::collections::HashSet::new();
             for index in
                 registry.arg_indices_for_role(&semantic_head, &args, tcl_registry::ArgRole::Body)
             {
@@ -354,6 +361,45 @@ fn command_span_at(
                     cursor,
                     config,
                     registry,
+                    identities,
+                    depth + 1,
+                    best,
+                );
+                recursed.insert((token.span.start(), token.span.end()));
+            }
+
+            // Command substitutions execute Tcl scripts regardless of the
+            // surrounding command's registry roles. Descend every substitution
+            // that contains the cursor, including nested/multiline forms. A
+            // span already visited through a registry Body role is skipped so
+            // the same command cannot contribute duplicate selection links.
+            for token in command.all_tokens.iter().filter(|token| {
+                token.kind == tcl_lexer::TokenType::Cmd
+                    && !recursed.contains(&(token.span.start(), token.span.end()))
+            }) {
+                let absolute_start = base.saturating_add(token.span.start());
+                let absolute_end = base.saturating_add(token.span.end());
+                if !(absolute_start <= cursor && cursor < absolute_end) {
+                    continue;
+                }
+                let start = token
+                    .span
+                    .start()
+                    .saturating_add(u32::from(token.content_offset));
+                let end = token.span.end();
+                let (Ok(start), Ok(end)) = (usize::try_from(start), usize::try_from(end)) else {
+                    continue;
+                };
+                let Some(inner) = script.get(start..end) else {
+                    continue;
+                };
+                visit(
+                    inner,
+                    base.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
+                    cursor,
+                    config,
+                    registry,
+                    identities,
                     depth + 1,
                     best,
                 );
@@ -362,8 +408,19 @@ fn command_span_at(
     }
     let profile = tcl_dialect::DialectProfile::by_name(dialect);
     let registry = tcl_registry::cache::registry_for_profile(profile);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
     let mut best = None;
-    visit(source, 0, cursor_offset, config, registry, 0, &mut best);
+    visit(
+        source,
+        0,
+        cursor_offset,
+        config,
+        registry,
+        &identities,
+        0,
+        &mut best,
+    );
     best
 }
 
@@ -640,11 +697,13 @@ mod tests {
     fn continuation_and_multiline_bracket_cursor_keep_command_parent_nested() {
         let src = "set result [format %s \\\n    [string toupper value]]\n";
         // Cursor on the second physical line, inside the nested bracket word.
+        // The generic substitution traversal selects that innermost command,
+        // not the outer multiline `set` command.
         let ranges = selection_range(src, 1, 19, None);
         assert!(ranges.len() >= 3, "{ranges:?}");
         let command = &ranges[1].range;
-        assert_eq!((command.start_line, command.end_line), (0, 1), "{ranges:?}");
-        // The immediate parent is the multiline command, never the second
+        assert_eq!((command.start_line, command.end_line), (1, 1), "{ranges:?}");
+        // The immediate parent is the innermost command, followed by its
         // physical line; every parent remains a true containment range.
         for link in &ranges {
             if let Some(parent) = link.parent_index {
@@ -687,5 +746,49 @@ mod tests {
                 "{ranges:?}"
             );
         }
+    }
+
+    #[test]
+    fn command_substitutions_choose_the_innermost_multiline_command_once() {
+        let src = "set result [list [string toupper \\\n    local]]\n";
+        let cursor = u32::try_from(src.find("local").unwrap()).unwrap();
+        let span = command_span_at(
+            src,
+            cursor,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            "tcl9.0",
+        )
+        .expect("nested command substitution");
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "string toupper \\\n    local"
+        );
+
+        let ranges = selection_range(src, 1, 5, None);
+        assert!(ranges.windows(2).all(|pair| pair[0].range != pair[1].range));
+    }
+
+    #[test]
+    fn aliased_registry_body_and_nested_substitution_choose_inner_command() {
+        let src = concat!(
+            "interp alias {} branch {} if\n",
+            "branch {1} {\n",
+            " set result [list [string toupper local]]\n",
+            "}\n",
+        );
+        let cursor = u32::try_from(src.find("local").unwrap()).unwrap();
+        let span = command_span_at(
+            src,
+            cursor,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            "tcl9.0",
+        )
+        .expect("inner command through aliased Body role");
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "string toupper local"
+        );
+        let ranges = selection_range(src, 2, 39, None);
+        assert!(ranges.windows(2).all(|pair| pair[0].range != pair[1].range));
     }
 }

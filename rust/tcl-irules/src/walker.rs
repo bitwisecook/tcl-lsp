@@ -34,6 +34,31 @@ use tcl_registry::arg_role::ArgRole;
 
 use crate::resolve_object_ref_args;
 
+fn category_for_kinds(kinds: &[&str]) -> IrulesObjectReferenceCategory {
+    let tables = crate::tables();
+    if kinds.iter().any(|kind| {
+        tables
+            .ltm_pool_kinds
+            .iter()
+            .any(|candidate| candidate == kind)
+            || tables
+                .gtm_pool_kinds
+                .iter()
+                .any(|candidate| candidate == kind)
+    }) {
+        IrulesObjectReferenceCategory::Pool
+    } else if kinds.iter().any(|kind| {
+        tables
+            .data_group_kinds
+            .iter()
+            .any(|candidate| candidate == kind)
+    }) {
+        IrulesObjectReferenceCategory::DataGroup
+    } else {
+        IrulesObjectReferenceCategory::Other
+    }
+}
+
 /// Depth cap for [`walk`]'s (and [`recurse_token`]'s) recursion over nested
 /// bodies / `apply` lambdas / `[…]` command substitutions — issue #996.
 ///
@@ -241,14 +266,10 @@ fn walk(
             if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
                 out.push(IrulesObjectReference {
                     name,
+                    category: category_for_kinds(&kinds),
                     kinds,
                     command: cmd.name().to_owned(),
                     effective_command: semantic_head.clone(),
-                    category: match semantic_head.as_str() {
-                        "pool" => IrulesObjectReferenceCategory::Pool,
-                        "class" => IrulesObjectReferenceCategory::DataGroup,
-                        _ => IrulesObjectReferenceCategory::Other,
-                    },
                     argument_index,
                     range,
                 });
@@ -678,6 +699,38 @@ mod tests {
         );
         // Guard: an unbound `p` names no BIG-IP object.
         assert!(ref_names(&pool_rule("set y 1\n", "p")).is_empty());
+    }
+
+    #[test]
+    fn categories_follow_registry_returned_object_kinds() {
+        let source = concat!(
+            "interp alias {} members {} active_members\n",
+            "interp alias {} retry {} LB::reselect\n",
+            "interp alias {} logger {} HSL::open\n",
+            "when HTTP_REQUEST {\n",
+            " set n [::members /Common/active]\n",
+            " retry pool /Common/fallback\n",
+            " set h [logger -proto UDP -pool /Common/logging]\n",
+            " class match x equals /Common/hosts\n",
+            "}\n",
+        );
+        let refs = refs(source);
+        for name in ["/Common/active", "/Common/fallback", "/Common/logging"] {
+            let reference = refs
+                .iter()
+                .find(|reference| reference.name == name)
+                .unwrap();
+            assert_eq!(
+                reference.category,
+                IrulesObjectReferenceCategory::Pool,
+                "{reference:?}"
+            );
+        }
+        let datagroup = refs
+            .iter()
+            .find(|reference| reference.name == "/Common/hosts")
+            .unwrap();
+        assert_eq!(datagroup.category, IrulesObjectReferenceCategory::DataGroup);
     }
 
     #[test]
