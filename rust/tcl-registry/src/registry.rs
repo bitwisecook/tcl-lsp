@@ -153,7 +153,9 @@ fn exact_return_completion(
                     "return" | "2" => CompletionCode::Return,
                     "break" | "3" => CompletionCode::Break,
                     "continue" | "4" => CompletionCode::Continue,
-                    value => CompletionCode::Other(i32::try_from(numbers.parse_wide(value)?).ok()?),
+                    value => CompletionCode::Other(crate::completion::canonical_completion_code(
+                        value, numbers,
+                    )?),
                 };
                 i += 2;
             }
@@ -6609,6 +6611,26 @@ mod tests {
                 }))
             );
         }
+        for (spelling, expected) in [("2147483648", i32::MIN), ("4294967295", -1)] {
+            assert_eq!(
+                reg.exact_invocation_completion(
+                    "return",
+                    &["-level", "0", "-code", spelling, "payload"],
+                    DialectSet::empty(),
+                ),
+                Some(ExactInvocationCompletion::Tcl(CompletionCode::Other(
+                    expected
+                )))
+            );
+        }
+        assert_eq!(
+            reg.exact_invocation_completion(
+                "return",
+                &["-level", "0", "-code", "-2147483649", "payload"],
+                DialectSet::empty(),
+            ),
+            None
+        );
         assert_eq!(
             reg.exact_invocation_completion("exit", &["0"], DialectSet::empty()),
             Some(ExactInvocationCompletion::ProcessExit)

@@ -312,6 +312,19 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun canonicalWrappedCompletionCodesShadowByTheirSignedCode() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -options ${'$'}options","completion":"dynamic"}],"handlers":[
+              {"kind_handler":"on","match":"4294967295","completion_code":-1,"fallthrough":false,"body":[{"kind":"action","label":"wrapped"}]},
+              {"kind_handler":"on","match":"-1","completion_code":-1,"fallthrough":false,"body":[{"kind":"action","label":"duplicate"}]},
+              {"kind_handler":"on","match":"2147483648","completion_code":-2147483648,"fallthrough":false,"body":[{"kind":"action","label":"minimum"}]}
+            ]}]}],"procedures":[]}"""
+        )))
+        assertEquals(2, mermaid.lines().count { it.startsWith("n2 -->|on|") }, mermaid)
+    }
+
+    @Test
     fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
         fun render(finallyCompletion: String? = null): String {
             val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""

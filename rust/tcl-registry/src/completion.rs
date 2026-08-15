@@ -27,6 +27,21 @@
 
 pub use tcl_core_types::Code as CompletionCode;
 
+/// Parse Tcl's integer completion-code spelling and apply its C-compatible
+/// 32-bit conversion. Tcl accepts `INT_MIN..UINT_MAX`: the upper unsigned
+/// half wraps into the corresponding signed code (`4294967295` is `-1`).
+/// Values outside that range, including integers beyond Tcl's wide parser,
+/// are not valid completion-code selectors.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)] // Intentional Tcl UINT_MAX → signed-code wrap.
+pub fn canonical_completion_code(value: &str, numbers: tcl_syntax::number::Numbers) -> Option<i32> {
+    let value = numbers.parse_wide(value)?;
+    if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
+        return None;
+    }
+    Some(value as i32)
+}
+
 /// The statically possible Tcl completion codes for an invocation.
 ///
 /// [`Self::Exact`] retains named Tcl codes and arbitrary integer codes alike:

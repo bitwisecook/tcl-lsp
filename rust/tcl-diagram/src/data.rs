@@ -351,12 +351,12 @@ fn handler_completion_code(handler: &TryHandler, registry: &CommandRegistry) -> 
         "return" => Some(2),
         "break" => Some(3),
         "continue" => Some(4),
-        value => registry
-            .profile()
-            .and_then(|profile| {
-                tcl_syntax::number::Numbers::of_profile(Some(profile)).parse_wide(value)
-            })
-            .and_then(|value| i32::try_from(value).ok()),
+        value => registry.profile().and_then(|profile| {
+            tcl_registry::completion::canonical_completion_code(
+                value,
+                tcl_syntax::number::Numbers::of_profile(Some(profile)),
+            )
+        }),
     }
 }
 
@@ -843,7 +843,7 @@ mod tests {
 
     #[test]
     fn handler_completion_codes_use_the_dialect_numeric_grammar() {
-        let source = "proc paths {} { try { return -options $options payload } on 02 {message options} { set two yes } on +2 {message options} { set duplicate yes } on 0x2 {message options} { set duplicate_hex yes } on return {message options} { set symbolic yes } on nonsense {message options} { set invalid yes } }";
+        let source = "proc paths {} { try { return -options $options payload } on 02 {message options} { set two yes } on +2 {message options} { set duplicate yes } on 0x2 {message options} { set duplicate_hex yes } on return {message options} { set symbolic yes } on 2147483648 {message options} { set wrapped_min yes } on 4294967295 {message options} { set wrapped_minus_one yes } on -2147483649 {message options} { set invalid_low yes } on nonsense {message options} { set invalid yes } }";
         // `try` itself begins in Tcl 8.6, so diagram handlers can only be
         // projected for releases that provide the command.
         for dialect in ["tcl8.6", "tcl9.0"] {
@@ -872,6 +872,9 @@ mod tests {
                     Value::from(2),
                     Value::from(2),
                     Value::from(2),
+                    Value::from(i32::MIN),
+                    Value::from(-1),
+                    Value::Null,
                     Value::Null
                 ],
                 "{dialect}"
@@ -889,6 +892,26 @@ mod tests {
             assert_eq!(numbers.parse_wide("02"), Some(2), "{dialect}");
             assert_eq!(numbers.parse_wide("+2"), Some(2), "{dialect}");
             assert_eq!(numbers.parse_wide("0x2"), Some(2), "{dialect}");
+            assert_eq!(
+                tcl_registry::completion::canonical_completion_code("2147483648", numbers),
+                Some(i32::MIN),
+                "{dialect}"
+            );
+            assert_eq!(
+                tcl_registry::completion::canonical_completion_code("4294967295", numbers),
+                Some(-1),
+                "{dialect}"
+            );
+            assert_eq!(
+                tcl_registry::completion::canonical_completion_code("-2147483649", numbers),
+                None,
+                "{dialect}"
+            );
+            assert_eq!(
+                tcl_registry::completion::canonical_completion_code("9223372036854775808", numbers),
+                None,
+                "{dialect}"
+            );
         }
     }
 
