@@ -130,7 +130,7 @@ copyFileSync(join(here, "node_modules", "vscode-oniguruma", "release", "onig.was
 // The editor chunk. Minified, unlike the controller: this is vendored
 // third-party code whose readable form is upstream's repository, not ours, and
 // 2.5 MB unminified would be 9 MB of dist for no reader's benefit.
-await esbuild.build({
+const monacoBuild = await esbuild.build({
   entryPoints: [join(here, "src", "monacoHost.ts")],
   outfile: join(assetsDir, "monaco-host.js"),
   bundle: true,
@@ -140,12 +140,24 @@ await esbuild.build({
   minify: true,
   legalComments: "none",
   banner: { js: vendorBanner },
+  metafile: true,
   define: { __SPEC_STUDIO_FRONTEND_VERSION__: JSON.stringify(version) },
   // Monaco's CSS pulls in the codicon font; inlining it as a data URI is what
   // keeps the dist to files that can be copied anywhere without a loader.
   loader: { ".ttf": "dataurl", ".woff": "dataurl", ".woff2": "dataurl", ".svg": "dataurl" },
   logLevel: "info",
 });
+
+// `editor.api` lets code register an LSP provider even when the controller
+// which asks that provider for data was tree-shaken out. That failure looks
+// healthy to direct transport probes and leaves the user with TextMate-only
+// colouring. Make the controllers part of the build contract.
+for (const feature of ["format", "hover", "parameterHints", "semanticTokens", "suggest"]) {
+  const registration = `/features/${feature}/register.js`;
+  if (!Object.keys(monacoBuild.metafile.inputs).some((input) => input.includes(registration))) {
+    throw new Error(`Monaco's ${feature} controller is missing from the editor bundle`);
+  }
+}
 
 console.log(
   `spec studio front-end ${version}: built dist/studio.js + native/Monaco editor hosts`,
