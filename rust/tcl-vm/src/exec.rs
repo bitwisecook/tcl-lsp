@@ -983,6 +983,13 @@ fn proc_usage(proc: &ProcDef) -> String {
 impl Vm {
     /// Run a module: register its compiled procs, then run the top-level script.
     pub fn run_module(&mut self, module: &ModuleAsm) -> Completion<Value> {
+        if !module.profile.is_fallback() && !std::ptr::eq(module.profile, self.dialect_profile()) {
+            return err(format!(
+                "bytecode compiled for dialect profile {} cannot run under {}",
+                module.profile.name,
+                self.dialect_profile().name
+            ));
+        }
         self.claim_number_grammar();
         self.merge_procs(&module.procedures);
         self.run_function(&module.top_level)
@@ -1179,7 +1186,11 @@ impl Vm {
             .last()
             .is_some_and(|frame| frame.profile_generation != self.profile_generation())
         {
-            return match self.unwind(
+            // This is a command-like failure at the current instruction
+            // boundary. Route it through the ordinary settlement seam so an
+            // enclosing inline `catch` observes it before the activation is
+            // unwound.
+            return match self.settle_completion(
                 acts,
                 err("cannot continue bytecode after dialect profile changed"),
             ) {

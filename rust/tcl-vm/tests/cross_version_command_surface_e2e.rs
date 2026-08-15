@@ -438,6 +438,25 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     let handle = vm
         .compile_function("lassign {a b} handle_x; set handle_x")
         .expect("8.5 handle compiles");
+    // A reusable handle is VM-affine: another VM can have the same profile
+    // generation but must never adopt its bytecode.
+    let mut foreign_vm = Vm::new();
+    foreign_vm.set_dialect_profile(v85);
+    foreign_vm.set_compiler(Box::new(CompilerSvc::for_profile(v85)));
+    assert_eq!(
+        foreign_vm.invoke_function(&handle).result.to_str().as_ref(),
+        "FunctionHandle belongs to a different Vm"
+    );
+    // AOT modules carry the profile they were lowered for and are rejected at
+    // the entry boundary instead of being stamped with the VM's generation.
+    let aot = CompilerSvc::for_profile(v85)
+        .compile("set profile_aot 1")
+        .expect("AOT module compiles");
+    foreign_vm.set_dialect_profile(v84);
+    assert_eq!(
+        foreign_vm.run_module(&aot).result.to_str().as_ref(),
+        "bytecode compiled for dialect profile tcl8.5 cannot run under tcl8.4"
+    );
 
     // The reported escape, exactly: a body compiled under 8.5 must not retain
     // its inline lassign lowering after a direct 8.4 flip, and the reverse

@@ -79,15 +79,24 @@ pub trait CompileService {
     /// is not sound: an unavailable command could already have been lowered to
     /// bytecode and bypass normal command dispatch.
     ///
-    /// Profile-aware services should override this and select the profile's
+    /// Profile-aware services must override this and select the profile's
     /// registry, lexer grammar, and expression dialect for this invocation.
-    /// The default preserves compatibility for profile-invariant embedders.
+    /// A fixed-profile compiler is permitted only for the permissive fallback;
+    /// named-profile dynamic compilation is rejected rather than silently
+    /// stamping older bytecode as current.
     fn compile_for_profile(
         &self,
         src: &str,
-        _profile: &'static tcl_dialect::DialectProfile,
+        profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        self.compile(src)
+        if profile.is_fallback() {
+            self.compile(src)
+        } else {
+            Err(CompileError(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )))
+        }
     }
 
     /// Compile `src` with every registry-driven inline/structured lowering
@@ -110,13 +119,20 @@ pub trait CompileService {
     /// Profile-aware counterpart of [`Self::compile_traced`]. See
     /// [`Self::compile_for_profile`] for why dynamic recompilation must select
     /// the VM's current profile rather than a compiler's construction-time
-    /// profile.
+    /// profile. The default follows the same fixed-profile rejection rule.
     fn compile_traced_for_profile(
         &self,
         src: &str,
-        _profile: &'static tcl_dialect::DialectProfile,
+        profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        self.compile_traced(src)
+        if profile.is_fallback() {
+            self.compile_traced(src)
+        } else {
+            Err(CompileError(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )))
+        }
     }
 }
 

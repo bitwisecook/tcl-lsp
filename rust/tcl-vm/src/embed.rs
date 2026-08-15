@@ -62,6 +62,8 @@ pub struct FunctionHandle {
 
 struct FunctionHandleState {
     asm: Rc<FunctionAsm>,
+    owner_nonce: u64,
+    profile: &'static tcl_dialect::DialectProfile,
     profile_generation: u64,
 }
 
@@ -69,6 +71,8 @@ impl std::fmt::Debug for FunctionHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FunctionHandle")
             .field("source", &self.source)
+            .field("owner_nonce", &self.state.borrow().owner_nonce)
+            .field("profile", &self.state.borrow().profile.name)
             .field("instructions", &self.state.borrow().asm.instructions.len())
             .field(
                 "profile_generation",
@@ -88,6 +92,8 @@ impl Vm {
             source: src.to_owned(),
             state: Rc::new(RefCell::new(FunctionHandleState {
                 asm: self.compile_source_cached(src)?,
+                owner_nonce: self.owner_nonce,
+                profile: self.dialect_profile(),
                 profile_generation: self.profile_generation(),
             })),
         })
@@ -160,13 +166,18 @@ impl Vm {
     /// call.
     #[must_use]
     pub fn invoke_function(&mut self, handle: &FunctionHandle) -> Completion<Value> {
-        if handle.state.borrow().profile_generation != self.profile_generation() {
+        if handle.state.borrow().owner_nonce != self.owner_nonce {
+            return crate::interp::err("FunctionHandle belongs to a different Vm");
+        }
+        if !std::ptr::eq(handle.state.borrow().profile, self.dialect_profile()) {
             let asm = match self.compile_source_cached(&handle.source) {
                 Ok(asm) => asm,
                 Err(error) => return crate::command::completion_from_tcl_error(error),
             };
             *handle.state.borrow_mut() = FunctionHandleState {
                 asm,
+                owner_nonce: self.owner_nonce,
+                profile: self.dialect_profile(),
                 profile_generation: self.profile_generation(),
             };
         }

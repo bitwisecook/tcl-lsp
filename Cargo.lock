@@ -4127,6 +4127,7 @@ dependencies = [
 name = "tcl-bytecode"
 version = "0.1.0"
 dependencies = [
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-syntax",
 ]

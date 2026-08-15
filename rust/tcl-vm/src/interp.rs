@@ -30,6 +30,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_core_types::RecursionLimit;
@@ -374,6 +375,10 @@ fn elem_ref(name: &str) -> Option<(&str, &str)> {
 /// already executing deeper on the stack is legal: its persistent state stays
 /// addressable in the arena throughout (the fix for issue #946 faults 1–2).
 pub struct Vm {
+    /// Process-unique identity for embedder artefacts. A reusable compiled
+    /// handle belongs to the VM that compiled it; generations alone are not a
+    /// cross-VM identity domain.
+    pub(crate) owner_nonce: u64,
     /// The currently-executing interpreter's state ([`Deref`] target).
     state: Box<InterpState>,
     /// Which interp `state` belongs to.
@@ -1065,7 +1070,9 @@ impl Vm {
 
     /// A VM writing to an already-shared output sink.
     fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
+        static NEXT_VM_OWNER: AtomicU64 = AtomicU64::new(1);
         let mut vm = Self {
+            owner_nonce: NEXT_VM_OWNER.fetch_add(1, Ordering::Relaxed),
             state: Box::new(InterpState::fresh(out)),
             cur: ROOT_INTERP,
             interps: vec![InterpSlot {

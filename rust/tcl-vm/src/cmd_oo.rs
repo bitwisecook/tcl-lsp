@@ -1350,7 +1350,7 @@ fn run_step(
     result
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // A method activation genuinely carries this context and persistence seam.
 fn run_step_inner(
     vm: &mut Vm,
     obj_key: &str,
@@ -1450,10 +1450,32 @@ fn run_step_inner(
         compiled_epoch: 0,
         compiled_profile_generation: m.compiled_profile_generation,
     };
-    // A method body is rebuilt fresh from `m.body_src` every call (never
-    // cached back onto the class), so the shared owner can refresh either a
-    // trace-deopt or dialect-profile mismatch without mutating the class.
+    // Refresh through the shared proc owner, then persist the replacement on
+    // its defining facet.  Recompiling on every method call after a profile
+    // switch is both wasteful and makes the class cache lie about its body.
     let proc = vm.ensure_proc_traced(Rc::new(proc));
+    if !Rc::ptr_eq(&proc.body, &m.body)
+        || proc.compiled_profile_generation != m.compiled_profile_generation
+    {
+        let mut refreshed = m.clone();
+        refreshed.body = Rc::clone(&proc.body);
+        refreshed.compiled_profile_generation = proc.compiled_profile_generation;
+        if method.is_empty() {
+            if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
+                class.constructor = Some(refreshed);
+            }
+        } else if method == "<destructor>" {
+            if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
+                class.destructor = Some(refreshed);
+            }
+        } else if step.is_object {
+            if let Some(object) = vm.oo.objects.get_mut(&step.provider) {
+                object.methods.insert(method.clone(), refreshed);
+            }
+        } else if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
+            class.methods.insert(method.clone(), refreshed);
+        }
+    }
     let frame = OoFrame {
         object: obj_key.to_string(),
         chain: chain.to_vec(),
