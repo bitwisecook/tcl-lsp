@@ -2,7 +2,7 @@
 
 The flow facts core analysis already computes, and the rule that a new pass
 consumes them rather than re-deriving its own. Read this when designing a pass
-that needs reachability, def-use, type, or execution-intent information.
+that needs reachability, def-use, or type information.
 
 CFG/SSA/core analyses already compute high-value facts (reachability, definitions/uses, type lattice states, dead stores, etc.). Duplicating this reasoning in each pass creates inconsistency risk.
 
@@ -32,19 +32,11 @@ needs — `slot_allocation::live_out_by_name` for slot interference,
 `dead_stores::liveness_dead_stores` for dead stores.  So is the natural-loop
 forest (`loops::build_loop_forest`), which is rebuilt per call.
 
-`execution_intent::FunctionExecutionIntent` (command-substitution shape,
-side-effect/escape classes, shimmer pressure) is defined and exported but has
-no producer or consumer in the tree, so it is not a fact a new pass can
-consume today.
-
 ## Practical checklist
 
 1. Can this new pass consume the `FunctionUnit` instead of recomputing flow?
-   (The `FunctionAnalysis` aggregate in `rust/tcl-compiler/src/analyses.rs` is
-   declared but not on the live path — nothing builds, returns, or reads one,
-   and there is no `analyse_function()`; issue #1406 tracks the gap.
-   `analyses.rs` is still where the shared lattice types — `LatticeValue`,
-   `ConstValue`, `LatticeKind` — live.)
+   `analyses.rs` is where the shared lattice types — `LatticeValue`,
+   `ConstValue`, and `LatticeKind` — live.
 2. Does it honour `FunctionUnit::complexity_guarded`?  A guarded unit carries a
    trivial SSA shell, and every per-proc diagnostic and optimiser pass must skip
    it rather than read empty lattices as fact.
@@ -63,7 +55,6 @@ consume today.
 - `rust/tcl-compiler/src/memory_ssa.rs`
 - `rust/tcl-compiler/src/dataflow_graph.rs`
 - `rust/tcl-compiler/src/compilation_unit.rs`
-- `docs/design/compiler/execution-intent-model.md`
 - `docs/design/compiler/def-use-chains.md`
 - `docs/design/compiler/memory-ssa.md`
 - `rust/tcl-compiler/src/shimmer/`

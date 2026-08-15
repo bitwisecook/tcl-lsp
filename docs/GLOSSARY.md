@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -608,10 +608,7 @@ consumer needs it rather than stashed on a per-function aggregate:
 `live_out_by_name()` (`rust/tcl-compiler/src/slot_allocation.rs`) for slot
 interference, and `liveness_dead_stores()`
 (`rust/tcl-compiler/src/dead_stores.rs`) for the `DeadStore` list, both
-reading the `FunctionUnit` that `CompilationUnit::build_for()` builds.  The
-`FunctionAnalysis.live_in / live_out` fields (`tcl_compiler::analyses`) are
-declared but not on the live path — nothing populates them; issue #1406
-tracks the gap.
+reading the `FunctionUnit` that `CompilationUnit::build_for()` builds.
 
 ```mermaid
 flowchart LR
@@ -778,17 +775,6 @@ of hardcoding name lists. Dialect-aware — iRules provides the `static::`
 namespace and BIG-IP `tcl_platform` keys but not `env` / `argv`.
 
 See also: [Special-variable registry](design/special-variable-registry.md).
-
-### Execution intent
-
-A per-argument classification that says whether a command substitution
-in argument position is evaluated for its value, for its side-effects,
-or both. The optimiser uses this to decide whether a `[cmd]` can be
-folded, hoisted, or sunk. Implemented in
-`tcl_compiler::execution_intent`.
-
-See also: [Execution intent model](design/compiler/execution-intent-model.md).
-KCS tag: `exec-intent`.
 
 ### Rendered-value properties
 

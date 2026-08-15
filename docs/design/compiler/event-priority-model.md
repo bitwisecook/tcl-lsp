@@ -46,18 +46,7 @@ event, in the canonical order `EventRegistry::order_events` gives, and
 (`init`, `per_request`, …). Only `when` commands whose last word is a braced
 block are collected.
 
-### `RuleInitExport` / `RuleInitVarDef`
-
-> **Not part of the live path.** Neither type exists in the Rust tree, and
-> there is no `extract_rule_init_vars` function; nothing carries a
-> `base_priority` for cross-file RULE_INIT variable tracking. Issue #1406
-> tracks the gap.
-
-The design they describe: both would carry a `base_priority` for cross-file
-RULE_INIT variable tracking, with no offset — RULE_INIT ordering does not
-require tie-breaking.
-
-What exists today is per-document only. `Procedure::base_priority`
+`RULE_INIT` variable tracking is per-document only. `Procedure::base_priority`
 (above) carries the declared priority for each `when` handler, and
 `static::` variables written by `when RULE_INIT` are tracked by
 `ConnectionScope` (`rust/tcl-compiler/src/connection_scope.rs`), built by

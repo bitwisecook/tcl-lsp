@@ -45,10 +45,6 @@ pub enum EdgeKind {
     Direct,
     /// Flow through a phi node (conditional merge).
     Phi,
-    /// Flow through an aliased binding (upvar / global / variable).
-    Alias,
-    /// Value may be invalidated by a barrier / eval.
-    Clobber,
 }
 
 impl EdgeKind {
@@ -58,8 +54,6 @@ impl EdgeKind {
         match self {
             Self::Direct => "direct",
             Self::Phi => "phi",
-            Self::Alias => "alias",
-            Self::Clobber => "clobber",
         }
     }
 }
@@ -475,8 +469,6 @@ mod tests {
     fn edge_kind_str_values() {
         assert_eq!(EdgeKind::Direct.as_str(), "direct");
         assert_eq!(EdgeKind::Phi.as_str(), "phi");
-        assert_eq!(EdgeKind::Alias.as_str(), "alias");
-        assert_eq!(EdgeKind::Clobber.as_str(), "clobber");
     }
 
     #[test]

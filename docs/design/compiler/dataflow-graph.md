@@ -54,7 +54,7 @@ pub struct DataFlowEdge {
     pub from_version: u32,
     pub to_block: String,       // destination site
     pub to_statement_index: i32, // -1 for phi-incoming and terminator uses
-    pub edge_kind: EdgeKind,    // Direct | Phi | Alias | Clobber
+    pub edge_kind: EdgeKind,    // Direct | Phi
     pub to_name: String,        // phi edges only
     pub to_version: i32,        // phi edges only; -1 otherwise
 }
@@ -69,10 +69,10 @@ pub struct AliasInfo {
 }
 ```
 
-`EdgeKind` declares four variants, but `extract_function_dataflow` only ever
-emits `Phi` (for a `UseKind::PhiIncoming` use) and `Direct` (for everything
-else, including terminator-condition uses).  `Alias` and `Clobber` have no
-producer.
+`extract_function_dataflow` emits `Phi` for a `UseKind::PhiIncoming` use and
+`Direct` for every other use, including terminator-condition uses. Alias and
+clobber information is represented separately by `AliasInfo` and Memory-SSA
+operations, rather than as scalar def-use edges.
 
 ## Serialisation
 

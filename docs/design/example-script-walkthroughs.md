@@ -22,7 +22,7 @@ produced at every stage, with field-level detail.
 | **GVN** | Global Value Numbering — an optimisation that detects redundant computations by assigning a canonical identity to each expression.  See `rust/tcl-compiler/src/gvn.rs`. |
 | **IR** | Intermediate Representation — a structured, typed representation of Tcl commands between parsing and code generation.  Defined in `rust/tcl-compiler/src/ir.rs`; every statement kind is a variant of the one `Statement` enum (`rust/tcl-compiler/src/ir.rs`). |
 | **Lattice** | A mathematical structure used in dataflow analysis where values flow from *bottom* (unknown) toward *top* (overdefined).  The SCCP value lattice is `LatticeValue` (`rust/tcl-compiler/src/analyses.rs`); the type lattice is `TypeLattice` (`rust/tcl-compiler/src/types.rs`). |
-| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point.  The `FunctionAnalysis::live_in / live_out` fields that would hold the results are declared but unpopulated — see the note under [Stage 6](#stage-6--analysis-types-rusttcl-compilersrcanalysesrs) and issue #1406. |
+| **Liveness** | A dataflow analysis that determines which SSA values are "live" (may still be read) at each program point. It is computed at the point of use rather than stored on `FunctionUnit`. |
 | **LVT** | Local Variable Table — maps variable names to integer slot indices for fast access inside procedures.  See `LocalVarTable` (`rust/tcl-bytecode/src/lib.rs`). |
 | **Phi node (φ)** | An SSA construct placed at control flow merge points.  `φ(x₁, x₃)` means "use `x₁` if control arrived from predecessor 1, or `x₃` if from predecessor 2."  Represented by `Phi` (`rust/tcl-compiler/src/ssa.rs`). |
 | **SCCP** | Sparse Conditional Constant Propagation — a combined constant propagation and unreachable-code analysis that runs over the SSA graph.  Implemented in `sccp()` (`rust/tcl-compiler/src/sccp.rs`), which returns an `SccpResult`; the lattice types live in `rust/tcl-compiler/src/analyses.rs`. |
@@ -472,27 +472,7 @@ pub enum ConstValue {
     String(String),
 }
 
-// Aggregate per-function analysis shape.  Declared, but not part of the
-// live pipeline — see the note below.
-pub struct FunctionAnalysis {
-    pub live_in: HashMap<String, HashSet<ValueKey>>,   // (see Glossary → Liveness)
-    pub live_out: HashMap<String, HashSet<ValueKey>>,
-    pub dead_stores: Vec<DeadStore>,
-    pub unreachable_blocks: HashSet<String>,
-    pub constant_branches: Vec<ConstantBranch>,
-    pub values: HashMap<ValueKey, LatticeValue>,   // SCCP (see Glossary → SCCP)
-    pub types: HashMap<ValueKey, TypeLattice>,     // type-inference results
-    pub read_before_set: Vec<ReadBeforeSet>,
-    pub unused_variables: Vec<UnusedVariable>,
-    pub unused_params: Vec<String>,
-}
 ```
-
-> **`FunctionAnalysis` is not on the live path.**  The struct is declared in
-> `rust/tcl-compiler/src/analyses.rs`, but nothing in the compiler builds,
-> returns, or reads one — its only construction is `::default()` inside that
-> module's own tests.  It is kept here as the shape a per-function analysis
-> aggregate would take; issue #1406 tracks the gap.
 
 What the pipeline actually produces is the per-function `FunctionUnit` on the
 `CompilationUnit` (below), built by `CompilationUnit::build_for()`
@@ -1623,7 +1603,7 @@ by the display name `SsaFunction::var_name` resolves it to.
 
 ### Stage 6 — Core analyses
 
-**SCCP** (see [Glossary](#glossary))**:** `(x, 1)` → `LatticeValue(CONST, "42")` — provably constant.
+**SCCP** (see [Glossary](#glossary))**:** `(x, 1)` → `LatticeValue::Const(ConstValue::Int(42))` — provably constant.
 
 **Type inference:** `(x, 1)` → `TypeLattice::of(TclType::Int)` — `"42"` is
 a valid integer literal, so the intrep is INT.
@@ -3396,81 +3376,7 @@ procedures, or modify the call stack.
 
 ---
 
-## Example 23: Execution intent — command substitution classification
-
-Shows how `FunctionExecutionIntent` classifies command substitutions
-for use by ADCE, shimmer detection, and other passes.
-
-### Source
-
-```tcl
-proc process {items} {
-    set count [llength $items]
-    set label [format "Total: %d" $count]
-    set result [http::geturl $url]
-    return $label
-}
-```
-
-### Execution intent construction
-
-`build_execution_intent()` in
-`rust/tcl-compiler/src/execution_intent.rs` walks each
-`Statement::AssignValue` in the CFG and parses the command substitution:
-
-**`[llength $items]`:**
-
-```
-CommandSubstitutionIntent {
-    command: "llength",
-    args: ["$items"],
-    arg_categories: [SubstitutionCategory::ScalarVar],
-    side_effect: SideEffectClass::Pure,      // llength is pure
-    escape: EscapeClass::NoEscape,           // no dynamic barriers
-    shimmer_pressure: 1,                     // one var arg
-}
-```
-
-**`[format "Total: %d" $count]`:**
-
-```
-CommandSubstitutionIntent {
-    command: "format",
-    args: ["\"Total: %d\"", "$count"],
-    arg_categories: [SubstitutionCategory::Literal, SubstitutionCategory::ScalarVar],
-    side_effect: SideEffectClass::Pure,
-    escape: EscapeClass::NoEscape,
-    shimmer_pressure: 1,
-}
-```
-
-**`[http::geturl $url]`:**
-
-```
-CommandSubstitutionIntent {
-    command: "http::geturl",
-    args: ["$url"],
-    arg_categories: [SubstitutionCategory::ScalarVar],
-    side_effect: SideEffectClass::MaySideEffect,  // network I/O
-    escape: EscapeClass::MayEscape,               // may throw
-    shimmer_pressure: 1,
-}
-```
-
-### How ADCE uses execution intent
-
-`assignment_safe_to_delete()`
-(`rust/tcl-compiler/src/optimiser/elimination.rs`) checks the intent before
-removing a "dead" assignment:
-
-- `[llength $items]` → `Pure` + `NoEscape` → **safe to remove** if `count`
-  is never read.
-- `[http::geturl $url]` → `MaySideEffect` → **cannot remove** even if
-  `result` is never read (the network call is observable).
-
----
-
-## Example 24: Interprocedural analysis — summary construction
+## Example 23: Interprocedural analysis — summary construction
 
 Shows how `InterproceduralAnalysis` builds `ProcSummary` objects that
 describe each procedure's behaviour for cross-procedure optimisation.
@@ -3488,56 +3394,21 @@ proc main {a b} {
 }
 ```
 
-### Phase 1 — Local facts (`ProcLocalSummary`)
+### Phase 1 — Local facts
 
-For each procedure, the interprocedural pass builds local facts by
-walking the IR:
-
-**`::helper`:**
-
-```
-ProcLocalSummary(
-    qualified_name="::helper",
-    params=("x",),
-    arity=Arity(1, 1),
-    calls=(),                        # no internal proc calls
-    has_barrier=false,               # no eval/uplevel
-    has_unknown_calls=false,
-    writes_global=false,
-    local_effect_reads=EffectRegion(0),   # reads only local params
-    local_effect_writes=EffectRegion(0),  # writes only local var
-    returns_constant=false,               # depends on param
-    constant_return=None,
-    return_depends_on_params=("x",),      # return value depends on x
-    return_passthrough_param=None,
-)
-```
-
-**`::main`:**
-
-```
-ProcLocalSummary(
-    qualified_name="::main",
-    params=("a", "b"),
-    arity=Arity(2, 2),
-    calls=("::helper",),            # calls helper
-    has_barrier=false,
-    has_unknown_calls=false,
-    writes_global=false,
-    local_effect_reads=EffectRegion(0),
-    local_effect_writes=EffectRegion.LOG_IO,  # puts writes to output
-)
-```
+For each procedure, the interprocedural pass scans the IR into its private
+`LocalFacts` record. It records direct calls, barrier and unknown-call flags,
+global writes, local purity, effect regions, return shapes, parameter traits,
+and discovered global or caller-frame aliases. That scratch record is then
+reduced into the public `ProcSummary`; it is not a public summary type.
 
 ### Phase 2 — Transitive closure
 
 The solver iterates over the call graph to propagate effects:
 
 1. `::helper` has no callees → its summary is final.
-2. `::main` calls `::helper`:
-   - `::helper` is pure → no additional effect reads/writes propagated.
-   - `::main` calls `puts` → `LOG_IO` effect write.
-   - `::main` is NOT pure (has `puts` side effect).
+2. `::main` calls `::helper`; the solver incorporates `::helper`'s final
+   summary while preserving `::main`'s local observable `puts` call.
 
 ### Phase 3 — Constant folding eligibility
 
@@ -3576,7 +3447,7 @@ ProcSummary {
 
 ---
 
-## Example 25: Connection scope — cross-event variable flow (iRules)
+## Example 24: Connection scope — cross-event variable flow (iRules)
 
 Shows how `ConnectionScope` analysis tracks variables that flow between
 `when` event handlers in iRules.
@@ -4281,5 +4152,5 @@ Each stage transforms the data into a richer representation:
 3. **IR nodes** — typed, structured command semantics (`rust/tcl-compiler/src/ir.rs`)
 4. **CFG blocks** — explicit control flow with terminators (`rust/tcl-compiler/src/cfg.rs`)
 5. **SSA** — variable versioning with phi nodes at merge points (`rust/tcl-compiler/src/ssa.rs`)
-6. **FunctionUnit** — constant values, types, taints, def-use chains, per function; its `sccp: SccpResult` holds the SCCP lattice (`rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/sccp.rs`).  The `FunctionAnalysis` aggregate sketched in [Stage 6](#stage-6--analysis-types-rusttcl-compilersrcanalysesrs) is declared but not on this path — see issue #1406
+6. **FunctionUnit** — constant values, types, taints, and def-use chains per function; its `sccp: SccpResult` holds the SCCP lattice (`rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/sccp.rs`).
 7. **Bytecode** — executable instruction stream with literal/variable tables (`rust/tcl-bytecode/src/format.rs`)

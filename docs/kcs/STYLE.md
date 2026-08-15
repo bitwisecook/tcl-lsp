@@ -354,7 +354,6 @@ entry for the pass, which in turn links to the compiler design doc.
 | `code-sinking` | Assignment sinking into decision blocks (O125) |
 | `unused-procs` | Unused iRules proc removal (O124) |
 | `side-effects` | Structured side-effect classification |
-| `exec-intent` | Command-substitution execution-intent classification |
 | `rendered-props` | String content properties over SSA |
 | `const-fold` | Compile-time constant folding |
 | `strength-reduce` | Strength reduction (`x**2` → `x*x`) |

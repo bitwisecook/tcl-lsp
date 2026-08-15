@@ -142,8 +142,6 @@ User-facing compiler troubleshooting and how-tos live in
   consumed by CFG, SSA, and codegen.
 - [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md) — core fact model and
   consumption rules.
-- [execution-intent-model.md](execution-intent-model.md) —
-  command-substitution intent facts used by the optimiser and shimmer.
 - [compilation-unit-contracts.md](compilation-unit-contracts.md) —
   compilation unit orchestration and incremental cache expectations.
 - [compilation-unit-scope.md](compilation-unit-scope.md) — when a fact

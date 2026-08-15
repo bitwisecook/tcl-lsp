@@ -116,7 +116,7 @@ command spelling is inspected as a fallback.
 `version_counter` for all memory locations within a function.  When a `DEF`
 to variable `x` bumps the counter, a subsequent `USE` of unrelated variable
 `y` records that bumped counter as its `reaching_version`.  This is correct
-for consumers that use `may_alias()` and alias sets, but any consumer relying
+for consumers that use alias sets, but any consumer relying
 on `reaching_version` for per-variable reaching-def analysis will get an
 over-approximation.
 
@@ -124,8 +124,6 @@ over-approximation.
 
 | Method / Property | Meaning |
 |-------------------|---------|
-| `may_alias(a, b)` | `true` if two variable names may refer to the same storage. Same-name always aliases, and a wildcard transition aliases every pair |
-| `aliases_for(name)` | All alias sets containing the given variable name |
 | `aliased_names()` | `BTreeSet<String>` of every variable name involved in aliasing |
 | `count_defs` | Count of `MemoryOpKind::Def` memory operations |
 | `count_uses` | Count of `MemoryOpKind::Use` memory operations |
@@ -144,10 +142,6 @@ to a direct `compute_aliases` call.
 | O127's intervening-effect gate | `statement_has_wildcard_aliasing` | An unresolved or widened transition between the store and the load kills the forward |
 | Data-flow graph (`dataflow_graph.rs`) | `alias_sets` | `AliasInfo` rows in the `dataflow` view |
 | Explorer / LSP graph payloads | `with_memory_ssa` then the above | `tcl-explorer/src/lib.rs`, `tcl-lsp-core/src/graphs.rs` |
-
-`may_alias` and `aliases_for` are part of the public surface but have no
-production caller — the alias-scoping test suite
-(`rust/tcl-compiler/tests/alias_scoping.rs`) is what exercises them.
 
 ## Module Location
 
@@ -181,5 +175,5 @@ memory_ops:
   USE counter reaching=v1     ← the `$counter` read, snapshotted pre-def
 ```
 
-`may_alias("counter", "counter")` returns `true` — the local binding and the
-global storage are the same cell.
+The `counter` locations are members of the same alias set, so consumers that
+need a conservative alias guard retain the assignment.

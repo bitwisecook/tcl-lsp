@@ -10,7 +10,8 @@ re-tokenise only the affected region.
 > `infer_edit_range`, `incremental_top_level_chunks`,
 > `segment_top_level_chunks`, `find_first_dirty_chunk`, `_update_incremental`,
 > `_segment_chunks`, and `_delimiter_terminated` appear in no Rust file. Read
-> sections A–E as a design sketch throughout; issue #1406 tracks the gap.
+> sections A–E as a design sketch throughout; they are not an implementation
+> commitment.
 >
 > Three things in this space do exist, and are named below where they bear on a
 > section: the red-green concrete syntax tree under

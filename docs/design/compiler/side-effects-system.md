@@ -11,8 +11,6 @@ is the classifier; its direct callers are:
   `is_pure_command` and the `EffectRegion` bridge.
 - **Interprocedural analysis** (`interprocedural.rs`) — procedure summaries
   across call boundaries.
-- **Execution intent** (`execution_intent.rs`) — purity classification for
-  command-substitution intent.
 - **Dead-store elimination** (`optimiser/elimination.rs`).
 - **The analyser's command dispatch** (`analyser/commands.rs`).
 
@@ -434,7 +432,6 @@ SideEffect {
 - `rust/tcl-compiler/src/interprocedural.rs` — interprocedural consumer
 - `rust/tcl-compiler/src/irules_checks.rs` — response-commit derivation, reading
   the registry `SideEffect` declarations directly
-- `rust/tcl-compiler/src/execution_intent.rs` — purity consumer
 - `rust/tcl-compiler/src/sccp.rs` — purity consumer via the GVN trace gate
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — load-forwarding consumer
   (threads `traced_commands` via `ctx.ir_module`)
@@ -459,4 +456,3 @@ SideEffect {
 - [Compiler KCS index](README.md)
 - [KCS index](../README.md)
 - [Pipeline overview](../../../docs/design/compiler/compiler-pipeline-overview.md)
-- [Execution intent model](../../../docs/design/compiler/execution-intent-model.md)

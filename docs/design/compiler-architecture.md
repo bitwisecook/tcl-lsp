@@ -559,10 +559,7 @@ flowchart TD
 
 SCCP and type inference land on the per-function `FunctionUnit` that
 `CompilationUnit::build_for()` builds; liveness has no stored home and is
-recomputed by the two consumers that need it.  `FunctionAnalysis` in
-`analyses.rs` names the same facts as one aggregate, but nothing builds,
-returns, or reads one — its only construction is `::default()` inside that
-module's own tests.  Issue #1406 tracks the gap.
+recomputed by the two consumers that need it.
 
 #### SCCP lattice
 
@@ -942,7 +939,7 @@ tables.
 | `rust/tcl-compiler/src/cfg.rs`, `cfg_builder/` | Control-flow graph construction |
 | `rust/tcl-compiler/src/ssa.rs`, `memory_ssa.rs`, `state_ssa.rs` | SSA form construction |
 | `rust/tcl-compiler/src/sccp.rs`, `type_infer.rs`, `dead_stores.rs` | SCCP, type inference, dead-store detection |
-| `rust/tcl-compiler/src/analyses.rs` | Core analysis fact and lattice types (`LatticeValue`, `DeadStore`, …; the `FunctionAnalysis` aggregate here is declared but not on the live path — issue #1406) |
+| `rust/tcl-compiler/src/analyses.rs` | Core analysis fact and lattice types (`LatticeValue`, `DeadStore`, …) |
 | `rust/tcl-compiler/src/compilation_unit.rs` | Pipeline orchestration and caching |
 | `rust/tcl-compiler/src/interprocedural.rs` | Call graph and procedure summaries |
 | `rust/tcl-compiler/src/optimiser/` | Optimisation passes (O100–O130) and the pass manager |

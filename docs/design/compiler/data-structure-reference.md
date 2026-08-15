@@ -114,17 +114,11 @@ Every IR statement carries a `Span` for precise diagnostic mapping.
 | `LatticeValue` | SCCP result: `Unknown` / `Const(ConstValue)` / `ConstSet(Vec<ConstValue>)` / `Overdefined` |
 | `TypeLattice` | Type inference (`rust/tcl-compiler/src/types.rs`); its `TypeKind` reads `Unknown` / `Known` / `Shimmered` / `Overdefined` over a bounded set of `TypeShape`s |
 | `SccpResult` | What `sccp()` (`rust/tcl-compiler/src/sccp.rs`) returns and `FunctionUnit.sccp` carries: `values`, `executable_blocks`, `executable_edges`, `constant_branches` |
-| `FunctionAnalysis` | `live_in`/`live_out`, `dead_stores`, `unreachable_blocks`, `constant_branches`, `values`, `types`, `read_before_set`, `unused_variables`, `unused_params` — **not on the live path**, see below |
-
-`FunctionAnalysis` is declared in `rust/tcl-compiler/src/analyses.rs`, but
-nothing in the compiler builds, returns, or reads one; its only construction is
-`::default()` inside that module's own tests.  The per-function results a
-consumer actually reads come from `FunctionUnit`
-(`CompilationUnit::build_for()`, orchestration table below) — `sccp:
-SccpResult` for the SCCP lattice and constant branches, `types` for type
-inference, and `liveness_dead_stores()`
-(`rust/tcl-compiler/src/dead_stores.rs`) for the `DeadStore` list.  Nothing
-populates `live_in` / `live_out`.  Issue #1406 tracks the gap.
+Per-function results live on `FunctionUnit`
+(`CompilationUnit::build_for()`, orchestration table below): `sccp:
+SccpResult` carries the SCCP lattice and constant branches, `types` carries
+type inference, and `liveness_dead_stores()`
+(`rust/tcl-compiler/src/dead_stores.rs`) returns the `DeadStore` list.
 
 ### Stage 7 — Codegen types (`codegen/`, `rust/tcl-bytecode/src/lib.rs`)
 
