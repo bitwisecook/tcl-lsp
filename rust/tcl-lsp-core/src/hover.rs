@@ -564,12 +564,14 @@ fn registry_pattern_format_hover(
     let line_index = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     let config = LexerConfig::for_file_dialect(profile.name);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
 
     for command in segment_commands_with_offset_and_config(source, 0, config) {
         if cursor < command.span.start() || cursor > command.span.end() {
             continue;
         }
-        let Some(head) = command.texts.first() else {
+        let Some(written_head) = command.texts.first() else {
             continue;
         };
         // The registry is only authoritative after the analyser has confirmed
@@ -589,7 +591,7 @@ fn registry_pattern_format_hover(
             analysis,
             source,
             &namespace,
-            head,
+            written_head,
             call_offset,
             resolution,
         )
@@ -597,6 +599,11 @@ fn registry_pattern_format_hover(
         {
             continue;
         }
+        let identity = identities.resolve(written_head, call_offset);
+        if identity.is_rebound() {
+            continue;
+        }
+        let head = identity.spec_name();
         let args: Vec<&str> = command.texts.iter().skip(1).map(String::as_str).collect();
         let Some(_resolved) =
             registry.resolve_call(head, &args, tcl_registry::dialects::DialectSet::empty())

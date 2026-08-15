@@ -64,5 +64,24 @@ class TclLspActionsTest {
         assertContains(mermaid, "|false|")
         assertContains(mermaid, "after")
         assertContains(mermaid, "if join")
+        assertContains(mermaid, "n1 -->|a| n2")
+        assertContains(mermaid, "n1 -->|b| n4")
+        assertContains(mermaid, "n3 --> n6")
+        assertContains(mermaid, "n5 --> n6")
+        assertContains(mermaid, "n1 -->|false| n6")
+        assertContains(mermaid, "n6 --> n7")
+    }
+
+    @Test
+    fun explicitElseDoesNotAddImplicitFalseEdge() {
+        val payload = JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"if","branches":[
+              {"condition":"a","body":[{"kind":"action","label":"then"}]},
+              {"condition":"else","body":[{"kind":"action","label":"else"}]}
+            ]}]}],"procedures":[]}""".trimIndent()
+        )
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "|else|")
+        kotlin.test.assertFalse(mermaid.contains("|false|"))
     }
 }
