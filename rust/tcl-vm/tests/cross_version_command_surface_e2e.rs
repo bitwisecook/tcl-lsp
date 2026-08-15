@@ -271,7 +271,7 @@ fn hidden_builtin_cannot_escape_through_rename_or_hide() {
             "rename=0;\n",
             "alias=0;\n",
             "hide=0;\n",
-            "expose=0;\n",
+            "expose=1;exposed command \"la\" already exists\n",
             "after-hide=0;\n",
             "vars=1,1",
         )
@@ -600,6 +600,40 @@ fn namespace_path_resolved_coroutine_rename_and_delete_keep_state_in_sync() {
         ("TCLSH86", &["tclsh8.6"][..]),
         ("TCLSH90", &["tclsh9.0"][..]),
     ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] real Tcl oracle");
+        }
+    }
+}
+
+/// Hide/expose collisions reject before moving either binding.  The visible
+/// destination keeps both command and execution traces, and the hidden token
+/// remains invocable, matching Tcl's non-destructive failure contract.
+#[test]
+fn hide_and_expose_collisions_preserve_bindings_and_traces() {
+    let src = concat!(
+        "proc a {} {return A}; proc b {} {return B}\n",
+        "proc cb args {lappend ::events [lindex $args end]}\n",
+        "trace add command b delete cb; trace add execution b enter cb\n",
+        "interp hide {} a token\n",
+        "puts \"hide=[catch {interp hide {} b token} m];$m\"\n",
+        "puts \"expose=[catch {interp expose {} token b} m];$m\"\n",
+        "interp expose {} token restored\n",
+        "puts \"visible=[b] hidden=[restored] traces=[llength [trace info command b]],[llength [trace info execution b]] events=$::events\"\n",
+    );
+    let want = concat!(
+        "hide=1;hidden command named \"token\" already exists\n",
+        "expose=1;exposed command \"b\" already exists\n",
+        "visible=B hidden=A traces=1,1 events=enter",
+    );
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] hide collision"
+        );
+    }
+    for (env, names) in [("TCLSH90", &["tclsh9.0"][..])] {
         if let Some(out) = tclsh_output(env, names, src) {
             assert_eq!(out, want, "[{env}] real Tcl oracle");
         }

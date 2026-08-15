@@ -2563,14 +2563,21 @@ impl Vm {
     /// `interp hide {} cmd` — move one visible command plus all of its
     /// metadata into the hidden table.  This is the only public hide seam;
     /// every caller therefore observes the same release-visibility check.
-    pub(crate) fn hide_command(&mut self, cmd: &str, token: &str) -> bool {
+    pub(crate) fn hide_command(&mut self, cmd: &str, token: &str) -> Result<(), String> {
+        if self.hidden_commands.contains_key(token) {
+            return Err(format!("hidden command named \"{token}\" already exists"));
+        }
         let Some(source) = self.resolve_command_fqn(self.current_ns(), cmd) else {
-            return false;
+            return Ok(());
         };
         let import_origin = self.imported_commands.get(&source).cloned();
         let builtin_identity = self.builtin_identity_for_key(&source);
         let Some(command) = self.take_command(cmd) else {
-            return false;
+            return Ok(());
+        };
+        let cross_target = match &command {
+            Command::CrossAlias { target, .. } => Some(*target),
+            _ => None,
         };
         self.hidden_commands.insert(token.to_owned(), command);
         if let Some(origin) = import_origin {
@@ -2584,15 +2591,24 @@ impl Vm {
         // A hidden token is the command's temporary name.  Imports that
         // pointed at this source follow it until expose gives it a new key.
         self.retarget_imports(&source, token);
-        true
+        if let Some(target) = cross_target {
+            self.retarget_alias_backref(&source, token, target);
+        }
+        Ok(())
     }
 
     /// `interp expose {} hidden ?token?` — restore one of *this* interp's
     /// hidden commands, optionally under a new name (`token`).
-    pub(crate) fn expose_own_command(&mut self, cmd: &str, token: &str) {
+    pub(crate) fn expose_own_command(&mut self, cmd: &str, token: &str) -> Result<(), String> {
+        if self.lookup_command(token).is_some() {
+            return Err(format!("exposed command \"{token}\" already exists"));
+        }
         if let Some(c) = self.hidden_commands.remove(cmd) {
-            self.bump_cmd_epoch();
-            self.commands.insert(token.to_string(), c);
+            let cross_target = match &c {
+                Command::CrossAlias { target, .. } => Some(*target),
+                _ => None,
+            };
+            self.register_command(token, c);
             if let Some(origin) = self.hidden_imported_commands.remove(cmd) {
                 self.imported_commands.insert(token.to_owned(), origin);
             }
@@ -2603,7 +2619,11 @@ impl Vm {
             // the hidden table. Imported commands retain the source token in
             // C Tcl, so their provenance follows the newly exposed name too.
             self.retarget_imports(cmd, token);
+            if let Some(target) = cross_target {
+                self.retarget_alias_backref(cmd, token, target);
+            }
         }
+        Ok(())
     }
 
     /// Sorted hidden-command names of *this* interp (`interp hidden {}`).
@@ -2616,20 +2636,26 @@ impl Vm {
     /// `interp hide|expose path cmd ?token?` on a child. When hiding, the
     /// command `cmd` is filed under `token`; when exposing, the hidden `cmd` is
     /// restored as the command `token`.
-    pub(crate) fn child_hide(&mut self, name: &str, cmd: &str, token: &str, hide: bool) -> bool {
+    pub(crate) fn child_hide(
+        &mut self,
+        name: &str,
+        cmd: &str,
+        token: &str,
+        hide: bool,
+    ) -> Result<bool, String> {
         let Some(id) = self.child_id(name) else {
-            return false;
+            return Ok(false);
         };
         // Enter the child so public hide uses the same visibility-aware
         // removal seam as `rename` and same-interpreter `interp hide`.
         self.in_interp(id, |vm| {
             if hide {
-                vm.hide_command(cmd, token);
+                vm.hide_command(cmd, token)
             } else {
-                vm.expose_own_command(cmd, token);
+                vm.expose_own_command(cmd, token)
             }
-        });
-        true
+        })?;
+        Ok(true)
     }
 
     /// Make this interp safe (`interp create -safe`): hide the commands that
@@ -3067,9 +3093,9 @@ impl Vm {
         // This is the `$child hide` spelling of the same public operation.
         self.in_interp(id, |vm| {
             if hide {
-                vm.hide_command(cmd, token);
+                let _ = vm.hide_command(cmd, token);
             } else {
-                vm.expose_own_command(cmd, token);
+                let _ = vm.expose_own_command(cmd, token);
             }
         });
         true

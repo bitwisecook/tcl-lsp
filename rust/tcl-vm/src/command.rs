@@ -814,16 +814,21 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
         }
     }
     if path.is_empty() {
-        if hide {
-            vm.hide_command(&cmd, &token);
+        let result = if hide {
+            vm.hide_command(&cmd, &token)
         } else {
-            vm.expose_own_command(&cmd, &token);
+            vm.expose_own_command(&cmd, &token)
+        };
+        match result {
+            Ok(()) => ok(Value::empty()),
+            Err(message) => err(message),
         }
-        ok(Value::empty())
-    } else if vm.child_hide(&path, &cmd, &token, hide) {
-        ok(Value::empty())
     } else {
-        err(format!("could not find interpreter \"{path}\""))
+        match vm.child_hide(&path, &cmd, &token, hide) {
+            Ok(true) => ok(Value::empty()),
+            Ok(false) => err(format!("could not find interpreter \"{path}\"")),
+            Err(message) => err(message),
+        }
     }
 }
 
