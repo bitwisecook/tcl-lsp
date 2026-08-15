@@ -377,7 +377,13 @@ pub enum DispatchEntryAssumption {
 
 This is the typed replacement for any "no trace was seen in this file"
 heuristic. It is an explicit input chosen by the analysis driver, never
-inferred from source text.
+inferred from source text. The enum is public because low-level compiler APIs
+and pass tests deliberately accept an assumption; it is not an opaque proof
+token. Such callers can select `PristineRegistryWorld` without proving it.
+Soundness claims in this section therefore describe the repository's
+production `CompilationUnit` drivers, whose choices are pinned by regression
+tests, not arbitrary direct calls to `FunctionUnit::with_semantic_analysis`,
+`SemanticAnalysisBundle::build`, or `analyse_dispatch_stability`.
 
 `PristineRegistryWorld` asserts that dispatch state at entry is the registry's
 baseline for the selected dialect: registry command bindings are intact and no
@@ -401,10 +407,72 @@ auto-fix payload. An action tier — one that offers to perform the rewrite —
 needs a stronger contract that additionally justifies the assumption from
 workspace facts.
 
-The enum is the extension point. A workspace-aware driver can add a variant
-carrying aggregated cross-file evidence (workspace index, `package require`
-graph, `source` graph, a per-file dispatch summary) without touching a single
-transfer function: only `WorldContents::entry` interprets it.
+### #1398 closed-world disposition (2026-08-15)
+
+The enum is an internal extension point, but a workspace index is not evidence
+of a closed Tcl world. A sound stronger entry needs one runtime/session owner
+which can verify, rather than accept caller assertions about, all of these
+facts together:
+
+- a fresh interpreter sealed for the complete analysed lifetime;
+- exact `DialectProfile` identity (not only an availability mask: profiles
+  such as Mentor, Synopsys, and Tcl 8.6 may share command availability while
+  differing semantically);
+- exact content identities and evaluation order for every workspace unit,
+  resolved `source`, selected package implementation, and preload;
+- a complete set of Tcl callers and native/host command exposures; and
+- complete ordered dispatch-world history through the load and at every
+  procedure invocation, including nested evaluation and host re-entrancy; and
+- registry-baseline command identity after the complete ordered load, plus
+  either prevention of every later mutation or a context-sensitive verified
+  entry summary at each invocation.
+
+No current compiler, CLI, build mode, or LSP database owns both that runtime
+session and those complete facts. The LSP package/source graph describes files
+visible to static analysis; it cannot exclude later `trace`, `rename`, alias,
+namespace-unknown, host-native registration, or calls from outside the
+workspace. A public constructor taking marker tokens, counts, paths, hashes,
+or caller-provided summaries would merely make an unsound assertion forgeable.
+Omitting or reordering a unit, omitting a caller/exposure, or ignoring a
+preload would still construct the same supposed proof.
+
+Therefore #1398 is deliberately dispositioned in the production drivers as
+**conservative abstention**: procedure, method, `apply`, and `namespace eval`
+body units remain `UnknownWorld`. Methods additionally need receiver/object
+command-state facts; `apply` can escape as a first-class value; and `namespace
+eval` is both a separate body unit and a script-callback barrier. There is no
+usable public sealed-entry API until a concrete runtime owner can verify the
+contract above and `WorldContents::entry` can consume its ordered summaries.
+Tests pin all four production body kinds to `UnknownWorld`; they do not pretend
+that the intentionally caller-selected low-level assumption is unforgeable.
+
+The canonical #1181 small corpus measurement is the revision-1 pin set: 8
+repositories and 113 Tcl-family source files. Materialise those exact commits,
+then independently verify every pin before running the sweep:
+
+```sh
+# Use a newly-created empty directory: verification checks repository pins,
+# while fp-sweep deliberately scans every matching file below its corpus root.
+set -eu
+CORPUS_PARENT=$(mktemp -d)
+trap 'rm -rf -- "$CORPUS_PARENT"' EXIT
+CORPUS_DIR="$CORPUS_PARENT/issue-1181-small-corpus"
+python3 scripts/perf/fetch_corpus.py \
+  --scope small --dest "$CORPUS_DIR"
+python3 scripts/perf/fetch_corpus.py \
+  --scope small --dest "$CORPUS_DIR" --verify-only
+cargo run --release -p xtask -- fp-sweep \
+  --corpus "$CORPUS_DIR" --code O105 --code O106
+```
+
+The pinned 113-file sweep produced zero O105/O106 findings on both base and
+candidate. A separate local sweep reported 140 analysed documents from an
+unverified expanded checkout; that count is not attributed to the canonical
+corpus and is excluded from the evidence here. The honest diagnostic delta is
+zero: manufacturing recovered O-codes from an unverified workspace boundary
+would trade false negatives for unsound false positives. Timing and RSS
+observations are intentionally omitted because the profiling artefacts are not
+repository evidence.
 
 ## §9 — Conservative abstentions
 
@@ -425,8 +493,9 @@ These are real, current limitations, not incidental gaps.
   consumes the proof. This is tracked debt: the partial-redundancy and
   loop-invariant halves of the reports need the same seam.
 - **Procedure bodies never prove.** Every proc, method, and body unit runs
-  under `UnknownWorld` pending a file-summary entry contract, so repeated
-  stable calls inside a procedure are never reported by the proof-gated path.
+  under `UnknownWorld` pending a runtime-owned sealed-session entry contract
+  (§8), so repeated stable calls inside a procedure are never reported by the
+  proof-gated path. A file-summary-only contract is explicitly insufficient.
 - **`namespace eval`'s body barrier.** Lowering registers the body as its own
   body unit *and* leaves the enclosing statement as a runtime barrier. From the
   enclosing unit the command is an ordinary invocation, but its registry
