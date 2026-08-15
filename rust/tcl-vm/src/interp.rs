@@ -1825,6 +1825,16 @@ impl Vm {
         self.retarget_imports(&transaction.old_key, new_key);
     }
 
+    /// Remove the source for an already validated `rename old {}`.  Deletion
+    /// deliberately does not retarget imports; C leaves them dangling.
+    pub(crate) fn delete_prepared_renamed_command(
+        &mut self,
+        transaction: &CommandRenameTransaction,
+    ) {
+        self.take_command_unchecked_key(&transaction.old_key)
+            .expect("the prepared delete source remains registered");
+    }
+
     /// Commit a rename after all semantic validation has succeeded.
     pub(crate) fn commit_renamed_command(&mut self, transaction: &CommandRenameTransaction) {
         if let Some(target) = transaction.cross_alias_target {

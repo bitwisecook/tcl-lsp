@@ -525,6 +525,54 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     assert_eq!(probe.result.to_str().as_ref(), "::src::a b enter");
 }
 
+/// `rename command {}` is deletion, not the failed-rename transaction path:
+/// it drops the command's provenance and traces, leaves alias targets and
+/// import sources alone, and deletes a visible builtin on every release that
+/// exposes it.
+#[test]
+fn empty_rename_destination_deletes_commands_across_indirections() {
+    let src = concat!(
+        "proc tracer args {puts \"trace:[join $args |]\"}\n",
+        "proc owned {} {}\n",
+        "trace add command owned delete tracer\n",
+        "interp alias {} alias {} set\n",
+        "namespace eval source {proc imported {} {}; namespace export imported}\n",
+        "namespace eval imported {namespace import ::source::imported}\n",
+        "rename owned {}\n",
+        "rename alias {}\n",
+        "rename ::imported::imported {}\n",
+        "puts \"owned=[info commands owned] alias=[info commands alias] target=[info commands set] imported=[info commands ::imported::imported] source=[info commands ::source::imported]\"\n",
+        "rename lassign {}\n",
+        "set builtin [string cat las sign]\n",
+        "puts \"builtin=[catch {$builtin {a b} x} message];$message\"\n",
+    );
+    let want = concat!(
+        "trace:::owned||delete\n",
+        "owned= alias= target=set imported= source=::source::imported\n",
+        "builtin=1;invalid command name \"lassign\"",
+    );
+    for version in [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] empty rename destination"
+        );
+    }
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] real Tcl oracle");
+        }
+    }
+}
+
 /// A `catch` body is compiled at run time through the VM's compile service,
 /// so an 8.5+-only spelling inside it is a *catchable* error under an 8.4
 /// pin — matching C Tcl, which defers a compile-time parse error to a

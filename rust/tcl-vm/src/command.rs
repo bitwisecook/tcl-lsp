@@ -486,6 +486,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let old_fqn = vm.qualify_name(&old_name);
     let is_coro = crate::cmd_coro::is_coroutine(vm, &old_fqn);
     if new_name.is_empty() {
+        vm.delete_prepared_renamed_command(&rename);
         if is_coro {
             crate::cmd_coro::on_command_deleted(vm, &old_fqn);
         }
