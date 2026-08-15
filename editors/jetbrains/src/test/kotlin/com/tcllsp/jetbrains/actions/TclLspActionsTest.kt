@@ -217,6 +217,34 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun processExitBypassesFinallyAndTheContinuation() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"exit 0","completion":"process_exit"}],
+              "finally":[{"kind":"action","label":"must not run"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        assertContains(mermaid, "n1 --> n2")
+        kotlin.test.assertFalse(mermaid.contains("finally"), mermaid)
+        kotlin.test.assertFalse(mermaid.contains("must not run"), mermaid)
+        kotlin.test.assertFalse(mermaid.contains("after"), mermaid)
+    }
+
+    @Test
+    fun returnCompletionSelectsOnReturnRatherThanOnError() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -code error","completion":"return"}],"handlers":[
+              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"wrong"}]},
+              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"handled"}]}
+            ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        kotlin.test.assertFalse(mermaid.contains("wrong"), mermaid)
+        assertContains(mermaid, "n2 -->|on| n4")
+        assertContains(mermaid, "handled")
+        assertContains(mermaid, "after")
+    }
+
+    @Test
     fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
         fun render(finallyCompletion: String? = null): String {
             val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""

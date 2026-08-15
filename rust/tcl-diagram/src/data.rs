@@ -32,10 +32,9 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
 use tcl_compiler::ir::{Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name};
 use tcl_registry::CommandRegistry;
-use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
-use tcl_registry::registry::InvocationCompletion;
+use tcl_registry::registry::{ExactInvocationCompletion, InvocationCompletion};
 
 const MAX_DEPTH: usize = 8;
 const MAX_EVENTS: usize = 12;
@@ -56,6 +55,7 @@ enum DiagramCompletion {
     Return,
     Break,
     Continue,
+    ProcessExit,
     Terminal,
 }
 
@@ -67,6 +67,7 @@ impl DiagramCompletion {
             Self::Return => Some("return"),
             Self::Break => Some("break"),
             Self::Continue => Some("continue"),
+            Self::ProcessExit => Some("process_exit"),
             Self::Terminal => Some("terminal"),
         }
     }
@@ -84,22 +85,29 @@ fn command_completion(
     registry: &CommandRegistry,
 ) -> DiagramCompletion {
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    if let Some(resolved) = registry.resolve_call(command, &arg_refs, DialectSet::empty())
-        && let Some(descriptor) = resolved
-            .form
-            .and_then(|form| form.completion)
-            .or(resolved.sub.and_then(|sub| sub.completion))
-            .or(resolved.spec.completion)
-        && let CompletionCodeDomain::Exact(codes) = descriptor.codes
-        && codes.len() == 1
+    if let Some(completion) =
+        registry.exact_invocation_completion(command, &arg_refs, DialectSet::empty())
     {
-        return match codes[0] {
-            CompletionCode::Ok => DiagramCompletion::Normal,
-            CompletionCode::Error => DiagramCompletion::Error,
-            CompletionCode::Return => DiagramCompletion::Return,
-            CompletionCode::Break => DiagramCompletion::Break,
-            CompletionCode::Continue => DiagramCompletion::Continue,
-            CompletionCode::Other(_) => DiagramCompletion::Terminal,
+        return match completion {
+            ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Ok) => {
+                DiagramCompletion::Normal
+            }
+            ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Error) => {
+                DiagramCompletion::Error
+            }
+            ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Return) => {
+                DiagramCompletion::Return
+            }
+            ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Break) => {
+                DiagramCompletion::Break
+            }
+            ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Continue) => {
+                DiagramCompletion::Continue
+            }
+            ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Other(_)) => {
+                DiagramCompletion::Terminal
+            }
+            ExactInvocationCompletion::ProcessExit => DiagramCompletion::ProcessExit,
         };
     }
     match registry.invocation_completion(command, &arg_refs, DialectSet::empty()) {
@@ -647,6 +655,8 @@ pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialec
 mod tests {
     use super::diagram_data_for_dialect;
     use serde_json::Value;
+    use std::io::Write;
+    use std::process::{Command, Stdio};
 
     #[test]
     fn loop_nodes_carry_their_compiler_exit_reason() {
@@ -726,6 +736,69 @@ mod tests {
         assert_eq!(
             overridden.pointer("/procedures/0/flow/0/finally/0/completion"),
             Some(&Value::String("return".to_owned()))
+        );
+    }
+
+    #[test]
+    fn literal_return_options_and_exit_keep_distinct_try_outcomes() {
+        let data = diagram_data_for_dialect(
+            r"
+                proc paths {} {
+                    try { return -code error payload } finally { set cleaned [clock seconds] }
+                    try { return -level 0 -code error payload } finally { set cleaned [clock seconds] }
+                    try { exit 0 } finally { set never [clock seconds] }
+                }
+            ",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        // Tcl's default `return -level 1` is itself TCL_RETURN inside the
+        // enclosing try; only level 0 exposes the configured error code.
+        assert_eq!(
+            data.pointer("/procedures/0/flow/0/body/0/completion"),
+            Some(&Value::String("return".to_owned()))
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/1/body/0/completion"),
+            Some(&Value::String("error".to_owned()))
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/2/body/0/completion"),
+            Some(&Value::String("process_exit".to_owned()))
+        );
+    }
+
+    #[test]
+    fn real_tcl_oracle_distinguishes_default_and_level_zero_return_codes() {
+        let script = r"
+            proc probe {spec} {
+                set log {}
+                try { return {*}$spec payload } \
+                    on error {message options} { lappend log error } \
+                    on return {message options} { lappend log return } \
+                    finally { lappend log finally }
+                lappend log after
+                return $log
+            }
+            puts [probe {-code error}]
+            puts [probe {-level 0 -code error}]
+        ";
+        let mut child = Command::new("tclsh")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("tclsh oracle available");
+        child
+            .stdin
+            .as_mut()
+            .expect("oracle stdin")
+            .write_all(script.as_bytes())
+            .expect("write oracle script");
+        let output = child.wait_with_output().expect("wait for tclsh oracle");
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(
+            String::from_utf8(output.stdout).expect("oracle stdout"),
+            "return finally after\nerror finally after\n"
         );
     }
 }

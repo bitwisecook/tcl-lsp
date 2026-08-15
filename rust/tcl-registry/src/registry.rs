@@ -115,6 +115,76 @@ pub enum InvocationCompletion {
     Unknown,
 }
 
+/// An exact control completion available from registry-declared semantics and
+/// literal invocation options.
+///
+/// Unlike [`InvocationCompletion`], this retains the Tcl completion code a
+/// surrounding `try` may match.  `ProcessExit` is intentionally separate:
+/// `exit` does not produce a catchable Tcl completion and bypasses `finally`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExactInvocationCompletion {
+    /// A Tcl completion code propagated through enclosing control constructs.
+    Tcl(crate::completion::CompletionCode),
+    /// Immediate interpreter-process termination.
+    ProcessExit,
+}
+
+/// Parse the literal option subset of `return` that fixes the completion code
+/// visible to an enclosing `try`.  With the default `-level 1`, `return`
+/// itself propagates `TCL_RETURN` even when its eventual procedure result is
+/// configured as `-code error`; `-level 0` exposes that configured code to the
+/// immediately enclosing script instead.
+fn exact_return_completion(args: &[&str]) -> Option<crate::completion::CompletionCode> {
+    use crate::completion::CompletionCode;
+
+    let mut i = 0usize;
+    let mut code = CompletionCode::Ok;
+    let mut level = 1_i64;
+    while let Some(word) = args.get(i).copied() {
+        match word {
+            "--" => {
+                i += 1;
+                break;
+            }
+            "-code" => {
+                let value = *args.get(i + 1)?;
+                code = match value {
+                    "ok" | "0" => CompletionCode::Ok,
+                    "error" | "1" => CompletionCode::Error,
+                    "return" | "2" => CompletionCode::Return,
+                    "break" | "3" => CompletionCode::Break,
+                    "continue" | "4" => CompletionCode::Continue,
+                    value => CompletionCode::Other(value.parse::<i32>().ok()?),
+                };
+                i += 2;
+            }
+            "-level" => {
+                level = args.get(i + 1)?.parse::<i64>().ok()?.max(0);
+                if args.get(i + 1)?.parse::<i64>().ok()? < 0 {
+                    return None;
+                }
+                i += 2;
+            }
+            // These options do not alter the code, but `-options` may carry
+            // a code/level override so remains deliberately opaque.
+            "-errorcode" | "-errorinfo" | "-errorstack" => i += 2,
+            "-options" => return None,
+            _ if word.starts_with('-') => return None,
+            _ => break,
+        }
+    }
+    // `return` accepts one result word after its options; additional words are
+    // an arity error, so no exact runtime completion is promised.
+    if args.len().saturating_sub(i) > 1 {
+        return None;
+    }
+    Some(if level == 0 {
+        code
+    } else {
+        CompletionCode::Return
+    })
+}
+
 fn try_control_arms(args: &[&str]) -> Option<Vec<(usize, ControlArmSemantics)>> {
     args.first()?;
     let mut arms = vec![(0usize, ControlArmSemantics::Always)];
@@ -1924,6 +1994,49 @@ impl CommandRegistry {
         } else {
             InvocationCompletion::FallsThrough
         }
+    }
+
+    /// Return an exact Tcl completion code (or process exit) for a concrete,
+    /// literal invocation when registry data and return options establish one.
+    ///
+    /// This is intentionally narrower than [`Self::invocation_completion`]:
+    /// dynamic `return -options $dict`, dynamic `-code`/`-level` values, and
+    /// ordinary calls with only a conservative completion descriptor return
+    /// `None` rather than inventing a handler edge.
+    #[must_use]
+    pub fn exact_invocation_completion(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: DialectSet,
+    ) -> Option<ExactInvocationCompletion> {
+        let resolved = self.resolve_call(name, args, dialect)?;
+        let positional_len = args
+            .len()
+            .saturating_sub(usize::from(resolved.sub.is_some()));
+        if !resolved
+            .arity()
+            .accepts(u16::try_from(positional_len).unwrap_or(u16::MAX))
+        {
+            return None;
+        }
+        if resolved.lowering_hook == Some(LoweringHookId::Return) {
+            return exact_return_completion(args).map(ExactInvocationCompletion::Tcl);
+        }
+        let traits =
+            resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits);
+        if traits.contains(Traits::TERMINATES_PROCESS) {
+            return Some(ExactInvocationCompletion::ProcessExit);
+        }
+        let descriptor = resolved
+            .form
+            .and_then(|form| form.completion)
+            .or(resolved.sub.and_then(|sub| sub.completion))
+            .or(resolved.spec.completion)?;
+        let crate::completion::CompletionCodeDomain::Exact(codes) = descriptor.codes else {
+            return None;
+        };
+        (codes.len() == 1).then_some(ExactInvocationCompletion::Tcl(codes[0]))
     }
 
     /// Whether `name` is valid only at the top level of an iRule script
@@ -6447,6 +6560,43 @@ mod tests {
         assert_eq!(
             reg.invocation_completion("set", &[], DialectSet::empty()),
             InvocationCompletion::Unknown
+        );
+    }
+
+    #[test]
+    fn exact_return_options_and_process_exit_are_registry_owned() {
+        use crate::completion::CompletionCode;
+
+        let reg = CommandRegistry::build_default();
+        // Oracle (tclsh 8.6/9.0): the default -level 1 return is caught by
+        // `try on return`, even when its eventual procedure result is error.
+        assert_eq!(
+            reg.exact_invocation_completion(
+                "return",
+                &["-code", "error", "payload"],
+                DialectSet::empty(),
+            ),
+            Some(ExactInvocationCompletion::Tcl(CompletionCode::Return))
+        );
+        assert_eq!(
+            reg.exact_invocation_completion(
+                "return",
+                &["-level", "0", "-code", "error", "payload"],
+                DialectSet::empty(),
+            ),
+            Some(ExactInvocationCompletion::Tcl(CompletionCode::Error))
+        );
+        assert_eq!(
+            reg.exact_invocation_completion("exit", &["0"], DialectSet::empty()),
+            Some(ExactInvocationCompletion::ProcessExit)
+        );
+        assert_eq!(
+            reg.exact_invocation_completion(
+                "return",
+                &["-options", "$dynamic", "payload"],
+                DialectSet::empty(),
+            ),
+            None
         );
     }
 

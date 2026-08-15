@@ -248,6 +248,11 @@ declare_traits! {
     HasBooleanCond => HAS_BOOLEAN_COND;
     /// Unconditionally terminates the current block (`error`, `return`, `exit`).
     TerminatesBlock => TERMINATES_BLOCK;
+    /// Ends the interpreter process immediately, without unwinding Tcl
+    /// exception ranges or executing enclosing `finally` clauses (`exit`).
+    /// This is deliberately narrower than [`Traits::TERMINATES_BLOCK`]:
+    /// ordinary Tcl completion codes still propagate through `try`.
+    TerminatesProcess => TERMINATES_PROCESS;
 
     // Loop/body structure
     /// Contains a loop body (`for`, `while`, `foreach`).

@@ -150,6 +150,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         "return" -> DiagramCompletion.RETURN
         "break" -> DiagramCompletion.BREAK
         "continue" -> DiagramCompletion.CONTINUE
+        "process_exit" -> DiagramCompletion.PROCESS_EXIT
         "terminal" -> DiagramCompletion.TERMINAL
         else -> DiagramCompletion.NORMAL
     }
@@ -283,6 +284,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             DiagramCompletion.RETURN -> handler.data.string("match") == "return" || handler.data.string("match") == "2"
                             DiagramCompletion.BREAK -> handler.data.string("match") == "break" || handler.data.string("match") == "3"
                             DiagramCompletion.CONTINUE -> handler.data.string("match") == "continue" || handler.data.string("match") == "4"
+                            DiagramCompletion.PROCESS_EXIT -> false
                             DiagramCompletion.TERMINAL -> false
                         }
                     }
@@ -326,8 +328,15 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             listOf(Tail(join))
                         }
                     } else {
+                        val processExits = exits.filter { it.completion == DiagramCompletion.PROCESS_EXIT }
+                        val finallyInputs = exits.filter { it.completion != DiagramCompletion.PROCESS_EXIT }
+                        if (finallyInputs.isEmpty()) {
+                            abrupt += processExits
+                            active = emptyList()
+                            continue
+                        }
                         val cleanup = node("finally", "round")
-                        exits.forEach { connect(it.id, cleanup) }
+                        finallyInputs.forEach { connect(it.id, cleanup) }
                         val finallyExits = walk(finallyBody, listOf(Tail(cleanup)))
                         // A normal finally body preserves the completion it
                         // received.  Thus only normal and handled-completing
@@ -338,11 +347,11 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         // path, exactly as Tcl specifies.
                         val propagated = finallyExits.flatMap { finalExit ->
                             if (finalExit.completion == DiagramCompletion.NORMAL) {
-                                exits.map { Tail(finalExit.id, it.completion) }
+                                finallyInputs.map { Tail(finalExit.id, it.completion) }
                             } else {
                                 listOf(finalExit)
                             }
-                        }
+                        } + processExits
                         abrupt += propagated.filter { it.completion != DiagramCompletion.NORMAL }
                         active = propagated.filter { it.completion == DiagramCompletion.NORMAL }
                     }
@@ -392,7 +401,7 @@ private class MermaidIds {
 }
 
 /** Completion states defined by the shared `tcl-diagram` JSON contract. */
-private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, TERMINAL }
+private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, PROCESS_EXIT, TERMINAL }
 
 private fun JsonObject.string(name: String): String? =
     get(name)?.takeUnless { it.isJsonNull }?.asString
