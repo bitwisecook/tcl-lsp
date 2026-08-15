@@ -640,6 +640,34 @@ fn hide_and_expose_collisions_preserve_bindings_and_traces() {
     }
 }
 
+#[test]
+fn child_command_hide_and_expose_collisions_propagate_without_mutation() {
+    let src = concat!(
+        "interp create kid\n",
+        "kid eval {proc a {} {return A}; proc cb args {lappend ::events [lindex $args end]}}\n",
+        "kid hide a\n",
+        "kid eval {proc a {} {return B}; trace add command a delete cb; trace add execution a enter cb}\n",
+        "puts \"hide=[catch {kid hide a} m];$m\"\n",
+        "puts \"expose=[catch {kid expose a} m];$m\"\n",
+        "puts \"state=[kid eval {list [a] [llength [trace info command a]] [llength [trace info execution a]]}]\"\n",
+    );
+    let want = concat!(
+        "hide=1;hidden command named \"a\" already exists\n",
+        "expose=1;exposed command \"a\" already exists\n",
+        "state=B 1 1",
+    );
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] child hide collision"
+        );
+    }
+    if let Some(out) = tclsh_output("TCLSH90", &["tclsh9.0"], src) {
+        assert_eq!(out, want, "[TCLSH90] real Tcl oracle");
+    }
+}
+
 /// A `catch` body is compiled at run time through the VM's compile service,
 /// so an 8.5+-only spelling inside it is a *catchable* error under an 8.4
 /// pin — matching C Tcl, which defers a compile-time parse error to a
