@@ -1093,6 +1093,55 @@ impl DefinitionBodyGrammar {
         Some(&self.members[idx])
     }
 
+    /// Body argument indices for a concrete definition-member invocation.
+    ///
+    /// Handles flat members, prefix wrappers, wrapper block forms, and
+    /// flag-keyed getter/setter bodies from this grammar's structural data.
+    #[must_use]
+    pub fn member_body_indices_in(
+        &self,
+        keyword: &str,
+        args: &[&str],
+        dialect: crate::dialects::DialectSet,
+    ) -> Vec<usize> {
+        let Some(member) = self.member(keyword) else {
+            return Vec::new();
+        };
+        if member.unavailable_option_for(args, dialect).is_some() {
+            return Vec::new();
+        }
+        match member.kind {
+            MemberKind::Flat => member
+                .indices_for_call_in(args, dialect, ArgRole::Body)
+                .filter(|&index| index < args.len())
+                .collect(),
+            MemberKind::Wrapper => {
+                let Some((inner, rest)) = args.split_first() else {
+                    return Vec::new();
+                };
+                if self.member(inner).is_some() {
+                    self.member_body_indices_in(inner, rest, dialect)
+                        .into_iter()
+                        .map(|index| index + 1)
+                        .collect()
+                } else if member.wrapper_block_body {
+                    member
+                        .indices_for_call_in(args, dialect, ArgRole::Body)
+                        .filter(|&index| index < args.len())
+                        .collect()
+                } else {
+                    Vec::new()
+                }
+            }
+            MemberKind::FlagKeyed => args
+                .iter()
+                .enumerate()
+                .take(args.len().saturating_sub(1))
+                .filter_map(|(index, word)| matches!(*word, "-get" | "-set").then_some(index + 1))
+                .collect(),
+        }
+    }
+
     /// Whether `name` is a type-level member this family provides without
     /// the body declaring it (see [`Self::builtin_type_methods`]).
     #[must_use]

@@ -147,8 +147,9 @@ entry point, or gate moves without this contract being updated.
   `when EVENT { … }` handlers in one supplied script region. `script_commands`
   exposes the same lexer-owned word boundaries without guessing that arbitrary
   braced values are executable. `tcl_registry::events::recursive_when_handlers_with_registry`
-  performs recursive discovery only through registry-declared body roles and
-  live command substitutions, using the resolved profile's lexer grammar;
+  performs recursive discovery only through registry-declared body, expression,
+  lambda, case-list, and definition-member surfaces plus live command
+  substitutions, using the resolved profile's lexer grammar;
   unknown shapes conservatively remain data. Rooted colon runs, event case,
   comments, quoting, and iRules' `}{` separator therefore have one
   lexer/naming contract. `tcl-irules::{when_blocks, when_blocks_recursive}` are

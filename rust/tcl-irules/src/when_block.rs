@@ -105,4 +105,20 @@ when HTTP_REQUEST {}"#;
             ["HTTP_REQUEST"]
         );
     }
+
+    #[test]
+    fn recursive_discovery_follows_case_and_lambda_regions() {
+        let source = r"
+switch -- $x { a { when CLIENT_DATA {} } }
+apply {{} { when HTTP_REQUEST {} }}
+set inert {when RULE_INIT {}}
+";
+        assert_eq!(
+            when_blocks_recursive(source)
+                .iter()
+                .map(|block| block.event.as_str())
+                .collect::<Vec<_>>(),
+            ["CLIENT_DATA", "HTTP_REQUEST"]
+        );
+    }
 }

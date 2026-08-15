@@ -77,7 +77,7 @@ The current owners and their semantic axes are:
 | Expr grammar / evaluation | `tcl-syntax::expr` + `RuntimeExprSurface` | per release |
 | Command / word segmentation | `tcl-compiler::segmenter` over the red-green CST | `LexerConfig` per document dialect |
 | Tcl comment lines | `tcl-lexer::comment_line_starts` plus registry-declared script bodies | resolved `LexerConfig` and registry |
-| iRules `when EVENT` blocks | `tcl_syntax::event_handler::{event_handlers, script_commands}` for supplied script regions + `tcl_registry::events::recursive_when_handlers_with_registry` for semantic recursion, with `tcl_irules::{when_blocks, when_blocks_recursive}` wrappers | caller-supplied `LexerConfig`; recursive regions from resolved registry `ArgRole::Body`/substitutions |
+| iRules `when EVENT` blocks | `tcl_syntax::event_handler::{event_handlers, script_commands}` for supplied script regions + `tcl_registry::events::recursive_when_handlers_with_registry` for semantic recursion, with `tcl_irules::{when_blocks, when_blocks_recursive}` wrappers | caller-supplied `LexerConfig`; recursive regions from resolved body/expr/lambda/case/definition descriptors and substitutions |
 | Per-command knowledge | `tcl-registry::CommandSpec` and descriptors | per release/dialect |
 | Dialect / release facts | `tcl-dialect::DialectProfile` | resolved profile axis |
 

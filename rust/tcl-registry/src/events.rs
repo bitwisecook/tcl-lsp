@@ -988,6 +988,7 @@ pub fn recursive_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::E
 
 /// Registry-resolved recursive event discovery.
 #[must_use]
+#[allow(clippy::too_many_lines)] // One worklist keeps offsets, caps, and region context atomic.
 pub fn recursive_when_handlers_with_registry(
     source: &str,
     registry: &crate::CommandRegistry,
@@ -997,9 +998,15 @@ pub fn recursive_when_handlers_with_registry(
         |profile| LexerConfig::from_grammar(profile.grammar),
     );
     let mut out = Vec::new();
-    let mut pending = vec![(0_usize, source.len(), 0_u32, true)];
+    let mut pending: Vec<(
+        usize,
+        usize,
+        u32,
+        bool,
+        Option<&'static crate::definer::DefinitionBodyGrammar>,
+    )> = vec![(0, source.len(), 0, true, None)];
     let mut seen = FxHashSet::default();
-    while let Some((start, end, depth, inspect_handlers)) = pending.pop() {
+    while let Some((start, end, depth, inspect_handlers, definition_grammar)) = pending.pop() {
         if depth > 256 || !seen.insert((start, end)) {
             continue;
         }
@@ -1029,7 +1036,13 @@ pub fn recursive_when_handlers_with_registry(
                     let inner_start = whole.start() as usize + token.content_offset as usize;
                     let inner_end = whole.end().saturating_sub(1) as usize;
                     if inner_start <= inner_end {
-                        pending.push((start + inner_start, start + inner_end, depth + 1, true));
+                        pending.push((
+                            start + inner_start,
+                            start + inner_end,
+                            depth + 1,
+                            true,
+                            None,
+                        ));
                     }
                 }
                 continue;
@@ -1051,12 +1064,41 @@ pub fn recursive_when_handlers_with_registry(
                     _ => "",
                 })
                 .collect();
-            for index in registry.arg_indices_for_role(head, &args, crate::ArgRole::Body) {
+            let dialect = registry
+                .profile()
+                .map_or_else(crate::dialects::DialectSet::empty, |profile| {
+                    profile.availability_mask
+                });
+            let spec_definition = registry.get(head).and_then(|spec| spec.definition_body);
+            let mut body_indices = registry.arg_indices_for_role(head, &args, crate::ArgRole::Body);
+            if let Some(grammar) = definition_grammar {
+                body_indices.extend(grammar.member_body_indices_in(head, &args, dialect));
+            }
+            body_indices.sort_unstable();
+            body_indices.dedup();
+            for index in body_indices {
                 if let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
                     && token.kind == TokenType::Str
                     && let Some((inner_start, inner_end)) = braced_inner(text, *token)
                 {
-                    pending.push((start + inner_start, start + inner_end, depth + 1, true));
+                    let next_grammar = if spec_definition.is_some() {
+                        spec_definition
+                    } else if definition_grammar.is_some_and(|grammar| {
+                        grammar
+                            .member(head)
+                            .is_some_and(|member| member.wrapper_block_body)
+                    }) {
+                        definition_grammar
+                    } else {
+                        None
+                    };
+                    pending.push((
+                        start + inner_start,
+                        start + inner_end,
+                        depth + 1,
+                        true,
+                        next_grammar,
+                    ));
                 }
             }
             // Expression words are not scripts. Only their live `[…]`
@@ -1074,7 +1116,50 @@ pub fn recursive_when_handlers_with_registry(
                         .saturating_sub(u32::from(token.content_offset > 0))
                         as usize;
                     if inner_start <= inner_end {
-                        pending.push((start + inner_start, start + inner_end, depth + 1, false));
+                        pending.push((
+                            start + inner_start,
+                            start + inner_end,
+                            depth + 1,
+                            false,
+                            None,
+                        ));
+                    }
+                }
+            }
+            for index in registry.arg_indices_for_role(head, &args, crate::ArgRole::LambdaLiteral) {
+                if let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
+                    && let Some((inner_start, inner_end)) = lambda_body(text, *token)
+                {
+                    pending.push((
+                        start + inner_start,
+                        start + inner_end,
+                        depth + 1,
+                        true,
+                        None,
+                    ));
+                }
+            }
+            if let Some((case, invocation)) = registry.case_invocation(head, &args, dialect)
+                && let Some(index) = invocation.clause_list_index
+                && let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
+                && let Some((inner_start, inner_end)) = braced_inner(text, *token)
+                && let Some(inner) = text.get(inner_start..inner_end)
+            {
+                let shape = tcl_syntax::case_list::CaseListShape {
+                    clause_flags: case.clause_flags,
+                    clause_value_flags: case.clause_value_flags,
+                };
+                for clause in tcl_syntax::case_list::split_case_list(inner, &shape) {
+                    if let Some(body) = clause.body
+                        && body.braced
+                    {
+                        pending.push((
+                            start + inner_start + body.start + 1,
+                            start + inner_start + body.end,
+                            depth + 1,
+                            true,
+                            None,
+                        ));
                     }
                 }
             }
@@ -1088,13 +1173,36 @@ pub fn recursive_when_handlers_with_registry(
                 let inner_start = whole.start() as usize + token.content_offset as usize;
                 let inner_end = whole.end().saturating_sub(1) as usize;
                 if inner_start <= inner_end {
-                    pending.push((start + inner_start, start + inner_end, depth + 1, true));
+                    pending.push((
+                        start + inner_start,
+                        start + inner_end,
+                        depth + 1,
+                        true,
+                        None,
+                    ));
                 }
             }
         }
     }
     out.sort_by_key(|handler| handler.span.start());
     out
+}
+
+fn lambda_body(source: &str, token: tcl_lexer::Token) -> Option<(usize, usize)> {
+    if token.kind != TokenType::Str {
+        return None;
+    }
+    let content_start = token.span.start() as usize + token.content_offset as usize;
+    let content_end = token.span.end() as usize;
+    let content = source.get(content_start..content_end)?;
+    let params = tcl_syntax::list::find_element(content, 0).ok().flatten()?;
+    let body = tcl_syntax::list::find_element(content, params.next)
+        .ok()
+        .flatten()?;
+    body.literal.then_some((
+        content_start + body.value.start,
+        content_start + body.value.end,
+    ))
 }
 
 fn braced_inner(source: &str, token: tcl_lexer::Token) -> Option<(usize, usize)> {
@@ -4276,5 +4384,59 @@ mod tests {
             ::when http_request { if {1} { :::when client_data {} } }
         "#;
         assert_eq!(scan_when_events(source), ["HTTP_REQUEST", "CLIENT_DATA"]);
+    }
+
+    #[test]
+    fn recursive_event_scan_covers_case_and_lambda_script_surfaces() {
+        let registry = crate::registry_for_dialect("f5-irules");
+        let source = r"
+            switch -- $x { a { when CLIENT_DATA {} } default { when SERVER_DATA {} } }
+            apply {{} { when HTTP_REQUEST {} }}
+            set inert {when RULE_INIT {}}
+        ";
+        let events: Vec<_> = recursive_when_handlers_with_registry(source, registry)
+            .into_iter()
+            .map(|handler| handler.event)
+            .collect();
+        assert_eq!(events, ["CLIENT_DATA", "SERVER_DATA", "HTTP_REQUEST"]);
+
+        let expect_source =
+            "expect { foo { when RULE_INIT {} } timeout { when CLIENT_CLOSED {} } }";
+        let events: Vec<_> = recursive_when_handlers_with_registry(
+            expect_source,
+            crate::registry_for_dialect("expect"),
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
+        assert_eq!(events, ["RULE_INIT", "CLIENT_CLOSED"]);
+    }
+
+    #[test]
+    fn recursive_event_scan_covers_definition_members_and_wrappers() {
+        let tcl = crate::registry_for_dialect("tcl9.0");
+        let source = r"
+            oo::class create C {
+                method m {} { when HTTP_REQUEST {} }
+                self { method n {} { when CLIENT_DATA {} } }
+                property p -get { when SERVER_DATA {} }
+            }
+        ";
+        let events: Vec<_> = recursive_when_handlers_with_registry(source, tcl)
+            .into_iter()
+            .map(|handler| handler.event)
+            .collect();
+        assert_eq!(events, ["HTTP_REQUEST", "CLIENT_DATA", "SERVER_DATA"]);
+
+        let source = r"
+            snit::type S { method m {} { when RULE_INIT {} } }
+            itcl::class I { public method m {} { when CLIENT_ACCEPTED {} } }
+        ";
+        let events: Vec<_> =
+            recursive_when_handlers_with_registry(source, crate::registry_for_dialect("tcl8.6"))
+                .into_iter()
+                .map(|handler| handler.event)
+                .collect();
+        assert_eq!(events, ["RULE_INIT", "CLIENT_ACCEPTED"]);
     }
 }

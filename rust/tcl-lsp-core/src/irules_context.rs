@@ -84,6 +84,12 @@ mod tests {
     }
 
     #[test]
+    fn semantic_case_and_lambda_regions_supply_file_events() {
+        let src = "switch -- $x { a { when CLIENT_DATA {} } }\napply {{} { when HTTP_REQUEST {} }}";
+        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA", "HTTP_REQUEST"]);
+    }
+
+    #[test]
     fn top_level_after_close_has_no_event() {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\nset top 1\n";
         // Line 3 sits past the closing brace — back at the top level.
