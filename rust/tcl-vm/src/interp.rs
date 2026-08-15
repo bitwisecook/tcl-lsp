@@ -396,6 +396,28 @@ pub struct Vm {
     alias_backrefs: Vec<AliasBackref>,
 }
 
+/// Metadata and any release-hidden destination displaced while a command is
+/// temporarily installed under a new name.  A rename can still be refused
+/// after installation when it would make an alias loop, so this keeps the
+/// command-table mutation reversible as one semantic operation.
+pub(crate) struct CommandRenameTransaction {
+    old_key: String,
+    new_key: String,
+    source_import_origin: Option<String>,
+    source_builtin_identity: Option<String>,
+    displaced_command: Option<Command>,
+    displaced_import_origin: Option<String>,
+    displaced_builtin_identity: Option<String>,
+    retargeted_imports: Vec<(String, String)>,
+    cross_alias_target: Option<InterpId>,
+}
+
+impl CommandRenameTransaction {
+    pub(crate) fn old_key(&self) -> &str {
+        &self.old_key
+    }
+}
+
 impl std::ops::Deref for Vm {
     type Target = InterpState;
 
@@ -1751,6 +1773,102 @@ impl Vm {
             return None;
         }
         self.take_command_unchecked_key(&key)
+    }
+
+    /// Remove a command as the first half of a potentially-reversible rename.
+    /// The transaction owns every metadata map a later alias-loop rejection
+    /// must restore, rather than making callers repair selected maps by hand.
+    pub(crate) fn take_command_for_rename(
+        &mut self,
+        name: &str,
+    ) -> Option<(Command, CommandRenameTransaction)> {
+        let old_key = self.resolve_command_fqn(self.current_ns(), name)?;
+        if self
+            .commands
+            .get(&old_key)
+            .is_some_and(|command| !self.builtin_command_visible_for_surface(&old_key, command))
+        {
+            return None;
+        }
+        let source_import_origin = self.imported_commands.get(&old_key).cloned();
+        let source_builtin_identity = self.builtin_identity_for_key(&old_key);
+        let command = self.take_command_unchecked_key(&old_key)?;
+        Some((
+            command,
+            CommandRenameTransaction {
+                old_key,
+                new_key: String::new(),
+                source_import_origin,
+                source_builtin_identity,
+                displaced_command: None,
+                displaced_import_origin: None,
+                displaced_builtin_identity: None,
+                retargeted_imports: Vec::new(),
+                cross_alias_target: None,
+            },
+        ))
+    }
+
+    /// Install the new half of a rename and record every changed semantic map.
+    pub(crate) fn install_renamed_command(
+        &mut self,
+        transaction: &mut CommandRenameTransaction,
+        new_key: &str,
+        command: Command,
+    ) {
+        new_key.clone_into(&mut transaction.new_key);
+        transaction.displaced_command = self.commands.get(new_key).cloned();
+        transaction.displaced_import_origin = self.imported_commands.get(new_key).cloned();
+        transaction.displaced_builtin_identity = self.builtin_identity_for_key(new_key);
+        transaction.cross_alias_target = match &command {
+            Command::CrossAlias { target, .. } => Some(*target),
+            _ => None,
+        };
+        self.register_command(new_key, command);
+        if let Some(origin) = &transaction.source_import_origin {
+            self.restore_import_origin(new_key, origin.clone());
+        }
+        if let Some(identity) = &transaction.source_builtin_identity {
+            self.restore_builtin_identity(new_key, identity.clone());
+        }
+        transaction.retargeted_imports = self.retarget_imports(&transaction.old_key, new_key);
+    }
+
+    /// Commit a rename after all semantic validation has succeeded.
+    pub(crate) fn commit_renamed_command(&mut self, transaction: &CommandRenameTransaction) {
+        if let Some(target) = transaction.cross_alias_target {
+            self.retarget_alias_backref(&transaction.old_key, &transaction.new_key, target);
+        }
+    }
+
+    /// Undo a rejected rename, including import provenance and version-surface
+    /// identity for both the source and an otherwise-hidden destination.
+    pub(crate) fn rollback_renamed_command(&mut self, transaction: CommandRenameTransaction) {
+        let restored = self
+            .remove_command_exact(&transaction.new_key)
+            .expect("the renamed command was just registered");
+        self.register_command(&transaction.old_key, restored);
+        if let Some(origin) = transaction.source_import_origin {
+            self.restore_import_origin(&transaction.old_key, origin);
+        }
+        if let Some(identity) = transaction.source_builtin_identity {
+            self.restore_builtin_identity(&transaction.old_key, identity);
+        }
+        self.restore_retargeted_imports(transaction.retargeted_imports);
+        if let Some(command) = transaction.displaced_command {
+            self.register_command(&transaction.new_key, command);
+            if let Some(origin) = transaction.displaced_import_origin {
+                self.restore_import_origin(&transaction.new_key, origin);
+            }
+            if let Some(identity) = transaction.displaced_builtin_identity {
+                self.restore_builtin_identity(&transaction.new_key, identity);
+            }
+        }
+        if let Some(target) = transaction.cross_alias_target {
+            // `register_command` clears the stale old-key record as it restores
+            // the alias, so re-establish the target-death back-reference here.
+            self.note_alias_backref(&transaction.old_key, target);
+        }
     }
 
     /// Resolve and remove a command without consulting the emulated command
@@ -3465,23 +3583,30 @@ impl Vm {
     /// visibility, and `namespace origin` continue to identify the final
     /// builtin under its new name.  A deletion deliberately does not take this
     /// path: C leaves the imported command dangling in that case.
-    pub(crate) fn retarget_imports(&mut self, old_key: &str, new_key: &str) {
+    pub(crate) fn retarget_imports(
+        &mut self,
+        old_key: &str,
+        new_key: &str,
+    ) -> Vec<(String, String)> {
         let new_key = new_key.to_owned();
-        for source in self.imported_commands.values_mut() {
+        let mut retargeted = Vec::new();
+        for (import, source) in &mut self.imported_commands {
             if source == old_key {
+                retargeted.push((import.clone(), source.clone()));
                 source.clone_from(&new_key);
             }
         }
+        retargeted
     }
 
-    /// Import provenance carried by `key`, if it is an imported command.
-    pub(crate) fn import_origin(&self, key: &str) -> Option<String> {
-        self.imported_commands.get(key).cloned()
-    }
-
-    /// Stable registry identity for a visible builtin at `key`.
-    pub(crate) fn builtin_identity(&self, key: &str) -> Option<String> {
-        self.builtin_identity_for_key(key)
+    /// Restore exactly the provenance entries a failed rename retargeted.
+    /// Entries removed by the rollback itself are deliberately skipped.
+    fn restore_retargeted_imports(&mut self, retargeted: Vec<(String, String)>) {
+        for (import, source) in retargeted {
+            if let Some(current) = self.imported_commands.get_mut(&import) {
+                current.clone_from(&source);
+            }
+        }
     }
 
     /// Restore a renamed imported command's own origin record.

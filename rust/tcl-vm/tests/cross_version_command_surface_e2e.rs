@@ -437,6 +437,87 @@ fn renamed_imports_preserve_origin_through_nested_imports() {
     }
 }
 
+/// A refused alias rename must undo the retargeting of every import that had
+/// followed the provisional new name.  This covers direct and nested
+/// `namespace origin` lookups, and proves qualified `namespace forget` still
+/// recognises the original source.
+#[test]
+fn refused_alias_rename_restores_import_provenance() {
+    let src = concat!(
+        "namespace eval src {interp alias {} ::src::a {} b; namespace export a}\n",
+        "namespace eval one {namespace import ::src::a; namespace export a}\n",
+        "namespace eval two {namespace import ::one::a}\n",
+        "puts \"rename=[catch {rename ::src::a b} m];$m\"\n",
+        "puts \"one=[namespace origin ::one::a]\"\n",
+        "puts \"two=[namespace origin ::two::a]\"\n",
+        "namespace eval one {namespace forget ::src::a}\n",
+        "puts \"forgot=[info commands ::one::a]\"\n",
+    );
+    let want = concat!(
+        "rename=1;cannot define or rename alias \"b\": would create a loop\n",
+        "one=::src::a\n",
+        "two=::src::a\n",
+        "forgot=",
+    );
+    for version in [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] refused alias rename"
+        );
+    }
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] real Tcl oracle");
+        }
+    }
+}
+
+/// The provisional alias can replace an engine-registered command that is
+/// hidden by the current release.  Restoring that destination is essential:
+/// a later release change must reveal the original builtin, not a command
+/// table hole left by the rejected rename.
+#[test]
+fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
+        "tcl8.4",
+    ))));
+    let setup = vm
+        .eval_source(
+            "namespace eval src {interp alias {} ::src::a {} lassign; namespace export a}\n\
+             namespace eval imported {namespace import ::src::a}\n\
+             catch {rename ::src::a lassign} message\n\
+             list $message [namespace origin ::imported::a]\n",
+        )
+        .expect("8.4 setup compiles");
+    assert!(setup.code.is_ok());
+    assert_eq!(
+        setup.result.to_str().as_ref(),
+        "{cannot define or rename alias \"lassign\": would create a loop} ::src::a"
+    );
+
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
+        "tcl8.5",
+    ))));
+    let probe = vm
+        .eval_source("list [namespace origin ::imported::a] [lassign {a b} value]\n")
+        .expect("8.5 probe compiles");
+    assert!(probe.code.is_ok());
+    assert_eq!(probe.result.to_str().as_ref(), "::src::a b");
+}
+
 /// A `catch` body is compiled at run time through the VM's compile service,
 /// so an 8.5+-only spelling inside it is a *catchable* error under an 8.4
 /// pin — matching C Tcl, which defers a compile-time parse error to a
