@@ -24,11 +24,6 @@
 //! (`sccp`, `type_infer`, `taint`, …); this module provides only the data
 //! types that downstream consumers (diagnostics, codegen, optimiser) read.
 
-use std::collections::{HashMap, HashSet};
-
-use crate::ssa::ValueKey;
-use crate::types::TypeLattice;
-
 /// Maximum number of values in a `CONSTSET` before widening to `OVERDEFINED`.
 pub const MAX_CONSTSET_SIZE: usize = 32;
 
@@ -168,42 +163,6 @@ pub struct UnusedVariable {
     pub variable: String,
 }
 
-// Composite analysis results
-
-/// Complete analysis results for one procedure or top-level script.
-#[derive(Debug, Clone, Default)]
-pub struct FunctionAnalysis {
-    /// Per-block live-in variable sets.
-    pub live_in: HashMap<String, HashSet<ValueKey>>,
-    /// Per-block live-out variable sets.
-    pub live_out: HashMap<String, HashSet<ValueKey>>,
-    /// Dead stores found by liveness analysis.
-    pub dead_stores: Vec<DeadStore>,
-    /// Blocks determined unreachable by SCCP.
-    pub unreachable_blocks: HashSet<String>,
-    /// Branches folded by constant propagation.
-    pub constant_branches: Vec<ConstantBranch>,
-    /// SCCP lattice values for each SSA definition.
-    pub values: HashMap<ValueKey, LatticeValue>,
-    /// Type lattice values for each SSA definition.
-    pub types: HashMap<ValueKey, TypeLattice>,
-    /// Variables read before being set.
-    pub read_before_set: Vec<ReadBeforeSet>,
-    /// Variables defined but never used.
-    pub unused_variables: Vec<UnusedVariable>,
-    /// Unused procedure parameters.
-    pub unused_params: Vec<String>,
-}
-
-/// Complete analysis results for an entire module.
-#[derive(Debug, Clone)]
-pub struct ModuleAnalysis {
-    /// Analysis for the top-level script.
-    pub top_level: FunctionAnalysis,
-    /// Per-procedure analyses keyed by qualified name.
-    pub procedures: HashMap<String, FunctionAnalysis>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,22 +208,5 @@ mod tests {
             not_taken_target: "if_else_1".into(),
         };
         assert!(cb.value);
-    }
-
-    #[test]
-    fn function_analysis_default() {
-        let fa = FunctionAnalysis::default();
-        assert!(fa.dead_stores.is_empty());
-        assert!(fa.values.is_empty());
-        assert!(fa.unreachable_blocks.is_empty());
-    }
-
-    #[test]
-    fn module_analysis_construction() {
-        let ma = ModuleAnalysis {
-            top_level: FunctionAnalysis::default(),
-            procedures: HashMap::from([("::greet".into(), FunctionAnalysis::default())]),
-        };
-        assert!(ma.procedures.contains_key("::greet"));
     }
 }

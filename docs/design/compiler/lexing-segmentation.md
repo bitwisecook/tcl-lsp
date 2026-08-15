@@ -170,16 +170,17 @@ arguments alone exceed the signature maximum.
 3. **Semantic analysis** uses `span` for diagnostic positions and
    `all_tokens` for syntax highlighting/semantic tokens.
 
-### Shared tokenisation memo (now the green token tree)
+### Proposed shared tokenisation memo
 
 The analysis pipeline lexes the same source bytes from several independent
 paths: the segmenter (`segment_commands`), the lowerer (`lower_to_ir`),
 `compiler_checks`, and `var_refs` each tokenise overlapping regions, and
 nested braced bodies are re-lexed at every level of recursion.
 
-The per-analysis memo is the **green token tree**'s analysis-scoped intern
-index — see [green-token-tree.md](green-token-tree.md). Its correctness
-rules:
+The following analysis-scoped intern index is the **green token tree
+proposal**, not the current implementation — see
+[green-token-tree.md](green-token-tree.md). No `TokenRegion` or intern index
+exists in the workspace today. Its proposed correctness rules are:
 
 - Keyed by `(base_offset, base_line, base_col, mode, text)` → a `TokenRegion`
   carrying `(tokens, warnings)`. The `text` is part of the key so two distinct
@@ -196,9 +197,8 @@ rules:
 `var_refs` (`rust/tcl-compiler/src/var_refs.rs`) lexes at base offset 0 (it
 extracts position-independent variable names) and keeps its own bounded LRU
 keyed by the scanned text and scan mode, which shares across the SSA / GVN /
-interprocedural scanners (and across documents) in a way the
-absolute-offset, per-document tree cannot. It consults the tree's leaf
-tokenisation but keeps that result cache.
+interprocedural scanners (and across documents). It does not consult a shared
+tree today.
 
 ### Worked example — `set y $x`
 

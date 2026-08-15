@@ -329,28 +329,6 @@ impl MemorySsaFunction {
         }
         out
     }
-
-    /// Alias sets that contain `name`.
-    #[must_use]
-    pub fn aliases_for(&self, name: &str) -> Vec<&AliasSet> {
-        self.alias_sets
-            .iter()
-            .filter(|s| s.contains_name(name))
-            .collect()
-    }
-
-    /// True when two variable names may refer to the same storage.
-    /// Same-name always aliases. A wildcard transition conservatively aliases
-    /// every pair; otherwise names must share an alias set.
-    #[must_use]
-    pub fn may_alias(&self, name_a: &str, name_b: &str) -> bool {
-        if self.has_wildcard_aliasing || name_a == name_b {
-            return true;
-        }
-        self.alias_sets
-            .iter()
-            .any(|s| s.contains_name(name_a) && s.contains_name(name_b))
-    }
 }
 
 // Detection helpers
@@ -945,35 +923,6 @@ mod tests {
     }
 
     #[test]
-    fn may_alias_same_name_trivial() {
-        let f = MemorySsaFunction::default();
-        assert!(f.may_alias("x", "x"));
-        assert!(!f.may_alias("x", "y"));
-
-        let wildcard = MemorySsaFunction {
-            has_wildcard_aliasing: true,
-            ..MemorySsaFunction::default()
-        };
-        assert!(wildcard.may_alias("x", "y"));
-    }
-
-    #[test]
-    fn may_alias_via_shared_alias_set() {
-        let mut locs = BTreeSet::new();
-        locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "a"));
-        locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "b"));
-        let f = MemorySsaFunction {
-            alias_sets: vec![AliasSet::new(locs, "upvar")],
-            ..MemorySsaFunction::default()
-        };
-        assert!(f.may_alias("a", "b"));
-        assert!(f.may_alias("b", "a"));
-        assert!(!f.may_alias("a", "c"));
-        assert_eq!(f.aliases_for("a").len(), 1);
-        assert!(f.aliases_for("c").is_empty());
-    }
-
-    #[test]
     fn registry_transition_pairs_preserve_alias_layouts() {
         let registry = CommandRegistry::build_default();
         let upvar = transition_alias_pairs(
@@ -1166,9 +1115,6 @@ mod tests {
         assert!(set.contains_name("a"));
         assert!(set.contains_name("b"));
         assert!(set.contains_name("x"));
-
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
-        assert!(m.may_alias("a", "b"), "a and b share caller x");
     }
 
     #[test]

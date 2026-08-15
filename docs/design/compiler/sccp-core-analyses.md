@@ -8,16 +8,9 @@ still settle at `OVERDEFINED`.
 the SSA graph, producing an `SccpResult` with the per-value lattice, the
 executable blocks and edges, and the constant branches.  Type information,
 liveness, dead stores, read-before-set, and unused variables are produced by
-separate passes and reach consumers through the per-function `FunctionUnit`.
-
-> **`FunctionAnalysis` is not on the live path.**  The aggregate named
-> throughout this document is declared in `rust/tcl-compiler/src/analyses.rs`,
-> but nothing builds, returns, or reads one — its only construction is
-> `::default()` inside that module's own tests, and there is no
-> `analyse_function()`.  Read `FunctionAnalysis.X` below as "the X fact",
-> whose live home is `FunctionUnit` (`sccp`, `types`, `taints`, `def_use`,
-> `memory_ssa`, `rendered_props`) or a pass-local return value such as
-> `liveness_dead_stores()`'s `Vec<DeadStore>`.  Issue #1406 tracks the gap.
+separate passes and reach consumers through the per-function `FunctionUnit`
+or a pass-local return value such as `liveness_dead_stores()`'s
+`Vec<DeadStore>`.
 
 Source: `rust/tcl-compiler/src/sccp.rs` (`sccp`, `SccpResult`),
 `rust/tcl-compiler/src/analyses.rs` (the lattice types),
@@ -271,8 +264,7 @@ Blocks that are never reached (due to constant branches, code after
 — `FunctionUnit.sccp`, the return value of `sccp()`.  The optimiser derives
 the set with `unreachable_blocks(&fu.cfg, &fu.sccp)`
 (`rust/tcl-compiler/src/optimiser/elimination.rs`).  Taint analysis and
-optimisation passes skip unreachable blocks.  (`FunctionAnalysis` has an
-`unreachable_blocks` field, but nothing populates it — see the note above.)
+optimisation passes skip unreachable blocks.
 
 ### Type lattice
 
@@ -313,9 +305,7 @@ each block boundary.  There is no stored per-function liveness map: each
 consumer computes what it needs from the `FunctionUnit`, via
 `live_out_by_name()` (`rust/tcl-compiler/src/slot_allocation.rs`) for slot
 interference and `liveness_dead_stores()`
-(`rust/tcl-compiler/src/dead_stores.rs`) for dead stores.  The
-`FunctionAnalysis.live_in` / `live_out` fields are declared and
-unpopulated — see the note above.
+(`rust/tcl-compiler/src/dead_stores.rs`) for dead stores.
 
 `live_out_by_name` is keyed by variable **name**, not by `ValueKey`: slots
 are per-name, so dropping SSA versions makes phi renaming across an edge a
@@ -343,9 +333,7 @@ directly from the `FunctionUnit`; the diagnostics layer consumes it in
 If a variable is read at version 0 (never defined before use),
 `emit_read_before_set_diagnostics`
 (`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`) reports it
-straight off the `FunctionUnit`'s SSA and def-use facts → diagnostic
-**W210**.  (`FunctionAnalysis.read_before_set` is a declared field with no
-producer — see the note above.)
+straight off the `FunctionUnit`'s SSA and def-use facts → diagnostic **W210**.
 
 Existence checks are excluded: `info exists X` / `array exists X` test a
 variable rather than reading its value, so the check reference itself is never
@@ -379,8 +367,7 @@ none.  Membership idioms (`[info vars X]` / `[info locals X]` compared with
 Variables that are defined but never read (across all versions) are reported
 by `emit_unused_variable_diagnostics`
 (`rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`), again from the
-`FunctionUnit` → diagnostic **W211**.  (`FunctionAnalysis.unused_variables`
-is a declared field with no producer — see the note above.)
+`FunctionUnit` → diagnostic **W211**.
 
 ### Worked example — `set x 5; if {$x < 0} {…} elseif {$x > 0} {…} else {…}`
 

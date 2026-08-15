@@ -378,7 +378,6 @@ deletion.
 - [kcs-downstream-pass-contracts.md](../../../docs/design/compiler/downstream-pass-contracts.md)
 - [kcs-diagnostics-integration.md](../../../docs/design/compiler/diagnostics-integration.md)
 - [kcs-pass-fact-ownership-matrix.md](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
-- [kcs-execution-intent-model.md](../../../docs/design/compiler/execution-intent-model.md)
 
 ## See also
 

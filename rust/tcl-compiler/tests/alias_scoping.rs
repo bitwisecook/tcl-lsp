@@ -30,7 +30,7 @@
 //! The relevant modules are
 //! [`tcl_compiler::var_scoping`] (the declaration-index grammar) and
 //! [`tcl_compiler::memory_ssa`] (the
-//! alias lattice — `alias_sets`, `may_alias`, the union-find merge — driven off
+//! alias lattice — `alias_sets` and the union-find merge — driven off
 //! the same `var_scoping` helpers). The alias-escape lifecycle is observed
 //! through the analyser + `run_all_checks` diagnostic surface, exactly as
 //! `analyser.rs` / `checks.rs` drive it.
@@ -182,17 +182,19 @@ mod alias_lattice_merge {
     }
 
     #[test]
-    fn two_upvars_may_alias_each_other() {
+    fn two_upvars_to_one_caller_share_an_alias_set() {
         let m = mem("proc f {} { upvar 1 x a\n upvar 1 x b\n set a 1 }", "f");
-        assert!(m.may_alias("a", "b"));
-        assert!(m.may_alias("b", "a"));
+        let names = m.alias_sets[0].names();
+        assert!(names.contains("a"));
+        assert!(names.contains("b"));
     }
 
     #[test]
-    fn upvar_pair_may_alias_is_symmetric() {
+    fn upvar_pair_is_materialised_in_one_alias_set() {
         let m = mem("proc f {} { upvar 1 caller local\n set local 1 }", "f");
-        assert!(m.may_alias("caller", "local"));
-        assert!(m.may_alias("local", "caller"));
+        let names = m.alias_sets[0].names();
+        assert!(names.contains("caller"));
+        assert!(names.contains("local"));
     }
 
     #[test]
@@ -206,7 +208,6 @@ mod alias_lattice_merge {
             "proc f {} { upvar 1 x a\n upvar 1 y b\n set a 1\n set b 2 }",
             "f",
         );
-        assert!(!m.may_alias("a", "b"));
         assert_eq!(m.alias_sets.len(), 2);
     }
 
@@ -221,8 +222,9 @@ mod alias_lattice_merge {
             "proc f {} { upvar 1 caller a\n upvar 1 caller b\n set a 42\n return $b }",
             "f",
         );
-        assert!(m.may_alias("a", "b"), "shared-caller upvars alias");
-        assert_eq!(m.alias_sets.len(), 1);
+        let names = m.alias_sets[0].names();
+        assert!(names.contains("a"), "shared-caller upvars share a set");
+        assert!(names.contains("b"), "shared-caller upvars share a set");
     }
 }
 

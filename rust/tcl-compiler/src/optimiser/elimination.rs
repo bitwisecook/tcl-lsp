@@ -286,24 +286,10 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         None,
     );
 
-    // iRules cross-event state: a variable set in one `when EVENT {…}` handler
-    // (lowered to a `::when::*` proc) and read in another flows across events on
-    // the same connection. Deleting such a store as "unused" is a miscompile
-    // (e.g. `set uri [HTTP::uri]` in HTTP_REQUEST read by `$uri` in
-    // HTTP_RESPONSE). Mirror the analyser/diagnostics path: thread the
-    // ConnectionScope's `cross_event_defs | cross_event_imports` into
-    // `cross_event_vars` for `::when::*` procs so O109/O126 skip them.
-    let when_cross_event: std::collections::HashSet<String> = cu
-        .connection_scope
-        .as_ref()
-        .map(|s| {
-            s.cross_event_defs
-                .iter()
-                .chain(s.cross_event_imports.iter())
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default();
+    // `manager::build_pass_context` populates this shared safety fact once,
+    // before every pass runs. Retain the event-only projection here so plain
+    // procedures with an equal local spelling are not needlessly suppressed.
+    let when_cross_event = ctx.cross_event_vars.clone();
     let saved_proc_cross = std::mem::take(&mut ctx.cross_event_vars);
     for (qname, fu) in &cu.procedures {
         ctx.cross_event_vars = if qname.starts_with("::when::") {
@@ -785,9 +771,9 @@ fn run_adce_fixpoint(
             // O108 purity gate: a transitively-dead assignment can only be
             // removed when its RHS has no observable side effect — an
             // embedded `[cmd …]` that mutates state or escapes must keep the
-            // statement live. This reuses the same gate O109/DSE applies
-            // (an execution-intent PURE/NO_ESCAPE check) rather than treating
-            // every assignment as pure.
+            // statement live. This reuses the same `PurityCtx` /
+            // `assignment_safe_to_delete` gate O109/DSE applies rather than
+            // treating every assignment as pure.
             if !assignment_safe_to_delete(stmt, purity) {
                 continue;
             }

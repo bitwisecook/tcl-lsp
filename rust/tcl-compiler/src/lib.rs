@@ -56,8 +56,6 @@
 //!   [`type_join`](types::type_join).
 //! - [`analyses`] — analysis result types:
 //!   [`LatticeValue`](analyses::LatticeValue),
-//!   [`FunctionAnalysis`](analyses::FunctionAnalysis),
-//!   [`ModuleAnalysis`](analyses::ModuleAnalysis),
 //!   plus diagnostic types.
 //! - [`ir_helpers`] — recursive IR/expression helpers:
 //!   [`defs_from_ir_script`](ir_helpers::defs_from_ir_script),
@@ -108,7 +106,6 @@ pub mod dispatch_proof;
 pub mod dynamic_names;
 pub mod effect_ssa;
 pub mod executable_ir;
-pub mod execution_intent;
 // The `expr` AST + Pratt parser now live in the shared `tcl-syntax` crate
 // (consumed by both the compiler and the runtime port). Re-exported under the
 // original module paths so the ~45 in-crate consumers (and the LSP bindings)

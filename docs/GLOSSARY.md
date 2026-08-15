@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [Execution intent](#execution-intent) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [CFG](#cfg) · [Codegen](#codegen) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -125,18 +125,19 @@ flowchart LR
 
 The lossless, position-independent syntax tree the segmenter builds, and the
 representation the formatter, minifier, AOT lowering, and per-command tooling
-read from. It follows the Roslyn / rust-analyzer **red-green** split:
-the *green* tree stores only *widths* and children (so identical subtrees are
-shareable and an edit shifts a subtree for free), and a *red* overlay resolves
-absolute positions lazily, reproducing the exact `Token` offsets the lexer
-emits. **Trivia** (whitespace, end-of-line, comments) is *attached* to the
+read from. It follows the Roslyn / rust-analyzer **red-green** split: the
+*green* tree stores only *widths* and children, with structurally identical
+subtrees comparing equal by value. Children are inline, so the current CST
+does not pointer-share subtrees or provide cross-edit reuse; a *red* overlay
+resolves absolute positions lazily, reproducing the exact `Token` offsets the
+lexer emits. **Trivia** (whitespace, end-of-line, comments) is *attached* to the
 adjacent token rather than living as sibling tokens, so a command is pure
 syntax while every byte still round-trips. `SegmentedCommand`s are derived from
 it byte-identically. Implemented in `tcl_compiler::parsing::syntax`.
 
-> Distinct from the [green token tree](design/compiler/green-token-tree.md), a
-> context-aware tokenisation *memo* (its node type is `TokenRegion`) whose tokens
-> carry absolute positions.
+> Distinct from the [green token tree](design/compiler/green-token-tree.md),
+> an **unbuilt proposal** for a context-aware tokenisation memo with
+> absolute-position tokens. `TokenRegion` does not exist in the workspace.
 
 See also: [The canonical concrete syntax tree](design/compiler/syntax-tree.md).
 KCS tag: `lexing`.
@@ -608,10 +609,7 @@ consumer needs it rather than stashed on a per-function aggregate:
 `live_out_by_name()` (`rust/tcl-compiler/src/slot_allocation.rs`) for slot
 interference, and `liveness_dead_stores()`
 (`rust/tcl-compiler/src/dead_stores.rs`) for the `DeadStore` list, both
-reading the `FunctionUnit` that `CompilationUnit::build_for()` builds.  The
-`FunctionAnalysis.live_in / live_out` fields (`tcl_compiler::analyses`) are
-declared but not on the live path — nothing populates them; issue #1406
-tracks the gap.
+reading the `FunctionUnit` that `CompilationUnit::build_for()` builds.
 
 ```mermaid
 flowchart LR
@@ -778,17 +776,6 @@ of hardcoding name lists. Dialect-aware — iRules provides the `static::`
 namespace and BIG-IP `tcl_platform` keys but not `env` / `argv`.
 
 See also: [Special-variable registry](design/special-variable-registry.md).
-
-### Execution intent
-
-A per-argument classification that says whether a command substitution
-in argument position is evaluated for its value, for its side-effects,
-or both. The optimiser uses this to decide whether a `[cmd]` can be
-folded, hoisted, or sunk. Implemented in
-`tcl_compiler::execution_intent`.
-
-See also: [Execution intent model](design/compiler/execution-intent-model.md).
-KCS tag: `exec-intent`.
 
 ### Rendered-value properties
 
