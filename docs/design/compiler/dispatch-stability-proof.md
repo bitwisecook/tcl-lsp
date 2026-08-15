@@ -451,7 +451,11 @@ repositories and 113 Tcl-family source files. Materialise those exact commits,
 then independently verify every pin before running the sweep:
 
 ```sh
-CORPUS_DIR=/path/to/issue-1181-small-corpus
+# Use a newly-created empty directory: verification checks repository pins,
+# while fp-sweep deliberately scans every matching file below its corpus root.
+CORPUS_PARENT=$(mktemp -d)
+trap 'rm -rf -- "$CORPUS_PARENT"' EXIT
+CORPUS_DIR="$CORPUS_PARENT/issue-1181-small-corpus"
 python3 scripts/perf/fetch_corpus.py \
   --scope small --dest "$CORPUS_DIR"
 python3 scripts/perf/fetch_corpus.py \
