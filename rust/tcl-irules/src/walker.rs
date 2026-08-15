@@ -217,7 +217,14 @@ fn walk(
         // Registry command specs are canonical unqualified iRules names;
         // Tcl's leading `::` is an absolute-namespace marker, not a distinct
         // command identity.
-        let semantic_head = head.trim_start_matches("::");
+        // Only canonicalise the iRules global commands this walker owns.
+        // `::tcl::dict::*` is a distinct qualified core command whose BODY
+        // declarations must remain visible to the registry.
+        let semantic_head = match head {
+            "::pool" => "pool",
+            "::class" => "class",
+            _ => head,
+        };
 
         // Resolve declared references *before* mutating the binding table, so a
         // same-command `set` re-bind doesn't leak into this call's refs.
