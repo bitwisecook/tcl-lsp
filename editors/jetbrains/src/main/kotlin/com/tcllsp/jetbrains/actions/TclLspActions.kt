@@ -291,11 +291,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             DiagramCompletion.RETURN -> handler.data.string("match") == "return" || handler.data.string("match") == "2"
                             DiagramCompletion.BREAK -> handler.data.string("match") == "break" || handler.data.string("match") == "3"
                             DiagramCompletion.CONTINUE -> handler.data.string("match") == "continue" || handler.data.string("match") == "4"
-                            // An unevaluated -options value can produce any
-                            // Tcl completion code. Keep every on clause as a
-                            // possible source-order selection; choosing only
-                            // the first would falsely discard later handlers.
-                            DiagramCompletion.DYNAMIC -> true
+                            DiagramCompletion.DYNAMIC -> false
                             DiagramCompletion.DYNAMIC_RETURN_OR_ERROR ->
                                 (handler.data.string("match") in listOf("error", "return", "1", "2"))
                             DiagramCompletion.PROCESS_EXIT -> false
@@ -303,15 +299,75 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         }
                     }
 
+                    fun completionOf(possible: PossibleCompletion): DiagramCompletion = when (possible) {
+                        PossibleCompletion.NORMAL -> DiagramCompletion.NORMAL
+                        PossibleCompletion.ERROR -> DiagramCompletion.ERROR
+                        PossibleCompletion.RETURN -> DiagramCompletion.RETURN
+                        PossibleCompletion.BREAK -> DiagramCompletion.BREAK
+                        PossibleCompletion.CONTINUE -> DiagramCompletion.CONTINUE
+                        PossibleCompletion.OTHER -> DiagramCompletion.TERMINAL
+                    }
+                    fun onMatches(handler: Handler, possible: PossibleCompletion): Boolean {
+                        val match = handler.data.string("match")
+                        return when (possible) {
+                            PossibleCompletion.NORMAL -> match == "ok" || match == "0"
+                            PossibleCompletion.ERROR -> match == "error" || match == "1"
+                            PossibleCompletion.RETURN -> match == "return" || match == "2"
+                            PossibleCompletion.BREAK -> match == "break" || match == "3"
+                            PossibleCompletion.CONTINUE -> match == "continue" || match == "4"
+                            PossibleCompletion.OTHER -> match !in listOf("ok", "error", "return", "break", "continue", "0", "1", "2", "3", "4")
+                        }
+                    }
+                    fun trapSubsumes(previous: String?, candidate: String?): Boolean {
+                        if (previous == candidate || previous == "*" || previous.isNullOrBlank()) return true
+                        // `trap` patterns are error-code list prefixes. A
+                        // concrete prefix claims every longer error code with
+                        // that prefix; otherwise retain the candidate because
+                        // it may still match an unclaimed error-code class.
+                        val prior = previous.trim().split(Regex("\\s+"))
+                        val next = candidate?.trim()?.split(Regex("\\s+")) ?: return false
+                        return prior.size <= next.size && prior.zip(next).all { (a, b) -> a == b }
+                    }
+
                     val exits = mutableListOf<Tail>()
                     for (bodyExit in bodyExits) {
+                        if (bodyExit.completion == DiagramCompletion.DYNAMIC ||
+                            bodyExit.completion == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
+                        ) {
+                            val possible = if (bodyExit.completion == DiagramCompletion.DYNAMIC) {
+                                PossibleCompletion.entries
+                            } else {
+                                listOf(PossibleCompletion.ERROR, PossibleCompletion.RETURN)
+                            }
+                            for (outcome in possible) {
+                                var caughtByOn = false
+                                val claimedTrapPatterns = mutableListOf<String?>()
+                                for ((index, handler) in handlers.withIndex()) {
+                                    when (handler.data.string("kind_handler")) {
+                                        "trap" -> if (outcome == PossibleCompletion.ERROR &&
+                                            claimedTrapPatterns.none { trapSubsumes(it, handler.data.string("match")) }
+                                        ) {
+                                            connect(bodyExit.id, handler.start, "trap")
+                                            exits += renderHandler(index)
+                                            claimedTrapPatterns += handler.data.string("match")
+                                        }
+                                        "on" -> if (onMatches(handler, outcome)) {
+                                            connect(bodyExit.id, handler.start, "on")
+                                            exits += renderHandler(index)
+                                            caughtByOn = true
+                                            break
+                                        }
+                                    }
+                                }
+                                if (!caughtByOn) exits += Tail(bodyExit.id, completionOf(outcome))
+                            }
+                            continue
+                        }
                         val matches = handlers.withIndex().filter { (_, handler) -> handlerMatches(handler, bodyExit.completion) }
                         val errorIsCertainlyHandled = bodyExit.completion == DiagramCompletion.ERROR && matches.any {
                             (_, handler) -> handler.data.string("kind_handler") == "on"
                         }
                         if (matches.isEmpty() ||
-                            bodyExit.completion == DiagramCompletion.DYNAMIC ||
-                            bodyExit.completion == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR ||
                             (bodyExit.completion == DiagramCompletion.ERROR && !errorIsCertainlyHandled)
                         ) {
                             // A `trap` pattern needs error-code detail which
@@ -320,17 +376,6 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             // proof that every error is caught, so retain the
                             // unhandled error as well.
                             exits += bodyExit
-                        }
-                        // Dynamic -options can produce TCL_OK. If no `on ok`
-                        // clause owns that possibility, retain the direct
-                        // normal continuation as well as abrupt propagation.
-                        if (bodyExit.completion == DiagramCompletion.DYNAMIC &&
-                            matches.none { (_, handler) ->
-                                handler.data.string("kind_handler") == "on" &&
-                                    (handler.data.string("match") == "ok" || handler.data.string("match") == "0")
-                            }
-                        ) {
-                            exits += Tail(bodyExit.id, DiagramCompletion.NORMAL)
                         }
                         if (matches.isNotEmpty()) {
                             // `on` clauses are selected in source order.  A
@@ -431,6 +476,7 @@ private class MermaidIds {
 
 /** Completion states defined by the shared `tcl-diagram` JSON contract. */
 private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, DYNAMIC_RETURN_OR_ERROR, PROCESS_EXIT, TERMINAL }
+private enum class PossibleCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, OTHER }
 
 private fun JsonObject.string(name: String): String? =
     get(name)?.takeUnless { it.isJsonNull }?.asString

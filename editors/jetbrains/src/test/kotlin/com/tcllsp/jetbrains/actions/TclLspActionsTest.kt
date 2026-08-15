@@ -3,6 +3,7 @@ package com.tcllsp.jetbrains.actions
 import com.google.gson.JsonParser
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 class TclLspActionsTest {
@@ -276,6 +277,22 @@ class TclLspActionsTest {
         kotlin.test.assertFalse(mermaid.contains("wrong ok"), mermaid)
         assertContains(mermaid, "error path")
         assertContains(mermaid, "return path")
+    }
+
+    @Test
+    fun dynamicCompletionUsesOnlyTheFirstOnHandlerForEachConcreteCode() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -code ${'$'}code","completion":"dynamic_return_or_error"}],"handlers":[
+              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"first error"}]},
+              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"duplicate error"}]},
+              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"first return"}]},
+              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"duplicate return"}]}
+            ]}]}],"procedures":[]}"""
+        )))
+        // Handler nodes are retained for source context, but only the first
+        // matching on-clause for error and return receives a body edge.
+        assertEquals(2, mermaid.lines().count { it.startsWith("n2 -->|on|") }, mermaid)
     }
 
     @Test
