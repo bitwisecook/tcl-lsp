@@ -447,7 +447,7 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         Err(e) => {
-            vm.take_command(&name);
+            vm.take_command_unchecked(&name);
             err(e.message)
         }
     }
@@ -473,6 +473,8 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let old_key = vm
         .resolve_command_fqn(vm.current_ns(), &old_name)
         .unwrap_or_default();
+    let import_origin = vm.import_origin(&old_key);
+    let builtin_identity = vm.builtin_identity(&old_key);
     let Some(cmd) = vm.take_command(&old_name) else {
         // Renaming to the empty name is a delete; C words the miss accordingly.
         let verb = if new_name.is_empty() {
@@ -537,6 +539,16 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => None,
         };
         vm.register_command(&key, cmd);
+        if let Some(origin) = &import_origin {
+            vm.restore_import_origin(&key, origin.clone());
+        }
+        if let Some(identity) = &builtin_identity {
+            vm.restore_builtin_identity(&key, identity.clone());
+        }
+        // Imported commands retain the source command's Tcl identity.  A
+        // rename moves that identity (C's import holds the source token), so
+        // every import must follow before later visibility/origin lookups.
+        vm.retarget_imports(&old_key, &key);
         // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
         // a name its own target chain resolves back to is refused, with the
         // command restored under its old name (tclsh-pinned: `interp alias {}
@@ -546,6 +558,12 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .remove_command_exact(&key)
                 .expect("the alias was just registered under this key");
             vm.register_command(&old_key, restored);
+            if let Some(origin) = &import_origin {
+                vm.restore_import_origin(&old_key, origin.clone());
+            }
+            if let Some(identity) = &builtin_identity {
+                vm.restore_builtin_identity(&old_key, identity.clone());
+            }
             // `register_command` just dropped the backref sitting at `old_key`
             // (stale since `take_command` doesn't touch the backref table) —
             // put it back now the alias is confirmed to still live there.
@@ -834,9 +852,7 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
     }
     if path.is_empty() {
         if hide {
-            if let Some(command) = vm.take_command(&cmd) {
-                vm.hide_own_command(&token, command);
-            }
+            vm.hide_command(&cmd, &token);
         } else {
             vm.expose_own_command(&cmd, &token);
         }

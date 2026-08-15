@@ -1731,7 +1731,7 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
 
 /// Remove an object's command and records (no destructor run).
 fn teardown(vm: &mut Vm, obj_key: &str) {
-    vm.take_command(obj_key);
+    vm.take_command_unchecked(obj_key);
     vm.oo.objects.remove(obj_key);
     vm.oo.classes.remove(obj_key);
 }

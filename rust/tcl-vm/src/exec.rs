@@ -1342,7 +1342,7 @@ impl Vm {
             // nested-drive `cmd_apply`'s unconditional `vm.take_command` after
             // `eval_source` returned (issue #1311).
             if let Some(name) = act.cleanup_proc.take() {
-                self.take_command(&name);
+                self.take_command_unchecked(&name);
             }
             // A `catch` activation absorbs the body's completion of *any* code:
             // its epilogue binds the result / options variables and yields the
@@ -3805,19 +3805,22 @@ impl Vm {
             // chain and errors when the name resolves to nothing.
             Op::RESOLVE_CMD => {
                 let name = pop(f).to_str();
-                let fqn = self
-                    .resolve_command_fqn(self.current_ns(), &name)
-                    .map_or_else(Value::empty, |key| Value::string(format!("::{key}")));
+                let fqn = if self.lookup_command(&name).is_some() {
+                    self.resolve_command_fqn(self.current_ns(), &name)
+                        .map_or_else(Value::empty, |key| Value::string(format!("::{key}")))
+                } else {
+                    Value::empty()
+                };
                 f.stack.push(fqn);
             }
             Op::ORIGIN_CMD => {
                 let name = pop(f).to_str();
                 match self.resolve_command_fqn(self.current_ns(), &name) {
-                    Some(key) => {
+                    Some(key) if self.lookup_command(&name).is_some() => {
                         let origin = self.command_origin_key(&key);
                         f.stack.push(Value::string(format!("::{origin}")));
                     }
-                    None => {
+                    _ => {
                         return Tick::Return(err(format!("invalid command name \"{name}\"")));
                     }
                 }
@@ -4376,7 +4379,7 @@ impl Vm {
         if let Some((asm, label, cleanup_proc)) = self.pending_eval.take() {
             let comp = self.run_activation(Frame::new_script(asm, label));
             if let Some(name) = cleanup_proc {
-                self.take_command(&name);
+                self.take_command_unchecked(&name);
             }
             return comp;
         }

@@ -237,6 +237,206 @@ fn command_surface_follows_the_emulated_release() {
     }
 }
 
+/// A release-hidden builtin must stay hidden when Tcl code tries to move it
+/// out of the registry's namespace.  `rename` and `interp hide` both remove a
+/// command table entry before restoring it under another spelling; that
+/// removal must consult the same surface gate as ordinary dispatch.
+#[test]
+fn hidden_builtin_cannot_escape_through_rename_or_hide() {
+    let src = concat!(
+        "puts \"direct=[catch {lassign {a b} x y} msg];$msg\"\n",
+        "puts \"rename=[catch {rename lassign la} msg];$msg\"\n",
+        "puts \"alias=[catch {la {a b} x y} msg];$msg\"\n",
+        "puts \"hide=[catch {interp hide {} lassign} msg];$msg\"\n",
+        "puts \"expose=[catch {interp expose {} lassign la} msg];$msg\"\n",
+        "puts \"after-hide=[catch {la {a b} x y} msg];$msg\"\n",
+        "puts \"vars=[info exists x],[info exists y]\"\n",
+    );
+    assert_eq!(
+        vm_output(src, TclVersion::V8_4),
+        concat!(
+            "direct=1;invalid command name \"lassign\"\n",
+            "rename=1;can't rename \"lassign\": command doesn't exist\n",
+            "alias=1;invalid command name \"la\"\n",
+            "hide=0;\n",
+            "expose=0;\n",
+            "after-hide=1;invalid command name \"la\"\n",
+            "vars=0,0",
+        )
+    );
+    assert_eq!(
+        vm_output(src, TclVersion::V9_0),
+        concat!(
+            "direct=0;\n",
+            "rename=0;\n",
+            "alias=0;\n",
+            "hide=0;\n",
+            "expose=0;\n",
+            "after-hide=0;\n",
+            "vars=1,1",
+        )
+    );
+}
+
+/// Every public command-table mutation and indirection preserves the release
+/// surface.  In particular, child-interpreter hide used to mutate the parked
+/// table directly, and import used a cloned builtin without its final source
+/// identity, so both could expose `lassign` to an emulated 8.4 VM.
+#[test]
+fn hidden_builtin_stays_hidden_through_children_imports_and_aliases() {
+    let src = concat!(
+        "interp create child\n",
+        "namespace export lassign\n",
+        "namespace eval imported {namespace import ::lassign}\n",
+        "puts \"same-hide=[catch {interp hide {} lassign la} m];$m\"\n",
+        "puts \"same-hidden=[info commands la]\"\n",
+        "puts \"same-expose=[catch {interp expose {} la lassign2} m];$m\"\n",
+        "puts \"same-call=[catch {lassign2 {a b} x} m];$m\"\n",
+        "puts \"child-hide=[catch {interp hide child lassign la} m];$m\"\n",
+        "puts \"child-hidden=[child hidden]\"\n",
+        "puts \"child-expose=[catch {interp expose child la lassign2} m];$m\"\n",
+        "puts \"child-call=[catch {child eval {lassign2 {a b} x}} m];$m\"\n",
+        "interp create child_command\n",
+        "puts \"child-command-hide=[catch {child_command hide lassign} m];$m\"\n",
+        "puts \"child-command-hidden=[child_command hidden]\"\n",
+        "puts \"child-command-expose=[catch {child_command expose lassign} m];$m\"\n",
+        "puts \"child-command-call=[catch {child_command eval {lassign {a b} x}} m];$m\"\n",
+        "puts \"import-visible=[namespace eval imported {info commands lassign}]\"\n",
+        "puts \"import-origin=[catch {namespace eval imported {namespace origin lassign}} m];$m\"\n",
+        "puts \"import-call=[catch {namespace eval imported {lassign {a b} x}} m];$m\"\n",
+        "interp alias {} alias {} lassign\n",
+        "puts \"alias-call=[catch {alias {a b} x} m];$m\"\n",
+    );
+    assert_eq!(
+        vm_output(src, TclVersion::V8_4),
+        concat!(
+            "same-hide=0;\n",
+            "same-hidden=\n",
+            "same-expose=0;\n",
+            "same-call=1;invalid command name \"lassign2\"\n",
+            "child-hide=0;\n",
+            "child-hidden=\n",
+            "child-expose=0;\n",
+            "child-call=1;invalid command name \"lassign2\"\n",
+            "child-command-hide=0;\n",
+            "child-command-hidden=\n",
+            "child-command-expose=0;\n",
+            "child-command-call=1;invalid command name \"lassign\"\n",
+            "import-visible=\n",
+            "import-origin=1;invalid command name \"lassign\"\n",
+            "import-call=1;invalid command name \"lassign\"\n",
+            "alias-call=1;invalid command name \"lassign\"",
+        )
+    );
+    let want_newer = concat!(
+        "same-hide=0;\n",
+        "same-hidden=\n",
+        "same-expose=0;\n",
+        "same-call=0;b\n",
+        "child-hide=0;\n",
+        "child-hidden=la\n",
+        "child-expose=0;\n",
+        "child-call=0;b\n",
+        "child-command-hide=0;\n",
+        "child-command-hidden=lassign\n",
+        "child-command-expose=0;\n",
+        "child-command-call=0;b\n",
+        "import-visible=lassign\n",
+        "import-origin=0;::lassign2\n",
+        "import-call=0;b\n",
+        "alias-call=1;invalid command name \"lassign\"",
+    );
+    for version in [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        assert_eq!(vm_output(src, version), want_newer, "[{version:?}] surface");
+    }
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want_newer, "[{env}] real Tcl oracle");
+        }
+    }
+}
+
+/// Reproduce the stateful form of the import escape: importing while the 8.5
+/// surface is active, then pinning that same interpreter to 8.4.  The local
+/// clone and provenance remain in its table, but resolution must now reject
+/// the final builtin identity.
+#[test]
+fn version_mutation_rechecks_an_existing_imports_source_identity() {
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
+        "tcl8.5",
+    ))));
+    let setup = vm
+        .eval_source(
+            "namespace export lassign\n\
+             namespace eval imported {namespace import ::lassign}\n\
+             interp hide {} lassign hidden_lassign\n\
+             interp expose {} hidden_lassign escaped\n\
+             namespace eval imported {rename lassign imported_lassign}\n",
+        )
+        .expect("8.5 import setup compiles");
+    assert!(setup.code.is_ok());
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    let probe = vm
+        .eval_source(
+            "catch {namespace eval imported {set cmd [string cat imported_ lass ign]; $cmd {a b} x}} imported; \\
+             catch {set cmd [string cat es caped]; $cmd {a b} x} escaped; \\
+             list $imported $escaped\n",
+        )
+        .expect("8.4 probe compiles");
+    assert_eq!(
+        probe.result.to_str().as_ref(),
+        "{invalid command name \"imported_lassign\"} {invalid command name \"escaped\"}"
+    );
+}
+
+/// Renaming an import moves its local key, not its source provenance.  A
+/// nested import must follow that renamed local key while both `namespace
+/// origin` calls still reach the original builtin, exactly as C Tcl's command
+/// token links do.
+#[test]
+fn renamed_imports_preserve_origin_through_nested_imports() {
+    let src = concat!(
+        "namespace export lassign\n",
+        "namespace eval one {namespace import ::lassign; namespace export lassign}\n",
+        "namespace eval two {namespace import ::one::lassign}\n",
+        "namespace eval one {rename lassign moved}\n",
+        "puts \"one=[namespace eval one {namespace origin moved}]\"\n",
+        "puts \"two=[namespace eval two {namespace origin lassign}]\"\n",
+        "puts \"call=[namespace eval two {lassign {a b} x}]\"\n",
+    );
+    let want = "one=::lassign\ntwo=::lassign\ncall=b";
+    for version in [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] renamed import"
+        );
+    }
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] real Tcl oracle");
+        }
+    }
+}
+
 /// A `catch` body is compiled at run time through the VM's compile service,
 /// so an 8.5+-only spelling inside it is a *catchable* error under an 8.4
 /// pin — matching C Tcl, which defers a compile-time parse error to a

@@ -468,6 +468,12 @@ pub struct InterpState {
     /// leaving a real command of the same name intact. Cleared whenever the key
     /// is re-registered (a redefine) or taken (a `rename`).
     imported_commands: HashMap<String, String>,
+    /// Stable registry identity for a builtin that has moved away from its
+    /// registered spelling (via import, rename, or hide/expose).  This is
+    /// deliberately distinct from the mutable `namespace origin` provenance:
+    /// `rename lassign escaped` remains the `lassign` builtin for release
+    /// availability purposes.
+    builtin_identities: HashMap<String, String>,
     /// Namespace-name ⇆ opaque `NsId` arena for the Family-B `Frames`/`Namespaces`
     /// contract. The VM resolves namespaces by their canonical `String` name; this
     /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
@@ -685,6 +691,11 @@ pub struct InterpState {
     /// Commands hidden by `interp create -safe` / `interp hide`, keyed by name —
     /// invocable via `interp invokehidden`, restorable with `interp expose`.
     hidden_commands: HashMap<String, Command>,
+    /// Import provenance and stable builtin identities carried while a command
+    /// lives in the hidden table.  Hiding is a temporary relocation, not a
+    /// metadata-dropping deletion: expose must restore both under its new key.
+    hidden_imported_commands: HashMap<String, String>,
+    hidden_builtin_identities: HashMap<String, String>,
     /// Monotonic counter minting auto-generated child names (`interp0`, …).
     interp_counter: u64,
     /// `interp debug -frame` — a one-way switch (once on, stays on).
@@ -997,6 +1008,7 @@ impl InterpState {
             namespaces: std::collections::HashSet::new(),
             ns_exports: HashMap::new(),
             imported_commands: HashMap::new(),
+            builtin_identities: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             ns_paths: HashMap::new(),
@@ -1039,6 +1051,8 @@ impl InterpState {
             is_safe: false,
             recursion_limit: RECURSION_LIMIT,
             hidden_commands: HashMap::new(),
+            hidden_imported_commands: HashMap::new(),
+            hidden_builtin_identities: HashMap::new(),
             interp_counter: 0,
             debug_frame: false,
             bgerror_handler: Value::string("::tcl::Bgerror"),
@@ -1696,6 +1710,7 @@ impl Vm {
         }
         self.bump_cmd_epoch();
         self.imported_commands.remove(name);
+        self.builtin_identities.remove(name);
         self.commands.insert(name.to_owned(), cmd);
     }
 
@@ -1711,6 +1726,7 @@ impl Vm {
         if self.commands.remove(name).is_some() {
             self.bump_cmd_epoch();
             self.imported_commands.remove(name);
+            self.builtin_identities.remove(name);
         }
     }
 
@@ -1722,9 +1738,37 @@ impl Vm {
     /// command).
     pub(crate) fn take_command(&mut self, name: &str) -> Option<Command> {
         let key = self.resolve_command_fqn(self.current_ns(), name)?;
+        // A command that is present in the engine table may still be absent
+        // from the emulated release's surface.  Treat it exactly like a
+        // missing command here: otherwise `rename` (and `interp hide`, which
+        // uses the same removal seam) can move a hidden builtin to a registry-
+        // unknown name and make it callable again (#1463).
+        if self
+            .commands
+            .get(&key)
+            .is_some_and(|command| !self.builtin_command_visible_for_surface(&key, command))
+        {
+            return None;
+        }
+        self.take_command_unchecked_key(&key)
+    }
+
+    /// Resolve and remove a command without consulting the emulated command
+    /// surface.  This is for VM-owned teardown only (temporary `apply`
+    /// procedures, coroutine state, and `TclOO` objects); those paths are
+    /// deleting an implementation that is already unreachable, not exposing
+    /// a command to Tcl code.  User-facing removal must use [`Self::take_command`].
+    pub(crate) fn take_command_unchecked(&mut self, name: &str) -> Option<Command> {
+        let key = self.resolve_command_fqn(self.current_ns(), name)?;
+        self.take_command_unchecked_key(&key)
+    }
+
+    /// Remove a command by its already-resolved table key.
+    fn take_command_unchecked_key(&mut self, key: &str) -> Option<Command> {
         self.bump_cmd_epoch();
-        self.imported_commands.remove(&key);
-        self.commands.remove(&key)
+        self.imported_commands.remove(key);
+        self.builtin_identities.remove(key);
+        self.commands.remove(key)
     }
 
     /// Remove a command by its exact table key (no name resolution) — the
@@ -1732,6 +1776,7 @@ impl Vm {
     pub(crate) fn remove_command_exact(&mut self, key: &str) -> Option<Command> {
         self.bump_cmd_epoch();
         self.imported_commands.remove(key);
+        self.builtin_identities.remove(key);
         self.commands.remove(key)
     }
 
@@ -1853,12 +1898,22 @@ impl Vm {
         if !matches!(command, Command::Builtin(_) | Command::Native(_)) {
             return true;
         }
+        // `namespace import` stores a command-table clone for dispatch. Its
+        // source name can change, but the clone remains the original builtin;
+        // gate on that stable identity rather than the local spelling or
+        // mutable `namespace origin` name. This mirrors runtime/rust's
+        // `Command::Imported` redirect through `resolve_dispatchable`.
+        let origin = self
+            .builtin_identities
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| self.command_origin_key(name));
         if !tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
-            .permits_builtin_math_function_command(name)
+            .permits_builtin_math_function_command(&origin)
         {
             return false;
         }
-        matches!(command, Command::Native(_)) || self.profile_admits_registry_builtin(name)
+        matches!(command, Command::Native(_)) || self.profile_admits_registry_builtin(&origin)
     }
 
     /// The availability half of [`Self::builtin_command_visible_for_surface`]:
@@ -2371,17 +2426,48 @@ impl Vm {
         };
         if let Some(child) = self.st_of_mut(id) {
             child.bump_cmd_epoch();
-            for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
-                child.commands.insert(cmd_name, cmd);
-            }
+            child.expose_all_hidden_commands();
             child.is_safe = false;
         }
     }
 
-    /// `interp hide {} cmd` — move one of *this* interp's commands into its
-    /// hidden table.
-    pub(crate) fn hide_own_command(&mut self, cmd: &str, command: Command) {
-        self.hidden_commands.insert(cmd.to_string(), command);
+    /// Stable registry identity for a visible builtin, if any.  A direct
+    /// registered builtin derives it from its key; a moved builtin carries it
+    /// in [`Self::builtin_identities`].
+    fn builtin_identity_for_key(&self, key: &str) -> Option<String> {
+        matches!(self.commands.get(key), Some(Command::Builtin(_))).then(|| {
+            self.builtin_identities
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| self.command_origin_key(key))
+        })
+    }
+
+    /// `interp hide {} cmd` — move one visible command plus all of its
+    /// metadata into the hidden table.  This is the only public hide seam;
+    /// every caller therefore observes the same release-visibility check.
+    pub(crate) fn hide_command(&mut self, cmd: &str, token: &str) -> bool {
+        let Some(source) = self.resolve_command_fqn(self.current_ns(), cmd) else {
+            return false;
+        };
+        let import_origin = self.imported_commands.get(&source).cloned();
+        let builtin_identity = self.builtin_identity_for_key(&source);
+        let Some(command) = self.take_command(cmd) else {
+            return false;
+        };
+        self.hidden_commands.insert(token.to_owned(), command);
+        if let Some(origin) = import_origin {
+            self.hidden_imported_commands
+                .insert(token.to_owned(), origin);
+        }
+        if let Some(identity) = builtin_identity {
+            self.hidden_builtin_identities
+                .insert(token.to_owned(), identity);
+        }
+        // A hidden token is the command's temporary name.  Imports that
+        // pointed at this source follow it until expose gives it a new key.
+        self.retarget_imports(&source, token);
+        true
     }
 
     /// `interp expose {} hidden ?token?` — restore one of *this* interp's
@@ -2390,6 +2476,16 @@ impl Vm {
         if let Some(c) = self.hidden_commands.remove(cmd) {
             self.bump_cmd_epoch();
             self.commands.insert(token.to_string(), c);
+            if let Some(origin) = self.hidden_imported_commands.remove(cmd) {
+                self.imported_commands.insert(token.to_owned(), origin);
+            }
+            if let Some(identity) = self.hidden_builtin_identities.remove(cmd) {
+                self.builtin_identities.insert(token.to_owned(), identity);
+            }
+            // `interp hide` + `interp expose ... newName` is a rename through
+            // the hidden table. Imported commands retain the source token in
+            // C Tcl, so their provenance follows the newly exposed name too.
+            self.retarget_imports(cmd, token);
         }
     }
 
@@ -2407,17 +2503,15 @@ impl Vm {
         let Some(id) = self.child_id(name) else {
             return false;
         };
-        let Some(child) = self.st_of_mut(id) else {
-            return false;
-        };
-        child.bump_cmd_epoch();
-        if hide {
-            if let Some(c) = child.commands.remove(cmd) {
-                child.hidden_commands.insert(token.to_string(), c);
+        // Enter the child so public hide uses the same visibility-aware
+        // removal seam as `rename` and same-interpreter `interp hide`.
+        self.in_interp(id, |vm| {
+            if hide {
+                vm.hide_command(cmd, token);
+            } else {
+                vm.expose_own_command(cmd, token);
             }
-        } else if let Some(c) = child.hidden_commands.remove(cmd) {
-            child.commands.insert(token.to_string(), c);
-        }
+        });
         true
     }
 
@@ -2464,8 +2558,19 @@ impl Vm {
         ];
         self.bump_cmd_epoch();
         for &c in UNSAFE {
+            let import_origin = self.imported_commands.get(c).cloned();
+            let builtin_identity = self.builtin_identity_for_key(c);
             if let Some(cmd) = self.commands.remove(c) {
+                self.imported_commands.remove(c);
+                self.builtin_identities.remove(c);
                 self.hidden_commands.insert(c.to_string(), cmd);
+                if let Some(origin) = import_origin {
+                    self.hidden_imported_commands.insert(c.to_string(), origin);
+                }
+                if let Some(identity) = builtin_identity {
+                    self.hidden_builtin_identities
+                        .insert(c.to_string(), identity);
+                }
             }
         }
         for &k in UNSAFE_PLATFORM {
@@ -2513,8 +2618,20 @@ impl Vm {
         argv: &[Value],
     ) -> Completion<Value> {
         if target_interp == self.cur {
-            let script = crate::exec::alias_invoke_script(argv);
             self.push_ns(String::new());
+            // Alias words are recompiled as a script so aliases to control
+            // commands retain Tcl's syntax.  Validate the fixed head through
+            // normal resolution first, though: otherwise a compiler-special
+            // form (for example `lassign`) can run after its target was
+            // renamed away or gated out by the selected release.
+            if let Some((head, tail)) = argv.split_first()
+                && self.lookup_command(&head.to_str()).is_none()
+            {
+                let completion = self.invoke_command(&head.to_str(), tail);
+                self.pop_ns();
+                return completion;
+            }
+            let script = crate::exec::alias_invoke_script(argv);
             let evaled = self.eval_source(&script);
             self.pop_ns();
             return match evaled {
@@ -2528,6 +2645,13 @@ impl Vm {
         let script = crate::exec::alias_invoke_script(argv);
         self.in_interp(target_interp, |vm| {
             vm.push_ns(String::new());
+            if let Some((head, tail)) = argv.split_first()
+                && vm.lookup_command(&head.to_str()).is_none()
+            {
+                let completion = vm.invoke_command(&head.to_str(), tail);
+                vm.pop_ns();
+                return completion;
+            }
             let evaled = vm.eval_source(&script);
             vm.pop_ns();
             match evaled {
@@ -2722,9 +2846,7 @@ impl Vm {
                 }
                 if let Some(child) = self.st_of_mut(id) {
                     child.bump_cmd_epoch();
-                    for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
-                        child.commands.insert(cmd_name, cmd);
-                    }
+                    child.expose_all_hidden_commands();
                     child.is_safe = false;
                 }
                 ok(Value::empty())
@@ -2822,17 +2944,17 @@ impl Vm {
     /// [`Self::child_hide`] addressing the child by id (the `$child hide/expose`
     /// form, whose id is already resolved).
     fn child_hide_by_id(&mut self, id: InterpId, cmd: &str, token: &str, hide: bool) -> bool {
-        let Some(child) = self.st_of_mut(id) else {
+        if !self.interp_alive(id) {
             return false;
-        };
-        child.bump_cmd_epoch();
-        if hide {
-            if let Some(c) = child.commands.remove(cmd) {
-                child.hidden_commands.insert(token.to_string(), c);
-            }
-        } else if let Some(c) = child.hidden_commands.remove(cmd) {
-            child.commands.insert(token.to_string(), c);
         }
+        // This is the `$child hide` spelling of the same public operation.
+        self.in_interp(id, |vm| {
+            if hide {
+                vm.hide_command(cmd, token);
+            } else {
+                vm.expose_own_command(cmd, token);
+            }
+        });
         true
     }
 
@@ -3011,6 +3133,22 @@ fn is_step_capable(ops: &[String]) -> bool {
 /// coercion keeps every `impl Vm` caller (`self.resolve_command_fqn(…)`)
 /// working against the current interp unchanged.
 impl InterpState {
+    /// Move every hidden command back into the visible table, retaining the
+    /// import provenance and stable builtin identity that travelled with it.
+    fn expose_all_hidden_commands(&mut self) {
+        let origins = std::mem::take(&mut self.hidden_imported_commands);
+        let identities = std::mem::take(&mut self.hidden_builtin_identities);
+        for (name, command) in std::mem::take(&mut self.hidden_commands) {
+            self.commands.insert(name.clone(), command);
+            if let Some(origin) = origins.get(&name) {
+                self.imported_commands.insert(name.clone(), origin.clone());
+            }
+            if let Some(identity) = identities.get(&name) {
+                self.builtin_identities.insert(name, identity.clone());
+            }
+        }
+    }
+
     /// Invalidate the command-resolution memo (M16.4): every command-table /
     /// `namespace path` / runtime-version mutation routes through here so a
     /// cached `(namespace, name) → key` can never outlive the state it was
@@ -3261,7 +3399,7 @@ impl Vm {
         };
         // Candidate commands: those in the source namespace whose tail matches
         // the import glob and an export pattern.
-        let mut to_import: Vec<(String, Command)> = Vec::new();
+        let mut to_import: Vec<(String, Command, Option<String>)> = Vec::new();
         for (cmd_name, cmd) in &self.commands {
             let Some(tail) = cmd_name.strip_prefix(&prefix) else {
                 continue;
@@ -3273,18 +3411,31 @@ impl Vm {
                 && exports
                     .iter()
                     .any(|p| tcl_syntax::glob::string_match(p, tail))
+                // C imports only a command visible in the current release.
+                // Skipping a hidden source avoids manufacturing a local clone
+                // at 8.4 and keeps import chains' provenance meaningful.
+                && self.builtin_command_visible_for_surface(cmd_name, cmd)
             {
-                to_import.push((tail.to_string(), cmd.clone()));
+                let builtin_identity = matches!(cmd, Command::Builtin(_)).then(|| {
+                    self.builtin_identities
+                        .get(cmd_name)
+                        .cloned()
+                        .unwrap_or_else(|| cmd_name.clone())
+                });
+                to_import.push((tail.to_string(), cmd.clone(), builtin_identity));
             }
         }
         let mut imported = Vec::new();
-        for (tail, cmd) in to_import {
+        for (tail, cmd, builtin_identity) in to_import {
             let alias = self.qualify_name(&tail);
             let origin = format!("{prefix}{tail}");
             self.register_command(&alias, cmd);
             // `register_command` cleared any stale provenance; now stamp this key
             // as an import so `namespace forget` can target it.
-            self.imported_commands.insert(alias, origin);
+            self.imported_commands.insert(alias.clone(), origin);
+            if let Some(identity) = builtin_identity {
+                self.builtin_identities.insert(alias, identity);
+            }
             imported.push(tail);
         }
         imported
@@ -3306,6 +3457,41 @@ impl Vm {
             }
         }
         cur
+    }
+
+    /// Retarget imports when their source command is renamed.  The command
+    /// table stores an import as a cloned dispatcher, whereas C stores the
+    /// source command token; rewrite the provenance explicitly so dispatch,
+    /// visibility, and `namespace origin` continue to identify the final
+    /// builtin under its new name.  A deletion deliberately does not take this
+    /// path: C leaves the imported command dangling in that case.
+    pub(crate) fn retarget_imports(&mut self, old_key: &str, new_key: &str) {
+        let new_key = new_key.to_owned();
+        for source in self.imported_commands.values_mut() {
+            if source == old_key {
+                source.clone_from(&new_key);
+            }
+        }
+    }
+
+    /// Import provenance carried by `key`, if it is an imported command.
+    pub(crate) fn import_origin(&self, key: &str) -> Option<String> {
+        self.imported_commands.get(key).cloned()
+    }
+
+    /// Stable registry identity for a visible builtin at `key`.
+    pub(crate) fn builtin_identity(&self, key: &str) -> Option<String> {
+        self.builtin_identity_for_key(key)
+    }
+
+    /// Restore a renamed imported command's own origin record.
+    pub(crate) fn restore_import_origin(&mut self, key: &str, origin: String) {
+        self.imported_commands.insert(key.to_owned(), origin);
+    }
+
+    /// Restore a renamed builtin's stable registry identity.
+    pub(crate) fn restore_builtin_identity(&mut self, key: &str, identity: String) {
+        self.builtin_identities.insert(key.to_owned(), identity);
     }
 
     /// `namespace forget pattern` — remove previously imported commands matching
@@ -3367,6 +3553,7 @@ impl Vm {
         self.bump_cmd_epoch();
         for key in victims {
             self.imported_commands.remove(&key);
+            self.builtin_identities.remove(&key);
             self.commands.remove(&key);
         }
         Ok(())
@@ -3392,6 +3579,8 @@ impl Vm {
         self.bump_cmd_epoch();
         self.commands.retain(|k, _| !k.starts_with(&prefix));
         self.imported_commands
+            .retain(|k, _| !k.starts_with(&prefix));
+        self.builtin_identities
             .retain(|k, _| !k.starts_with(&prefix));
         if let Some(g) = self.frames.first_mut() {
             g.locals.retain(|k, _| !k.starts_with(&prefix));

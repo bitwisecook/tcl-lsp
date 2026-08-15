@@ -165,7 +165,10 @@ impl Vm {
 
     /// Delete `name` from the command table, reporting whether it was there.
     pub fn remove_command(&mut self, name: &str) -> bool {
-        self.take_command(name).is_some()
+        // This is an embedder-owned teardown API, not Tcl's `rename`/`interp
+        // hide` surface.  Keep it able to remove a command even when the
+        // command is hidden by the emulated release.
+        self.take_command_unchecked(name).is_some()
     }
 
     /// Reduce the command table to the commands `keep` accepts, returning how

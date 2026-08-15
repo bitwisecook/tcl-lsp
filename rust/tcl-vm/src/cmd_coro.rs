@@ -152,7 +152,7 @@ pub(crate) fn on_command_deleted(vm: &mut Vm, fqn: &str) {
         vm.fire_parked_unset_traces(&mut state.parked);
     }
     if let Some(p) = state.temp_proc {
-        vm.take_command(&p);
+        vm.take_command_unchecked(&p);
     }
 }
 
@@ -222,7 +222,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let body_src = Value::list(words).to_str();
     let Some(body) = vm.compile_dynamic_body(&body_src) else {
         if let Some(p) = &temp_proc {
-            vm.take_command(p);
+            vm.take_command_unchecked(p);
         }
         return err(format!("coroutine \"{name}\": could not compile body"));
     };
@@ -408,12 +408,12 @@ fn run_injections(
 /// unwinding caller tears everything down instead.
 fn teardown_coro(vm: &mut Vm, fqn: &str) {
     if !vm.exit_pending() {
-        vm.take_command(fqn);
+        vm.take_command_unchecked(fqn);
     }
     if let Some(state) = vm.coro.live.remove(fqn)
         && let Some(p) = state.temp_proc
     {
-        vm.take_command(&p);
+        vm.take_command_unchecked(&p);
     }
 }
 
