@@ -315,7 +315,7 @@ fn command_span_at(
             }
             let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
             let canonical = tcl_syntax::naming::canonical_written_command(command.name());
-            let semantic_head = if registry.get(&canonical).is_some() {
+            let semantic_head = if registry.get_exact(&canonical).is_some() {
                 canonical
             } else if canonical.starts_with("::") {
                 let rooted_name = canonical.trim_start_matches("::");
@@ -663,7 +663,7 @@ mod tests {
 
     #[test]
     fn nested_proc_command_is_innermost_with_and_without_analysis() {
-        let src = "proc p {} {\n ::if {1} {\n  set value [string toupper \\\n+    local]\n }\n}\n";
+        let src = "proc p {} {\n :::if {1} {\n  set value [string toupper \\\n    local]\n }\n}\n";
         let cursor = u32::try_from(src.find("local").unwrap()).unwrap();
         let source_len = u32::try_from(src.len()).unwrap();
         let analysed = analyse(src);

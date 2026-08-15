@@ -648,6 +648,13 @@ impl CommandRegistry {
             .and_then(|v| v.last().copied())
     }
 
+    /// Exact spelling lookup; unlike [`Self::get`], does not apply rooted
+    /// global-name fallback.
+    #[must_use]
+    pub fn get_exact(&self, name: &str) -> Option<&CommandSpec> {
+        self.by_name.get(name).and_then(|v| v.last().copied())
+    }
+
     /// Whether a **fresh interpreter** of this registry's dialect already holds
     /// a command at exactly `qualified_name` — the question `namespace
     /// import`'s "already exists" conflict asks, and the one `info commands

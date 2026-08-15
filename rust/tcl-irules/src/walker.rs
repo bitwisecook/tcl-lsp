@@ -222,11 +222,11 @@ fn walk(
         // `::tcl::dict::*` is a distinct qualified core command whose BODY
         // declarations must remain visible to the registry.
         let canonical = tcl_syntax::naming::canonical_written_command(head);
-        let semantic_head = if registry.get(&canonical).is_some() {
+        let semantic_head = if registry.get_exact(&canonical).is_some() {
             canonical
         } else if canonical.starts_with("::") {
             let rooted_name = canonical.trim_start_matches("::");
-            if registry.get(rooted_name).is_some() {
+            if registry.get_exact(rooted_name).is_some() {
                 rooted_name.to_owned()
             } else {
                 canonical
@@ -275,7 +275,7 @@ fn walk(
         // EXPR-role words (`if`/`while`/`expr` conditions) are braced/quoted
         // words whose `[…]` substitutions aren't separate `Cmd` tokens; recurse
         // into the expression text so refs nested in a condition are found.
-        let expr_indices = registry.arg_indices_for_role(head, &args, ArgRole::Expr);
+        let expr_indices = registry.arg_indices_for_role(&semantic_head, &args, ArgRole::Expr);
         for expr_idx in expr_indices {
             let word_index = expr_idx + 1;
             if let Some(tok) = cmd.argv.get(word_index)
@@ -300,7 +300,9 @@ fn walk(
         // a *fresh* call frame: it does not inherit the caller's `set`-bound
         // constants, only whatever its own actual arguments bind to its own
         // params (`lambda_frame_scope` builds exactly that).
-        for lambda_idx in registry.arg_indices_for_role(head, &args, ArgRole::LambdaLiteral) {
+        for lambda_idx in
+            registry.arg_indices_for_role(&semantic_head, &args, ArgRole::LambdaLiteral)
+        {
             let word_index = lambda_idx + 1;
             if let Some(tok) = cmd.argv.get(word_index)
                 && matches!(tok.kind, TokenType::Str)
@@ -326,7 +328,7 @@ fn walk(
         // pool looked unreferenced, which is what `bigip-cleanup` decides
         // deletions from.  The clause-list shape is registry data
         // (`CommandSpec::case_list`), the same entry the token walker reads.
-        if let Some((tok, spec)) = case_list_word(&cmd, head, &args, registry)
+        if let Some((tok, spec)) = case_list_word(&cmd, &semantic_head, &args, registry)
             && !inner_is_empty(full, &tok)
         {
             for body in case_list_body_tokens(full, &tok, &spec) {
