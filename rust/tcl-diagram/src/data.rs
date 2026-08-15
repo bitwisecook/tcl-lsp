@@ -842,6 +842,31 @@ mod tests {
     }
 
     #[test]
+    fn numeric_return_codes_project_as_their_canonical_completions() {
+        let data = diagram_data_for_dialect(
+            "proc paths {} { try { return -level 0 -code 00 x } finally {} ; try { return -level 0 -code +1 x } finally {} ; try { return -level 0 -code 02 x } finally {} ; try { return -level 0 -code 0x3 x } finally {} ; try { return -level 0 -code 04 x } finally {} }",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        let expected = [
+            None,
+            Some("error"),
+            Some("return"),
+            Some("break"),
+            Some("continue"),
+        ];
+        for (index, completion) in expected.into_iter().enumerate() {
+            assert_eq!(
+                data.pointer(&format!("/procedures/0/flow/{index}/body/0/completion")),
+                completion
+                    .map(|value| Value::String(value.to_owned()))
+                    .as_ref(),
+                "flow {index}"
+            );
+        }
+    }
+
+    #[test]
     fn handler_completion_codes_use_the_dialect_numeric_grammar() {
         let source = "proc paths {} { try { return -options $options payload } on 02 {message options} { set two yes } on +2 {message options} { set duplicate yes } on 0x2 {message options} { set duplicate_hex yes } on return {message options} { set symbolic yes } on 2147483648 {message options} { set wrapped_min yes } on 4294967295 {message options} { set wrapped_minus_one yes } on -2147483649 {message options} { set invalid_low yes } on nonsense {message options} { set invalid yes } }";
         // `try` itself begins in Tcl 8.6, so diagram handlers can only be

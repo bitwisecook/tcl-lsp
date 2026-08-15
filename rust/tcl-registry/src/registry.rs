@@ -153,9 +153,9 @@ fn exact_return_completion(
                     "return" | "2" => CompletionCode::Return,
                     "break" | "3" => CompletionCode::Break,
                     "continue" | "4" => CompletionCode::Continue,
-                    value => CompletionCode::Other(crate::completion::canonical_completion_code(
-                        value, numbers,
-                    )?),
+                    value => CompletionCode::from_int(
+                        crate::completion::canonical_completion_code(value, numbers)?,
+                    ),
                 };
                 i += 2;
             }
@@ -6621,6 +6621,23 @@ mod tests {
                 Some(ExactInvocationCompletion::Tcl(CompletionCode::Other(
                     expected
                 )))
+            );
+        }
+        for (spelling, expected) in [
+            ("00", CompletionCode::Ok),
+            ("+1", CompletionCode::Error),
+            ("02", CompletionCode::Return),
+            ("0x3", CompletionCode::Break),
+            ("04", CompletionCode::Continue),
+        ] {
+            assert_eq!(
+                reg.exact_invocation_completion(
+                    "return",
+                    &["-level", "0", "-code", spelling, "payload"],
+                    DialectSet::empty(),
+                ),
+                Some(ExactInvocationCompletion::Tcl(expected)),
+                "{spelling}"
             );
         }
         assert_eq!(
