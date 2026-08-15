@@ -2079,7 +2079,7 @@ const SPECTCL_CLAUSE_GRAMMAR_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("tail"),
 ];
 
-/// The thirteen plain-data fields of a `case_list { … }` block.
+/// The seventeen plain-data fields of a `case_list { … }` block.
 const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("subject_args"),
     MemberSpec::keyword_only("exact_option"),
@@ -2092,7 +2092,12 @@ const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("clause_flags"),
     MemberSpec::keyword_only("clause_regex_flag"),
     MemberSpec::keyword_only("clause_value_flags"),
+    MemberSpec::keyword_only("clause_end_options_flag"),
+    MemberSpec::keyword_only("clause_force_inline_flag"),
+    MemberSpec::keyword_only("clause_force_list_flag"),
+    MemberSpec::keyword_only("allow_omitted_final_body"),
     MemberSpec::keyword_only("keyword_patterns"),
+    MemberSpec::keyword_only("warn_unbraced_bodies"),
 ];
 
 /// The eight scalars of an `event_requires { … }` block.
