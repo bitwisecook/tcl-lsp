@@ -31,6 +31,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Value, Vm};
 
@@ -117,6 +118,32 @@ fn an_embedder_command_carries_its_own_state() {
             vec!["role".to_string(), "1".to_string(), "body".to_string()],
         ],
     );
+}
+
+#[test]
+fn native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles() {
+    let mut vm = vm();
+    let recorder = Rc::new(Recorder {
+        calls: RefCell::new(Vec::new()),
+    });
+    vm.register_native_command("tcl::mathfunc::isfinite", recorder);
+    vm.set_dialect_profile(DialectProfile::by_name("tcl9.0"));
+    assert!(
+        vm.eval_source("rename ::tcl::mathfunc::isfinite finite")
+            .unwrap()
+            .code
+            .is_ok()
+    );
+    assert!(vm.invoke_command("finite", &[]).code.is_ok());
+    assert!(
+        vm.eval_source("interp hide {} finite held; interp expose {} held finite2")
+            .unwrap()
+            .code
+            .is_ok()
+    );
+    assert!(vm.invoke_command("finite2", &[]).code.is_ok());
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+    assert!(!vm.invoke_command("finite2", &[]).code.is_ok());
 }
 
 /// A loop whose body really dispatches — `[$cmd length abc]` resolves a
