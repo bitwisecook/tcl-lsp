@@ -249,5 +249,5 @@
     "thread_safety"
   ],
   "irules_event_pattern": "^\\s*when\\s+([A-Z][A-Z0-9_]{2,})\\b",
-  "irules_event_boundary_owner": "tcl-syntax::event_handler::event_handlers (caller-supplied LexerConfig + top-level/recursive traversal); tcl-irules::when_blocks is the f5-irules wrapper; never scan handler text locally"
+  "irules_event_boundary_owner": "tcl-syntax::event_handler::{event_handlers,script_commands} parses supplied script regions; tcl-registry::events::recursive_when_handlers_with_registry recurses only through resolved registry script roles/substitutions; tcl-irules wrappers configure f5-irules; never scan handler text locally"
 }

@@ -23,6 +23,7 @@
 //! and canonical firing order.
 
 use rustc_hash::{FxHashMap, FxHashSet};
+use tcl_lexer::{LexerConfig, SourceMap, Span, TokenType, word_span_at};
 
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
@@ -970,21 +971,149 @@ impl EventRegistry {
 /// Parse top-level iRules event handlers through the shared syntax owner.
 #[must_use]
 pub fn top_level_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
-    tcl_syntax::event_handler::event_handlers(
-        source,
-        tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
-        tcl_syntax::event_handler::EventHandlerTraversal::TopLevel,
-    )
+    tcl_syntax::event_handler::event_handlers(source, LexerConfig::for_file_dialect("f5-irules"))
 }
 
-/// Parse iRules event handlers recursively through the shared syntax owner.
+/// Parse iRules event handlers recursively through registry-declared script
+/// surfaces.
+///
+/// The fixed iRules registry is the resolved semantic baseline for this
+/// iRules-only API. Arbitrary braced values are data unless a command spec
+/// declares them as [`crate::ArgRole::Body`]; command substitutions execute
+/// regardless of their containing argument role.
 #[must_use]
 pub fn recursive_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
-    tcl_syntax::event_handler::event_handlers(
-        source,
-        tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
-        tcl_syntax::event_handler::EventHandlerTraversal::Recursive,
-    )
+    recursive_when_handlers_with_registry(source, crate::registry_for_dialect("f5-irules"))
+}
+
+/// Registry-resolved recursive event discovery.
+#[must_use]
+pub fn recursive_when_handlers_with_registry(
+    source: &str,
+    registry: &crate::CommandRegistry,
+) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let config = registry.profile().map_or_else(
+        || LexerConfig::for_file_dialect("f5-irules"),
+        |profile| LexerConfig::from_grammar(profile.grammar),
+    );
+    let mut out = Vec::new();
+    let mut pending = vec![(0_usize, source.len(), 0_u32, true)];
+    let mut seen = FxHashSet::default();
+    while let Some((start, end, depth, inspect_handlers)) = pending.pop() {
+        if depth > 256 || !seen.insert((start, end)) {
+            continue;
+        }
+        let Some(text) = source.get(start..end) else {
+            continue;
+        };
+        let Ok(base) = u32::try_from(start) else {
+            continue;
+        };
+        if inspect_handlers {
+            out.extend(
+                tcl_syntax::event_handler::event_handlers(text, config.at_depth(depth))
+                    .into_iter()
+                    .map(|handler| shift_handler(handler, base)),
+            );
+        }
+        let sm = SourceMap::new(text);
+        for command in tcl_syntax::event_handler::script_commands(text, config.at_depth(depth)) {
+            if !inspect_handlers {
+                for token in command
+                    .words
+                    .iter()
+                    .flatten()
+                    .filter(|token| token.kind == TokenType::Cmd)
+                {
+                    let whole = word_span_at(text, token.span);
+                    let inner_start = whole.start() as usize + token.content_offset as usize;
+                    let inner_end = whole.end().saturating_sub(1) as usize;
+                    if inner_start <= inner_end {
+                        pending.push((start + inner_start, start + inner_end, depth + 1, true));
+                    }
+                }
+                continue;
+            }
+            let Some(head_word) = command.words.first() else {
+                continue;
+            };
+            let [head_token] = head_word.as_slice() else {
+                continue;
+            };
+            let head = tcl_syntax::naming::canonical_written_command(sm.token_text(*head_token));
+            let head = head.trim_start_matches("::");
+            let args: Vec<&str> = command
+                .words
+                .iter()
+                .skip(1)
+                .map(|word| match word.as_slice() {
+                    [token] => sm.token_text(*token),
+                    _ => "",
+                })
+                .collect();
+            for index in registry.arg_indices_for_role(head, &args, crate::ArgRole::Body) {
+                if let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
+                    && token.kind == TokenType::Str
+                    && let Some((inner_start, inner_end)) = braced_inner(text, *token)
+                {
+                    pending.push((start + inner_start, start + inner_end, depth + 1, true));
+                }
+            }
+            // Expression words are not scripts. Only their live `[…]`
+            // substitutions are executable regions, so inspect the word for
+            // substitutions without recognising a bare `when` in expression
+            // string data.
+            for index in registry.arg_indices_for_role(head, &args, crate::ArgRole::Expr) {
+                if let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
+                    && matches!(token.kind, TokenType::Str | TokenType::Esc)
+                {
+                    let whole = word_span_at(text, token.span);
+                    let inner_start = whole.start() as usize + token.content_offset as usize;
+                    let inner_end = whole
+                        .end()
+                        .saturating_sub(u32::from(token.content_offset > 0))
+                        as usize;
+                    if inner_start <= inner_end {
+                        pending.push((start + inner_start, start + inner_end, depth + 1, false));
+                    }
+                }
+            }
+            for token in command
+                .words
+                .iter()
+                .flatten()
+                .filter(|token| token.kind == TokenType::Cmd)
+            {
+                let whole = word_span_at(text, token.span);
+                let inner_start = whole.start() as usize + token.content_offset as usize;
+                let inner_end = whole.end().saturating_sub(1) as usize;
+                if inner_start <= inner_end {
+                    pending.push((start + inner_start, start + inner_end, depth + 1, true));
+                }
+            }
+        }
+    }
+    out.sort_by_key(|handler| handler.span.start());
+    out
+}
+
+fn braced_inner(source: &str, token: tcl_lexer::Token) -> Option<(usize, usize)> {
+    let whole = word_span_at(source, token.span);
+    let start = whole.start() as usize + 1;
+    let end = whole.end().checked_sub(1)? as usize;
+    (source.as_bytes().get(whole.end().checked_sub(1)? as usize) == Some(&b'}') && start <= end)
+        .then_some((start, end))
+}
+
+fn shift_handler(
+    mut handler: tcl_syntax::event_handler::EventHandler,
+    base: u32,
+) -> tcl_syntax::event_handler::EventHandler {
+    let shift = |span: Span| Span::new(base + span.start(), base + span.end());
+    handler.span = shift(handler.span);
+    handler.event_span = shift(handler.event_span);
+    handler.body_span = shift(handler.body_span);
+    handler
 }
 
 /// Scan distinct event handlers recursively through the shared Tcl syntax
@@ -4136,5 +4265,16 @@ mod tests {
             scan_when_events("::when http_request { if {1} { :::when client_data {} } }"),
             ["HTTP_REQUEST", "CLIENT_DATA"]
         );
+    }
+
+    #[test]
+    fn event_scan_recurses_only_through_registry_script_surfaces() {
+        let source = r#"
+            set payload {when CLIENT_DATA {}}
+            set quoted "when SERVER_DATA {}"
+            # when RULE_INIT {}
+            ::when http_request { if {1} { :::when client_data {} } }
+        "#;
+        assert_eq!(scan_when_events(source), ["HTTP_REQUEST", "CLIENT_DATA"]);
     }
 }

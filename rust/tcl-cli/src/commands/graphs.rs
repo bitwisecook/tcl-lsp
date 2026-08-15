@@ -458,4 +458,17 @@ mod tests {
             [("HTTP_REQUEST", Some(1)), ("CLIENT_DATA", Some(2))]
         );
     }
+
+    #[test]
+    fn event_symbols_ignore_inert_braced_and_quoted_when_text() {
+        let source = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
+        let entries = detect_event_entries(source, &LineIndex::new(source));
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST"]
+        );
+    }
 }

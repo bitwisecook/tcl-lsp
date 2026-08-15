@@ -3614,6 +3614,15 @@ mod tests {
     }
 
     #[test]
+    fn event_order_ignores_when_text_stored_as_data() {
+        let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
+        let value = serialise_result(&run_pipeline(src, "f5-irules"));
+        let rows = value["eventOrder"].as_array().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["event"], "HTTP_REQUEST");
+    }
+
+    #[test]
     fn dataflow_emits_nodes_and_summary() {
         let result = run_pipeline("set x 1\nset y [expr {$x + 1}]\nputs $y", "tcl8.6");
         let df = serialise_result(&result)["dataflow"].clone();

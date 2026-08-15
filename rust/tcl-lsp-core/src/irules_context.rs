@@ -76,6 +76,14 @@ mod tests {
     const D: &str = "f5-irules";
 
     #[test]
+    fn inert_when_text_is_neither_context_nor_file_event() {
+        let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
+        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
+        assert_eq!(find_enclosing_when_event(src, 0, D), None);
+        assert_eq!(find_enclosing_when_event(src, 1, D), None);
+    }
+
+    #[test]
     fn top_level_after_close_has_no_event() {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\nset top 1\n";
         // Line 3 sits past the closing brace — back at the top level.

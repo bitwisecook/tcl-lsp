@@ -5,18 +5,13 @@
 
 //! Shared boundary parser for Tcl-shaped event-handler commands.
 
-use std::collections::HashSet;
-
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType, word_span_at};
 
-/// Whether event-handler discovery is limited to the supplied script or also
-/// descends into its braced words.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EventHandlerTraversal {
-    /// Inspect only commands at the supplied script level.
-    TopLevel,
-    /// Inspect commands at every braced-word script level.
-    Recursive,
+/// One command split into lexer-owned words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptCommand {
+    /// Words in source order; each word retains all of its lexer tokens.
+    pub words: Vec<Vec<Token>>,
 }
 
 /// One syntactically complete `when EVENT ?priority N? { ... }` command.
@@ -40,49 +35,31 @@ pub struct EventHandler {
 /// profile so TMM's `}{` word separator and Tcl quoting rules stay owned by
 /// the lexer rather than being reimplemented by each event consumer.
 #[must_use]
-pub fn event_handlers(
-    source: &str,
-    config: LexerConfig,
-    traversal: EventHandlerTraversal,
-) -> Vec<EventHandler> {
+pub fn event_handlers(source: &str, config: LexerConfig) -> Vec<EventHandler> {
     let mut handlers = Vec::new();
-    let mut pending = vec![(source, 0_u32, 0_u32)];
-    let mut visited = HashSet::new();
-
-    while let Some((text, base, depth)) = pending.pop() {
-        if depth > 256 || !visited.insert((base, text.len())) {
-            continue;
-        }
-        let Ok(tokens) = Lexer::with_config(text, config.at_depth(depth)).tokenise_all() else {
-            continue;
-        };
-        let sm = SourceMap::new(text);
-        for command in command_words(&tokens) {
-            if let Some(handler) = parse_handler(source, text, base, &sm, &command) {
-                handlers.push(handler);
-            }
-            if traversal == EventHandlerTraversal::Recursive {
-                for word in command.iter().rev() {
-                    let [token] = word.as_slice() else { continue };
-                    if token.kind != TokenType::Str {
-                        continue;
-                    }
-                    let whole = word_span_at(text, token.span);
-                    let start = whole.start().saturating_add(1);
-                    let end = whole.end().saturating_sub(1);
-                    if !closed_brace(text, whole) || start > end {
-                        continue;
-                    }
-                    let Some(inner) = text.get(start as usize..end as usize) else {
-                        continue;
-                    };
-                    pending.push((inner, base + start, depth + 1));
-                }
-            }
+    let sm = SourceMap::new(source);
+    for command in script_commands(source, config) {
+        if let Some(handler) = parse_handler(source, source, 0, &sm, &command.words) {
+            handlers.push(handler);
         }
     }
-    handlers.sort_by_key(|handler| handler.span.start());
     handlers
+}
+
+/// Split one supplied script region into commands and words.
+///
+/// This function deliberately does not infer that arbitrary braced values are
+/// scripts. Higher layers may recurse only after their semantic owner has
+/// identified an executable script surface.
+#[must_use]
+pub fn script_commands(source: &str, config: LexerConfig) -> Vec<ScriptCommand> {
+    let Ok(tokens) = Lexer::with_config(source, config).tokenise_all() else {
+        return Vec::new();
+    };
+    command_words(&tokens)
+        .into_iter()
+        .map(|words| ScriptCommand { words })
+        .collect()
 }
 
 fn command_words(tokens: &[Token]) -> Vec<Vec<Vec<Token>>> {
@@ -201,25 +178,19 @@ mod tests {
     }
 
     #[test]
-    fn top_level_and_recursive_modes_share_root_and_event_semantics() {
+    fn top_level_parser_normalises_rooted_event_semantics() {
         let source = "::when http_request { if {1} { :::when client_data {} } }";
-        let top = event_handlers(source, irules(), EventHandlerTraversal::TopLevel);
+        let top = event_handlers(source, irules());
         assert_eq!(
             top.iter().map(|h| h.event.as_str()).collect::<Vec<_>>(),
             ["HTTP_REQUEST"]
         );
-        let all = event_handlers(source, irules(), EventHandlerTraversal::Recursive);
-        assert_eq!(
-            all.iter().map(|h| h.event.as_str()).collect::<Vec<_>>(),
-            ["HTTP_REQUEST", "CLIENT_DATA"]
-        );
-        assert_eq!(&source[all[1].span.as_range()], ":::when client_data {}");
     }
 
     #[test]
     fn comments_and_string_data_are_not_handlers() {
         let source = "# when BAD {}\nset x {when DATA {}}\nwhen {NO_BODY}\nwhen good {}";
-        let top = event_handlers(source, irules(), EventHandlerTraversal::TopLevel);
+        let top = event_handlers(source, irules());
         assert_eq!(
             top.iter().map(|h| h.event.as_str()).collect::<Vec<_>>(),
             ["GOOD"]
@@ -227,9 +198,22 @@ mod tests {
     }
 
     #[test]
+    fn supplied_script_region_does_not_promote_braced_data() {
+        let source = "set payload {when CLIENT_DATA {}}\nwhen HTTP_REQUEST {}";
+        let handlers = event_handlers(source, irules());
+        assert_eq!(
+            handlers
+                .iter()
+                .map(|h| h.event.as_str())
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST"]
+        );
+    }
+
+    #[test]
     fn parses_priority_and_body_spans() {
         let source = "when HTTP_REQUEST priority 100 { pool p }";
-        let handlers = event_handlers(source, irules(), EventHandlerTraversal::TopLevel);
+        let handlers = event_handlers(source, irules());
         assert_eq!(handlers[0].priority, Some(100));
         assert_eq!(&source[handlers[0].body_span.as_range()], " pool p ");
     }

@@ -7,7 +7,7 @@
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::LexerConfig;
-use tcl_syntax::event_handler::{EventHandlerTraversal, event_handlers};
+use tcl_syntax::event_handler::event_handlers;
 
 /// One syntactically complete `when EVENT { … }` handler.
 pub type WhenBlock = tcl_syntax::event_handler::EventHandler;
@@ -20,11 +20,7 @@ pub type WhenBlock = tcl_syntax::event_handler::EventHandler;
 /// that need handler bodies must use this entry point.
 #[must_use]
 pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
-    event_handlers(
-        source,
-        LexerConfig::for_file_dialect("f5-irules"),
-        EventHandlerTraversal::TopLevel,
-    )
+    event_handlers(source, LexerConfig::for_file_dialect("f5-irules"))
 }
 
 /// Return handlers recursively nested inside handler bodies, with spans kept
@@ -32,11 +28,7 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
 /// the top-level execution surface.
 #[must_use]
 pub fn when_blocks_recursive(source: &str) -> Vec<WhenBlock> {
-    event_handlers(
-        source,
-        LexerConfig::for_file_dialect("f5-irules"),
-        EventHandlerTraversal::Recursive,
-    )
+    tcl_registry::events::recursive_when_handlers(source)
 }
 
 /// Whether a discovered handler body contains no executable command.  This
@@ -97,5 +89,20 @@ mod tests {
             ":::when client_data { pool p }"
         );
         assert_eq!(&source[blocks[1].body_span.as_range()], " pool p ");
+    }
+
+    #[test]
+    fn recursive_discovery_does_not_execute_braced_or_quoted_data() {
+        let source = r#"set payload {when CLIENT_DATA {}}
+set quoted "when SERVER_DATA {}"
+# when RULE_INIT {}
+when HTTP_REQUEST {}"#;
+        assert_eq!(
+            when_blocks_recursive(source)
+                .iter()
+                .map(|block| block.event.as_str())
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST"]
+        );
     }
 }

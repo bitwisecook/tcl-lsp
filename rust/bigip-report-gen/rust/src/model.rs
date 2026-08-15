@@ -2167,6 +2167,22 @@ mod app_tests {
         events.sort_unstable();
         assert_eq!(events, ["CLIENT_DATA", "HTTP_REQUEST"]);
     }
+
+    #[test]
+    fn rule_events_ignore_when_text_stored_as_data() {
+        let mut fields = Map::new();
+        fields.insert("name".into(), J::String("r".into()));
+        fields.insert("full-path".into(), J::String("/Common/r".into()));
+        fields.insert(
+            "body".into(),
+            J::String("set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}".into()),
+        );
+        let shaped = shape_rule(&fields, &HashMap::new());
+        assert_eq!(
+            shaped["events"],
+            J::Array(vec![J::String("HTTP_REQUEST".into())])
+        );
+    }
 }
 
 #[cfg(test)]
