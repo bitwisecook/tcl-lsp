@@ -1095,7 +1095,6 @@ struct ProcedureBuildContext<'a> {
     known_classes: &'a [String],
     traced_variable_names: &'a [String],
     trace_facts: ModuleTraceFacts<'a>,
-    procedure_entry: crate::dispatch_proof::DispatchEntryAssumption,
 }
 
 /// Build one [`FunctionUnit`] per procedure: seed its SCCP with the
@@ -1204,11 +1203,14 @@ fn build_procedure_units(
         // word and provenance spans match this procedure's real source
         // position. Structural node identities and registry facts remain
         // position-independent; only source coordinates are refreshed.
+        // Procedure bodies run only after arbitrary interposed top-level and
+        // cross-file history, so their dispatch proofs start from an unknown
+        // world until a workspace-aware entry contract exists.
         fu = fu.with_semantic_analysis(
             ctx.registry,
             DialectSet::parse(ctx.dialect).unwrap_or_else(DialectSet::empty),
             proc.map(|procedure| &procedure.body),
-            ctx.procedure_entry,
+            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         );
         procedures.insert(qname.clone(), fu);
     }
@@ -1280,7 +1282,6 @@ impl CompilationUnit {
             },
             None,
             None,
-            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         )
     }
 
@@ -1314,7 +1315,6 @@ impl CompilationUnit {
             },
             None,
             None,
-            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         )
     }
 
@@ -1323,34 +1323,7 @@ impl CompilationUnit {
     /// [`UnitBuildOptions::external_call_sites`].
     #[must_use]
     pub fn build_with_options(source: &str, options: UnitBuildOptions<'_>) -> Self {
-        Self::build_with(
-            source,
-            options,
-            None,
-            None,
-            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
-        )
-    }
-
-    /// Build under an explicit sealed-load contract for procedure entry.
-    ///
-    /// This is the only production-facing path that may narrow procedure
-    /// bodies from `UnknownWorld`. The caller must own the complete load graph
-    /// and sealed interpreter asserted by `entry`; ordinary hosted/LSP builds
-    /// use [`Self::build_with_options`] and continue to abstain.
-    #[must_use]
-    pub fn build_with_sealed_procedure_entry(
-        source: &str,
-        options: UnitBuildOptions<'_>,
-        entry: crate::dispatch_proof::SealedLoadGraphEntry,
-    ) -> Self {
-        Self::build_with(
-            source,
-            options,
-            None,
-            None,
-            crate::dispatch_proof::DispatchEntryAssumption::SealedLoadGraph(entry),
-        )
+        Self::build_with(source, options, None, None)
     }
 
     /// Like [`Self::build_for_with_config`] but routes each procedure's
@@ -1375,13 +1348,7 @@ impl CompilationUnit {
         options: UnitBuildOptions<'_>,
         cache: &mut ProcLatticeCache<'_>,
     ) -> Self {
-        Self::build_with(
-            source,
-            options,
-            Some(cache),
-            None,
-            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
-        )
+        Self::build_with(source, options, Some(cache), None)
     }
 
     /// Like [`Self::build_for_memoized`] but also threads a memoised per-procedure
@@ -1395,13 +1362,7 @@ impl CompilationUnit {
         cache: &mut ProcLatticeCache<'_>,
         body_cache: &BodyLoweringCache<'_>,
     ) -> Self {
-        Self::build_with(
-            source,
-            options,
-            Some(cache),
-            Some(body_cache),
-            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
-        )
+        Self::build_with(source, options, Some(cache), Some(body_cache))
     }
 
     fn build_with(
@@ -1409,7 +1370,6 @@ impl CompilationUnit {
         options: UnitBuildOptions<'_>,
         cache: Option<&mut ProcLatticeCache<'_>>,
         body_cache: Option<&BodyLoweringCache<'_>>,
-        procedure_entry: crate::dispatch_proof::DispatchEntryAssumption,
     ) -> Self {
         let UnitBuildOptions {
             registry,
@@ -1470,7 +1430,6 @@ impl CompilationUnit {
                 known_classes: &known_classes,
                 traced_variable_names: &traced_variable_names,
                 trace_facts,
-                procedure_entry,
             },
             cache,
         );

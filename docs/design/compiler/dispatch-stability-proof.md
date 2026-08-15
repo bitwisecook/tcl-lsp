@@ -371,7 +371,6 @@ production path never re-classifies from command text.
 ```rust
 pub enum DispatchEntryAssumption {
     PristineRegistryWorld,
-    SealedLoadGraph(SealedLoadGraphEntry),
     UnknownWorld,
 }
 ```
@@ -385,26 +384,6 @@ baseline for the selected dialect: registry command bindings are intact and no
 trace, alias, ensemble, or interpreter-policy observer is live.
 `UnknownWorld` starts every domain widened, so every site proof fails closed.
 
-`SealedLoadGraph` is the procedure-only strong contract. Its constructor makes
-the host present six typed facts together: an interned `DialectProfile`, a
-`FreshSealedInterpreter`, a `CompleteOrderedLoadGraph` containing the exact
-ordered identities of ordinary workspace, statically sourced, and statically
-selected package units, a `CompleteCallerSet`, a `CompleteExposureSet`, and a
-`RegistryDispatchBaseline`. The last two facts mean every host/native command
-exposure is represented and the completed load leaves no moved registry
-binding, execution/command trace, alias, namespace interceptor, or
-interpreter-policy change relevant to the registry baseline. The selected
-profile's exact availability mask is checked again when the semantic bundle is
-built; a mismatch becomes `UnknownWorld`.
-
-These are host assertions, not conclusions drawn from source absence. In real
-Tcl, a procedure remains callable after an embedding application or later Tcl
-code installs a trace, renames a command, or changes namespace resolution.
-Consequently the ordinary compiler, CLI, and LSP build paths do not manufacture
-this contract and remain `UnknownWorld`. A closed-program host which genuinely
-owns the complete load and interpreter lifetime may call
-`CompilationUnit::build_with_sealed_procedure_entry`.
-
 Where each is chosen (`rust/tcl-compiler/src/compilation_unit.rs`, threaded
 through `FunctionUnit::with_semantic_analysis` into
 `SemanticAnalysisBundle::dispatch_entry_assumption`):
@@ -412,8 +391,7 @@ through `FunctionUnit::with_semantic_analysis` into
 | Unit | Assumption | Why |
 |---|---|---|
 | the compilation unit's top-level script | `PristineRegistryWorld` | modelled as evaluating the file in a fresh interpreter |
-| procedure units, ordinary hosted build | `UnknownWorld` | a body runs only after arbitrary interposed top-level, host, and cross-file history |
-| procedure units, explicit sealed build | `SealedLoadGraph` | the host owns a fresh sealed interpreter, complete ordered workspace/source/package load, complete callers, and registry-baseline dispatch |
+| procedure units | `UnknownWorld` | a body runs only after arbitrary interposed top-level and cross-file history |
 | `TclOO` method units | `UnknownWorld` | same, plus an unmodelled receiver |
 | synthetic body units (`apply` lambdas, `namespace eval` bodies) | `UnknownWorld` | same |
 
@@ -446,11 +424,9 @@ These are real, current limitations, not incidental gaps.
   `find_redundancies_for_function` (and therefore `find_redundancies_for_cu`)
   consumes the proof. This is tracked debt: the partial-redundancy and
   loop-invariant halves of the reports need the same seam.
-- **Hosted procedure bodies do not prove.** Ordinary proc, method, and body
-  units run under `UnknownWorld`. An explicitly sealed procedure build can
-  prove straight-line stable calls. Methods and synthetic bodies still
-  abstain: receiver/object state and callback-frame entry are not covered by
-  the procedure contract.
+- **Procedure bodies never prove.** Every proc, method, and body unit runs
+  under `UnknownWorld` pending a file-summary entry contract, so repeated
+  stable calls inside a procedure are never reported by the proof-gated path.
 - **`namespace eval`'s body barrier.** Lowering registers the body as its own
   body unit *and* leaves the enclosing statement as a runtime barrier. From the
   enclosing unit the command is an ordinary invocation, but its registry

@@ -62,7 +62,6 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
-use tcl_dialect::{DialectProfile, DialectSet};
 
 use tcl_registry::{
     CallbackKinds, CommandBindingTransition, DispatchDependencies, DispatchDependencyDomain,
@@ -120,146 +119,12 @@ pub enum DispatchEntryAssumption {
     /// stronger action-tier proof must additionally justify this assumption
     /// from workspace facts.
     PristineRegistryWorld,
-    /// A host proved that this procedure runs in one fresh, sealed
-    /// interpreter after a complete ordered project load.
-    SealedLoadGraph(SealedLoadGraphEntry),
     /// Nothing may be assumed: every domain starts widened and every site
     /// proof fails closed.
     ///
     /// Applied to procedure, method, and nested body units, whose bodies run
     /// only after arbitrary interposed top-level and cross-file history.
     UnknownWorld,
-}
-
-/// Kind of unit in a host-owned ordered load graph.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LoadUnitKind {
-    /// An ordinary workspace/project unit.
-    Workspace,
-    /// A statically resolved `source` target.
-    Sourced,
-    /// A statically selected package implementation.
-    Package,
-}
-
-/// One exact unit in the order evaluated by the sealed interpreter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OrderedLoadUnit {
-    kind: LoadUnitKind,
-    identity: &'static str,
-}
-
-impl OrderedLoadUnit {
-    /// Record one canonical host-owned unit identity and its load kind.
-    #[must_use]
-    pub const fn new(kind: LoadUnitKind, identity: &'static str) -> Self {
-        Self { kind, identity }
-    }
-
-    /// The unit's role in the load graph.
-    #[must_use]
-    pub const fn kind(self) -> LoadUnitKind {
-        self.kind
-    }
-
-    /// The canonical identity used by the host's graph.
-    #[must_use]
-    pub const fn identity(self) -> &'static str {
-        self.identity
-    }
-}
-
-/// Evidence that the host owns a fresh interpreter sealed from external Tcl
-/// and native command-table mutation for the analysed program's lifetime.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FreshSealedInterpreter;
-
-/// Evidence that the host enumerated every caller which can reach a procedure.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CompleteCallerSet;
-
-/// Evidence that every host/native command exposure into the interpreter is
-/// known and represented by the selected registry baseline.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CompleteExposureSet;
-
-/// Evidence that the completed load leaves dispatch at the selected
-/// registry's baseline (no moved bindings, observers, aliases, or policy
-/// changes).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RegistryDispatchBaseline;
-
-/// A complete load graph in the exact order the sealed interpreter evaluates
-/// its ordinary, sourced, and package units.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CompleteOrderedLoadGraph {
-    units: &'static [OrderedLoadUnit],
-}
-
-impl CompleteOrderedLoadGraph {
-    /// Assert that `units` is the complete evaluation order.
-    #[must_use]
-    pub const fn new(units: &'static [OrderedLoadUnit]) -> Self {
-        Self { units }
-    }
-
-    /// Units in their exact evaluation order.
-    #[must_use]
-    pub const fn units(self) -> &'static [OrderedLoadUnit] {
-        self.units
-    }
-}
-
-/// Host-owned proof that procedure entry is the registry baseline.
-///
-/// Constructing this value asserts a fresh interpreter sealed against
-/// external mutation, a complete ordered workspace/source/package load graph,
-/// complete caller and host-exposure sets, and registry-baseline dispatch
-/// state after loading.
-/// A host unable to prove every clause must use
-/// [`DispatchEntryAssumption::UnknownWorld`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SealedLoadGraphEntry {
-    profile_name: &'static str,
-    dialect: DialectSet,
-    graph: CompleteOrderedLoadGraph,
-}
-
-impl SealedLoadGraphEntry {
-    /// Assert a complete sealed-load entry contract for `profile`.
-    #[must_use]
-    pub const fn new(
-        profile: &'static DialectProfile,
-        _interpreter: FreshSealedInterpreter,
-        graph: CompleteOrderedLoadGraph,
-        _callers: CompleteCallerSet,
-        _exposures: CompleteExposureSet,
-        _dispatch: RegistryDispatchBaseline,
-    ) -> Self {
-        Self {
-            profile_name: profile.name,
-            dialect: profile.availability_mask,
-            graph,
-        }
-    }
-
-    /// Canonical dialect-profile name asserted by the host.
-    #[must_use]
-    pub const fn profile_name(self) -> &'static str {
-        self.profile_name
-    }
-
-    /// Exact registry availability mask derived from the profile.
-    #[must_use]
-    pub const fn dialect(self) -> DialectSet {
-        self.dialect
-    }
-
-    /// Complete ordered load graph asserted by the host.
-    #[must_use]
-    pub const fn load_graph(self) -> CompleteOrderedLoadGraph {
-        self.graph
-    }
 }
 
 /// One versioned partition of the tracked world, at dispatch-proof
