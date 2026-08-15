@@ -3552,11 +3552,22 @@ fn push_clock_subtokens(
             TokenKind::ClockPercent,
             entries,
         );
+        if spec.modifier.is_some() {
+            push_subtoken(
+                source,
+                line_index,
+                cstart + spec.start + 1,
+                &inner[spec.start + 1..spec.start + 2],
+                TokenKind::ClockModifier,
+                entries,
+            );
+        }
+        let letter_start = spec.end - 1;
         push_subtoken(
             source,
             line_index,
-            cstart + spec.start + 1,
-            &inner[spec.start + 1..spec.end],
+            cstart + letter_start,
+            &inner[letter_start..spec.end],
             TokenKind::ClockSpec,
             entries,
         );
@@ -9339,12 +9350,13 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_clock_locale_modifier_stays_string() {
-        // `%Ey` is not implemented by the shared clock runtime; it must not
-        // be invented by the semantic-token scanner.
+    fn clock_locale_modifier_uses_shared_grammar() {
+        // Tcl accepts `%Ey`; the shared clock grammar owns both the modifier
+        // and the conversion instead of leaving an editor-only table here.
         let ks = kinds("clock scan $s -format {%Ey}\n", "tcl", &reg());
-        assert!(!ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
-        assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::ClockModifier as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::ClockSpec as u32)), "{ks:?}");
     }
 
     #[test]

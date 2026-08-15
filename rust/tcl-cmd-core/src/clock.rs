@@ -451,9 +451,18 @@ fn parse_with_format(input: &str, fmt: &str) -> Result<ScanFields, CmdError> {
             }
             continue;
         }
-        let Some(spec) = chars.next() else {
+        let Some(mut spec) = chars.next() else {
             return Err(no_match());
         };
+        if matches!(spec, 'E' | 'O') {
+            let Some(modified) = chars.next() else {
+                return Err(no_match());
+            };
+            if !modified.is_ascii() || !is_specifier(modified as u8) {
+                return Err(no_match());
+            }
+            spec = modified;
+        }
         match spec {
             'Y' => f.year = Some(read_uint(inb, &mut ip, 4)?),
             'y' => {
@@ -636,10 +645,25 @@ fn render(c: &Civil, fmt: &str, offset: i32, epoch: i64) -> String {
             out.push(ch);
             continue;
         }
-        let Some(spec) = chars.next() else {
+        let Some(mut spec) = chars.next() else {
             out.push('%');
             break;
         };
+        if matches!(spec, 'E' | 'O') {
+            let modifier = spec;
+            let Some(modified) = chars.next() else {
+                // Tcl treats a dangling locale modifier as an empty
+                // conversion rather than rendering it literally.
+                break;
+            };
+            if !modified.is_ascii() || !is_specifier(modified as u8) {
+                out.push('%');
+                out.push(modifier);
+                out.push(modified);
+                continue;
+            }
+            spec = modified;
+        }
         match spec {
             'a' => out.push_str(&wd[..3]),
             'A' => out.push_str(wd),
@@ -701,6 +725,8 @@ pub struct Specifier {
     pub start: usize,
     /// Byte offset immediately after the conversion.
     pub end: usize,
+    /// Optional locale modifier (`E` or `O`).
+    pub modifier: Option<u8>,
     /// The conversion letter.
     pub letter: u8,
 }
@@ -746,8 +772,8 @@ pub fn is_specifier(letter: u8) -> bool {
 }
 
 /// Scan a clock format using the same supported conversion set as the
-/// runtime. `%E`/`%O` are intentionally not treated as locale modifiers: the
-/// runtime does not implement them and emits them literally.
+/// runtime. Tcl accepts `E` and `O` as locale modifiers only when a supported
+/// conversion follows them; a dangling modifier is not a conversion.
 #[must_use]
 pub fn specifiers(fmt: &str) -> Vec<Specifier> {
     let bytes = fmt.as_bytes();
@@ -760,6 +786,15 @@ pub fn specifiers(fmt: &str) -> Vec<Specifier> {
         }
         let start = i;
         i += 1;
+        let modifier = if matches!(bytes.get(i), Some(b'E' | b'O'))
+            && bytes.get(i + 1).is_some_and(|letter| is_specifier(*letter))
+        {
+            let modifier = bytes[i];
+            i += 1;
+            Some(modifier)
+        } else {
+            None
+        };
         if let Some(&letter) = bytes.get(i)
             && is_specifier(letter)
         {
@@ -767,6 +802,7 @@ pub fn specifiers(fmt: &str) -> Vec<Specifier> {
             out.push(Specifier {
                 start,
                 end: i,
+                modifier,
                 letter,
             });
         }
@@ -817,6 +853,8 @@ mod tests {
         );
         assert_eq!(render(&c, "%T %R %D", 0, 0), "22:13:20 22:13 11/14/2023");
         assert_eq!(render(&c, "%s", 0, 1_700_000_000), "1700000000");
+        assert_eq!(render(&c, "%EY %OS", 0, 0), "2023 20");
+        assert_eq!(render(&c, "%E", 0, 0), "");
         // Unknown specifier passes through verbatim (Tcl does not support %F).
         assert_eq!(render(&c, "%F", 0, 0), "%F");
     }
@@ -827,6 +865,8 @@ mod tests {
         let f = parse_with_format("2023-11-14 22:13:20", "%Y-%m-%d %H:%M:%S").unwrap();
         assert_eq!((f.year, f.month, f.day), (Some(2023), Some(11), Some(14)));
         assert_eq!((f.hour, f.min, f.sec), (Some(22), Some(13), Some(20)));
+        let f = parse_with_format("2023 20", "%EY %OS").unwrap();
+        assert_eq!((f.year, f.sec), (Some(2023), Some(20)));
         // Month name + the day defaults handled at the `scan` layer.
         let f = parse_with_format("Nov 14 2023", "%b %d %Y").unwrap();
         assert_eq!((f.year, f.month, f.day), (Some(2023), Some(11), Some(14)));
@@ -845,6 +885,27 @@ mod tests {
         assert_eq!(
             parse_with_format("xyz", "%Y").unwrap_err().message(),
             "input string does not match supplied format"
+        );
+    }
+
+    #[test]
+    fn specifiers_include_complete_locale_modifiers() {
+        assert_eq!(
+            specifiers("%EY %OS %E"),
+            vec![
+                Specifier {
+                    start: 0,
+                    end: 3,
+                    modifier: Some(b'E'),
+                    letter: b'Y',
+                },
+                Specifier {
+                    start: 4,
+                    end: 7,
+                    modifier: Some(b'O'),
+                    letter: b'S',
+                },
+            ]
         );
     }
 

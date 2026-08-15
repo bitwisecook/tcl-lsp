@@ -4328,18 +4328,24 @@ impl Vm {
     }
 
     /// Like [`Self::locate`] but begins link resolution at frame `start` (used
-    /// to resolve an array base that an `upvar`/`variable` link landed on at a
-    /// non-top frame level).
+    /// by frame-addressed public storage operations). Written qualified names
+    /// are canonicalised once at this boundary; link targets are already
+    /// internal keys and must not be qualified again.
     fn locate_from(&self, name: &str, start: usize) -> (usize, String) {
         let canonical = self.canonical_var_name(name);
         let stripped = canonical.strip_prefix("::").unwrap_or(&canonical);
         let qualified = tcl_syntax::naming::is_qualified(canonical.as_bytes());
-        let mut level = if qualified { 0 } else { start };
-        let mut nm = if qualified {
-            stripped.to_owned()
-        } else {
-            name.to_owned()
-        };
+        let level = if qualified { 0 } else { start };
+        let key = if qualified { stripped } else { name };
+        self.locate_key_from(key, level)
+    }
+
+    /// Follow links from an already-canonical internal variable key. Unlike
+    /// [`Self::locate_from`], this never interprets a relative qualified key in
+    /// the current namespace a second time.
+    fn locate_key_from(&self, name: &str, start: usize) -> (usize, String) {
+        let mut level = start;
+        let mut nm = name.to_owned();
         for _ in 0..64 {
             match self.frames.get(level).and_then(|f| f.locals.get(&nm)) {
                 Some(Local::Link {
@@ -4390,7 +4396,7 @@ impl Vm {
         if let Some((base, key)) = elem_ref(&nm) {
             // The base may itself be a link (`variable`/`upvar` to a namespace
             // array), so resolve it onward from the frame it landed on.
-            let (blvl, bnm) = self.locate_from(base, lvl);
+            let (blvl, bnm) = self.locate_key_from(base, lvl);
             return match self.frames.get(blvl)?.locals.get(&bnm) {
                 Some(Local::Array(m)) => m.get(key).cloned(),
                 _ => None,
@@ -4412,7 +4418,7 @@ impl Vm {
             // Resolve the array base onward (it may be a link to a namespace
             // array) before writing the element.
             let key = key.to_owned();
-            let (blvl, bnm) = self.locate_from(base, lvl);
+            let (blvl, bnm) = self.locate_key_from(base, lvl);
             if let Some(f) = self.frames.get_mut(blvl) {
                 match f.locals.get_mut(&bnm) {
                     Some(Local::Array(m)) => {
@@ -4578,7 +4584,7 @@ impl Vm {
     pub(crate) fn get_var_from(&self, start: usize, name: &str) -> Option<Value> {
         let (lvl, nm) = self.locate_from(name, start);
         if let Some((base, key)) = elem_ref(&nm) {
-            let (blvl, bnm) = self.locate_from(base, lvl);
+            let (blvl, bnm) = self.locate_key_from(base, lvl);
             return match self.frames.get(blvl)?.locals.get(&bnm) {
                 Some(Local::Array(m)) => m.get(key).cloned(),
                 _ => None,
@@ -4596,7 +4602,7 @@ impl Vm {
         let (lvl, nm) = self.locate_from(name, start);
         if let Some((base, key)) = elem_ref(&nm) {
             let key = key.to_owned();
-            let (blvl, bnm) = self.locate_from(base, lvl);
+            let (blvl, bnm) = self.locate_key_from(base, lvl);
             if let Some(f) = self.frames.get_mut(blvl) {
                 match f.locals.get_mut(&bnm) {
                     Some(Local::Array(m)) => {

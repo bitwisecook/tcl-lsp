@@ -739,7 +739,7 @@ fn read_property(vm: &mut Vm, obj_key: &str, dashed: &str) -> Result<Value, Comp
             display(obj_key)
         )));
     };
-    match vm.get_var(&format!("{ns}::{name}")) {
+    match vm.get_var(&format!("::{ns}::{name}")) {
         Some(v) => Ok(v),
         None => Err(err(format!("can't read \"{name}\": no such variable"))),
     }
@@ -767,7 +767,7 @@ fn write_property(
             display(obj_key)
         )));
     };
-    vm.set_var(&format!("{ns}::{name}"), value)
+    vm.set_var(&format!("::{ns}::{name}"), value)
 }
 
 /// Map a custom accessor's completion into a value (or propagate its error).

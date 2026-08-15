@@ -4418,31 +4418,29 @@ mod tests {
     /// continuation. `tclsh` prints `x3abc`; the O129 rewrite printed
     /// `x3ab""b"c`.
     ///
-    /// Two scanners have to agree for the splice to be sound. The rewrite
-    /// *span* comes from `close_quote_offset`, which now keeps command
-    /// position across the continuation and so reaches the final `"`. The
-    /// replacement *text* comes from the segmenter, whose own bracket scan
-    /// still has no comment state and stops at the commented-out `]`. While
-    /// they disagree the pass must decline rather than splice a short word
-    /// over a long span — so no applicable O129 is offered here.
+    /// Both the canonical lexer and `close_quote_offset` now keep command
+    /// position across the continuation and reach the final `"`, so the safe
+    /// rewrite folds only the first command substitution and preserves the
+    /// commented-out closer verbatim.
     #[test]
-    fn o129_fold_declines_when_the_word_text_does_not_match_the_span() {
+    fn o129_fold_preserves_comment_hidden_closer() {
         let src = "puts \"x[string length abc]a[\n\\\n# ] comment\nset y \"b\"\n]c\"\n";
         let opts = crate::optimiser::optimise_raw(src, &registry(), None);
-        for opt in opts
+        let rewrites = opts
             .iter()
             .filter(|o| o.code == DiagCode::O129 && !o.hint_only)
-        {
-            let mut rewritten = src.to_owned();
-            rewritten.replace_range(
-                opt.span.start() as usize..opt.span.end() as usize,
-                &opt.replacement,
-            );
-            assert_eq!(
-                rewritten, src,
-                "an applicable O129 here corrupts the source: {opt:?}",
-            );
-        }
+            .collect::<Vec<_>>();
+        assert_eq!(rewrites.len(), 1, "expected one safe O129: {opts:?}");
+        let opt = rewrites[0];
+        let mut rewritten = src.to_owned();
+        rewritten.replace_range(
+            opt.span.start() as usize..opt.span.end() as usize,
+            &opt.replacement,
+        );
+        assert_eq!(
+            rewritten,
+            "puts \"x3a[\n\\\n# ] comment\nset y \"b\"\n]c\"\n"
+        );
     }
 
     #[test]
