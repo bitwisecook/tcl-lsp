@@ -201,6 +201,28 @@ async function main() {
     );
     console.log(`    LSP: ${(await page.textContent("#lspStatus")).trim()}`);
 
+    // The success status is published only after the host has requested both
+    // semantic tokens and hover from this opened pack document.
+    console.log("    Pack DSL hover is served by the in-page LSP");
+
+    // The fallback overlay already colours the pack before Monaco arrives;
+    // prove the replacement editor gets several semantic colours from the
+    // LSP too. This catches a provider whose legend contains theme scopes
+    // instead of semantic-token identifiers: the worker is healthy, but every
+    // token settles back to Monaco's one generic text colour.
+    await page.waitForFunction(
+      () => {
+        const colours = new Set(
+          Array.from(document.querySelectorAll("#dslEditor .view-lines span[class*='mtk']"))
+            .map((node) => getComputedStyle(node).color),
+        );
+        return colours.size > 1;
+      },
+      null,
+      { timeout: 60_000 },
+    );
+    console.log("    Pack DSL semantic colours are visible in Monaco");
+
     // 4. The server actually analyses: type a broken pack line and expect the
     //    editor to show a marker. This is the difference between "the worker
     //    booted" and "the worker is doing the job".
@@ -223,16 +245,52 @@ async function main() {
     // 5. The Test tab's second editor mounts on its own model.
     await page.click("#tab-test");
     await page.waitForSelector("#testEditor .monaco-editor", { timeout: 30_000 });
+    await page.click("#testEditor .monaco-editor .view-lines");
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("set colour red\nputs $colour");
+    await page.waitForFunction(
+      () => {
+        const colours = new Set(
+          Array.from(document.querySelectorAll("#testEditor .view-lines span[class*='mtk']"))
+            .map((node) => getComputedStyle(node).color),
+        );
+        return colours.size > 1;
+      },
+      null,
+      { timeout: 60_000 },
+    );
     console.log("    Monaco mounted on the Test tab");
 
-    // 6. The Releases import mode and its GitHub panel are present and inert
+    // 6. A one-snapshot import writes the pack *and* becomes the active draft,
+    // so the generated Rust pane follows it instead of retaining `mycommand`,
+    // the placeholder draft installed at boot.
+    await page.click("#tab-import");
+    await page.setInputFiles("#picker", {
+      name: "widget.tcl",
+      mimeType: "text/plain",
+      buffer: Buffer.from("proc widget::paint {colour} { return $colour }\n", "utf8"),
+    });
+    await page.waitForSelector("#importOut .found", { timeout: 30_000 });
+    await page.click("#importAll");
+    await page.click("#tab-rs");
+    await page.waitForFunction(
+      () => {
+        const text = document.querySelector("#rsEditor .view-lines")?.textContent ?? "";
+        return text.includes("widget::paint") && !text.includes('name: "mycommand"');
+      },
+      null,
+      { timeout: 30_000 },
+    );
+    console.log("    imported Tcl activates generated Rust for the imported command");
+
+    // 7. The Releases import mode and its GitHub panel are present and inert
     //    until asked — no request is made by opening them.
     await page.click("#tab-import");
     await page.click("#imode-releases");
     await page.waitForSelector("#ghPanel:not([hidden])", { timeout: 10_000 });
     console.log("    the Releases mode and the GitHub panel are reachable");
 
-    // 7. The whole multi-release pipeline, through the real UI: two archives
+    // 8. The whole multi-release pipeline, through the real UI: two archives
     //    in, one version range out. `greet` exists in both releases and
     //    `farewell` only in the newer one, so the importer must derive
     //    `introduced 1.1` for the second and nothing for the first — the
@@ -292,7 +350,8 @@ async function main() {
         `${derived.map((c) => `${c.name} [${c.ranges.join(" ")}]`).join(", ")}`,
     );
   } catch (e) {
-    fail(e instanceof Error ? e.message : String(e));
+    const status = await page.textContent("#lspStatus").catch(() => "");
+    fail(`${e instanceof Error ? e.message : String(e)}; LSP status: ${status?.trim() ?? ""}`);
   } finally {
     await browser.close();
     server.close();

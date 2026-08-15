@@ -22,7 +22,7 @@
 
 import * as esbuild from "esbuild";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -73,6 +73,8 @@ const vendorBanner = `${banner}
 //   vscode-jsonrpc                 (c) Microsoft Corporation      — MIT
 //   vscode-languageserver-protocol (c) Microsoft Corporation      — MIT
 //   vscode-languageserver-types    (c) Microsoft Corporation      — MIT
+//   vscode-oniguruma                (c) Microsoft Corporation      — MIT/BSD-2-Clause
+//   vscode-textmate                 (c) Microsoft Corporation      — MIT
 // Full licence texts: rust/tcl-spec-studio/web/THIRD-PARTY-NOTICES.md`;
 
 rmSync(distDir, { recursive: true, force: true });
@@ -96,6 +98,15 @@ await esbuild.build({
   define: { __SPEC_STUDIO_FRONTEND_VERSION__: JSON.stringify(version) },
   logLevel: "info",
 });
+
+// Monaco has no bundled Tcl syntax. Ship the exact TextMate grammar used by
+// the VS Code extension, plus the same Oniguruma engine that executes it, so
+// the Studio's pre-semantic paint cannot drift into a second Tcl grammar.
+copyFileSync(
+  join(here, "..", "..", "..", "editors", "vscode", "syntaxes", "tcl.tmLanguage.json"),
+  join(assetsDir, "tcl.tmLanguage.json"),
+);
+copyFileSync(join(here, "node_modules", "vscode-oniguruma", "release", "onig.wasm"), join(assetsDir, "onig.wasm"));
 
 // The editor chunk. Minified, unlike the controller: this is vendored
 // third-party code whose readable form is upstream's repository, not ours, and

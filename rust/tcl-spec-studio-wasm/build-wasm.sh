@@ -143,23 +143,25 @@ fi
 cp "$lspdist/worker.js" "$lspdist/tcl_lsp_server_wasm.js" \
    "$lspdist/tcl_lsp_server_wasm_bg.wasm" "$dist/lsp/"
 
-echo "==> copying the editor chunk into dist/assets/"
-cp "$web/dist/assets/monaco-host.js" "$web/dist/assets/monaco-host.css" "$dist/assets/"
+echo "==> copying the editor chunk and shared Tcl grammar into dist/assets/"
+cp "$web/dist/assets/monaco-host.js" "$web/dist/assets/monaco-host.css" \
+   "$web/dist/assets/tcl.tmLanguage.json" "$web/dist/assets/onig.wasm" "$dist/assets/"
 
 echo "==> assembling dist/index.html"
 python3 - \
     "$web/studio.html" "$web/src/studio.css" "$web/dist/studio.js" \
     "$out/tcl_spec_studio_wasm.js" "$out/tcl_spec_studio_wasm_bg.wasm" \
     "$dist/index.html" "$assets" "$dist/assets/monaco-host.js" \
-    "$dist/assets/monaco-host.css" "$dist/lsp/worker.js" \
+    "$dist/assets/monaco-host.css" "$dist/assets/tcl.tmLanguage.json" \
+    "$dist/assets/onig.wasm" "$dist/lsp/worker.js" \
     "$dist/lsp/tcl_lsp_server_wasm.js" "$dist/lsp/tcl_lsp_server_wasm_bg.wasm" \
     "$version" <<'PY'
 import base64, hashlib, json, os, sys
 (
     tmpl_path, css_path, js_path, glue_path, wasm_path, out_path, assets_dir,
-    editor_js_path, editor_css_path, lsp_worker_path, lsp_glue_path,
-    lsp_wasm_path, version,
-) = sys.argv[1:14]
+    editor_js_path, editor_css_path, grammar_path, oniguruma_path,
+    lsp_worker_path, lsp_glue_path, lsp_wasm_path, version,
+) = sys.argv[1:16]
 
 def read_bytes(path):
     with open(path, "rb") as stream:
@@ -180,6 +182,8 @@ glue_bytes = read_bytes(glue_path)
 wasm_bytes = read_bytes(wasm_path)
 editor_js_bytes = read_bytes(editor_js_path)
 editor_css_bytes = read_bytes(editor_css_path)
+grammar_bytes = read_bytes(grammar_path)
+oniguruma_bytes = read_bytes(oniguruma_path)
 lsp_worker_bytes = read_bytes(lsp_worker_path)
 lsp_glue_bytes = read_bytes(lsp_glue_path)
 lsp_wasm_bytes = read_bytes(lsp_wasm_path)
@@ -213,6 +217,8 @@ build_info = {
         asset("logo-dark", logo_bytes["__LOGO_TCL_LSP_DARK__"]),
         asset("editor-controller", editor_js_bytes),
         asset("editor-style", editor_css_bytes),
+        asset("tcl-grammar", grammar_bytes),
+        asset("oniguruma", oniguruma_bytes),
         asset("lsp-worker", lsp_worker_bytes),
         asset("lsp-wasm-glue", lsp_glue_bytes),
         asset("lsp-wasm", lsp_wasm_bytes),

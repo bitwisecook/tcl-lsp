@@ -49,6 +49,7 @@ import type {
   SurfaceSpec,
 } from "./editorHost.js";
 import { LspClient, startLspClient } from "./lspClient.js";
+import { registerTclGrammar } from "./textmateHost.js";
 
 /** The Monaco language id both surfaces' models are registered under. */
 const SPECTCL_LANGUAGE = "spectcl";
@@ -58,49 +59,22 @@ const TCL_LANGUAGE = "tcl";
 declare const __SPEC_STUDIO_FRONTEND_VERSION__: string;
 export const buildVersion = __SPEC_STUDIO_FRONTEND_VERSION__;
 
-/** In-memory document URIs. Nothing resolves them — they are identities. */
-const DSL_URI = "inmemory://studio/pack.tclspec";
-const SAMPLE_URI = "inmemory://studio/sample.tcl";
-const RUST_URI = "inmemory://studio/command.rs";
-const STUB_URI = "inmemory://studio/stubs.tcl";
+/**
+ * Virtual document URIs.
+ *
+ * They are never read from disk, but they deliberately use the `file:` scheme:
+ * the native server's document pipeline derives paths, extensions, and dialect
+ * hints from file URIs. Monaco's usual `inmemory:` scheme lets `initialize`
+ * succeed while later semantic-token and hover requests fall off that path,
+ * leaving a healthy worker apparently doing nothing.
+ */
+const DSL_URI = "file:///__tcl_spec_studio__/pack.tclspec";
+const SAMPLE_URI = "file:///__tcl_spec_studio__/sample.tcl";
+const RUST_URI = "file:///__tcl_spec_studio__/command.rs";
+const STUB_URI = "file:///__tcl_spec_studio__/stubs.tcl";
 
 /** How long keystrokes settle before the change is pushed on. */
 const SETTLE_MS = 120;
-
-/**
- * Map an LSP semantic token type onto a Monaco theme scope.
- *
- * Monaco has no semantic-token theming of its own the way VS Code does, so the
- * legend the server sends is projected onto the TextMate-ish scopes Monaco's
- * themes already colour. An unrecognised type falls through to `source`, which
- * paints as plain text — a new token type on the server therefore shows up
- * uncoloured rather than breaking the whole pass.
- */
-const SCOPE_BY_TOKEN_TYPE: Record<string, string> = {
-  namespace: "entity.name.namespace",
-  type: "entity.name.type",
-  class: "entity.name.class",
-  enum: "entity.name.type.enum",
-  interface: "entity.name.type.interface",
-  struct: "entity.name.type.struct",
-  typeParameter: "entity.name.type.parameter",
-  parameter: "variable.parameter",
-  variable: "variable.other",
-  property: "variable.other.property",
-  enumMember: "variable.other.enummember",
-  event: "entity.name.function",
-  function: "entity.name.function",
-  method: "entity.name.function.member",
-  macro: "entity.name.function.macro",
-  keyword: "keyword",
-  modifier: "storage.modifier",
-  comment: "comment",
-  string: "string",
-  number: "constant.numeric",
-  regexp: "string.regexp",
-  operator: "keyword.operator",
-  decorator: "entity.name.decorator",
-};
 
 /** Whether a Monaco instance has already had the languages registered. */
 let languagesRegistered = false;
@@ -196,6 +170,15 @@ function completionItems(
   return Array.isArray(reply) ? reply : reply.items;
 }
 
+/** Zero-based LSP position of `needle` in `text`, when present. */
+function positionOf(text: string, needle: string): { line: number; character: number } | null {
+  const offset = text.indexOf(needle);
+  if (offset < 0) return null;
+  const before = text.slice(0, offset);
+  const lines = before.split("\n");
+  return { line: lines.length - 1, character: lines[lines.length - 1]?.length ?? 0 };
+}
+
 /**
  * Register every provider that forwards to the server.
  *
@@ -206,7 +189,12 @@ function completionItems(
  */
 function registerProviders(client: LspClient): void {
   const legend: monaco.languages.SemanticTokensLegend = {
-    tokenTypes: client.legend.tokenTypes.map((type) => SCOPE_BY_TOKEN_TYPE[type] ?? "source"),
+    // Semantic-token legends contain token *identifiers*, not TextMate
+    // scopes. Monaco's built-in themes already colour the standard LSP names
+    // (`keyword`, `variable`, `function`, ...). Replacing them with scopes such
+    // as `entity.name.function` leaves Monaco unable to match any rule and
+    // turns the whole Tcl document back into generic text.
+    tokenTypes: [...client.legend.tokenTypes],
     tokenModifiers: [...client.legend.tokenModifiers],
   };
 
@@ -513,6 +501,12 @@ class OutputSurface {
 export async function mountEditors(options: EditorHostOptions): Promise<EditorHost> {
   await loadStylesheet(options.stylesheetUrl);
   registerLanguages();
+  await registerTclGrammar(
+    monaco,
+    [SPECTCL_LANGUAGE, TCL_LANGUAGE],
+    options.grammarUrl,
+    options.onigurumaUrl,
+  );
   monaco.editor.setTheme(currentTheme());
   window
     .matchMedia?.("(prefers-color-scheme: dark)")
@@ -523,7 +517,6 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     options.report("starting the language server…");
     client = await startLspClient(options.workerUrl);
     registerProviders(client);
-    options.report("the Tcl language server is running in this page", "ok");
   } catch (e) {
     options.report(
       `the language server could not start (${e instanceof Error ? e.message : String(e)}) — ` +
@@ -536,6 +529,28 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
   const sample = new Surface(options.sample, SAMPLE_URI, TCL_LANGUAGE, options.dialect, client);
   const rust = new OutputSurface(options.rust, RUST_URI, "rust", null, client);
   const stub = new OutputSurface(options.stub, STUB_URI, TCL_LANGUAGE, "spectcl", client);
+
+  if (client) {
+    // `initialize` proves only that the worker booted. Exercise an opened
+    // document before claiming the LSP is usable: a URI scheme or transport
+    // regression otherwise leaves a green status beside an editor with no
+    // tokens, hover, or diagnostics.
+    try {
+      const tokens = await client.semanticTokens(DSL_URI);
+      if (!tokens?.data.length) throw new Error("the pack document returned no semantic tokens");
+      const hoverAt = positionOf(options.dsl.textarea.value, "speclib");
+      if (hoverAt && !(await client.hover(DSL_URI, hoverAt.line, hoverAt.character))) {
+        throw new Error("the pack document returned no hover information");
+      }
+      options.report("the Tcl language server is running in this page", "ok");
+    } catch (e) {
+      options.report(
+        `the language server started but could not analyse the pack (${e instanceof Error ? e.message : String(e)}) — ` +
+          "the editor is running without analysis; reload to try again",
+        "err",
+      );
+    }
+  }
 
   client?.onDiagnostics((uri, items) => {
     if (uri === dsl.documentUri) dsl.setDiagnostics(items);

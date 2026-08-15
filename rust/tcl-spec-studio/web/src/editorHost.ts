@@ -51,6 +51,10 @@ export interface EditorHostOptions {
   workerUrl: string;
   /** Content-keyed URL for Monaco's emitted stylesheet. */
   stylesheetUrl: string;
+  /** The VS Code extension's authoritative Tcl TextMate grammar. */
+  grammarUrl: string;
+  /** Oniguruma WASM used to execute that grammar in the browser. */
+  onigurumaUrl: string;
   /** The `.tclspec` pack document. Always opened as `spectcl`. */
   dsl: SurfaceSpec;
   /** The Tcl sample, opened under whichever dialect the studio has selected. */
