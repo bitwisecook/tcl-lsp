@@ -296,6 +296,22 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun broadDynamicCompletionKeepsDistinctCustomOnCodes() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -options ${'$'}options","completion":"dynamic"}],"handlers":[
+              {"kind_handler":"on","match":"42","fallthrough":false,"body":[{"kind":"action","label":"first 42"}]},
+              {"kind_handler":"on","match":"42","fallthrough":false,"body":[{"kind":"action","label":"duplicate 42"}]},
+              {"kind_handler":"on","match":"43","fallthrough":false,"body":[{"kind":"action","label":"43 path"}]},
+              {"kind_handler":"on","match":"custom","fallthrough":false,"body":[{"kind":"action","label":"custom path"}]}
+            ]}]}],"procedures":[]}"""
+        )))
+        // 42, 43, and custom are independently possible; only duplicate 42
+        // is shadowed by Tcl's first matching on-clause rule.
+        assertEquals(3, mermaid.lines().count { it.startsWith("n2 -->|on|") }, mermaid)
+    }
+
+    @Test
     fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
         fun render(finallyCompletion: String? = null): String {
             val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""

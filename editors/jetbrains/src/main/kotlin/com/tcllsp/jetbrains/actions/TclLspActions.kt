@@ -305,7 +305,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         PossibleCompletion.RETURN -> DiagramCompletion.RETURN
                         PossibleCompletion.BREAK -> DiagramCompletion.BREAK
                         PossibleCompletion.CONTINUE -> DiagramCompletion.CONTINUE
-                        PossibleCompletion.OTHER -> DiagramCompletion.TERMINAL
+                        is PossibleCompletion.CUSTOM, PossibleCompletion.UNKNOWN_OTHER -> DiagramCompletion.TERMINAL
                     }
                     fun onMatches(handler: Handler, possible: PossibleCompletion): Boolean {
                         val match = handler.data.string("match")
@@ -315,7 +315,8 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             PossibleCompletion.RETURN -> match == "return" || match == "2"
                             PossibleCompletion.BREAK -> match == "break" || match == "3"
                             PossibleCompletion.CONTINUE -> match == "continue" || match == "4"
-                            PossibleCompletion.OTHER -> match !in listOf("ok", "error", "return", "break", "continue", "0", "1", "2", "3", "4")
+                            is PossibleCompletion.CUSTOM -> match == possible.selector
+                            PossibleCompletion.UNKNOWN_OTHER -> false
                         }
                     }
                     fun trapSubsumes(previous: String?, candidate: String?): Boolean {
@@ -335,7 +336,21 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             bodyExit.completion == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
                         ) {
                             val possible = if (bodyExit.completion == DiagramCompletion.DYNAMIC) {
-                                PossibleCompletion.entries
+                                val standard = listOf(
+                                    PossibleCompletion.NORMAL,
+                                    PossibleCompletion.ERROR,
+                                    PossibleCompletion.RETURN,
+                                    PossibleCompletion.BREAK,
+                                    PossibleCompletion.CONTINUE,
+                                )
+                                val custom = handlers.asSequence()
+                                    .filter { it.data.string("kind_handler") == "on" }
+                                    .mapNotNull { it.data.string("match") }
+                                    .filterNot { it in listOf("ok", "error", "return", "break", "continue", "0", "1", "2", "3", "4") }
+                                    .distinct()
+                                    .map { PossibleCompletion.CUSTOM(it) }
+                                    .toList()
+                                standard + custom + PossibleCompletion.UNKNOWN_OTHER
                             } else {
                                 listOf(PossibleCompletion.ERROR, PossibleCompletion.RETURN)
                             }
@@ -476,7 +491,15 @@ private class MermaidIds {
 
 /** Completion states defined by the shared `tcl-diagram` JSON contract. */
 private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, DYNAMIC_RETURN_OR_ERROR, PROCESS_EXIT, TERMINAL }
-private enum class PossibleCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, OTHER }
+private sealed class PossibleCompletion {
+    data object NORMAL : PossibleCompletion()
+    data object ERROR : PossibleCompletion()
+    data object RETURN : PossibleCompletion()
+    data object BREAK : PossibleCompletion()
+    data object CONTINUE : PossibleCompletion()
+    data class CUSTOM(val selector: String) : PossibleCompletion()
+    data object UNKNOWN_OTHER : PossibleCompletion()
+}
 
 private fun JsonObject.string(name: String): String? =
     get(name)?.takeUnless { it.isJsonNull }?.asString

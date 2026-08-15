@@ -864,6 +864,16 @@ mod tests {
                     finally { lappend log finally }
                 return $log
             }
+            proc probe_custom_code {code} {
+                set log {}
+                try { return -options [list -code $code -level 0] payload } \
+                    on 42 {message options} { lappend log first-42 } \
+                    on 42 {message options} { lappend log duplicate-42 } \
+                    on 43 {message options} { lappend log code-43 } \
+                    on error {message options} { lappend log symbolic-error } \
+                    finally { lappend log finally }
+                return $log
+            }
             puts [probe {-code error}]
             puts [probe {-level 0 -code error}]
             puts [probe {-foo bar}]
@@ -879,6 +889,9 @@ mod tests {
                 {-code continue -level 0}
             } { puts [probe_dynamic_options $options] }
             puts [probe_source_order]
+            puts [probe_custom_code 42]
+            puts [probe_custom_code 43]
+            puts [probe_custom_code error]
         ";
         let mut child = Command::new("tclsh")
             .stdin(Stdio::piped())
@@ -902,6 +915,7 @@ mod tests {
                 "ok finally after\nerror finally after\nreturn finally after\n",
                 "break finally after\ncontinue finally after\n",
                 "broad-trap finally\n",
+                "first-42 finally\ncode-43 finally\nsymbolic-error finally\n",
             )
         );
     }
