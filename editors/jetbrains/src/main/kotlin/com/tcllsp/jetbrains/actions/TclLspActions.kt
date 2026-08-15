@@ -151,6 +151,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         "break" -> DiagramCompletion.BREAK
         "continue" -> DiagramCompletion.CONTINUE
         "dynamic" -> DiagramCompletion.DYNAMIC
+        "dynamic_return_or_error" -> DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
         "process_exit" -> DiagramCompletion.PROCESS_EXIT
         "terminal" -> DiagramCompletion.TERMINAL
         else -> DiagramCompletion.NORMAL
@@ -278,15 +279,25 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                     }
 
                     fun handlerMatches(handler: Handler, outcome: DiagramCompletion): Boolean {
-                        if (handler.data.string("kind_handler") != "on") return outcome == DiagramCompletion.ERROR && handler.data.string("kind_handler") == "trap"
+                        if (handler.data.string("kind_handler") == "trap") {
+                            return outcome == DiagramCompletion.ERROR ||
+                                outcome == DiagramCompletion.DYNAMIC ||
+                                outcome == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
+                        }
+                        if (handler.data.string("kind_handler") != "on") return false
                         return when (outcome) {
                             DiagramCompletion.NORMAL -> handler.data.string("match") == "ok" || handler.data.string("match") == "0"
                             DiagramCompletion.ERROR -> handler.data.string("match") == "error" || handler.data.string("match") == "1"
                             DiagramCompletion.RETURN -> handler.data.string("match") == "return" || handler.data.string("match") == "2"
                             DiagramCompletion.BREAK -> handler.data.string("match") == "break" || handler.data.string("match") == "3"
                             DiagramCompletion.CONTINUE -> handler.data.string("match") == "continue" || handler.data.string("match") == "4"
-                            DiagramCompletion.DYNAMIC -> handler.data.string("kind_handler") == "on" &&
-                                (handler.data.string("match") == "error" || handler.data.string("match") == "return" || handler.data.string("match") == "1" || handler.data.string("match") == "2")
+                            // An unevaluated -options value can produce any
+                            // Tcl completion code. Keep every on clause as a
+                            // possible source-order selection; choosing only
+                            // the first would falsely discard later handlers.
+                            DiagramCompletion.DYNAMIC -> true
+                            DiagramCompletion.DYNAMIC_RETURN_OR_ERROR ->
+                                (handler.data.string("match") in listOf("error", "return", "1", "2"))
                             DiagramCompletion.PROCESS_EXIT -> false
                             DiagramCompletion.TERMINAL -> false
                         }
@@ -298,13 +309,28 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         val errorIsCertainlyHandled = bodyExit.completion == DiagramCompletion.ERROR && matches.any {
                             (_, handler) -> handler.data.string("kind_handler") == "on"
                         }
-                        if (matches.isEmpty() || bodyExit.completion == DiagramCompletion.DYNAMIC || (bodyExit.completion == DiagramCompletion.ERROR && !errorIsCertainlyHandled)) {
+                        if (matches.isEmpty() ||
+                            bodyExit.completion == DiagramCompletion.DYNAMIC ||
+                            bodyExit.completion == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR ||
+                            (bodyExit.completion == DiagramCompletion.ERROR && !errorIsCertainlyHandled)
+                        ) {
                             // A `trap` pattern needs error-code detail which
                             // this compact contract intentionally does not
                             // carry.  It is a possible handled path, but not
                             // proof that every error is caught, so retain the
                             // unhandled error as well.
                             exits += bodyExit
+                        }
+                        // Dynamic -options can produce TCL_OK. If no `on ok`
+                        // clause owns that possibility, retain the direct
+                        // normal continuation as well as abrupt propagation.
+                        if (bodyExit.completion == DiagramCompletion.DYNAMIC &&
+                            matches.none { (_, handler) ->
+                                handler.data.string("kind_handler") == "on" &&
+                                    (handler.data.string("match") == "ok" || handler.data.string("match") == "0")
+                            }
+                        ) {
+                            exits += Tail(bodyExit.id, DiagramCompletion.NORMAL)
                         }
                         if (matches.isNotEmpty()) {
                             // `on` clauses are selected in source order.  A
@@ -315,7 +341,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             for ((index, handler) in matches) {
                                 connect(bodyExit.id, handler.start, handler.data.string("kind_handler"))
                                 exits += renderHandler(index)
-                                if (handler.data.string("kind_handler") == "on") break
+                                if (handler.data.string("kind_handler") == "on" && bodyExit.completion != DiagramCompletion.DYNAMIC && bodyExit.completion != DiagramCompletion.DYNAMIC_RETURN_OR_ERROR) break
                             }
                         }
                     }
@@ -404,7 +430,7 @@ private class MermaidIds {
 }
 
 /** Completion states defined by the shared `tcl-diagram` JSON contract. */
-private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, PROCESS_EXIT, TERMINAL }
+private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, DYNAMIC_RETURN_OR_ERROR, PROCESS_EXIT, TERMINAL }
 
 private fun JsonObject.string(name: String): String? =
     get(name)?.takeUnless { it.isJsonNull }?.asString

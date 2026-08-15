@@ -56,6 +56,7 @@ enum DiagramCompletion {
     Break,
     Continue,
     Dynamic,
+    DynamicReturnOrError,
     ProcessExit,
     Terminal,
 }
@@ -69,6 +70,7 @@ impl DiagramCompletion {
             Self::Break => Some("break"),
             Self::Continue => Some("continue"),
             Self::Dynamic => Some("dynamic"),
+            Self::DynamicReturnOrError => Some("dynamic_return_or_error"),
             Self::ProcessExit => Some("process_exit"),
             Self::Terminal => Some("terminal"),
         }
@@ -118,7 +120,18 @@ fn command_completion(
             resolved.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Return)
         })
     {
-        return DiagramCompletion::Dynamic;
+        // Exact literal options returned above. A remaining `-code` is
+        // therefore dynamic (or otherwise not statically evaluable).
+        let has_dynamic_code = args.windows(2).any(|words| words[0] == "-code");
+        // A dynamic -code with no explicit level remains Tcl's default
+        // TCL_RETURN, except that an invalid code errors while configuring
+        // it. Any explicit or dynamic level has wider observable outcomes.
+        let has_level = args.windows(2).any(|words| words[0] == "-level");
+        return if has_dynamic_code && !has_level && !args.iter().any(|word| word == "-options") {
+            DiagramCompletion::DynamicReturnOrError
+        } else {
+            DiagramCompletion::Dynamic
+        };
     }
     match registry.invocation_completion(command, &arg_refs, DialectSet::empty()) {
         InvocationCompletion::ReturnsResult(_) => DiagramCompletion::Return,
@@ -779,6 +792,33 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_return_forms_keep_their_distinct_possible_completions() {
+        let data = diagram_data_for_dialect(
+            r"
+                proc paths {} {
+                    try { return -code $code payload } finally { set cleaned yes }
+                    try { return -level 0 -code $code payload } finally { set cleaned yes }
+                    try { return -options $options payload } finally { set cleaned yes }
+                }
+            ",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/0/body/0/completion"),
+            Some(&Value::String("dynamic_return_or_error".to_owned()))
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/1/body/0/completion"),
+            Some(&Value::String("dynamic".to_owned()))
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/2/body/0/completion"),
+            Some(&Value::String("dynamic".to_owned()))
+        );
+    }
+
+    #[test]
     fn real_tcl_oracle_distinguishes_default_and_level_zero_return_codes() {
         let script = r"
             proc probe {spec} {
@@ -790,11 +830,44 @@ mod tests {
                 lappend log after
                 return $log
             }
+            proc probe_dynamic_code {code} {
+                set log {}
+                try { return -code $code payload } \
+                    on ok {message options} { lappend log ok } \
+                    on error {message options} { lappend log error } \
+                    on return {message options} { lappend log return } \
+                    on break {message options} { lappend log break } \
+                    on continue {message options} { lappend log continue } \
+                    finally { lappend log finally }
+                lappend log after
+                return $log
+            }
+            proc probe_dynamic_options {options} {
+                set log {}
+                try { return -options $options payload } \
+                    on ok {message options} { lappend log ok } \
+                    on error {message options} { lappend log error } \
+                    on return {message options} { lappend log return } \
+                    on break {message options} { lappend log break } \
+                    on continue {message options} { lappend log continue } \
+                    finally { lappend log finally }
+                lappend log after
+                return $log
+            }
             puts [probe {-code error}]
             puts [probe {-level 0 -code error}]
             puts [probe {-foo bar}]
             puts [probe {-c error}]
             puts [probe {-level 0x0 -code error}]
+            puts [probe_dynamic_code error]
+            puts [probe_dynamic_code bogus]
+            foreach options {
+                {-code ok -level 0}
+                {-code error -level 0}
+                {-code return -level 0}
+                {-code break -level 0}
+                {-code continue -level 0}
+            } { puts [probe_dynamic_options $options] }
         ";
         let mut child = Command::new("tclsh")
             .stdin(Stdio::piped())
@@ -811,7 +884,13 @@ mod tests {
         assert!(output.status.success(), "{output:?}");
         assert_eq!(
             String::from_utf8(output.stdout).expect("oracle stdout"),
-            "return finally after\nerror finally after\nreturn finally after\nreturn finally after\nerror finally after\n"
+            concat!(
+                "return finally after\nerror finally after\nreturn finally after\n",
+                "return finally after\nerror finally after\n",
+                "return finally after\nerror finally after\n",
+                "ok finally after\nerror finally after\nreturn finally after\n",
+                "break finally after\ncontinue finally after\n",
+            )
         );
     }
 }

@@ -245,6 +245,40 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun dynamicOptionsRetainEveryPossibleOnHandlerAndNormalPath() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -options ${'$'}opts","completion":"dynamic"}],"handlers":[
+              {"kind_handler":"on","match":"ok","fallthrough":false,"body":[{"kind":"action","label":"ok path"}]},
+              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"error path"}]},
+              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"return path"}]},
+              {"kind_handler":"on","match":"42","fallthrough":false,"body":[{"kind":"action","label":"other path"}]}
+            ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        // Dynamic -options can be ok, error, return, break, continue, or a
+        // custom code. All source-order `on` candidates remain represented.
+        for (handler in listOf("ok path", "error path", "return path", "other path")) {
+            assertContains(mermaid, handler)
+        }
+        assertContains(mermaid, "after")
+    }
+
+    @Test
+    fun dynamicDefaultCodeIsOnlyReturnOrErrorAndDoesNotInventOk() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -code ${'$'}code","completion":"dynamic_return_or_error"}],"handlers":[
+              {"kind_handler":"on","match":"ok","fallthrough":false,"body":[{"kind":"action","label":"wrong ok"}]},
+              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"error path"}]},
+              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"return path"}]}
+            ],"finally":[{"kind":"action","label":"cleanup"}]}]}],"procedures":[]}"""
+        )))
+        kotlin.test.assertFalse(mermaid.contains("wrong ok"), mermaid)
+        assertContains(mermaid, "error path")
+        assertContains(mermaid, "return path")
+    }
+
+    @Test
     fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
         fun render(finallyCompletion: String? = null): String {
             val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""
