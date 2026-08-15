@@ -216,41 +216,19 @@ fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// Strip Tcl syntax characters from a reference (`_clean_ref`).
-fn clean_ref(raw: &str) -> &str {
-    raw.trim_matches(|c| matches!(c, '{' | '}' | '[' | ']' | '"' | '\''))
-}
-
 /// Extract pool / data-group / node / virtual references (`_extract_object_refs`).
-fn extract_object_refs(source: &str, blocks: &[tcl_irules::WhenBlock]) -> ObjectRefs {
+fn extract_object_refs(source: &str, _blocks: &[tcl_irules::WhenBlock]) -> ObjectRefs {
     let mut pools: BTreeSet<String> = BTreeSet::new();
     let mut datagroups: BTreeSet<String> = BTreeSet::new();
-
-    for body in handler_bodies(source, blocks) {
-        for command in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-            body,
-            0,
-            tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
-        ) {
-            if command.name() == "pool" {
-                let Some(raw) = command.args().first() else {
-                    continue;
-                };
-                let name = clean_ref(raw);
-                if !name.is_empty() && !name.starts_with('$') && name != "member" {
-                    pools.insert(name.to_owned());
-                }
-            } else if command.name() == "class" {
-                let args = command.args();
-                if matches!(args.first().map(String::as_str), Some("match" | "lookup"))
-                    && let Some(raw) = args.last()
-                {
-                    let name = clean_ref(raw);
-                    if !name.is_empty() && !name.starts_with('$') {
-                        datagroups.insert(name.to_owned());
-                    }
-                }
-            }
+    // The recursive owner follows registry-declared bodies and substitutions,
+    // while rejecting comments and data words. `blocks` is retained by the
+    // request context for all other generators; this walker needs full spans.
+    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    for reference in tcl_irules::extract_irules_object_references(source, None, registry) {
+        if reference.command == "pool" {
+            pools.insert(reference.name);
+        } else if reference.command == "class" {
+            datagroups.insert(reference.name);
         }
     }
 

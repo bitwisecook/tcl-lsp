@@ -139,6 +139,7 @@ pub fn selection_range_for_dialect(
         source,
         cursor_offset,
         tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        dialect,
     ) {
         let seg_range = span_to_range(source, &line_index, span);
         command_is_multiline = seg_range.start_line != seg_range.end_line;
@@ -287,11 +288,70 @@ fn command_span_at(
     source: &str,
     cursor_offset: u32,
     config: tcl_lexer::LexerConfig,
+    dialect: &str,
 ) -> Option<Span> {
-    segment_commands_with_offset_and_config(source, 0, config)
-        .into_iter()
-        .find(|command| command.span.start() <= cursor_offset && cursor_offset < command.span.end())
-        .map(|command| command.span)
+    fn visit(
+        script: &str,
+        base: u32,
+        cursor: u32,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+        depth: u32,
+        best: &mut Option<Span>,
+    ) {
+        if depth > 64 {
+            return;
+        }
+        for command in segment_commands_with_offset_and_config(script, 0, config.at_depth(depth)) {
+            let span = Span::new(
+                base.saturating_add(command.span.start()),
+                base.saturating_add(command.span.end()),
+            );
+            if !(span.start() <= cursor && cursor < span.end()) {
+                continue;
+            }
+            if best.is_none_or(|old| (span.end() - span.start()) < (old.end() - old.start())) {
+                *best = Some(span);
+            }
+            let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+            for index in
+                registry.arg_indices_for_role(command.name(), &args, tcl_registry::ArgRole::Body)
+            {
+                let Some(token) = command.arg_tokens().get(index) else {
+                    continue;
+                };
+                if token.kind != tcl_lexer::TokenType::Str {
+                    continue;
+                }
+                let word = tcl_lexer::word_span_at(script, token.span);
+                let (Ok(start), Ok(end)) =
+                    (usize::try_from(word.start()), usize::try_from(word.end()))
+                else {
+                    continue;
+                };
+                if end <= start + 1 || script.as_bytes().get(start) != Some(&b'{') {
+                    continue;
+                }
+                let Some(body) = script.get(start + 1..end - 1) else {
+                    continue;
+                };
+                visit(
+                    body,
+                    base.saturating_add(u32::try_from(start + 1).unwrap_or(u32::MAX)),
+                    cursor,
+                    config,
+                    registry,
+                    depth + 1,
+                    best,
+                );
+            }
+        }
+    }
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let registry = tcl_registry::cache::registry_for_profile(profile);
+    let mut best = None;
+    visit(source, 0, cursor_offset, config, registry, 0, &mut best);
+    best
 }
 
 #[cfg(test)]
