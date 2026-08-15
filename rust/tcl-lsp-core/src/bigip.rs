@@ -43,7 +43,7 @@ use std::collections::BTreeMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use tcl_lexer::LineIndex;
-use tcl_registry::bigip::BigipRegistry;
+use tcl_registry::bigip::{BigipPropertySpec, BigipRegistry, ValueKind};
 
 use crate::document_symbols::{DocumentSymbol, LineRange, SymbolKind};
 use crate::folding::{FoldKind, FoldingRange};
@@ -299,14 +299,137 @@ pub fn folding_ranges(source: &str) -> Vec<FoldingRange> {
         });
     }
 
-    crate::folding::collect_comment_folds(
-        source,
-        tcl_lexer::LexerConfig::for_file_dialect("f5-tmsh"),
-        &mut seen,
-        &mut ranges,
-    );
+    collect_extracted_comment_folds(source, &line_index, &mut seen, &mut ranges);
     ranges.sort_by_key(|r| (r.start_line, std::cmp::Reverse(r.end_line)));
     ranges
+}
+
+/// Collect comment facts from the real tmsh and iRule regions instead of
+/// lexing a whole `.conf` as one Tcl script.  At file scope every stanza is a
+/// braced word, so that view necessarily hides its interior comments.
+///
+/// The tmsh extractor gives us only actual stanza bodies, and the iRule
+/// extractor gives us the exact Tcl body of an `ltm`/`gtm rule`; this keeps a
+/// `#` in quoted or braced data inert while preserving absolute source lines.
+fn collect_extracted_comment_folds(
+    source: &str,
+    line_index: &LineIndex,
+    seen: &mut FxHashSet<(u32, u32)>,
+    ranges: &mut Vec<FoldingRange>,
+) {
+    let tmsh_config = tcl_lexer::LexerConfig::for_file_dialect("f5-tmsh");
+    crate::folding::collect_comment_folds(source, tmsh_config, seen, ranges);
+    let bigip_registry = BigipRegistry::build();
+    let header_types = object_types_by_module(&bigip_registry);
+    for block in tcl_bigip::parser::helpers::extract_blocks(source) {
+        let body_start = block.start_offset.saturating_add(1);
+        let body_end = block.end_offset.saturating_sub(1);
+        let Some(body) = source.get(body_start..body_end) else {
+            continue;
+        };
+        let properties = parse_header(&block.header, &header_types)
+            .and_then(|(module, object_type, _)| {
+                bigip_registry
+                    .get_by_header(&module, &object_type)
+                    .map(|spec| spec.properties)
+            })
+            .unwrap_or_default();
+        collect_tmsh_comment_folds(
+            body,
+            body_start,
+            line_index,
+            properties,
+            tmsh_config,
+            seen,
+            ranges,
+        );
+    }
+
+    let irules_profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+    let irules_registry = tcl_registry::cache::registry_for_profile(irules_profile);
+    for rule in tcl_bigip::rule_extract::find_embedded_rules(source) {
+        let Some(body) = source.get(rule.body_start_offset..rule.body_end_offset) else {
+            continue;
+        };
+        let facts: FxHashSet<u32> = tcl_compiler::analyser::utils::script_comment_lines(
+            body,
+            tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
+            irules_registry,
+        )
+        .into_iter()
+        .filter_map(|line| u32::try_from(line).ok())
+        .collect();
+        crate::folding::collect_comment_folds_from_facts(
+            body,
+            line_index.line_at(u32::try_from(rule.body_start_offset).unwrap_or(u32::MAX)),
+            &facts,
+            seen,
+            ranges,
+        );
+    }
+}
+
+/// Recurse only into tmsh values the BIG-IP schema declares structured.  The
+/// parser supplies exact value spans, so a braced string property (such as a
+/// description) cannot be mistaken for a nested config region.
+fn collect_tmsh_comment_folds(
+    body: &str,
+    body_offset: usize,
+    document_lines: &LineIndex,
+    properties: &'static [BigipPropertySpec],
+    config: tcl_lexer::LexerConfig,
+    seen: &mut FxHashSet<(u32, u32)>,
+    ranges: &mut Vec<FoldingRange>,
+) {
+    let facts = tcl_lexer::comment_line_starts(body, config)
+        .into_iter()
+        .collect();
+    crate::folding::collect_comment_folds_from_facts(
+        body,
+        document_lines.line_at(u32::try_from(body_offset).unwrap_or(u32::MAX)),
+        &facts,
+        seen,
+        ranges,
+    );
+
+    for (key, property) in tcl_bigip::parser::helpers::parse_properties_with_spans(body) {
+        let Some(schema) = properties.iter().find(|schema| schema.name == key) else {
+            continue;
+        };
+        if !matches!(
+            schema.value_type,
+            ValueKind::List | ValueKind::Block | ValueKind::Object
+        ) && !schema.is_block()
+        {
+            continue;
+        }
+        let (Some(value_start), Some(value_end)) = (property.value_start, property.value_end)
+        else {
+            continue;
+        };
+        let Some(raw_value) = body.get(value_start..value_end) else {
+            continue;
+        };
+        let leading = raw_value.len().saturating_sub(raw_value.trim_start().len());
+        let trailing = raw_value.len().saturating_sub(raw_value.trim_end().len());
+        let start = value_start.saturating_add(leading);
+        let end = value_end.saturating_sub(trailing);
+        if end <= start + 1 || body.as_bytes().get(start) != Some(&b'{') {
+            continue;
+        }
+        let Some(nested) = body.get(start + 1..end - 1) else {
+            continue;
+        };
+        collect_tmsh_comment_folds(
+            nested,
+            body_offset.saturating_add(start + 1),
+            document_lines,
+            schema.block,
+            config,
+            seen,
+            ranges,
+        );
+    }
 }
 
 /// Every `{ … }` region in `source`, at any nesting depth, as
@@ -735,6 +858,36 @@ ltm virtual /Common/v {
                 .iter()
                 .any(|r| r.kind == FoldKind::Comment && (r.start_line, r.end_line) == (0, 2)),
             "{folds:?}"
+        );
+    }
+
+    #[test]
+    fn comment_blocks_in_extracted_tmsh_stanzas_fold_at_absolute_lines() {
+        let source = "ltm pool /Common/p {\n    members {\n        # pool note one\n        # pool note two\n        /Common/n:80 { address 10.0.0.1 }\n    }\n}\n";
+        let folds = folding_ranges(source);
+        assert!(
+            folds.iter().any(|range| {
+                range.kind == FoldKind::Comment && (range.start_line, range.end_line) == (2, 3)
+            }),
+            "{folds:?}"
+        );
+    }
+
+    #[test]
+    fn comment_blocks_in_embedded_irules_fold_but_data_does_not() {
+        let source = "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        # rule note one\n        # rule note two\n        log local0. \"# data\"\n    }\n}\nltm pool /Common/p {\n    description {\n        # braced data\n        # remains data\n    }\n}\n";
+        let folds = folding_ranges(source);
+        assert!(
+            folds.iter().any(|range| {
+                range.kind == FoldKind::Comment && (range.start_line, range.end_line) == (2, 3)
+            }),
+            "embedded iRule comments missing: {folds:?}"
+        );
+        assert!(
+            !folds.iter().any(|range| {
+                range.kind == FoldKind::Comment && (range.start_line, range.end_line) == (9, 10)
+            }),
+            "braced tmsh data became comments: {folds:?}"
         );
     }
 

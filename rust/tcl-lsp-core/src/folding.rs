@@ -242,23 +242,23 @@ pub(crate) fn collect_comment_folds(
     seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
-    collect_comment_folds_in_script(source, 0, config, seen, ranges);
+    let comment_lines = tcl_lexer::comment_line_starts(source, config)
+        .into_iter()
+        .collect();
+    collect_comment_folds_from_facts(source, 0, &comment_lines, seen, ranges);
 }
 
 /// Collect comment folds from one script region. Nested regions are reached
 /// only through registry-declared body arguments, so a braced data literal is
 /// never mistaken for executable Tcl source.
-fn collect_comment_folds_in_script(
+pub(crate) fn collect_comment_folds_from_facts(
     source: &str,
     base_line: u32,
-    config: tcl_lexer::LexerConfig,
+    comment_lines: &FxHashSet<u32>,
     seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     let lines: Vec<&str> = source.split('\n').collect();
-    let comment_lines: FxHashSet<u32> = tcl_lexer::comment_line_starts(source, config)
-        .into_iter()
-        .collect();
     let mut block_start: Option<usize> = None;
     for (i, _) in lines.iter().enumerate() {
         if comment_lines.contains(&u32::try_from(i).expect("line index fits u32")) {
@@ -425,13 +425,10 @@ fn collect_body_folds(
         ctx.config.at_depth(depth),
     );
     let base_line = ctx.line_index.line_at(base_offset);
-    collect_comment_folds_in_script(
-        body_source,
-        base_line,
-        ctx.config.at_depth(depth),
-        ctx.seen,
-        ctx.ranges,
-    );
+    let comment_lines = tcl_lexer::comment_line_starts(body_source, ctx.config.at_depth(depth))
+        .into_iter()
+        .collect();
+    collect_comment_folds_from_facts(body_source, base_line, &comment_lines, ctx.seen, ctx.ranges);
     for cmd in &commands {
         if cmd.argv.is_empty() {
             continue;

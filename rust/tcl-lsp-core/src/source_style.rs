@@ -657,6 +657,18 @@ mod tests {
     }
 
     #[test]
+    fn w115_reaches_a_switch_case_list_arm() {
+        let src =
+            "switch $kind {\n    alpha {\n        # swallowed \\\n        puts hidden\n    }\n}\n";
+        let diags = check_comment_continuation_for_dialect(src, "tcl9.0");
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(diags[0].code, "W115");
+        assert_eq!(diags[0].range.start_line, 2);
+        let fix = diags[0].fix.as_ref().expect("W115 has an action vector");
+        assert!(fix.new_text.contains("# puts hidden"), "{fix:?}");
+    }
+
+    #[test]
     fn w115_preserves_indent_and_existing_hash() {
         let src = "    # head \\\n    # already\nbody";
         let diags = check_comment_continuation(src);

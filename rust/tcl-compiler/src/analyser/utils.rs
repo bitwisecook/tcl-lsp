@@ -26,7 +26,8 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::{SourceMap, Span, Token};
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::ir::Statement;
 
@@ -174,83 +175,277 @@ pub fn script_comment_lines(
     config: tcl_lexer::LexerConfig,
     registry: &tcl_registry::CommandRegistry,
 ) -> HashSet<usize> {
-    #[allow(clippy::too_many_arguments)] // traversal state is intentionally explicit
+    CommentLineWalker::new(source, config, registry).collect()
+}
+
+/// Lexer-fact walk over every registry-declared script shape.  This is shared
+/// by `# noqa` and W115 so neither feature can accidentally invent a separate
+/// idea of where executable comment lines may occur.
+struct CommentLineWalker<'a> {
+    whole: &'a str,
+    config: tcl_lexer::LexerConfig,
+    registry: &'a CommandRegistry,
+    line_index: tcl_lexer::LineIndex,
+    availability: tcl_dialect::DialectSet,
+    visited: HashSet<(u32, u32)>,
+    lines: HashSet<usize>,
+}
+
+impl<'a> CommentLineWalker<'a> {
+    fn new(whole: &'a str, config: tcl_lexer::LexerConfig, registry: &'a CommandRegistry) -> Self {
+        Self {
+            whole,
+            config,
+            registry,
+            line_index: tcl_lexer::LineIndex::new(whole),
+            availability: registry
+                .profile()
+                .map_or_else(tcl_dialect::DialectSet::empty, |p| p.availability_mask),
+            visited: HashSet::new(),
+            lines: HashSet::new(),
+        }
+    }
+
+    fn collect(mut self) -> HashSet<usize> {
+        self.visit(self.whole, 0, 0, None);
+        self.lines
+    }
+
     fn visit(
-        script: &str,
-        config: tcl_lexer::LexerConfig,
-        registry: &tcl_registry::CommandRegistry,
-        whole: &str,
+        &mut self,
+        script: &'a str,
         base_offset: u32,
         depth: u32,
-        visited: &mut HashSet<(u32, u32)>,
-        lines: &mut HashSet<usize>,
+        definition_grammar: Option<&'static DefinitionBodyGrammar>,
     ) {
-        // A corrupt or recovery span may bisect UTF-8.  Do not re-slice it:
-        // comments in that ambiguous body are preferable to a server panic.
         if depth > 64
-            || !visited.insert((base_offset, u32::try_from(script.len()).unwrap_or(u32::MAX)))
+            || !self
+                .visited
+                .insert((base_offset, u32::try_from(script.len()).unwrap_or(u32::MAX)))
         {
             return;
         }
-        let whole_index = tcl_lexer::LineIndex::new(whole);
-        let base_line = whole_index.line_at(base_offset);
-        for local_line in tcl_lexer::comment_line_starts(script, config.at_depth(depth)) {
-            let global = base_line.saturating_add(local_line);
-            if let Ok(global) = usize::try_from(global) {
-                lines.insert(global);
+        let base_line = self.line_index.line_at(base_offset);
+        for local_line in tcl_lexer::comment_line_starts(script, self.config.at_depth(depth)) {
+            if let Ok(line) = usize::try_from(base_line.saturating_add(local_line)) {
+                self.lines.insert(line);
             }
         }
         for command in crate::segmenter::segment_commands_with_offset_and_config(
             script,
             0,
-            config.at_depth(depth),
+            self.config.at_depth(depth),
         ) {
             let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-            for index in
-                registry.arg_indices_for_role(command.name(), &args, tcl_registry::ArgRole::Body)
+            let name = command.name();
+            let member = definition_grammar.and_then(|grammar| grammar.member(name));
+            let body_indices = member.map_or_else(
+                || {
+                    self.registry
+                        .arg_indices_for_role(name, &args, ArgRole::Body)
+                },
+                |member| {
+                    member_body_indices(
+                        definition_grammar.expect("member has grammar"),
+                        member,
+                        &args,
+                        self.availability,
+                    )
+                },
+            );
+            let next_grammar =
+                next_definition_grammar(self.registry, name, &args, definition_grammar, member);
+            let case_list = self
+                .registry
+                .case_invocation(name, &args, self.availability)
+                .and_then(|(spec, invocation)| {
+                    invocation.clause_list_index.map(|index| (spec, index))
+                });
+
+            if let Some((spec, index)) = case_list
+                && let Some(&token) = command.arg_tokens().get(index)
+                && token.kind == tcl_lexer::TokenType::Str
             {
-                let Some(token) = command.arg_tokens().get(index) else {
+                self.visit_case_list(script, token, spec, base_offset, depth);
+            }
+
+            for index in body_indices {
+                let Some(&token) = command.arg_tokens().get(index) else {
                     continue;
                 };
                 if token.kind != tcl_lexer::TokenType::Str {
                     continue;
                 }
-                let whole_word = tcl_lexer::word_span_at(script, token.span);
-                let start = usize::try_from(whole_word.start()).unwrap_or(script.len());
-                let end = usize::try_from(whole_word.end()).unwrap_or(script.len());
-                if end <= start + 1 || script.as_bytes().get(start) != Some(&b'{') {
+                if case_list.is_some_and(|(_, case_index)| case_index == index) {
                     continue;
                 }
-                let Some(body) = script.get(start + 1..end - 1) else {
-                    continue;
-                };
-                visit(
-                    body,
-                    config,
-                    registry,
-                    whole,
-                    base_offset.saturating_add(u32::try_from(start + 1).unwrap_or(u32::MAX)),
-                    depth.saturating_add(1),
-                    visited,
-                    lines,
-                );
+                self.visit_braced_word(script, token, base_offset, depth, next_grammar);
             }
+            self.visit_lambda_literals(script, &command, name, &args, base_offset, depth);
         }
     }
 
-    let mut lines = HashSet::new();
-    let mut visited = HashSet::new();
-    visit(
-        source,
-        config,
-        registry,
-        source,
-        0,
-        0,
-        &mut visited,
-        &mut lines,
-    );
-    lines
+    fn visit_braced_word(
+        &mut self,
+        script: &'a str,
+        token: tcl_lexer::Token,
+        base_offset: u32,
+        depth: u32,
+        grammar: Option<&'static DefinitionBodyGrammar>,
+    ) {
+        let whole_word = tcl_lexer::word_span_at(script, token.span);
+        let start = usize::try_from(whole_word.start()).unwrap_or(script.len());
+        let end = usize::try_from(whole_word.end()).unwrap_or(script.len());
+        if end <= start + 1 || script.as_bytes().get(start) != Some(&b'{') {
+            return;
+        }
+        let Some(body) = script.get(start + 1..end - 1) else {
+            return;
+        };
+        self.visit(
+            body,
+            base_offset.saturating_add(u32::try_from(start + 1).unwrap_or(u32::MAX)),
+            depth.saturating_add(1),
+            grammar,
+        );
+    }
+
+    fn visit_case_list(
+        &mut self,
+        script: &'a str,
+        token: tcl_lexer::Token,
+        spec: tcl_registry::CaseListSpec,
+        base_offset: u32,
+        depth: u32,
+    ) {
+        let content_start = token.span.start() as usize + token.content_offset as usize;
+        let content_end = token.span.end() as usize;
+        let Some(list) = script.get(content_start..content_end) else {
+            return;
+        };
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: spec.clause_flags,
+            clause_value_flags: spec.clause_value_flags,
+        };
+        for clause in tcl_syntax::case_list::split_case_list(list, &shape) {
+            let Some(body) = clause.body.filter(|body| body.braced) else {
+                continue;
+            };
+            let start = content_start + body.start + 1;
+            let end = content_start + body.end;
+            let Some(arm) = script.get(start..end) else {
+                continue;
+            };
+            self.visit(
+                arm,
+                base_offset.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
+                depth.saturating_add(1),
+                None,
+            );
+        }
+    }
+
+    fn visit_lambda_literals(
+        &mut self,
+        script: &'a str,
+        command: &crate::segmenter::SegmentedCommand,
+        name: &str,
+        args: &[&str],
+        base_offset: u32,
+        depth: u32,
+    ) {
+        for index in self
+            .registry
+            .arg_indices_for_role(name, args, ArgRole::LambdaLiteral)
+        {
+            let Some(&token) = command.arg_tokens().get(index) else {
+                continue;
+            };
+            let Some(body) = crate::lambda_literal::split_lambda_literal(script, token)
+                .and_then(|literal| literal.braced_body())
+            else {
+                continue;
+            };
+            let start = body.start() as usize;
+            let end = body.end() as usize;
+            let Some(lambda) = script.get(start..end) else {
+                continue;
+            };
+            self.visit(
+                lambda,
+                base_offset.saturating_add(body.start()),
+                depth.saturating_add(1),
+                None,
+            );
+        }
+    }
+}
+
+fn member_body_indices(
+    grammar: &DefinitionBodyGrammar,
+    member: &'static tcl_registry::definer::MemberSpec,
+    args: &[&str],
+    availability: tcl_dialect::DialectSet,
+) -> Vec<usize> {
+    if member.unavailable_option_for(args, availability).is_some() {
+        return Vec::new();
+    }
+    match member.kind {
+        MemberKind::Flat => member
+            .indices_for_call_in(args, availability, ArgRole::Body)
+            .filter(|index| *index < args.len())
+            .collect(),
+        MemberKind::Wrapper => {
+            let Some((inner, rest)) = args.split_first() else {
+                return Vec::new();
+            };
+            if let Some(inner_member) = grammar.member(inner) {
+                return member_body_indices(grammar, inner_member, rest, availability)
+                    .into_iter()
+                    .map(|index| index + 1)
+                    .collect();
+            }
+            if member.wrapper_block_body {
+                member
+                    .indices_for_call_in(args, availability, ArgRole::Body)
+                    .filter(|index| *index < args.len())
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        }
+        MemberKind::FlagKeyed => args
+            .iter()
+            .enumerate()
+            .filter_map(|(index, arg)| {
+                ((*arg == "-get" || *arg == "-set") && index + 1 < args.len()).then_some(index + 1)
+            })
+            .collect(),
+    }
+}
+
+fn next_definition_grammar(
+    registry: &CommandRegistry,
+    name: &str,
+    args: &[&str],
+    current: Option<&'static DefinitionBodyGrammar>,
+    member: Option<&'static tcl_registry::definer::MemberSpec>,
+) -> Option<&'static DefinitionBodyGrammar> {
+    if let Some(grammar) = registry.get(name).and_then(|spec| spec.definition_body) {
+        return Some(grammar);
+    }
+    let Some(member) = member else {
+        return current;
+    };
+    if member.wrapper_block_body
+        && args
+            .first()
+            .is_some_and(|inner| current.is_some_and(|grammar| grammar.member(inner).is_none()))
+    {
+        current
+    } else {
+        None
+    }
 }
 
 /// Scan `source` for inline ``# tcl-lsp: stub <name> ...``
@@ -1530,6 +1725,52 @@ mod tests {
         assert!(
             map.is_empty(),
             "braced data must not become a directive: {map:?}"
+        );
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_reaches_case_list_arms() {
+        let src = "switch $kind {\n    alpha {\n        # noqa: W305\n        puts \"\u{202e}\"\n    }\n}\n";
+        let map = parse_noqa_line_suppressions(src);
+        let codes = map.get(&3).expect("switch arm target line");
+        assert!(codes.contains("W305"), "{map:?}");
+    }
+
+    #[test]
+    fn script_comment_lines_reaches_expect_clause_flags_and_lambda_bodies() {
+        let src = "expect {\n    -re {ready} {\n        # expect arm\n        # continuation \\\n        hidden\n    }\n}\napply {{} {\n    # lambda body\n    puts ok\n}}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("expect");
+        let comments = script_comment_lines(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("expect"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            comments.contains(&2),
+            "Expect comment missing: {comments:?}"
+        );
+        assert!(
+            comments.contains(&3),
+            "continued comment missing: {comments:?}"
+        );
+        assert!(
+            comments.contains(&8),
+            "lambda comment missing: {comments:?}"
+        );
+    }
+
+    #[test]
+    fn script_comment_lines_reaches_definition_member_bodies() {
+        let src = "oo::class create Example {\n    method run {} {\n        # member body\n        puts ok\n    }\n}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let comments = script_comment_lines(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            comments.contains(&2),
+            "definition-member comment missing: {comments:?}"
         );
     }
 
