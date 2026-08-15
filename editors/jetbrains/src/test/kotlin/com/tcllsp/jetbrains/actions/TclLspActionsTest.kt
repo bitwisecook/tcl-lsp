@@ -325,6 +325,32 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun exactCustomCompletionMatchesItsCanonicalOnCode() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -code 42","completion":"custom","completion_code":42}],"handlers":[
+              {"kind_handler":"on","match":"42","completion_code":42,"fallthrough":false,"body":[{"kind":"action","label":"handled"}]},
+              {"kind_handler":"on","match":"43","completion_code":43,"fallthrough":false,"body":[{"kind":"action","label":"wrong"}]}
+            ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        assertContains(mermaid, "handled")
+        kotlin.test.assertFalse(mermaid.contains("wrong"), mermaid)
+        assertContains(mermaid, "after")
+    }
+
+    @Test
+    fun wrappedMinusOneCustomCompletionMatchesOnMinusOne() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -code 4294967295","completion":"custom","completion_code":-1}],"handlers":[
+              {"kind_handler":"on","match":"-1","completion_code":-1,"fallthrough":false,"body":[{"kind":"action","label":"handled minus one"}]}
+            ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        assertContains(mermaid, "handled minus one")
+        assertContains(mermaid, "after")
+    }
+
+    @Test
     fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
         fun render(finallyCompletion: String? = null): String {
             val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""

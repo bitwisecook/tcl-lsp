@@ -57,6 +57,7 @@ enum DiagramCompletion {
     Continue,
     Dynamic,
     DynamicReturnOrError,
+    ExactCustom(i32),
     ProcessExit,
     Terminal,
 }
@@ -71,6 +72,7 @@ impl DiagramCompletion {
             Self::Continue => Some("continue"),
             Self::Dynamic => Some("dynamic"),
             Self::DynamicReturnOrError => Some("dynamic_return_or_error"),
+            Self::ExactCustom(_) => Some("custom"),
             Self::ProcessExit => Some("process_exit"),
             Self::Terminal => Some("terminal"),
         }
@@ -108,8 +110,8 @@ fn command_completion(
             ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Continue) => {
                 DiagramCompletion::Continue
             }
-            ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Other(_)) => {
-                DiagramCompletion::Terminal
+            ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Other(code)) => {
+                DiagramCompletion::ExactCustom(code)
             }
             ExactInvocationCompletion::ProcessExit => DiagramCompletion::ProcessExit,
         };
@@ -254,10 +256,13 @@ fn action_node(display: &str, args: &[String]) -> Value {
 
 /// Add the optional completion field to an action-like node.
 fn with_completion(mut node: Value, completion: DiagramCompletion) -> Value {
-    if let Some(completion) = completion.as_str()
+    if let Some(completion_str) = completion.as_str()
         && let Some(object) = node.as_object_mut()
     {
-        object.insert("completion".to_owned(), json!(completion));
+        object.insert("completion".to_owned(), json!(completion_str));
+        if let DiagramCompletion::ExactCustom(code) = completion {
+            object.insert("completion_code".to_owned(), json!(code));
+        }
     }
     node
 }
@@ -867,6 +872,27 @@ mod tests {
     }
 
     #[test]
+    fn exact_custom_return_codes_keep_their_integer_payload() {
+        let data = diagram_data_for_dialect(
+            "proc paths {} { try { return -level 0 -code 42 x } finally {} ; try { return -level 0 -code 4294967295 x } finally {} }",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/0/body/0/completion"),
+            Some(&Value::String("custom".to_owned()))
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/0/body/0/completion_code"),
+            Some(&Value::from(42))
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/1/body/0/completion_code"),
+            Some(&Value::from(-1))
+        );
+    }
+
+    #[test]
     fn handler_completion_codes_use_the_dialect_numeric_grammar() {
         let source = "proc paths {} { try { return -options $options payload } on 02 {message options} { set two yes } on +2 {message options} { set duplicate yes } on 0x2 {message options} { set duplicate_hex yes } on return {message options} { set symbolic yes } on 2147483648 {message options} { set wrapped_min yes } on 4294967295 {message options} { set wrapped_minus_one yes } on -2147483649 {message options} { set invalid_low yes } on nonsense {message options} { set invalid yes } }";
         // `try` itself begins in Tcl 8.6, so diagram handlers can only be
@@ -992,6 +1018,7 @@ mod tests {
                     on 42 {message options} { lappend log first-42 } \
                     on 42 {message options} { lappend log duplicate-42 } \
                     on 43 {message options} { lappend log code-43 } \
+                    on -1 {message options} { lappend log minus-one } \
                     on error {message options} { lappend log symbolic-error } \
                     finally { lappend log finally }
                 return $log
@@ -1013,6 +1040,7 @@ mod tests {
             puts [probe_source_order]
             puts [probe_custom_code 42]
             puts [probe_custom_code 43]
+            puts [probe_custom_code 4294967295]
             puts [probe_custom_code error]
         ";
         let mut child = Command::new("tclsh")
@@ -1037,7 +1065,7 @@ mod tests {
                 "ok finally after\nerror finally after\nreturn finally after\n",
                 "break finally after\ncontinue finally after\n",
                 "broad-trap finally\n",
-                "first-42 finally\ncode-43 finally\nsymbolic-error finally\n",
+                "first-42 finally\ncode-43 finally\nminus-one finally\nsymbolic-error finally\n",
             )
         );
     }

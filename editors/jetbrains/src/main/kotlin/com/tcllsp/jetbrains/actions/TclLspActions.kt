@@ -143,7 +143,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         if (from != null) out += if (caption == null) "$from --> $to" else "$from -->|${label(caption)}| $to"
     }
 
-    data class Tail(val id: String, val completion: DiagramCompletion = DiagramCompletion.NORMAL)
+    data class Tail(val id: String, val completion: DiagramCompletion = DiagramCompletion.NORMAL, val completionCode: Int? = null)
 
     fun completion(item: JsonObject): DiagramCompletion = when (item.string("completion")) {
         "error" -> DiagramCompletion.ERROR
@@ -152,6 +152,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         "continue" -> DiagramCompletion.CONTINUE
         "dynamic" -> DiagramCompletion.DYNAMIC
         "dynamic_return_or_error" -> DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
+        "custom" -> DiagramCompletion.EXACT_CUSTOM
         "process_exit" -> DiagramCompletion.PROCESS_EXIT
         "terminal" -> DiagramCompletion.TERMINAL
         else -> DiagramCompletion.NORMAL
@@ -294,6 +295,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             DiagramCompletion.DYNAMIC -> false
                             DiagramCompletion.DYNAMIC_RETURN_OR_ERROR ->
                                 (handler.data.string("match") in listOf("error", "return", "1", "2"))
+                            DiagramCompletion.EXACT_CUSTOM -> false
                             DiagramCompletion.PROCESS_EXIT -> false
                             DiagramCompletion.TERMINAL -> false
                         }
@@ -379,10 +381,17 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             continue
                         }
                         val matches = handlers.withIndex().filter { (_, handler) -> handlerMatches(handler, bodyExit.completion) }
+                        val exactCustomMatches = if (bodyExit.completion == DiagramCompletion.EXACT_CUSTOM) {
+                            handlers.withIndex().filter { (_, handler) ->
+                                handler.data.string("kind_handler") == "on" &&
+                                    handler.data.get("completion_code")?.takeIf { it.isJsonPrimitive }?.asInt == bodyExit.completionCode
+                            }
+                        } else emptyList()
+                        val effectiveMatches = if (exactCustomMatches.isNotEmpty()) exactCustomMatches else matches
                         val errorIsCertainlyHandled = bodyExit.completion == DiagramCompletion.ERROR && matches.any {
                             (_, handler) -> handler.data.string("kind_handler") == "on"
                         }
-                        if (matches.isEmpty() ||
+                        if (effectiveMatches.isEmpty() ||
                             (bodyExit.completion == DiagramCompletion.ERROR && !errorIsCertainlyHandled)
                         ) {
                             // A `trap` pattern needs error-code detail which
@@ -392,13 +401,13 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             // unhandled error as well.
                             exits += bodyExit
                         }
-                        if (matches.isNotEmpty()) {
+                        if (effectiveMatches.isNotEmpty()) {
                             // `on` clauses are selected in source order.  A
                             // `trap` pattern is not represented by the
                             // structured IR's completion code, so every
                             // preceding trap is a possible path; a matching
                             // `on` clause then catches all remaining paths.
-                            for ((index, handler) in matches) {
+                            for ((index, handler) in effectiveMatches) {
                                 connect(bodyExit.id, handler.start, handler.data.string("kind_handler"))
                                 exits += renderHandler(index)
                                 if (handler.data.string("kind_handler") == "on" && bodyExit.completion != DiagramCompletion.DYNAMIC && bodyExit.completion != DiagramCompletion.DYNAMIC_RETURN_OR_ERROR) break
@@ -436,7 +445,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         // path, exactly as Tcl specifies.
                         val propagated = finallyExits.flatMap { finalExit ->
                             if (finalExit.completion == DiagramCompletion.NORMAL) {
-                                finallyInputs.map { Tail(finalExit.id, it.completion) }
+                                finallyInputs.map { Tail(finalExit.id, it.completion, it.completionCode) }
                             } else {
                                 listOf(finalExit)
                             }
@@ -453,10 +462,11 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                     val step = node(text)
                     connect(active, step)
                     val outcome = completion(item)
+                    val completionCode = item.get("completion_code")?.takeIf { it.isJsonPrimitive }?.asInt
                     if (outcome == DiagramCompletion.NORMAL) {
                         active = listOf(Tail(step))
                     } else {
-                        abrupt += Tail(step, outcome)
+                        abrupt += Tail(step, outcome, completionCode)
                         active = emptyList()
                     }
                 }
@@ -490,7 +500,7 @@ private class MermaidIds {
 }
 
 /** Completion states defined by the shared `tcl-diagram` JSON contract. */
-private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, DYNAMIC_RETURN_OR_ERROR, PROCESS_EXIT, TERMINAL }
+private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, DYNAMIC_RETURN_OR_ERROR, EXACT_CUSTOM, PROCESS_EXIT, TERMINAL }
 private sealed class PossibleCompletion {
     data object NORMAL : PossibleCompletion()
     data object ERROR : PossibleCompletion()
