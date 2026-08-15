@@ -77,11 +77,36 @@ class TclLspActionsTest {
         val payload = JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"if","branches":[
               {"condition":"a","body":[{"kind":"action","label":"then"}]},
+              {"condition":"b","body":[{"kind":"action","label":"elseif"}]},
               {"condition":"else","body":[{"kind":"action","label":"else"}]}
-            ]}]}],"procedures":[]}""".trimIndent()
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}""".trimIndent()
         )
         val mermaid = assertNotNull(renderDiagramMermaid(payload))
-        assertContains(mermaid, "|else|")
+        assertContains(mermaid, "n1 -->|a| n2")
+        assertContains(mermaid, "n1 -->|b| n4")
+        assertContains(mermaid, "n1 -->|else| n6")
+        assertContains(mermaid, "n3 --> n8")
+        assertContains(mermaid, "n5 --> n8")
+        assertContains(mermaid, "n7 --> n8")
+        assertContains(mermaid, "n8 --> n9")
         kotlin.test.assertFalse(mermaid.contains("|false|"))
+    }
+
+    @Test
+    fun nestedConditionJoinsPropagateToOuterContinuation() {
+        val payload = JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"if","branches":[
+              {"condition":"outer","body":[{"kind":"if","branches":[
+                {"condition":"inner","body":[{"kind":"action","label":"inner then"}]}
+              ]}]},
+              {"condition":"other","body":[{"kind":"action","label":"other"}]}
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}""".trimIndent()
+        )
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "n5 --> n6")
+        assertContains(mermaid, "n3 -->|false| n6")
+        assertContains(mermaid, "n6 --> n9")
+        assertContains(mermaid, "n8 --> n9")
+        assertContains(mermaid, "n9 --> n10")
     }
 }
