@@ -4019,8 +4019,12 @@ impl Vm {
             }
         }
         let key = CommandSidecarKey::visible(key);
+        let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in &own {
+            if !sidecar.is_attached() {
+                break;
+            }
             if entry.has_op("enter") {
                 let r = self.run_cmd_trace_callback(
                     entry,
@@ -4033,6 +4037,9 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in &own {
+            if !sidecar.is_attached() {
+                break;
+            }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
                 self.exec_step_scopes.push(Rc::clone(entry));
                 pushed += 1;
@@ -4040,7 +4047,7 @@ impl Vm {
         }
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: self.active_sidecar(key),
+            key: sidecar,
             step_scopes: pushed,
         };
         match self.dispatch_words_inner(f, words) {
@@ -4113,6 +4120,9 @@ impl Vm {
             && let Some(entries) = self.exec_traces.get(&key).cloned()
         {
             for e in entries {
+                if !ctx.key.is_attached() {
+                    break;
+                }
                 if e.has_op("leave") {
                     let r = self.run_cmd_trace_callback(&e, &args("leave"));
                     if !r.code.is_ok() {
@@ -4337,8 +4347,12 @@ impl Vm {
             }
         }
         let key = CommandSidecarKey::visible(key);
+        let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in &own {
+            if !sidecar.is_attached() {
+                break;
+            }
             if entry.has_op("enter") {
                 let r = self.run_cmd_trace_callback(
                     entry,
@@ -4351,6 +4365,9 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in &own {
+            if !sidecar.is_attached() {
+                break;
+            }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
                 self.exec_step_scopes.push(Rc::clone(entry));
                 pushed += 1;
@@ -4358,7 +4375,7 @@ impl Vm {
         }
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: self.active_sidecar(key),
+            key: sidecar,
             step_scopes: pushed,
         };
         let c = self.invoke_command_inner(name, argv);
@@ -4409,12 +4426,16 @@ impl Vm {
                 }
             }
         }
+        let sidecar = self.active_sidecar(trace_key.clone());
         let own = self
             .exec_traces
             .get(&trace_key)
             .cloned()
             .unwrap_or_default();
         for entry in &own {
+            if !sidecar.is_attached() {
+                break;
+            }
             if entry.has_op("enter") {
                 let r = self.run_cmd_trace_callback(
                     entry,
@@ -4427,18 +4448,20 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in &own {
+            if !sidecar.is_attached() {
+                break;
+            }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
                 self.exec_step_scopes.push(Rc::clone(entry));
                 pushed += 1;
             }
         }
-        let sidecar = trace_key.clone();
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: self.active_sidecar(trace_key),
+            key: sidecar,
             step_scopes: pushed,
         };
-        let c = self.invoke_resolved_command_inner(display_name, command, argv, Some(sidecar));
+        let c = self.invoke_resolved_command_inner(display_name, command, argv, Some(trace_key));
         match self.finish_exec_leave(&ctx, &c) {
             Some(replacement) => replacement,
             None => c,

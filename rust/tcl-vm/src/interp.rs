@@ -421,6 +421,14 @@ impl CommandSidecarHandle {
     pub(crate) fn key(&self) -> Option<CommandSidecarKey> {
         self.0.borrow().clone()
     }
+
+    /// Whether this in-flight operation still belongs to a command binding.
+    /// Deletion clears the cell before Tcl callbacks run; trace iteration must
+    /// re-check this after every re-entrant callback rather than continuing a
+    /// cloned pre-mutation trace list.
+    pub(crate) fn is_attached(&self) -> bool {
+        self.0.borrow().is_some()
+    }
 }
 
 impl CommandSidecarKey {

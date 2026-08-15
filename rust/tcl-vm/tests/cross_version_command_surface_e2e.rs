@@ -994,6 +994,21 @@ set code [catch {p} result]
 puts [list $code $result $log [interp hidden {}]]
 ";
 
+// A leave callback can delete the running binding and install a replacement.
+// Tcl stops the cloned old trace list at that lifecycle boundary: later old
+// callbacks must not run against the replacement generation.
+const LEAVE_TRACE_DELETE_RECREATE_STOPS_OLD_LIST: &str = r"
+set log {}
+proc a {} {return old}
+proc first args {lappend ::log A; rename a {}; proc a {} {return new}}
+proc second args {lappend ::log B}
+trace add execution a leave first
+trace add execution a leave second
+set old [a]
+set new [a]
+puts [list $old $log $new]
+";
+
 #[test]
 fn active_coroutine_and_execution_trace_follow_self_hide() {
     for profile in [
@@ -1023,6 +1038,10 @@ fn active_coroutine_and_execution_trace_follow_self_hide() {
         assert_eq!(
             profile_output(SELF_HIDING_TRACED_ERROR, profile),
             "1 boom {{p enter} {p 1 boom leave}} held"
+        );
+        assert_eq!(
+            profile_output(LEAVE_TRACE_DELETE_RECREATE_STOPS_OLD_LIST, profile),
+            "old A new"
         );
     }
 }
@@ -1055,6 +1074,7 @@ fn self_hide_vectors_match_real_tcl_when_available() {
                 SELF_HIDING_TRACED_ERROR,
                 "1 boom {{p enter} {p 1 boom leave}} held",
             ),
+            (LEAVE_TRACE_DELETE_RECREATE_STOPS_OLD_LIST, "old A new"),
         ] {
             if let Some(actual) = tclsh_output(env, names, script) {
                 assert_eq!(actual, expected, "{env}");
