@@ -6816,6 +6816,73 @@ mod tests {
         assert_eq!(clauses[0].body_index, Some(4));
     }
 
+    #[test]
+    fn case_list_invocation_abstains_on_empty_and_truncated_shapes() {
+        let switch = crate::registry_for_dialect("tcl9.0");
+        for args in [
+            &[][..],
+            &["subject"][..],
+            &["-regexp"][..],
+            &["-regexp", "subject"][..],
+            &["--"][..],
+        ] {
+            assert!(
+                switch
+                    .case_invocation("switch", args, DialectSet::TCL90)
+                    .is_none(),
+                "truncated switch invocation must abstain: {args:?}",
+            );
+        }
+
+        let expect = crate::registry_for_dialect("expect");
+        for args in [
+            &[][..],
+            &["-brace"][..],
+            &["-nobrace"][..],
+            &["-timeout"][..],
+            &["-timeout", "5"][..],
+        ] {
+            assert!(
+                expect
+                    .case_invocation("expect", args, DialectSet::EXPECT)
+                    .is_none(),
+                "truncated Expect invocation must abstain: {args:?}",
+            );
+        }
+
+        // Exercise the generic selector branch independently of either
+        // built-in descriptor. The selector is intentionally outside the
+        // clause-flag vocabulary, so a complete call consumes it as shape
+        // syntax while a missing subject/body must simply abstain.
+        let custom = crate::CaseListSpec {
+            clause_force_inline_flag: Some("-inline"),
+            allow_omitted_final_body: false,
+            ..crate::CaseListSpec::EXPECT
+        };
+        for args in [&[][..], &["-inline"][..], &["-inline", "subject"][..]] {
+            assert!(
+                custom.invocation(args, &[], DialectSet::ALL_TCL).is_none(),
+                "truncated custom selector invocation must abstain: {args:?}",
+            );
+        }
+        assert!(
+            custom
+                .invocation(&["-inline", "pattern", "{body}"], &[], DialectSet::ALL_TCL,)
+                .is_some(),
+            "complete custom inline-selector invocation remains valid",
+        );
+
+        // A dynamic two-word switch cannot expose a static body region, but
+        // asking for roles must remain a conservative abstention rather than
+        // a panic. The compiler's W304 regression separately proves Tcl's
+        // optionless two-word rule is retained for diagnostics.
+        assert!(
+            switch
+                .arg_indices_for_role("switch", &["$subject", "$cases"], ArgRole::Body)
+                .is_empty(),
+        );
+    }
+
     /// The whole registry-declared boundary surface, resolved by name: every
     /// command that widens a file's caller set reports its kind, a
     /// `::`-qualified spelling resolves the same, and a command that does

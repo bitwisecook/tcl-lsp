@@ -580,11 +580,18 @@ impl CaseListSpec {
             && self
                 .clause_force_list_shape
                 .is_some_and(|shape| shape.matches(args, self.clause_force_list_flag, i));
-        let force_inline =
-            !outer_options_ended && self.clause_force_inline_flag == args.get(i).copied();
+        let force_inline = !outer_options_ended
+            && self
+                .clause_force_inline_flag
+                .is_some_and(|flag| args.get(i).copied() == Some(flag));
         if force_list {
             i += 1;
-        } else if force_inline && shape.resolve_flag(args[i]).is_none() {
+        } else if force_inline
+            && args
+                .get(i)
+                .and_then(|word| shape.resolve_flag(word))
+                .is_none()
+        {
             // When the inline selector is itself a clause flag (Expect's
             // `-nobrace`), leave it to `inline_clauses` so consumers retain
             // its decorator location. A selector outside that vocabulary is
