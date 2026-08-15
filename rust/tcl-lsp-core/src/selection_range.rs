@@ -647,4 +647,32 @@ mod tests {
         }
         assert!(ranges.windows(2).all(|pair| pair[0].range != pair[1].range));
     }
+
+    #[test]
+    fn nested_proc_command_is_innermost_with_and_without_analysis() {
+        let src = "proc p {} {\n if {1} {\n  set value [string toupper \\\n+    local]\n }\n}\n";
+        let cursor = u32::try_from(src.find("local").unwrap()).unwrap();
+        let source_len = u32::try_from(src.len()).unwrap();
+        let analysed = analyse(src);
+        for analysis in [None, Some(&analysed)] {
+            let span = command_span_at(
+                src,
+                cursor,
+                tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+                "tcl9.0",
+            )
+            .expect("inner command");
+            assert!(span.start() > 0 && span.end() - span.start() < source_len);
+            let ranges = selection_range(src, 3, 5, analysis);
+            assert!(
+                ranges.windows(2).all(|pair| {
+                    (pair[1].range.start_line, pair[1].range.start_character)
+                        <= (pair[0].range.start_line, pair[0].range.start_character)
+                        && (pair[0].range.end_line, pair[0].range.end_character)
+                            <= (pair[1].range.end_line, pair[1].range.end_character)
+                }),
+                "{ranges:?}"
+            );
+        }
+    }
 }

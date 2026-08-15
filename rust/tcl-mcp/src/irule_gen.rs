@@ -1145,4 +1145,13 @@ mod tests {
             vec!["live".to_owned()]
         );
     }
+
+    #[test]
+    fn object_refs_recurse_into_if_and_command_substitution() {
+        let src = "when HTTP_REQUEST { if {1} { pool nested_pool }; set hit [class match [HTTP::uri] equals uri_dg] }";
+        let blocks = tcl_irules::when_blocks(src);
+        let refs = extract_object_refs(src, &blocks);
+        assert_eq!(refs.pools, vec!["nested_pool".to_owned()]);
+        assert!(refs.datagroups.contains(&"uri_dg".to_owned()));
+    }
 }
