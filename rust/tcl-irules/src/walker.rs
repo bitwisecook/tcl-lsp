@@ -347,8 +347,10 @@ fn walk(
                 continue;
             }
             recursed.insert(key);
-            let mut child = scope.child();
-            recurse_token(ctx, tok, &mut child, out, depth + 1);
+            // Tcl evaluates substitutions left-to-right in the caller's
+            // frame. A set inside a command substitution therefore changes
+            // the value a following command (or sibling substitution) sees.
+            recurse_token(ctx, tok, scope, out, depth + 1);
         }
     }
 }
@@ -717,6 +719,26 @@ mod tests {
                       pool $p\n\
                       }\n";
         assert!(ref_names(source).is_empty());
+    }
+
+    #[test]
+    fn command_substitution_set_effects_stay_in_the_live_scope() {
+        let source = "when HTTP_REQUEST {\n\
+                      set p /Common/old\n\
+                      puts [set p /Common/new]\n\
+                      pool $p\n\
+                      }\n";
+        assert_eq!(ref_names(source), vec!["/Common/new".to_owned()]);
+    }
+
+    #[test]
+    fn ordered_sibling_command_substitutions_share_effects() {
+        let source = "when HTTP_REQUEST {\n\
+                      set p /Common/old\n\
+                      puts [set p /Common/first] [set p /Common/second]\n\
+                      pool $p\n\
+                      }\n";
+        assert_eq!(ref_names(source), vec!["/Common/second".to_owned()]);
     }
 
     /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual

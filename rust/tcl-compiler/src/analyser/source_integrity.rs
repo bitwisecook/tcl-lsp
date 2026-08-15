@@ -111,4 +111,10 @@ mod tests {
             "the case-list arm's noqa must reach the next physical line"
         );
     }
+
+    #[test]
+    fn alias_declared_proc_body_noqa_suppresses_the_following_source_diagnostic() {
+        let source = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
+        assert!(filtered_bidi_control_diagnostics(source, &HashSet::new(), "tcl9.0").is_empty());
+    }
 }

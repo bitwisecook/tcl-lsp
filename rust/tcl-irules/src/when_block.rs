@@ -30,7 +30,8 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
     segment_commands_with_offset_and_config(source, 0, LexerConfig::for_file_dialect("f5-irules"))
         .into_iter()
         .filter_map(|command| {
-            (command.name() == "when")
+            (tcl_syntax::naming::canonical_written_command(command.name()).trim_start_matches("::")
+                == "when")
                 .then_some(command)
                 .and_then(|command| {
                     let event = command.args().first()?;
@@ -85,6 +86,20 @@ mod tests {
         assert_eq!(
             &source[blocks[0].body_span.as_range()],
             " log local0. \"legacy "
+        );
+    }
+
+    #[test]
+    fn recognises_canonical_global_when_spellings() {
+        let source =
+            "::when HTTP_REQUEST { pool /Common/a }\n:::when RULE_INIT { pool /Common/b }\n";
+        let blocks = when_blocks(source);
+        assert_eq!(
+            blocks
+                .iter()
+                .map(|block| block.event.as_str())
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST", "RULE_INIT"]
         );
     }
 }

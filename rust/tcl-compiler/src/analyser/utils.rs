@@ -185,6 +185,7 @@ struct CommentLineWalker<'a> {
     whole: &'a str,
     config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
+    identities: crate::head_identity::HeadIdentityMap,
     line_index: tcl_lexer::LineIndex,
     availability: tcl_dialect::DialectSet,
     visited: HashSet<(u32, u32)>,
@@ -197,6 +198,9 @@ impl<'a> CommentLineWalker<'a> {
             whole,
             config,
             registry,
+            identities: crate::head_identity::command_head_identities_with_config(
+                whole, config, registry,
+            ),
             line_index: tcl_lexer::LineIndex::new(whole),
             availability: registry
                 .profile()
@@ -237,12 +241,18 @@ impl<'a> CommentLineWalker<'a> {
             self.config.at_depth(depth),
         ) {
             let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-            let name = command.name();
-            let member = definition_grammar.and_then(|grammar| grammar.member(name));
+            let written = command.name();
+            let at = base_offset
+                .saturating_add(command.argv.first().map_or(0, |token| token.span.start()));
+            let name = registry_head(
+                self.identities.head_words(written, at).resolved,
+                self.registry,
+            );
+            let member = definition_grammar.and_then(|grammar| grammar.member(&name));
             let body_indices = member.map_or_else(
                 || {
                     self.registry
-                        .arg_indices_for_role(name, &args, ArgRole::Body)
+                        .arg_indices_for_role(&name, &args, ArgRole::Body)
                 },
                 |member| {
                     member_body_indices(
@@ -254,10 +264,10 @@ impl<'a> CommentLineWalker<'a> {
                 },
             );
             let next_grammar =
-                next_definition_grammar(self.registry, name, &args, definition_grammar, member);
+                next_definition_grammar(self.registry, &name, &args, definition_grammar, member);
             let case_list = self
                 .registry
-                .case_invocation(name, &args, self.availability)
+                .case_invocation(&name, &args, self.availability)
                 .and_then(|(spec, invocation)| {
                     invocation.clause_list_index.map(|index| (spec, index))
                 });
@@ -281,7 +291,7 @@ impl<'a> CommentLineWalker<'a> {
                 }
                 self.visit_braced_word(script, token, base_offset, depth, next_grammar);
             }
-            self.visit_lambda_literals(script, &command, name, &args, base_offset, depth);
+            self.visit_lambda_literals(script, &command, &name, &args, base_offset, depth);
             self.visit_command_substitutions(script, &command, base_offset, depth);
         }
     }
@@ -414,6 +424,23 @@ impl<'a> CommentLineWalker<'a> {
             );
         }
     }
+}
+
+/// Convert a proven command identity into the registry's canonical global
+/// spelling.  A leading namespace root is Tcl syntax, not part of a core
+/// command's registry key; qualified names that the registry owns remain
+/// intact. Rebound identities are already the empty string and fail closed.
+fn registry_head(head: &str, registry: &CommandRegistry) -> String {
+    let canonical = tcl_syntax::naming::canonical_written_command(head);
+    if registry.get_exact(&canonical).is_some() {
+        return canonical;
+    }
+    if let Some(rooted) = canonical.strip_prefix("::")
+        && registry.get_exact(rooted).is_some()
+    {
+        return rooted.to_owned();
+    }
+    canonical
 }
 
 fn member_body_indices(
@@ -1826,6 +1853,21 @@ mod tests {
             comments.len(),
             1,
             "braced data must stay inert: {comments:?}"
+        );
+    }
+
+    #[test]
+    fn script_comment_lines_uses_proven_alias_identity_for_body_roles() {
+        let src = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let comments = script_comment_lines(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            comments.contains(&2),
+            "alias body comment missing: {comments:?}"
         );
     }
 
