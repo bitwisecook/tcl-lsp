@@ -691,6 +691,27 @@ fn hide_expose_moves_traces_without_callbacks() {
 }
 
 #[test]
+fn root_invokehidden_dispatches_without_exposing_the_command() {
+    let src = concat!(
+        "proc a {} {return A}\n",
+        "interp hide {} a held\n",
+        "puts \"hidden=[interp invokehidden {} held]\"\n",
+        "puts \"visible=[llength [info commands held]] listed=[interp hidden {}]\"\n",
+    );
+    let want = "hidden=A\nvisible=0 listed=held";
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] root invokehidden"
+        );
+    }
+    if let Some(out) = tclsh_output("TCLSH90", &["tclsh9.0"], src) {
+        assert_eq!(out, want, "[TCLSH90] real Tcl oracle");
+    }
+}
+
+#[test]
 fn child_hide_expose_moves_traces_for_named_and_by_id_forms() {
     let src = concat!(
         "interp create named; interp create byid\n",

@@ -1227,10 +1227,12 @@ impl Vm {
             .enumerate()
             .filter_map(|(index, slot)| slot.parked.as_ref().map(|st| (InterpId(index), st)))
             .flat_map(|(source, st)| {
-                st.hidden_commands.iter().filter_map(move |(key, command)| {
-                    matches!(command, Command::CrossAlias { target, .. } if *target == id)
-                        .then(|| (source, key.clone()))
-                })
+                st.hidden_commands
+                    .iter()
+                    .filter(move |(_, command)| {
+                        matches!(command, Command::CrossAlias { target, .. } if *target == id)
+                    })
+                    .map(move |(key, _)| (source, key.clone()))
             })
             .collect();
         for (source, key) in hidden_targeting {
@@ -2546,45 +2548,72 @@ impl Vm {
         cmd: &str,
         args: &[Value],
     ) -> Option<Completion<Value>> {
+        if name.is_empty() {
+            return Some(self.invoke_own_hidden(cmd, args));
+        }
         let id = self.child_id(name).filter(|&id| self.interp_alive(id))?;
-        Some(self.in_interp(id, |vm| {
-            let Some(hidden) = vm.hidden_commands.get(cmd).cloned() else {
-                return err(format!("invalid hidden command name \"{cmd}\""));
-            };
-            vm.bump_cmd_epoch();
-            let saved = vm.commands.insert(cmd.to_string(), hidden);
-            let saved_origin = vm
-                .hidden_imported_commands
-                .get(cmd)
-                .cloned()
-                .map(|origin| vm.imported_commands.insert(cmd.to_string(), origin));
-            let saved_identity = vm
-                .hidden_builtin_identities
-                .get(cmd)
-                .cloned()
-                .map(|identity| vm.builtin_identities.insert(cmd.to_string(), identity));
-            let r = vm.invoke_command(cmd, args);
-            vm.bump_cmd_epoch();
-            if let Some(Some(saved)) = saved_origin {
-                vm.imported_commands.insert(cmd.to_string(), saved);
-            } else {
-                vm.imported_commands.remove(cmd);
+        Some(self.in_interp(id, |vm| vm.invoke_own_hidden(cmd, args)))
+    }
+
+    /// Invoke one of this interpreter's hidden commands without making its
+    /// temporary visibility observable after dispatch.  The command's stable
+    /// identity and import provenance must accompany the transient visible
+    /// entry: command-surface checks and `namespace origin` consult those
+    /// tables while a command is running.
+    fn invoke_own_hidden(&mut self, cmd: &str, args: &[Value]) -> Completion<Value> {
+        let Some(hidden) = self.hidden_commands.get(cmd).cloned() else {
+            return err(format!("invalid hidden command name \"{cmd}\""));
+        };
+        let key = cmd.to_string();
+        let saved_command = self.commands.insert(key.clone(), hidden);
+        let saved_origin = self.imported_commands.get(cmd).cloned();
+        let saved_identity = self.builtin_identities.get(cmd).cloned();
+        match self.hidden_imported_commands.get(cmd).cloned() {
+            Some(origin) => {
+                self.imported_commands.insert(key.clone(), origin);
             }
-            if let Some(Some(saved)) = saved_identity {
-                vm.builtin_identities.insert(cmd.to_string(), saved);
-            } else {
-                vm.builtin_identities.remove(cmd);
+            None => {
+                self.imported_commands.remove(cmd);
             }
-            match saved {
-                Some(prev) => {
-                    vm.commands.insert(cmd.to_string(), prev);
-                }
-                None => {
-                    vm.commands.remove(cmd);
-                }
+        }
+        match self.hidden_builtin_identities.get(cmd).cloned() {
+            Some(identity) => {
+                self.builtin_identities.insert(key.clone(), identity);
             }
-            r
-        }))
+            None => {
+                self.builtin_identities.remove(cmd);
+            }
+        }
+
+        self.bump_cmd_epoch();
+        let result = self.invoke_command(cmd, args);
+        self.bump_cmd_epoch();
+
+        match saved_origin {
+            Some(origin) => {
+                self.imported_commands.insert(key.clone(), origin);
+            }
+            None => {
+                self.imported_commands.remove(cmd);
+            }
+        }
+        match saved_identity {
+            Some(identity) => {
+                self.builtin_identities.insert(key.clone(), identity);
+            }
+            None => {
+                self.builtin_identities.remove(cmd);
+            }
+        }
+        match saved_command {
+            Some(command) => {
+                self.commands.insert(key, command);
+            }
+            None => {
+                self.commands.remove(cmd);
+            }
+        }
+        result
     }
 
     /// `interp marktrusted path` — clear a child's safe flag (exposing every
@@ -3176,44 +3205,7 @@ impl Vm {
         if !self.interp_alive(id) {
             return None;
         }
-        Some(self.in_interp(id, |vm| {
-            let Some(hidden) = vm.hidden_commands.get(cmd).cloned() else {
-                return err(format!("invalid hidden command name \"{cmd}\""));
-            };
-            vm.bump_cmd_epoch();
-            let saved = vm.commands.insert(cmd.to_string(), hidden);
-            let saved_origin = vm
-                .hidden_imported_commands
-                .get(cmd)
-                .cloned()
-                .map(|origin| vm.imported_commands.insert(cmd.to_string(), origin));
-            let saved_identity = vm
-                .hidden_builtin_identities
-                .get(cmd)
-                .cloned()
-                .map(|identity| vm.builtin_identities.insert(cmd.to_string(), identity));
-            let r = vm.invoke_command(cmd, args);
-            vm.bump_cmd_epoch();
-            if let Some(Some(saved)) = saved_origin {
-                vm.imported_commands.insert(cmd.to_string(), saved);
-            } else {
-                vm.imported_commands.remove(cmd);
-            }
-            if let Some(Some(saved)) = saved_identity {
-                vm.builtin_identities.insert(cmd.to_string(), saved);
-            } else {
-                vm.builtin_identities.remove(cmd);
-            }
-            match saved {
-                Some(prev) => {
-                    vm.commands.insert(cmd.to_string(), prev);
-                }
-                None => {
-                    vm.commands.remove(cmd);
-                }
-            }
-            r
-        }))
+        Some(self.in_interp(id, |vm| vm.invoke_own_hidden(cmd, args)))
     }
 
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
@@ -6016,9 +6008,120 @@ fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
 #[cfg(test)]
 mod family_b_tests {
     use super::*;
+    use crate::command::NativeCommand;
+    use tcl_dialect::DialectProfile;
     use tcl_runtime_api::GLOBAL_FRAME;
 
     const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
+
+    #[test]
+    fn invokehidden_rechecks_a_hidden_builtin_against_the_child_profile() {
+        let mut vm = Vm::new();
+        let child_name = vm.create_child(Some("child".to_string()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        vm.in_interp(child, |child_vm| {
+            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+            child_vm.hide_command("lassign", "held").unwrap();
+            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+        });
+        let named = vm.invoke_hidden_in_child("child", "held", &[]).unwrap();
+        assert_eq!(named.code, Code::Error);
+        let by_id = vm.invoke_hidden_by_id(child, "held", &[]).unwrap();
+        assert_eq!(by_id.code, Code::Error);
+        assert!(
+            vm.st_of(child)
+                .unwrap()
+                .hidden_commands
+                .contains_key("held")
+        );
+        assert!(!vm.st_of(child).unwrap().commands.contains_key("held"));
+    }
+
+    #[test]
+    fn root_invokehidden_rechecks_identity_and_restores_hidden_state_after_error() {
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.hide_command("lassign", "held").unwrap();
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+
+        let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
+        assert_eq!(result.code, Code::Error);
+        assert!(vm.hidden_commands.contains_key("held"));
+        assert!(!vm.commands.contains_key("held"));
+        assert!(!vm.builtin_identities.contains_key("held"));
+        assert!(!vm.imported_commands.contains_key("held"));
+    }
+
+    struct TestNative;
+
+    impl NativeCommand for TestNative {
+        fn invoke(&self, _vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+            ok(Value::empty())
+        }
+    }
+
+    struct OriginNative(Rc<RefCell<Option<String>>>);
+
+    impl NativeCommand for OriginNative {
+        fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+            *self.0.borrow_mut() = Some(vm.command_origin_key("held"));
+            ok(Value::empty())
+        }
+    }
+
+    #[test]
+    fn invokehidden_rechecks_a_hidden_native_identity_for_both_child_paths() {
+        let mut vm = Vm::new();
+        let child_name = vm.create_child(Some("child".to_string()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        vm.in_interp(child, |child_vm| {
+            child_vm.set_dialect_profile(DialectProfile::by_name("tcl9.0"));
+            child_vm.register_native_command("tcl::mathfunc::isfinite", Rc::new(TestNative));
+            child_vm
+                .hide_command("tcl::mathfunc::isfinite", "held")
+                .unwrap();
+            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        });
+
+        assert_eq!(
+            vm.invoke_hidden_in_child("child", "held", &[])
+                .unwrap()
+                .code,
+            Code::Error
+        );
+        assert_eq!(
+            vm.invoke_hidden_by_id(child, "held", &[]).unwrap().code,
+            Code::Error
+        );
+        let state = vm.st_of(child).unwrap();
+        assert!(state.hidden_commands.contains_key("held"));
+        assert!(!state.commands.contains_key("held"));
+        assert!(!state.builtin_identities.contains_key("held"));
+    }
+
+    #[test]
+    fn invokehidden_temporarily_restores_imported_command_provenance() {
+        let observed = Rc::new(RefCell::new(None));
+        let mut vm = Vm::new();
+        vm.register_native_command("src::probe", Rc::new(OriginNative(Rc::clone(&observed))));
+        vm.declare_namespace_exports("src", &["*"]);
+        assert_eq!(vm.import_commands("::src::*"), vec!["probe"]);
+        vm.hide_command("probe", "held").unwrap();
+
+        assert!(
+            vm.invoke_hidden_in_child("", "held", &[])
+                .unwrap()
+                .code
+                .is_ok()
+        );
+        assert_eq!(observed.borrow().as_deref(), Some("src::probe"));
+        assert_eq!(
+            vm.hidden_imported_commands.get("held").map(String::as_str),
+            Some("src::probe")
+        );
+        assert!(!vm.imported_commands.contains_key("held"));
+        assert!(!vm.commands.contains_key("held"));
+    }
 
     fn guarded_builtin(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         ok(Value::empty())
