@@ -80,6 +80,8 @@ on:
       - "rust/tcl-lsp-server-wasm/**"
       - "rust/tcl-lsp-server/**"
       - "rust/tcl-cli/gui/**"
+      - "rust/web-shared/**"
+      - "scripts/stamp-pages-tool.mjs"
       - "rust/tcl-lexer/**"
       - "rust/tcl-syntax/**"
       - "rust/tcl-registry/**"
@@ -252,6 +254,8 @@ jobs:
           mkdir -p site/compiler-explorer
           cp -r rust/tcl-cli/gui/. site/compiler-explorer/
           rm -f site/compiler-explorer/.gitignore
+          cp rust/web-shared/site-update.js site/compiler-explorer/site-update.js
+          node scripts/stamp-pages-tool.mjs site/compiler-explorer "$TCL_LSP_VERSION"
 
           # Command-registry spec studio → /spec-studio/. The dist IS a
           # directory now — index.html, the lazily-loaded editor chunk under
@@ -269,6 +273,12 @@ jobs:
               || { echo "spec-studio: dist is missing $required"; exit 1; }
           done
           du -sh site/spec-studio
+
+          # The explorer imports the sibling Spec Studio editor bundle on
+          # Pages. Exercise that deployed directory layout in the same browser
+          # installed for the Studio boot check.
+          NODE_PATH="$PWD/rust/tcl-spec-studio/web/node_modules" \
+            node rust/tcl-cli/gui/test/pages-boot.mjs site
 
           # Root landing page linking both apps (the shared Pages root).
           cat > site/index.html <<'HTML'

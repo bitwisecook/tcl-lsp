@@ -72,6 +72,7 @@ import {
   openCompilerExplorer,
 } from "./compilerExplorer";
 import { openTkPreview, tkPreviewDocChanged, tkPreviewEditorChanged } from "./tkPreviewPanel";
+import { openSpecStudio } from "./specStudio";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
@@ -596,6 +597,7 @@ export async function activate(context: ExtensionContext) {
     ),
     commands.registerCommand("tclLsp.runRuntimeValidation", runRuntimeValidation),
     commands.registerCommand("tclLsp.openCompilerExplorer", openCompilerExplorer),
+    commands.registerCommand("tclLsp.openSpecStudio", () => openSpecStudio(context, client)),
     commands.registerCommand("tclLsp.openTkPreview", openTkPreview),
     commands.registerCommand("tclLsp.formatDocument", formatDocument),
     commands.registerCommand("tclLsp.minifyDocument", minifyDocument),

@@ -27,7 +27,8 @@
 //!   directory-iteration order, which no filesystem promises.
 //! - **A command defined twice within one pack is a load-time diagnostic with
 //!   the first definition winning**, never a silent overwrite.
-//! - **Nearest tier wins**: a pack name declared at more than one tier loads
+//! - **Nearest tier wins**: a live Spec Studio override, then a workspace,
+//!   user, or bundled pack. A pack name declared at more than one tier loads
 //!   only from its nearest one, and the shadowed files are reported. This is
 //!   whole-pack, not per-command — a user-tier pack is not a base a workspace
 //!   pack patches, it is a different copy of the same pack, and merging them
@@ -541,13 +542,23 @@ mod tests {
             "ws/mylib.tclspec",
             "speclib mylib 1 {\n  command mylib::ws { arity 1 }\n}\n",
         );
+        let studio = write(
+            &dir,
+            "studio/mylib.tclspec",
+            "speclib mylib 1 {\n  command mylib::live { arity 2 }\n}\n",
+        );
         let user = write(
             &dir,
             "user/mylib.tclspec",
             "speclib mylib 1 {\n  command mylib::user { arity 1 }\n}\n",
         );
         let set = load(&[
-            workspace_file(ws),
+            PackFile {
+                tier: Tier::StudioOverride,
+                path: studio,
+                origin: Origin::StudioOverride,
+            },
+            workspace_file(ws.clone()),
             PackFile {
                 tier: Tier::User,
                 path: user.clone(),
@@ -556,11 +567,15 @@ mod tests {
         ]);
         assert_eq!(set.packs.len(), 1);
         let names: Vec<&str> = set.packs[0].commands.iter().map(|c| c.spec.name).collect();
-        assert_eq!(names, vec!["mylib::ws"]);
+        assert_eq!(names, vec!["mylib::live"]);
         assert!(
             set.notices
                 .iter()
-                .any(|n| n.path == user && n.message.contains("is not loaded")),
+                .any(|n| n.path == user && n.message.contains("is not loaded"))
+                && set
+                    .notices
+                    .iter()
+                    .any(|n| n.path == ws && n.message.contains("Spec Studio override")),
             "{:#?}",
             set.notices
         );

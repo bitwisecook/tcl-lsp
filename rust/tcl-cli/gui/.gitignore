@@ -4,3 +4,5 @@ tcl_explorer_wasm.js
 tcl_explorer_wasm_bg.wasm
 # Mermaid renderer, vendored by `make explorer-wasm`.
 mermaid.min.js
+# Shared Pages update monitor, copied by `make explorer-build`.
+site-update.js

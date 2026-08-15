@@ -66,6 +66,14 @@
         <projectService
             serviceImplementation="com.tcllsp.jetbrains.CompilerExplorerService"/>
 
+        <!-- Spec Studio uses JCEF for the form/import/reference UI and opens
+             its four code projections in ordinary IntelliJ editors. -->
+        <toolWindow id="Tcl Spec Studio"
+            anchor="right"
+            factoryClass="com.tcllsp.jetbrains.SpecStudioToolWindowFactory"
+            icon="/icons/tcl.svg"
+            secondary="true"/>
+
         <!-- Notification group for error messages -->
         <notificationGroup id="Tcl LSP" displayType="BALLOON"/>
     </extensions>
@@ -94,6 +102,13 @@
                     class="com.tcllsp.jetbrains.actions.FixAllSafeIssuesAction"
                     text="Apply Safe Quick Fixes"
                     description="Apply every quick fix marked safe in the current document"/>
+
+            <separator/>
+
+            <action id="TclLsp.OpenSpecStudio"
+                    class="com.tcllsp.jetbrains.actions.OpenSpecStudioAction"
+                    text="Open Tcl Spec Studio"
+                    description="Open Spec Studio with native IntelliJ editors"/>
 
             <separator/>
 

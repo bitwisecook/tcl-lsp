@@ -97,6 +97,7 @@ const SAMPLE_HINT = "# Call your pack's commands here.\n";
  * page back on the textarea it has always had.
  */
 const EDITOR_CHUNK = "assets/monaco-host.js";
+const NATIVE_EDITOR_CHUNK = "assets/native-editor-host.js";
 
 /** Where the language server worker's three files sit in the dist. */
 const LSP_WORKER_DIR = "lsp";
@@ -1767,7 +1768,11 @@ async function mountEditorHost(): Promise<void> {
   };
   editorMounting = (async () => {
     report("loading the editor…");
-    const specifier = assetUrl(activeBuildInfo, "editor-controller", EDITOR_CHUNK);
+    const native = window.__tclSpecStudioHost !== undefined;
+    const specifier = native
+      ? (window.__tclSpecStudioNativeModuleUrl ??
+        assetUrl(activeBuildInfo, "native-editor-controller", NATIVE_EDITOR_CHUNK))
+      : assetUrl(activeBuildInfo, "editor-controller", EDITOR_CHUNK);
     const chunk = (await import(specifier)) as MonacoHostModule;
     if (!verifyAssetVersion(activeBuildInfo, "editor controller", chunk.buildVersion)) return;
     editorHost = await chunk.mountEditors({
@@ -2128,6 +2133,7 @@ function boot(): void {
   const buildInfo = verifyBuildInfo();
   if (!buildInfo) return;
   activeBuildInfo = buildInfo;
+  window.TclLspSiteUpdate?.start({ currentVersion: buildInfo.version });
   const payload = byId("studio-wasm").textContent?.trim() ?? "";
   const binary = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
 

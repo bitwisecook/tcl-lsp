@@ -93,3 +93,18 @@ export interface MonacoHostModule {
   buildVersion: string;
   mountEditors(options: EditorHostOptions): Promise<EditorHost>;
 }
+
+/** Native-editor host injected by an editor integration before Studio boots. */
+export interface NativeEditorBridge {
+  postMessage(message: unknown): void;
+}
+
+declare global {
+  interface Window {
+    __tclSpecStudioHost?: NativeEditorBridge;
+    __tclSpecStudioNativeModuleUrl?: string;
+    TclLspSiteUpdate?: {
+      start(options: { currentVersion: string; manifestUrl?: string; intervalMs?: number }): void;
+    };
+  }
+}

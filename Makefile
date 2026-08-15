@@ -253,7 +253,7 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace (lapt
 		exit 1; \
 	fi
 
-$(VSIX_FILE): $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
+$(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -264,6 +264,8 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscode
 		--exclude='.mypy_cache/' \
 		--exclude='.vscode-test/' \
 		$(EXT_DIR)/ $(STAGE_DIR)/
+	mkdir -p $(STAGE_DIR)/spec-studio
+	cp -R $(ROOT)rust/tcl-spec-studio-wasm/dist/. $(STAGE_DIR)/spec-studio/
 	@# Inject version from git describe into staged package.json
 	node -e "const f='$(STAGE_DIR)/package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version='$(SEMVER_VERSION)';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
 	@echo "==> Bundling native tcl-lsp-server binaries: $(BUNDLED_TARGETS)"
@@ -1379,7 +1381,8 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GU
 		|| echo "    note: node not found — skipping wasm growability check"
 	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 
-explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler-explorer GUI bundle (Rust → WASM, offline)
+explorer-build: explorer-wasm $(MERMAID_JS) $(ROOT)rust/web-shared/site-update.js ## Build the compiler-explorer GUI bundle (Rust → WASM, offline)
+	cp $(ROOT)rust/web-shared/site-update.js $(EXPLORER_STATIC)/site-update.js
 	@echo "==> Compiler explorer bundle ready in $(EXPLORER_STATIC) — rebuild the tcl binary to embed it"
 
 TCL_VM_WASM_DIR := $(ROOT)rust/tcl-vm-wasm
@@ -1490,7 +1493,7 @@ build-editor-jetbrains: $(JB_PLUGIN) verify-jetbrains-server ## Build JetBrains 
 .PHONY: jb-plugin-force
 jb-plugin-force:
 
-$(JB_PLUGIN): jb-plugin-force
+$(JB_PLUGIN): jb-plugin-force spec-studio-wasm
 	@echo "==> Building JetBrains plugin"
 	@# build.gradle.kts reads RELEASE_VERSION from the environment first, so
 	@# the gradle.properties source file is never mutated by the build.
@@ -1531,6 +1534,9 @@ $(JB_PLUGIN): jb-plugin-force
 		const {getWebviewHtml} = require('./out/compilerExplorerHtml'); \
 		require('fs').writeFileSync('$(JB_DIR)/src/main/resources/compilerExplorer.html', getWebviewHtml()); \
 	" 2>/dev/null || echo "(compiler explorer HTML extraction skipped — compile TS first)"
+	rm -rf $(JB_DIR)/src/main/resources/spec-studio
+	mkdir -p $(JB_DIR)/src/main/resources/spec-studio
+	cp -R $(ROOT)rust/tcl-spec-studio-wasm/dist/. $(JB_DIR)/src/main/resources/spec-studio/
 	@# Build plugin — pass version via env so build.gradle.kts picks it up
 	cd $(JB_DIR) && RELEASE_VERSION="$(SEMVER_VERSION)" ./gradlew buildPlugin
 	mkdir -p $(BUILD_DIR)
