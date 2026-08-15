@@ -4047,6 +4047,14 @@ mod tests {
         assert!(case.allow_omitted_final_body);
         assert!(case.warn_unbraced_bodies);
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+
+        let disabled = load_pack(
+            "speclib probe 1.1 { command demo { case_list { \
+             allow_omitted_final_body no; warn_unbraced_bodies false } } }",
+        );
+        let case = disabled.command("demo").unwrap().spec.case_list.unwrap();
+        assert!(!case.allow_omitted_final_body);
+        assert!(!case.warn_unbraced_bodies);
     }
 
     /// The loader resolves a `-native ID` by matching the catalogue's own
