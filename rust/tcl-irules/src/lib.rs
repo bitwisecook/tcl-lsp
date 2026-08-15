@@ -42,11 +42,8 @@ pub use walker::{
     IrulesObjectReference, IrulesObjectReferenceCategory, extract_irules_object_references,
     object_ref_spans,
 };
-pub use when_block::when_blocks_recursive;
-
 mod event_handlers;
 pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
-
 mod when_block;
 pub use when_block::{WhenBlock, when_block_is_empty, when_blocks};
 

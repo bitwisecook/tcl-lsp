@@ -47,7 +47,7 @@ entry point, or gate moves without this contract being updated.
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | command / word segmentation | `rust/tcl-compiler/src/segmenter.rs` | `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | none |
-| iRules `when EVENT` boundaries | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-irules/src/when_block.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `recursive_when_handlers_with_registry_and_head_resolver`; `when_blocks`; `when_blocks_recursive` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; recursive script regions from resolved registry roles | `xtask-gen-ai-diagnostics` |
+| iRules `when EVENT` boundaries | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-irules/src/when_block.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `when_blocks` | caller-supplied `LexerConfig`; offset-keyed resolved command identity at the top-level iRules boundary | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name` | the resolved dialect/release axis | none |
@@ -149,16 +149,14 @@ entry point, or gate moves without this contract being updated.
   command identity without making `tcl-syntax` depend on compiler facts.
   `script_commands` exposes the same lexer-owned word boundaries without
   guessing that arbitrary braced values are executable.
-  `tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver`
-  resolves each head at its absolute document offset before accepting an event
-  handler or following a registry-declared body, expression, lambda, case-list,
-  or definition-member surface plus live command substitutions, using the
-  resolved profile's lexer grammar;
-  unknown shapes conservatively remain data. Rooted colon runs, event case,
-  comments, quoting, and iRules' `}{` separator therefore have one
-  lexer/naming contract. `tcl-irules::{when_blocks, when_blocks_recursive}` are
-  iRules-configured compatibility wrappers. Registry, CLI, explorer, LSP, and
-  MCP consumers use these APIs and spans rather than scanning text.
+  `tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver`
+  resolves each top-level head at its absolute document offset before accepting
+  an event handler, using the resolved profile's lexer grammar. Nested script
+  surfaces remain handler data: F5 iRules permits `when` only at the top level.
+  Rooted colon runs, event case, comments, quoting, and iRules' `}{` separator
+  therefore have one lexer/naming contract. `tcl-irules::when_blocks` is the
+  iRules-configured wrapper. Registry, CLI, explorer, LSP, and MCP consumers
+  use these APIs and spans rather than scanning text.
 
 ### `tcl-core-types` — shared vocabulary
 

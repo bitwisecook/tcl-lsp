@@ -30,16 +30,6 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
     )
 }
 
-/// Return iRules handlers for compatibility with older editor callers.
-///
-/// F5's iRules grammar permits `when` only at top level; a `when`-looking
-/// word nested in a handler body is ordinary invalid command text, never a
-/// nested event. Consequently this is now equivalent to [`when_blocks`].
-#[must_use]
-pub fn when_blocks_recursive(source: &str) -> Vec<WhenBlock> {
-    when_blocks(source)
-}
-
 /// Whether a discovered handler body contains no executable command.  This
 /// intentionally delegates comment classification to the iRules lexer.
 #[must_use]
@@ -121,7 +111,7 @@ mod tests {
     fn nested_when_is_not_an_irules_event_handler() {
         let source =
             "when http_request {\n  if {1} {\n    :::when client_data { pool p }\n  }\n}\n";
-        let blocks = when_blocks_recursive(source);
+        let blocks = when_blocks(source);
         assert_eq!(
             blocks
                 .iter()
@@ -138,7 +128,7 @@ mod tests {
                       branch {1} { ::event HTTP_REQUEST {} }\n\
                       if {1} { ::when HTTP_REQUEST {} }\n\
                       ::when CLIENT_DATA {}\n";
-        let blocks = when_blocks_recursive(source);
+        let blocks = when_blocks(source);
         assert_eq!(
             blocks
                 .iter()
@@ -150,7 +140,7 @@ mod tests {
 
         let rebound = "proc if {args} {}\nif {1} { when CLIENT_DATA {} }\n";
         assert!(
-            when_blocks_recursive(rebound).is_empty(),
+            when_blocks(rebound).is_empty(),
             "a user command named `if` does not inherit the registry body grammar"
         );
     }
@@ -162,7 +152,7 @@ set quoted "when SERVER_DATA {}"
 # when RULE_INIT {}
 when HTTP_REQUEST {}"#;
         assert_eq!(
-            when_blocks_recursive(source)
+            when_blocks(source)
                 .iter()
                 .map(|block| block.event.as_str())
                 .collect::<Vec<_>>(),
@@ -178,7 +168,7 @@ apply {{} { when HTTP_REQUEST {} }}
 set inert {when RULE_INIT {}}
 ";
         assert_eq!(
-            when_blocks_recursive(source)
+            when_blocks(source)
                 .iter()
                 .map(|block| block.event.as_str())
                 .collect::<Vec<_>>(),

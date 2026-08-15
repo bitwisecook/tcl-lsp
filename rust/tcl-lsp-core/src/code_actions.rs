@@ -1931,7 +1931,7 @@ fn payload_operation_at_diagnostic(
 /// Line index of the `when` block enclosing `line` (scanning upward), or 0.
 fn enclosing_when_line(source: &str, line: u32) -> u32 {
     let index = tcl_lexer::LineIndex::new(source);
-    tcl_irules::when_blocks_recursive(source)
+    tcl_irules::when_blocks(source)
         .into_iter()
         .filter(|block| {
             index.line_at(block.span.start()) <= line && line <= index.line_at(block.span.end())

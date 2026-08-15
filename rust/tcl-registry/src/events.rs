@@ -25,7 +25,7 @@
 use std::borrow::Cow;
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use tcl_lexer::{LexerConfig, SourceMap, Span, TokenType, word_span_at};
+use tcl_lexer::LexerConfig;
 
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
@@ -983,9 +983,10 @@ pub fn top_level_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::E
 
 /// Resolve a written command head at its absolute document offset.
 ///
-/// The registry owns recursive traversal because command specs declare which
-/// words are executable scripts.  It cannot itself infer Tcl command-table
-/// mutations, so a compiler or editor that has such facts supplies them here.
+/// The registry owns the top-level script boundary because command specs
+/// declare which words are executable scripts. It cannot itself infer Tcl
+/// command-table mutations, so a compiler or editor that has such facts
+/// supplies them here.
 /// An empty answer deliberately means a proven rebound: it cannot resolve a
 /// registry spec or open a script surface.
 pub trait CommandHeadResolver {
@@ -1035,287 +1036,6 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
             is_event_handler_head(registry, effective_head.as_ref())
         },
     )
-}
-
-/// Parse top-level iRules event handlers.
-#[must_use]
-pub fn recursive_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
-    let resolver = WrittenHeadResolver;
-    top_level_when_handlers_with_registry_and_head_resolver(
-        source,
-        crate::registry_for_dialect("f5-irules"),
-        &resolver,
-    )
-}
-
-/// Legacy registry-resolved event discovery; iRules events are top-level.
-#[must_use]
-#[allow(clippy::too_many_lines)] // One worklist keeps offsets, caps, and region context atomic.
-pub fn recursive_when_handlers_with_registry(
-    source: &str,
-    registry: &crate::CommandRegistry,
-) -> Vec<tcl_syntax::event_handler::EventHandler> {
-    let resolver = WrittenHeadResolver;
-    top_level_when_handlers_with_registry_and_head_resolver(source, registry, &resolver)
-}
-
-/// Legacy registry-resolved event discovery with effective command heads.
-///
-/// `resolver` is queried at the absolute offset of every head, before both
-/// handler recognition and script-descriptor lookup. This makes a proven
-/// alias/rename of the event command visible while keeping a spelling that was
-/// rebound to a user command out of every registry-driven traversal path.
-#[must_use]
-#[allow(clippy::too_many_lines)] // One worklist keeps offsets, caps, and region context atomic.
-#[allow(unreachable_code)] // Compatibility name returns the top-level iRules contract.
-pub fn recursive_when_handlers_with_registry_and_head_resolver(
-    source: &str,
-    registry: &crate::CommandRegistry,
-    resolver: &dyn CommandHeadResolver,
-) -> Vec<tcl_syntax::event_handler::EventHandler> {
-    // Kept as a compatibility name for non-event structural callers. Event
-    // inventories must never descend: F5 iRules permits `when` only at file
-    // top level.
-    return top_level_when_handlers_with_registry_and_head_resolver(source, registry, resolver);
-
-    let config = registry.profile().map_or_else(
-        || LexerConfig::for_file_dialect("f5-irules"),
-        |profile| LexerConfig::from_grammar(profile.grammar),
-    );
-    let mut out = Vec::new();
-    let mut pending: Vec<(
-        usize,
-        usize,
-        u32,
-        bool,
-        Option<&'static crate::definer::DefinitionBodyGrammar>,
-    )> = vec![(0, source.len(), 0, true, None)];
-    let mut seen = FxHashSet::default();
-    while let Some((start, end, depth, inspect_handlers, definition_grammar)) = pending.pop() {
-        if depth > 256 || !seen.insert((start, end)) {
-            continue;
-        }
-        let Some(text) = source.get(start..end) else {
-            continue;
-        };
-        let Ok(base) = u32::try_from(start) else {
-            continue;
-        };
-        if inspect_handlers {
-            out.extend(
-                tcl_syntax::event_handler::event_handlers_with_head_predicate(
-                    text,
-                    config.at_depth(depth),
-                    |written, offset| {
-                        let effective_head = resolver.resolve(written, base.saturating_add(offset));
-                        is_event_handler_head(registry, effective_head.as_ref())
-                    },
-                )
-                .into_iter()
-                .map(|handler| shift_handler(handler, base)),
-            );
-        }
-        let sm = SourceMap::new(text);
-        for command in tcl_syntax::event_handler::script_commands(text, config.at_depth(depth)) {
-            if !inspect_handlers {
-                for token in command
-                    .words
-                    .iter()
-                    .flatten()
-                    .filter(|token| token.kind == TokenType::Cmd)
-                {
-                    let whole = word_span_at(text, token.span);
-                    let inner_start = whole.start() as usize + token.content_offset as usize;
-                    let inner_end = whole.end().saturating_sub(1) as usize;
-                    if inner_start <= inner_end {
-                        pending.push((
-                            start + inner_start,
-                            start + inner_end,
-                            depth + 1,
-                            true,
-                            None,
-                        ));
-                    }
-                }
-                continue;
-            }
-            let Some(head_word) = command.words.first() else {
-                continue;
-            };
-            let [head_token] = head_word.as_slice() else {
-                continue;
-            };
-            let written = tcl_syntax::naming::canonical_written_command(sm.token_text(*head_token));
-            let head_offset = base.saturating_add(word_span_at(text, head_token.span).start());
-            let effective_head = resolver.resolve(&written, head_offset);
-            let head = effective_head.as_ref();
-            let args: Vec<&str> = command
-                .words
-                .iter()
-                .skip(1)
-                .map(|word| match word.as_slice() {
-                    [token] => sm.token_text(*token),
-                    _ => "",
-                })
-                .collect();
-            let dialect = registry
-                .profile()
-                .map_or_else(crate::dialects::DialectSet::empty, |profile| {
-                    profile.availability_mask
-                });
-            let spec_definition = registry.get(head).and_then(|spec| spec.definition_body);
-            let mut body_indices = registry.arg_indices_for_role(head, &args, crate::ArgRole::Body);
-            if let Some(grammar) = definition_grammar {
-                body_indices.extend(grammar.member_body_indices_in(head, &args, dialect));
-            }
-            body_indices.sort_unstable();
-            body_indices.dedup();
-            for index in body_indices {
-                if let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
-                    && token.kind == TokenType::Str
-                    && let Some((inner_start, inner_end)) = braced_inner(text, *token)
-                {
-                    let next_grammar = if spec_definition.is_some() {
-                        spec_definition
-                    } else if definition_grammar.is_some_and(|grammar| {
-                        grammar
-                            .member(head)
-                            .is_some_and(|member| member.wrapper_block_body)
-                    }) {
-                        definition_grammar
-                    } else {
-                        None
-                    };
-                    pending.push((
-                        start + inner_start,
-                        start + inner_end,
-                        depth + 1,
-                        true,
-                        next_grammar,
-                    ));
-                }
-            }
-            // Expression words are not scripts. Only their live `[…]`
-            // substitutions are executable regions, so inspect the word for
-            // substitutions without recognising a bare `when` in expression
-            // string data.
-            for index in registry.arg_indices_for_role(head, &args, crate::ArgRole::Expr) {
-                if let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
-                    && matches!(token.kind, TokenType::Str | TokenType::Esc)
-                {
-                    let whole = word_span_at(text, token.span);
-                    let inner_start = whole.start() as usize + token.content_offset as usize;
-                    let inner_end = whole
-                        .end()
-                        .saturating_sub(u32::from(token.content_offset > 0))
-                        as usize;
-                    if inner_start <= inner_end {
-                        pending.push((
-                            start + inner_start,
-                            start + inner_end,
-                            depth + 1,
-                            false,
-                            None,
-                        ));
-                    }
-                }
-            }
-            for index in registry.arg_indices_for_role(head, &args, crate::ArgRole::LambdaLiteral) {
-                if let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
-                    && let Some((inner_start, inner_end)) = lambda_body(text, *token)
-                {
-                    pending.push((
-                        start + inner_start,
-                        start + inner_end,
-                        depth + 1,
-                        true,
-                        None,
-                    ));
-                }
-            }
-            if let Some((case, invocation)) = registry.case_invocation(head, &args, dialect)
-                && let Some(index) = invocation.clause_list_index
-                && let Some([token]) = command.words.get(index + 1).map(Vec::as_slice)
-                && let Some((inner_start, inner_end)) = braced_inner(text, *token)
-                && let Some(inner) = text.get(inner_start..inner_end)
-            {
-                let shape = tcl_syntax::case_list::CaseListShape {
-                    clause_flags: case.clause_flags,
-                    clause_value_flags: case.clause_value_flags,
-                };
-                for clause in tcl_syntax::case_list::split_case_list(inner, &shape) {
-                    if let Some(body) = clause.body
-                        && body.braced
-                    {
-                        pending.push((
-                            start + inner_start + body.start + 1,
-                            start + inner_start + body.end,
-                            depth + 1,
-                            true,
-                            None,
-                        ));
-                    }
-                }
-            }
-            for token in command
-                .words
-                .iter()
-                .flatten()
-                .filter(|token| token.kind == TokenType::Cmd)
-            {
-                let whole = word_span_at(text, token.span);
-                let inner_start = whole.start() as usize + token.content_offset as usize;
-                let inner_end = whole.end().saturating_sub(1) as usize;
-                if inner_start <= inner_end {
-                    pending.push((
-                        start + inner_start,
-                        start + inner_end,
-                        depth + 1,
-                        true,
-                        None,
-                    ));
-                }
-            }
-        }
-    }
-    out.sort_by_key(|handler| handler.span.start());
-    out
-}
-
-fn lambda_body(source: &str, token: tcl_lexer::Token) -> Option<(usize, usize)> {
-    if token.kind != TokenType::Str {
-        return None;
-    }
-    let content_start = token.span.start() as usize + token.content_offset as usize;
-    let content_end = token.span.end() as usize;
-    let content = source.get(content_start..content_end)?;
-    let params = tcl_syntax::list::find_element(content, 0).ok().flatten()?;
-    let body = tcl_syntax::list::find_element(content, params.next)
-        .ok()
-        .flatten()?;
-    body.literal.then_some((
-        content_start + body.value.start,
-        content_start + body.value.end,
-    ))
-}
-
-fn braced_inner(source: &str, token: tcl_lexer::Token) -> Option<(usize, usize)> {
-    let whole = word_span_at(source, token.span);
-    let start = whole.start() as usize + 1;
-    let end = whole.end().checked_sub(1)? as usize;
-    (source.as_bytes().get(whole.end().checked_sub(1)? as usize) == Some(&b'}') && start <= end)
-        .then_some((start, end))
-}
-
-fn shift_handler(
-    mut handler: tcl_syntax::event_handler::EventHandler,
-    base: u32,
-) -> tcl_syntax::event_handler::EventHandler {
-    let shift = |span: Span| Span::new(base + span.start(), base + span.end());
-    handler.span = shift(handler.span);
-    handler.event_span = shift(handler.event_span);
-    handler.body_span = shift(handler.body_span);
-    handler
 }
 
 /// Scan distinct top-level event handlers through the shared Tcl syntax
@@ -4488,15 +4208,19 @@ mod tests {
             apply {{} { when HTTP_REQUEST {} }}
             set inert {when RULE_INIT {}}
         ";
-        let events: Vec<_> = recursive_when_handlers_with_registry(source, registry)
-            .into_iter()
-            .map(|handler| handler.event)
-            .collect();
+        let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            registry,
+            &WrittenHeadResolver,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
         assert!(events.is_empty());
     }
 
     #[test]
-    fn recursive_event_scan_covers_definition_members_and_wrappers() {
+    fn non_irules_definition_bodies_are_not_event_handlers() {
         let tcl = crate::registry_for_dialect("tcl9.0");
         let source = r"
             oo::class create C {
@@ -4505,10 +4229,14 @@ mod tests {
                 property p -get { when SERVER_DATA {} }
             }
         ";
-        let events: Vec<_> = recursive_when_handlers_with_registry(source, tcl)
-            .into_iter()
-            .map(|handler| handler.event)
-            .collect();
+        let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            tcl,
+            &WrittenHeadResolver,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
         assert!(
             events.is_empty(),
             "Tcl's user-level `when` is not an iRules handler"
@@ -4518,11 +4246,14 @@ mod tests {
             snit::type S { method m {} { when RULE_INIT {} } }
             itcl::class I { public method m {} { when CLIENT_ACCEPTED {} } }
         ";
-        let events: Vec<_> =
-            recursive_when_handlers_with_registry(source, crate::registry_for_dialect("tcl8.6"))
-                .into_iter()
-                .map(|handler| handler.event)
-                .collect();
+        let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            crate::registry_for_dialect("tcl8.6"),
+            &WrittenHeadResolver,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
         assert!(
             events.is_empty(),
             "non-iRules dialects have no event-handler trait"
@@ -4535,11 +4266,14 @@ mod tests {
             proc when {event body} { puts $event }
             when HTTP_REQUEST {}
         ";
-        let events: Vec<_> =
-            recursive_when_handlers_with_registry(source, crate::registry_for_dialect("tcl9.0"))
-                .into_iter()
-                .map(|handler| handler.event)
-                .collect();
+        let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            crate::registry_for_dialect("tcl9.0"),
+            &WrittenHeadResolver,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
         assert!(events.is_empty());
     }
 }
