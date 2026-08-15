@@ -1075,6 +1075,20 @@ mod tests {
     }
 
     #[test]
+    fn expect_outer_value_options_do_not_open_a_clause_list() {
+        for source in [
+            "expect -timeout 5 {\n    ready {\n        puts not_an_action\n        puts still_not\n    }\n}\n",
+            "expect -i spawn {\n    ready {\n        puts not_an_action\n        puts still_not\n    }\n}\n",
+        ] {
+            let regions = fold_lines(&folding_ranges_expect(source), FoldKind::Region);
+            assert!(
+                regions.is_empty(),
+                "outer Expect value option leaves one action-less pattern: {regions:?}"
+            );
+        }
+    }
+
+    #[test]
     fn expect_inline_clause_actions_fold_from_descriptor_indices() {
         let source = concat!(
             "expect -re {a+} {\n",           // 0

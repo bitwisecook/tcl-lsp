@@ -12916,6 +12916,20 @@ fn abbreviated_inline_expect_flag_reaches_action() {
     );
 }
 
+#[test]
+fn outer_expect_value_options_do_not_make_a_final_pattern_a_clause_list() {
+    for source in [
+        "expect -timeout 5 {ready {expect_outer_timeout_unknown}}",
+        "expect -i spawn {ready {expect_outer_spawn_unknown}}",
+    ] {
+        let codes = codes_for_dialect(source, "expect");
+        assert!(
+            !codes.iter().any(|code| code == "W123"),
+            "the braced final pattern is not an Expect action list: {source:?}, {codes:?}"
+        );
+    }
+}
+
 // Issue #1006 — the W123 alias / rename-target checks used file-end-only
 // gating (`fact_live_at_file_end`, no call site or conditional-body
 // awareness), unlike the proc/class checks #973 already made call-site-

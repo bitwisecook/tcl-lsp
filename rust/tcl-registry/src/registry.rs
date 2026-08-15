@@ -6464,6 +6464,22 @@ mod tests {
                 .is_some(),
             "Expect permits a final pattern without an action"
         );
+        for args in [
+            ["-timeout", "5", "ready {action}"],
+            ["-i", "spawn", "ready {action}"],
+        ] {
+            let (_, invocation) = expect
+                .case_invocation("expect", &args, DialectSet::EXPECT)
+                .expect("outer Expect value option followed by a final pattern");
+            assert_eq!(invocation.clause_list_index, None, "{args:?}");
+            assert_eq!(invocation.inline_clause_start, Some(0), "{args:?}");
+            let clauses = crate::CaseListSpec::EXPECT
+                .inline_clauses(&args, invocation.inline_clause_start.unwrap())
+                .expect("one action-less inline clause");
+            assert_eq!(clauses.len(), 1, "{args:?}");
+            assert_eq!(clauses[0].pattern_index, 2, "{args:?}");
+            assert_eq!(clauses[0].body_index, None, "{args:?}");
+        }
         for pattern in ["#", ";"] {
             assert!(
                 expect

@@ -417,11 +417,13 @@ impl CaseListSpec {
         nocase_option: Some("-nocase"),
         end_options_option: Some("--"),
         fallthrough_body: None,
-        // `-timeout` / `-i` also appear as *command-level* options ahead of the
-        // list (`expect -timeout 5 { … }`, `expect -i $spawn { … }`).  Leaving
-        // this empty stopped the option scan on the value word, so the braced
-        // list was never recognised as a clause list and its bodies were never
-        // recursed.
+        // `-timeout` / `-i` are command-level, value-taking options.  In
+        // Expect 5.45.4, after either option and its value, one braced word is
+        // the final action-less *pattern*, not a clause list: `expect -timeout
+        // 5 {ready {action}}` does not execute `action`.  A clause list is
+        // only the sole argument (`expect { … }`) or the exact `-brace { … }`
+        // outer shape.  Keep these options out of a speculative list-remainder
+        // grammar so every consumer abstains consistently.
         value_options_require_regex: &[],
         clause_flags: &[
             "-glob",
