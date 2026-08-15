@@ -12846,6 +12846,15 @@ fn expect_clause_flags_keep_pattern_and_body_roles_aligned() {
     );
 }
 
+#[test]
+fn nested_expect_clause_body_reports_unknown_command() {
+    let codes = codes_for_dialect("expect {ready {expect_body_unknown_command}}", "expect");
+    assert!(
+        codes.iter().any(|c| c == "W123"),
+        "Expect clause bodies must be analysed for unresolved commands: {codes:?}"
+    );
+}
+
 // Issue #1006 — the W123 alias / rename-target checks used file-end-only
 // gating (`fact_live_at_file_end`, no call site or conditional-body
 // awareness), unlike the proc/class checks #973 already made call-site-

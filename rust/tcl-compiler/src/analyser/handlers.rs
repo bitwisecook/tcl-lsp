@@ -4268,7 +4268,9 @@ impl Analyser {
         let Some((case, invocation)) =
             registry.case_invocation(cmd_name, &arg_refs, self.profile.availability_mask)
         else {
-            return true;
+            // Preserve malformed-switch handling while allowing valid
+            // subjectless Expect clause lists through the registry resolver.
+            return args.len() >= 2;
         };
         let is_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp;
 
