@@ -179,4 +179,48 @@ class TclLspActionsTest {
         assertContains(mermaid, "|foo&#124;bar|")
         kotlin.test.assertFalse(mermaid.contains("|a | b|"), mermaid)
     }
+
+    @Test
+    fun tryHandlersAndAllExitsFlowThroughFinallyBeforeContinuation() {
+        val payload = JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"work"}],"handlers":[
+              {"kind_handler":"on","match":"error","body":[{"kind":"action","label":"recover"}]},
+              {"kind_handler":"trap","match":"CUSTOM","body":[{"kind":"action","label":"alternate"}]}
+            ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )
+
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "n1 --> n2")
+        assertContains(mermaid, "n1 -->|on error| n3")
+        assertContains(mermaid, "n3 --> n4")
+        assertContains(mermaid, "n1 -->|trap CUSTOM| n5")
+        assertContains(mermaid, "n5 --> n6")
+        assertContains(mermaid, "n2 --> n7")
+        assertContains(mermaid, "n4 --> n7")
+        assertContains(mermaid, "n6 --> n7")
+        assertContains(mermaid, "n7 --> n8")
+        assertContains(mermaid, "n8 --> n9")
+        kotlin.test.assertFalse(mermaid.contains("try join"), mermaid)
+    }
+
+    @Test
+    fun loopsHaveBackEdgesAndDistinctExitTails() {
+        fun render(label: String, exit: String): String = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"loop","label":"$label","exit":"$exit","body":[{"kind":"action","label":"body"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+
+        for ((label, exit) in listOf(
+            "while ready" to "false",
+            "for" to "false",
+            "foreach item" to "exhausted",
+        )) {
+            val mermaid = render(label, exit)
+            assertContains(mermaid, "n0 --> n1")
+            assertContains(mermaid, "n1 --> n2")
+            assertContains(mermaid, "n2 -->|repeat| n1")
+            assertContains(mermaid, "n1 -->|$exit| n3")
+            assertContains(mermaid, "n3 --> n4")
+        }
+    }
 }

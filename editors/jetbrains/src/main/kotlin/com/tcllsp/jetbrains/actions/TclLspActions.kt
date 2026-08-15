@@ -209,15 +209,47 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         tail = join
                     }
                 }
-                "loop", "catch" -> {
+                "loop" -> {
                     val loop = node(item.string("label") ?: item.string("kind") ?: "block", "round")
                     connect(tail, loop)
-                    tail = walk(item.array("body") ?: JsonArray(), loop) ?: loop
+                    val bodyTail = walk(item.array("body") ?: JsonArray(), loop) ?: loop
+                    connect(bodyTail, loop, "repeat")
+                    val exit = node("loop exit", "round")
+                    connect(loop, exit, item.string("exit") ?: "exit")
+                    tail = exit
+                }
+                "catch" -> {
+                    val block = node("catch", "round")
+                    connect(tail, block)
+                    tail = walk(item.array("body") ?: JsonArray(), block) ?: block
                 }
                 "try" -> {
                     val attempt = node("try", "round")
                     connect(tail, attempt)
-                    tail = walk(item.array("body") ?: JsonArray(), attempt) ?: attempt
+                    val exits = mutableListOf(
+                        walk(item.array("body") ?: JsonArray(), attempt) ?: attempt
+                    )
+                    for (handlerElement in item.array("handlers") ?: JsonArray()) {
+                        val handler = handlerElement.takeIf { it.isJsonObject }?.asJsonObject ?: continue
+                        val kind = handler.string("kind_handler") ?: "handler"
+                        val match = handler.string("match")
+                        val handlerLabel = listOfNotNull(kind, match)
+                            .filter(String::isNotBlank)
+                            .joinToString(" ")
+                        val handlerStart = node(handlerLabel.ifEmpty { "handler" }, "round")
+                        connect(attempt, handlerStart, handlerLabel.ifEmpty { "handler" })
+                        exits += walk(handler.array("body") ?: JsonArray(), handlerStart) ?: handlerStart
+                    }
+                    val finallyBody = item.array("finally")
+                    if (finallyBody == null) {
+                        val join = node("try join", "round")
+                        exits.forEach { connect(it, join) }
+                        tail = join
+                    } else {
+                        val cleanup = node("finally", "round")
+                        exits.forEach { connect(it, cleanup) }
+                        tail = walk(finallyBody, cleanup) ?: cleanup
+                    }
                 }
                 else -> {
                     val text = item.string("label")

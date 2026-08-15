@@ -246,3 +246,19 @@ fn command_substitution_regions(
         _ => Vec::new(),
     }
 }
+
+/// Whether `cursor` is inside an active command substitution within `token`.
+///
+/// Consumers that inspect the containing word must defer to the recursively
+/// executable command in this case: a widened quoted or compound token is not
+/// a literal fragment at a position Tcl evaluates as `[...]`.
+pub(crate) fn cursor_in_command_substitution(
+    source: &str,
+    config: LexerConfig,
+    token: Token,
+    cursor: u32,
+) -> bool {
+    command_substitution_regions(source, config, token)
+        .into_iter()
+        .any(|(start, end)| cursor as usize >= start && (cursor as usize) < end)
+}

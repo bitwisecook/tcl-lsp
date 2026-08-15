@@ -642,7 +642,12 @@ fn pattern_format_hover_for_command(
         let Some(&token) = command.argv.get(usize::from(pattern.index) + 1) else {
             continue;
         };
-        let Some(text) = literal_at_token(context.source, token, context.cursor) else {
+        let Some(text) = literal_at_token(
+            context.source,
+            LexerConfig::for_file_dialect(context.profile.name),
+            token,
+            context.cursor,
+        ) else {
             continue;
         };
         let text = match pattern.kind {
@@ -655,7 +660,12 @@ fn pattern_format_hover_for_command(
         let Some(&token) = command.argv.get(format.index + 1) else {
             continue;
         };
-        let Some(text) = literal_at_token(context.source, token, context.cursor) else {
+        let Some(text) = literal_at_token(
+            context.source,
+            LexerConfig::for_file_dialect(context.profile.name),
+            token,
+            context.cursor,
+        ) else {
             continue;
         };
         let text = match format.kind {
@@ -694,10 +704,16 @@ fn pattern_format_hover_for_command(
 /// continuation commands (unlike the former line splitter). Bare words are
 /// valid format and pattern arguments too (`binary format c2s value`), and
 /// are deliberately preserved rather than requiring quote/braces delimiters.
-fn literal_at_token(source: &str, token: Token, cursor: u32) -> Option<String> {
+fn literal_at_token(
+    source: &str,
+    config: LexerConfig,
+    token: Token,
+    cursor: u32,
+) -> Option<String> {
     if !matches!(token.kind, TokenType::Str | TokenType::Esc)
         || cursor < token.span.start()
         || cursor > token.span.end()
+        || crate::executable_regions::cursor_in_command_substitution(source, config, token, cursor)
     {
         return None;
     }
@@ -4818,6 +4834,25 @@ mod tests {
         let analysis = analyse(shadowed);
         let (line, column) = position_of(shadowed, "%07d");
         assert!(hover(shadowed, line, column, &analysis, None).is_none());
+    }
+
+    #[test]
+    fn nested_substitution_hover_beats_its_outer_pattern_word() {
+        let source = "regexp \"[format {%d} 1]\" $value\n";
+        let analysis = analyse(source);
+        let (line, column) = position_of(source, "%d");
+        let result = hover(source, line, column, &analysis, None)
+            .expect("format hover inside regexp substitution");
+        assert!(
+            result.value.contains("**Format string**"),
+            "{}",
+            result.value
+        );
+        assert!(
+            !result.value.contains("**Regular expression**"),
+            "outer regexp incorrectly claimed nested format: {}",
+            result.value
+        );
     }
 
     // sprintf format hover

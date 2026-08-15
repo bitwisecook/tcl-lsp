@@ -278,16 +278,58 @@ fn walk_call(
     None
 }
 
-/// Build a `loop` flow node with the given rendered label.
+/// Build a `loop` flow node with the given rendered label and exit reason.
 fn loop_node(
     label: &str,
+    exit: &str,
     body: &Script,
     proc_names: &HashSet<&str>,
     depth: usize,
     registry: &CommandRegistry,
 ) -> Value {
     let child = walk_script(body, proc_names, depth + 1, registry);
-    json!({ "kind": "loop", "label": label, "body": child })
+    json!({ "kind": "loop", "label": label, "exit": exit, "body": child })
+}
+
+/// Project the compiler's structured loop variants into one loop flow node.
+fn walk_loop_statement(
+    stmt: &Statement,
+    proc_names: &HashSet<&str>,
+    depth: usize,
+    registry: &CommandRegistry,
+) -> Option<Value> {
+    match stmt {
+        Statement::For { body, .. } => {
+            Some(loop_node("for", "false", body, proc_names, depth, registry))
+        }
+        Statement::While {
+            condition, body, ..
+        } => {
+            let label = format!("while {}", condition_text(condition));
+            Some(loop_node(
+                &label, "false", body, proc_names, depth, registry,
+            ))
+        }
+        Statement::Foreach {
+            iterators, body, ..
+        } => {
+            let vars_part = iterators
+                .iter()
+                .map(|it| it.vars.join(" "))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let label = format!("foreach {}", truncate(&vars_part, MAX_ARG_LEN));
+            Some(loop_node(
+                &label,
+                "exhausted",
+                body,
+                proc_names,
+                depth,
+                registry,
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// Flow node for a notable assignment, or `None` when the value isn't notable.
@@ -345,25 +387,8 @@ fn walk_statement(
             registry,
         )),
 
-        Statement::For { body, .. } => Some(loop_node("for", body, proc_names, depth, registry)),
-
-        Statement::While {
-            condition, body, ..
-        } => {
-            let label = format!("while {}", condition_text(condition));
-            Some(loop_node(&label, body, proc_names, depth, registry))
-        }
-
-        Statement::Foreach {
-            iterators, body, ..
-        } => {
-            let vars_part = iterators
-                .iter()
-                .map(|it| it.vars.join(" "))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let label = format!("foreach {}", truncate(&vars_part, MAX_ARG_LEN));
-            Some(loop_node(&label, body, proc_names, depth, registry))
+        Statement::For { .. } | Statement::While { .. } | Statement::Foreach { .. } => {
+            walk_loop_statement(stmt, proc_names, depth, registry)
         }
 
         Statement::Call {
@@ -526,4 +551,34 @@ pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialec
         .collect();
 
     json!({ "events": events, "procedures": procedures })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::diagram_data_for_dialect;
+
+    #[test]
+    fn loop_nodes_carry_their_compiler_exit_reason() {
+        let source = r"
+            proc loops {} {
+                while {$ready} { set seen [clock seconds] }
+                for {set i 0} {$i < 1} {incr i} { set seen [clock seconds] }
+                foreach item $items { set seen [clock seconds] }
+            }
+        ";
+        let data = diagram_data_for_dialect(
+            source,
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        let flow = data
+            .pointer("/procedures/0/flow")
+            .and_then(serde_json::Value::as_array)
+            .expect("procedure flow");
+        let exits: Vec<_> = flow
+            .iter()
+            .map(|node| node.get("exit").and_then(serde_json::Value::as_str))
+            .collect();
+        assert_eq!(exits, vec![Some("false"), Some("false"), Some("exhausted")]);
+    }
 }
