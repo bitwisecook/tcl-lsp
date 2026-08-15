@@ -2046,6 +2046,19 @@ impl Vm {
     ///   user procs, aliases, embedder `Native` replacements, and names the
     ///   registry does not know remain callable.
     fn builtin_command_visible_for_surface(&self, name: &str, command: &Command) -> bool {
+        self.builtin_command_visible_for_identity(name, command, None)
+    }
+
+    /// The command-surface gate with identity supplied by an owning table.
+    /// Hidden commands retain their identity outside the visible table, so
+    /// `interp invokehidden` must use this form without transiently publishing
+    /// that metadata under the hidden token.
+    pub(crate) fn builtin_command_visible_for_identity(
+        &self,
+        name: &str,
+        command: &Command,
+        identity: Option<&str>,
+    ) -> bool {
         if !matches!(command, Command::Builtin(_) | Command::Native(_)) {
             return true;
         }
@@ -2054,10 +2067,9 @@ impl Vm {
         // gate on that stable identity rather than the local spelling or
         // mutable `namespace origin` name. This mirrors runtime/rust's
         // `Command::Imported` redirect through `resolve_dispatchable`.
-        let origin = self
-            .builtin_identities
-            .get(name)
-            .cloned()
+        let origin = identity
+            .map(str::to_owned)
+            .or_else(|| self.builtin_identities.get(name).cloned())
             .unwrap_or_else(|| self.command_origin_key(name));
         if !tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
             .permits_builtin_math_function_command(&origin)
@@ -2564,56 +2576,11 @@ impl Vm {
         let Some(hidden) = self.hidden_commands.get(cmd).cloned() else {
             return err(format!("invalid hidden command name \"{cmd}\""));
         };
-        let key = cmd.to_string();
-        let saved_command = self.commands.insert(key.clone(), hidden);
-        let saved_origin = self.imported_commands.get(cmd).cloned();
-        let saved_identity = self.builtin_identities.get(cmd).cloned();
-        match self.hidden_imported_commands.get(cmd).cloned() {
-            Some(origin) => {
-                self.imported_commands.insert(key.clone(), origin);
-            }
-            None => {
-                self.imported_commands.remove(cmd);
-            }
+        let identity = self.hidden_builtin_identities.get(cmd).map(String::as_str);
+        if !self.builtin_command_visible_for_identity(cmd, &hidden, identity) {
+            return err(format!("invalid command name \"{cmd}\""));
         }
-        match self.hidden_builtin_identities.get(cmd).cloned() {
-            Some(identity) => {
-                self.builtin_identities.insert(key.clone(), identity);
-            }
-            None => {
-                self.builtin_identities.remove(cmd);
-            }
-        }
-
-        self.bump_cmd_epoch();
-        let result = self.invoke_command(cmd, args);
-        self.bump_cmd_epoch();
-
-        match saved_origin {
-            Some(origin) => {
-                self.imported_commands.insert(key.clone(), origin);
-            }
-            None => {
-                self.imported_commands.remove(cmd);
-            }
-        }
-        match saved_identity {
-            Some(identity) => {
-                self.builtin_identities.insert(key.clone(), identity);
-            }
-            None => {
-                self.builtin_identities.remove(cmd);
-            }
-        }
-        match saved_command {
-            Some(command) => {
-                self.commands.insert(key, command);
-            }
-            None => {
-                self.commands.remove(cmd);
-            }
-        }
-        result
+        self.invoke_resolved_command(cmd, cmd, hidden, args)
     }
 
     /// `interp marktrusted path` — clear a child's safe flag (exposing every
@@ -2665,6 +2632,7 @@ impl Vm {
             _ => None,
         };
         self.hidden_commands.insert(token.to_owned(), command);
+        crate::cmd_coro::on_command_renamed(self, &source, token);
         self.move_command_traces(&source, token);
         if let Some(origin) = import_origin {
             self.hidden_imported_commands
@@ -2695,6 +2663,7 @@ impl Vm {
                 _ => None,
             };
             self.register_command(token, c);
+            crate::cmd_coro::on_command_renamed(self, cmd, token);
             self.move_command_traces(cmd, token);
             if let Some(origin) = self.hidden_imported_commands.remove(cmd) {
                 self.imported_commands.insert(token.to_owned(), origin);
@@ -6114,7 +6083,9 @@ mod family_b_tests {
                 .code
                 .is_ok()
         );
-        assert_eq!(observed.borrow().as_deref(), Some("src::probe"));
+        // Direct hidden dispatch must not publish hidden provenance under the
+        // token: normal command lookup from the body sees only visible state.
+        assert_eq!(observed.borrow().as_deref(), Some("held"));
         assert_eq!(
             vm.hidden_imported_commands.get("held").map(String::as_str),
             Some("src::probe")

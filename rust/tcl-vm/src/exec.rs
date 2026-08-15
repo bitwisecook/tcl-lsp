@@ -4364,6 +4364,73 @@ impl Vm {
         }
     }
 
+    /// Invoke an already-resolved command without consulting the visible
+    /// command table.  Hidden-command dispatch uses this to keep a hidden
+    /// binding private while preserving its display spelling and trace key.
+    pub(crate) fn invoke_resolved_command(
+        &mut self,
+        display_name: &str,
+        trace_key: &str,
+        command: Command,
+        argv: &[Value],
+    ) -> Completion<Value> {
+        if let Some(exceeded) = self.charge_command() {
+            return exceeded;
+        }
+        if self.trace_in_progress.get()
+            || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
+        {
+            return self.invoke_resolved_command_inner(display_name, command, argv);
+        }
+        let mut words = Vec::with_capacity(argv.len() + 1);
+        words.push(Value::string(display_name));
+        words.extend_from_slice(argv);
+        let cmd_string = Value::list(words).to_str().to_string();
+        for scope in self.exec_step_scopes.clone() {
+            if scope.has_op("enterstep") && !scope.firing() {
+                let r = self.run_cmd_trace_callback(
+                    &scope,
+                    &[
+                        Value::string(cmd_string.clone()),
+                        Value::string("enterstep"),
+                    ],
+                );
+                if !r.code.is_ok() {
+                    return r;
+                }
+            }
+        }
+        let own = self.exec_traces.get(trace_key).cloned().unwrap_or_default();
+        for entry in &own {
+            if entry.has_op("enter") {
+                let r = self.run_cmd_trace_callback(
+                    entry,
+                    &[Value::string(cmd_string.clone()), Value::string("enter")],
+                );
+                if !r.code.is_ok() {
+                    return r;
+                }
+            }
+        }
+        let mut pushed = 0usize;
+        for entry in &own {
+            if entry.has_op("enterstep") || entry.has_op("leavestep") {
+                self.exec_step_scopes.push(Rc::clone(entry));
+                pushed += 1;
+            }
+        }
+        let ctx = ExecLeaveCtx {
+            cmd_string,
+            key: trace_key.to_owned(),
+            step_scopes: pushed,
+        };
+        let c = self.invoke_resolved_command_inner(display_name, command, argv);
+        match self.finish_exec_leave(&ctx, &c) {
+            Some(replacement) => replacement,
+            None => c,
+        }
+    }
+
     /// Settle a synchronously-run native command on the native re-entry path
     /// ([`Self::invoke_command`]): a deferred body runs via a nested drive,
     /// else the completion is the command's own. The
@@ -4418,50 +4485,7 @@ impl Vm {
     /// The untraced invoke body — see [`Self::invoke_command`].
     fn invoke_command_inner(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         match self.lookup_command(name) {
-            Some(Command::Builtin(bf)) => {
-                self.set_invoked_name(name);
-                let res = bf(self, argv);
-                self.settle_native_invoke(res)
-            }
-            Some(Command::Native(cmd)) => {
-                self.set_invoked_name(name);
-                let res = cmd.invoke(self, argv);
-                self.settle_native_invoke(res)
-            }
-            Some(Command::Proc(p)) => {
-                let p = self.ensure_proc_ready(p);
-                match self.enter_proc(&p, argv) {
-                    Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
-                    Err(c) => c,
-                }
-            }
-            Some(Command::Alias(target)) => {
-                // Target resolves in the GLOBAL namespace, caller's frame kept
-                // — see the `dispatch_words` Alias arm for the tclsh pins.
-                let mut full: Vec<Value> = (*target).clone();
-                full.extend_from_slice(argv);
-                let here = self.cur_interp();
-                self.invoke_alias_words(here, &full)
-            }
-            // Cross-interp alias: switch to the target interp and run the words
-            // there.  Identical to the bytecode path — a cross-interp alias
-            // works from a native re-entry (coroutine resume, `lsort
-            // -command`, `invoke_command`), which used to error
-            // `cannot invoke parent-interp alias: C stack busy` (issue #946
-            // fault 1).
-            Some(Command::CrossAlias {
-                target: target_interp,
-                words: target,
-            }) => {
-                let mut full: Vec<Value> = (*target).clone();
-                full.extend_from_slice(argv);
-                self.invoke_alias_words(target_interp, &full)
-            }
-            Some(Command::ChildInterp(child)) => self.dispatch_child(name, child, argv),
-            Some(Command::Ensemble(e)) => self.dispatch_ensemble(name, &e, argv),
-            Some(Command::Object(key)) => crate::cmd_oo::oo_dispatch(self, &key, name, argv),
-            // Miss fallback chain (see `dispatch_words`): `namespace unknown`
-            // handler first, then the plain `unknown` proc, then a hard error.
+            Some(command) => self.invoke_resolved_command_inner(name, command, argv),
             None if name != "unknown" => {
                 if let Some(handler) = self.ns_unknown_handler() {
                     let mut handler_words = handler;
@@ -4479,6 +4503,60 @@ impl Vm {
                 }
             }
             None => err(format!("invalid command name \"{name}\"")),
+        }
+    }
+
+    fn invoke_resolved_command_inner(
+        &mut self,
+        name: &str,
+        command: Command,
+        argv: &[Value],
+    ) -> Completion<Value> {
+        match command {
+            Command::Builtin(bf) => {
+                self.set_invoked_name(name);
+                let res = bf(self, argv);
+                self.settle_native_invoke(res)
+            }
+            Command::Native(cmd) => {
+                self.set_invoked_name(name);
+                let res = cmd.invoke(self, argv);
+                self.settle_native_invoke(res)
+            }
+            Command::Proc(p) => {
+                let p = self.ensure_proc_ready(p);
+                match self.enter_proc(&p, argv) {
+                    Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
+                    Err(c) => c,
+                }
+            }
+            Command::Alias(target) => {
+                // Target resolves in the GLOBAL namespace, caller's frame kept
+                // — see the `dispatch_words` Alias arm for the tclsh pins.
+                let mut full: Vec<Value> = (*target).clone();
+                full.extend_from_slice(argv);
+                let here = self.cur_interp();
+                self.invoke_alias_words(here, &full)
+            }
+            // Cross-interp alias: switch to the target interp and run the words
+            // there.  Identical to the bytecode path — a cross-interp alias
+            // works from a native re-entry (coroutine resume, `lsort
+            // -command`, `invoke_command`), which used to error
+            // `cannot invoke parent-interp alias: C stack busy` (issue #946
+            // fault 1).
+            Command::CrossAlias {
+                target: target_interp,
+                words: target,
+            } => {
+                let mut full: Vec<Value> = (*target).clone();
+                full.extend_from_slice(argv);
+                self.invoke_alias_words(target_interp, &full)
+            }
+            Command::ChildInterp(child) => self.dispatch_child(name, child, argv),
+            Command::Ensemble(e) => self.dispatch_ensemble(name, &e, argv),
+            Command::Object(key) => crate::cmd_oo::oo_dispatch(self, &key, name, argv),
+            // Miss fallback chain (see `dispatch_words`): `namespace unknown`
+            // handler first, then the plain `unknown` proc, then a hard error.
         }
     }
 
