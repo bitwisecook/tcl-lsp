@@ -32,11 +32,86 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
 use tcl_compiler::ir::{Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name};
 use tcl_registry::CommandRegistry;
+use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
+use tcl_registry::registry::InvocationCompletion;
 
 const MAX_DEPTH: usize = 8;
 const MAX_EVENTS: usize = 12;
 const MAX_ARG_LEN: usize = 60;
+
+/// A statically-known Tcl completion carried by the diagram JSON contract.
+///
+/// This is deliberately smaller than Tcl's complete result/options triple:
+/// diagrams only need to know whether a path can continue after a `try`'s
+/// `finally` body.  `normal` is omitted from the JSON for compatibility;
+/// every other value is emitted as a node's `completion` field.  Unknown
+/// invocations stay normal in this structural projection rather than being
+/// guessed to be an error or an exit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DiagramCompletion {
+    Normal,
+    Error,
+    Return,
+    Break,
+    Continue,
+    Terminal,
+}
+
+impl DiagramCompletion {
+    const fn as_str(self) -> Option<&'static str> {
+        match self {
+            Self::Normal => None,
+            Self::Error => Some("error"),
+            Self::Return => Some("return"),
+            Self::Break => Some("break"),
+            Self::Continue => Some("continue"),
+            Self::Terminal => Some("terminal"),
+        }
+    }
+}
+
+/// The exact registry completion for a concrete command, if one is known.
+///
+/// Keep this at the IR → diagram boundary.  Rendering must not infer that a
+/// command called `error`, `return`, or `break` has a particular effect: an
+/// alias is already recorded in `canonical_command`, and the registry owns
+/// the effective completion descriptor and terminating traits.
+fn command_completion(
+    command: &str,
+    args: &[String],
+    registry: &CommandRegistry,
+) -> DiagramCompletion {
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    if let Some(resolved) = registry.resolve_call(command, &arg_refs, DialectSet::empty())
+        && let Some(descriptor) = resolved
+            .form
+            .and_then(|form| form.completion)
+            .or(resolved.sub.and_then(|sub| sub.completion))
+            .or(resolved.spec.completion)
+        && let CompletionCodeDomain::Exact(codes) = descriptor.codes
+        && codes.len() == 1
+    {
+        return match codes[0] {
+            CompletionCode::Ok => DiagramCompletion::Normal,
+            CompletionCode::Error => DiagramCompletion::Error,
+            CompletionCode::Return => DiagramCompletion::Return,
+            CompletionCode::Break => DiagramCompletion::Break,
+            CompletionCode::Continue => DiagramCompletion::Continue,
+            CompletionCode::Other(_) => DiagramCompletion::Terminal,
+        };
+    }
+    match registry.invocation_completion(command, &arg_refs, DialectSet::empty()) {
+        InvocationCompletion::ReturnsResult(_) => DiagramCompletion::Return,
+        InvocationCompletion::Terminates => DiagramCompletion::Terminal,
+        // Dynamic completion options are not enough evidence to draw a
+        // terminal path.  Leave such calls as ordinary structural actions.
+        InvocationCompletion::FallsThrough | InvocationCompletion::Unknown => {
+            DiagramCompletion::Normal
+        }
+    }
+}
 
 /// Truncate to `limit` characters with a trailing `...`
 /// (slices by code point, so this counts/takes `char`s).
@@ -146,6 +221,16 @@ fn action_node(display: &str, args: &[String]) -> Value {
     })
 }
 
+/// Add the optional completion field to an action-like node.
+fn with_completion(mut node: Value, completion: DiagramCompletion) -> Value {
+    if let Some(completion) = completion.as_str()
+        && let Some(object) = node.as_object_mut()
+    {
+        object.insert("completion".to_owned(), json!(completion));
+    }
+    node
+}
+
 /// Build the `switch` flow-node dict from its subject, arms and default body.
 fn walk_switch(
     subject: &str,
@@ -205,6 +290,7 @@ fn walk_try(
                 json!({
                     "kind_handler": h.kind,
                     "match": h.match_arg,
+                    "fallthrough": h.fallthrough,
                     "body": walk_script(&h.body, proc_names, depth + 1, registry),
                 })
             })
@@ -271,9 +357,13 @@ fn walk_call(
             "command": display,
         }));
     }
-    // Notable action commands.
-    if registry.is_diagram_action(canonical) {
-        return Some(action_node(display, args));
+    let completion = command_completion(canonical, args, registry);
+    // Keep an exact non-normal completion visible even when it is not a
+    // diagram action (for example `error` / `throw`), so a surrounding try
+    // can route it through `finally`.  Ordinary unknown calls remain omitted
+    // unless the registry marks them as a diagram action.
+    if registry.is_diagram_action(canonical) || completion != DiagramCompletion::Normal {
+        return Some(with_completion(action_node(display, args), completion));
     }
     None
 }
@@ -347,7 +437,7 @@ fn return_node(value: Option<&String>) -> Value {
         label.push(' ');
         label.push_str(&truncate(v, MAX_ARG_LEN));
     }
-    json!({ "kind": "return", "label": label })
+    json!({ "kind": "return", "label": label, "completion": "return" })
 }
 
 /// Convert one IR statement to a flow-node dict, or `None` to skip it.
@@ -411,9 +501,9 @@ fn walk_statement(
             ..
         } => {
             let canonical = canonical_command.as_deref().unwrap_or(command.as_str());
-            registry
-                .is_diagram_action(canonical)
-                .then(|| action_node(command, args))
+            let completion = command_completion(canonical, args, registry);
+            (registry.is_diagram_action(canonical) || completion != DiagramCompletion::Normal)
+                .then(|| with_completion(action_node(command, args), completion))
         }
 
         Statement::Return { value, .. } => Some(return_node(value.as_ref())),
@@ -556,6 +646,7 @@ pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialec
 #[cfg(test)]
 mod tests {
     use super::diagram_data_for_dialect;
+    use serde_json::Value;
 
     #[test]
     fn loop_nodes_carry_their_compiler_exit_reason() {
@@ -580,5 +671,61 @@ mod tests {
             .map(|node| node.get("exit").and_then(serde_json::Value::as_str))
             .collect();
         assert_eq!(exits, vec![Some("false"), Some("false"), Some("exhausted")]);
+    }
+
+    #[test]
+    fn try_projection_carries_exact_completions_and_handler_fallthrough() {
+        let data = diagram_data_for_dialect(
+            r"
+                proc paths {} {
+                    try { error boom } on error message - on return value {
+                        set recovered [clock seconds]
+                    } finally {
+                        set cleaned [clock seconds]
+                    }
+                    set after [clock seconds]
+                }
+            ",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        let try_node = data.pointer("/procedures/0/flow/0").expect("try node");
+        assert_eq!(try_node["kind"], "try");
+        assert_eq!(try_node["body"][0]["completion"], "error");
+        assert_eq!(try_node["handlers"][0]["fallthrough"], true);
+        assert_eq!(try_node["handlers"][1]["fallthrough"], false);
+        assert_eq!(try_node["finally"][0]["kind"], "assign");
+        assert_eq!(try_node["finally"][0].get("completion"), None);
+
+        // The following action remains in the projection; it is the renderer
+        // that selects it only for the normal/handled completion paths.
+        let flow = data
+            .pointer("/procedures/0/flow")
+            .and_then(Value::as_array)
+            .unwrap();
+        assert_eq!(flow[1]["value"], "[clock seconds]");
+    }
+
+    #[test]
+    fn return_projection_is_an_explicit_completion_not_a_renderer_guess() {
+        let data = diagram_data_for_dialect(
+            "proc paths {} { try { return stop } finally { set cleaned [clock seconds] } }",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        assert_eq!(
+            data.pointer("/procedures/0/flow/0/body/0/completion"),
+            Some(&Value::String("return".to_owned()))
+        );
+
+        let overridden = diagram_data_for_dialect(
+            "proc paths {} { try { set done [clock seconds] } finally { return stop } }",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        assert_eq!(
+            overridden.pointer("/procedures/0/flow/0/finally/0/completion"),
+            Some(&Value::String("return".to_owned()))
+        );
     }
 }

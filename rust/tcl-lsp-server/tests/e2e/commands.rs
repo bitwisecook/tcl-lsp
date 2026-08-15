@@ -393,6 +393,21 @@ fn diagram_extracts_irule_events() {
 }
 
 #[test]
+fn diagram_data_serialises_completion_contract_for_clients() {
+    let mut lsp = Lsp::tcl();
+    let source = r#"
+        proc paths {} {
+            return stop
+            set after [clock seconds]
+        }
+    "#;
+    let result = lsp.execute_command("tcl-lsp.diagramData", json!([source]));
+    let return_node = &result["procedures"][0]["flow"][0];
+    assert_eq!(return_node["kind"], "return", "{result}");
+    assert_eq!(return_node["completion"], "return", "{result}");
+}
+
+#[test]
 fn effective_config_shape() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

@@ -181,27 +181,75 @@ class TclLspActionsTest {
     }
 
     @Test
-    fun tryHandlersAndAllExitsFlowThroughFinallyBeforeContinuation() {
+    fun tryCompletionContractRoutesOnlyHandledPathsPastFinally() {
         val payload = JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"try","body":[
-              {"kind":"action","label":"work"}],"handlers":[
-              {"kind_handler":"on","match":"error","body":[{"kind":"action","label":"recover"}]},
-              {"kind_handler":"trap","match":"CUSTOM","body":[{"kind":"action","label":"alternate"}]}
+              {"kind":"action","label":"fail","completion":"error"}],"handlers":[
+              {"kind_handler":"on","match":"error","fallthrough":false,"body":[{"kind":"action","label":"recover"}]}
             ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
         )
 
         val mermaid = assertNotNull(renderDiagramMermaid(payload))
         assertContains(mermaid, "n1 --> n2")
-        assertContains(mermaid, "n1 -->|on error| n3")
+        assertContains(mermaid, "n2 -->|on| n3")
         assertContains(mermaid, "n3 --> n4")
-        assertContains(mermaid, "n1 -->|trap CUSTOM| n5")
+        kotlin.test.assertFalse(mermaid.contains("n2 --> n5"), mermaid)
+        assertContains(mermaid, "n4 --> n5")
         assertContains(mermaid, "n5 --> n6")
-        assertContains(mermaid, "n2 --> n7")
-        assertContains(mermaid, "n4 --> n7")
         assertContains(mermaid, "n6 --> n7")
-        assertContains(mermaid, "n7 --> n8")
-        assertContains(mermaid, "n8 --> n9")
         kotlin.test.assertFalse(mermaid.contains("try join"), mermaid)
+    }
+
+    @Test
+    fun returnAndUnhandledErrorRunFinallyButDoNotReachContinuation() {
+        fun render(completion: String): String = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"leave","completion":"$completion"}],
+              "finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+
+        for (completion in listOf("return", "error", "break", "continue", "terminal")) {
+            val mermaid = render(completion)
+            assertContains(mermaid, "n2 --> n3")
+            assertContains(mermaid, "n3 --> n4")
+            kotlin.test.assertFalse(mermaid.contains("after"), mermaid)
+        }
+    }
+
+    @Test
+    fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
+        fun render(finallyCompletion: String? = null): String {
+            val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""
+            return assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+                """{"events":[{"name":"E","flow":[{"kind":"try","body":[{"kind":"action","label":"work"}],
+                  "finally":[{"kind":"action","label":"cleanup"$completion}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+            )))
+        }
+
+        val normal = render()
+        assertContains(normal, "n5[\"after\"]")
+        assertContains(normal, "n4 --> n5")
+
+        val override = render("return")
+        kotlin.test.assertFalse(override.contains("after"), override)
+    }
+
+    @Test
+    fun tryHandlerFallthroughTargetsTheNextHandlerBodyBeforeFinally() {
+        val payload = JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"fail","completion":"error"}],"handlers":[
+              {"kind_handler":"on","match":"error","fallthrough":true,"body":[]},
+              {"kind_handler":"on","match":"return","fallthrough":false,"body":[{"kind":"action","label":"shared body"}]}
+            ],"finally":[{"kind":"action","label":"cleanup"}]}]}],"procedures":[]}"""
+        )
+
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "n2 -->|on| n3")
+        assertContains(mermaid, "n3 -->|fall through| n4")
+        assertContains(mermaid, "n4 --> n5")
+        assertContains(mermaid, "n5 --> n6")
+        kotlin.test.assertFalse(mermaid.contains("n3 --> n6"), mermaid)
     }
 
     @Test

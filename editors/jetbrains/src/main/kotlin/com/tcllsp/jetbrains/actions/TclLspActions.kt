@@ -143,52 +143,69 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         if (from != null) out += if (caption == null) "$from --> $to" else "$from -->|${label(caption)}| $to"
     }
 
-    fun walk(flow: JsonArray, previous: String?): String? {
-        var tail = previous
+    data class Tail(val id: String, val completion: DiagramCompletion = DiagramCompletion.NORMAL)
+
+    fun completion(item: JsonObject): DiagramCompletion = when (item.string("completion")) {
+        "error" -> DiagramCompletion.ERROR
+        "return" -> DiagramCompletion.RETURN
+        "break" -> DiagramCompletion.BREAK
+        "continue" -> DiagramCompletion.CONTINUE
+        "terminal" -> DiagramCompletion.TERMINAL
+        else -> DiagramCompletion.NORMAL
+    }
+
+    fun connect(incoming: List<Tail>, to: String, caption: String? = null) {
+        incoming.forEach { connect(it.id, to, caption) }
+    }
+
+    fun walk(flow: JsonArray, incoming: List<Tail>): List<Tail> {
+        var active = incoming
+        val abrupt = mutableListOf<Tail>()
         for (element in flow) {
+            if (active.isEmpty()) break
             val item = element.takeIf { it.isJsonObject }?.asJsonObject ?: continue
             when (item.string("kind")) {
                 "if" -> {
                     val decision = node("if", "decision")
-                    connect(tail, decision)
+                    connect(active, decision)
                     val branches = item.array("branches") ?: JsonArray()
-                    val branchTails = mutableListOf<String>()
+                    val branchTails = mutableListOf<Tail>()
                     for (branchElement in branches) {
                         val branch = branchElement.takeIf { it.isJsonObject }?.asJsonObject ?: continue
                         val branchStart = node(branch.string("condition") ?: "branch")
                         connect(decision, branchStart, branch.string("condition"))
-                        val branchTail = walk(branch.array("body") ?: JsonArray(), branchStart)
-                        branchTails += branchTail ?: branchStart
+                        branchTails += walk(branch.array("body") ?: JsonArray(), listOf(Tail(branchStart)))
                     }
                     if (branchTails.isEmpty()) {
-                        tail = decision
+                        active = listOf(Tail(decision))
                     } else {
                         val join = node("if join", "round")
-                        branchTails.forEach { connect(it, join) }
                         // A conditional without an explicit else also has a
                         // fall-through path; keep it connected to the same
                         // continuation rather than dropping it.
                         val hasElse = branches.any {
                             it.isJsonObject && it.asJsonObject.string("condition") == "else"
                         }
+                        val normalTails = branchTails.filter { it.completion == DiagramCompletion.NORMAL }
+                        normalTails.forEach { connect(it.id, join) }
                         if (!hasElse) {
                             connect(decision, join, "false")
                         }
-                        tail = join
+                        abrupt += branchTails.filter { it.completion != DiagramCompletion.NORMAL }
+                        active = listOf(Tail(join))
                     }
                 }
                 "switch" -> {
                     val decision = node("switch ${item.string("subject") ?: ""}", "decision")
-                    connect(tail, decision)
-                    val armTails = mutableListOf<String>()
+                    connect(active, decision)
+                    val armTails = mutableListOf<Tail>()
                     var hasDefault = false
                     for (armElement in item.array("arms") ?: JsonArray()) {
                         val arm = armElement.takeIf { it.isJsonObject }?.asJsonObject ?: continue
                         val pattern = arm.string("pattern") ?: "case"
                         val armStart = node(pattern)
                         connect(decision, armStart, pattern)
-                        val armTail = walk(arm.array("body") ?: JsonArray(), armStart)
-                        armTails += armTail ?: armStart
+                        armTails += walk(arm.array("body") ?: JsonArray(), listOf(Tail(armStart)))
                         // `tcl-diagram` serialises the compiler's default
                         // arm as this exact lower-case spelling.  `Default`
                         // is an ordinary Tcl pattern and must retain the
@@ -196,39 +213,41 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         hasDefault = hasDefault || pattern == "default"
                     }
                     if (armTails.isEmpty()) {
-                        tail = decision
+                        active = listOf(Tail(decision))
                     } else {
                         // Every matching arm continues at one shared point.
                         // Without a default, Tcl also reaches that point when
                         // no pattern matched; a default consumes that path.
                         val join = node("switch join", "round")
-                        armTails.forEach { connect(it, join) }
+                        armTails.filter { it.completion == DiagramCompletion.NORMAL }.forEach { connect(it.id, join) }
                         if (!hasDefault) {
                             connect(decision, join, "no match")
                         }
-                        tail = join
+                        abrupt += armTails.filter { it.completion != DiagramCompletion.NORMAL }
+                        active = listOf(Tail(join))
                     }
                 }
                 "loop" -> {
                     val loop = node(item.string("label") ?: item.string("kind") ?: "block", "round")
-                    connect(tail, loop)
-                    val bodyTail = walk(item.array("body") ?: JsonArray(), loop) ?: loop
-                    connect(bodyTail, loop, "repeat")
+                    connect(active, loop)
+                    val bodyTails = walk(item.array("body") ?: JsonArray(), listOf(Tail(loop)))
+                    bodyTails.filter { it.completion == DiagramCompletion.NORMAL }.forEach { connect(it.id, loop, "repeat") }
+                    abrupt += bodyTails.filter { it.completion != DiagramCompletion.NORMAL }
                     val exit = node("loop exit", "round")
                     connect(loop, exit, item.string("exit") ?: "exit")
-                    tail = exit
+                    active = listOf(Tail(exit))
                 }
                 "catch" -> {
                     val block = node("catch", "round")
-                    connect(tail, block)
-                    tail = walk(item.array("body") ?: JsonArray(), block) ?: block
+                    connect(active, block)
+                    active = walk(item.array("body") ?: JsonArray(), listOf(Tail(block)))
                 }
                 "try" -> {
                     val attempt = node("try", "round")
-                    connect(tail, attempt)
-                    val exits = mutableListOf(
-                        walk(item.array("body") ?: JsonArray(), attempt) ?: attempt
-                    )
+                    connect(active, attempt)
+                    val bodyExits = walk(item.array("body") ?: JsonArray(), listOf(Tail(attempt)))
+                    data class Handler(val data: JsonObject, val start: String, var exits: List<Tail>? = null)
+                    val handlers = mutableListOf<Handler>()
                     for (handlerElement in item.array("handlers") ?: JsonArray()) {
                         val handler = handlerElement.takeIf { it.isJsonObject }?.asJsonObject ?: continue
                         val kind = handler.string("kind_handler") ?: "handler"
@@ -237,18 +256,95 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             .filter(String::isNotBlank)
                             .joinToString(" ")
                         val handlerStart = node(handlerLabel.ifEmpty { "handler" }, "round")
-                        connect(attempt, handlerStart, handlerLabel.ifEmpty { "handler" })
-                        exits += walk(handler.array("body") ?: JsonArray(), handlerStart) ?: handlerStart
+                        handlers += Handler(handler, handlerStart)
+                    }
+
+                    fun renderHandler(index: Int): List<Tail> {
+                        val handler = handlers[index]
+                        handler.exits?.let { return it }
+                        val exits = if (handler.data.get("fallthrough")?.asBoolean == true && index + 1 < handlers.size) {
+                            val next = handlers[index + 1]
+                            // Tcl's `-` shares the next handler's body.  It is
+                            // not a completion to `finally` of its own.
+                            connect(handler.start, next.start, "fall through")
+                            renderHandler(index + 1)
+                        } else {
+                            walk(handler.data.array("body") ?: JsonArray(), listOf(Tail(handler.start)))
+                        }
+                        handler.exits = exits
+                        return exits
+                    }
+
+                    fun handlerMatches(handler: Handler, outcome: DiagramCompletion): Boolean {
+                        if (handler.data.string("kind_handler") != "on") return outcome == DiagramCompletion.ERROR && handler.data.string("kind_handler") == "trap"
+                        return when (outcome) {
+                            DiagramCompletion.NORMAL -> handler.data.string("match") == "ok" || handler.data.string("match") == "0"
+                            DiagramCompletion.ERROR -> handler.data.string("match") == "error" || handler.data.string("match") == "1"
+                            DiagramCompletion.RETURN -> handler.data.string("match") == "return" || handler.data.string("match") == "2"
+                            DiagramCompletion.BREAK -> handler.data.string("match") == "break" || handler.data.string("match") == "3"
+                            DiagramCompletion.CONTINUE -> handler.data.string("match") == "continue" || handler.data.string("match") == "4"
+                            DiagramCompletion.TERMINAL -> false
+                        }
+                    }
+
+                    val exits = mutableListOf<Tail>()
+                    for (bodyExit in bodyExits) {
+                        val matches = handlers.withIndex().filter { (_, handler) -> handlerMatches(handler, bodyExit.completion) }
+                        val errorIsCertainlyHandled = bodyExit.completion == DiagramCompletion.ERROR && matches.any {
+                            (_, handler) -> handler.data.string("kind_handler") == "on"
+                        }
+                        if (matches.isEmpty() || (bodyExit.completion == DiagramCompletion.ERROR && !errorIsCertainlyHandled)) {
+                            // A `trap` pattern needs error-code detail which
+                            // this compact contract intentionally does not
+                            // carry.  It is a possible handled path, but not
+                            // proof that every error is caught, so retain the
+                            // unhandled error as well.
+                            exits += bodyExit
+                        }
+                        if (matches.isNotEmpty()) {
+                            // `on` clauses are selected in source order.  A
+                            // `trap` pattern is not represented by the
+                            // structured IR's completion code, so every
+                            // preceding trap is a possible path; a matching
+                            // `on` clause then catches all remaining paths.
+                            for ((index, handler) in matches) {
+                                connect(bodyExit.id, handler.start, handler.data.string("kind_handler"))
+                                exits += renderHandler(index)
+                                if (handler.data.string("kind_handler") == "on") break
+                            }
+                        }
                     }
                     val finallyBody = item.array("finally")
                     if (finallyBody == null) {
-                        val join = node("try join", "round")
-                        exits.forEach { connect(it, join) }
-                        tail = join
+                        val normalExits = exits.filter { it.completion == DiagramCompletion.NORMAL }
+                        abrupt += exits.filter { it.completion != DiagramCompletion.NORMAL }
+                        active = if (normalExits.isEmpty()) {
+                            emptyList()
+                        } else {
+                            val join = node("try join", "round")
+                            normalExits.forEach { connect(it.id, join) }
+                            listOf(Tail(join))
+                        }
                     } else {
                         val cleanup = node("finally", "round")
-                        exits.forEach { connect(it, cleanup) }
-                        tail = walk(finallyBody, cleanup) ?: cleanup
+                        exits.forEach { connect(it.id, cleanup) }
+                        val finallyExits = walk(finallyBody, listOf(Tail(cleanup)))
+                        // A normal finally body preserves the completion it
+                        // received.  Thus only normal and handled-completing
+                        // paths reach the statement after the try; return,
+                        // break, and unhandled-error paths still execute
+                        // cleanup but propagate afterwards.  A completion in
+                        // the finally body itself overrides every incoming
+                        // path, exactly as Tcl specifies.
+                        val propagated = finallyExits.flatMap { finalExit ->
+                            if (finalExit.completion == DiagramCompletion.NORMAL) {
+                                exits.map { Tail(finalExit.id, it.completion) }
+                            } else {
+                                listOf(finalExit)
+                            }
+                        }
+                        abrupt += propagated.filter { it.completion != DiagramCompletion.NORMAL }
+                        active = propagated.filter { it.completion == DiagramCompletion.NORMAL }
                     }
                 }
                 else -> {
@@ -257,12 +353,18 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         ?: item.string("kind")
                         ?: "step"
                     val step = node(text)
-                    connect(tail, step)
-                    tail = step
+                    connect(active, step)
+                    val outcome = completion(item)
+                    if (outcome == DiagramCompletion.NORMAL) {
+                        active = listOf(Tail(step))
+                    } else {
+                        abrupt += Tail(step, outcome)
+                        active = emptyList()
+                    }
                 }
             }
         }
-        return tail
+        return active + abrupt
     }
 
     for (eventElement in events) {
@@ -272,14 +374,14 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         val multiplicity = event.string("multiplicity")
         val detail = listOfNotNull(priority?.let { "priority $it" }, multiplicity).joinToString(", ")
         val start = node(if (detail.isEmpty()) "when $name" else "when $name ($detail)", "round")
-        walk(event.array("flow") ?: JsonArray(), start)
+        walk(event.array("flow") ?: JsonArray(), listOf(Tail(start)))
     }
     for (procedureElement in procedures) {
         val procedure = procedureElement.takeIf { it.isJsonObject }?.asJsonObject ?: continue
         val name = procedure.string("name") ?: "procedure"
         val params = procedure.array("params")?.joinToString(", ") { it.asString } ?: ""
         val start = node("proc $name($params)", "round")
-        walk(procedure.array("flow") ?: JsonArray(), start)
+        walk(procedure.array("flow") ?: JsonArray(), listOf(Tail(start)))
     }
     return out.joinToString("\n")
 }
@@ -288,6 +390,9 @@ private class MermaidIds {
     private var value = 0
     fun next(): String = "n${value++}"
 }
+
+/** Completion states defined by the shared `tcl-diagram` JSON contract. */
+private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, TERMINAL }
 
 private fun JsonObject.string(name: String): String? =
     get(name)?.takeUnless { it.isJsonNull }?.asString
