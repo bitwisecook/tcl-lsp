@@ -450,6 +450,7 @@ impl CaseListSpec {
     /// layout. The two-argument switch exception, `--`, option values, and
     /// pair arity are all registry-owned here.
     #[must_use]
+    #[allow(clippy::too_many_lines)] // option and outer-shape grammar are one descriptor operation
     pub fn invocation(
         self,
         args: &[&str],

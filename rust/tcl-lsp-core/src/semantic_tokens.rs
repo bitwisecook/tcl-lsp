@@ -1544,7 +1544,7 @@ fn special_arg_kinds(
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_definer_class_name_override(seg, registry, &mut overrides);
     insert_lambda_literal_overrides(seg, registry, head, deferred_role, &mut overrides);
-    insert_case_list_override(seg, registry, &mut overrides);
+    insert_case_list_override(seg, registry, dialect, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, oo_grammar, arg_texts, dialect, &mut overrides);
     insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
@@ -3350,6 +3350,7 @@ fn is_plain_var_name(text: &str) -> bool {
 fn insert_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // The clause-list shape is registry data (`CommandSpec::case_list`), so this
@@ -3368,11 +3369,6 @@ fn insert_case_list_override(
     // form only: the inline `pat body …` form leaves more than one trailing
     // word and `clause_list_call` answers `None` for it.
     let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
-    let dialect = registry
-        .profile()
-        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
-            profile.availability_mask
-        });
     let Some((_, invocation)) = registry.case_invocation(&seg.texts[0], &args, dialect) else {
         return;
     };
@@ -4310,13 +4306,17 @@ fn collect_case_list(
         let mut clause_regexp = regexp;
         for f in &clause.flags {
             let text = inner.get(f.start..f.end).unwrap_or_default();
-            if spec.clause_regex_flag == Some(text) {
+            // The descriptor permits unique prefixes (`-re` for `-regexp`),
+            // so compare the resolved canonical flag rather than the spelling
+            // that appeared in the clause list.
+            let flag = shape.resolve_flag(text);
+            if spec.clause_regex_flag == flag {
                 clause_regexp = true;
             }
             let ftok = as_token(*f);
             // A flag word is a decorator; its *value* word (`-timeout 5`) takes
             // its own literal classification.
-            let kind = if spec.clause_flags.contains(&text) {
+            let kind = if flag.is_some() {
                 Some(TokenKind::Decorator)
             } else {
                 classify_arg_token(ftok, full_source, ctx.numbers)
@@ -6437,6 +6437,12 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    fn expect_reg() -> CommandRegistry {
+        let mut registry = reg();
+        registry.load_dialect(DialectSet::EXPECT);
+        registry
+    }
+
     fn kinds(src: &str, dialect: &str, registry: &CommandRegistry) -> Vec<u32> {
         full(src, dialect, registry)
             .data
@@ -6534,6 +6540,24 @@ mod tests {
         assert!(
             toks.contains(&(0, 5, 1)),
             "expected a length-1 string token at col 5, got {toks:?}",
+        );
+    }
+
+    #[test]
+    fn expect_abbreviated_regex_clause_flag_is_a_decorator_and_enables_regex_tokens() {
+        let source = "expect {\n    -re {a+} {\n        puts matched\n    }\n}\n";
+        let tokens = decode_full(source, "expect", &expect_reg());
+        assert!(
+            tokens.iter().any(|&(line, col, len, kind, _)| {
+                (line, col, len, kind) == (1, 4, 3, TokenKind::Decorator as u32)
+            }),
+            "-re must be a clause decorator: {tokens:?}"
+        );
+        assert!(
+            tokens
+                .iter()
+                .any(|&(_, _, _, kind, _)| kind == TokenKind::RegexpQuantifier as u32),
+            "-re must enable regexp tokenisation for its pattern: {tokens:?}"
         );
     }
 

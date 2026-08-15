@@ -438,30 +438,40 @@ fn collect_body_folds(
         // block folded (issue #1216).  Which word holds the list, and how the
         // list is shaped, is registry data (`CommandSpec::case_list`), so this
         // walk names no command.
-        let case_list = ctx
-            .registry
-            .get(head.resolved)
-            .and_then(|s| s.case_list)
-            .and_then(|spec| {
-                let dialect = ctx
-                    .registry
-                    .profile()
-                    .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
-                        profile.availability_mask
-                    });
-                ctx.registry
-                    .case_invocation(head.resolved, &args_borrow, dialect)
-                    .and_then(|(_, invocation)| {
-                        invocation.clause_list_index.map(|index| (spec, index))
-                    })
-            });
+        let case_list = [head.resolved, head.written].into_iter().find_map(|name| {
+            let spec = ctx.registry.get(name)?.case_list?;
+            ctx.registry
+                .case_invocation(name, &args_borrow, ctx.availability)
+                .and_then(|(_, invocation)| invocation.clause_list_index.map(|index| (spec, index)))
+        });
 
         // The grammar the recursion into THIS command's bodies should carry:
         // outer definer bodies switch to their grammar, member bodies switch
         // off, everything else inherits.
         let next_grammar = next_definition_grammar(head, &args_borrow, oo_grammar, ctx.registry);
 
+        // Case-list descriptors own their enclosing list independently of
+        // ordinary `ArgRole::Body`: Expect has no generic body role, whereas
+        // switch does. Handle it once here, then omit it from the body loop so
+        // switch retains exactly its former folds without duplicates.
+        if let Some((spec, case_idx)) = case_list
+            && let Some(&body_tok) = cmd.arg_tokens().get(case_idx)
+            && matches!(body_tok.kind, TokenType::Str)
+        {
+            emit_body_span_fold(
+                body_tok.span,
+                ctx.original_source,
+                ctx.line_index,
+                ctx.seen,
+                ctx.ranges,
+            );
+            collect_clause_folds(body_tok, spec, depth, ctx);
+        }
+
         for idx in body_indices {
+            if case_list.is_some_and(|(_, case_idx)| case_idx == idx) {
+                continue;
+            }
             let arg_tokens = cmd.arg_tokens();
             if idx >= arg_tokens.len() {
                 continue;
@@ -477,15 +487,6 @@ fn collect_body_folds(
                 ctx.seen,
                 ctx.ranges,
             );
-
-            // The clause-list word folds as one block (just emitted), then
-            // each arm's own body folds and is recursed as the script it is.
-            if let Some((spec, case_idx)) = case_list
-                && case_idx == idx
-            {
-                collect_clause_folds(body_tok, spec, depth, ctx);
-                continue;
-            }
 
             // Recurse into the body's content. The lexer's STR span
             // includes the opening ``{``; for closed non-empty bodies
@@ -788,6 +789,12 @@ mod tests {
         folding_ranges(source, dialect, &registry())
     }
 
+    fn folding_ranges_expect(source: &str) -> Vec<FoldingRange> {
+        let mut registry = registry();
+        registry.load_dialect(tcl_dialect::DialectSet::EXPECT);
+        folding_ranges(source, "expect", &registry)
+    }
+
     fn fold_lines(ranges: &[FoldingRange], kind: FoldKind) -> Vec<(u32, u32)> {
         let mut out: Vec<(u32, u32)> = ranges
             .iter()
@@ -937,6 +944,71 @@ mod tests {
         assert!(
             regions.contains(&(5, 7)),
             "the `default` arm body must fold: {regions:?}",
+        );
+        let unique: std::collections::HashSet<_> = regions.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            regions.len(),
+            "switch folds must not duplicate: {regions:?}"
+        );
+    }
+
+    #[test]
+    fn expect_clause_list_folds_without_a_body_role() {
+        let source = concat!(
+            "expect {\n",        // 0
+            "    ready {\n",     // 1
+            "        puts ok\n", // 2
+            "        log ok\n",  // 3
+            "    }\n",           // 4
+            "}\n",               // 5
+        );
+        let regions = fold_lines(&folding_ranges_expect(source), FoldKind::Region);
+        assert!(
+            regions.contains(&(0, 4)),
+            "outer list must fold: {regions:?}"
+        );
+        assert!(
+            regions.contains(&(1, 3)),
+            "expect arm must fold: {regions:?}"
+        );
+    }
+
+    #[test]
+    fn expect_brace_outer_shape_folds_list_and_arm() {
+        let source = concat!(
+            "expect -brace {\n",          // 0
+            "    default {\n",            // 1
+            "        return FOLDED\n",    // 2
+            "        puts unreachable\n", // 3
+            "    }\n",                    // 4
+            "}\n",                        // 5
+        );
+        let regions = fold_lines(&folding_ranges_expect(source), FoldKind::Region);
+        assert!(
+            regions.contains(&(0, 4)),
+            "-brace list must fold: {regions:?}"
+        );
+        assert!(
+            regions.contains(&(1, 3)),
+            "-brace arm must fold: {regions:?}"
+        );
+    }
+
+    #[test]
+    fn expect_ambiguous_brace_prefix_does_not_open_a_clause_list() {
+        let source = concat!(
+            "expect -b {\n",
+            "    default {\n",
+            "        puts no\n",
+            "        puts fold\n",
+            "    }\n",
+            "}\n",
+        );
+        let regions = fold_lines(&folding_ranges_expect(source), FoldKind::Region);
+        assert!(
+            regions.is_empty(),
+            "invalid -b must not create Expect folds: {regions:?}"
         );
     }
 

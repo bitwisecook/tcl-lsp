@@ -19,6 +19,26 @@
 //! `expect` command.
 use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
+    // `-brace` is deliberately an exact-only outer-shape selector, not a
+    // clause flag: it makes one braced word a pattern/action list.
+    OptionSpec {
+        name: "-brace",
+        value: OptionValue::flag(),
+        detail: "Interpret the following braced word as pattern/action pairs.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: Some(6),
+    },
+    OptionSpec {
+        name: "-nobrace",
+        value: OptionValue::flag(),
+        detail: "Treat a following braced word as one pattern, not a clause list.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
     OptionSpec {
         name: "-re",
         value: OptionValue::flag(),
