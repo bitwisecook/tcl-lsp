@@ -1886,6 +1886,24 @@ impl Vm {
         self.take_command_unchecked_key(&key)
     }
 
+    /// Retire a VM-owned command whether its lifecycle key is currently
+    /// visible or hidden.  Coroutine completion is not a user `rename`/delete
+    /// operation, so hidden retirement deliberately does not fire a command
+    /// delete callback, but it must clear every hidden-table sidecar.
+    pub(crate) fn retire_command_lifecycle(&mut self, key: &str) -> Option<Command> {
+        if let Some(command) = self.take_command_unchecked(key) {
+            return Some(command);
+        }
+        let command = self.hidden_commands.remove(key)?;
+        self.bump_cmd_epoch();
+        self.hidden_imported_commands.remove(key);
+        self.hidden_builtin_identities.remove(key);
+        self.cmd_traces.remove(key);
+        self.exec_traces.remove(key);
+        self.drop_alias_backref(key);
+        Some(command)
+    }
+
     /// Remove a command by its already-resolved table key.
     fn take_command_unchecked_key(&mut self, key: &str) -> Option<Command> {
         self.bump_cmd_epoch();

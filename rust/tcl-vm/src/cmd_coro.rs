@@ -408,7 +408,7 @@ fn run_injections(
 /// unwinding caller tears everything down instead.
 fn teardown_coro(vm: &mut Vm, fqn: &str) {
     if !vm.exit_pending() {
-        vm.take_command_unchecked(fqn);
+        vm.retire_command_lifecycle(fqn);
     }
     if let Some(state) = vm.coro.live.remove(fqn)
         && let Some(p) = state.temp_proc

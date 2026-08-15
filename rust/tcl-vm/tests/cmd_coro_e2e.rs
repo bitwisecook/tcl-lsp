@@ -598,6 +598,20 @@ fn completed_coroutine_command_is_removed() {
 }
 
 #[test]
+fn completed_hidden_coroutine_is_retired_from_hidden_state() {
+    // Tcl 9.0.4: completing through invokehidden consumes the hidden token;
+    // neither a second resume nor a later expose can resurrect it.
+    assert_eq!(
+        result(
+            "proc g {} {yield a; return done}; coroutine c g; interp hide {} c held; \
+             list [interp invokehidden {} held] [interp hidden {}] \
+             [catch {interp invokehidden {} held}] [catch {interp expose {} held again}]"
+        ),
+        "done {} 1 0"
+    );
+}
+
+#[test]
 fn deleting_a_suspended_coroutine() {
     // tclsh 9.0.4: `rename $coro {}` drops a suspended coroutine.
     assert_eq!(
