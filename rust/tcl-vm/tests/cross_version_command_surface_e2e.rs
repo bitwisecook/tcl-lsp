@@ -482,10 +482,11 @@ fn refused_alias_rename_restores_import_provenance() {
     }
 }
 
-/// The provisional alias can replace an engine-registered command that is
-/// hidden by the current release.  Restoring that destination is essential:
-/// a later release change must reveal the original builtin, not a command
-/// table hole left by the rejected rename.
+/// An alias-loop check must not provisionally overwrite an engine-registered
+/// command hidden by the current release.  That overwrite would invoke its
+/// delete callback and discard command/execution traces before rollback could
+/// restore the command; a later release change must reveal the original
+/// builtin with both trace registrations intact.
 #[test]
 fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     let mut vm = Vm::new();
@@ -495,16 +496,22 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     ))));
     let setup = vm
         .eval_source(
-            "namespace eval src {interp alias {} ::src::a {} lassign; namespace export a}\n\
+            "proc on_delete args {lappend ::events delete}\n\
+             proc on_enter args {lappend ::events enter}\n\
+             trace add command lassign delete on_delete\n\
+             trace add execution lassign enter on_enter\n\
+             namespace eval src {interp alias {} ::src::a {} lassign; namespace export a}\n\
              namespace eval imported {namespace import ::src::a}\n\
              catch {rename ::src::a lassign} message\n\
-             list $message [namespace origin ::imported::a]\n",
+             list $message [namespace origin ::imported::a] \\
+                  [llength [trace info command lassign]] \\
+                  [llength [trace info execution lassign]] [info exists ::events]\n",
         )
         .expect("8.4 setup compiles");
     assert!(setup.code.is_ok());
     assert_eq!(
         setup.result.to_str().as_ref(),
-        "{cannot define or rename alias \"lassign\": would create a loop} ::src::a"
+        "{cannot define or rename alias \"lassign\": would create a loop} ::src::a 1 1 0"
     );
 
     vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
@@ -512,10 +519,10 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
         "tcl8.5",
     ))));
     let probe = vm
-        .eval_source("list [namespace origin ::imported::a] [lassign {a b} value]\n")
+        .eval_source("list [namespace origin ::imported::a] [lassign {a b} value] $::events\n")
         .expect("8.5 probe compiles");
     assert!(probe.code.is_ok());
-    assert_eq!(probe.result.to_str().as_ref(), "::src::a b");
+    assert_eq!(probe.result.to_str().as_ref(), "::src::a b enter");
 }
 
 /// A `catch` body is compiled at run time through the VM's compile service,

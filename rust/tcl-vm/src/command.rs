@@ -468,7 +468,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "can't rename to \"{new_name}\": command already exists"
         ));
     }
-    let Some((cmd, mut rename)) = vm.take_command_for_rename(&old_name) else {
+    let Some((cmd, mut rename)) = vm.prepare_command_rename(&old_name) else {
         // Renaming to the empty name is a delete; C words the miss accordingly.
         let verb = if new_name.is_empty() {
             "delete"
@@ -528,18 +528,20 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             other => other,
         };
         let is_alias = matches!(&cmd, Command::Alias(_) | Command::CrossAlias { .. });
-        vm.install_renamed_command(&mut rename, &key, cmd);
         // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
         // a name its own target chain resolves back to is refused, with the
-        // command restored under its old name (tclsh-pinned: `interp alias {}
-        // a {} b; rename a b` errors, `a` survives, `b` stays free).
-        if is_alias && vm.alias_chain_loops_here(&key) {
-            vm.rollback_renamed_command(rename);
+        // command left untouched (tclsh-pinned: `interp alias {} a {} b;
+        // rename a b` errors, `a` survives, `b` stays free).  This logical
+        // check must precede registration: a hidden destination can carry
+        // delete callbacks and trace/deoptimisation state that cannot be
+        // rolled back after `register_command` observes an overwrite.
+        if is_alias && vm.alias_chain_loops_for_rename(&key, &cmd) {
             let tail = crate::interp::key_holder_and_tail_unrooted(&key).1;
             return err(format!(
                 "cannot define or rename alias \"{tail}\": would create a loop"
             ));
         }
+        vm.install_renamed_command(&mut rename, &key, cmd);
         vm.commit_renamed_command(&rename);
         // The rename happened: fire the command's `rename` traces
         // (`callback ::old ::new rename`, both fully qualified — tclsh-
