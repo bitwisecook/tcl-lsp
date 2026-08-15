@@ -377,7 +377,13 @@ pub enum DispatchEntryAssumption {
 
 This is the typed replacement for any "no trace was seen in this file"
 heuristic. It is an explicit input chosen by the analysis driver, never
-inferred from source text.
+inferred from source text. The enum is public because low-level compiler APIs
+and pass tests deliberately accept an assumption; it is not an opaque proof
+token. Such callers can select `PristineRegistryWorld` without proving it.
+Soundness claims in this section therefore describe the repository's
+production `CompilationUnit` drivers, whose choices are pinned by regression
+tests, not arbitrary direct calls to `FunctionUnit::with_semantic_analysis`,
+`SemanticAnalysisBundle::build`, or `analyse_dispatch_stability`.
 
 `PristineRegistryWorld` asserts that dispatch state at entry is the registry's
 baseline for the selected dialect: registry command bindings are intact and no
@@ -415,7 +421,11 @@ facts together:
 - exact content identities and evaluation order for every workspace unit,
   resolved `source`, selected package implementation, and preload;
 - a complete set of Tcl callers and native/host command exposures; and
-- registry-baseline command identity after the complete ordered load.
+- complete ordered dispatch-world history through the load and at every
+  procedure invocation, including nested evaluation and host re-entrancy; and
+- registry-baseline command identity after the complete ordered load, plus
+  either prevention of every later mutation or a context-sensitive verified
+  entry summary at each invocation.
 
 No current compiler, CLI, build mode, or LSP database owns both that runtime
 session and those complete facts. The LSP package/source graph describes files
@@ -426,23 +436,29 @@ or caller-provided summaries would merely make an unsound assertion forgeable.
 Omitting or reordering a unit, omitting a caller/exposure, or ignoring a
 preload would still construct the same supposed proof.
 
-Therefore #1398 is deliberately dispositioned as **conservative abstention**:
-procedure, method, `apply`, and `namespace eval` body units remain
-`UnknownWorld`. Methods additionally need receiver/object command-state facts;
-`apply` can escape as a first-class value; and `namespace eval` is both a
-separate body unit and a script-callback barrier. There is no usable public
-sealed-entry API until a concrete runtime owner can verify the contract above
-and `WorldContents::entry` can consume its ordered summaries. Tests pin all
-four body kinds to `UnknownWorld`.
+Therefore #1398 is deliberately dispositioned in the production drivers as
+**conservative abstention**: procedure, method, `apply`, and `namespace eval`
+body units remain `UnknownWorld`. Methods additionally need receiver/object
+command-state facts; `apply` can escape as a first-class value; and `namespace
+eval` is both a separate body unit and a script-callback barrier. There is no
+usable public sealed-entry API until a concrete runtime owner can verify the
+contract above and `WorldContents::entry` can consume its ordered summaries.
+Tests pin all four production body kinds to `UnknownWorld`; they do not pretend
+that the intentionally caller-selected low-level assumption is unforgeable.
 
-The canonical #1181 small corpus (revision 1; 8 repositories, 113 source
-files, 140 analysed documents) was measured in release mode with Rust 1.97.1
-on x86_64 Linux, three alternating runs of `fp-sweep --code O105 --code O106`.
-Both the base and candidate produced zero findings. Median wall time was 3.08 s
-on the base and 3.07 s on the candidate; median CPU time was 3.07 s and 3.06 s;
-median peak RSS was 71,968 KiB and 71,944 KiB. The honest diagnostic delta is
-zero: manufacturing recovered O-codes from an unverified workspace boundary
-would trade false negatives for unsound false positives.
+The canonical #1181 small corpus (revision 1; 8 repositories, 113 analysed Tcl
+documents) produced zero O105/O106 findings on both base and candidate. This is
+reproducible in a release build with:
+
+```sh
+cargo run --release -p xtask -- fp-sweep \
+  --corpus <issue-1181-small-corpus> --code O105 --code O106
+```
+
+The honest diagnostic delta is zero: manufacturing recovered O-codes from an
+unverified workspace boundary would trade false negatives for unsound false
+positives. Timing and RSS observations are intentionally omitted because the
+profiling artefacts are not repository evidence.
 
 ## §9 — Conservative abstentions
 

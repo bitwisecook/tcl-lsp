@@ -10,7 +10,7 @@ use tcl_registry::registry_for_dialect;
 const DIALECT: &str = "tcl8.6";
 
 #[test]
-fn every_deferred_body_kind_abstains_without_a_runtime_owned_session() {
+fn production_driver_makes_every_deferred_body_kind_abstain() {
     let source = r"
         proc p {} { llength {x y}; llength {x y} }
         oo::class create C {
