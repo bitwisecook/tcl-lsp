@@ -220,7 +220,7 @@ execution trace is absent.
 |-------|------|---------|---------|
 | `assigns_variable_at` | `Option<u8>` | `None` | Arg index of the variable this command writes to (e.g. 0 for `set varName value`) |
 | `var_write_typing` | `VarWriteTyping` | `ReturnValue` | How the type-inference pass types the variable(s) this command *writes*, distinct from `return_type` (which types the value it *returns*).  See below |
-| `safe_on_uninit` | `Option<DialectSet>` | `None` | Whether the command safely creates an uninitialised variable.  `None` = not safe (W210 fires); `Some(_)` = safe.  **The dialect set is currently inert**: every consumer tests only `is_some()`, so a version-gated spelling such as `Some(DialectSet::TCL85_PLUS)` does not actually restrict anything (`incr` is safe in 8.5+ but errors in 8.4 and iRules — the set does not yet express that).  The field's doc comment defines `Some(empty)` as "safe in all dialects", while shipped specs spell the all-dialects case `Some(DialectSet::ALL_TCL)`; both reach the same consumers.  Wiring the set through is an open gap |
+| `safe_on_uninit` | `Option<DialectSet>` | `None` | Whether the command safely creates an uninitialised variable. `None` = not safe (W210 fires); `Some(set)` = safe only when the active dialect belongs to `set` (an empty set means every concrete dialect). The lowerer resolves the matched command/subcommand form, projects this fact into IR, and W210 consumes the resulting statement flag. A profile-less registry abstains (`false`) rather than treating its union of dialects as proof. |
 | `inferred_storage_type` | `Option<StorageType>` | `None` | Inferred type for the target variable: `Dict`, `List`, or `Array` |
 | `Traits::DEFINES_PROCEDURE` | trait bit | unset | Command defines a procedure (proc, method, etc.) |
 | `defines_command_at` | `Option<u8>` | `None` | Argument index (0-based, after the command name) whose *literal* value becomes a callable command name once the call runs — `coroutine NAME cmd ?arg …?` binds `NAME` (`TclNRCoroutineObjCmd`, `tclBasic.c`).  Lighter than `creates_instance_at` (no `object_class` method dispatch); consumed generically by the analyser so later calls to the name don't draw W123.  The subcommand-level twin lives on `SubCommand` (`interp create ?-safe? ?--? ?name?`, index relative to the word after the subcommand); an option flag (leading `-`) or dynamic word at the index is never recorded, and a missing name is auto-generated at run time |
@@ -1260,15 +1260,17 @@ The version-gated sets are `DialectSet` constants
 (`rust/tcl-dialect/src/dialect_set.rs`), so a derived dialect inherits the
 right answer from the bits it contains rather than from a name comparison.
 
-**Current state (verified 2026-08-12):** the field is declared and stamped
-on the specs (`append`, `lappend`, `incr`, `catch`, the `dict` writers),
-but no production consumer reads it — every lowering site constructs
-`safe_on_uninit: false` on the statement, and the analyser's
-`use_site_safe_initialises` can therefore only fire on `Statement::Incr`.
-What actually keeps W210 quiet for these commands today is their
-`ArgRole::VarWrite` declaration, which records the write as a def. Wiring
-the field through lowering (registry lookup → statement flag) is an open
-gap from the port; the spec-side data is already correct for it.
+**Current state (verified 2026-08-15):** the registry resolves the most
+specific declared value (matched subcommand, otherwise command) into
+`InvocationSemantics`. Lowering evaluates that `DialectSet` against the
+active profile and writes the result to `Statement::Call` (including
+structured `dict` writers) or the specialised `Statement::Incr`.
+`use_site_safe_initialises` consumes the resulting IR flag when deciding
+whether W210 applies to the command's own read-before-write. A profile-less
+registry is deliberately conservative: its availability mask is a union,
+not a runtime guarantee, so lowering writes `false`. `ArgRole::VarWrite`
+still records the eventual definition; it is distinct from this
+read-before-write safety fact.
 
 ### Dialect loading
 

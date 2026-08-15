@@ -380,8 +380,8 @@ Distilled from the trickiest scars in the WASM runtime history
 
 - [kcs-codes-drift-audit-2026-08-12.md](kcs-codes-drift-audit-2026-08-12.md)
   — source-verified audit of the per-code diagnostic pages: missing
-  pages, behaviour contradictions, and the `safe_on_uninit` wiring gap
-  it surfaced.
+  pages, behaviour contradictions, and the now-closed `safe_on_uninit`
+  wiring gap it surfaced.
 - [issue-923-differential-audit/README.md](issue-923-differential-audit/README.md)
   — the three-way differential method (mine a corpus, reduce to a minimal
   repro, compare a real `tclsh` oracle against the LSP), the oracle-environment
