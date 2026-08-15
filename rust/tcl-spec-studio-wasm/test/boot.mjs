@@ -201,9 +201,11 @@ async function main() {
     );
     console.log(`    LSP: ${(await page.textContent("#lspStatus")).trim()}`);
 
-    // The success status is published only after the host has requested both
-    // semantic tokens and hover from this opened pack document.
-    console.log("    Pack DSL hover is served by the in-page LSP");
+    // The success status is published only after Monaco itself has invoked the
+    // semantic-token provider for this model, and hover has answered for it.
+    // A direct transport probe is insufficient: editor.api exposes provider
+    // registration even when the controller which consumes it was omitted.
+    console.log("    Pack DSL semantics and hover are served by the in-page LSP");
 
     // The fallback overlay already colours the pack before Monaco arrives;
     // prove the replacement editor gets several semantic colours from the

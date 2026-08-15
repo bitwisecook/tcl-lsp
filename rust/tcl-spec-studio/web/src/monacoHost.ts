@@ -33,6 +33,15 @@
 // it in TypeScript.
 
 import * as monaco from "monaco-editor/editor/editor.api.js";
+// `editor.api` exposes provider registration but deliberately does not install
+// the editor controllers which consume those providers. Keep this list
+// explicit so the lazy bundle contains only the LSP-backed features Studio
+// offers, while still making registration do something in the actual editor.
+import "monaco-editor/features/format/register.js";
+import "monaco-editor/features/hover/register.js";
+import "monaco-editor/features/parameterHints/register.js";
+import "monaco-editor/features/semanticTokens/register.js";
+import "monaco-editor/features/suggest/register.js";
 import "monaco-editor/languages/definitions/rust/register.js";
 import type {
   CompletionItem as LspCompletionItem,
@@ -188,7 +197,10 @@ function positionOf(text: string, needle: string): { line: number; character: nu
  * one registration each and the model's own URI decides which document the
  * request names.
  */
-function registerProviders(client: LspClient): void {
+function registerProviders(
+  client: LspClient,
+  semanticTokensApplied: (uri: string, tokenCount: number) => void,
+): void {
   const legend: monaco.languages.SemanticTokensLegend = {
     // Semantic-token legends contain token *identifiers*, not TextMate
     // scopes. Monaco's built-in themes already colour the standard LSP names
@@ -205,6 +217,7 @@ function registerProviders(client: LspClient): void {
       provideDocumentSemanticTokens: async (model) => {
         const reply = await client.semanticTokens(model.uri.toString());
         if (!reply) return null;
+        semanticTokensApplied(model.uri.toString(), reply.data.length);
         return { data: Uint32Array.from(reply.data), resultId: reply.resultId };
       },
       releaseDocumentSemanticTokens: () => {
@@ -514,10 +527,16 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     .addEventListener?.("change", () => monaco.editor.setTheme(currentTheme()));
 
   let client: LspClient | null = null;
+  let resolveDslSemanticTokens: ((tokenCount: number) => void) | undefined;
+  const dslSemanticTokens = new Promise<number>((resolve) => {
+    resolveDslSemanticTokens = resolve;
+  });
   try {
     options.report("starting the language server…");
     client = await startLspClient(options.workerUrl);
-    registerProviders(client);
+    registerProviders(client, (uri, tokenCount) => {
+      if (uri === DSL_URI) resolveDslSemanticTokens?.(tokenCount);
+    });
   } catch (e) {
     options.report(
       `the language server could not start (${e instanceof Error ? e.message : String(e)}) — ` +
@@ -537,8 +556,16 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     // regression otherwise leaves a green status beside an editor with no
     // tokens, hover, or diagnostics.
     try {
-      const tokens = await client.semanticTokens(DSL_URI);
-      if (!tokens?.data.length) throw new Error("the pack document returned no semantic tokens");
+      const tokenCount = await Promise.race([
+        dslSemanticTokens,
+        new Promise<never>((_resolve, reject) =>
+          window.setTimeout(
+            () => reject(new Error("Monaco did not request semantic tokens for the pack")),
+            10_000,
+          ),
+        ),
+      ]);
+      if (!tokenCount) throw new Error("the pack document returned no semantic tokens");
       const hoverAt = positionOf(options.dsl.textarea.value, "speclib");
       if (hoverAt && !(await client.hover(DSL_URI, hoverAt.line, hoverAt.character))) {
         throw new Error("the pack document returned no hover information");
@@ -604,7 +631,7 @@ export async function mountTclEditor(options: TclEditorOptions): Promise<{
   let client: LspClient | null = null;
   try {
     client = await startLspClient(options.workerUrl);
-    registerProviders(client);
+    registerProviders(client, () => {});
   } catch (error) {
     options.report?.(
       `language server unavailable: ${error instanceof Error ? error.message : String(error)}`,
