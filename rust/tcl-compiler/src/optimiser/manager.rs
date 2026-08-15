@@ -140,6 +140,22 @@ fn build_pass_context<'a>(
     ctx.ir_module = Some(&cu.ir_module);
     ctx.command_mutations =
         crate::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
+    // This is a conservative whole-unit safety fact. Several source-walking
+    // passes run before elimination and cannot recover the current handler
+    // from a nested script, so protecting the union is sound; handler-local
+    // refinement remains elimination's concern.
+    ctx.cross_event_vars = cu
+        .connection_scope
+        .as_ref()
+        .map(|scope| {
+            scope
+                .cross_event_defs
+                .iter()
+                .chain(scope.cross_event_imports.iter())
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
     ctx
 }
 
@@ -972,6 +988,20 @@ mod tests {
     fn empty_source_yields_empty_result() {
         let opts = optimise("", &registry());
         assert!(opts.is_empty());
+    }
+
+    #[test]
+    fn cross_event_vars_reach_code_sinking_before_elimination() {
+        let source = "when HTTP_REQUEST {\n    if {$cond} { set n 1 } else { set n 2 }\n    set flag $n\n    if {$n > 1} { log local0. $flag }\n}\nwhen HTTP_RESPONSE { log local0. $flag }\n";
+        let opts = optimise_with_dialect(source, &registry(), Some("f5-irules"));
+        assert!(
+            opts.iter().all(|opt| {
+                opt.code != DiagCode::O125
+                    || !source[opt.span.start() as usize..opt.span.end() as usize]
+                        .contains("set flag")
+            }),
+            "cross-event assignment must not be sunk before elimination: {opts:?}"
+        );
     }
 
     /// Regression coverage for issue #996: every optimiser pass

@@ -297,6 +297,18 @@ findings on repeated pure user-proc calls.
 `InterproceduralAnalysis` into the GVN entry points; alternatively a pure
 deletion if the capability is not wanted.
 
+**PR-D decision (2026-08-15): DEFERRED — #1398.** The interprocedural summary
+is live and continues to gate elimination, but projecting it into GVN would
+need a complete procedure-body entry-world proof and a typed invocation-facts
+projection. PR-C's dynamic-name barrier now makes the existing GVN seam fail
+closed correctly; it does not establish that entry contract. In particular,
+the production regression test `procedure_units_abstain_under_the_unknown_world_entry_assumption`
+proves that a procedure body has no dispatch-stability proof today. Do not
+consult a name set or relax `InvocationResolution::Unresolved` before #1398
+supplies the workspace/package/sourced-file entry contract. The unused legacy
+oracle is retained only as the explicitly deferred implementation reference;
+it has no production caller.
+
 ---
 
 ## F5: `PassContext::cross_event_vars` is written only inside `elimination::run`, so the four passes that read it always see an empty set
@@ -359,3 +371,9 @@ cross-event". No user-visible change today (the guard only ever suppresses);
 after the FP-OPT-08 interaction is fixed it would suppress some O125 in iRules.
 **Scale:** one context-builder change plus the removal of a misleading shared
 field; a few call sites.
+
+**PR-D decision (2026-08-15): WIRED.** `manager::build_pass_context` now
+initialises the shared set from `ConnectionScope.cross_event_defs ∪
+cross_event_imports` before any pass runs. Source-walking passes conservatively
+protect that union; elimination retains its event-only projection so equal
+local spellings in ordinary procedures are not unnecessarily suppressed.
