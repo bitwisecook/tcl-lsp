@@ -573,6 +573,39 @@ fn empty_rename_destination_deletes_commands_across_indirections() {
     }
 }
 
+/// Coroutine state follows the command key chosen by Tcl's full lookup rule,
+/// rather than the caller namespace spelling.  A `namespace path` source is
+/// therefore renamed into the caller namespace, while an empty destination
+/// tears down the continuation at the resolved source key.
+#[test]
+fn namespace_path_resolved_coroutine_rename_and_delete_keep_state_in_sync() {
+    let src = concat!(
+        "namespace eval ::pr {proc g {} {yield 1; yield 2}; coroutine c g}\n",
+        "namespace eval ::pc {namespace path ::pr}\n",
+        "namespace eval ::pc {rename c d}\n",
+        "puts \"renamed=[::pc::d]\"\n",
+        "namespace eval ::pr {coroutine c g}\n",
+        "namespace eval ::pc {rename c {}}\n",
+        "puts \"deleted=[catch {::pr::c} message];$message\"\n",
+    );
+    let want = "renamed=2\ndeleted=1;invalid command name \"::pr::c\"";
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] path-resolved coroutine"
+        );
+    }
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] real Tcl oracle");
+        }
+    }
+}
+
 /// A `catch` body is compiled at run time through the VM's compile service,
 /// so an 8.5+-only spelling inside it is a *catchable* error under an 8.4
 /// pin — matching C Tcl, which defers a compile-time parse error to a

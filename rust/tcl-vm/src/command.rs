@@ -483,12 +483,14 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // A coroutine's state travels with its command: a delete (`rename $coro {}`)
     // drops it (no `finally` runs — the frozen continuation is inert data,
     // matching C Tcl); a rename re-keys it so it keeps working under the new name.
-    let old_fqn = vm.qualify_name(&old_name);
-    let is_coro = crate::cmd_coro::is_coroutine(vm, &old_fqn);
+    // The prepared transaction holds the exact key resolved by Tcl's full
+    // command lookup rule (including `namespace path`), rather than the
+    // spelling rooted at the caller's current namespace.
+    let is_coro = crate::cmd_coro::is_coroutine(vm, &old_key);
     if new_name.is_empty() {
         vm.delete_prepared_renamed_command(&rename);
         if is_coro {
-            crate::cmd_coro::on_command_deleted(vm, &old_fqn);
+            crate::cmd_coro::on_command_deleted(vm, &old_key);
         }
         // `rename x {}` is a delete: fire the command's `delete` traces
         // (`callback ::old {} delete`, tclsh-pinned) and drop its traces.
@@ -504,7 +506,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             vm.qualify_name(&new_name)
         };
         if is_coro {
-            crate::cmd_coro::on_command_renamed(vm, &old_fqn, &key);
+            crate::cmd_coro::on_command_renamed(vm, &old_key, &key);
         }
         // A proc executes in the namespace it currently lives in, so renaming
         // it across namespaces re-homes its body (C `TclRenameCommand` updates
