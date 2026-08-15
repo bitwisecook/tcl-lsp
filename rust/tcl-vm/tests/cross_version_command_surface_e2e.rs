@@ -795,6 +795,39 @@ fn child_command_hide_and_expose_collisions_propagate_without_mutation() {
     }
 }
 
+/// `interp expose`'s destination is always the exact global command-table
+/// key.  A caller may have a same-spelled local command, which Tcl leaves
+/// untouched while exposing the hidden binding globally.  Exercise the root,
+/// named-child, and child-command (by-id) entry points so each routes through
+/// the same collision owner rather than contextual command lookup.
+#[test]
+fn expose_uses_exact_global_destination_in_every_entry_point() {
+    let src = concat!(
+        "proc a {} {return root-global}; interp hide {} a held\n",
+        "namespace eval n {proc b {} {return root-local}; interp expose {} held b; puts \"root=[b],[::b]\"}\n",
+        "interp create named; named eval {proc a {} {return named-global}; interp hide {} a held; namespace eval n {proc b {} {return named-local}; interp expose {} held b; puts \"named=[b],[::b]\"}}\n",
+        "interp create byid; byid eval {proc a {} {return byid-global}; interp hide {} a; namespace eval n {proc a {} {return byid-local}}}\n",
+        "byid expose a; puts \"byid=[byid eval {namespace eval n {join [list [a] [::a]] ,}}]\"\n",
+    );
+    let want =
+        "root=root-local,root-global\nnamed=named-local,named-global\nbyid=byid-local,byid-global";
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] exact expose destination"
+        );
+    }
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] real Tcl oracle");
+        }
+    }
+}
+
 #[test]
 fn hide_expose_moves_traces_without_callbacks() {
     let src = concat!(
@@ -908,6 +941,22 @@ set first [coroutine c apply {{} {
 puts [list $first [interp invokehidden {} held] [d] [interp hidden {}]]
 ";
 
+// A deleted coroutine binding and a later command at the same spelling are
+// distinct lifecycles.  The original driver is still unwinding after it
+// deletes `c`; the replacement is then created at `c` and renamed to `d`.
+// Its completion must not retire `d` through the stale active sidecar handle.
+const SELF_DELETING_COROUTINE_REUSES_AND_RENAMES_BINDING: &str = r"
+proc fresh {} {yield fresh-one; yield fresh-two; return fresh-done}
+proc stale {} {
+    rename [info coroutine] {}
+    coroutine c fresh
+    rename c d
+    return stale-done
+}
+set start [coroutine c stale]
+puts [list $start [d] [d] [catch {d} message] $message]
+";
+
 const SELF_HIDING_TRACED_COMMAND: &str = r"
 set log {}
 proc tr args {lappend ::log $args}
@@ -956,6 +1005,10 @@ fn active_coroutine_and_execution_trace_follow_self_hide() {
             "first second done {}"
         );
         assert_eq!(
+            profile_output(SELF_DELETING_COROUTINE_REUSES_AND_RENAMES_BINDING, profile),
+            "stale-done fresh-two fresh-done 1 {invalid command name \"d\"}"
+        );
+        assert_eq!(
             profile_output(SELF_HIDING_TRACED_COMMAND, profile),
             "ok {{p enter} {p 0 ok leave}} held"
         );
@@ -982,6 +1035,10 @@ fn self_hide_vectors_match_real_tcl_when_available() {
     ] {
         for (script, expected) in [
             (SELF_HIDING_COROUTINE, "first second done {}"),
+            (
+                SELF_DELETING_COROUTINE_REUSES_AND_RENAMES_BINDING,
+                "stale-done fresh-two fresh-done 1 {invalid command name \"d\"}",
+            ),
             (
                 SELF_HIDING_TRACED_COMMAND,
                 "ok {{p enter} {p 0 ok leave}} held",

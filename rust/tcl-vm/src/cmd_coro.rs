@@ -124,9 +124,12 @@ pub(crate) fn current_coroutine(vm: &Vm) -> Value {
         // A coroutine that deleted its own command (`rename [info coroutine] {}`)
         // is no longer live even though its driver is still on the stack; C Tcl
         // then reports `[info coroutine]` as empty (coroutine-3.5).
-        Some(h) if vm.coro.live.contains_key(&h.key.key()) => {
-            Value::string(format!("::{}", h.key.key().name()))
-        }
+        Some(h) => match h.key.key() {
+            Some(key) if vm.coro.live.contains_key(&key) => {
+                Value::string(format!("::{}", key.name()))
+            }
+            _ => Value::empty(),
+        },
         _ => Value::empty(),
     }
 }
@@ -196,6 +199,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // first so it does not leak; the command entry itself is overwritten by
     // `register_command` below.
     if is_coroutine(vm, &fqn) {
+        vm.detach_active_sidecars(&CommandSidecarKey::visible(&fqn));
         on_command_deleted(vm, &fqn);
     }
     // `coroutine NAME apply {lambda} arg…` — bind the lambda to an internal proc
@@ -352,7 +356,9 @@ fn resume(
                 // is restored, and the error propagates.
                 vm.coro.stack.pop();
                 vm.swap_flow(&mut parked);
-                teardown_coro(vm, &active_key.key());
+                if let Some(key) = active_key.key() {
+                    teardown_coro(vm, &key);
+                }
                 return r;
             }
         }
@@ -372,7 +378,9 @@ fn resume(
                 YieldReq::YieldTo(_) => SuspendKind::YieldTo,
             };
             // Park the coroutine (its frozen stack + flow) for the next resume.
-            if let Some(state) = vm.coro.live.get_mut(&key) {
+            if let Some(key) = key
+                && let Some(state) = vm.coro.live.get_mut(&key)
+            {
                 state.acts = acts;
                 state.parked = parked;
                 state.status = CoroStatus::Suspended;
@@ -391,7 +399,9 @@ fn resume(
         RunExit::Done(c) => {
             // The body finished: remove the command + state (unless `exit` is
             // propagating, in which case leave teardown to the unwinding caller).
-            teardown_coro(vm, &key);
+            if let Some(key) = key {
+                teardown_coro(vm, &key);
+            }
             c
         }
     }
@@ -530,7 +540,9 @@ fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let result = vm.invoke_command(&cmd.to_str(), rest);
     vm.coro.stack.pop();
     vm.swap_flow(&mut parked);
-    if let Some(state) = vm.coro.live.get_mut(&active_key.key()) {
+    if let Some(key) = active_key.key()
+        && let Some(state) = vm.coro.live.get_mut(&key)
+    {
         state.parked = parked;
         state.status = CoroStatus::Suspended;
     }

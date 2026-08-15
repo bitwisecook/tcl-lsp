@@ -4109,7 +4109,9 @@ impl Vm {
             ]
         };
         let mut replacement = None;
-        if let Some(entries) = self.exec_traces.get(&ctx.key.key()).cloned() {
+        if let Some(key) = ctx.key.key()
+            && let Some(entries) = self.exec_traces.get(&key).cloned()
+        {
             for e in entries {
                 if e.has_op("leave") {
                     let r = self.run_cmd_trace_callback(&e, &args("leave"));

@@ -412,10 +412,13 @@ pub(crate) enum CommandSidecarKey {
 /// updates coroutine parking/retirement and execution-trace leave delivery as
 /// one operation.
 #[derive(Clone, Debug)]
-pub(crate) struct CommandSidecarHandle(Rc<RefCell<CommandSidecarKey>>);
+pub(crate) struct CommandSidecarHandle(Rc<RefCell<Option<CommandSidecarKey>>>);
 
 impl CommandSidecarHandle {
-    pub(crate) fn key(&self) -> CommandSidecarKey {
+    /// The binding this operation still belongs to.  A deletion detaches an
+    /// in-flight handle before Tcl can create another binding at the same
+    /// spelling, so it can never be retargeted to that later lifecycle.
+    pub(crate) fn key(&self) -> Option<CommandSidecarKey> {
         self.0.borrow().clone()
     }
 }
@@ -576,7 +579,7 @@ pub struct InterpState {
     pub(crate) exec_traces: HashMap<CommandSidecarKey, Vec<Rc<CmdTraceEntry>>>,
     /// Weak registry of in-flight sidecar identities. Relocation updates live
     /// handles without retaining completed invocations.
-    active_sidecar_handles: Vec<Weak<RefCell<CommandSidecarKey>>>,
+    active_sidecar_handles: Vec<Weak<RefCell<Option<CommandSidecarKey>>>>,
     /// Step-trace scopes currently active: one entry per `enterstep`/
     /// `leavestep`-bearing trace of each traced proc whose body is running.
     /// Every command dispatched while non-empty fires these (C's step
@@ -1864,11 +1867,14 @@ impl Vm {
         // Overwriting an existing command deletes it (C `Tcl_CreateObjCommand`
         // does the same), so its `delete` command traces fire and every trace
         // on it is dropped — tclsh-pinned: redefining a traced proc fires the
-        // delete trace.  (Gated on the trace table so the startup builtin
-        // sweep pays nothing.)
-        if !(self.cmd_traces.is_empty() && self.exec_traces.is_empty())
-            && self.commands.contains_key(name)
-        {
+        // delete trace.  This also detaches any in-flight sidecar handle, so
+        // overwriting a binding cannot let it follow the replacement.
+        if self.commands.contains_key(name) {
+            let was_coroutine = crate::cmd_coro::is_coroutine(self, name);
+            self.detach_active_sidecars(&CommandSidecarKey::visible(name));
+            if was_coroutine {
+                crate::cmd_coro::on_command_deleted(self, name);
+            }
             self.on_command_removed(name);
         }
         // Overwriting a cross-interp alias drops its target-death backref (the
@@ -1894,6 +1900,11 @@ impl Vm {
     /// [`Self::registered_command_names`] needs.
     pub(crate) fn remove_registered_command(&mut self, name: &str) {
         if self.commands.remove(name).is_some() {
+            let was_coroutine = crate::cmd_coro::is_coroutine(self, name);
+            self.detach_active_sidecars(&CommandSidecarKey::visible(name));
+            if was_coroutine {
+                crate::cmd_coro::on_command_deleted(self, name);
+            }
             self.bump_cmd_epoch();
             self.imported_commands.remove(name);
             self.builtin_identities.remove(name);
@@ -1985,6 +1996,7 @@ impl Vm {
     ) {
         self.take_command_unchecked_key(&transaction.old_key)
             .expect("the prepared delete source remains registered");
+        self.detach_active_sidecars(&CommandSidecarKey::visible(&transaction.old_key));
     }
 
     /// Commit a rename after all semantic validation has succeeded.
@@ -2001,7 +2013,13 @@ impl Vm {
     /// a command to Tcl code.  User-facing removal must use [`Self::take_command`].
     pub(crate) fn take_command_unchecked(&mut self, name: &str) -> Option<Command> {
         let key = self.resolve_command_fqn_raw(self.current_ns(), name)?;
-        self.take_command_unchecked_key(&key)
+        let command = self.take_command_unchecked_key(&key)?;
+        let was_coroutine = crate::cmd_coro::is_coroutine(self, &key);
+        self.detach_active_sidecars(&CommandSidecarKey::visible(&key));
+        if was_coroutine {
+            crate::cmd_coro::on_command_deleted(self, &key);
+        }
+        Some(command)
     }
 
     /// Retire a VM-owned command whether its lifecycle key is currently
@@ -2037,10 +2055,13 @@ impl Vm {
     /// Remove a command by its exact table key (no name resolution) — the
     /// rollback path for a refused alias creation.
     pub(crate) fn remove_command_exact(&mut self, key: &str) -> Option<Command> {
-        self.bump_cmd_epoch();
-        self.imported_commands.remove(key);
-        self.builtin_identities.remove(key);
-        self.commands.remove(key)
+        let command = self.take_command_unchecked_key(key)?;
+        let was_coroutine = crate::cmd_coro::is_coroutine(self, key);
+        self.detach_active_sidecars(&CommandSidecarKey::visible(key));
+        if was_coroutine {
+            crate::cmd_coro::on_command_deleted(self, key);
+        }
+        Some(command)
     }
 
     /// `interp alias srcPath srcCmd targetPath target…` — route the alias by
@@ -2760,7 +2781,12 @@ impl Vm {
     /// `interp expose {} hidden ?token?` — restore one of *this* interp's
     /// hidden commands, optionally under a new name (`token`).
     pub(crate) fn expose_own_command(&mut self, cmd: &str, token: &str) -> Result<(), String> {
-        if self.lookup_command(token).is_some() {
+        // `interp expose` always installs the destination in the global
+        // namespace.  A contextual lookup here would incorrectly see (and
+        // reject because of) a same-spelled local command in the caller's
+        // namespace, instead of checking the exact global table owner.
+        let destination = canonical_cmd_key(token);
+        if self.visible_command_exists_exact(&destination) {
             return Err(format!("exposed command \"{token}\" already exists"));
         }
         if let Some(c) = self.hidden_commands.remove(cmd) {
@@ -2768,28 +2794,30 @@ impl Vm {
                 Command::CrossAlias { target, .. } => Some(*target),
                 _ => None,
             };
-            self.register_command(token, c);
-            crate::cmd_coro::on_command_exposed(self, cmd, token);
+            self.register_command(&destination, c);
+            crate::cmd_coro::on_command_exposed(self, cmd, destination.as_ref());
             self.move_command_traces(
                 &CommandSidecarKey::hidden(cmd),
-                CommandSidecarKey::visible(token),
+                CommandSidecarKey::visible(destination.as_ref()),
             );
             if let Some(origin) = self.hidden_imported_commands.remove(cmd) {
-                self.imported_commands.insert(token.to_owned(), origin);
+                self.imported_commands
+                    .insert(destination.to_string(), origin);
             }
             if let Some(identity) = self.hidden_builtin_identities.remove(cmd) {
-                self.builtin_identities.insert(token.to_owned(), identity);
+                self.builtin_identities
+                    .insert(destination.to_string(), identity);
             }
             // Reconnect internal references to the visible domain; their
             // Tcl-visible ultimate source lineage remains unchanged.
             self.retarget_imports_key(
                 &CommandSidecarKey::hidden(cmd),
-                &CommandSidecarKey::visible(token),
+                &CommandSidecarKey::visible(destination.as_ref()),
             );
             if let Some(target) = cross_target {
                 self.retarget_alias_backref_key(
                     &CommandSidecarKey::hidden(cmd),
-                    CommandSidecarKey::visible(token),
+                    CommandSidecarKey::visible(destination.as_ref()),
                     target,
                 );
             }
@@ -3295,6 +3323,15 @@ impl Vm {
             return None;
         }
         Some(command)
+    }
+
+    /// Whether the exact visible command-table owner exists on the active
+    /// release surface.  Unlike [`Self::lookup_command`], this never applies
+    /// current-namespace or namespace-path resolution.
+    fn visible_command_exists_exact(&self, key: &str) -> bool {
+        self.commands
+            .get(key)
+            .is_some_and(|command| self.builtin_command_visible_for_surface(key, command))
     }
 
     /// Get the current namespace's command resolution path (`namespace path`)
@@ -3867,7 +3904,9 @@ impl Vm {
         for key in victims {
             self.imported_commands.remove(&key);
             self.builtin_identities.remove(&key);
-            self.commands.remove(&key);
+            if self.commands.remove(&key).is_some() {
+                self.detach_active_sidecars(&CommandSidecarKey::visible(key));
+            }
         }
         Ok(())
     }
@@ -3889,8 +3928,21 @@ impl Vm {
         // Commands and namespace variables are keyed by their fully-qualified
         // (unrooted) name, so a member of the namespace or a descendant begins
         // with `canonical::`.
+        let removed_commands: Vec<String> = self
+            .commands
+            .keys()
+            .filter(|key| key.starts_with(&prefix))
+            .cloned()
+            .collect();
         self.bump_cmd_epoch();
         self.commands.retain(|k, _| !k.starts_with(&prefix));
+        for key in removed_commands {
+            let was_coroutine = crate::cmd_coro::is_coroutine(self, &key);
+            self.detach_active_sidecars(&CommandSidecarKey::visible(&key));
+            if was_coroutine {
+                crate::cmd_coro::on_command_deleted(self, &key);
+            }
+        }
         self.imported_commands
             .retain(|k, _| !k.starts_with(&prefix));
         self.builtin_identities
@@ -4212,6 +4264,11 @@ impl Vm {
     }
 
     fn on_command_removed_for(&mut self, key: &CommandSidecarKey) {
+        // A key is a location, not an eternal command identity.  Do this
+        // before delete callbacks: they may create, hide, expose, or rename a
+        // replacement binding with the same key while this operation is still
+        // in flight.  That replacement must not inherit the old handle.
+        self.detach_active_sidecars(key);
         let mut removed_trace = false;
         if !self.cmd_traces.is_empty() {
             self.fire_command_traces_for(key, "", "delete");
@@ -4281,7 +4338,7 @@ impl Vm {
     pub(crate) fn active_sidecar(&mut self, key: CommandSidecarKey) -> CommandSidecarHandle {
         self.active_sidecar_handles
             .retain(|handle| handle.strong_count() != 0);
-        let cell = Rc::new(RefCell::new(key));
+        let cell = Rc::new(RefCell::new(Some(key)));
         self.active_sidecar_handles.push(Rc::downgrade(&cell));
         CommandSidecarHandle(cell)
     }
@@ -4295,8 +4352,23 @@ impl Vm {
             let Some(handle) = weak.upgrade() else {
                 return false;
             };
-            if *handle.borrow() == *old_key {
-                *handle.borrow_mut() = new_key.clone();
+            if handle.borrow().as_ref() == Some(old_key) {
+                *handle.borrow_mut() = Some(new_key.clone());
+            }
+            true
+        });
+    }
+
+    /// Disconnect all active users of a deleted command binding.  Retaining
+    /// the weak cells is harmless; they are pruned when the in-flight calls
+    /// complete, while their `None` identity prevents later relocation.
+    pub(crate) fn detach_active_sidecars(&mut self, key: &CommandSidecarKey) {
+        self.active_sidecar_handles.retain(|weak| {
+            let Some(handle) = weak.upgrade() else {
+                return false;
+            };
+            if handle.borrow().as_ref() == Some(key) {
+                *handle.borrow_mut() = None;
             }
             true
         });
