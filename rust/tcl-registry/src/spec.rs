@@ -476,7 +476,8 @@ impl CaseListSpec {
         // subject-less case list with one remaining word is therefore already
         // in list form and must bypass the command-option scan.
         let per_clause_flags = self.subject_args == 0 && !self.clause_flags.is_empty();
-        if !(per_clause_flags || self.subject_args == 1 && args.len() == 2) {
+        let sole_clause_list = per_clause_flags && args.len() == 1;
+        if !(sole_clause_list || self.subject_args == 1 && args.len() == 2) {
             while let Some(word) = args.get(i).copied() {
                 if !word.starts_with('-') {
                     break;
