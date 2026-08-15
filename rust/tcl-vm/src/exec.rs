@@ -36,7 +36,7 @@ use tcl_syntax::value::string_char_len;
 
 use crate::command::{Command, ProcDef};
 use crate::expr;
-use crate::interp::{CommandSidecarHandle, CommandSidecarKey, Vm, err, ok};
+use crate::interp::{CmdTraceEntry, CommandSidecarHandle, CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
 
 /// Active `foreach` iteration state (C Tcl `ForeachInfo` + the loop counters).
@@ -207,6 +207,21 @@ pub(crate) struct ExecLeaveCtx {
     cmd_string: String,
     key: CommandSidecarHandle,
     step_scopes: usize,
+}
+
+/// A step trace remains attached to the command invocation that installed it.
+/// A copied trace entry alone is not enough: its command may be deleted and
+/// replaced while an inner command is running.
+#[derive(Clone)]
+pub(crate) struct ExecStepScope {
+    pub(crate) entry: Rc<CmdTraceEntry>,
+    pub(crate) key: CommandSidecarHandle,
+}
+
+impl ExecStepScope {
+    fn active_for(&self, op: &str) -> bool {
+        self.key.is_attached() && self.entry.has_op(op) && !self.entry.firing()
+    }
 }
 
 /// A `catch`'s bind targets, carried on its activation until it completes.
@@ -4004,10 +4019,16 @@ impl Vm {
         // The complete current command, list-merged (tclsh-pinned shape:
         // `p one {t w o}`).
         let cmd_string = Value::list(words.to_vec()).to_str().to_string();
-        for scope in self.exec_step_scopes.clone() {
-            if scope.has_op("enterstep") && !scope.firing() {
+        for scope in self
+            .exec_step_scopes
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
+        {
+            if scope.active_for("enterstep") {
                 let r = self.run_cmd_trace_callback(
-                    &scope,
+                    &scope.entry,
                     &[
                         Value::string(cmd_string.clone()),
                         Value::string("enterstep"),
@@ -4021,7 +4042,7 @@ impl Vm {
         let key = CommandSidecarKey::visible(key);
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
-        for entry in &own {
+        for entry in own.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
@@ -4036,12 +4057,15 @@ impl Vm {
             }
         }
         let mut pushed = 0usize;
-        for entry in &own {
+        for entry in own.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
-                self.exec_step_scopes.push(Rc::clone(entry));
+                self.exec_step_scopes.push(ExecStepScope {
+                    entry: Rc::clone(entry),
+                    key: sidecar.clone(),
+                });
                 pushed += 1;
             }
         }
@@ -4107,15 +4131,18 @@ impl Vm {
         if self.exec_traces.is_empty() && self.exec_step_scopes.is_empty() {
             return None;
         }
-        let args = |op: &str| {
+        let args = |result: Value, op: &str| {
             [
                 Value::string(ctx.cmd_string.clone()),
                 Value::string(c.code.as_int().to_string()),
-                c.result.clone(),
+                result,
                 Value::string(op),
             ]
         };
         let mut replacement = None;
+        // Tcl threads a successful leave callback's result to the next
+        // callback, while the traced command's own completion remains `c`.
+        let mut trace_result = c.result.clone();
         if let Some(key) = ctx.key.key()
             && let Some(entries) = self.exec_traces.get(&key).cloned()
         {
@@ -4124,19 +4151,30 @@ impl Vm {
                     break;
                 }
                 if e.has_op("leave") {
-                    let r = self.run_cmd_trace_callback(&e, &args("leave"));
+                    let r = self.run_cmd_trace_callback(&e, &args(trace_result.clone(), "leave"));
                     if !r.code.is_ok() {
                         replacement = Some(r);
+                        break;
                     }
+                    trace_result = r.result;
                 }
             }
         }
-        for scope in self.exec_step_scopes.clone() {
-            if scope.has_op("leavestep") && !scope.firing() {
-                let r = self.run_cmd_trace_callback(&scope, &args("leavestep"));
+        for scope in self
+            .exec_step_scopes
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
+        {
+            if scope.active_for("leavestep") {
+                let r = self
+                    .run_cmd_trace_callback(&scope.entry, &args(trace_result.clone(), "leavestep"));
                 if !r.code.is_ok() {
                     replacement = Some(r);
+                    break;
                 }
+                trace_result = r.result;
             }
         }
         replacement
@@ -4332,10 +4370,16 @@ impl Vm {
         words.push(Value::string(name));
         words.extend_from_slice(argv);
         let cmd_string = Value::list(words).to_str().to_string();
-        for scope in self.exec_step_scopes.clone() {
-            if scope.has_op("enterstep") && !scope.firing() {
+        for scope in self
+            .exec_step_scopes
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
+        {
+            if scope.active_for("enterstep") {
                 let r = self.run_cmd_trace_callback(
-                    &scope,
+                    &scope.entry,
                     &[
                         Value::string(cmd_string.clone()),
                         Value::string("enterstep"),
@@ -4349,7 +4393,7 @@ impl Vm {
         let key = CommandSidecarKey::visible(key);
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
-        for entry in &own {
+        for entry in own.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
@@ -4364,12 +4408,15 @@ impl Vm {
             }
         }
         let mut pushed = 0usize;
-        for entry in &own {
+        for entry in own.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
-                self.exec_step_scopes.push(Rc::clone(entry));
+                self.exec_step_scopes.push(ExecStepScope {
+                    entry: Rc::clone(entry),
+                    key: sidecar.clone(),
+                });
                 pushed += 1;
             }
         }
@@ -4412,10 +4459,16 @@ impl Vm {
         words.push(Value::string(display_name));
         words.extend_from_slice(argv);
         let cmd_string = Value::list(words).to_str().to_string();
-        for scope in self.exec_step_scopes.clone() {
-            if scope.has_op("enterstep") && !scope.firing() {
+        for scope in self
+            .exec_step_scopes
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
+        {
+            if scope.active_for("enterstep") {
                 let r = self.run_cmd_trace_callback(
-                    &scope,
+                    &scope.entry,
                     &[
                         Value::string(cmd_string.clone()),
                         Value::string("enterstep"),
@@ -4432,7 +4485,7 @@ impl Vm {
             .get(&trace_key)
             .cloned()
             .unwrap_or_default();
-        for entry in &own {
+        for entry in own.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
@@ -4447,12 +4500,15 @@ impl Vm {
             }
         }
         let mut pushed = 0usize;
-        for entry in &own {
+        for entry in own.iter().rev() {
             if !sidecar.is_attached() {
                 break;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
-                self.exec_step_scopes.push(Rc::clone(entry));
+                self.exec_step_scopes.push(ExecStepScope {
+                    entry: Rc::clone(entry),
+                    key: sidecar.clone(),
+                });
                 pushed += 1;
             }
         }

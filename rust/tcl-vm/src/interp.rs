@@ -592,7 +592,7 @@ pub struct InterpState {
     /// `leavestep`-bearing trace of each traced proc whose body is running.
     /// Every command dispatched while non-empty fires these (C's step
     /// semantics); the traced proc's frame pops its own pushes on completion.
-    pub(crate) exec_step_scopes: Vec<Rc<CmdTraceEntry>>,
+    pub(crate) exec_step_scopes: Vec<crate::exec::ExecStepScope>,
     /// Bumped on every `trace add|remove execution … enterstep|leavestep …`
     /// (and command rename, which moves such a trace's registration) — the
     /// analogue of C's `compileEpoch` bump on `DONT_COMPILE_CMDS_INLINE`

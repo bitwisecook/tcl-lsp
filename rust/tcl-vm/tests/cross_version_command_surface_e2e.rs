@@ -1009,6 +1009,20 @@ set new [a]
 puts [list $old $log $new]
 ";
 
+// Tcl runs enter callbacks newest-first, then leave callbacks oldest-first.
+// Each successful leave result feeds the next callback, but never replaces
+// the traced command's completion.
+const EXECUTION_TRACE_ORDER_AND_LEAVE_RESULT_CHAIN: &str = r"
+set log {}
+proc p {} {return ORIG}
+proc a args {lappend ::log [list A {*}$args]; return R1}
+proc b args {lappend ::log [list B {*}$args]; return R2}
+trace add execution p {enter leave} a
+trace add execution p {enter leave} b
+set result [p]
+puts [list $result $log]
+";
+
 #[test]
 fn active_coroutine_and_execution_trace_follow_self_hide() {
     for profile in [
@@ -1043,6 +1057,10 @@ fn active_coroutine_and_execution_trace_follow_self_hide() {
             profile_output(LEAVE_TRACE_DELETE_RECREATE_STOPS_OLD_LIST, profile),
             "old A new"
         );
+        assert_eq!(
+            profile_output(EXECUTION_TRACE_ORDER_AND_LEAVE_RESULT_CHAIN, profile),
+            "ORIG {{B p enter} {A p enter} {A p 0 ORIG leave} {B p 0 R1 leave}}"
+        );
     }
 }
 
@@ -1075,6 +1093,10 @@ fn self_hide_vectors_match_real_tcl_when_available() {
                 "1 boom {{p enter} {p 1 boom leave}} held",
             ),
             (LEAVE_TRACE_DELETE_RECREATE_STOPS_OLD_LIST, "old A new"),
+            (
+                EXECUTION_TRACE_ORDER_AND_LEAVE_RESULT_CHAIN,
+                "ORIG {{B p enter} {A p enter} {A p 0 ORIG leave} {B p 0 R1 leave}}",
+            ),
         ] {
             if let Some(actual) = tclsh_output(env, names, script) {
                 assert_eq!(actual, expected, "{env}");
