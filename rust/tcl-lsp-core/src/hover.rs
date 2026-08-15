@@ -4678,6 +4678,34 @@ mod tests {
         assert!(hover(src, 1, 25, &analysis, None).is_none());
     }
 
+    #[test]
+    fn hover_abstains_after_static_rename_moves_builtin_away() {
+        let src = "rename clock saved\nclock format $time {%Y}\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        let cursor = u32::try_from(src.find("%Y").unwrap() - src.find('\n').unwrap() - 1).unwrap();
+        assert!(hover(src, 1, cursor, &analysis, None).is_none());
+    }
+
+    #[test]
+    fn hover_uses_effective_registry_identity_after_rename_and_alias() {
+        let renamed = "rename format local_format\nlocal_format {%Y}\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(renamed, "tcl8.6").clone();
+        let cursor =
+            u32::try_from(renamed.find("%Y").unwrap() - renamed.find('\n').unwrap() - 1).unwrap();
+        let h = hover(renamed, 1, cursor, &analysis, None).expect("renamed format hover");
+        assert!(h.value.contains("**Format string**"), "{}", h.value);
+
+        let aliased = "interp alias {} local_format {} format\nlocal_format {%Y}\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(aliased, "tcl8.6").clone();
+        let cursor =
+            u32::try_from(aliased.find("%Y").unwrap() - aliased.find('\n').unwrap() - 1).unwrap();
+        let h = hover(aliased, 1, cursor, &analysis, None).expect("aliased format hover");
+        assert!(h.value.contains("**Format string**"), "{}", h.value);
+    }
+
     // sprintf format hover
 
     #[test]
