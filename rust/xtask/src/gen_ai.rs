@@ -175,7 +175,7 @@ fn diagnostics_json() -> String {
         "default_category": "style",
         "review_categories": ["security", "taint", "thread_safety"],
         "irules_event_pattern": r"^\s*when\s+([A-Z][A-Z0-9_]{2,})\b",
-        "irules_event_boundary_owner": "tcl-syntax::event_handler::{event_handlers,event_handlers_with_head_predicate,script_commands} parses supplied script regions; tcl-registry::events::recursive_when_handlers_with_registry_and_head_resolver resolves each head at its document offset before handler acceptance and registry body/expr/lambda/case/definition traversal; tcl-irules wrappers supply f5-irules identity facts; never scan handler text locally",
+        "irules_event_boundary_owner": "tcl-syntax::event_handler::{event_handlers,event_handlers_with_head_predicate,script_commands} parses supplied script regions; tcl-registry::events::top_level_when_handlers_with_registry_and_head_resolver resolves each top-level head at its document offset before handler acceptance; F5 iRules permits `when` only at top level, and disabled interp/rename/namespace commands never create identity facts; never scan handler text locally",
     });
     serde_json::to_string_pretty(&root).expect("serialise diagnostics.json") + "\n"
 }

@@ -375,7 +375,7 @@ pub fn scan_file_events_with_registry_and_head_resolver(
     registry: &crate::CommandRegistry,
     resolver: &dyn crate::events::CommandHeadResolver,
 ) -> FxHashSet<String> {
-    crate::events::recursive_when_handlers_with_registry_and_head_resolver(
+    crate::events::top_level_when_handlers_with_registry_and_head_resolver(
         source, registry, resolver,
     )
     .into_iter()

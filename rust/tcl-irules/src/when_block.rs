@@ -30,20 +30,14 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
     )
 }
 
-/// Return handlers recursively nested inside handler bodies, with spans kept
-/// absolute to `source`. This is for editor context; [`when_blocks`] remains
-/// the top-level execution surface.
+/// Return iRules handlers for compatibility with older editor callers.
+///
+/// F5's iRules grammar permits `when` only at top level; a `when`-looking
+/// word nested in a handler body is ordinary invalid command text, never a
+/// nested event. Consequently this is now equivalent to [`when_blocks`].
 #[must_use]
 pub fn when_blocks_recursive(source: &str) -> Vec<WhenBlock> {
-    let config = LexerConfig::for_file_dialect("f5-irules");
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let identities =
-        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
-    tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
-        source,
-        registry,
-        &identities,
-    )
+    when_blocks(source)
 }
 
 /// Whether a discovered handler body contains no executable command.  This
@@ -124,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn recursively_finds_nested_rooted_handlers_with_absolute_spans() {
+    fn nested_when_is_not_an_irules_event_handler() {
         let source =
             "when http_request {\n  if {1} {\n    :::when client_data { pool p }\n  }\n}\n";
         let blocks = when_blocks_recursive(source);
@@ -133,29 +127,25 @@ mod tests {
                 .iter()
                 .map(|block| block.event.as_str())
                 .collect::<Vec<_>>(),
-            ["HTTP_REQUEST", "CLIENT_DATA"]
+            ["HTTP_REQUEST"]
         );
-        assert_eq!(
-            &source[blocks[1].span.as_range()],
-            ":::when client_data { pool p }"
-        );
-        assert_eq!(&source[blocks[1].body_span.as_range()], " pool p ");
     }
 
     #[test]
-    fn recursive_discovery_ignores_unavailable_irules_aliases() {
+    fn nested_when_remains_the_only_valid_event_after_unavailable_aliases() {
         let source = "interp alias {} branch {} if\n\
                       interp alias {} event {} ::when\n\
                       branch {1} { ::event HTTP_REQUEST {} }\n\
-                      if {1} { ::when HTTP_REQUEST {} }\n";
+                      if {1} { ::when HTTP_REQUEST {} }\n\
+                      ::when CLIENT_DATA {}\n";
         let blocks = when_blocks_recursive(source);
         assert_eq!(
             blocks
                 .iter()
                 .map(|block| block.event.as_str())
                 .collect::<Vec<_>>(),
-            ["HTTP_REQUEST"],
-            "unavailable aliases cannot open script descriptors or event boundaries"
+            ["CLIENT_DATA"],
+            "only a top-level rooted handler is valid"
         );
 
         let rebound = "proc if {args} {}\nif {1} { when CLIENT_DATA {} }\n";
@@ -181,7 +171,7 @@ when HTTP_REQUEST {}"#;
     }
 
     #[test]
-    fn recursive_discovery_follows_case_and_lambda_regions() {
+    fn nested_case_and_lambda_when_words_are_not_events() {
         let source = r"
 switch -- $x { a { when CLIENT_DATA {} } }
 apply {{} { when HTTP_REQUEST {} }}
@@ -192,7 +182,7 @@ set inert {when RULE_INIT {}}
                 .iter()
                 .map(|block| block.event.as_str())
                 .collect::<Vec<_>>(),
-            ["CLIENT_DATA", "HTTP_REQUEST"]
+            Vec::<&str>::new()
         );
     }
 }

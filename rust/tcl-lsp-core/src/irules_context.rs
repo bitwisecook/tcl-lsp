@@ -42,7 +42,7 @@ use tcl_lexer::LineIndex;
 ///
 /// The constructor builds the document's [`HeadIdentityMap`]
 /// (`tcl_compiler::head_identity::HeadIdentityMap`) exactly once, then hands
-/// it to the registry's recursive boundary owner. Callers can derive both the
+/// it to the registry's top-level boundary owner. Callers can derive both the
 /// enclosing event and the deduplicated file inventory without a global cache
 /// or a second identity scan.
 pub struct EventHandlerFacts {
@@ -119,7 +119,7 @@ fn build_event_handlers(
     let registry = tcl_registry::registry_for_profile(profile);
     let identities =
         tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
-    tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
+    tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
         source,
         registry,
         &identities,
@@ -160,15 +160,15 @@ mod tests {
     #[test]
     fn inert_when_text_is_neither_context_nor_file_event() {
         let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
-        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA"]);
+        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
         assert_eq!(find_enclosing_when_event(src, 0, D), None);
         assert_eq!(find_enclosing_when_event(src, 1, D), None);
     }
 
     #[test]
-    fn semantic_case_and_lambda_regions_supply_file_events() {
+    fn case_and_lambda_when_words_are_not_events() {
         let src = "switch -- $x { a { when CLIENT_DATA {} } }\napply {{} { when HTTP_REQUEST {} }}";
-        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA", "HTTP_REQUEST"]);
+        assert!(scan_file_events(src, D).is_empty());
     }
 
     #[test]
@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn innermost_nested_event_wins() {
+    fn nested_when_stays_in_outer_event_context() {
         // `find_enclosing` descends only into `when` bodies, so the inner
         // `when` is nested directly inside the outer one.
         let src =
@@ -230,7 +230,7 @@ mod tests {
         // Line 2 sits inside the nested CLIENT_DATA body.
         assert_eq!(
             find_enclosing_when_event(src, 2, D),
-            Some("CLIENT_DATA".to_string())
+            Some("HTTP_REQUEST".to_string())
         );
         // Line 4 is in the outer body, past the nested block's close.
         assert_eq!(
@@ -249,25 +249,19 @@ mod tests {
     }
 
     #[test]
-    fn scan_finds_nested_events() {
+    fn scan_ignores_nested_when_words() {
         let src = "when HTTP_REQUEST {\n    if {1} {\n        when CLIENT_DATA { log local0. x }\n    }\n}\n";
-        assert_eq!(
-            scan_file_events(src, D),
-            vec!["CLIENT_DATA".to_string(), "HTTP_REQUEST".to_string()]
-        );
+        assert_eq!(scan_file_events(src, D), vec!["HTTP_REQUEST".to_string()]);
     }
 
     #[test]
-    fn rooted_nested_handlers_use_canonical_names_and_normalised_events() {
+    fn rooted_nested_when_stays_in_outer_event_context() {
         let src = "::when http_request {\n  if {1} {\n    :::when client_data {\n      log local0. x\n    }\n  }\n}\n";
         assert_eq!(
             find_enclosing_when_event(src, 3, D),
-            Some("CLIENT_DATA".to_string())
+            Some("HTTP_REQUEST".to_string())
         );
-        assert_eq!(
-            scan_file_events(src, D),
-            vec!["CLIENT_DATA".to_string(), "HTTP_REQUEST".to_string()]
-        );
+        assert_eq!(scan_file_events(src, D), vec!["HTTP_REQUEST".to_string()]);
     }
 
     #[test]

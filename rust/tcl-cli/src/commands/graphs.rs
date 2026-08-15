@@ -82,7 +82,7 @@ fn detect_event_entries(source: &str, line_index: &LineIndex, dialect: &str) -> 
         tcl_compiler::head_identity::command_head_identities(source, dialect, &registry);
     let mut entries = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    for handler in tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
+    for handler in tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
         source,
         &registry,
         &identities,

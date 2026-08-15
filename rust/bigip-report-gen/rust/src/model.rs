@@ -590,7 +590,7 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     let identities =
         tcl_compiler::head_identity::command_head_identities(&body, "f5-irules", command_registry);
     let discovered: Vec<String> =
-        tcl_registry::events::recursive_when_handlers_with_registry_and_head_resolver(
+        tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
             &body,
             command_registry,
             &identities,
