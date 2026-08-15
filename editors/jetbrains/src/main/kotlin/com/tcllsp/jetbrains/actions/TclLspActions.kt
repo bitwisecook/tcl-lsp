@@ -189,7 +189,11 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         connect(decision, armStart, pattern)
                         val armTail = walk(arm.array("body") ?: JsonArray(), armStart)
                         armTails += armTail ?: armStart
-                        hasDefault = hasDefault || pattern.equals("default", ignoreCase = true)
+                        // `tcl-diagram` serialises the compiler's default
+                        // arm as this exact lower-case spelling.  `Default`
+                        // is an ordinary Tcl pattern and must retain the
+                        // no-match continuation.
+                        hasDefault = hasDefault || pattern == "default"
                     }
                     if (armTails.isEmpty()) {
                         tail = decision

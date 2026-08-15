@@ -147,6 +147,26 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun onlyExactLowerCaseDefaultConsumesTheNoMatchPath() {
+        fun render(pattern: String): String = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"switch","subject":"kind","arms":[
+              {"pattern":"$pattern","body":[{"kind":"action","label":"arm"}]}
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+
+        val defaultArm = render("default")
+        kotlin.test.assertFalse(defaultArm.contains("|no match|"), defaultArm)
+
+        // Mutation guard: a case-insensitive default check wrongly removes
+        // this edge for normal Tcl patterns such as `Default` and `DEFAULT`.
+        for (ordinaryPattern in listOf("Default", "DEFAULT")) {
+            val mermaid = render(ordinaryPattern)
+            assertContains(mermaid, "|no match|")
+            assertContains(mermaid, "switch join")
+        }
+    }
+
+    @Test
     fun edgeCaptionPipesAreHtmlEscaped() {
         val payload = JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"switch","subject":"kind","arms":[
