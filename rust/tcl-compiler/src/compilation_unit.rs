@@ -23,8 +23,8 @@
 //!
 //! Hosts the [`CompilationUnit`] / [`FunctionUnit`] facade types and
 //! the `build_for` entry point that drives the pipeline (lower → CFG →
-//! SSA → def-use → SCCP). Heavier analyses (interprocedural,
-//! memory-SSA, execution-intent, rendered-properties) plug in through
+//! SSA → def-use → SCCP). Heavier analyses (interprocedural, memory-SSA,
+//! rendered-properties) plug in through
 //! accessor methods that return `Option<&T>` — `None` when the analysis
 //! hasn't been run on this unit yet.
 

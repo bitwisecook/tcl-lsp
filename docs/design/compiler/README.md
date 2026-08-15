@@ -38,8 +38,8 @@ User-facing compiler troubleshooting and how-tos live in
 
 - [lexing-segmentation.md](lexing-segmentation.md) — token and command
   segmentation.
-- [green-token-tree.md](green-token-tree.md) — lossless token tree, error
-  nodes, and incremental reparse.
+- [green-token-tree.md](green-token-tree.md) — **proposal** for a lossless
+  token tree, error nodes, and incremental reparse.
 - [syntax-tree.md](syntax-tree.md) — the canonical red-green concrete syntax
   tree (lossless, position-independent); the segmenter's byte-identical
   backing and the foundation the formatter, minifier, AOT lowering, and

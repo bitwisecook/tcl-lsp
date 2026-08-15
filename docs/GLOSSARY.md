@@ -134,9 +134,9 @@ adjacent token rather than living as sibling tokens, so a command is pure
 syntax while every byte still round-trips. `SegmentedCommand`s are derived from
 it byte-identically. Implemented in `tcl_compiler::parsing::syntax`.
 
-> Distinct from the [green token tree](design/compiler/green-token-tree.md), a
-> context-aware tokenisation *memo* (its node type is `TokenRegion`) whose tokens
-> carry absolute positions.
+> Distinct from the [green token tree](design/compiler/green-token-tree.md),
+> an **unbuilt proposal** for a context-aware tokenisation memo with
+> absolute-position tokens. `TokenRegion` does not exist in the workspace.
 
 See also: [The canonical concrete syntax tree](design/compiler/syntax-tree.md).
 KCS tag: `lexing`.

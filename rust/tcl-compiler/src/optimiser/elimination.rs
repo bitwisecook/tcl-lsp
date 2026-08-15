@@ -771,9 +771,9 @@ fn run_adce_fixpoint(
             // O108 purity gate: a transitively-dead assignment can only be
             // removed when its RHS has no observable side effect — an
             // embedded `[cmd …]` that mutates state or escapes must keep the
-            // statement live. This reuses the same gate O109/DSE applies
-            // (an execution-intent PURE/NO_ESCAPE check) rather than treating
-            // every assignment as pure.
+            // statement live. This reuses the same `PurityCtx` /
+            // `assignment_safe_to_delete` gate O109/DSE applies rather than
+            // treating every assignment as pure.
             if !assignment_safe_to_delete(stmt, purity) {
                 continue;
             }

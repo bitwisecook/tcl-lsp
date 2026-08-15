@@ -97,7 +97,6 @@ incremental reparse that fixes (2).
 > **Proposal, not a description of the current tree.** `TokenRegion` and
 > `NodeKind` do not exist in the Rust tree — neither name appears in any Rust
 > file (see the status note at the top: sections A–E are all design sketches).
-> Issue #1406 tracks the gap.
 >
 > What exists is the red-green concrete syntax tree under
 > `rust/tcl-compiler/src/parsing/syntax/`: the position-independent `GreenNode`
@@ -216,7 +215,6 @@ The tree changes *how* segments are produced, not their contract.
 > does exist is only the prefix half: `common_prefix_len`, called by
 > `segment_commands_incremental` (`rust/tcl-compiler/src/segmenter.rs`), gives
 > the byte length of the common prefix and no common-suffix bound at all.
-> Issue #1406 tracks the gap.
 
 The server advertises **INCREMENTAL** text sync: `build_server_capabilities`
 (`rust/tcl-lsp-server/src/lib.rs`) sets
@@ -264,8 +262,7 @@ index across revisions, rather than in `did_change`.
 > `Analyser::analyse_incremental`
 > (`rust/tcl-compiler/src/analyser/state.rs`) carries the fallback: an
 > incomplete script, an inline `# tcl-lsp: stub` directive, or a
-> recovery-segmentation mismatch drops to a full `analyse`. Issue #1406 tracks
-> the gap.
+> recovery-segmentation mismatch drops to a full `analyse`.
 
 The update is proposed at the **top-level-command (chunk) granularity** the
 rest of the pipeline already caches at, rather than by mutating a persistent

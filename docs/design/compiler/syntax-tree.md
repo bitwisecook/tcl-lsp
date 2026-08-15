@@ -17,10 +17,10 @@ bodies and `[…]` substitutions, and the `SegmentedCommand` derivation.
 The model is the Roslyn / rust-analyzer split:
 
 - **Green** (`parsing/syntax/green.rs`) is **position-independent**: a node knows only
-  its *width* and its children, never an absolute offset. Two structurally
-  identical regions (e.g. two empty `{}` words) can be the *same* object, and a
-  green subtree is reusable verbatim when an edit shifts it — the property that
-  makes incremental reparse and cross-edit caching cheap.
+  its *width* and its children, never an absolute offset. Structurally
+  identical regions compare equal by value, but children are held inline in
+  `Vec<GreenElement>`: the current CST does not pointer-share subtrees and has
+  no cross-edit reuse or incremental reparse cache.
 - **Red** (`parsing/syntax/red.rs`) overlays a green tree with an *anchoring*
   (`base_offset` / `base_line` / `base_col`) and resolves absolute positions
   **lazily**, reproducing exactly the `Token` offsets/lines/columns the lexer
