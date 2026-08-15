@@ -197,7 +197,7 @@ impl Analyser {
         arg_tokens: &[Token],
         cmd_tok: Token,
     ) {
-        if self.dialect() != "f5-irules" {
+        if !self.profile.is_irules() {
             return;
         }
         let event = self.current_event.clone();
@@ -226,7 +226,7 @@ impl Analyser {
     /// registry is built; the result is read immutably by
     /// [`Self::emit_irule1001_command_event_validity`].
     pub(super) fn compute_irules_file_profiles(&mut self) {
-        if self.dialect() != "f5-irules" {
+        if !self.profile.is_irules() {
             return;
         }
         let Some(registry) = self.registry.as_deref() else {

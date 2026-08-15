@@ -5813,6 +5813,7 @@ fn collect_entries(
 ) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
 
     // Extra variable-name argument positions the static registry doesn't model,
     // split by direction (written → `Variable` declaration, read → plain
@@ -5913,9 +5914,7 @@ fn collect_entries(
     let ctx = ScriptCtx {
         full_source: source,
         dialect,
-        numbers: tcl_dialect::DialectProfile::by_name(dialect)
-            .grammar
-            .numbers,
+        numbers: profile.grammar.numbers,
         registry,
         line_index: &line_index,
         oo_grammar: None,
@@ -5943,7 +5942,7 @@ fn collect_entries(
     // single-line body's enclosing `string` token) so the token stream
     // never carries overlaps.  Multi-line bodies aren't tokenised by the
     // main walk, so refs inside them surface cleanly.
-    if dialect == "f5-irules" {
+    if profile.is_irules() {
         for span in crate::irules_object_refs::object_ref_spans(source, registry) {
             push_object_token(source, &line_index, span, &mut entries);
         }
@@ -9240,12 +9239,17 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         // `pool web_pool` inside a multi-line `when` body → `object`.
-        let ks = kinds(
-            "when HTTP_REQUEST {\n  pool web_pool\n}\n",
-            "f5-irules",
-            &registry,
-        );
-        assert!(ks.contains(&(TokenKind::Object as u32)), "{ks:?}");
+        for dialect in ["f5-irules", "irules", "tcl-irule"] {
+            let ks = kinds(
+                "when HTTP_REQUEST {\n  pool web_pool\n}\n",
+                dialect,
+                &registry,
+            );
+            assert!(
+                ks.contains(&(TokenKind::Object as u32)),
+                "{dialect}: {ks:?}"
+            );
+        }
     }
 
     #[test]

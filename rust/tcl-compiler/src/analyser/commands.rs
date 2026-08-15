@@ -1030,7 +1030,7 @@ impl Analyser {
         arg_tokens_in: &[Token],
         scope_path: &[usize],
     ) {
-        if cmd_name != "call" || self.dialect() != "f5-irules" {
+        if cmd_name != "call" || !self.profile.is_irules() {
             return;
         }
         let (Some(target_name), Some(target_tok)) = (args.first(), arg_tokens_in.get(1).copied())
@@ -1475,7 +1475,7 @@ impl Analyser {
         if resolves_to_proc
             && cmd_name != "call"
             && self.current_event.is_some()
-            && self.dialect() == "f5-irules"
+            && self.profile.is_irules()
         {
             let suffix = if args.is_empty() {
                 String::new()
