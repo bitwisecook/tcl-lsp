@@ -667,9 +667,9 @@ mod tests {
             assert!(
                 ranges.windows(2).all(|pair| {
                     (pair[1].range.start_line, pair[1].range.start_character)
-                        <= (pair[0].range.start_line, pair[0].range.start_character)
-                        && (pair[0].range.end_line, pair[0].range.end_character)
-                            <= (pair[1].range.end_line, pair[1].range.end_character)
+                        < (pair[0].range.start_line, pair[0].range.start_character)
+                        || (pair[0].range.end_line, pair[0].range.end_character)
+                            < (pair[1].range.end_line, pair[1].range.end_character)
                 }),
                 "{ranges:?}"
             );

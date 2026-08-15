@@ -225,9 +225,9 @@ fn extract_object_refs(source: &str, _blocks: &[tcl_irules::WhenBlock]) -> Objec
     // request context for all other generators; this walker needs full spans.
     let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
     for reference in tcl_irules::extract_irules_object_references(source, None, registry) {
-        if reference.command == "pool" {
+        if reference.category == tcl_irules::IrulesObjectReferenceCategory::Pool {
             pools.insert(reference.name);
-        } else if reference.command == "class" {
+        } else if reference.category == tcl_irules::IrulesObjectReferenceCategory::DataGroup {
             datagroups.insert(reference.name);
         }
     }
@@ -1153,5 +1153,15 @@ mod tests {
         let refs = extract_object_refs(src, &blocks);
         assert_eq!(refs.pools, vec!["nested_pool".to_owned()]);
         assert!(refs.datagroups.contains(&"uri_dg".to_owned()));
+    }
+
+    #[test]
+    fn object_refs_classify_aliases_and_qualified_commands_by_effective_identity() {
+        let src = "interp alias {} choose {} pool\nrename class group\nwhen HTTP_REQUEST { choose aliased_pool; ::pool qualified_pool; group match x equals aliased_dg }";
+        let blocks = tcl_irules::when_blocks(src);
+        let refs = extract_object_refs(src, &blocks);
+        assert!(refs.pools.contains(&"aliased_pool".to_owned()));
+        assert!(refs.pools.contains(&"qualified_pool".to_owned()));
+        assert!(refs.datagroups.contains(&"aliased_dg".to_owned()));
     }
 }

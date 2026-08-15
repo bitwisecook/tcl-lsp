@@ -45,6 +45,14 @@ use crate::resolve_object_ref_args;
 /// reasoning; see those constants' doc comments.
 const MAX_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
 
+/// Consumer-safe semantic category for an iRules object reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesObjectReferenceCategory {
+    Pool,
+    DataGroup,
+    Other,
+}
+
 /// One iRules object reference resolved from a literal command argument
 /// (mirrors `IrulesObjectReference`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,6 +63,12 @@ pub struct IrulesObjectReference {
     pub kinds: Vec<&'static str>,
     /// The iRule command the reference came from (e.g. `"pool"`).
     pub command: String,
+    /// Registry-resolved command identity used for semantic classification.
+    /// Unlike `command`, this follows proven aliases, renames, and qualified
+    /// spellings.
+    pub effective_command: String,
+    /// Typed semantic category, derived by the registry-backed walker.
+    pub category: IrulesObjectReferenceCategory,
     /// 0-based argument index (after the command name).
     pub argument_index: usize,
     /// Byte span of the reference token in the source.
@@ -200,23 +214,33 @@ fn walk(
         // object-reference argument, while a `pool` whose binding was provably
         // taken over by a user `proc` finds none.
         let head = resolve_head(identities, &cmd);
+        // Registry command specs are canonical unqualified iRules names;
+        // Tcl's leading `::` is an absolute-namespace marker, not a distinct
+        // command identity.
+        let semantic_head = head.trim_start_matches("::");
 
         // Resolve declared references *before* mutating the binding table, so a
         // same-command `set` re-bind doesn't leak into this call's refs.
-        for (argument_index, kinds) in resolve_object_ref_args(head, &args, rule_module) {
+        for (argument_index, kinds) in resolve_object_ref_args(semantic_head, &args, rule_module) {
             if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
                 out.push(IrulesObjectReference {
                     name,
                     kinds,
                     command: cmd.name().to_owned(),
+                    effective_command: semantic_head.to_owned(),
+                    category: match semantic_head {
+                        "pool" => IrulesObjectReferenceCategory::Pool,
+                        "class" => IrulesObjectReferenceCategory::DataGroup,
+                        _ => IrulesObjectReferenceCategory::Other,
+                    },
                     argument_index,
                     range,
                 });
             }
         }
-        record_set_binding(full, head, &cmd, scope);
+        record_set_binding(full, semantic_head, &cmd, scope);
 
-        let body_indices = registry.arg_indices_for_role(head, &args, ArgRole::Body);
+        let body_indices = registry.arg_indices_for_role(semantic_head, &args, ArgRole::Body);
         let mut recursed: HashSet<(u32, u32)> = HashSet::new();
         for body_idx in body_indices {
             let word_index = body_idx + 1;
