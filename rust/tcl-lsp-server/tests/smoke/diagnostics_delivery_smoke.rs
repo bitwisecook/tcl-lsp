@@ -213,6 +213,7 @@ async fn pull_capable_client_still_gets_push_by_default() {
             frames.iter().any(|frame| {
                 frame.contains("textDocument/publishDiagnostics")
                     && frame.contains("file:///dup.tcl")
+                    && frame.contains("\"version\":2")
                     && frame.contains("\"diagnostics\":[]")
             })
         })
@@ -309,6 +310,7 @@ async fn push_only_client_still_receives_one_push() {
             frames.iter().any(|frame| {
                 frame.contains("textDocument/publishDiagnostics")
                     && frame.contains("file:///push.tcl")
+                    && frame.contains("\"version\":2")
                     && frame.contains("\"diagnostics\":[]")
             })
         })

@@ -111,7 +111,7 @@ class DiagramDataAction : TclLspActionBase() {
 }
 
 /** Render the stable `tcl-diagram` `{events, procedures}` JSON contract. */
-private fun renderDiagramMermaid(data: JsonElement): String? {
+internal fun renderDiagramMermaid(data: JsonElement): String? {
     val root = data.takeIf { it.isJsonObject }?.asJsonObject ?: return null
     val events = root.array("events") ?: return null
     val procedures = root.array("procedures") ?: return null
