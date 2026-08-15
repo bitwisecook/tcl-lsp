@@ -1090,14 +1090,7 @@ impl Analyser {
         // `regexp`, `regsub`, `gets`, `binary scan`, `vwait`, …) writes
         // results into named variable arguments; bind them so
         // completion/hover/definition see the destructured / captured names.
-        let opaque_upvar_alias = !matches!(cmd_name, "upvar" | "::upvar")
-            && matches!(
-                self.resolve_analyser_hook(cmd_name, args),
-                Some(tcl_registry::hooks::AnalyserHookId::Upvar)
-            );
-        if !opaque_upvar_alias {
-            self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
-        }
+        self.handle_var_binding_command(cmd_name, args, arg_tokens, scope_path);
         // Registry symbol-definer commands (`tcltest::test NAME …`) contribute a
         // lightweight named definition to the outline.  Void handler — it only
         // records the symbol; the body still recurses via the generic
@@ -1325,12 +1318,7 @@ impl Analyser {
                 false
             }
             Hook::Upvar => {
-                // An alias resolving to the upvar spec is not enough evidence
-                // for frame binding: its target may be opaque at analysis
-                // time.  Keep canonical spellings on the semantic handler.
-                if cmd_name == "upvar" || cmd_name == "::upvar" {
-                    self.handle_upvar_command(args, arg_tokens, scope_path);
-                }
+                self.handle_upvar_command(args, arg_tokens, scope_path);
                 false
             }
             Hook::NamespaceUpvar => {

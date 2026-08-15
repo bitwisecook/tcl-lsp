@@ -382,6 +382,7 @@ fn resolve_head<'a>(
     identities.head_words(cmd.name(), at)
 }
 
+#[allow(clippy::too_many_lines)] // registry case-list shapes share this generic walk
 fn collect_body_folds(
     body_source: &str,
     base_offset: u32,
@@ -438,12 +439,14 @@ fn collect_body_folds(
         // block folded (issue #1216).  Which word holds the list, and how the
         // list is shaped, is registry data (`CommandSpec::case_list`), so this
         // walk names no command.
-        let case_list = ctx.registry.get(head.resolved).and_then(|spec| {
+        let case_invocation = ctx.registry.get(head.resolved).and_then(|spec| {
             let case = spec.case_list?;
             ctx.registry
                 .case_invocation(head.resolved, &args_borrow, ctx.availability)
-                .and_then(|(_, invocation)| invocation.clause_list_index.map(|index| (case, index)))
+                .map(|(_, invocation)| (case, invocation))
         });
+        let case_list = case_invocation
+            .and_then(|(case, invocation)| invocation.clause_list_index.map(|index| (case, index)));
 
         // The grammar the recursion into THIS command's bodies should carry:
         // outer definer bodies switch to their grammar, member bodies switch
@@ -466,6 +469,51 @@ fn collect_body_folds(
                 ctx.ranges,
             );
             collect_clause_folds(body_tok, spec, depth, ctx);
+        }
+
+        if let Some((spec, invocation)) = case_invocation
+            && let Some(start) = invocation.inline_clause_start
+            && let Some(clauses) = spec.inline_clauses(&args_borrow, start)
+        {
+            for clause in clauses {
+                let Some(body_index) = clause.body_index else {
+                    continue;
+                };
+                let Some(&body_tok) = cmd.arg_tokens().get(body_index) else {
+                    continue;
+                };
+                if !matches!(body_tok.kind, TokenType::Str) {
+                    continue;
+                }
+                emit_body_span_fold(
+                    body_tok.span,
+                    ctx.original_source,
+                    ctx.line_index,
+                    ctx.seen,
+                    ctx.ranges,
+                );
+                let content_start =
+                    body_tok.span.start() as usize + body_tok.content_offset as usize;
+                let raw_end = body_tok.span.end() as usize;
+                let bytes = ctx.original_source.as_bytes();
+                let content_end = if raw_end > content_start
+                    && raw_end - content_start == 1
+                    && bytes.get(raw_end - 1) == Some(&b'}')
+                {
+                    content_start
+                } else {
+                    raw_end
+                };
+                if let Some(inner) = ctx.original_source.get(content_start..content_end) {
+                    collect_body_folds(
+                        inner,
+                        u32::try_from(content_start).expect("content offset fits u32"),
+                        depth + 1,
+                        None,
+                        ctx,
+                    );
+                }
+            }
         }
 
         for idx in body_indices {
@@ -1009,6 +1057,34 @@ mod tests {
         assert!(
             regions.is_empty(),
             "invalid -b must not create Expect folds: {regions:?}"
+        );
+    }
+
+    #[test]
+    fn expect_inline_clause_actions_fold_from_descriptor_indices() {
+        let source = concat!(
+            "expect -re {a+} {\n",           // 0
+            "    puts first\n",              // 1
+            "    puts again\n",              // 2
+            "} -timeout 1 -regexp {b+} {\n", // 3
+            "    puts second\n",             // 4
+            "    puts more\n",               // 5
+            "} -exact omitted\n",            // 6
+        );
+        let regions = fold_lines(&folding_ranges_expect(source), FoldKind::Region);
+        assert!(
+            regions.contains(&(0, 2)),
+            "abbreviated -re action: {regions:?}"
+        );
+        assert!(
+            regions.contains(&(3, 5)),
+            "canonical -regexp/value action: {regions:?}"
+        );
+        let unique: std::collections::HashSet<_> = regions.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            regions.len(),
+            "no duplicate inline folds: {regions:?}"
         );
     }
 

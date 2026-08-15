@@ -840,7 +840,9 @@ Use braces: {{ \u{2026} }}"
             return Vec::new();
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        if cmd == "upvar" || (cmd == "namespace" && args.first().is_some_and(|a| a == "upvar")) {
+        if registry.frame_effect(cmd).is_some_and(|effect| {
+            effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+        }) {
             return registry.arg_indices_for_role(cmd, &arg_strs, VarWrite);
         }
         let mut idx = registry.arg_indices_for_role(cmd, &arg_strs, VarWrite);

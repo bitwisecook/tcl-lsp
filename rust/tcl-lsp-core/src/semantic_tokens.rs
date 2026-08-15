@@ -1544,7 +1544,7 @@ fn special_arg_kinds(
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_definer_class_name_override(seg, registry, &mut overrides);
     insert_lambda_literal_overrides(seg, registry, head, deferred_role, &mut overrides);
-    insert_case_list_override(seg, registry, dialect, &mut overrides);
+    insert_case_list_override(seg, registry, head, dialect, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, oo_grammar, arg_texts, dialect, &mut overrides);
     insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
@@ -3350,6 +3350,7 @@ fn is_plain_var_name(text: &str) -> bool {
 fn insert_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    resolved_head: &str,
     dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
@@ -3359,7 +3360,7 @@ fn insert_case_list_override(
     // `expect_before` / `expect_after` / … come along for free.  Naming
     // `switch` here instead would leave every Expect clause body unrecursed,
     // rendering an entire `expect {…}` block as flat per-line `string` tokens.
-    let Some(spec) = registry.get(&seg.texts[0]).and_then(|s| s.case_list) else {
+    let Some(spec) = registry.get(resolved_head).and_then(|s| s.case_list) else {
         return;
     };
     // Where the list sits (and whether the command-level regex option was
@@ -3369,7 +3370,7 @@ fn insert_case_list_override(
     // form only: the inline `pat body …` form leaves more than one trailing
     // word and `clause_list_call` answers `None` for it.
     let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
-    let Some((_, invocation)) = registry.case_invocation(&seg.texts[0], &args, dialect) else {
+    let Some((_, invocation)) = registry.case_invocation(resolved_head, &args, dialect) else {
         return;
     };
     let Some(index) = invocation.clause_list_index else {
@@ -6592,6 +6593,16 @@ mod tests {
                 "{label}: {flag} must enable regexp tokenisation: {tokens:?}"
             );
         }
+    }
+
+    #[test]
+    fn renamed_away_expect_spelling_gets_no_case_list_overrides() {
+        let source = "rename expect other\nexpect -re {a+} { puts matched }\n";
+        let kinds = kinds(source, "expect", &expect_reg());
+        assert!(
+            !kinds.contains(&(TokenKind::RegexpQuantifier as u32)),
+            "a proven rebound head must not inherit Expect overrides: {kinds:?}"
+        );
     }
 
     #[test]

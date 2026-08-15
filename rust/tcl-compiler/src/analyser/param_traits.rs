@@ -640,10 +640,7 @@ fn scan_command<'p>(
     // the command it is, and a spelling whose binding was provably taken over
     // matches nothing.
     match resolved {
-        // Keep this trait pass conservative for aliases: a binding whose
-        // target is `upvar` is not proof that the call site executes the
-        // frame alias grammar, so it must not silence W210.
-        "upvar" if cmd_name == "upvar" || cmd_name == "::upvar" => {
+        "upvar" => {
             handle_upvar(cmd_args, ctx, traits, aliases);
         }
         "namespace" if cmd_args.first().map(String::as_str) == Some("upvar") => {
@@ -1130,11 +1127,9 @@ pub fn caller_frame_literal_targets(
             continue;
         };
         let head = env.identities.resolve_unpositioned(written).spec_name();
-        if (written == "upvar" || written == "::upvar")
-            && registry.frame_effect(head).is_some_and(|effect| {
-                effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
-            })
-        {
+        if registry.frame_effect(head).is_some_and(|effect| {
+            effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+        }) {
             continue;
         }
         let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
