@@ -767,22 +767,18 @@ mod tests {
         }
 
         // tmm_grammar_has_no_expansion: `{*}` is 8.5+ syntax the embedded
-        // 8.4.6 does not have. Under the iRules grammar `{*}{a b}` is not an
-        // expansion (and, unlike plain tclsh8.4, not an error either): the
-        // TMM's `}{` ghost word separator splits it into the two literal
-        // words `*` and `a b`. TIP-157 expansion would instead yield the
-        // elements `a` and `b` — pin the first element to tell them apart.
+        // 8.4.6 grammar does not have. The adjacent close/open braces are a
+        // hard parse error, matching Tcl 8.4 rather than TIP-157 expansion.
         scenario(&mut s);
-        assert_eq!(
-            s.eval("llength [list {*}{a b}]").unwrap(),
-            "2",
-            "tmm_grammar_has_no_expansion: `}}{{` splits into two words"
-        );
-        assert_eq!(
-            s.eval("lindex [list {*}{a b}] 0").unwrap(),
-            "*",
-            "tmm_grammar_has_no_expansion: the first word is the literal `*`, not an expanded `a`"
-        );
+        match s.eval("llength [list {*}{a b}]") {
+            Err(SessionError::Eval(message)) => assert_eq!(
+                message, "extra characters after close-brace",
+                "tmm_grammar_has_no_expansion: Tcl 8.4 must reject TIP-157 syntax"
+            ),
+            other => {
+                panic!("tmm_grammar_has_no_expansion: Tcl 8.4 syntax must fail, got {other:?}")
+            }
+        }
 
         // surface_hides_86_builtins: an 8.6+-only builtin with no polyfill
         // (lmap) does not exist at 8.4 — the miss reports through the
