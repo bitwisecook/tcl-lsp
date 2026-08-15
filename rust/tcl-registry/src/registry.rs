@@ -6450,8 +6450,8 @@ mod tests {
         assert!(
             expect
                 .case_invocation("expect", &["-re {ye+s}"], DialectSet::EXPECT)
-                .is_none(),
-            "a clause without its body must remain invalid"
+                .is_some(),
+            "Expect permits a final pattern without an action"
         );
         assert!(
             expect
@@ -6481,10 +6481,10 @@ mod tests {
             .expect("inline clauses");
         assert_eq!(clauses.len(), 2);
         assert_eq!(clauses[0].pattern_index, 1);
-        assert_eq!(clauses[0].body_index, 2);
+        assert_eq!(clauses[0].body_index, Some(2));
         assert_eq!(clauses[0].mode, crate::spec::CaseMatchMode::Regexp);
         assert_eq!(clauses[1].pattern_index, 5);
-        assert_eq!(clauses[1].body_index, 6);
+        assert_eq!(clauses[1].body_index, Some(6));
         assert!(
             expect
                 .case_invocation(
@@ -6494,6 +6494,85 @@ mod tests {
                 )
                 .is_some(),
             "unique Expect flag abbreviations must retain the action body"
+        );
+    }
+
+    #[test]
+    fn expect_inline_flag_table_matches_the_oracle() {
+        let expect = crate::registry_for_dialect("expect");
+        for flag in [
+            "-glob",
+            "-regexp",
+            "-exact",
+            "-notransfer",
+            "-nocase",
+            "-i",
+            "-indices",
+            "-iread",
+            "-timestamp",
+            "-nobrace",
+        ] {
+            let args = if matches!(flag, "-i") {
+                vec![flag, "spawn", "pattern", "{action}"]
+            } else {
+                vec![flag, "pattern", "{action}"]
+            };
+            assert!(
+                expect
+                    .case_invocation("expect", &args, DialectSet::EXPECT)
+                    .is_some(),
+                "canonical {flag} must parse"
+            );
+        }
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["-timeout", "5", "pattern", "{action}"],
+                    DialectSet::EXPECT
+                )
+                .is_some()
+        );
+        for flag in ["-gl", "-re", "-ex", "-not"] {
+            assert!(
+                expect
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .is_some(),
+                "unique abbreviation {flag} must parse"
+            );
+        }
+        for flag in ["-n", "-bogus"] {
+            assert!(
+                expect
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .is_none(),
+                "ambiguous or unknown {flag} must invalidate the invocation"
+            );
+        }
+        let args = ["--", "-re", "{action}"];
+        let (_, invocation) = expect
+            .case_invocation("expect", &args, DialectSet::EXPECT)
+            .expect("-- makes -re a pattern");
+        let clauses = crate::CaseListSpec::EXPECT
+            .inline_clauses(&args, invocation.inline_clause_start.expect("inline"))
+            .expect("clause");
+        assert_eq!(clauses[0].pattern_index, 1);
+        assert_eq!(clauses[0].body_index, Some(2));
+        let (_, omitted) = expect
+            .case_invocation("expect", &["-re", "pattern"], DialectSet::EXPECT)
+            .expect("omitted final action is valid");
+        assert_eq!(
+            crate::CaseListSpec::EXPECT
+                .inline_clauses(&["-re", "pattern"], omitted.inline_clause_start.unwrap())
+                .unwrap()[0]
+                .body_index,
+            None
+        );
+        assert!(
+            expect
+                .case_invocation("expect", &["-nobrace", "{pattern}"], DialectSet::EXPECT)
+                .is_some(),
+            "-nobrace makes one braced word an action-less pattern"
         );
     }
 

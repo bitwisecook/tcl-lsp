@@ -3381,7 +3381,8 @@ fn insert_case_list_override(
             && let Some(clauses) = spec.inline_clauses(&args, start)
         {
             for clause in clauses {
-                if let Some(tok) = seg.argv.get(clause.body_index + 1)
+                if let Some(body_index) = clause.body_index
+                    && let Some(tok) = seg.argv.get(body_index + 1)
                     && matches!(tok.kind, TokenType::Str)
                 {
                     overrides.insert(tok.span.start(), ArgOverride::BodyScript);

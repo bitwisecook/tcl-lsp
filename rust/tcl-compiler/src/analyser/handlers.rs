@@ -4325,6 +4325,9 @@ impl Analyser {
                         scope_path,
                     );
                 }
+                let Some(body_index) = body_index else {
+                    continue;
+                };
                 let body_text = &args[body_index];
                 if let Some(body_tok) = arg_tokens.get(body_index).copied()
                     && case.fallthrough_body != Some(body_text.as_str())

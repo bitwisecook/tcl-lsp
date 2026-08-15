@@ -3326,7 +3326,10 @@ fn case_list_clause_body_regions(
         let clauses = case_list.inline_clauses(args, start)?;
         let mut out = Vec::new();
         for clause in clauses {
-            let Some(tok) = cmd.argv.get(clause.body_index + 1) else {
+            let Some(body_index) = clause.body_index else {
+                continue;
+            };
+            let Some(tok) = cmd.argv.get(body_index + 1) else {
                 continue;
             };
             let (start, end) = strip_outer_braces(source, tok.span);

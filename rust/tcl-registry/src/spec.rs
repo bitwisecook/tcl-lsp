@@ -325,6 +325,14 @@ pub struct CaseListSpec {
     pub clause_regex_flag: Option<&'static str>,
     /// Clause flags that consume a following value word (`-timeout 5`).
     pub clause_value_flags: &'static [&'static str],
+    /// Clause flag that ends flag parsing, making a following hyphenated word
+    /// a pattern rather than an option.
+    pub clause_end_options_flag: Option<&'static str>,
+    /// Clause flag that makes a following braced word one pattern rather than
+    /// a braced clause list (Expect's `-nobrace`).
+    pub clause_force_inline_flag: Option<&'static str>,
+    /// Whether a final pattern may omit its action (Expect permits this).
+    pub allow_omitted_final_body: bool,
     /// Patterns that are keywords, not match text (`default`; Expect's
     /// `timeout` / `eof` / `full_buffer`).
     pub keyword_patterns: &'static [&'static str],
@@ -368,7 +376,7 @@ pub struct InlineCaseClause {
     /// Pattern word index in the invocation.
     pub pattern_index: usize,
     /// Action-body word index in the invocation.
-    pub body_index: usize,
+    pub body_index: Option<usize>,
     /// Matching mode selected by this clause's leading flags.
     pub mode: CaseMatchMode,
 }
@@ -387,6 +395,9 @@ impl CaseListSpec {
         clause_flags: &[],
         clause_regex_flag: None,
         clause_value_flags: &[],
+        clause_end_options_flag: None,
+        clause_force_inline_flag: None,
+        allow_omitted_final_body: false,
         keyword_patterns: &["default"],
         keyword_patterns_require_final: true,
         warn_unbraced_bodies: true,
@@ -408,18 +419,24 @@ impl CaseListSpec {
         // recursed.
         value_options_require_regex: &[],
         clause_flags: &[
-            "-re",
-            "-gl",
-            "-ex",
+            "-glob",
+            "-regexp",
+            "-exact",
+            "-notransfer",
             "-nocase",
-            "-timeout",
             "-i",
             "-indices",
-            "-notransfer",
+            "-iread",
+            "-timestamp",
+            "-timeout",
+            "-nobrace",
             "--",
         ],
-        clause_regex_flag: Some("-re"),
+        clause_regex_flag: Some("-regexp"),
         clause_value_flags: &["-timeout", "-i"],
+        clause_end_options_flag: Some("--"),
+        clause_force_inline_flag: Some("-nobrace"),
+        allow_omitted_final_body: true,
         keyword_patterns: &["timeout", "eof", "default", "full_buffer"],
         keyword_patterns_require_final: false,
         warn_unbraced_bodies: false,
@@ -497,22 +514,7 @@ impl CaseListSpec {
             // a value-taking `-timeout 5`, so counting raw list elements
             // rejects valid clauses and leaves generic consumers unable to
             // recurse their bodies.
-            let elements = tcl_syntax::list::split_list(args[i]).ok()?;
-            let shape = tcl_syntax::case_list::CaseListShape {
-                clause_flags: self.clause_flags,
-                clause_value_flags: self.clause_value_flags,
-            };
-            let clauses = tcl_syntax::case_list::split_case_list(args[i], &shape);
-            if clauses
-                .iter()
-                .any(|clause| clause.pattern.is_none() || clause.body.is_none())
-            {
-                return None;
-            }
-            if elements.last().is_some_and(|body| {
-                self.fallthrough_body
-                    .is_some_and(|marker| body.as_ref() == marker)
-            }) {
+            if !self.valid_clause_list(args[i]) {
                 return None;
             }
             Some(CaseInvocation {
@@ -550,6 +552,26 @@ impl CaseListSpec {
         }
     }
 
+    fn valid_clause_list(self, text: &str) -> bool {
+        let Ok(elements) = tcl_syntax::list::split_list(text) else {
+            return false;
+        };
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: self.clause_flags,
+            clause_value_flags: self.clause_value_flags,
+        };
+        let clauses = tcl_syntax::case_list::split_case_list(text, &shape);
+        !clauses.iter().enumerate().any(|(index, clause)| {
+            !clause.valid
+                || clause.pattern.is_none()
+                || (clause.body.is_none()
+                    && !(self.allow_omitted_final_body && index + 1 == clauses.len()))
+        }) && !elements.last().is_some_and(|body| {
+            self.fallthrough_body
+                .is_some_and(|marker| body.as_ref() == marker)
+        })
+    }
+
     /// Parse descriptor-declared inline pattern/action clauses.  A future
     /// case-list command gets the same body locations by changing only its
     /// descriptor; consumers never infer flag or value arity themselves.
@@ -563,11 +585,17 @@ impl CaseListSpec {
         let mut i = start;
         while i < args.len() {
             let mut mode = CaseMatchMode::Exact;
+            let mut options_ended = false;
             while let Some(word) = args.get(i).copied() {
-                let Some(flag) = shape.resolve_flag(word) else {
+                if options_ended || !word.starts_with('-') {
                     break;
-                };
+                }
+                let flag = shape.resolve_flag(word)?;
                 i += 1;
+                if self.clause_end_options_flag == Some(flag) {
+                    options_ended = true;
+                    continue;
+                }
                 if shape.flag_takes_value(flag) {
                     args.get(i)?;
                     i += 1;
@@ -579,12 +607,18 @@ impl CaseListSpec {
             let pattern_index = i;
             args.get(pattern_index)?;
             let body_index = pattern_index + 1;
-            args.get(body_index)?;
+            let body_index = args.get(body_index).is_some().then_some(body_index);
+            if body_index.is_none() && !self.allow_omitted_final_body {
+                return None;
+            }
             clauses.push(InlineCaseClause {
                 pattern_index,
                 body_index,
                 mode,
             });
+            let Some(body_index) = body_index else {
+                break;
+            };
             i = body_index + 1;
         }
         (!clauses.is_empty()).then_some(clauses)

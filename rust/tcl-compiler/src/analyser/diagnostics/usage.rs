@@ -756,7 +756,9 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         for clause in clauses {
-            let body_idx = clause.body_index;
+            let Some(body_idx) = clause.body_index else {
+                continue;
+            };
             if let (Some(tok), Some(text)) = (arg_tokens.get(body_idx), args.get(body_idx))
                 && !is_braced_word(tok)
                 && text != "-"
