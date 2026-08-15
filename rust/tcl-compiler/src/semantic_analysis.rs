@@ -72,6 +72,7 @@ impl SemanticAnalysisBundle {
         script: &Script,
         entry_assumption: DispatchEntryAssumption,
     ) -> Self {
+        let entry_assumption = validate_entry_dialect(entry_assumption, dialect);
         if dialect.canonical_name().is_none() {
             return Self::from_executable(
                 dialect,
@@ -116,6 +117,7 @@ impl SemanticAnalysisBundle {
         script: &Script,
         entry_assumption: DispatchEntryAssumption,
     ) -> Self {
+        let entry_assumption = validate_entry_dialect(entry_assumption, dialect);
         if dialect.canonical_name().is_none() {
             return Self::from_executable(
                 dialect,
@@ -251,6 +253,18 @@ impl SemanticAnalysisBundle {
             executable,
             entry_assumption,
         }
+    }
+}
+
+fn validate_entry_dialect(
+    entry: DispatchEntryAssumption,
+    dialect: DialectSet,
+) -> DispatchEntryAssumption {
+    match entry {
+        DispatchEntryAssumption::SealedLoadGraph(contract) if contract.dialect() != dialect => {
+            DispatchEntryAssumption::UnknownWorld
+        }
+        entry => entry,
     }
 }
 
