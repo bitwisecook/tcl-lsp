@@ -109,4 +109,54 @@ class TclLspActionsTest {
         assertContains(mermaid, "n8 --> n9")
         assertContains(mermaid, "n9 --> n10")
     }
+
+    @Test
+    fun switchArmsJoinBeforeTheContinuationAndKeepNoMatchWithoutDefault() {
+        val payload = JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"switch","subject":"kind","arms":[
+              {"pattern":"a","body":[{"kind":"action","label":"first"}]},
+              {"pattern":"b","body":[{"kind":"action","label":"second"}]}
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "n1 -->|a| n2")
+        assertContains(mermaid, "n1 -->|b| n4")
+        assertContains(mermaid, "n3 --> n6")
+        assertContains(mermaid, "n5 --> n6")
+        assertContains(mermaid, "n1 -->|no match| n6")
+        assertContains(mermaid, "n6 --> n7")
+    }
+
+    @Test
+    fun switchDefaultConsumesNoMatchAndNestedSwitchStillJoins() {
+        val payload = JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"switch","subject":"kind","arms":[
+              {"pattern":"a","body":[{"kind":"switch","subject":"inner","arms":[
+                {"pattern":"x","body":[{"kind":"action","label":"inner"}]}
+              ]}]},
+              {"pattern":"default","body":[{"kind":"action","label":"fallback"}]}
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "switch join")
+        assertContains(mermaid, "after")
+        // The inner switch has no default, but the outer one does.  This is
+        // a mutation guard: deleting the per-switch default check adds a
+        // second no-match edge from the outer decision.
+        kotlin.test.assertEquals(1, Regex("\\|no match\\|").findAll(mermaid).count(), mermaid)
+    }
+
+    @Test
+    fun edgeCaptionPipesAreHtmlEscaped() {
+        val payload = JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"switch","subject":"kind","arms":[
+              {"pattern":"a | b","body":[{"kind":"action","label":"first"}]},
+              {"pattern":"foo|bar","body":[{"kind":"action","label":"second"}]}
+            ]}]}],"procedures":[]}"""
+        )
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "|a &#124; b|")
+        assertContains(mermaid, "|foo&#124;bar|")
+        kotlin.test.assertFalse(mermaid.contains("|a | b|"), mermaid)
+    }
 }

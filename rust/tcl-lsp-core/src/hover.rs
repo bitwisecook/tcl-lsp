@@ -49,7 +49,6 @@ use std::collections::HashMap;
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
 use tcl_lexer::{LexerConfig, Token, TokenType};
@@ -566,100 +565,126 @@ fn registry_pattern_format_hover(
     let config = LexerConfig::for_file_dialect(profile.name);
     let identities =
         tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+    let context = PatternFormatContext {
+        analysis,
+        source,
+        resolution,
+        registry,
+        profile,
+        cursor,
+    };
 
-    for command in segment_commands_with_offset_and_config(source, 0, config) {
-        if cursor < command.span.start() || cursor > command.span.end() {
-            continue;
-        }
-        let Some(written_head) = command.texts.first() else {
+    let mut answer = None;
+    crate::executable_regions::visit_executable_commands(
+        source,
+        config,
+        registry,
+        profile.availability_mask,
+        &identities,
+        &mut |command, identity| {
+            answer = pattern_format_hover_for_command(&context, command, identity);
+            answer.is_some()
+        },
+    );
+    answer
+}
+
+struct PatternFormatContext<'a> {
+    analysis: &'a AnalysisResult,
+    source: &'a str,
+    resolution: crate::definition::CallResolution<'a>,
+    registry: &'a CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+    cursor: u32,
+}
+
+/// Resolve one command's registry-declared pattern and format arguments.
+fn pattern_format_hover_for_command(
+    context: &PatternFormatContext<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    identity: crate::oo_body::HeadWords<'_>,
+) -> Option<Hover> {
+    if context.cursor < command.span.start() || context.cursor > command.span.end() {
+        return None;
+    }
+    let written_head = command.texts.first()?;
+    // The registry is only authoritative after the analyser has confirmed
+    // that this call still names a builtin. A live proc (including a
+    // namespace-local shadow or command mutation) owns the call.
+    let call_offset = command
+        .argv
+        .first()
+        .map_or(command.span.start(), |token| token.span.start());
+    let namespace = crate::definition::namespace_context_at(
+        &context.analysis.global_scope,
+        call_offset,
+        &context.analysis.namespace_overrides,
+    );
+    if crate::definition::resolve_called_proc(
+        context.analysis,
+        context.source,
+        &namespace,
+        written_head,
+        call_offset,
+        context.resolution,
+    )
+    .is_some()
+    {
+        return None;
+    }
+    let head = (!identity.resolved.is_empty()).then_some(identity.resolved)?;
+    let args: Vec<&str> = command.texts.iter().skip(1).map(String::as_str).collect();
+    context
+        .registry
+        .resolve_call(head, &args, context.profile.availability_mask)?;
+
+    for pattern in context.registry.pattern_args(head, &args) {
+        let Some(&token) = command.argv.get(usize::from(pattern.index) + 1) else {
             continue;
         };
-        // The registry is only authoritative after the analyser has confirmed
-        // that this call still names a builtin.  A live proc (including a
-        // namespace-local shadow or command mutation) owns the call and must
-        // not acquire the builtin's embedded-language hover.
-        let call_offset = command
-            .argv
-            .first()
-            .map_or(command.span.start(), |token| token.span.start());
-        let namespace = crate::definition::namespace_context_at(
-            &analysis.global_scope,
-            call_offset,
-            &analysis.namespace_overrides,
-        );
-        if crate::definition::resolve_called_proc(
-            analysis,
-            source,
-            &namespace,
-            written_head,
-            call_offset,
-            resolution,
-        )
-        .is_some()
-        {
-            continue;
-        }
-        let identity = identities.resolve(written_head, call_offset);
-        if identity.is_rebound() {
-            continue;
-        }
-        let head = identity.spec_name();
-        let args: Vec<&str> = command.texts.iter().skip(1).map(String::as_str).collect();
-        let Some(_resolved) =
-            registry.resolve_call(head, &args, tcl_registry::dialects::DialectSet::empty())
-        else {
+        let Some(text) = literal_at_token(context.source, token, context.cursor) else {
             continue;
         };
-
-        for pattern in registry.pattern_args(head, &args) {
-            let Some(token) = command.argv.get(usize::from(pattern.index) + 1) else {
-                continue;
-            };
-            if let Some(text) = literal_at_token(source, *token, cursor) {
-                return Some(Hover::markdown(match pattern.kind {
-                    tcl_registry::patterns::PatternType::Glob => glob_hover_text(&text),
-                    tcl_registry::patterns::PatternType::Regex => regex_hover_text(&text),
-                }));
+        let text = match pattern.kind {
+            tcl_registry::patterns::PatternType::Glob => glob_hover_text(&text),
+            tcl_registry::patterns::PatternType::Regex => regex_hover_text(&text),
+        };
+        return Some(Hover::markdown(text));
+    }
+    for format in context.registry.format_string_args(head, &args) {
+        let Some(&token) = command.argv.get(format.index + 1) else {
+            continue;
+        };
+        let Some(text) = literal_at_token(context.source, token, context.cursor) else {
+            continue;
+        };
+        let text = match format.kind {
+            tcl_registry::patterns::FormatType::Sprintf if text.contains('%') => {
+                sprintf_format_hover_text(&text)
             }
-        }
-
-        for format in registry.format_string_args(head, &args) {
-            let Some(token) = command.argv.get(format.index + 1) else {
-                continue;
-            };
-            let Some(text) = literal_at_token(source, *token, cursor) else {
-                continue;
-            };
-            let hover = match format.kind {
-                tcl_registry::patterns::FormatType::Sprintf if text.contains('%') => {
-                    sprintf_format_hover_text(&text)
-                }
-                tcl_registry::patterns::FormatType::Clock if text.contains('%') => {
-                    clock_format_hover_text(&text)
-                }
-                tcl_registry::patterns::FormatType::Binary => {
-                    let subcmd = args.first().copied().unwrap_or_default().to_owned();
-                    let trailing = args
+            tcl_registry::patterns::FormatType::Clock if text.contains('%') => {
+                clock_format_hover_text(&text)
+            }
+            tcl_registry::patterns::FormatType::Binary => {
+                binary_format_hover_text(&BinaryContext {
+                    text,
+                    subcmd: args.first().copied().unwrap_or_default().to_owned(),
+                    args: args
                         .get(format.index + 1..)
                         .unwrap_or_default()
                         .iter()
                         .map(|arg| (*arg).to_owned())
-                        .collect();
-                    binary_format_hover_text(&BinaryContext {
-                        text,
-                        subcmd,
-                        args: trailing,
-                    })
-                }
-                tcl_registry::patterns::FormatType::Regsub
-                    if !scan_regsub_backrefs(&text).is_empty() =>
-                {
-                    regsub_hover_text(&text)
-                }
-                _ => continue,
-            };
-            return Some(Hover::markdown(hover));
-        }
+                        .collect(),
+                })
+            }
+            tcl_registry::patterns::FormatType::Regsub
+                if !scan_regsub_backrefs(&text).is_empty() =>
+            {
+                regsub_hover_text(&text)
+            }
+            _ => continue,
+        };
+        return Some(Hover::markdown(text));
     }
     None
 }
@@ -3795,6 +3820,20 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
+    fn position_of(source: &str, needle: &str) -> (u32, u32) {
+        let offset = source.find(needle).expect("test cursor text");
+        let before = &source[..offset];
+        let line = u32::try_from(before.bytes().filter(|b| *b == b'\n').count()).unwrap();
+        let column = u32::try_from(
+            before
+                .rsplit_once('\n')
+                .map_or(before, |(_, tail)| tail)
+                .len(),
+        )
+        .unwrap();
+        (line, column)
+    }
+
     #[test]
     fn find_word_span_returns_none_at_eol() {
         // Position one past the line's last char yields None.
@@ -4704,6 +4743,81 @@ mod tests {
             u32::try_from(aliased.find("%Y").unwrap() - aliased.find('\n').unwrap() - 1).unwrap();
         let h = hover(aliased, 1, cursor, &analysis, None).expect("aliased format hover");
         assert!(h.value.contains("**Format string**"), "{}", h.value);
+    }
+
+    #[test]
+    fn pattern_and_format_hover_descend_through_every_registry_executable_region() {
+        // The cursor offsets deliberately sit in separately nested source
+        // slices.  A line-local or re-based walker finds the command but
+        // reports against the wrong source position; all must retain the
+        // original document's absolute coordinates.
+        let cases = [
+            (
+                "proc p {} { format {%04d} 1 }\n",
+                "%04d",
+                "**Format string**",
+                "tcl8.6",
+            ),
+            (
+                "oo::class create C { method m {} { string match {*needle*} x } }\n",
+                "*needle*",
+                "**Glob pattern**",
+                "tcl8.6",
+            ),
+            (
+                "switch $x { a { format {%03d} 1 } default { puts no } }\n",
+                "%03d",
+                "**Format string**",
+                "tcl8.6",
+            ),
+            (
+                "apply {{} {format {%02d} 1}}\n",
+                "%02d",
+                "**Format string**",
+                "tcl8.6",
+            ),
+            (
+                "puts [format {%01d} 1]\n",
+                "%01d",
+                "**Format string**",
+                "tcl8.6",
+            ),
+            (
+                "when HTTP_REQUEST { format {%05d} 1 }\n",
+                "%05d",
+                "**Format string**",
+                "f5-irules",
+            ),
+        ];
+        for (source, needle, expected, dialect) in cases {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, dialect).clone();
+            let (line, column) = position_of(source, needle);
+            let profile = tcl_dialect::DialectProfile::by_name(dialect);
+            let hover = hover_with_profile(source, line, column, &analysis, None, profile)
+                .unwrap_or_else(|| panic!("no hover for {dialect}: {source}"));
+            assert!(hover.value.contains(expected), "{}", hover.value);
+        }
+    }
+
+    #[test]
+    fn nested_format_hover_honours_aliases_and_shadowing() {
+        let aliased = "interp alias {} fmt {} format\nproc p {} { fmt {%06d} 1 }\n";
+        let analysis = analyse(aliased);
+        let (line, column) = position_of(aliased, "%06d");
+        let result = hover(aliased, line, column, &analysis, None).expect("aliased nested format");
+        assert!(
+            result.value.contains("**Format string**"),
+            "{}",
+            result.value
+        );
+
+        // A same-named proc owns the nested call, so the builtin format
+        // grammar must not leak through merely because its spelling matches.
+        let shadowed = "proc format {args} {}\nproc p {} { format {%07d} 1 }\n";
+        let analysis = analyse(shadowed);
+        let (line, column) = position_of(shadowed, "%07d");
+        assert!(hover(shadowed, line, column, &analysis, None).is_none());
     }
 
     // sprintf format hover

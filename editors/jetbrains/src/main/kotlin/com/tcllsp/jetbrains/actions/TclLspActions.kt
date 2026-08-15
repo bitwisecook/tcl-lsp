@@ -122,6 +122,10 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         .replace('"', '\'')
         .replace('[', '(')
         .replace(']', ')')
+        // Mermaid uses a literal `|` to terminate an edge caption.  Numeric
+        // HTML entities are decoded in the rendered label but cannot close
+        // that delimiter while Mermaid parses the flowchart source.
+        .replace("|", "&#124;")
         .replace('\n', ' ')
 
     fun node(text: String, shape: String = "box"): String {
@@ -176,15 +180,30 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                 "switch" -> {
                     val decision = node("switch ${item.string("subject") ?: ""}", "decision")
                     connect(tail, decision)
-                    var join: String? = null
+                    val armTails = mutableListOf<String>()
+                    var hasDefault = false
                     for (armElement in item.array("arms") ?: JsonArray()) {
                         val arm = armElement.takeIf { it.isJsonObject }?.asJsonObject ?: continue
-                        val armStart = node(arm.string("pattern") ?: "case")
-                        connect(decision, armStart, arm.string("pattern"))
+                        val pattern = arm.string("pattern") ?: "case"
+                        val armStart = node(pattern)
+                        connect(decision, armStart, pattern)
                         val armTail = walk(arm.array("body") ?: JsonArray(), armStart)
-                        join = armTail ?: armStart
+                        armTails += armTail ?: armStart
+                        hasDefault = hasDefault || pattern.equals("default", ignoreCase = true)
                     }
-                    tail = join ?: decision
+                    if (armTails.isEmpty()) {
+                        tail = decision
+                    } else {
+                        // Every matching arm continues at one shared point.
+                        // Without a default, Tcl also reaches that point when
+                        // no pattern matched; a default consumes that path.
+                        val join = node("switch join", "round")
+                        armTails.forEach { connect(it, join) }
+                        if (!hasDefault) {
+                            connect(decision, join, "no match")
+                        }
+                        tail = join
+                    }
                 }
                 "loop", "catch" -> {
                     val loop = node(item.string("label") ?: item.string("kind") ?: "block", "round")
