@@ -109,12 +109,8 @@ pub fn next_definition_grammar(
     cur: Option<&'static DefinitionBodyGrammar>,
     registry: &CommandRegistry,
 ) -> Option<&'static DefinitionBodyGrammar> {
-    let HeadWords { resolved, .. } = head;
-    // Definition members are interpreter commands too: a proven alias or
-    // import must retain the enclosing grammar, while a rebound head resolves
-    // to the empty string and deliberately abstains. A leading `::` is Tcl
-    // syntax, not part of a grammar keyword.
-    let command = resolved.trim_start_matches("::");
+    let HeadWords { written, resolved } = head;
+    let command = written;
     if let Some(g) = outer_definition_grammar(resolved, args, registry) {
         Some(g)
     } else if let Some(g) = cur.filter(|g| is_member(g, command)) {

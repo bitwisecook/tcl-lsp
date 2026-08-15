@@ -443,24 +443,15 @@ fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &
         return;
     };
     // Pre-bound arguments shift every index, so the target's layout cannot be
-    // reused. An otherwise-unregistered target can still be a registry
-    // definition-body member keyword (`method`, `typemethod`, …), whose
-    // grammar applies only in that context; preserve its effective identity
-    // for the context-sensitive consumers. Both cases still *take over* the
-    // name — C Tcl lets an
+    // reused; a target that names nothing the registry models has no layout to
+    // reuse either.  Both cases still *take over* the name — C Tcl lets an
     // alias shadow an existing command outright (tclsh 8.6.16 / 9.0.4:
     // `proc myproc …; interp alias {} lindex {} myproc` makes `lindex {a b c}
     // 1` answer `MINE`) — so the name is marked rebound rather than left alone.
     // The target is read through the map, so a chain of bindings composes.
     let effective = prepended
         .is_empty()
-        .then(|| {
-            inherited_target(map, &target, at, registry).or_else(|| {
-                registry
-                    .is_definition_member_keyword(&target)
-                    .then_some(target.clone())
-            })
-        })
+        .then(|| inherited_target(map, &target, at, registry))
         .flatten();
     map.record_both_spellings(&qualified, effective, at);
 }

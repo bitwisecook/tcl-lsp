@@ -288,8 +288,7 @@ impl<'a> CommentLineWalker<'a> {
                 self.identities.head_words(written, at).resolved,
                 self.registry,
             );
-            let member_name = name.trim_start_matches("::");
-            let member = definition_grammar.and_then(|grammar| grammar.member(member_name));
+            let member = definition_grammar.and_then(|grammar| grammar.member(&name));
             let body_indices = member.map_or_else(
                 || {
                     self.registry
@@ -298,7 +297,7 @@ impl<'a> CommentLineWalker<'a> {
                 |_| {
                     definition_grammar
                         .expect("member has grammar")
-                        .member_body_indices_in(member_name, &args, self.availability)
+                        .member_body_indices_in(&name, &args, self.availability)
                 },
             );
             let next_grammar =
@@ -1896,6 +1895,24 @@ mod tests {
         assert!(
             comments.iter().any(|fact| fact.line == 2),
             "alias body comment missing: {comments:?}"
+        );
+    }
+
+    #[test]
+    fn alias_to_user_proc_named_method_keeps_final_braced_data_inert() {
+        // Tclsh executes the user proc through the alias; `# inert data` is
+        // an argument, not a script comment. A member-keyword spelling is not
+        // enough to prove the alias owns definition-member semantics.
+        let src = "proc method {name parameters body} {\n    return \"$name:$parameters:$body\"\n}\ninterp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        # inert data\n        puts must-not-run\n    }\n}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let comments = script_comment_facts(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            !comments.iter().any(|fact| fact.line == 6),
+            "the user proc's braced data must not yield a script-comment fact: {comments:?}"
         );
     }
 

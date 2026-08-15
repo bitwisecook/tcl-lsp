@@ -211,6 +211,19 @@ fn itcl_method_bodies_fold() {
     );
 }
 
+#[test]
+fn alias_to_user_proc_named_method_does_not_fold_data_as_a_member_body() {
+    // Tclsh executes `method`, a user proc, through this alias. Its third
+    // argument is data, even though the target spelling matches an OO member.
+    let src = "proc method {name parameters body} {\n    return \"$name:$parameters:$body\"\n}\ninterp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        # inert data\n        puts must-not-run\n    }\n}\n";
+    let r = regions(src);
+    assert!(
+        !r.iter()
+            .any(|fold| fold.start_line == 5 && fold.end_line >= 7),
+        "the user proc's final braced data must not acquire a member-body fold: {r:?}"
+    );
+}
+
 // Issue #1243 — a leading UTF-8 byte-order mark is a *file* prologue under
 // Tcl 9 (`source` strips it), but ordinary data at the head of a nested body
 // slice. Every provider that re-segments the raw document must draw that split
