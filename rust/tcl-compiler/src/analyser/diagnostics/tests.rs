@@ -12855,6 +12855,32 @@ fn nested_expect_clause_body_reports_unknown_command() {
     );
 }
 
+#[test]
+fn inline_expect_clause_flags_reach_actions_without_switch_w106() {
+    let codes = codes_for_dialect(
+        "expect -re {ready} {expect_inline_unknown} -timeout 5 timeout {expect_timeout_unknown}",
+        "expect",
+    );
+    assert_eq!(
+        codes.iter().filter(|code| code.as_str() == "W123").count(),
+        2,
+        "both inline Expect actions must be analysed: {codes:?}"
+    );
+    assert!(
+        !codes.iter().any(|code| code == "W106"),
+        "the switch-only bracing diagnostic must not apply to Expect: {codes:?}"
+    );
+}
+
+#[test]
+fn abbreviated_inline_expect_flag_reaches_action() {
+    let codes = codes_for_dialect("expect -not ready {expect_abbrev_unknown}", "expect");
+    assert!(
+        codes.iter().any(|code| code == "W123"),
+        "a unique Expect flag abbreviation must not hide its action: {codes:?}"
+    );
+}
+
 // Issue #1006 — the W123 alias / rename-target checks used file-end-only
 // gating (`fact_live_at_file_end`, no call site or conditional-body
 // awareness), unlike the proc/class checks #973 already made call-site-

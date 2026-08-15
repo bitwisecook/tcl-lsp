@@ -56,6 +56,36 @@ pub struct CaseListShape<'a> {
     pub clause_value_flags: &'a [&'a str],
 }
 
+impl<'a> CaseListShape<'a> {
+    /// Resolve a clause-leading flag by its canonical spelling or a unique
+    /// Expect-style abbreviation.  The descriptor supplies this vocabulary,
+    /// so list and inline forms cannot disagree about where a pattern starts.
+    #[must_use]
+    pub fn resolve_flag(self, word: &str) -> Option<&'a str> {
+        if let Some(&flag) = self.clause_flags.iter().find(|&&flag| flag == word) {
+            return Some(flag);
+        }
+        // Tcl option abbreviations include the leading `-`, so `-r` may be a
+        // unique prefix but a bare `-` is never a flag.
+        if word.len() < 2 {
+            return None;
+        }
+        let mut matches = self
+            .clause_flags
+            .iter()
+            .copied()
+            .filter(|flag| flag.starts_with(word));
+        let flag = matches.next()?;
+        matches.next().is_none().then_some(flag)
+    }
+
+    /// Whether a resolved canonical flag consumes one following word.
+    #[must_use]
+    pub fn flag_takes_value(self, flag: &str) -> bool {
+        self.clause_value_flags.contains(&flag)
+    }
+}
+
 /// How a clause-list command's *call* is shaped ahead of the list itself.
 ///
 /// Built from the registry's `CaseListSpec` by the caller, for the same reason
@@ -176,12 +206,12 @@ pub fn split_case_list(inner: &str, shape: &CaseListShape<'_>) -> Vec<Clause> {
         // pattern that happens to look like one.
         while let Some(e) = elements.get(i) {
             let word = text(e).trim_start_matches('{');
-            if e.braced || !shape.clause_flags.contains(&word) {
+            let Some(flag) = (!e.braced).then(|| shape.resolve_flag(word)).flatten() else {
                 break;
-            }
+            };
             clause.flags.push(*e);
             i += 1;
-            if shape.clause_value_flags.contains(&word)
+            if shape.flag_takes_value(flag)
                 && let Some(v) = elements.get(i)
             {
                 clause.flags.push(*v);

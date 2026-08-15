@@ -6461,6 +6461,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn inline_expect_case_flags_and_actions_are_registry_owned() {
+        let expect = crate::registry_for_dialect("expect");
+        let args = [
+            "-re",
+            "{ye+s}",
+            "{send yes}",
+            "-timeout",
+            "5",
+            "timeout",
+            "{send slow}",
+        ];
+        let (_, inline) = expect
+            .case_invocation("expect", &args, DialectSet::EXPECT)
+            .expect("inline Expect flags and value flags must parse");
+        let clauses = crate::CaseListSpec::EXPECT
+            .inline_clauses(&args, inline.inline_clause_start.expect("inline form"))
+            .expect("inline clauses");
+        assert_eq!(clauses.len(), 2);
+        assert_eq!(clauses[0].pattern_index, 1);
+        assert_eq!(clauses[0].body_index, 2);
+        assert_eq!(clauses[0].mode, crate::spec::CaseMatchMode::Regexp);
+        assert_eq!(clauses[1].pattern_index, 5);
+        assert_eq!(clauses[1].body_index, 6);
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["-not", "ready", "{send ok}"],
+                    DialectSet::EXPECT
+                )
+                .is_some(),
+            "unique Expect flag abbreviations must retain the action body"
+        );
+    }
+
     /// The whole registry-declared boundary surface, resolved by name: every
     /// command that widens a file's caller set reports its kind, a
     /// `::`-qualified spelling resolves the same, and a command that does

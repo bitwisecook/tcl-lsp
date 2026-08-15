@@ -4272,8 +4272,7 @@ impl Analyser {
             // subjectless Expect clause lists through the registry resolver.
             return args.len() >= 2;
         };
-        let is_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp;
-
+        let invocation_is_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp;
         if let Some(i) = invocation.clause_list_index {
             // Form 2 — single braced body containing all pairs.
             let body_text = args[i].clone();
@@ -4290,7 +4289,7 @@ impl Analyser {
             for (clause_index, ((pat_text, pat_tok), (body_text, body_tok))) in
                 clauses.iter().enumerate()
             {
-                if is_regexp {
+                if invocation_is_regexp {
                     self.record_switch_regexp_pattern(
                         cmd_name,
                         case,
@@ -4304,29 +4303,34 @@ impl Analyser {
                     self.analyse_body(body_text, *body_tok, scope_path);
                 }
             }
-        } else if let Some(mut i) = invocation.inline_clause_start {
+        } else if let Some(i) = invocation.inline_clause_start {
             // Form 1 — pattern/body pairs inline in args/arg_tokens.
-            let clause_count = (args.len() - i) / 2;
-            let mut clause_index = 0usize;
-            while i + 1 < args.len() {
-                if is_regexp && let Some(pat_tok) = arg_tokens.get(i).copied() {
+            let Some(clauses) = case.inline_clauses(&arg_refs, i) else {
+                return true;
+            };
+            let clause_count = clauses.len();
+            for (clause_index, clause) in clauses.iter().enumerate() {
+                let pattern_index = clause.pattern_index;
+                let body_index = clause.body_index;
+                if (invocation_is_regexp
+                    || clause.mode == tcl_registry::spec::CaseMatchMode::Regexp)
+                    && let Some(pat_tok) = arg_tokens.get(pattern_index).copied()
+                {
                     self.record_switch_regexp_pattern(
                         cmd_name,
                         case,
-                        &args[i],
+                        &args[pattern_index],
                         pat_tok,
                         (clause_index, clause_count),
                         scope_path,
                     );
                 }
-                let body_text = &args[i + 1];
-                if let Some(body_tok) = arg_tokens.get(i + 1).copied()
+                let body_text = &args[body_index];
+                if let Some(body_tok) = arg_tokens.get(body_index).copied()
                     && case.fallthrough_body != Some(body_text.as_str())
                 {
                     self.analyse_body(body_text, body_tok, scope_path);
                 }
-                i += 2;
-                clause_index += 1;
             }
         }
         true

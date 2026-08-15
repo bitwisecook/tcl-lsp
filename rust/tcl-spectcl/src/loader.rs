@@ -2238,6 +2238,7 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         clause_value_flags: &[],
         keyword_patterns: &[],
         keyword_patterns_require_final: false,
+        warn_unbraced_bodies: false,
     };
     for stmt in stmts {
         let value = stmt.word_text(1).to_owned();

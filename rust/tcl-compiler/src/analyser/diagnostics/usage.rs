@@ -722,12 +722,14 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some((_, invocation)) =
+        let Some((case, invocation)) =
             registry.case_invocation(cmd_name, &refs, self.profile.availability_mask)
         else {
             return;
         };
-        let has_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp;
+        if !case.warn_unbraced_bodies {
+            return;
+        }
 
         // Single trailing arg: the braced-list form (W105 / bracing
         // handles a braced block); only flag an *unbraced* single block.
@@ -736,25 +738,34 @@ Use braces: {{ \u{2026} }}"
                 && !is_braced_word(tok)
             {
                 let dangerous = has_substitution(&args[i], tok);
-                self.push_w106(tok.span, dangerous, has_regexp, true);
+                self.push_w106(
+                    tok.span,
+                    dangerous,
+                    invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp,
+                    true,
+                );
             }
             return;
         }
 
         // Alternating pattern/body pairs.
-        let Some(mut i) = invocation.inline_clause_start else {
+        let Some(i) = invocation.inline_clause_start else {
             return;
         };
-        while i + 1 < args.len() {
-            let body_idx = i + 1;
+        let Some(clauses) = case.inline_clauses(&refs, i) else {
+            return;
+        };
+        for clause in clauses {
+            let body_idx = clause.body_index;
             if let (Some(tok), Some(text)) = (arg_tokens.get(body_idx), args.get(body_idx))
                 && !is_braced_word(tok)
                 && text != "-"
             {
+                let has_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp
+                    || clause.mode == tcl_registry::spec::CaseMatchMode::Regexp;
                 let dangerous = has_substitution(text, tok) || has_regexp;
                 self.push_w106(tok.span, dangerous, has_regexp, false);
             }
-            i += 2;
         }
     }
 

@@ -3308,12 +3308,9 @@ fn definition_body_regions_naming(
 /// clause's own body word, skipping the literal `-` Tcl `switch`
 /// fall-through marker (not a body of its own).
 ///
-/// Returns `None` when the call is instead in the inline pattern/body-pairs
-/// shape (any pair count) — each pair's body argument there is already a
-/// standalone script `plain_body_arg_indices` finds directly, needing no
-/// clause-list unpacking. The clause-to-token conversion is shared with the
-/// compiler, so Expect's per-clause flags and value flags are consumed by the
-/// registry grammar rather than shifting pattern/body pairs.
+/// Both braced and inline forms are described by the registry. In particular,
+/// Expect's flags may precede each inline pattern, so generic body roles alone
+/// cannot find its action words.
 fn case_list_clause_body_regions(
     source: &str,
     registry: &tcl_registry::CommandRegistry,
@@ -3322,10 +3319,23 @@ fn case_list_clause_body_regions(
     args: &[&str],
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Option<Vec<(usize, usize)>> {
-    // Locating the list and validating its complete option grammar is the
-    // registry's typed case invocation. `None` = inline pairs or invalid.
+    // Locating and validating the form is the registry's typed case invocation.
     let profile = registry.profile()?;
     let (_, invocation) = registry.case_invocation(name, args, profile.availability_mask)?;
+    if let Some(start) = invocation.inline_clause_start {
+        let clauses = case_list.inline_clauses(args, start)?;
+        let mut out = Vec::new();
+        for clause in clauses {
+            let Some(tok) = cmd.argv.get(clause.body_index + 1) else {
+                continue;
+            };
+            let (start, end) = strip_outer_braces(source, tok.span);
+            if start < end {
+                out.push((start, end));
+            }
+        }
+        return Some(out);
+    }
     let i = invocation.clause_list_index?;
     // `args` is 0-based post-command-name; `cmd.texts`/`cmd.argv` are
     // 1-based (index 0 is the command name), so the clause-list word is at
@@ -5175,6 +5185,31 @@ mod tests {
             regions.len(),
             2,
             "Expect clause flags must not shift bodies"
+        );
+        assert!(
+            regions
+                .iter()
+                .any(|&(start, end)| source[start..end].contains("puts ready"))
+        );
+        assert!(
+            regions
+                .iter()
+                .any(|&(start, end)| source[start..end].contains("puts slow"))
+        );
+    }
+
+    #[test]
+    fn inline_expect_clause_flags_reach_each_clause_body() {
+        let source = "expect -re {^ready$} {puts ready} -timeout 5 timeout {puts slow}";
+        let command = tcl_compiler::segmenter::segment_commands(source)
+            .into_iter()
+            .next()
+            .expect("expect command");
+        let regions = nested_dispatch_regions(source, "expect", &command);
+        assert_eq!(
+            regions.len(),
+            2,
+            "inline Expect flags must not shift bodies"
         );
         assert!(
             regions

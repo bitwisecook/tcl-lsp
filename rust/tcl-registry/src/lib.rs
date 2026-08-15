@@ -181,8 +181,8 @@ pub mod prelude {
     };
     pub use crate::spec::{
         BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord,
-        ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand, SubSubCommand,
-        VersionedArgValue,
+        InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand,
+        SubSubCommand, VersionedArgValue,
     };
     pub use crate::state_transition::{
         CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,
@@ -267,8 +267,9 @@ pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord, ObjectClassSpec,
-    OoContextFact, OptionConstraint, SubCommand, SubSubCommand, VersionedArgValue,
+    BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord,
+    InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand, SubSubCommand,
+    VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,

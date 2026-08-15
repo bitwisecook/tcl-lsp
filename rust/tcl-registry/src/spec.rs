@@ -330,6 +330,10 @@ pub struct CaseListSpec {
     pub keyword_patterns: &'static [&'static str],
     /// Whether a keyword pattern is special only in the final clause.
     pub keyword_patterns_require_final: bool,
+    /// Whether unbraced action bodies carry the `switch` substitution warning.
+    /// Expect actions deliberately use a different evaluation model, so its
+    /// descriptor leaves this off rather than making a consumer name `switch`.
+    pub warn_unbraced_bodies: bool,
 }
 
 /// Registry-owned comparison mode for a case-list invocation.
@@ -358,6 +362,17 @@ pub struct CaseInvocation {
     pub nocase: bool,
 }
 
+/// A validated inline pattern/action pair.  Indices are post-command-name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InlineCaseClause {
+    /// Pattern word index in the invocation.
+    pub pattern_index: usize,
+    /// Action-body word index in the invocation.
+    pub body_index: usize,
+    /// Matching mode selected by this clause's leading flags.
+    pub mode: CaseMatchMode,
+}
+
 impl CaseListSpec {
     /// The `switch … { pat body … }` shape.
     pub const SWITCH: Self = Self {
@@ -374,6 +389,7 @@ impl CaseListSpec {
         clause_value_flags: &[],
         keyword_patterns: &["default"],
         keyword_patterns_require_final: true,
+        warn_unbraced_bodies: true,
     };
 
     /// The Expect `expect { ?-flags? pat body … }` shape.
@@ -391,11 +407,22 @@ impl CaseListSpec {
         // list was never recognised as a clause list and its bodies were never
         // recursed.
         value_options_require_regex: &[],
-        clause_flags: &["-re", "-gl", "-ex", "-nocase", "-timeout", "-i", "--"],
+        clause_flags: &[
+            "-re",
+            "-gl",
+            "-ex",
+            "-nocase",
+            "-timeout",
+            "-i",
+            "-indices",
+            "-notransfer",
+            "--",
+        ],
         clause_regex_flag: Some("-re"),
         clause_value_flags: &["-timeout", "-i"],
         keyword_patterns: &["timeout", "eof", "default", "full_buffer"],
         keyword_patterns_require_final: false,
+        warn_unbraced_bodies: false,
     };
 
     /// Parse and validate this case-list command's option/subject/clause
@@ -416,9 +443,8 @@ impl CaseListSpec {
         // clause grammar, not a command-level option.  A flag-bearing,
         // subject-less case list with one remaining word is therefore already
         // in list form and must bypass the command-option scan.
-        let inline_expect_list =
-            self.subject_args == 0 && !self.clause_flags.is_empty() && args.len() == 1;
-        if !(inline_expect_list || self.subject_args == 1 && args.len() == 2) {
+        let per_clause_flags = self.subject_args == 0 && !self.clause_flags.is_empty();
+        if !(per_clause_flags || self.subject_args == 1 && args.len() == 2) {
             while let Some(word) = args.get(i).copied() {
                 if !word.starts_with('-') {
                     break;
@@ -496,6 +522,18 @@ impl CaseListSpec {
                 mode,
                 nocase,
             })
+        } else if per_clause_flags {
+            // Expect's flags belong to the following pattern, not to the
+            // command as a whole.  Parse them from this descriptor before
+            // pairing bodies, including unique flag abbreviations.
+            self.inline_clauses(args, i)?;
+            Some(CaseInvocation {
+                subject_index,
+                clause_list_index: None,
+                inline_clause_start: Some(i),
+                mode,
+                nocase,
+            })
         } else if remaining >= 2
             && remaining.is_multiple_of(2)
             && self.fallthrough_body != args.last().copied()
@@ -510,6 +548,46 @@ impl CaseListSpec {
         } else {
             None
         }
+    }
+
+    /// Parse descriptor-declared inline pattern/action clauses.  A future
+    /// case-list command gets the same body locations by changing only its
+    /// descriptor; consumers never infer flag or value arity themselves.
+    #[must_use]
+    pub fn inline_clauses(self, args: &[&str], start: usize) -> Option<Vec<InlineCaseClause>> {
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: self.clause_flags,
+            clause_value_flags: self.clause_value_flags,
+        };
+        let mut clauses = Vec::new();
+        let mut i = start;
+        while i < args.len() {
+            let mut mode = CaseMatchMode::Exact;
+            while let Some(word) = args.get(i).copied() {
+                let Some(flag) = shape.resolve_flag(word) else {
+                    break;
+                };
+                i += 1;
+                if shape.flag_takes_value(flag) {
+                    args.get(i)?;
+                    i += 1;
+                }
+                if self.clause_regex_flag == Some(flag) {
+                    mode = CaseMatchMode::Regexp;
+                }
+            }
+            let pattern_index = i;
+            args.get(pattern_index)?;
+            let body_index = pattern_index + 1;
+            args.get(body_index)?;
+            clauses.push(InlineCaseClause {
+                pattern_index,
+                body_index,
+                mode,
+            });
+            i = body_index + 1;
+        }
+        (!clauses.is_empty()).then_some(clauses)
     }
 
     /// Whether `pattern` is a special keyword at this clause position.

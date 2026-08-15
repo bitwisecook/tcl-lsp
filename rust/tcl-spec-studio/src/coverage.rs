@@ -1147,6 +1147,7 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
         clause_value_flags: _,
         keyword_patterns: _,
         keyword_patterns_require_final: _,
+        warn_unbraced_bodies: _,
     } = spec;
 }
 
@@ -1171,6 +1172,7 @@ pub const CASE_LIST_SPEC: &[Field] = &[
         "keyword_patterns_require_final",
         Surface::Excluded(NAMED_CONSTANT),
     ),
+    f("warn_unbraced_bodies", Surface::Excluded(NAMED_CONSTANT)),
 ];
 
 #[cfg(test)]

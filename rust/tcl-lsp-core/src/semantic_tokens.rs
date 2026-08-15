@@ -3377,6 +3377,17 @@ fn insert_case_list_override(
         return;
     };
     let Some(index) = invocation.clause_list_index else {
+        if let Some(start) = invocation.inline_clause_start
+            && let Some(clauses) = spec.inline_clauses(&args, start)
+        {
+            for clause in clauses {
+                if let Some(tok) = seg.argv.get(clause.body_index + 1)
+                    && matches!(tok.kind, TokenType::Str)
+                {
+                    overrides.insert(tok.span.start(), ArgOverride::BodyScript);
+                }
+            }
+        }
         return;
     };
     // `args` is 0-based post-command-name; `seg.texts` / `seg.argv` are 1-based.
