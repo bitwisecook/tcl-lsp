@@ -690,6 +690,30 @@ fn hide_expose_moves_traces_without_callbacks() {
     }
 }
 
+#[test]
+fn child_hide_expose_moves_traces_for_named_and_by_id_forms() {
+    let src = concat!(
+        "interp create named; interp create byid\n",
+        "named eval {proc a {} {return N}; proc cb args {lappend ::events [lindex $args end]}; trace add execution a enter cb}\n",
+        "interp hide named a held; puts \"named-hidden=[interp invokehidden named held]\"; interp expose named held moved\n",
+        "puts \"named=[named eval {list [moved] [llength [trace info execution moved]] $::events}]\"\n",
+        "byid eval {proc a {} {return I}; proc cb args {lappend ::events [lindex $args end]}; trace add execution a enter cb}\n",
+        "byid hide a; puts \"byid-hidden=[byid invokehidden a]\"; byid expose a\n",
+        "puts \"byid=[byid eval {list [a] [llength [trace info execution a]] $::events}]\"\n",
+    );
+    let want = "named-hidden=N\nnamed=N 1 {enter enter}\nbyid-hidden=I\nbyid=I 1 {enter enter}";
+    for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] child trace move"
+        );
+    }
+    if let Some(out) = tclsh_output("TCLSH90", &["tclsh9.0"], src) {
+        assert_eq!(out, want, "[TCLSH90] real Tcl oracle");
+    }
+}
+
 /// A `catch` body is compiled at run time through the VM's compile service,
 /// so an 8.5+-only spelling inside it is a *catchable* error under an 8.4
 /// pin — matching C Tcl, which defers a compile-time parse error to a
