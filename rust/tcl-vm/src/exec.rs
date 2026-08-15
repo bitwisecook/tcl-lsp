@@ -4019,14 +4019,9 @@ impl Vm {
         // The complete current command, list-merged (tclsh-pinned shape:
         // `p one {t w o}`).
         let cmd_string = Value::list(words.to_vec()).to_str().to_string();
-        for scope in self
-            .exec_step_scopes
-            .iter()
-            .rev()
-            .cloned()
-            .collect::<Vec<_>>()
-        {
-            if scope.active_for("enterstep") {
+        for scope in self.exec_step_scopes.clone() {
+            if scope.active_for("enterstep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
+            {
                 let r = self.run_cmd_trace_callback(
                     &scope.entry,
                     &[
@@ -4043,7 +4038,7 @@ impl Vm {
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
+            if !self.exec_trace_entry_live(&sidecar, entry) {
                 break;
             }
             if entry.has_op("enter") {
@@ -4058,7 +4053,7 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
+            if !self.exec_trace_entry_live(&sidecar, entry) {
                 break;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
@@ -4147,7 +4142,7 @@ impl Vm {
             && let Some(entries) = self.exec_traces.get(&key).cloned()
         {
             for e in entries {
-                if !ctx.key.is_attached() {
+                if !self.exec_trace_entry_live(&ctx.key, &e) {
                     break;
                 }
                 if e.has_op("leave") {
@@ -4167,7 +4162,8 @@ impl Vm {
             .cloned()
             .collect::<Vec<_>>()
         {
-            if scope.active_for("leavestep") {
+            if scope.active_for("leavestep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
+            {
                 let r = self
                     .run_cmd_trace_callback(&scope.entry, &args(trace_result.clone(), "leavestep"));
                 if !r.code.is_ok() {
@@ -4178,6 +4174,21 @@ impl Vm {
             }
         }
         replacement
+    }
+
+    /// A cloned trace snapshot may outlive an earlier callback removing its
+    /// registration.  Rc pointer identity distinguishes duplicate callbacks;
+    /// a later addition is absent from the snapshot and therefore excluded.
+    fn exec_trace_entry_live(
+        &self,
+        handle: &CommandSidecarHandle,
+        entry: &Rc<CmdTraceEntry>,
+    ) -> bool {
+        handle.key().is_some_and(|key| {
+            self.exec_traces
+                .get(&key)
+                .is_some_and(|entries| entries.iter().any(|live| Rc::ptr_eq(live, entry)))
+        })
     }
 
     /// Deliver a synchronously-completed dispatch into `f`: an ok result is
@@ -4370,14 +4381,9 @@ impl Vm {
         words.push(Value::string(name));
         words.extend_from_slice(argv);
         let cmd_string = Value::list(words).to_str().to_string();
-        for scope in self
-            .exec_step_scopes
-            .iter()
-            .rev()
-            .cloned()
-            .collect::<Vec<_>>()
-        {
-            if scope.active_for("enterstep") {
+        for scope in self.exec_step_scopes.clone() {
+            if scope.active_for("enterstep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
+            {
                 let r = self.run_cmd_trace_callback(
                     &scope.entry,
                     &[
@@ -4394,7 +4400,7 @@ impl Vm {
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
+            if !self.exec_trace_entry_live(&sidecar, entry) {
                 break;
             }
             if entry.has_op("enter") {
@@ -4409,7 +4415,7 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
+            if !self.exec_trace_entry_live(&sidecar, entry) {
                 break;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
@@ -4459,14 +4465,9 @@ impl Vm {
         words.push(Value::string(display_name));
         words.extend_from_slice(argv);
         let cmd_string = Value::list(words).to_str().to_string();
-        for scope in self
-            .exec_step_scopes
-            .iter()
-            .rev()
-            .cloned()
-            .collect::<Vec<_>>()
-        {
-            if scope.active_for("enterstep") {
+        for scope in self.exec_step_scopes.clone() {
+            if scope.active_for("enterstep") && self.exec_trace_entry_live(&scope.key, &scope.entry)
+            {
                 let r = self.run_cmd_trace_callback(
                     &scope.entry,
                     &[
@@ -4486,7 +4487,7 @@ impl Vm {
             .cloned()
             .unwrap_or_default();
         for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
+            if !self.exec_trace_entry_live(&sidecar, entry) {
                 break;
             }
             if entry.has_op("enter") {
@@ -4501,7 +4502,7 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in own.iter().rev() {
-            if !sidecar.is_attached() {
+            if !self.exec_trace_entry_live(&sidecar, entry) {
                 break;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
