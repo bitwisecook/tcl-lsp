@@ -29,7 +29,7 @@
 
 use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
-use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_registry::{ArgRole, CaseListSpec, CommandRegistry, Traits};
 
 use super::config::FormatterConfig;
 
@@ -514,166 +514,86 @@ fn compute_blank_lines(
         .min(config.max_consecutive_blank_lines)
 }
 
-// Switch body formatting
+// Case-list body formatting
 
-/// One element (pattern or body) of a `switch` body.
-struct SwitchElem {
-    tokens: Vec<Token>,
-    text: String,
-    is_braced: bool,
-    /// A comment token standing on its own — emitted verbatim on its own line
-    /// rather than paired as a pattern/body, so switch-body comments are not
-    /// silently deleted.
-    is_comment: bool,
-}
-
-/// Format the braced body of a `switch` command (pattern/body
-/// pairs).
+/// Format a registry-declared case list, recursing only into elements the
+/// shared descriptor parser proved are action bodies.
 fn format_case_list_body(
     body_text: &str,
+    case_list: CaseListSpec,
     config: &FormatterConfig,
     registry: &CommandRegistry,
     identities: &tcl_compiler::head_identity::HeadIdentityMap,
     indent_level: usize,
 ) -> String {
-    let sm = SourceMap::new(body_text);
-    let Ok(tokens) =
-        Lexer::with_source_map(SourceMap::new(body_text), config.lexer_config()).tokenise_all()
-    else {
-        return body_text.to_owned();
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: case_list.clause_flags,
+        clause_value_flags: case_list.clause_value_flags,
     };
-
-    let elements = segment_case_list_elements(&sm, tokens);
-    let lines = emit_case_list_lines(&elements, &sm, config, registry, identities, indent_level);
-    lines.join("\n")
-}
-
-/// Re-segment a case-list body's tokens into pattern/body/comment elements.
-fn segment_case_list_elements(sm: &SourceMap, tokens: Vec<Token>) -> Vec<SwitchElem> {
-    let mut elements: Vec<SwitchElem> = Vec::new();
-    let mut cur: Option<SwitchElem> = None;
-    let mut prev_type = TokenType::Eol;
-    for tok in tokens {
-        match tok.kind {
-            TokenType::Eof => break,
-            TokenType::Sep | TokenType::Eol => {
-                if let Some(e) = cur.take() {
-                    elements.push(e);
-                }
-                prev_type = tok.kind;
-                continue;
-            }
-            TokenType::Comment => {
-                // Preserve the comment as a standalone element instead of
-                // dropping it: flush any in-progress element,
-                // then push the comment on its own so the emit loop renders it
-                // on its own line.
-                if let Some(e) = cur.take() {
-                    elements.push(e);
-                }
-                elements.push(SwitchElem {
-                    tokens: vec![tok],
-                    text: sm.token_text(tok).to_owned(),
-                    is_braced: false,
-                    is_comment: true,
-                });
-                prev_type = tok.kind;
-                continue;
-            }
-            _ => {}
-        }
-        let text = sm.token_text(tok).to_owned();
-        if matches!(prev_type, TokenType::Sep | TokenType::Eol) {
-            if let Some(e) = cur.take() {
-                elements.push(e);
-            }
-            cur = Some(SwitchElem {
-                tokens: vec![tok],
-                text,
-                is_braced: tok.kind == TokenType::Str,
-                is_comment: false,
-            });
-        } else if let Some(e) = cur.as_mut() {
-            e.tokens.push(tok);
-            e.text.push_str(&text);
-        } else {
-            cur = Some(SwitchElem {
-                tokens: vec![tok],
-                text,
-                is_braced: tok.kind == TokenType::Str,
-                is_comment: false,
-            });
-        }
-        prev_type = tok.kind;
+    let clauses = tcl_syntax::case_list::split_case_list(body_text, &shape);
+    let mut elements = clauses
+        .iter()
+        .flat_map(|clause| {
+            clause
+                .flags
+                .iter()
+                .copied()
+                .chain(clause.pattern)
+                .chain(clause.body)
+        })
+        .collect::<Vec<_>>();
+    elements.sort_unstable_by_key(|element| element.start);
+    elements.dedup_by_key(|element| element.start);
+    if elements.is_empty() {
+        return body_text.to_owned();
     }
-    if let Some(e) = cur.take() {
-        elements.push(e);
-    }
-    elements
-}
+    let action_starts = clauses
+        .iter()
+        .filter(|clause| clause.valid)
+        .filter_map(|clause| clause.body.map(|body| body.start))
+        .collect::<std::collections::BTreeSet<_>>();
 
-/// Render segmented switch elements into formatted lines.
-fn emit_case_list_lines(
-    elements: &[SwitchElem],
-    sm: &SourceMap,
-    config: &FormatterConfig,
-    registry: &CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
-    indent_level: usize,
-) -> Vec<String> {
     let indent = config.make_indent(indent_level);
     let inner_level = indent_level + 1;
     let mut lines: Vec<String> = Vec::new();
-    let mut i = 0;
-    while i < elements.len() {
-        // A comment element is emitted verbatim on its own line and never
-        // consumed as a pattern.
-        if elements[i].is_comment {
-            let comment_raw: String = elements[i]
-                .tokens
-                .iter()
-                .map(|&t| reconstruct_raw(sm, t, false))
-                .collect();
-            lines.push(format!("{indent}{}", comment_raw.trim_end()));
-            i += 1;
-            continue;
-        }
-        let pattern_raw: String = elements[i]
-            .tokens
-            .iter()
-            .map(|&t| reconstruct_raw(sm, t, false))
-            .collect();
-        // If the *body* slot is a comment, don't pair it as this pattern's
-        // body — emit the pattern alone and let the comment be handled on the
-        // next iteration.
-        if i + 1 < elements.len() && !elements[i + 1].is_comment {
-            let body = &elements[i + 1];
-            if body.text == "-" {
-                lines.push(format!("{indent}{pattern_raw} -"));
-            } else if body.is_braced {
-                let formatted = format_body(&body.text, config, registry, identities, inner_level);
-                if formatted.trim().is_empty() {
-                    lines.push(format!("{indent}{pattern_raw} {{}}"));
+    let mut prefix = Vec::new();
+    for element in elements {
+        let raw_end = element.end + usize::from(element.braced);
+        let Some(raw) = body_text.get(element.start..raw_end) else {
+            return body_text.to_owned();
+        };
+        if action_starts.contains(&element.start) {
+            if element.braced {
+                let Some(content) = body_text.get(element.start + 1..element.end) else {
+                    return body_text.to_owned();
+                };
+                if content == case_list.fallthrough_body.unwrap_or("\0") {
+                    prefix.push(raw.to_owned());
+                    lines.push(format!("{indent}{}", prefix.join(" ")));
                 } else {
-                    lines.push(format!("{indent}{pattern_raw} {{"));
-                    lines.push(formatted);
-                    lines.push(format!("{indent}}}"));
+                    let formatted = format_body(content, config, registry, identities, inner_level);
+                    let head = prefix.join(" ");
+                    if formatted.trim().is_empty() {
+                        lines.push(format!("{indent}{head} {{}}"));
+                    } else {
+                        lines.push(format!("{indent}{head} {{"));
+                        lines.push(formatted);
+                        lines.push(format!("{indent}}}"));
+                    }
                 }
             } else {
-                let body_raw: String = body
-                    .tokens
-                    .iter()
-                    .map(|&t| reconstruct_raw(sm, t, false))
-                    .collect();
-                lines.push(format!("{indent}{pattern_raw} {body_raw}"));
+                prefix.push(raw.to_owned());
+                lines.push(format!("{indent}{}", prefix.join(" ")));
             }
-            i += 2;
+            prefix.clear();
         } else {
-            lines.push(format!("{indent}{pattern_raw}"));
-            i += 1;
+            prefix.push(raw.to_owned());
         }
     }
-    lines
+    if !prefix.is_empty() {
+        lines.push(format!("{indent}{}", prefix.join(" ")));
+    }
+    lines.join("\n")
 }
 
 // Long-line expression wrapping
@@ -1281,8 +1201,8 @@ fn case_list_body_index(
     cmd: &ParsedCommand,
     config: &FormatterConfig,
     registry: &CommandRegistry,
-) -> Option<usize> {
-    let _case_list = registry
+) -> Option<(usize, CaseListSpec)> {
+    let case_list = registry
         .get(&cmd.resolved_name)
         .and_then(|spec| spec.case_list)?;
     let args: Vec<&str> = cmd
@@ -1303,7 +1223,7 @@ fn case_list_body_index(
         .case_invocation(&cmd.resolved_name, &args, dialect)
         .and_then(|(_, invocation)| invocation.clause_list_index)
     {
-        return Some(index + 1);
+        return Some((index + 1, *case_list));
     }
 
     // Formatting must recover inside an incomplete case list even when the
@@ -1318,7 +1238,7 @@ fn case_list_body_index(
     registry
         .case_invocation(&cmd.resolved_name, &recovery_args, dialect)
         .and_then(|(_, invocation)| {
-            (invocation.clause_list_index == Some(last)).then_some(last + 1)
+            (invocation.clause_list_index == Some(last)).then_some((last + 1, *case_list))
         })
 }
 
@@ -1571,8 +1491,8 @@ pub(crate) fn format_body(
 
         // A registry-declared case-list body is formatted from arg.text via
         // the pattern/body splitter; other bodies recurse normally.
-        let case_list_index = case_list_body_index(&commands[i], config, registry);
-        if let Some(index) = case_list_index {
+        let case_list_body = case_list_body_index(&commands[i], config, registry);
+        if let Some((index, _)) = case_list_body {
             // This is formatter-local presentation recovery. Semantic
             // consumers continue to require a valid `case_invocation`.
             commands[i].args[index].kind = ArgKind::Body;
@@ -1581,11 +1501,19 @@ pub(crate) fn format_body(
         for a in 0..arg_count {
             if commands[i].args[a].kind == ArgKind::Body && commands[i].args[a].is_braced {
                 let body_text = commands[i].args[a].text.clone();
-                let formatted = if case_list_index == Some(a) {
-                    format_case_list_body(&body_text, config, registry, identities, inner_level)
-                } else {
-                    format_body(&body_text, config, registry, identities, inner_level)
-                };
+                let formatted =
+                    if let Some((_, case_list)) = case_list_body.filter(|(index, _)| *index == a) {
+                        format_case_list_body(
+                            &body_text,
+                            case_list,
+                            config,
+                            registry,
+                            identities,
+                            inner_level,
+                        )
+                    } else {
+                        format_body(&body_text, config, registry, identities, inner_level)
+                    };
                 commands[i].args[a].formatted_body = Some(formatted);
             } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
                 && commands[i].args[a].is_braced
@@ -2202,6 +2130,71 @@ mod tests {
             "resolved alias did not inherit formatter recovery:\n{aliased}"
         );
         assert_eq!(fmt(&aliased), aliased);
+    }
+
+    #[test]
+    fn expect_case_list_formatter_preserves_descriptor_fields_and_formats_only_actions() {
+        let source = "expect {\n-regexp {a; b} {puts canonical}\n-re {c; d} {puts abbreviated}\n-timeout 5 timeout {puts timed}\n-i $spawn_id eof {puts eof}\n-- {-literal} {puts literal}\nfull_buffer\n}\n";
+        let once = fmt_dialect(source, "expect");
+        assert_eq!(fmt_dialect(&once, "expect"), once, "{once}");
+
+        for literal in [
+            "-regexp {a; b} {",
+            "-re {c; d} {",
+            "-timeout 5 timeout {",
+            "-i $spawn_id eof {",
+            "-- {-literal} {",
+        ] {
+            assert!(
+                once.contains(literal),
+                "descriptor field changed: {literal:?}\n{once}"
+            );
+        }
+        for action in [
+            "puts canonical",
+            "puts abbreviated",
+            "puts timed",
+            "puts eof",
+            "puts literal",
+        ] {
+            assert!(
+                once.contains(&format!("        {action}")),
+                "action was not formatted: {action:?}\n{once}"
+            );
+        }
+        assert!(
+            once.contains("    full_buffer\n"),
+            "omitted final action was invented or lost:\n{once}"
+        );
+        assert!(
+            !once.contains("        a\n"),
+            "regex data was formatted as a script:\n{once}"
+        );
+        assert!(
+            !once.contains("        c\n"),
+            "abbreviated regex data was formatted as a script:\n{once}"
+        );
+
+        for source in [
+            "expect {\n-bogus {a; b} {puts opaque}\n}\n",
+            "expect {\n-timeout\n}\n",
+        ] {
+            let formatted = fmt_dialect(source, "expect");
+            assert_eq!(fmt_dialect(&formatted, "expect"), formatted, "{formatted}");
+            assert!(
+                !formatted.contains("        a\n"),
+                "malformed data was treated as an action:\n{formatted}"
+            );
+        }
+        let dynamic = fmt_dialect("expect {\n-re $pattern {puts dynamic}\n}\n", "expect");
+        assert!(
+            dynamic.contains("-re $pattern {"),
+            "dynamic pattern changed:\n{dynamic}"
+        );
+        assert!(
+            dynamic.contains("        puts dynamic"),
+            "proven action was not formatted:\n{dynamic}"
+        );
     }
 
     #[test]
