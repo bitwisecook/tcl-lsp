@@ -1874,9 +1874,9 @@ impl Analyser {
 
     /// Generic body recursion via the command registry's
     /// `ArgRole::Body`.  Picks up `if` / `while` / `when` / `eval`
-    /// / `uplevel` / `subst` / etc. — every command whose registry
+    /// / `uplevel` / `subst` / etc. — every available command whose registry
     /// spec marks an argument index as `BODY`.  Sets
-    /// ``current_event`` for ``when EVENT { body }`` and bumps
+    /// ``current_event`` for a top-level event handler body and bumps
     /// ``conditional_depth`` for ``if`` / ``try``.  Emits W105
     /// before recursing into each body so the unbraced-body
     /// warning fires on the body argument's own range, not on
@@ -1988,8 +1988,16 @@ impl Analyser {
             .get(cmd_name)
             .map_or_else(tcl_registry::Traits::empty, |s| s.traits);
         let is_event_handler = spec_traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER);
+        // iRules event handlers are a file-level declaration surface.  A
+        // handler-shaped command reached while already walking any body is
+        // invalid (IRULE5006) and must not manufacture or replace event
+        // context.  In particular, a nested handler inside an event retains
+        // the outer event's context, while one inside a proc retains `None`.
+        // `body_depth` is the shared structural top-level fact; the registry
+        // trait remains the semantic owner of which command is a handler.
+        let enters_event_context = is_event_handler && self.body_depth == 0;
         let prev_event = self.current_event.clone();
-        if is_event_handler && !args.is_empty() {
+        if enters_event_context && !args.is_empty() {
             self.current_event = Some(args[0].clone());
         }
         let is_conditional = spec_traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
@@ -2026,7 +2034,7 @@ impl Analyser {
         if is_control_flow {
             self.control_flow_body_depth -= 1;
         }
-        if is_event_handler {
+        if enters_event_context {
             self.current_event = prev_event;
         }
     }

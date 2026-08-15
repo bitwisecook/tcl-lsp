@@ -45,7 +45,7 @@
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
 
-use tcl_lexer::{LexerConfig, Token, TokenType};
+use tcl_lexer::{Token, TokenType};
 use tcl_registry::events::{EventProps, EventRegistry, EventRequires};
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
@@ -488,18 +488,20 @@ impl Analyser {
     /// The document's `(event, body texts)` index for IRULE4003, built once
     /// per analysis run.
     ///
-    /// Structural, not textual: [`collect_event_bodies`] segments the source
-    /// and asks the registry which command opens an event body
-    /// ([`Traits::IS_EVENT_HANDLER`]) and which of its words *are* bodies
-    /// ([`ArgRole::Body`]).  The byte scan it replaces matched
+    /// Structural, not textual: [`collect_event_bodies`] uses the shared
+    /// top-level, offset-resolved event-handler boundary owner. The byte scan
+    /// it replaces matched
     /// `\bwhen\s+[A-Z_][A-Z0-9_]*` anywhere in the file, so a `when` inside a
     /// `#` comment or a string literal invented a phantom event block, and it
     /// carried its own `priority` / `timing` skip and brace matcher that the
     /// registry's argument roles already describe (issue #1390).
     fn irules_event_bodies(&mut self) -> &[(String, Vec<String>)] {
         if self.irules_event_bodies.is_none() {
-            let bodies =
-                collect_event_bodies(&self.source, self.registry.as_deref(), self.lexer_config());
+            let bodies = collect_event_bodies(
+                &self.source,
+                self.registry.as_deref(),
+                &self.head_identities,
+            );
             self.irules_event_bodies = Some(bodies);
         }
         self.irules_event_bodies.as_deref().unwrap_or_default()
@@ -905,78 +907,32 @@ impl Analyser {
 /// Every `(event name, body texts)` pair in `source`, keyed by the registry
 /// rather than by the word `when`.
 ///
-/// A command opens an event body when its spec carries
-/// [`Traits::IS_EVENT_HANDLER`]; its event name is the first argument and its
-/// bodies are the words the registry resolves to [`ArgRole::Body`] — the same
-/// two facts `super::commands` uses to push `current_event` and descend the
-/// handler's body.  Because the walk is segmenter-driven, a `when` written in
-/// a comment or inside a string literal is not a command and contributes
-/// nothing, and `priority` / `timing` words need no bespoke skip: they are
-/// ordinary arguments the role resolver already places.
-///
-/// Bodies are descended so a handler nested in another command's body is
-/// still indexed.  Non-literal event names (`when $ev { … }`) are skipped —
-/// as they were before — because the cross-event note needs a name to look
-/// up.
-///
-/// `config` is the document's own dialect [`LexerConfig`]
-/// ([`super::Analyser::lexer_config`]) and is threaded through every recursive
-/// scan.  Segmenting with the default config instead dropped the profile at
-/// the first nested body — and, at the top level, dropped the TMM `}{` ghost
-/// separator, so `when {HTTP_REQUEST}{ … }` was not seen as an event handler
-/// at all and IRULE4003 silently lost every handler written that way
-/// (PR #1481 review of issue #1390).
+/// The shared owner accepts only top-level commands whose effective binding at
+/// that absolute offset carries [`Traits::IS_EVENT_HANDLER`]. Invalid nested
+/// handlers, inert data, and unavailable command-table mutations therefore
+/// cannot enter the cross-event inventory. Non-literal event names are already
+/// rejected by that owner. Its caller-supplied profile preserves the TMM `}{`
+/// ghost separator (PR #1481 review of issue #1390).
 fn collect_event_bodies(
     source: &str,
     registry: Option<&CommandRegistry>,
-    config: LexerConfig,
+    resolver: &dyn tcl_registry::events::CommandHeadResolver,
 ) -> Vec<(String, Vec<String>)> {
     let mut out: Vec<(String, Vec<String>)> = Vec::new();
-    if let Some(registry) = registry {
-        collect_event_bodies_into(source, registry, config, &mut out, 0);
+    let Some(registry) = registry else { return out };
+    for handler in tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
+        source, registry, resolver,
+    ) {
+        let Some(body) = source.get(handler.body_span.as_range()) else {
+            continue;
+        };
+        if let Some(entry) = out.iter_mut().find(|(name, _)| name == &handler.event) {
+            entry.1.push(body.to_owned());
+        } else {
+            out.push((handler.event, vec![body.to_owned()]));
+        }
     }
     out
-}
-
-/// Recursive worker for [`collect_event_bodies`], descending body arguments
-/// under the caller's dialect `config`.
-fn collect_event_bodies_into(
-    script: &str,
-    registry: &CommandRegistry,
-    config: LexerConfig,
-    out: &mut Vec<(String, Vec<String>)>,
-    depth: u32,
-) {
-    if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-        return;
-    }
-    for cmd in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
-        let args = cmd.args();
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let body_indices = registry.arg_indices_for_role(cmd.name(), &arg_refs, ArgRole::Body);
-        let is_handler = registry
-            .get(cmd.name())
-            .is_some_and(|spec| spec.traits.contains(Traits::IS_EVENT_HANDLER));
-        if is_handler
-            && let Some(event) = args.first()
-            && cmd
-                .arg_tokens()
-                .first()
-                .is_some_and(|tok| !matches!(tok.kind, TokenType::Var | TokenType::Cmd))
-        {
-            let bodies = body_indices.iter().filter_map(|&i| args.get(i)).cloned();
-            if let Some(entry) = out.iter_mut().find(|(name, _)| name == event) {
-                entry.1.extend(bodies);
-            } else {
-                out.push((event.clone(), bodies.collect()));
-            }
-        }
-        for &idx in &body_indices {
-            if let Some(body) = args.get(idx) {
-                collect_event_bodies_into(body, registry, config, out, depth + 1);
-            }
-        }
-    }
 }
 
 /// Is `$var_name` referenced in *body*?  Matches
@@ -1178,12 +1134,6 @@ mod tests {
 
     fn has(source: &str, code: &str) -> bool {
         codes(source).iter().any(|(c, _)| c == code)
-    }
-
-    /// The lexer config an `f5-irules` document analyses under — the one
-    /// [`Analyser::lexer_config`] hands the event-body collector.
-    fn irules_config() -> LexerConfig {
-        LexerConfig::for_dialect("f5-irules")
     }
 
     #[test]
@@ -1486,7 +1436,7 @@ mod tests {
         let blocks = super::collect_event_bodies(
             "when HTTP_REQUEST priority 5 { body1 }",
             Some(registry),
-            irules_config(),
+            &crate::head_identity::HeadIdentityMap::default(),
         );
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].0, "HTTP_REQUEST");
@@ -1502,7 +1452,11 @@ mod tests {
         let source = "# when HTTP_REQUEST { log local0. $x }\n\
                       log local0. \"when LB_SELECTED { set y 1 }\"\n\
                       when CLIENT_ACCEPTED { set z 1 }\n";
-        let blocks = super::collect_event_bodies(source, Some(registry), irules_config());
+        let blocks = super::collect_event_bodies(
+            source,
+            Some(registry),
+            &crate::head_identity::HeadIdentityMap::default(),
+        );
         let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
         assert_eq!(names, vec!["CLIENT_ACCEPTED"]);
     }
@@ -1520,7 +1474,11 @@ mod tests {
         let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
         let source = "when {HTTP_REQUEST}{ set token abc }\n\
                       when {CLIENT_DATA}{ log local0. $token }\n";
-        let blocks = super::collect_event_bodies(source, Some(registry), irules_config());
+        let blocks = super::collect_event_bodies(
+            source,
+            Some(registry),
+            &crate::head_identity::HeadIdentityMap::default(),
+        );
         let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
         assert_eq!(names, vec!["HTTP_REQUEST", "CLIENT_DATA"]);
     }
@@ -1546,6 +1504,41 @@ mod tests {
             has(src, "IRULE4003"),
             "the spaced spelling must keep reporting; got {:?}",
             codes(src)
+        );
+    }
+
+    #[test]
+    fn irule4003_ignores_invalid_nested_event_handler() {
+        let src = "when HTTP_REQUEST {\n\
+                       set token abc\n\
+                       if {1} { when CLIENT_DATA { log local0. $token } }\n\
+                   }";
+        assert!(has(src, "IRULE5006"), "nested when must be rejected");
+        assert!(
+            !has(src, "IRULE4003"),
+            "an invalid nested when must not manufacture a second event inventory"
+        );
+    }
+
+    #[test]
+    fn nested_event_handler_retains_outer_event_context() {
+        let src = "when HTTP_REQUEST { when CLIENT_ACCEPTED { HTTP::respond 200 } }";
+        assert!(has(src, "IRULE5006"), "nested when must be rejected");
+        assert!(
+            irule1001(src).is_empty(),
+            "the invalid nested body remains in HTTP_REQUEST context"
+        );
+    }
+
+    #[test]
+    fn event_handler_inside_proc_does_not_manufacture_event_context() {
+        let src = "proc target {} { return 1 }\n\
+                   proc helper {} { when HTTP_REQUEST { target } }";
+        assert!(has(src, "IRULE5006"), "when inside proc must be rejected");
+        assert!(
+            !has(src, "IRULE5005"),
+            "the invalid handler body remains outside every event context, so \
+             it cannot trigger the event-only direct-proc-call rule"
         );
     }
 

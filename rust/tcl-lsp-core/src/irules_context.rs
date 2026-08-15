@@ -165,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn case_and_lambda_when_words_are_not_events() {
+    fn case_and_unavailable_apply_when_words_are_not_events() {
         let src = "switch -- $x { a { when CLIENT_DATA {} } }\napply {{} { when HTTP_REQUEST {} }}";
         assert!(scan_file_events(src, D).is_empty());
     }
@@ -269,12 +269,10 @@ mod tests {
         assert!(scan_file_events("", D).is_empty());
     }
 
-    /// Regression coverage for issue #996: `scan_when_context` and
-    /// `collect_when_events` recurse once per nested braced body, with no
-    /// depth cap before this fix. Reachable from completion/code-actions
-    /// on essentially every keystroke, so pathologically deep `when`/`if`
-    /// nesting must not crash the server. The assertion is that both
-    /// return at all, not what they return.
+    /// Regression coverage for issue #996: top-level boundary discovery must
+    /// remain bounded on pathologically deep inert nested text. It is reached
+    /// by completion/code-actions on essentially every keystroke. The
+    /// assertion is that both request-local views return, not their contents.
     #[test]
     fn deeply_nested_bodies_survive_when_scanning() {
         const DEPTH: usize = 2000;

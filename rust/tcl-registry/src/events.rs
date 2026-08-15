@@ -4201,7 +4201,7 @@ mod tests {
     }
 
     #[test]
-    fn event_scan_ignores_case_and_lambda_when_words() {
+    fn event_scan_ignores_case_and_unavailable_apply_when_words() {
         let registry = crate::registry_for_dialect("f5-irules");
         let source = r"
             switch -- $x { a { when CLIENT_DATA {} } default { when SERVER_DATA {} } }

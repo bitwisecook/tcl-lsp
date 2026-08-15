@@ -181,63 +181,17 @@ fn every_clause_list_body_is_walked() {
     );
 }
 
-/// A pool used only inside an `apply` lambda body — issue #954's sibling gap.
-///
-/// `apply`'s lambda-literal argument is `ArgRole::LambdaLiteral`, not
-/// `ArgRole::Body` — the whole `{argList} {body}` word is a 2-element list,
-/// not a script, so recursing it as one misreads the parameter word as a
-/// command name and never reaches the real body at all. A pool referenced
-/// only inside such a body was invisible to the reference graph until the
-/// walker learned to split the lambda literal and descend into its body
-/// element specifically.
+/// iRules is based on Tcl 8.4, where `apply` does not exist. Its lambda-shaped
+/// argument is inert data after an unavailable-command error and must not keep
+/// a BIG-IP object alive in the reference graph.
 #[test]
-fn a_pool_used_only_inside_an_apply_lambda_body_is_referenced() {
+fn unavailable_apply_lambda_body_is_not_an_irules_reference_surface() {
     let registry = irules_registry();
     let source =
         format!("when HTTP_REQUEST {{\n    apply {{dir {{ pool {PROBE} }}}} /Common\n}}\n");
-    let names: Vec<String> = extract_irules_object_references(&source, None, &registry)
-        .into_iter()
-        .map(|r| r.name)
-        .collect();
-    assert!(
-        names.iter().any(|n| n == PROBE),
-        "a pool referenced only inside an apply lambda body is invisible to the \
-         reference graph; got {names:?}"
-    );
-}
-
-/// An `apply` body runs in a *fresh* call frame — unlike an `if`/`foreach`/
-/// `switch` body (which shares the enclosing frame), it does not inherit the
-/// caller's `set`-bound constants. A zero-param lambda referencing a
-/// same-named enclosing variable must not resolve it: at runtime `$poolName`
-/// inside this lambda is simply undefined, so a reference here would be a
-/// false positive that could make `bigip-cleanup` treat an actually-dead
-/// pool as still live.
-#[test]
-fn apply_lambda_does_not_inherit_enclosing_set_bindings() {
-    let registry = irules_registry();
-    let source = "when HTTP_REQUEST {\n    set poolName PROBE_PLACEHOLDER\n    apply {{} { pool $poolName }}\n}\n"
-        .replace("PROBE_PLACEHOLDER", PROBE);
     assert!(
         !finds_probe(&source, &registry),
-        "a zero-param apply lambda must not inherit the enclosing scope's \
-         `set`-bound constants — `$poolName` is undefined inside its fresh \
-         frame, so it must not resolve to the enclosing binding"
-    );
-}
-
-/// The forwarding half of the same fix: when the enclosing binding *is*
-/// passed as the lambda's actual argument, its value correctly flows into
-/// the lambda's own parameter.
-#[test]
-fn apply_lambda_param_resolves_via_forwarded_actual_argument() {
-    let registry = irules_registry();
-    let source = "when HTTP_REQUEST {\n    set poolName PROBE_PLACEHOLDER\n    apply {{p} { pool $p }} $poolName\n}\n"
-        .replace("PROBE_PLACEHOLDER", PROBE);
-    assert!(
-        finds_probe(&source, &registry),
-        "the lambda's own param `p`, bound from the forwarded `$poolName` \
-         actual argument, must resolve `pool $p` to the propagated constant"
+        "an unavailable Tcl 8.5+ command cannot create an executable iRules surface"
     );
 }
 

@@ -146,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn recursive_discovery_does_not_execute_braced_or_quoted_data() {
+    fn top_level_discovery_does_not_execute_braced_or_quoted_data() {
         let source = r#"set payload {when CLIENT_DATA {}}
 set quoted "when SERVER_DATA {}"
 # when RULE_INIT {}
@@ -161,7 +161,7 @@ when HTTP_REQUEST {}"#;
     }
 
     #[test]
-    fn nested_case_and_lambda_when_words_are_not_events() {
+    fn nested_case_and_unavailable_apply_when_words_are_not_events() {
         let source = r"
 switch -- $x { a { when CLIENT_DATA {} } }
 apply {{} { when HTTP_REQUEST {} }}
