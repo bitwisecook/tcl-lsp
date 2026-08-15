@@ -48,8 +48,8 @@ const FORMS: &[FormSpec] = &[
 /// `-matchvar`/`-indexvar`), then identifies pattern/body pairs
 /// or a single braced-list body.
 fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    // Tcl 8.5+'s exact two-argument exception treats a flag-shaped subject as
-    // positional; the case-list descriptor owns the same exception.
+    // The case-list descriptor owns the release gate for this exact
+    // two-argument exception; this resolver only supplies the shape.
     let mut i = if args.len() == 2 {
         0
     } else {
@@ -233,10 +233,13 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        // `TclNRSwitchObjCmd` (generic/tclCmdMZ.c) only scans for `-flag`
-        // words up to `objc - 2`: the trailing `string` and
-        // pattern-list-or-first-pattern words are never mistaken for
-        // options, even when dynamic/tainted and starting with `-`.
+        // `TclNRSwitchObjCmd` (generic/tclCmdMZ.c) normally only scans for
+        // `-flag` words up to `objc - 2`: the trailing `string` and
+        // pattern-list-or-first-pattern words are never mistaken for options,
+        // even when dynamic/tainted and starting with `-`. Tcl 8.4's
+        // option-like two-word shape is the one exception; the case-list
+        // descriptor removes this reservation for that release so W304/T102
+        // scan the same words the C implementation scans.
         reserved_trailing_words: 2,
         case_list: Some(&CaseListSpec::SWITCH),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),

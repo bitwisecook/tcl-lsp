@@ -2226,6 +2226,7 @@ fn event_requires_block(stmts: &[Stmt], log: &mut Log) -> EventRequires {
 fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
     let mut spec = CaseListSpec {
         subject_args: 0,
+        two_arg_optionless_dialects: None,
         regex_option: None,
         exact_option: None,
         glob_option: None,
@@ -2249,6 +2250,9 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         let value = stmt.word_text(1).to_owned();
         match stmt.word_text(0) {
             "subject_args" => spec.subject_args = value.parse().unwrap_or(0),
+            "two_arg_optionless_dialects" => {
+                spec.two_arg_optionless_dialects = parse_dialects(&value, stmt.line, log);
+            }
             "exact_option" => spec.exact_option = Some(leak_str(&value)),
             "glob_option" => spec.glob_option = Some(leak_str(&value)),
             "regex_option" => spec.regex_option = Some(leak_str(&value)),
@@ -4045,12 +4049,17 @@ mod tests {
     fn case_list_loader_preserves_every_clause_shape_field() {
         let pack = load_pack(
             "speclib probe 1.1 { command demo { case_list { \
+             two_arg_optionless_dialects tcl8.5+; \
              clause_end_options_flag --; clause_force_inline_flag -nobrace; \
              clause_force_list_flag -brace; clause_force_list_shape first_arg_only_remainder; \
              allow_omitted_final_body 1; \
              warn_unbraced_bodies 1 } } }",
         );
         let case = pack.command("demo").unwrap().spec.case_list.unwrap();
+        assert_eq!(
+            case.two_arg_optionless_dialects,
+            Some(tcl_dialect::DialectSet::TCL85_PLUS)
+        );
         assert_eq!(case.clause_end_options_flag, Some("--"));
         assert_eq!(case.clause_force_inline_flag, Some("-nobrace"));
         assert_eq!(case.clause_force_list_flag, Some("-brace"));

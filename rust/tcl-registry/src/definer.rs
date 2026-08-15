@@ -2079,9 +2079,10 @@ const SPECTCL_CLAUSE_GRAMMAR_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("tail"),
 ];
 
-/// The eighteen plain-data fields of a `case_list { … }` block.
+/// The nineteen plain-data fields of a `case_list { … }` block.
 const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("subject_args"),
+    MemberSpec::keyword_only("two_arg_optionless_dialects"),
     MemberSpec::keyword_only("exact_option"),
     MemberSpec::keyword_only("glob_option"),
     MemberSpec::keyword_only("regex_option"),

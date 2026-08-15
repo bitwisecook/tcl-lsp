@@ -33,7 +33,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use super::config::FormatterConfig;
 
-/// Depth cap for [`format_body`]'s (and [`format_switch_body`]'s) recursion
+/// Depth cap for [`format_body`]'s (and [`format_case_list_body`]'s) recursion
 /// over nested control-flow bodies — issue #996. Reuses their existing
 /// `indent_level` parameter as the depth signal rather than threading a
 /// separate one: `indent_level` already increments by exactly one per
@@ -529,7 +529,7 @@ struct SwitchElem {
 
 /// Format the braced body of a `switch` command (pattern/body
 /// pairs).
-fn format_switch_body(
+fn format_case_list_body(
     body_text: &str,
     config: &FormatterConfig,
     registry: &CommandRegistry,
@@ -543,13 +543,13 @@ fn format_switch_body(
         return body_text.to_owned();
     };
 
-    let elements = segment_switch_elements(&sm, tokens);
-    let lines = emit_switch_lines(&elements, &sm, config, registry, identities, indent_level);
+    let elements = segment_case_list_elements(&sm, tokens);
+    let lines = emit_case_list_lines(&elements, &sm, config, registry, identities, indent_level);
     lines.join("\n")
 }
 
-/// Re-segment a switch body's tokens into pattern/body/comment elements.
-fn segment_switch_elements(sm: &SourceMap, tokens: Vec<Token>) -> Vec<SwitchElem> {
+/// Re-segment a case-list body's tokens into pattern/body/comment elements.
+fn segment_case_list_elements(sm: &SourceMap, tokens: Vec<Token>) -> Vec<SwitchElem> {
     let mut elements: Vec<SwitchElem> = Vec::new();
     let mut cur: Option<SwitchElem> = None;
     let mut prev_type = TokenType::Eol;
@@ -613,7 +613,7 @@ fn segment_switch_elements(sm: &SourceMap, tokens: Vec<Token>) -> Vec<SwitchElem
 }
 
 /// Render segmented switch elements into formatted lines.
-fn emit_switch_lines(
+fn emit_case_list_lines(
     elements: &[SwitchElem],
     sm: &SourceMap,
     config: &FormatterConfig,
@@ -1277,6 +1277,36 @@ fn keyword_rewrites_for(
 }
 
 /// Reconstruct a single command as formatted text.
+fn has_case_list_body(
+    cmd: &ParsedCommand,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+) -> bool {
+    let Some(_case_list) = registry
+        .get(&cmd.resolved_name)
+        .and_then(|spec| spec.case_list)
+    else {
+        return false;
+    };
+    let args: Vec<&str> = cmd
+        .args
+        .iter()
+        .skip(1)
+        .map(|arg| arg.text.as_str())
+        .collect();
+    let dialect = registry.profile().map_or_else(
+        || {
+            config
+                .dialect_bits()
+                .unwrap_or(tcl_dialect::DialectSet::ALL_TCL)
+        },
+        |profile| profile.availability_mask,
+    );
+    registry
+        .case_invocation(&cmd.resolved_name, &args, dialect)
+        .is_some_and(|(_, invocation)| invocation.clause_list_index.is_some())
+}
+
 fn reconstruct_command(
     sm: &SourceMap,
     cmd: &ParsedCommand,
@@ -1285,8 +1315,8 @@ fn reconstruct_command(
     indent: &str,
     indent_level: usize,
 ) -> String {
-    if cmd.resolved_name == "switch" {
-        return reconstruct_switch(sm, cmd, config, indent);
+    if has_case_list_body(cmd, config, registry) {
+        return reconstruct_case_list(sm, cmd, config, indent);
     }
 
     let expr_args = identify_expr_args(cmd, registry);
@@ -1440,14 +1470,14 @@ fn concat_expr_parts(
 }
 
 /// Reconstruct a `switch` command, handling the braced body form.
-fn reconstruct_switch(
+fn reconstruct_case_list(
     sm: &SourceMap,
     cmd: &ParsedCommand,
     config: &FormatterConfig,
     indent: &str,
 ) -> String {
-    // The switch body is the last braced arg; recompute its
-    // formatting through `format_switch_body` (parsed below by
+    // The case-list body is the last braced arg; recompute its
+    // formatting through `format_case_list_body` (parsed below by
     // re-deriving from the registry-marked Body arg or the last
     // braced arg).
     let mut parts: Vec<String> = Vec::new();
@@ -1524,15 +1554,15 @@ pub(crate) fn format_body(
 
         identify_body_args(&mut commands[i], registry, identities);
 
-        // Switch needs its body formatted from arg.text via the
-        // pattern/body splitter; other bodies recurse normally.
-        let is_switch = commands[i].resolved_name == "switch";
+        // A registry-declared case-list body is formatted from arg.text via
+        // the pattern/body splitter; other bodies recurse normally.
+        let is_case_list = has_case_list_body(&commands[i], config, registry);
         let arg_count = commands[i].args.len();
         for a in 0..arg_count {
             if commands[i].args[a].kind == ArgKind::Body && commands[i].args[a].is_braced {
                 let body_text = commands[i].args[a].text.clone();
-                let formatted = if is_switch {
-                    format_switch_body(&body_text, config, registry, identities, inner_level)
+                let formatted = if is_case_list {
+                    format_case_list_body(&body_text, config, registry, identities, inner_level)
                 } else {
                     format_body(&body_text, config, registry, identities, inner_level)
                 };
@@ -1709,6 +1739,11 @@ mod tests {
     fn fmt_with(src: &str, config: &FormatterConfig) -> String {
         let registry = CommandRegistry::build_default();
         format_tcl(src, config, &registry)
+    }
+
+    fn fmt_dialect(src: &str, dialect: &str) -> String {
+        let registry = tcl_registry::registry_for_dialect(dialect);
+        format_tcl(src, &FormatterConfig::for_dialect(dialect), registry)
     }
 
     /// Regression coverage for issue #996: `format_body` recurses once per
@@ -2063,7 +2098,7 @@ mod tests {
 
     #[test]
     fn switch_body_preserves_comments() {
-        // A comment line inside a switch body must survive
+        // A comment line inside a case-list body must survive
         // formatting rather than being silently deleted.
         let out = fmt("switch $x {\n# note\na { puts 1 }\n}\n");
         assert!(
@@ -2071,6 +2106,31 @@ mod tests {
             "switch-body comment was deleted:\n{out}"
         );
         assert!(out.contains("puts 1"), "arm body lost:\n{out}");
+    }
+
+    #[test]
+    fn switch_case_list_formatter_follows_release_matrix() {
+        let valid = "switch subject {\ndefault {\nputs hit\n}\n}\n";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            let out = fmt_dialect(valid, dialect);
+            assert!(
+                out.contains("    default {\n        puts hit\n    }"),
+                "{dialect} must format a normal case-list body:\n{out}"
+            );
+        }
+        let ambiguous = "switch -regexp {\ndefault {\nputs hit\n}\n}\n";
+        let old = fmt_dialect(ambiguous, "tcl8.4");
+        assert!(
+            !old.contains("        puts hit"),
+            "Tcl 8.4 must not descend the invalid option-like two-word form:\n{old}"
+        );
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            let out = fmt_dialect(ambiguous, dialect);
+            assert!(
+                out.contains("    default {\n        puts hit\n    }"),
+                "{dialect} must format the optionless two-word case list:\n{out}"
+            );
+        }
     }
 
     #[test]
@@ -2493,7 +2553,7 @@ mod tests {
     }
 
     /// The clause-list layout is head-driven too: `switch`'s pattern/body
-    /// pairs are laid out by [`format_switch_body`], which the reconstruction
+    /// pairs are laid out by [`format_case_list_body`], which the reconstruction
     /// picks by the *resolved* head.
     #[test]
     fn formatting_follows_an_aliased_clause_list_command() {

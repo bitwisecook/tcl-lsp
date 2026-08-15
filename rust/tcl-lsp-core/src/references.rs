@@ -1952,30 +1952,6 @@ fn scan_my_method_region(
         for (inner_start, inner_end) in nested_dispatch_regions(source, ctx.dialect, cmd) {
             scan_my_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
-        // `switch`'s brace-delimited arm bodies are Tcl scripts too, but
-        // they're neither a `[...]` command substitution (the recursion
-        // above never reaches them) nor reachable any other way — descend
-        // each arm body as its own command-sequence region (issue #923 idx
-        // 63, main audit wave: the corpus's own "assigned `Add`-dispatcher"
-        // idiom keeps its `my AddBarSeries` calls inside exactly this
-        // shape, `switch ... { barSeries { my AddBarSeries {*}$args } }`).
-        // Matches `Analyser::switch_arm_bodies`'s own bare-name check for
-        // which commands own this shape.
-        if cmd.argv.first().is_some_and(|h| {
-            let h_start = h.span.start() as usize;
-            let h_end = h.span.end() as usize;
-            h_start < source.len() && h_end <= source.len() && &source[h_start..h_end] == "switch"
-        }) {
-            let switch_arg_tokens: Vec<tcl_lexer::Token> =
-                cmd.argv.iter().skip(1).copied().collect();
-            for (_, body_tok) in tcl_compiler::analyser::commands::switch_arm_bodies(
-                source,
-                cmd.args(),
-                &switch_arg_tokens,
-            ) {
-                scan_my_method_body(ctx, body_tok.span, sink);
-            }
-        }
     }
 }
 

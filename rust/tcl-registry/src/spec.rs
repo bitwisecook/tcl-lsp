@@ -304,6 +304,12 @@ pub struct CaseListSpec {
     /// Non-option words between the command's options and the clause list —
     /// `switch`'s subject string is 1; `expect` has none.
     pub subject_args: u8,
+    /// Tcl release availability for the two-post-command-word form that
+    /// suppresses option scanning. Tcl 8.5 changed `switch` so
+    /// `switch -regexp {pattern body}` treats `-regexp` as the subject;
+    /// Tcl 8.4 still scans it as an option and rejects the missing subject.
+    /// `None` means this case-list descriptor has no such exception.
+    pub two_arg_optionless_dialects: Option<DialectSet>,
     /// A *command* option that makes every pattern a regex (`switch -regexp`).
     pub regex_option: Option<&'static str>,
     /// Command option selecting literal equality (the default switch mode).
@@ -409,6 +415,7 @@ impl CaseListSpec {
     /// The `switch … { pat body … }` shape.
     pub const SWITCH: Self = Self {
         subject_args: 1,
+        two_arg_optionless_dialects: Some(DialectSet::TCL85_PLUS),
         regex_option: Some("-regexp"),
         exact_option: Some("-exact"),
         glob_option: Some("-glob"),
@@ -432,6 +439,7 @@ impl CaseListSpec {
     /// The Expect `expect { ?-flags? pat body … }` shape.
     pub const EXPECT: Self = Self {
         subject_args: 0,
+        two_arg_optionless_dialects: None,
         regex_option: None,
         exact_option: None,
         glob_option: None,
@@ -481,6 +489,7 @@ impl CaseListSpec {
         self,
         args: &[&str],
         options: &[&crate::hover::OptionSpec],
+        dialect: DialectSet,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
         let mut nocase = false;
@@ -498,7 +507,8 @@ impl CaseListSpec {
         // in list form and must bypass the command-option scan.
         let per_clause_flags = self.subject_args == 0 && !self.clause_flags.is_empty();
         let sole_clause_list = per_clause_flags && args.len() == 1;
-        if !(sole_clause_list || self.subject_args == 1 && args.len() == 2) {
+        let two_arg_optionless = self.two_arg_optionless_form_is_available(args, dialect);
+        if !(sole_clause_list || self.subject_args == 1 && args.len() == 2 && two_arg_optionless) {
             while let Some(word) = args.get(i).copied() {
                 if !word.starts_with('-') {
                     break;
@@ -598,7 +608,7 @@ impl CaseListSpec {
                 mode,
                 nocase,
             })
-        } else if remaining == 1 && !force_inline && (self.subject_args == 1 || sole_clause_list) {
+        } else if remaining == 1 && !force_inline && (sole_clause_list || self.subject_args == 1) {
             // Validate the list grammar first, then its registry-declared
             // clause grammar.  Strict pattern/body parity is sufficient for
             // `switch`, but not for Expect: a clause may start with `-re` or
@@ -640,6 +650,44 @@ impl CaseListSpec {
             })
         } else {
             None
+        }
+    }
+
+    /// Whether the descriptor's two-word optionless form may assign a body
+    /// role for `dialect`. A non-option subject remains valid in every
+    /// release; the gate only applies when Tcl 8.4 would scan an option-like
+    /// first word and consume it.
+    #[must_use]
+    pub(crate) fn two_arg_body_roles_allowed(self, args: &[&str], dialect: DialectSet) -> bool {
+        self.two_arg_optionless_form_is_available(args, dialect)
+    }
+
+    fn two_arg_optionless_form_is_available(self, args: &[&str], dialect: DialectSet) -> bool {
+        args.len() != 2
+            || self.subject_args != 1
+            || args
+                .first()
+                .is_none_or(|word| !word.starts_with('-') || *word == "--")
+            || self
+                .two_arg_optionless_dialects
+                .is_none_or(|available| available.intersects(dialect))
+    }
+
+    /// Adjust a command's static trailing-word reservation for the
+    /// optionless two-word form. The regular switch shape reserves its
+    /// subject and clause-list words from option scanning, but Tcl 8.4 still
+    /// scans both words when that shape begins with an option-like subject.
+    #[must_use]
+    pub(crate) fn option_scan_reserved_trailing_words(
+        self,
+        args: &[&str],
+        dialect: DialectSet,
+        default: usize,
+    ) -> usize {
+        if self.two_arg_body_roles_allowed(args, dialect) {
+            default
+        } else {
+            0
         }
     }
 

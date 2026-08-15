@@ -1831,7 +1831,10 @@ impl CommandRegistry {
             || resolved.spec.option_specs(Some(dialect)),
             |profile| crate::ProfileQueries::available_option_specs(profile, resolved.spec),
         );
-        Some((*case, case.invocation(args, &options)?))
+        let effective_dialect = self
+            .profile()
+            .map_or(dialect, |profile| profile.availability_mask);
+        Some((*case, case.invocation(args, &options, effective_dialect)?))
     }
 
     /// Classify whether a concrete invocation falls through, returns a normal
@@ -2244,6 +2247,9 @@ impl CommandRegistry {
         };
         let n = args.len();
         let mut out: Vec<usize> = Vec::new();
+        let case_body_roles_allowed = spec
+            .case_list
+            .is_none_or(|case| case.two_arg_body_roles_allowed(args, self.own_availability_mask()));
 
         // Check subcommand (exact or unique-prefix abbreviation).
         if !spec.subcommands.is_empty()
@@ -2281,14 +2287,18 @@ impl CommandRegistry {
             out.extend(
                 resolver(args)
                     .into_iter()
-                    .filter(|(_, r)| *r == role)
+                    .filter(|(_, r)| {
+                        *r == role && (role != ArgRole::Body || case_body_roles_allowed)
+                    })
                     .map(|(i, _)| i as usize),
             );
         } else {
             out.extend(
                 spec.arg_roles
                     .iter()
-                    .filter(|(_, r)| *r == role)
+                    .filter(|(_, r)| {
+                        *r == role && (role != ArgRole::Body || case_body_roles_allowed)
+                    })
                     .map(|(i, _)| *i as usize),
             );
         }
@@ -2817,11 +2827,22 @@ impl CommandRegistry {
         // `CommandSpec.options` level (a single set per spec), so we
         // consult that directly when no subcommand match was found.
         if spec.options.iter().any(|o| o.name == "--") {
+            let effective_dialect = self
+                .profile()
+                .map_or(dialect, |profile| profile.availability_mask);
+            let reserved_trailing_words =
+                spec.case_list.map_or(spec.reserved_trailing_words, |case| {
+                    case.option_scan_reserved_trailing_words(
+                        args,
+                        effective_dialect,
+                        spec.reserved_trailing_words,
+                    )
+                });
             return Some(ResolvedTerminator {
                 scan_start: 0,
                 subcommand: None,
                 options: spec.options,
-                reserved_trailing_words: spec.reserved_trailing_words,
+                reserved_trailing_words,
             });
         }
 
@@ -6401,6 +6422,44 @@ mod tests {
         );
 
         let tcl84 = crate::registry_for_dialect("tcl8.4");
+        let two_arg_switch = ["-regexp", "default {puts hit}"];
+        assert!(
+            tcl84
+                .case_invocation("switch", &two_arg_switch, DialectSet::TCL84)
+                .is_none(),
+            "Tcl 8.4 scans -regexp in the two-word form and rejects its missing subject"
+        );
+        assert!(
+            tcl84
+                .arg_indices_for_role("switch", &two_arg_switch, ArgRole::Body)
+                .is_empty(),
+            "Tcl 8.4 must not assign the second word a body role"
+        );
+        assert_eq!(
+            tcl84
+                .resolve_option_terminator("switch", &two_arg_switch, DialectSet::TCL84)
+                .expect("switch declares --")
+                .reserved_trailing_words,
+            0,
+            "Tcl 8.4 must scan both words in the option-like two-word form"
+        );
+        for args in [
+            &["subject", "default {puts hit}"][..],
+            &["-regexp", "subject", "default {puts hit}"][..],
+            &["--", "-subject", "default {puts hit}"][..],
+        ] {
+            assert!(
+                tcl84
+                    .case_invocation("switch", args, DialectSet::TCL84)
+                    .is_some(),
+                "Tcl 8.4 accepts the unambiguous switch case-list form: {args:?}"
+            );
+            assert_eq!(
+                tcl84.arg_indices_for_role("switch", args, ArgRole::Body),
+                vec![args.len() - 1],
+                "Tcl 8.4 assigns the final case-list word a body role: {args:?}"
+            );
+        }
         assert!(
             tcl84
                 .case_invocation(
@@ -6411,6 +6470,32 @@ mod tests {
                 .is_none()
         );
         let tcl85 = crate::registry_for_dialect("tcl8.5");
+        for (dialect, availability) in [
+            ("tcl8.5", DialectSet::TCL85),
+            ("tcl8.6", DialectSet::TCL86),
+            ("tcl9.0", DialectSet::TCL90),
+        ] {
+            let registry = crate::registry_for_dialect(dialect);
+            assert!(
+                registry
+                    .case_invocation("switch", &two_arg_switch, availability)
+                    .is_some(),
+                "{dialect} accepts the optionless two-word switch form"
+            );
+            assert_eq!(
+                registry.arg_indices_for_role("switch", &two_arg_switch, ArgRole::Body),
+                vec![1],
+                "{dialect} assigns the clause-list word a body role"
+            );
+            assert_eq!(
+                registry
+                    .resolve_option_terminator("switch", &two_arg_switch, availability)
+                    .expect("switch declares --")
+                    .reserved_trailing_words,
+                2,
+                "{dialect} reserves the subject and clause-list words"
+            );
+        }
         assert!(
             tcl85
                 .case_invocation(
@@ -6677,6 +6762,7 @@ mod tests {
         // `-clause` was not swallowed by the outer scan.
         let case = CaseListSpec {
             subject_args: 0,
+            two_arg_optionless_dialects: None,
             regex_option: None,
             exact_option: None,
             glob_option: None,
@@ -6710,7 +6796,7 @@ mod tests {
         let option_refs: Vec<&OptionSpec> = options.iter().collect();
         let args = ["-outer", "value", "-clause", "pattern", "{body}"];
         let invocation = case
-            .invocation(&args, &option_refs)
+            .invocation(&args, &option_refs, DialectSet::ALL_TCL)
             .expect("the outer value must precede, not consume, the clause flag");
         assert_eq!(invocation.inline_clause_start, Some(2));
         let clauses = case

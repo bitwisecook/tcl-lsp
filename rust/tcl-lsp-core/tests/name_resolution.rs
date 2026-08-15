@@ -57,6 +57,11 @@ fn refs_at(src: &str, line: u32, col: u32) -> Vec<u32> {
     ref_lines(&references(src, "tcl", line, col, &analysis, true))
 }
 
+fn refs_at_dialect(src: &str, dialect: &str, line: u32, col: u32) -> Vec<u32> {
+    let analysis = Analyser::new().analyse(src, dialect).clone();
+    ref_lines(&references(src, dialect, line, col, &analysis, true))
+}
+
 /// W210 (read-before-set) diagnostic codes for `src` analysed as `path`.
 fn has_w210(src: &str, path: Option<&str>) -> bool {
     let mut a = Analyser::new().with_file_path(path.map(str::to_string));
@@ -678,6 +683,40 @@ mod my_method_dispatch {
             refs_at(src, 1, 11),
             vec![1, 5],
             "decl + `my` inside braced switch arm"
+        );
+    }
+
+    /// Tcl 8.4 scans the first word of this two-argument call as an option,
+    /// so the call has no valid subject and its clause-list word is not a
+    /// body. Tcl 8.5+ stops option scanning at the reserved trailing words;
+    /// the same source then reaches the nested procedure call. The release
+    /// distinction comes from the registry's CaseListSpec/profile pair, not
+    /// from this LSP consumer.
+    #[test]
+    fn two_argument_switch_body_follows_tcl_release() {
+        let src =
+            "proc hit {} { return hit }\nswitch -regexp {\n    default {\n        hit\n    }\n}\n";
+        assert_eq!(
+            refs_at_dialect(src, "tcl8.4", 0, 5),
+            vec![0],
+            "Tcl 8.4 must not descend the invalid two-argument switch word"
+        );
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert_eq!(
+                refs_at_dialect(src, dialect, 0, 5),
+                vec![0, 3],
+                "{dialect} must descend the valid two-argument switch body"
+            );
+        }
+    }
+
+    #[test]
+    fn irules_switch_glob_body_is_followed() {
+        let src = "proc hit {} { return hit }\nswitch -glob $value {\n    default {\n        hit\n    }\n}\n";
+        assert_eq!(
+            refs_at_dialect(src, "f5-irules", 0, 5),
+            vec![0, 3],
+            "iRules switch -glob must descend its clause-list body"
         );
     }
 
