@@ -401,10 +401,48 @@ auto-fix payload. An action tier — one that offers to perform the rewrite —
 needs a stronger contract that additionally justifies the assumption from
 workspace facts.
 
-The enum is the extension point. A workspace-aware driver can add a variant
-carrying aggregated cross-file evidence (workspace index, `package require`
-graph, `source` graph, a per-file dispatch summary) without touching a single
-transfer function: only `WorldContents::entry` interprets it.
+### #1398 closed-world disposition (2026-08-15)
+
+The enum is an internal extension point, but a workspace index is not evidence
+of a closed Tcl world. A sound stronger entry needs one runtime/session owner
+which can verify, rather than accept caller assertions about, all of these
+facts together:
+
+- a fresh interpreter sealed for the complete analysed lifetime;
+- exact `DialectProfile` identity (not only an availability mask: profiles
+  such as Mentor, Synopsys, and Tcl 8.6 may share command availability while
+  differing semantically);
+- exact content identities and evaluation order for every workspace unit,
+  resolved `source`, selected package implementation, and preload;
+- a complete set of Tcl callers and native/host command exposures; and
+- registry-baseline command identity after the complete ordered load.
+
+No current compiler, CLI, build mode, or LSP database owns both that runtime
+session and those complete facts. The LSP package/source graph describes files
+visible to static analysis; it cannot exclude later `trace`, `rename`, alias,
+namespace-unknown, host-native registration, or calls from outside the
+workspace. A public constructor taking marker tokens, counts, paths, hashes,
+or caller-provided summaries would merely make an unsound assertion forgeable.
+Omitting or reordering a unit, omitting a caller/exposure, or ignoring a
+preload would still construct the same supposed proof.
+
+Therefore #1398 is deliberately dispositioned as **conservative abstention**:
+procedure, method, `apply`, and `namespace eval` body units remain
+`UnknownWorld`. Methods additionally need receiver/object command-state facts;
+`apply` can escape as a first-class value; and `namespace eval` is both a
+separate body unit and a script-callback barrier. There is no usable public
+sealed-entry API until a concrete runtime owner can verify the contract above
+and `WorldContents::entry` can consume its ordered summaries. Tests pin all
+four body kinds to `UnknownWorld`.
+
+The canonical #1181 small corpus (revision 1; 8 repositories, 113 source
+files, 140 analysed documents) was measured in release mode with Rust 1.97.1
+on x86_64 Linux, three alternating runs of `fp-sweep --code O105 --code O106`.
+Both the base and candidate produced zero findings. Median wall time was 3.08 s
+on the base and 3.07 s on the candidate; median CPU time was 3.07 s and 3.06 s;
+median peak RSS was 71,968 KiB and 71,944 KiB. The honest diagnostic delta is
+zero: manufacturing recovered O-codes from an unverified workspace boundary
+would trade false negatives for unsound false positives.
 
 ## §9 — Conservative abstentions
 
@@ -425,8 +463,9 @@ These are real, current limitations, not incidental gaps.
   consumes the proof. This is tracked debt: the partial-redundancy and
   loop-invariant halves of the reports need the same seam.
 - **Procedure bodies never prove.** Every proc, method, and body unit runs
-  under `UnknownWorld` pending a file-summary entry contract, so repeated
-  stable calls inside a procedure are never reported by the proof-gated path.
+  under `UnknownWorld` pending a runtime-owned sealed-session entry contract
+  (§8), so repeated stable calls inside a procedure are never reported by the
+  proof-gated path. A file-summary-only contract is explicitly insufficient.
 - **`namespace eval`'s body barrier.** Lowering registers the body as its own
   body unit *and* leaves the enclosing statement as a runtime barrier. From the
   enclosing unit the command is an ordinary invocation, but its registry
