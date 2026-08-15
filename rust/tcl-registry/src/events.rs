@@ -186,6 +186,34 @@ pub const BIGIP_EVENT_HANDLER_PRIORITY: EventHandlerPriority = EventHandlerPrior
     warn_when_implicit: false,
 };
 
+/// Lexical execution context of an iRules command invocation.
+///
+/// The analyser owns the structural classification; the registry owns which
+/// command traits are legal in each context. Nested control-flow bodies inherit
+/// their enclosing event or procedure context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesExecutionContext {
+    /// File-level declaration surface.
+    TopLevel,
+    /// A `when EVENT` body, including its nested control flow.
+    EventBody,
+    /// A top-level `proc` body, including its nested control flow.
+    ProcedureBody,
+    /// A body reached from an already-invalid top-level executable command.
+    InvalidNestedBody,
+}
+
+/// Result of applying the registry-owned iRules placement contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesCommandPlacement {
+    /// The invocation is permitted in this context.
+    Allowed,
+    /// The command is a declaration form and must be at file top level.
+    RequiresTopLevel,
+    /// The command is executable and must be inside an event or procedure.
+    RequiresEventOrProcedure,
+}
+
 const HTTP_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
     DataCollectionBootstrap {
         event_prefix: "HTTP_RESPONSE",

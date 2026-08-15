@@ -2003,7 +2003,7 @@ mod tests {
         assert!(scan_file_events("awhen HTTP_REQUEST {}").is_empty());
         assert_eq!(
             scan_file_events("::when http_request { if {1} { :::when client_data {} } }"),
-            FxHashSet::from_iter(["HTTP_REQUEST".to_owned(), "CLIENT_DATA".to_owned()])
+            FxHashSet::from_iter(["HTTP_REQUEST".to_owned()])
         );
     }
 

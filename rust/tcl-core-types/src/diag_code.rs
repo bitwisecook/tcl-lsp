@@ -454,7 +454,7 @@ diagnostic_codes! {
     Irule5004 => "IRULE5004", diag(Irules, true, "`DNS::return` without `return`.");
     Irule5005 => "IRULE5005", diag(Irules, true, "Direct proc invocation without `call` — use `call proc_name`.");
     Irule5006 => "IRULE5006", diag(Irules, true, "Top-level-only command used inside a nested body.");
-    Irule5007 => "IRULE5007", diag(Irules, true, "Event-context command used at top level outside a `when` block.");
+    Irule5007 => "IRULE5007", diag(Irules, true, "Executable command used on iRules' declaration-only top level.");
     Irule6001 => "IRULE6001", diag_internal(Irules, true, "`global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`.");
     O100 => "O100", opt(ConstantFolding, "Propagate constant variables into expressions and command arguments.");
     O101 => "O101", opt(ConstantFolding, "Fold constant integer expressions.");

@@ -1944,6 +1944,38 @@ impl CommandRegistry {
         })
     }
 
+    /// Apply the iRules command-placement contract to one resolved head.
+    ///
+    /// The only legal file-level forms carry
+    /// [`Traits::IRULES_TOP_LEVEL_ONLY`]. Every other invocation, including a
+    /// user-defined command absent from this registry, is executable and must
+    /// occur inside an event or procedure. An invalid nested top-level body is
+    /// not cascaded: its enclosing executable command already carries the
+    /// placement finding, while declaration forms nested there remain
+    /// independently reportable.
+    #[must_use]
+    pub fn irules_command_placement(
+        &self,
+        name: &str,
+        context: crate::events::IrulesExecutionContext,
+    ) -> crate::events::IrulesCommandPlacement {
+        use crate::events::{IrulesCommandPlacement, IrulesExecutionContext};
+
+        if self.is_irules_top_level_only(name) {
+            return if context == IrulesExecutionContext::TopLevel {
+                IrulesCommandPlacement::Allowed
+            } else {
+                IrulesCommandPlacement::RequiresTopLevel
+            };
+        }
+        match context {
+            IrulesExecutionContext::TopLevel => IrulesCommandPlacement::RequiresEventOrProcedure,
+            IrulesExecutionContext::EventBody
+            | IrulesExecutionContext::ProcedureBody
+            | IrulesExecutionContext::InvalidNestedBody => IrulesCommandPlacement::Allowed,
+        }
+    }
+
     /// Whether `name` should appear as a notable action node in a flow
     /// diagram ([`Traits::DIAGRAM_ACTION`]). Accepts both the bare
     /// (`HTTP::respond`) and the canonical (`::HTTP::respond`) spelling —
@@ -5670,6 +5702,45 @@ mod tests {
                 spelling: "not-a-registry-command",
             })
         );
+    }
+
+    #[test]
+    fn irules_placement_contract_owns_declaration_and_execution_contexts() {
+        use crate::events::{IrulesCommandPlacement as Placement, IrulesExecutionContext as Ctx};
+
+        let registry = crate::registry_for_dialect("f5-irules");
+        for declaration in ["when", "proc", "timing", "priority"] {
+            assert_eq!(
+                registry.irules_command_placement(declaration, Ctx::TopLevel),
+                Placement::Allowed,
+                "{declaration} is an iRules top-level declaration"
+            );
+            assert_eq!(
+                registry.irules_command_placement(declaration, Ctx::EventBody),
+                Placement::RequiresTopLevel,
+                "{declaration} cannot be nested in an event"
+            );
+            assert_eq!(
+                registry.irules_command_placement(declaration, Ctx::ProcedureBody),
+                Placement::RequiresTopLevel,
+                "{declaration} cannot be nested in a proc"
+            );
+        }
+        for executable in ["set", "HTTP::uri", "call", "user_proc"] {
+            assert_eq!(
+                registry.irules_command_placement(executable, Ctx::TopLevel),
+                Placement::RequiresEventOrProcedure,
+                "{executable} cannot execute at iRules top level"
+            );
+            assert_eq!(
+                registry.irules_command_placement(executable, Ctx::EventBody),
+                Placement::Allowed
+            );
+            assert_eq!(
+                registry.irules_command_placement(executable, Ctx::ProcedureBody),
+                Placement::Allowed
+            );
+        }
     }
 
     #[test]

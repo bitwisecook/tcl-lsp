@@ -47,7 +47,7 @@ entry point, or gate moves without this contract being updated.
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | command / word segmentation | `rust/tcl-compiler/src/segmenter.rs` | `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | none |
-| iRules `when EVENT` boundaries | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-irules/src/when_block.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `when_blocks` | caller-supplied `LexerConfig`; offset-keyed resolved command identity at the top-level iRules boundary | `xtask-gen-ai-diagnostics` |
+| iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `CommandRegistry::irules_command_placement`; `when_blocks` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; declaration-only top level versus event/procedure bodies | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name` | the resolved dialect/release axis | none |
@@ -157,6 +157,12 @@ entry point, or gate moves without this contract being updated.
   therefore have one lexer/naming contract. `tcl-irules::when_blocks` is the
   iRules-configured wrapper. Registry, CLI, explorer, LSP, and MCP consumers
   use these APIs and spans rather than scanning text.
+- `IrulesExecutionContext` and `IrulesCommandPlacement` own the other half of
+  that boundary: the iRules top level is declaration-only (`when`, `proc`,
+  `timing`, and `priority`), while executable commands belong in event or
+  procedure bodies. The analyser supplies lexical context and consumes the
+  registry decision for IRULE5005, IRULE5006, and IRULE5007; it does not keep
+  a second command-name allow-list.
 
 ### `tcl-core-types` — shared vocabulary
 

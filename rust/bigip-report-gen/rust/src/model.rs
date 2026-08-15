@@ -2161,7 +2161,7 @@ mod app_tests {
     }
 
     #[test]
-    fn rule_events_use_recursive_rooted_normalised_owner() {
+    fn rule_events_use_top_level_rooted_normalised_owner() {
         let mut fields = Map::new();
         fields.insert("name".into(), J::String("r".into()));
         fields.insert("full-path".into(), J::String("/Common/r".into()));
@@ -2177,7 +2177,7 @@ mod app_tests {
             .filter_map(J::as_str)
             .collect();
         events.sort_unstable();
-        assert_eq!(events, ["CLIENT_DATA", "HTTP_REQUEST"]);
+        assert_eq!(events, ["HTTP_REQUEST"]);
     }
 
     #[test]

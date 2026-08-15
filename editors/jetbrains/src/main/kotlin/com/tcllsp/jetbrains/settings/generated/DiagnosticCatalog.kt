@@ -152,7 +152,7 @@ object DiagnosticCatalog {
         DiagnosticDef("IRULE5004", "irules", "IRULE5004: DNS::return without return", true),
         DiagnosticDef("IRULE5005", "irules", "IRULE5005: Direct proc invocation without call", true),
         DiagnosticDef("IRULE5006", "irules", "IRULE5006: Top-level-only command used inside a nested body", true),
-        DiagnosticDef("IRULE5007", "irules", "IRULE5007: Event-context command used at top level outside a wh...", true),
+        DiagnosticDef("IRULE5007", "irules", "IRULE5007: Executable command used on iRules' declaration-only ...", true),
         DiagnosticDef("IRULE3001", "irules_security", "IRULE3001: Tainted data in HTTP response body", true),
         DiagnosticDef("IRULE3002", "irules_security", "IRULE3002: Tainted data in HTTP header or cookie value", true),
         DiagnosticDef("IRULE3003", "irules_security", "IRULE3003: Tainted data in log command", true),

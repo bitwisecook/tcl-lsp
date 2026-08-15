@@ -7222,7 +7222,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**IRULE5007:** Event-context command used at top level outside a `when` block.",
+            "markdownDescription": "**IRULE5007:** Executable command used on iRules' declaration-only top level.",
             "order": 19
           },
           "tclLsp.diagnosticSeverity.IRULE5007": {
@@ -7243,7 +7243,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **IRULE5007:** Event-context command used at top level outside a `when` block.",
+            "markdownDescription": "Display severity for **IRULE5007:** Executable command used on iRules' declaration-only top level.",
             "order": 19
           },
           "tclLsp.diagnostics.IRULE3001": {

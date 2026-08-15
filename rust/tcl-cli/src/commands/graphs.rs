@@ -454,7 +454,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn event_symbols_use_recursive_rooted_normalised_owner() {
+    fn event_symbols_use_top_level_rooted_normalised_owner() {
         let source = "::when http_request {\n  if {1} { :::when client_data {} }\n}";
         let entries = detect_event_entries(source, &LineIndex::new(source), "f5-irules");
         assert_eq!(
@@ -462,7 +462,7 @@ mod tests {
                 .iter()
                 .map(|entry| (entry.name.as_str(), entry.line))
                 .collect::<Vec<_>>(),
-            [("HTTP_REQUEST", Some(1)), ("CLIENT_DATA", Some(2))]
+            [("HTTP_REQUEST", Some(1))]
         );
     }
 

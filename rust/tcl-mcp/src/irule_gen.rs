@@ -1158,13 +1158,13 @@ mod tests {
     }
 
     #[test]
-    fn object_refs_classify_aliases_and_qualified_commands_by_effective_identity() {
+    fn object_refs_ignore_unavailable_aliases_and_keep_qualified_commands() {
         let src = "interp alias {} choose {} pool\nrename class group\nwhen HTTP_REQUEST { choose aliased_pool; ::pool qualified_pool; group match x equals aliased_dg }";
         let blocks = tcl_irules::when_blocks(src);
         let refs = extract_object_refs(src, &blocks);
-        assert!(refs.pools.contains(&"aliased_pool".to_owned()));
+        assert!(!refs.pools.contains(&"aliased_pool".to_owned()));
         assert!(refs.pools.contains(&"qualified_pool".to_owned()));
-        assert!(refs.datagroups.contains(&"aliased_dg".to_owned()));
+        assert!(!refs.datagroups.contains(&"aliased_dg".to_owned()));
     }
 
     #[test]
@@ -1182,16 +1182,19 @@ mod tests {
             generated["events"],
             json!(["CLIENT_ACCEPTED", "HTTP_REQUEST"])
         );
-        assert_eq!(
-            generated["pools"],
-            json!(["/Common/active", "/Common/fallback", "/Common/logging"])
-        );
+        assert_eq!(generated["pools"], json!(["/Common/active"]));
         let script = generated["test_script"].as_str().unwrap();
-        for pool in ["/Common/active", "/Common/fallback", "/Common/logging"] {
-            assert!(
-                script.contains(&format!("::orch::add_pool {pool} ")),
-                "{script}"
-            );
-        }
+        assert!(
+            script.contains("::orch::add_pool /Common/active "),
+            "{script}"
+        );
+        assert!(
+            !script.contains("::orch::add_pool /Common/fallback "),
+            "{script}"
+        );
+        assert!(
+            !script.contains("::orch::add_pool /Common/logging "),
+            "{script}"
+        );
     }
 }

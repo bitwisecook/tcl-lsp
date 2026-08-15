@@ -196,6 +196,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         cmd_tok: Token,
+        scope_path: &[usize],
     ) {
         if !self.profile.is_irules() {
             return;
@@ -215,8 +216,9 @@ impl Analyser {
         self.emit_irule4001_static_write(cmd_name, args, cmd_tok, event_ref);
         self.emit_irule4003_var_scope(cmd_name, args, cmd_tok, event_ref);
         self.emit_irule6001_global_var(cmd_name, args, arg_tokens, cmd_tok, event_ref);
-        self.emit_irule5006_top_level_only(cmd_name, cmd_tok);
-        self.emit_irule5007_event_context(cmd_name, args, cmd_tok, event_ref);
+        let execution_context = self.irules_execution_context(scope_path);
+        self.emit_irule5006_top_level_only(cmd_name, cmd_tok, execution_context);
+        self.emit_irule5007_top_level_executable(cmd_name, cmd_tok, execution_context);
         self.emit_irule5003_loop_bound_inequality(cmd_name, args, arg_tokens);
     }
 
@@ -411,15 +413,17 @@ impl Analyser {
 
     /// **IRULE5006.** A top-level-only command (`when` / `proc` /
     /// `priority` / `timing`) used inside a nested body.
-    fn emit_irule5006_top_level_only(&mut self, cmd_name: &str, cmd_tok: Token) {
-        if self.body_depth == 0 {
-            return;
-        }
-        let is_top_level = self
-            .registry
-            .as_ref()
-            .is_some_and(|r| r.is_irules_top_level_only(cmd_name));
-        if !is_top_level {
+    fn emit_irule5006_top_level_only(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        context: tcl_registry::events::IrulesExecutionContext,
+    ) {
+        let misplaced = self.registry.as_ref().is_some_and(|registry| {
+            registry.irules_command_placement(cmd_name, context)
+                == tcl_registry::events::IrulesCommandPlacement::RequiresTopLevel
+        });
+        if !misplaced {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
@@ -431,41 +435,49 @@ impl Analyser {
         });
     }
 
-    /// **IRULE5007.** An event-context command (one with event
-    /// requirements) used at the top level, outside any `when` block.
-    fn emit_irule5007_event_context(
+    /// **IRULE5007.** An executable command used on iRules' declaration-only
+    /// top level. The registry trait marks the complete allowed declaration
+    /// surface; everything else must execute inside an event or procedure.
+    fn emit_irule5007_top_level_executable(
         &mut self,
         cmd_name: &str,
-        args: &[String],
         cmd_tok: Token,
-        event: Option<&str>,
+        context: tcl_registry::events::IrulesExecutionContext,
     ) {
-        if self.body_depth != 0 || event.is_some() {
-            return;
-        }
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
-        if registry.is_irules_top_level_only(cmd_name) {
-            return;
-        }
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let requires_event = registry.get(cmd_name).is_some_and(|spec| {
-            let requirements = spec.event_requirements_for_args(&arg_refs);
-            requirements.requires.is_some() || !requirements.only_in.is_empty()
-        });
-        if !requires_event {
+        if registry.irules_command_placement(cmd_name, context)
+            != tcl_registry::events::IrulesCommandPlacement::RequiresEventOrProcedure
+        {
             return;
         }
         self.result.diagnostics.push(Diagnostic {
             code: DiagCode::Irule5007,
             span: cmd_tok.span,
             message: format!(
-                "'{cmd_name}' requires an event context — use it inside a `when` block."
+                "'{cmd_name}' is executable and cannot appear at iRules top level — use it inside a `when` block or a top-level `proc`."
             ),
             severity: Severity::Warning,
             fixes: Vec::new(),
         });
+    }
+
+    pub(super) fn irules_execution_context(
+        &self,
+        scope_path: &[usize],
+    ) -> tcl_registry::events::IrulesExecutionContext {
+        use tcl_registry::events::IrulesExecutionContext;
+
+        if self.current_event.is_some() {
+            IrulesExecutionContext::EventBody
+        } else if self.scope_path_in_proc_body(scope_path) {
+            IrulesExecutionContext::ProcedureBody
+        } else if self.body_depth == 0 {
+            IrulesExecutionContext::TopLevel
+        } else {
+            IrulesExecutionContext::InvalidNestedBody
+        }
     }
 
     /// Whether `cmd_name` is the dialect's event-handler command — the
@@ -1358,6 +1370,28 @@ mod tests {
     }
 
     #[test]
+    fn irule5007_rejects_every_executable_top_level_form() {
+        for source in ["set x 1", "puts hello", "call helper", "helper"] {
+            assert!(has(source, "IRULE5007"), "missing IRULE5007 for {source:?}");
+        }
+    }
+
+    #[test]
+    fn irule5007_accepts_exactly_the_registry_declaration_surface() {
+        for source in [
+            "when RULE_INIT {}",
+            "proc helper {} {}",
+            "timing on",
+            "priority 100",
+        ] {
+            assert!(
+                !has(source, "IRULE5007"),
+                "unexpected IRULE5007 for {source:?}"
+            );
+        }
+    }
+
+    #[test]
     fn irule4003_fires_for_cross_event_variable() {
         let src = "when HTTP_REQUEST { set token abc }\nwhen CLIENT_DATA { log local0. $token }";
         assert!(has(src, "IRULE4003"));
@@ -1536,9 +1570,9 @@ mod tests {
                    proc helper {} { when HTTP_REQUEST { target } }";
         assert!(has(src, "IRULE5006"), "when inside proc must be rejected");
         assert!(
-            !has(src, "IRULE5005"),
-            "the invalid handler body remains outside every event context, so \
-             it cannot trigger the event-only direct-proc-call rule"
+            has(src, "IRULE5005"),
+            "the invalid nested handler does not erase its enclosing proc context; \
+             direct proc dispatch still requires `call`"
         );
     }
 
@@ -1704,11 +1738,10 @@ mod tests {
     }
 
     #[test]
-    fn irule5007_event_form_requires_context_only_for_the_read_form() {
-        // The form resolver is shared with IRULE1001. A map configuration at
-        // top level is allowed, while a live FIX-message read still needs its
-        // event context — neither branch knows the command name.
-        assert!(!has("FIX::tag map set client_1 tag_map", "IRULE5007"));
+    fn irule5007_rejects_all_executable_forms_at_top_level() {
+        // Form resolution may refine an executable command's event contract,
+        // but it cannot turn that command into a top-level declaration.
+        assert!(has("FIX::tag map set client_1 tag_map", "IRULE5007"));
         assert!(has("FIX::tag get 49", "IRULE5007"));
     }
 

@@ -1030,7 +1030,14 @@ impl Analyser {
         arg_tokens_in: &[Token],
         scope_path: &[usize],
     ) {
-        if cmd_name != "call" || !self.profile.is_irules() {
+        if !self.profile.is_irules()
+            || !self.registry.as_deref().is_some_and(|registry| {
+                registry.get(cmd_name).is_some_and(|spec| {
+                    spec.traits
+                        .contains(tcl_registry::Traits::INVOKES_USER_PROC)
+                })
+            })
+        {
             return;
         }
         let (Some(target_name), Some(target_tok)) = (args.first(), arg_tokens_in.get(1).copied())
@@ -1472,11 +1479,13 @@ impl Analyser {
             });
         }
 
-        if resolves_to_proc
-            && cmd_name != "call"
-            && self.current_event.is_some()
-            && self.profile.is_irules()
-        {
+        let irules_proc_dispatch_context = self.profile.is_irules()
+            && matches!(
+                self.irules_execution_context(scope_path),
+                tcl_registry::events::IrulesExecutionContext::EventBody
+                    | tcl_registry::events::IrulesExecutionContext::ProcedureBody
+            );
+        if resolves_to_proc && irules_proc_dispatch_context {
             let suffix = if args.is_empty() {
                 String::new()
             } else {
@@ -1681,7 +1690,7 @@ impl Analyser {
         self.emit_irule2001_matchclass(cmd_name, arg_tokens, cmd_tok);
         // IRULE1003 / 1004 / 2101 / 4001 / 4003 / 5001 / 6001 —
         // analyser-level iRules event-context checks (f5-irules only).
-        self.emit_irules_event_checks(cmd_name, args, arg_tokens, cmd_tok);
+        self.emit_irules_event_checks(cmd_name, args, arg_tokens, cmd_tok, scope_path);
         // TK1001 / TK1002 / TK1003 — Tk-dialect widget + geometry checks
         // (tk dialect only); the TK1001 conflict is flushed post-walk.
         self.emit_tk_checks(cmd_name, args, arg_tokens, cmd_tok);
@@ -5841,10 +5850,30 @@ mod tests {
     }
 
     #[test]
-    fn irule5005_quiet_outside_event_context() {
-        // Top-level direct call, no `when` block — not an iRules-event call.
-        let src = "proc helper {} { return 1 }\nhelper";
+    fn irule5005_fires_for_direct_proc_call_from_proc() {
+        let src = "proc helper {} { return 1 }\nproc caller {} { helper }\nwhen RULE_INIT { call caller }";
+        assert!(has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_fires_for_direct_proc_call_in_proc_command_substitution() {
+        let src = "proc helper {} { return 1 }\nproc caller {} { set x [helper] }\nwhen RULE_INIT { call caller }";
+        assert!(has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_quiet_for_call_prefix_from_proc() {
+        let src = "proc helper {} { return 1 }\nproc caller {} { call helper }\nwhen RULE_INIT { call caller }";
         assert!(!has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5007_rejects_direct_or_call_prefixed_proc_at_top_level() {
+        for invocation in ["helper", "call helper"] {
+            let src = format!("proc helper {{}} {{ return 1 }}\n{invocation}");
+            assert!(has_code(&src, "f5-irules", "IRULE5007"));
+            assert!(!has_code(&src, "f5-irules", "IRULE5005"));
+        }
     }
 
     #[test]
