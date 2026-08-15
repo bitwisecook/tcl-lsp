@@ -29,7 +29,7 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{self, Write};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_core_types::RecursionLimit;
@@ -405,6 +405,21 @@ pub(crate) enum CommandSidecarKey {
     Hidden(String),
 }
 
+/// Relocation-aware identity held by an in-flight command operation.
+///
+/// Hide, expose, and rename move a command's sidecar domain while its body may
+/// still be running. Every active consumer shares this cell, so a relocation
+/// updates coroutine parking/retirement and execution-trace leave delivery as
+/// one operation.
+#[derive(Clone, Debug)]
+pub(crate) struct CommandSidecarHandle(Rc<RefCell<CommandSidecarKey>>);
+
+impl CommandSidecarHandle {
+    pub(crate) fn key(&self) -> CommandSidecarKey {
+        self.0.borrow().clone()
+    }
+}
+
 impl CommandSidecarKey {
     pub(crate) fn visible(name: impl Into<String>) -> Self {
         Self::Visible(name.into())
@@ -559,6 +574,9 @@ pub struct InterpState {
     /// `trace add execution` registrations (`enter`/`leave`/`enterstep`/
     /// `leavestep` ops), keyed like [`Self::cmd_traces`] and moved on rename.
     pub(crate) exec_traces: HashMap<CommandSidecarKey, Vec<Rc<CmdTraceEntry>>>,
+    /// Weak registry of in-flight sidecar identities. Relocation updates live
+    /// handles without retaining completed invocations.
+    active_sidecar_handles: Vec<Weak<RefCell<CommandSidecarKey>>>,
     /// Step-trace scopes currently active: one entry per `enterstep`/
     /// `leavestep`-bearing trace of each traced proc whose body is running.
     /// Every command dispatched while non-empty fires these (C's step
@@ -1123,6 +1141,7 @@ impl InterpState {
             var_traces: HashMap::new(),
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
+            active_sidecar_handles: Vec::new(),
             exec_step_scopes: Vec::new(),
             trace_deopt_epoch: std::cell::Cell::new(0),
             trace_in_progress: std::cell::Cell::new(false),
@@ -4219,6 +4238,7 @@ impl Vm {
     pub(crate) fn on_command_renamed_traces(&mut self, old_key: &str, new_key: &str) {
         let old_key = CommandSidecarKey::visible(old_key);
         let new_key = CommandSidecarKey::visible(new_key);
+        self.relocate_active_sidecars(&old_key, &new_key);
         let mut moved_trace = false;
         if !self.cmd_traces.is_empty() {
             self.fire_command_traces_for(&old_key, &format!("::{}", new_key.name()), "rename");
@@ -4241,6 +4261,7 @@ impl Vm {
     /// Move trace registrations with a command through the hidden table.  A
     /// hide/expose is not a Tcl rename, so no callback is fired.
     fn move_command_traces(&mut self, old_key: &CommandSidecarKey, new_key: CommandSidecarKey) {
+        self.relocate_active_sidecars(old_key, &new_key);
         let mut moved = false;
         if let Some(entries) = self.cmd_traces.remove(old_key) {
             self.cmd_traces.insert(new_key.clone(), entries);
@@ -4253,6 +4274,32 @@ impl Vm {
         if moved {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
+    }
+
+    /// Create an active identity that follows this command through every
+    /// visible/hidden/renamed sidecar relocation.
+    pub(crate) fn active_sidecar(&mut self, key: CommandSidecarKey) -> CommandSidecarHandle {
+        self.active_sidecar_handles
+            .retain(|handle| handle.strong_count() != 0);
+        let cell = Rc::new(RefCell::new(key));
+        self.active_sidecar_handles.push(Rc::downgrade(&cell));
+        CommandSidecarHandle(cell)
+    }
+
+    fn relocate_active_sidecars(
+        &mut self,
+        old_key: &CommandSidecarKey,
+        new_key: &CommandSidecarKey,
+    ) {
+        self.active_sidecar_handles.retain(|weak| {
+            let Some(handle) = weak.upgrade() else {
+                return false;
+            };
+            if *handle.borrow() == *old_key {
+                *handle.borrow_mut() = new_key.clone();
+            }
+            true
+        });
     }
 
     /// The traces on `name` as `(ops, command)` pairs (newest first), for

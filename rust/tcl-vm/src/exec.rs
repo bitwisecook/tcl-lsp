@@ -36,7 +36,7 @@ use tcl_syntax::value::string_char_len;
 
 use crate::command::{Command, ProcDef};
 use crate::expr;
-use crate::interp::{CommandSidecarKey, Vm, err, ok};
+use crate::interp::{CommandSidecarHandle, CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
 
 /// Active `foreach` iteration state (C Tcl `ForeachInfo` + the loop counters).
@@ -205,7 +205,7 @@ pub(crate) struct Frame {
 /// pushed (popped before firing).
 pub(crate) struct ExecLeaveCtx {
     cmd_string: String,
-    key: CommandSidecarKey,
+    key: CommandSidecarHandle,
     step_scopes: usize,
 }
 
@@ -4040,7 +4040,7 @@ impl Vm {
         }
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key,
+            key: self.active_sidecar(key),
             step_scopes: pushed,
         };
         match self.dispatch_words_inner(f, words) {
@@ -4109,7 +4109,7 @@ impl Vm {
             ]
         };
         let mut replacement = None;
-        if let Some(entries) = self.exec_traces.get(&ctx.key).cloned() {
+        if let Some(entries) = self.exec_traces.get(&ctx.key.key()).cloned() {
             for e in entries {
                 if e.has_op("leave") {
                     let r = self.run_cmd_trace_callback(&e, &args("leave"));
@@ -4356,7 +4356,7 @@ impl Vm {
         }
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key,
+            key: self.active_sidecar(key),
             step_scopes: pushed,
         };
         let c = self.invoke_command_inner(name, argv);
@@ -4433,7 +4433,7 @@ impl Vm {
         let sidecar = trace_key.clone();
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: trace_key,
+            key: self.active_sidecar(trace_key),
             step_scopes: pushed,
         };
         let c = self.invoke_resolved_command_inner(display_name, command, argv, Some(sidecar));

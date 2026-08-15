@@ -897,6 +897,115 @@ fn vendor_profile_masks_differ_from_the_plain_release() {
     );
 }
 
+const SELF_HIDING_COROUTINE: &str = r"
+set first [coroutine c apply {{} {
+    interp hide {} [info coroutine] held
+    yield first
+    interp expose {} held d
+    yield second
+    return done
+}}]
+puts [list $first [interp invokehidden {} held] [d] [interp hidden {}]]
+";
+
+const SELF_HIDING_TRACED_COMMAND: &str = r"
+set log {}
+proc tr args {lappend ::log $args}
+proc p {} {interp hide {} p held; return ok}
+trace add execution p {enter leave} tr
+set result [p]
+puts [list $result $log [interp hidden {}]]
+";
+
+const SELF_EXPOSING_TRACED_COMMAND: &str = r"
+set log {}
+proc tr args {lappend ::log $args}
+proc p {} {interp expose {} held q; return ok}
+trace add execution p {enter leave} tr
+interp hide {} p held
+set result [interp invokehidden {} held]
+puts [list $result $log [info commands q] [interp hidden {}]]
+";
+
+const SELF_RENAMING_TRACED_COMMAND: &str = r"
+set log {}
+proc tr args {lappend ::log $args}
+proc p {} {rename p q; return ok}
+trace add execution p {enter leave} tr
+set result [p]
+puts [list $result $log [info commands q]]
+";
+
+const SELF_HIDING_TRACED_ERROR: &str = r"
+set log {}
+proc tr args {lappend ::log $args}
+proc p {} {interp hide {} p held; error boom}
+trace add execution p {enter leave} tr
+set code [catch {p} result]
+puts [list $code $result $log [interp hidden {}]]
+";
+
+#[test]
+fn active_coroutine_and_execution_trace_follow_self_hide() {
+    for profile in [
+        DialectProfile::by_name("tcl8.6"),
+        DialectProfile::by_name("tcl9.0"),
+    ] {
+        assert_eq!(
+            profile_output(SELF_HIDING_COROUTINE, profile),
+            "first second done {}"
+        );
+        assert_eq!(
+            profile_output(SELF_HIDING_TRACED_COMMAND, profile),
+            "ok {{p enter} {p 0 ok leave}} held"
+        );
+        assert_eq!(
+            profile_output(SELF_EXPOSING_TRACED_COMMAND, profile),
+            "ok {{held enter} {held 0 ok leave}} q {}"
+        );
+        assert_eq!(
+            profile_output(SELF_RENAMING_TRACED_COMMAND, profile),
+            "ok {{p enter} {p 0 ok leave}} q"
+        );
+        assert_eq!(
+            profile_output(SELF_HIDING_TRACED_ERROR, profile),
+            "1 boom {{p enter} {p 1 boom leave}} held"
+        );
+    }
+}
+
+#[test]
+fn self_hide_vectors_match_real_tcl_when_available() {
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6", "tclsh"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        for (script, expected) in [
+            (SELF_HIDING_COROUTINE, "first second done {}"),
+            (
+                SELF_HIDING_TRACED_COMMAND,
+                "ok {{p enter} {p 0 ok leave}} held",
+            ),
+            (
+                SELF_EXPOSING_TRACED_COMMAND,
+                "ok {{held enter} {held 0 ok leave}} q {}",
+            ),
+            (
+                SELF_RENAMING_TRACED_COMMAND,
+                "ok {{p enter} {p 0 ok leave}} q",
+            ),
+            (
+                SELF_HIDING_TRACED_ERROR,
+                "1 boom {{p enter} {p 1 boom leave}} held",
+            ),
+        ] {
+            if let Some(actual) = tclsh_output(env, names, script) {
+                assert_eq!(actual, expected, "{env}");
+            }
+        }
+    }
+}
+
 /// Run `src` under a real tclsh, or `None` when that binary isn't available.
 fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
     use std::io::Write as _;

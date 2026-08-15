@@ -45,7 +45,7 @@ use tcl_runtime_api::Completion;
 
 use crate::command::Command;
 use crate::exec::{Frame, RunExit, YieldReq};
-use crate::interp::{CommandSidecarKey, ParkedFlow, Vm, err, ok};
+use crate::interp::{CommandSidecarHandle, CommandSidecarKey, ParkedFlow, Vm, err, ok};
 use crate::value::Value;
 
 /// The coroutine subsystem held by the [`Vm`].
@@ -104,7 +104,7 @@ enum SuspendKind {
 /// A driver frame for an in-flight `resume`: which coroutine, and the
 /// `activation_depth` its `drive` started at (for the yield-boundary check).
 struct CoroHandle {
-    key: CommandSidecarKey,
+    key: CommandSidecarHandle,
     base_depth: usize,
 }
 
@@ -124,8 +124,8 @@ pub(crate) fn current_coroutine(vm: &Vm) -> Value {
         // A coroutine that deleted its own command (`rename [info coroutine] {}`)
         // is no longer live even though its driver is still on the stack; C Tcl
         // then reports `[info coroutine]` as empty (coroutine-3.5).
-        Some(h) if vm.coro.live.contains_key(&h.key) => {
-            Value::string(format!("::{}", h.key.name()))
+        Some(h) if vm.coro.live.contains_key(&h.key.key()) => {
+            Value::string(format!("::{}", h.key.key().name()))
         }
         _ => Value::empty(),
     }
@@ -324,8 +324,9 @@ fn resume(
     // interp state (reached through `Deref`), so read the depth into a local
     // before the push to avoid overlapping the whole-`Vm` deref borrow.
     let base_depth = vm.activation_depth + 1;
+    let active_key = vm.active_sidecar(key.clone());
     vm.coro.stack.push(CoroHandle {
-        key: key.clone(),
+        key: active_key.clone(),
         base_depth,
     });
     // Deliver the resume value where the parked `yield`'s result belongs. A Fresh
@@ -351,7 +352,7 @@ fn resume(
                 // is restored, and the error propagates.
                 vm.coro.stack.pop();
                 vm.swap_flow(&mut parked);
-                teardown_coro(vm, key);
+                teardown_coro(vm, &active_key.key());
                 return r;
             }
         }
@@ -362,6 +363,7 @@ fn resume(
     vm.coro.stack.pop();
     // Swap the resumer's flow back in; `parked` again holds the coroutine's flow.
     vm.swap_flow(&mut parked);
+    let key = active_key.key();
 
     match exit {
         RunExit::Yielded(req) => {
@@ -370,7 +372,7 @@ fn resume(
                 YieldReq::YieldTo(_) => SuspendKind::YieldTo,
             };
             // Park the coroutine (its frozen stack + flow) for the next resume.
-            if let Some(state) = vm.coro.live.get_mut(key) {
+            if let Some(state) = vm.coro.live.get_mut(&key) {
                 state.acts = acts;
                 state.parked = parked;
                 state.status = CoroStatus::Suspended;
@@ -389,7 +391,7 @@ fn resume(
         RunExit::Done(c) => {
             // The body finished: remove the command + state (unless `exit` is
             // propagating, in which case leave teardown to the unwinding caller).
-            teardown_coro(vm, key);
+            teardown_coro(vm, &key);
             c
         }
     }
@@ -520,14 +522,15 @@ fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // and its locals resolve), then restore the caller's flow.
     vm.swap_flow(&mut parked);
     let base_depth = vm.activation_depth + 1;
+    let active_key = vm.active_sidecar(CommandSidecarKey::visible(&fqn));
     vm.coro.stack.push(CoroHandle {
-        key: CommandSidecarKey::visible(&fqn),
+        key: active_key.clone(),
         base_depth,
     });
     let result = vm.invoke_command(&cmd.to_str(), rest);
     vm.coro.stack.pop();
     vm.swap_flow(&mut parked);
-    if let Some(state) = vm.coro.live.get_mut(&CommandSidecarKey::visible(&fqn)) {
+    if let Some(state) = vm.coro.live.get_mut(&active_key.key()) {
         state.parked = parked;
         state.status = CoroStatus::Suspended;
     }
