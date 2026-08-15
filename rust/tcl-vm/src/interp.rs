@@ -3752,6 +3752,11 @@ impl Vm {
                 source.clone_from(new_key);
             }
         }
+        for source in self.hidden_imported_commands.values_mut() {
+            if source == old_key {
+                source.clone_from(new_key);
+            }
+        }
     }
 
     /// Restore a renamed imported command's own origin record.
@@ -3800,9 +3805,13 @@ impl Vm {
             }
             self.imported_commands
                 .iter()
-                .filter(|(key, origin)| {
+                .filter(|(key, _)| {
                     split_key(key).0 == cur && {
-                        let (o_ns, o_tail) = split_key(origin.name());
+                        // C's TclGetOriginalCommand follows an import chain;
+                        // qualified forget matches that ultimate source, not
+                        // merely the immediately imported alias.
+                        let origin = self.command_origin_key(key);
+                        let (o_ns, o_tail) = split_key(&origin);
                         o_ns == src_ns && tcl_syntax::glob::string_match(simple, o_tail)
                     }
                 })

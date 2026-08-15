@@ -437,6 +437,64 @@ fn renamed_imports_preserve_origin_through_nested_imports() {
     }
 }
 
+/// Hiding an imported command moves its provenance into the hidden-token
+/// sidecar.  Renaming the source while that import is hidden must retarget the
+/// hidden provenance too, so exposing it restores the same live source-token
+/// relationship that C Tcl preserves.  Imports from a named child namespace
+/// and through two nested consumers follow the restored root import, and
+/// qualified `namespace forget` recognises the source's new name through every
+/// import layer.  The equal visible `held` command pins the typed
+/// visible/hidden key domains: it must neither capture nor be captured by the
+/// hidden token.
+#[test]
+fn source_rename_retargets_hidden_import_provenance() {
+    let src = concat!(
+        "namespace eval outer::src {proc a {} {return imported}; namespace export a}\n",
+        "proc held {} {return visible}\n",
+        "namespace import ::outer::src::a; namespace export a\n",
+        "namespace eval one {namespace import ::a; namespace export a}\n",
+        "namespace eval two {namespace import ::one::a}\n",
+        "interp hide {} a held\n",
+        "rename ::outer::src::a ::outer::src::b\n",
+        "interp expose {} held a\n",
+        "puts \"root=[namespace origin a];[a]\"\n",
+        "puts \"one=[namespace origin ::one::a];[::one::a]\"\n",
+        "puts \"two=[namespace origin ::two::a];[::two::a]\"\n",
+        "puts \"collision=[held]\"\n",
+        "namespace eval two {namespace forget ::outer::src::b}\n",
+        "namespace eval one {namespace forget ::outer::src::b}\n",
+        "namespace forget ::outer::src::b\n",
+        "puts \"forgot=[info commands a],[info commands ::one::a],[info commands ::two::a]\"\n",
+    );
+    let want = concat!(
+        "root=::outer::src::b;imported\n",
+        "one=::outer::src::b;imported\n",
+        "two=::outer::src::b;imported\n",
+        "collision=visible\n",
+        "forgot=,,",
+    );
+    for version in [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        assert_eq!(
+            vm_output(src, version),
+            want,
+            "[{version:?}] hidden imported provenance retarget"
+        );
+    }
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] real Tcl oracle");
+        }
+    }
+}
+
 /// A refused alias rename must undo the retargeting of every import that had
 /// followed the provisional new name.  This covers direct and nested
 /// `namespace origin` lookups, and proves qualified `namespace forget` still
