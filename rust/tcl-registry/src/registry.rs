@@ -6539,6 +6539,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // Expect oracle layout matrix
     fn expect_inline_flag_table_matches_the_oracle() {
         let expect = crate::registry_for_dialect("expect");
         for flag in [
@@ -6580,6 +6581,14 @@ mod tests {
                     .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
                     .is_some(),
                 "unique abbreviation {flag} must parse"
+            );
+        }
+        for flag in ["-g", "-r", "-e", "-noc", "-nob"] {
+            assert!(
+                expect
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .is_some(),
+                "unique canonical-prefix {flag} must remain an inline clause flag"
             );
         }
         for flag in ["-n", "-bogus"] {
@@ -6633,6 +6642,77 @@ mod tests {
                 .is_none(),
             "-brace is exact-only, so -b is not a clause flag abbreviation"
         );
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["-brac", "{default {return FOLDED}}"],
+                    DialectSet::EXPECT,
+                )
+                .is_none(),
+            "-brace must not accept a near-complete prefix either"
+        );
+        let (_, after_value) = expect
+            .case_invocation(
+                "expect",
+                &["-timeout", "5", "-brace", "{default {return FOLDED}}"],
+                DialectSet::EXPECT,
+            )
+            .expect("an exact shape selector remains visible after outer values");
+        assert_eq!(after_value.clause_list_index, Some(3));
+    }
+
+    #[test]
+    fn subjectless_case_list_defers_clause_flags_after_outer_value_options() {
+        use crate::hover::{OptionSpec, OptionValue};
+        use crate::spec::CaseListSpec;
+
+        // This deliberately does not name `expect`: a future descriptor with
+        // one value-taking outer option and one overlapping clause flag must
+        // use the same precedence rule. The body is the observable proof that
+        // `-clause` was not swallowed by the outer scan.
+        let case = CaseListSpec {
+            subject_args: 0,
+            regex_option: None,
+            exact_option: None,
+            glob_option: None,
+            nocase_option: None,
+            end_options_option: Some("--"),
+            fallthrough_body: None,
+            value_options_require_regex: &[],
+            clause_flags: &["-clause", "--"],
+            clause_regex_flag: None,
+            clause_value_flags: &[],
+            clause_end_options_flag: Some("--"),
+            clause_force_inline_flag: None,
+            clause_force_list_flag: None,
+            allow_omitted_final_body: true,
+            keyword_patterns: &[],
+            keyword_patterns_require_final: false,
+            warn_unbraced_bodies: false,
+        };
+        let options = [
+            OptionSpec {
+                name: "-outer",
+                value: OptionValue::value("value"),
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "-clause",
+                ..OptionSpec::DEFAULT
+            },
+        ];
+        let option_refs: Vec<&OptionSpec> = options.iter().collect();
+        let args = ["-outer", "value", "-clause", "pattern", "{body}"];
+        let invocation = case
+            .invocation(&args, &option_refs)
+            .expect("the outer value must precede, not consume, the clause flag");
+        assert_eq!(invocation.inline_clause_start, Some(2));
+        let clauses = case
+            .inline_clauses(&args, invocation.inline_clause_start.unwrap())
+            .expect("the deferred flag must retain the action body");
+        assert_eq!(clauses[0].pattern_index, 3);
+        assert_eq!(clauses[0].body_index, Some(4));
     }
 
     /// The whole registry-declared boundary surface, resolved by name: every

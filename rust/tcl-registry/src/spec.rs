@@ -464,12 +464,11 @@ impl CaseListSpec {
         let mut nocase = false;
         let mut saw_regex_value_option = false;
         let mut i = 0usize;
-        let force_list = self
-            .clause_force_list_flag
-            .is_some_and(|flag| args.first() == Some(&flag));
-        let force_inline = self
-            .clause_force_inline_flag
-            .is_some_and(|flag| args.first() == Some(&flag));
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: self.clause_flags,
+            clause_value_flags: self.clause_value_flags,
+        };
+        let mut outer_options_ended = false;
         // Segmenters pass a braced Expect clause list as one content word;
         // its first element may itself begin with `-re`/`-timeout`, which is
         // clause grammar, not a command-level option.  A flag-bearing,
@@ -482,18 +481,37 @@ impl CaseListSpec {
                 if !word.starts_with('-') {
                     break;
                 }
+                let option = Self::resolve_option(options, word);
+                // A subjectless descriptor has two option vocabularies at
+                // this position. Its clause flags own the first inline
+                // clause, including `--`; only a matching, value-taking
+                // command option remains an outer option. This keeps `-re`
+                // and friends attached to their pattern while still making
+                // `-timeout 5 {pattern body}` an action-less final pattern.
+                // The outer-shape selectors are exact descriptor spellings:
+                // `-brace` is deliberately not a prefix abbreviation.
+                let clause_flag = shape.resolve_flag(word);
+                let force_selector = self.clause_force_inline_flag == Some(word)
+                    || self.clause_force_list_flag == Some(word);
+                if self.subject_args == 0
+                    && (force_selector
+                        || clause_flag.is_some_and(|flag| {
+                            !shape.flag_takes_value(flag)
+                                || !option.is_some_and(OptionSpec::takes_value)
+                        }))
+                {
+                    break;
+                }
                 // `--` is a descriptor-owned terminator, not necessarily a
                 // documented option entry. Recognise it before looking up a
                 // command option so the following hyphenated subject remains
                 // positional (notably `switch -- -x {...}`).
                 if self.end_options_option == Some(word) {
                     i += 1;
+                    outer_options_ended = true;
                     break;
                 }
-                let option = options
-                    .iter()
-                    .copied()
-                    .find(|option| option.matches(word))?;
+                let option = option?;
                 let option_name = option.name;
                 if self.exact_option == Some(option_name) {
                     mode = CaseMatchMode::Exact;
@@ -521,6 +539,22 @@ impl CaseListSpec {
         if saw_regex_value_option && mode != CaseMatchMode::Regexp {
             return None;
         }
+        // Selectors are descriptor syntax, not ordinary command options.
+        // They are considered only while the outer scan is active: after an
+        // outer `--`, an option-shaped word is positional data instead.
+        let force_list =
+            !outer_options_ended && self.clause_force_list_flag == args.get(i).copied();
+        let force_inline =
+            !outer_options_ended && self.clause_force_inline_flag == args.get(i).copied();
+        if force_list {
+            i += 1;
+        } else if force_inline && shape.resolve_flag(args[i]).is_none() {
+            // When the inline selector is itself a clause flag (Expect's
+            // `-nobrace`), leave it to `inline_clauses` so consumers retain
+            // its decorator location. A selector outside that vocabulary is
+            // shape-only and is not part of the first clause.
+            i += 1;
+        }
         let subject_index = (self.subject_args == 1).then_some(i);
         i += usize::from(self.subject_args);
         if i >= args.len() {
@@ -528,8 +562,7 @@ impl CaseListSpec {
         }
         let remaining = args.len() - i;
         if force_list {
-            i = 1;
-            if args.len() != 2 || !self.valid_clause_list(args[i]) {
+            if remaining != 1 || !self.valid_clause_list(args[i]) {
                 return None;
             }
             Some(CaseInvocation {
@@ -582,6 +615,31 @@ impl CaseListSpec {
         } else {
             None
         }
+    }
+
+    /// Resolve one outer option exactly or by its unique declared prefix.
+    ///
+    /// The result is an `OptionSpec`, rather than just its spelling, because
+    /// aliases and canonical names are one option for ambiguity purposes.
+    /// That makes descriptor consumers agree with the registry's usual
+    /// `KeywordTable` option semantics without treating two aliases of one
+    /// option as two ambiguous candidates.
+    fn resolve_option<'a>(options: &'a [&'a OptionSpec], word: &str) -> Option<&'a OptionSpec> {
+        if let Some(option) = options.iter().copied().find(|option| option.matches(word)) {
+            return Some(option);
+        }
+        if word.len() < 2 {
+            return None;
+        }
+        let mut matches = options.iter().copied().filter(|option| {
+            (option.name.starts_with(word)
+                || option.aliases.iter().any(|alias| alias.starts_with(word)))
+                && option
+                    .min_abbrev
+                    .is_none_or(|minimum| word.len() >= usize::from(minimum))
+        });
+        let option = matches.next()?;
+        matches.next().is_none().then_some(option)
     }
 
     fn valid_clause_list(self, text: &str) -> bool {
