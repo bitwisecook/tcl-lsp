@@ -501,8 +501,10 @@ mod tests {
         let src = "proc greet {} {\n    set x 1\n}\n";
         let analysis = analyse(src);
         let ranges = selection_range(src, 1, 8, Some(&analysis));
-        // At least: word + line + body + doc.
-        assert!(ranges.len() >= 4, "{ranges:?}");
+        // Strict containment removes a line/command link when clamping makes
+        // it equal to the proc body: word + body + document is the minimal
+        // valid chain here.
+        assert!(ranges.len() >= 3, "{ranges:?}");
         // Find the body link — its start_line should be 0
         // (the opening `{` line) and end_line >= 2.
         let body_link = ranges
