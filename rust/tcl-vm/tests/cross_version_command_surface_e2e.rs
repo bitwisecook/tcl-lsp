@@ -1023,6 +1023,21 @@ set result [p]
 puts [list $result $log]
 ";
 
+// Removing one pending registration skips only that entry; later entries in
+// the captured Tcl trace list still fire.
+const EXECUTION_TRACE_REMOVAL_CONTINUES_SNAPSHOT: &str = r"
+set log {}
+proc p {} {return ok}
+proc a args {lappend ::log A}
+proc b args {lappend ::log B}
+proc c args {lappend ::log C; trace remove execution p enter b}
+trace add execution p enter a
+trace add execution p enter b
+trace add execution p enter c
+p
+puts $log
+";
+
 #[test]
 fn active_coroutine_and_execution_trace_follow_self_hide() {
     for profile in [
@@ -1061,6 +1076,10 @@ fn active_coroutine_and_execution_trace_follow_self_hide() {
             profile_output(EXECUTION_TRACE_ORDER_AND_LEAVE_RESULT_CHAIN, profile),
             "ORIG {{B p enter} {A p enter} {A p 0 ORIG leave} {B p 0 R1 leave}}"
         );
+        assert_eq!(
+            profile_output(EXECUTION_TRACE_REMOVAL_CONTINUES_SNAPSHOT, profile),
+            "C A"
+        );
     }
 }
 
@@ -1097,6 +1116,7 @@ fn self_hide_vectors_match_real_tcl_when_available() {
                 EXECUTION_TRACE_ORDER_AND_LEAVE_RESULT_CHAIN,
                 "ORIG {{B p enter} {A p enter} {A p 0 ORIG leave} {B p 0 R1 leave}}",
             ),
+            (EXECUTION_TRACE_REMOVAL_CONTINUES_SNAPSHOT, "C A"),
         ] {
             if let Some(actual) = tclsh_output(env, names, script) {
                 assert_eq!(actual, expected, "{env}");

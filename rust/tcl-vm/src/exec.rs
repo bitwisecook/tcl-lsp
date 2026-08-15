@@ -4038,8 +4038,11 @@ impl Vm {
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in own.iter().rev() {
-            if !self.exec_trace_entry_live(&sidecar, entry) {
+            if !sidecar.is_attached() {
                 break;
+            }
+            if !self.exec_trace_entry_live(&sidecar, entry) {
+                continue;
             }
             if entry.has_op("enter") {
                 let r = self.run_cmd_trace_callback(
@@ -4053,8 +4056,11 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in own.iter().rev() {
-            if !self.exec_trace_entry_live(&sidecar, entry) {
+            if !sidecar.is_attached() {
                 break;
+            }
+            if !self.exec_trace_entry_live(&sidecar, entry) {
+                continue;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
                 self.exec_step_scopes.push(ExecStepScope {
@@ -4142,8 +4148,11 @@ impl Vm {
             && let Some(entries) = self.exec_traces.get(&key).cloned()
         {
             for e in entries {
-                if !self.exec_trace_entry_live(&ctx.key, &e) {
+                if !ctx.key.is_attached() {
                     break;
+                }
+                if !self.exec_trace_entry_live(&ctx.key, &e) {
+                    continue;
                 }
                 if e.has_op("leave") {
                     let r = self.run_cmd_trace_callback(&e, &args(trace_result.clone(), "leave"));
@@ -4400,8 +4409,11 @@ impl Vm {
         let sidecar = self.active_sidecar(key.clone());
         let own = self.exec_traces.get(&key).cloned().unwrap_or_default();
         for entry in own.iter().rev() {
-            if !self.exec_trace_entry_live(&sidecar, entry) {
+            if !sidecar.is_attached() {
                 break;
+            }
+            if !self.exec_trace_entry_live(&sidecar, entry) {
+                continue;
             }
             if entry.has_op("enter") {
                 let r = self.run_cmd_trace_callback(
@@ -4415,8 +4427,11 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in own.iter().rev() {
-            if !self.exec_trace_entry_live(&sidecar, entry) {
+            if !sidecar.is_attached() {
                 break;
+            }
+            if !self.exec_trace_entry_live(&sidecar, entry) {
+                continue;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
                 self.exec_step_scopes.push(ExecStepScope {
@@ -4487,8 +4502,11 @@ impl Vm {
             .cloned()
             .unwrap_or_default();
         for entry in own.iter().rev() {
-            if !self.exec_trace_entry_live(&sidecar, entry) {
+            if !sidecar.is_attached() {
                 break;
+            }
+            if !self.exec_trace_entry_live(&sidecar, entry) {
+                continue;
             }
             if entry.has_op("enter") {
                 let r = self.run_cmd_trace_callback(
@@ -4502,8 +4520,11 @@ impl Vm {
         }
         let mut pushed = 0usize;
         for entry in own.iter().rev() {
-            if !self.exec_trace_entry_live(&sidecar, entry) {
+            if !sidecar.is_attached() {
                 break;
+            }
+            if !self.exec_trace_entry_live(&sidecar, entry) {
+                continue;
             }
             if entry.has_op("enterstep") || entry.has_op("leavestep") {
                 self.exec_step_scopes.push(ExecStepScope {
