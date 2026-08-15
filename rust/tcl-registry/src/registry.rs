@@ -411,6 +411,22 @@ shared_group!(
 );
 
 impl CommandRegistry {
+    /// Whether `keyword` is declared by any loaded definition-body grammar.
+    ///
+    /// This query is for command-table identity only: an `interp alias` may
+    /// target a context-sensitive class/member keyword that has no standalone
+    /// [`CommandSpec`]. The grammar remains the authority for recognising it
+    /// at the eventual definition-body call site.
+    #[must_use]
+    pub fn is_definition_member_keyword(&self, keyword: &str) -> bool {
+        let keyword = keyword.trim_start_matches("::");
+        self.by_name
+            .values()
+            .flatten()
+            .filter_map(|spec| spec.definition_body)
+            .any(|grammar| grammar.is_member(keyword))
+    }
+
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
     #[must_use]
     pub fn build_default() -> Self {

@@ -288,7 +288,8 @@ impl<'a> CommentLineWalker<'a> {
                 self.identities.head_words(written, at).resolved,
                 self.registry,
             );
-            let member = definition_grammar.and_then(|grammar| grammar.member(&name));
+            let member_name = name.trim_start_matches("::");
+            let member = definition_grammar.and_then(|grammar| grammar.member(member_name));
             let body_indices = member.map_or_else(
                 || {
                     self.registry
@@ -297,7 +298,7 @@ impl<'a> CommentLineWalker<'a> {
                 |_| {
                     definition_grammar
                         .expect("member has grammar")
-                        .member_body_indices_in(&name, &args, self.availability)
+                        .member_body_indices_in(member_name, &args, self.availability)
                 },
             );
             let next_grammar =

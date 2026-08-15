@@ -1546,7 +1546,7 @@ fn special_arg_kinds(
     insert_lambda_literal_overrides(seg, registry, head, deferred_role, &mut overrides);
     insert_case_list_override(seg, registry, head, dialect, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
-    insert_oo_body_overrides(seg, oo_grammar, arg_texts, dialect, &mut overrides);
+    insert_oo_body_overrides(seg, oo_grammar, head, arg_texts, dialect, &mut overrides);
     insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
     insert_multiname_var_overrides(seg, registry, head, arg_texts, oo_grammar, &mut overrides);
     insert_ref_var_overrides(seg, registry, head, &mut overrides);
@@ -1774,6 +1774,7 @@ fn insert_scoped_subcommand_overrides(
 fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    head: &str,
     arg_texts: &[&str],
     dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
@@ -1786,7 +1787,7 @@ fn insert_oo_body_overrides(
     insert_oo_member_overrides(
         seg,
         grammar,
-        &seg.texts[0].clone(),
+        head.trim_start_matches("::"),
         arg_texts,
         0,
         dialect,
@@ -4624,8 +4625,8 @@ fn emit_command_head(
     // same-named user proc outside a definition body is unaffected.  This
     // covers the snit-specific members (`typemethod`, `typeconstructor`,
     // `onconfigure`, …) that [`is_language_keyword_sub_keyword`] does not cover.
-    if !head_text.contains("::")
-        && oo_grammar.is_some_and(|g| crate::oo_body::is_member(g, head_text))
+    if oo_grammar
+        .is_some_and(|g| crate::oo_body::is_member(g, resolved_head.trim_start_matches("::")))
     {
         push_token(
             line_index,

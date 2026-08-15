@@ -450,9 +450,10 @@ fn collect_body_folds(
         // (`method`, `constructor`, `typemethod`, `self`, `property`, …) have
         // no `CommandSpec`; their body indices come from the enclosing
         // definition-body grammar ([`crate::oo_body`]).
+        let member_head = head.resolved.trim_start_matches("::");
         let body_indices: Vec<usize> = match oo_grammar {
-            Some(g) if is_member(g, head.written) => {
-                member_body_indices_in(g, head.written, &args_borrow, ctx.availability)
+            Some(g) if is_member(g, member_head) => {
+                member_body_indices_in(g, member_head, &args_borrow, ctx.availability)
             }
             _ => ctx
                 .registry

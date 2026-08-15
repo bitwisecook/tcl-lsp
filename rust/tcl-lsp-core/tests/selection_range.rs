@@ -195,6 +195,22 @@ fn registry_recursive_command_spans_cover_case_lambda_and_definition_members() {
             23,
             "tcl9.0",
         ),
+        (
+            "interp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        puts selected\n    }\n}\n",
+            3,
+            15,
+            8,
+            21,
+            "tcl9.0",
+        ),
+        (
+            "::oo::class create C {\n    method m {} {\n        puts rooted\n    }\n}\n",
+            2,
+            15,
+            8,
+            19,
+            "tcl9.0",
+        ),
     ];
     for (source, line, character, start, end, dialect) in cases {
         let links = selection_range_for_dialect(source, line, character, None, dialect);
@@ -212,6 +228,21 @@ fn registry_recursive_command_spans_cover_case_lambda_and_definition_members() {
             assert_ne!(pair[0].range, pair[1].range, "{links:?}");
         }
     }
+}
+
+#[test]
+fn rebound_definition_member_head_does_not_inherit_member_grammar() {
+    let source = "interp alias {} define_method {} method\nrename define_method {}\noo::class create C {\n    define_method m {} {\n        puts must-not-be-selected\n    }\n}\n";
+    let links = selection_range_for_dialect(source, 4, 15, None, "tcl9.0");
+    assert!(
+        !links.iter().any(|link| {
+            link.range.start_line == 4
+                && link.range.start_character == 8
+                && link.range.end_line == 4
+                && link.range.end_character == 33
+        }),
+        "a rebound member spelling must abstain from member-body recursion: {links:?}"
+    );
 }
 
 #[test]

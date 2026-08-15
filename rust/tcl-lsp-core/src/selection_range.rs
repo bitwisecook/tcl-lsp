@@ -339,9 +339,10 @@ fn command_span_at(
                 written: command.name(),
                 resolved: &semantic_head,
             };
+            let member_head = head.resolved.trim_start_matches("::");
             let availability = profile.availability_mask;
             let body_indices = definition_grammar
-                .filter(|grammar| grammar.is_member(head.written))
+                .filter(|grammar| grammar.is_member(member_head))
                 .map_or_else(
                     || {
                         registry.arg_indices_for_role(
@@ -350,7 +351,7 @@ fn command_span_at(
                             tcl_registry::ArgRole::Body,
                         )
                     },
-                    |grammar| grammar.member_body_indices_in(head.written, &args, availability),
+                    |grammar| grammar.member_body_indices_in(member_head, &args, availability),
                 );
             let next_grammar =
                 crate::oo_body::next_definition_grammar(head, &args, definition_grammar, registry);
