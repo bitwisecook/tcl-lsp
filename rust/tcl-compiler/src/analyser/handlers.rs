@@ -13163,7 +13163,7 @@ mod tests {
     fn handle_switch_form2_braced_body_walks_each_arm() {
         // Form 2: ``switch $x { a {set y 1} b {set z 2} }``.
         // The single braced body holds all pattern/body pairs;
-        // ``flatten_clause_list_elements`` re-segments to surface
+        // ``flatten_clause_list_elements`` uses Tcl list offsets to surface
         // each pair, then each body recurses.
         let mut a = switch_analyser();
         let body_text = " a {set y 1} b {set z 2} ".to_string();

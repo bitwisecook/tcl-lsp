@@ -513,6 +513,21 @@ fn expect_case_lists_minify_without_a_generic_body_role() {
 }
 
 #[test]
+fn expect_case_lists_preserve_comment_and_separator_patterns() {
+    for pattern in ["#", ";"] {
+        assert_eq!(
+            min_dialect(
+                &format!(
+                    "expect {{{pattern} {{\n  puts matched\n}} default {{\n  puts other\n}}}}\n"
+                ),
+                "expect",
+            ),
+            format!("expect {{{pattern} {{puts matched}} default {{puts other}}}}")
+        );
+    }
+}
+
+#[test]
 fn switch_quoted_body_keeps_quotes() {
     // A `"…"`-quoted BODY (not braced) is re-quoted by `minify_switch_case_list`
     // (the `*body_quoted` arm) so it stays one word.

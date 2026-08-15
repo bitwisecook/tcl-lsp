@@ -1023,6 +1023,20 @@ mod tests {
     }
 
     #[test]
+    fn expect_list_comment_and_separator_patterns_fold_their_arms() {
+        for pattern in ["#", ";"] {
+            let source = format!(
+                "expect {{\n    {pattern} {{\n        puts matched\n        puts again\n    }}\n    default {{ puts other }}\n}}\n"
+            );
+            let regions = fold_lines(&folding_ranges_expect(&source), FoldKind::Region);
+            assert!(
+                regions.contains(&(1, 3)),
+                "{pattern:?} is a literal list pattern, so its arm must fold: {regions:?}"
+            );
+        }
+    }
+
+    #[test]
     fn expect_brace_outer_shape_folds_list_and_arm() {
         let source = concat!(
             "expect -brace {\n",          // 0

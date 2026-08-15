@@ -6596,6 +6596,21 @@ mod tests {
     }
 
     #[test]
+    fn expect_literal_comment_and_separator_patterns_recurse_into_actions() {
+        for pattern in ["#", ";"] {
+            let source = format!("expect {{{pattern} {{puts matched}} default {{puts other}}}}\n");
+            let tokens = decode_full(&source, "expect", &expect_reg());
+            let puts_col = u32::try_from(source.find("puts matched").unwrap()).unwrap();
+            assert!(
+                tokens.iter().any(|&(line, col, len, kind, _)| {
+                    line == 0 && col == puts_col && len == 4 && kind == TokenKind::Function as u32
+                }),
+                "{pattern:?} is a literal list pattern, and its action must be tokenised: {tokens:?}"
+            );
+        }
+    }
+
+    #[test]
     fn renamed_away_expect_spelling_gets_no_case_list_overrides() {
         let source = "rename expect other\nexpect -re {a+} { puts matched }\n";
         let kinds = kinds(source, "expect", &expect_reg());

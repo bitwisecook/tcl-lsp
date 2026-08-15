@@ -6464,6 +6464,20 @@ mod tests {
                 .is_some(),
             "Expect permits a final pattern without an action"
         );
+        for pattern in ["#", ";"] {
+            assert!(
+                expect
+                    .case_invocation(
+                        "expect",
+                        &[&format!(
+                            "{pattern} {{send literal}} default {{send other}}"
+                        )],
+                        DialectSet::EXPECT,
+                    )
+                    .is_some(),
+                "{pattern:?} is a literal Tcl list pattern, not script syntax"
+            );
+        }
         assert!(
             expect
                 .case_invocation("expect", &["-timeout"], DialectSet::EXPECT)

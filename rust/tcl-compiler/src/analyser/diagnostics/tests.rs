@@ -12856,6 +12856,20 @@ fn nested_expect_clause_body_reports_unknown_command() {
 }
 
 #[test]
+fn expect_list_comment_and_separator_patterns_still_walk_arm_bodies() {
+    for pattern in ["#", ";"] {
+        let codes = codes_for_dialect(
+            &format!("expect {{{pattern} {{expect_literal_pattern_unknown}} default {{puts ok}}}}"),
+            "expect",
+        );
+        assert!(
+            codes.iter().any(|code| code == "W123"),
+            "{pattern:?} is a Tcl list pattern, and its arm must be analysed: {codes:?}"
+        );
+    }
+}
+
+#[test]
 fn inline_expect_clause_flags_reach_actions_without_switch_w106() {
     let codes = codes_for_dialect(
         "expect -re {ready} {expect_inline_unknown} -timeout 5 timeout {expect_timeout_unknown}",
