@@ -487,9 +487,11 @@ pub fn flatten_clause_list_elements(
                 .tokenise_all()
                 .ok()
                 .and_then(|tokens| {
-                    tokens
-                        .into_iter()
-                        .find(|token| token.kind != TokenType::Eof)
+                    tokens.into_iter().find(|token| {
+                        token.kind != TokenType::Eof
+                            && token.span.start() == 0
+                            && u32::try_from(raw.len()) == Ok(token.span.end())
+                    })
                 })
                 .map_or_else(
                     || Token::new(TokenType::Esc, Span::new(start, end)),
@@ -531,10 +533,20 @@ pub fn flatten_case_list_clauses(
             else {
                 return None;
             };
-            Some((
-                elements.get(pattern_index).cloned()?,
-                elements.get(body_index).cloned()?,
-            ))
+            let pattern = elements.get(pattern_index).cloned()?;
+            let mut body = elements.get(body_index).cloned()?;
+            // A non-braced, literal case action is still a script the
+            // case-list command evaluates.  It has no substitution barrier,
+            // so mark the complete list element as script-capable; this is
+            // what lets `puts;unknown` reach both commands.  Dynamic or
+            // backslash-built actions retain their conservative opaque kind.
+            if body.1.kind == TokenType::Esc
+                && !tcl_syntax::naming::is_dynamic_word(&body.0)
+                && !body.0.contains('\\')
+            {
+                body.1 = Token::with_content_offset(TokenType::Str, body.1.span, 0);
+            }
+            Some((pattern, body))
         })
         .collect()
 }
@@ -929,6 +941,40 @@ mod tests {
             );
             assert_eq!(elements[1].1.kind, TokenType::Str);
         }
+    }
+
+    #[test]
+    fn flatten_clause_list_keeps_an_unbraced_action_as_one_span() {
+        let source = "expect {ready puts;expect_semicolon_unknown}";
+        let body_start = source.find('{').unwrap();
+        let body_end = source.len() - 1;
+        let body = &source[(body_start + 1)..body_end];
+        let token = Token::with_content_offset(
+            TokenType::Str,
+            Span::new(
+                u32::try_from(body_start).unwrap(),
+                u32::try_from(body_end).unwrap(),
+            ),
+            1,
+        );
+
+        let elements = flatten_clause_list_elements(source, body, token);
+        assert_eq!(
+            elements
+                .iter()
+                .map(|(text, _)| text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ready", "puts;expect_semicolon_unknown"]
+        );
+        let action_start = source.find("puts;").unwrap();
+        assert_eq!(
+            elements[1].1.span,
+            Span::new(
+                u32::try_from(action_start).unwrap(),
+                u32::try_from(body_end).unwrap(),
+            ),
+            "the action token must cover the complete list element, not only `puts`"
+        );
     }
 
     /// `(start, end, texts, is_partial, token-spans)` — the fields that

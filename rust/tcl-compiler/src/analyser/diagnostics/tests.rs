@@ -12856,6 +12856,15 @@ fn nested_expect_clause_body_reports_unknown_command() {
 }
 
 #[test]
+fn unbraced_expect_action_keeps_its_complete_script_span() {
+    let codes = codes_for_dialect("expect {ready puts;expect_semicolon_unknown}", "expect");
+    assert!(
+        codes.iter().any(|code| code == "W123"),
+        "the command after a semicolon in an unbraced Expect action must be analysed: {codes:?}"
+    );
+}
+
+#[test]
 fn expect_list_comment_and_separator_patterns_still_walk_arm_bodies() {
     for pattern in ["#", ";"] {
         let codes = codes_for_dialect(
