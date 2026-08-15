@@ -572,10 +572,12 @@ fn scan_text(
     config: LexerConfig,
 ) {
     // Native-stack safety net (issue #996): `[a [b [c …]]]` nests inside one
-    // word. Past the cap, stop descending — an unset flag is the "no barrier
-    // proved" fallback, which matches every other bounded walk's contract of
-    // returning what it gathered rather than crashing.
+    // word. This is a soundness fact, not a best-effort diagnostic: past the
+    // cap the unread suffix may contain any dynamic read, write, or destroy.
+    // Fail closed for every consumer rather than treating a bounded walk as a
+    // proof that no barrier exists (issue #1497).
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
     }
     for inner in crate::var_refs::command_subst_texts(text) {
@@ -593,6 +595,7 @@ fn scan_script_text(
     config: LexerConfig,
 ) {
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
     }
     for words in crate::ir_helpers::tokenise_command_words(text, config) {
@@ -1299,5 +1302,31 @@ computed; got {b:?}"
                 assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
             }
         }
+    }
+
+    /// Issue #1497 — the bracket-depth cap protects the native stack, but it
+    /// cannot certify that the unread suffix has no dynamic variable access.
+    /// The source mutation is deliberately under the cap boundary: replacing
+    /// the dynamic `set $name` with a literal `set x` must not make a bounded
+    /// scan claim either source is fully known.
+    #[test]
+    fn bracket_depth_exhaustion_fails_closed_for_dynamic_name_facts() {
+        let nest = |leaf: &str| {
+            let mut text = leaf.to_owned();
+            for _ in 0..=MAX_BRACKET_TEXT_DEPTH.0 {
+                text = format!("[list {text}]");
+            }
+            text
+        };
+        let dynamic = barrier_for(&format!(
+            "proc f {{name}} {{ set sink {}; return ok }}\n",
+            nest("[set $name 2]")
+        ));
+        let literal = barrier_for(&format!(
+            "proc f {{}} {{ set sink {}; return ok }}\n",
+            nest("[set x 2]")
+        ));
+        assert_eq!(dynamic, DynamicNameBarrier::OPAQUE_SCRIPT, "{dynamic:?}");
+        assert_eq!(literal, DynamicNameBarrier::OPAQUE_SCRIPT, "{literal:?}");
     }
 }

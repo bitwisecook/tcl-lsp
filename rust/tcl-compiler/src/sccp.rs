@@ -1065,7 +1065,7 @@ pub fn existence_constant_branches(
     if cfg.blocks.values().any(|b| {
         b.statements
             .iter()
-            .any(|s| matches!(s, Statement::Barrier { .. }))
+            .any(|s| matches!(s, Statement::Barrier { .. } | Statement::UpFrame { .. }))
     }) {
         return out;
     }
@@ -2116,6 +2116,118 @@ mod tests {
         let e_pos = order.iter().position(|b| *b == e).unwrap();
         assert!(join_pos > t_pos);
         assert!(join_pos > e_pos);
+    }
+
+    /// Issue #1409 — a static-body `uplevel 0` is an `UpFrame`, not a generic
+    /// barrier, but its body can create a local in the frame whose existence
+    /// query follows. The whole-function existence fold must abstain just as
+    /// it does for `Barrier`.
+    #[test]
+    fn existence_fold_abstains_for_a_live_upframe() {
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {} { uplevel 0 { set created 1 }; if {[info exists created]} { return yes } else { return no } }",
+            &registry,
+            false,
+        );
+        let f = cu.function("::f").expect("procedure analysed");
+        assert!(
+            f.cfg
+                .blocks
+                .values()
+                .flat_map(|block| block.statements.iter())
+                .any(|statement| matches!(statement, Statement::UpFrame { .. })),
+            "the regression requires the static uplevel lowering path"
+        );
+        assert!(
+            f.sccp.constant_branches.is_empty(),
+            "UpFrame may define `created`, so info exists must not fold: {:?}",
+            f.sccp.constant_branches
+        );
+    }
+
+    #[test]
+    fn existence_fold_abstains_for_nested_upframe_alias_unset_mutation() {
+        // `uplevel 0` evaluates in this procedure's frame. The nested body
+        // aliases that frame's parameter and unsets it, so Tcl observes the else
+        // branch. The no-uplevel twin proves the branch is otherwise foldable;
+        // this is a mutation test of the exact fact #1409 must block.
+        let registry = CommandRegistry::build_default();
+        let stable = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {local} { if {[info exists local]} { return yes } else { return no } }",
+            &registry,
+            false,
+        );
+        assert!(
+            !stable
+                .function("::f")
+                .expect("control procedure analysed")
+                .sccp
+                .constant_branches
+                .is_empty(),
+            "the unmutated control must be foldable"
+        );
+
+        let mutated = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {local} { uplevel 0 { uplevel 0 { upvar 0 local alias; unset alias } }; if {[info exists local]} { return yes } else { return no } }",
+            &registry,
+            false,
+        );
+        let f = mutated.function("::f").expect("mutated procedure analysed");
+        let outer = f
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| block.statements.iter())
+            .find_map(|statement| match statement {
+                Statement::UpFrame { body, .. } => Some(body),
+                _ => None,
+            })
+            .expect("outer literal uplevel must lower to UpFrame");
+        assert!(
+            outer
+                .statements
+                .iter()
+                .any(|statement| matches!(statement, Statement::UpFrame { .. })),
+            "the nested literal uplevel must remain an UpFrame in its parent body"
+        );
+        assert!(
+            f.sccp.constant_branches.is_empty(),
+            "nested upframe/upvar/unset may remove local: {:?}",
+            f.sccp.constant_branches
+        );
+    }
+
+    #[test]
+    fn upframe_body_models_upvar_alias_unset_in_the_caller_frame() {
+        // tclsh: `proc caller {} {set caller_value 1; f; info exists
+        // caller_value}; proc f {} {uplevel 1 {upvar 0 caller_value alias;
+        // unset alias}}; caller` returns 0. The literal UpFrame body therefore
+        // carries a real caller-frame mutation, not merely a control-flow
+        // wrapper, and is a separate vector from the nested local-frame test.
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {} { uplevel 1 { upvar 0 caller_value alias; unset alias } }",
+            &registry,
+            false,
+        );
+        let f = cu.function("::f").expect("procedure analysed");
+        let body = f
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| block.statements.iter())
+            .find_map(|statement| match statement {
+                Statement::UpFrame { body, .. } => Some(body),
+                _ => None,
+            })
+            .expect("literal caller-frame body must lower to UpFrame");
+        assert!(body.statements.iter().any(|statement| {
+            matches!(statement, Statement::Call { command, .. } if command == "upvar")
+        }));
+        assert!(body.statements.iter().any(|statement| {
+            matches!(statement, Statement::Call { command, .. } if command == "unset")
+        }));
     }
 
     // -- driver --

@@ -52,39 +52,131 @@ bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct TaintColour: u32 {
         /// Value is attacker-controlled.
-        const TAINTED            = 1 << 0;
+        const TAINTED            = TaintColourAtom::Tainted as u32;
         /// Always starts with `/` (`HTTP::uri`, `HTTP::path`).
-        const PATH_PREFIXED      = 1 << 1;
+        const PATH_PREFIXED      = TaintColourAtom::PathPrefixed as u32;
         /// Provably starts with a non-`-` literal.
-        const NON_DASH_PREFIXED  = 1 << 2;
+        const NON_DASH_PREFIXED  = TaintColourAtom::NonDashPrefixed as u32;
         /// Proven to contain no CR/LF characters.
-        const CRLF_FREE          = 1 << 3;
+        const CRLF_FREE          = TaintColourAtom::CrlfFree as u32;
         /// Token-safe atom (no shell metachar splitting).
-        const SHELL_ATOM         = 1 << 4;
+        const SHELL_ATOM         = TaintColourAtom::ShellAtom as u32;
         /// Canonical Tcl list representation.
-        const LIST_CANONICAL     = 1 << 5;
+        const LIST_CANONICAL     = TaintColourAtom::ListCanonical as u32;
         /// Regex-escaped literal payload.
-        const REGEX_LITERAL      = 1 << 6;
+        const REGEX_LITERAL      = TaintColourAtom::RegexLiteral as u32;
         /// Path has been normalised (no raw traversal form).
-        const PATH_NORMALISED    = 1 << 7;
+        const PATH_NORMALISED    = TaintColourAtom::PathNormalised as u32;
         /// Normalised path verified within an intended directory.
-        const PATH_BOUNDED       = 1 << 8;
+        const PATH_BOUNDED       = TaintColourAtom::PathBounded as u32;
         /// Valid HTTP header-token charset.
-        const HEADER_TOKEN_SAFE  = 1 << 9;
+        const HEADER_TOKEN_SAFE  = TaintColourAtom::HeaderTokenSafe as u32;
         /// HTML-escaped text context.
-        const HTML_ESCAPED       = 1 << 10;
+        const HTML_ESCAPED       = TaintColourAtom::HtmlEscaped as u32;
         /// URL-encoded text context.
-        const URL_ENCODED        = 1 << 11;
+        const URL_ENCODED        = TaintColourAtom::UrlEncoded as u32;
         /// IPv4 or IPv6 address (digits, dots, colons).
-        const IP_ADDRESS         = 1 << 12;
+        const IP_ADDRESS         = TaintColourAtom::IpAddress as u32;
         /// Integer 0-65535.
-        const PORT               = 1 << 13;
+        const PORT               = TaintColourAtom::Port as u32;
         /// Fully qualified domain name.
-        const FQDN               = 1 << 14;
+        const FQDN               = TaintColourAtom::Fqdn as u32;
         /// Assembled via `[file join]` (portable, not canonicalised).
-        const PATH_JOINED        = 1 << 15;
+        const PATH_JOINED        = TaintColourAtom::PathJoined as u32;
         /// I/O channel handle (`open`, `socket`, `chan create`, `HSL::open`).
-        const CHANNEL            = 1 << 16;
+        const CHANNEL            = TaintColourAtom::Channel as u32;
+    }
+}
+
+/// One atomic [`TaintColour`] declaration.
+///
+/// This owner-defined enum is the compile-time exhaustiveness boundary for
+/// consumers that mirror the colour lattice. Adding a registry colour requires
+/// adding an atom here, which makes every downstream exhaustive match fail to
+/// compile until it maps the new declaration deliberately.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TaintColourAtom {
+    /// [`TaintColour::TAINTED`].
+    Tainted = 1 << 0,
+    /// [`TaintColour::PATH_PREFIXED`].
+    PathPrefixed = 1 << 1,
+    /// [`TaintColour::NON_DASH_PREFIXED`].
+    NonDashPrefixed = 1 << 2,
+    /// [`TaintColour::CRLF_FREE`].
+    CrlfFree = 1 << 3,
+    /// [`TaintColour::SHELL_ATOM`].
+    ShellAtom = 1 << 4,
+    /// [`TaintColour::LIST_CANONICAL`].
+    ListCanonical = 1 << 5,
+    /// [`TaintColour::REGEX_LITERAL`].
+    RegexLiteral = 1 << 6,
+    /// [`TaintColour::PATH_NORMALISED`].
+    PathNormalised = 1 << 7,
+    /// [`TaintColour::PATH_BOUNDED`].
+    PathBounded = 1 << 8,
+    /// [`TaintColour::HEADER_TOKEN_SAFE`].
+    HeaderTokenSafe = 1 << 9,
+    /// [`TaintColour::HTML_ESCAPED`].
+    HtmlEscaped = 1 << 10,
+    /// [`TaintColour::URL_ENCODED`].
+    UrlEncoded = 1 << 11,
+    /// [`TaintColour::IP_ADDRESS`].
+    IpAddress = 1 << 12,
+    /// [`TaintColour::PORT`].
+    Port = 1 << 13,
+    /// [`TaintColour::FQDN`].
+    Fqdn = 1 << 14,
+    /// [`TaintColour::PATH_JOINED`].
+    PathJoined = 1 << 15,
+    /// [`TaintColour::CHANNEL`].
+    Channel = 1 << 16,
+}
+
+impl TaintColourAtom {
+    /// Every registry-defined colour atom, in stable bit order.
+    pub const ALL: [Self; 17] = [
+        Self::Tainted,
+        Self::PathPrefixed,
+        Self::NonDashPrefixed,
+        Self::CrlfFree,
+        Self::ShellAtom,
+        Self::ListCanonical,
+        Self::RegexLiteral,
+        Self::PathNormalised,
+        Self::PathBounded,
+        Self::HeaderTokenSafe,
+        Self::HtmlEscaped,
+        Self::UrlEncoded,
+        Self::IpAddress,
+        Self::Port,
+        Self::Fqdn,
+        Self::PathJoined,
+        Self::Channel,
+    ];
+
+    /// The registry bit represented by this atom.
+    #[must_use]
+    pub const fn colour(self) -> TaintColour {
+        match self {
+            Self::Tainted => TaintColour::TAINTED,
+            Self::PathPrefixed => TaintColour::PATH_PREFIXED,
+            Self::NonDashPrefixed => TaintColour::NON_DASH_PREFIXED,
+            Self::CrlfFree => TaintColour::CRLF_FREE,
+            Self::ShellAtom => TaintColour::SHELL_ATOM,
+            Self::ListCanonical => TaintColour::LIST_CANONICAL,
+            Self::RegexLiteral => TaintColour::REGEX_LITERAL,
+            Self::PathNormalised => TaintColour::PATH_NORMALISED,
+            Self::PathBounded => TaintColour::PATH_BOUNDED,
+            Self::HeaderTokenSafe => TaintColour::HEADER_TOKEN_SAFE,
+            Self::HtmlEscaped => TaintColour::HTML_ESCAPED,
+            Self::UrlEncoded => TaintColour::URL_ENCODED,
+            Self::IpAddress => TaintColour::IP_ADDRESS,
+            Self::Port => TaintColour::PORT,
+            Self::Fqdn => TaintColour::FQDN,
+            Self::PathJoined => TaintColour::PATH_JOINED,
+            Self::Channel => TaintColour::CHANNEL,
+        }
     }
 }
 
@@ -409,6 +501,14 @@ pub fn setter_constraints(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn colour_atoms_cover_the_canonical_bitflags_domain() {
+        let atoms = TaintColourAtom::ALL
+            .into_iter()
+            .fold(TaintColour::empty(), |bits, atom| bits | atom.colour());
+        assert_eq!(atoms, TaintColour::all());
+    }
 
     #[test]
     fn gets_is_a_taint_source() {

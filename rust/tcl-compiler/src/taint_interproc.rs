@@ -56,7 +56,7 @@ use crate::value_shapes::parse_command_substitution;
 /// Ordered taint-colour bases. The
 /// per-parameter return scenarios are computed by seeding the parameter with
 /// each basis lattice in turn.
-const BASIS_ORDER: [&str; 15] = [
+const BASIS_ORDER: [&str; 17] = [
     "generic",
     "path",
     "non_dash",
@@ -72,12 +72,15 @@ const BASIS_ORDER: [&str; 15] = [
     "ip",
     "port",
     "fqdn",
+    "path_joined",
+    "channel",
 ];
 
 /// The taint lattice each basis name seeds a parameter with.
 fn basis_lattice(basis: &str) -> TaintLattice {
     let t = TaintColour::TAINTED;
     let colour = match basis {
+        "generic" => t,
         "path" => t | TaintColour::PATH_PREFIXED,
         "non_dash" => t | TaintColour::NON_DASH_PREFIXED,
         "crlf_free" => t | TaintColour::CRLF_FREE,
@@ -94,7 +97,9 @@ fn basis_lattice(basis: &str) -> TaintLattice {
         "ip" => t | TaintColour::IP_ADDRESS,
         "port" => t | TaintColour::PORT,
         "fqdn" => t | TaintColour::FQDN,
-        _ => t,
+        "path_joined" => t | TaintColour::PATH_JOINED,
+        "channel" => t | TaintColour::CHANNEL,
+        unknown => panic!("BASIS_ORDER contains unknown taint basis {unknown:?}"),
     };
     TaintLattice { colours: colour }
 }
@@ -277,7 +282,7 @@ fn word_uses_from_versions(
 ///
 /// This is the cheap end of the pruning ladder and by far the most common case
 /// in real Tcl: a procedure that returns nothing, a literal, or a braced
-/// constant does no work here at all instead of `1 + 15P` whole-CFG solves.
+/// constant does no work here at all instead of `1 + 17P` whole-CFG solves.
 fn return_taint_is_constant(fu: &FunctionUnit) -> bool {
     fu.sccp.executable_blocks.iter().all(|bn| {
         let Some(block) = fu.cfg.blocks.get(bn) else {
@@ -390,7 +395,7 @@ pub type InferProcSummaryFn<'a> = dyn FnMut(
 ///
 /// The summary is a transfer function: a clean base plus, for each parameter, a
 /// return taint per [`BASIS_ORDER`] entry.  Computed naively that is
-/// `1 + BASIS_ORDER.len() * params.len()` — `1 + 15P` — complete dataflow
+/// `1 + BASIS_ORDER.len() * params.len()` — `1 + 17P` — complete dataflow
 /// solves over the procedure's CFG, and this is the dominant cost of the whole
 /// interprocedural taint pass (about 80% of `run_all_checks` on tcllib's
 /// `practcl.tcl`).
@@ -403,13 +408,13 @@ pub type InferProcSummaryFn<'a> = dyn FnMut(
 ///
 /// 1. [`return_taint_is_constant`] — the return taint cannot depend on the
 ///    taint map, so the whole summary is the clean one: **0** solves instead of
-///    `1 + 15P`.
+///    `1 + 17P`.
 /// 2. An un-interned parameter — seeding a name the body never reads leaves the
 ///    initial taint map bit-identical to the base run's, so the scenario *is*
-///    `return_base`: **0** solves instead of 15, per such parameter.
+///    `return_base`: **0** solves instead of 17, per such parameter.
 ///
-/// What remains is `1 + 15 × (parameters that are actually read, in a procedure
-/// whose return value is substitution-bearing)`.  Collapsing that last `15×`
+/// What remains is `1 + 17 × (parameters that are actually read, in a procedure
+/// whose return value is substitution-bearing)`.  Collapsing that last `17×`
 /// needs a genuinely different representation — one multi-colour symbolic
 /// traversal carrying a per-`(parameter, basis)` dependency bitset — which
 /// changes what the solver computes rather than skipping work it can prove
@@ -436,7 +441,7 @@ pub fn infer_proc_summary(
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> ProcTaintSummary {
     // Prune 1 — the return taint does not depend on the taint map at all, so
-    // neither the clean base nor any of the `15P` seeded scenarios needs a
+    // neither the clean base nor any of the `17P` seeded scenarios needs a
     // solve.  Every scenario is `clean`, which is exactly what
     // `ProcTaintSummary::untainted` builds.  Checked before the index build
     // below, so a constant-return procedure costs nothing at all.
@@ -1241,7 +1246,7 @@ mod tests {
     #[test]
     fn unread_parameter_scenarios_equal_the_base_return() {
         // `b` is never read, so seeding it cannot change the return: every one
-        // of its 15 basis scenarios is exactly `return_base`.
+        // of its 17 basis scenarios is exactly `return_base`.
         let summaries = summaries_for("proc half {a b} { return [string cat $a x] }\n");
         let s = summaries.get("::half").expect("::half summarised");
         let (name, values) = s

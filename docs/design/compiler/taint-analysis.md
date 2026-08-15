@@ -39,11 +39,14 @@ TaintLattice::tainted().with(TaintColour::URL_ENCODED)   // tainted, but URI-enc
 
 ### TaintColour flags
 
-`TaintColour` is a `bitflags` set over `u32`. The canonical definition is
-`rust/tcl-registry/src/taint.rs`, so spec data (`taint_transform`,
+`TaintColour` is a `bitflags` set over `u32`, with its atomic declarations in
+the registry-owned `TaintColourAtom` enum at `rust/tcl-registry/src/taint.rs`.
+Spec data (`taint_transform`,
 `taint_double_encode_colour`, `taint_sink_safe_colour`) can name colours.
-`rust/tcl-compiler/src/taint.rs` declares its own bitflags with the same bit
-layout, and `reg_colour` bridges the two with `TaintColour::from_bits_truncate`.
+`rust/tcl-compiler/src/taint.rs` declares a same-width mirror. Its bridge
+exhaustively matches the registry-owned `TaintColourAtom` enum in both
+directions, then asserts the mapped mask is bit-identical; adding a registry
+colour therefore breaks the compiler match until it is handled deliberately.
 
 | Flag | Meaning |
 |------|---------|
@@ -58,14 +61,8 @@ layout, and `reg_colour` bridges the two with `TaintColour::from_bits_truncate`.
 | `NON_DASH_PREFIXED` | Cannot be read as an option flag |
 | `HEADER_TOKEN_SAFE` | Safe as an HTTP header token |
 | `IP_ADDRESS` / `PORT` / `FQDN` | Validated network-address shapes |
-| `PATH_JOINED` | Assembled by `[file join]` — **registry-side only** |
-| `CHANNEL` | A channel handle — **registry-side only** |
-
-The compiler's mirror stops at bit 14 (`FQDN`). `PATH_JOINED` (bit 15) and
-`CHANNEL` (bit 16) exist only in the registry's set, and `reg_colour`'s
-`from_bits_truncate` drops them, so a spec declaring
-`taint_transform: Some(TaintColour::PATH_JOINED)` — `file join` does — yields
-no colour on the compiler side.
+| `PATH_JOINED` | Assembled by `[file join]` (portable, not canonicalised) |
+| `CHANNEL` | A channel handle |
 
 Colours compose with `|` (bitwise OR); mitigations join by `&`
 (intersection).
@@ -128,8 +125,7 @@ subcommand's transform over the bare command's:
 - `URI::encode` on tainted data: adds `URL_ENCODED | CRLF_FREE`.
 - `HTML::encode` / `HTML::escape` / `htmlencode` on tainted data: adds
   `HTML_ESCAPED | CRLF_FREE`.
-- `file normalize` adds `PATH_NORMALISED`; `file join` declares
-  `PATH_JOINED`, which the compiler's mirror truncates away (see above).
+- `file normalize` adds `PATH_NORMALISED`; `file join` adds `PATH_JOINED`.
 
 A command with *no* registry classification at all — not a source, sanitiser,
 transform, or passthrough — is not a no-op: `TaintLattice::shape_unproven`
@@ -152,7 +148,7 @@ procedure boundaries using `ProcTaintSummary` values:
 A summary is a **transfer function**, not a single value: a clean base return
 taint, plus — for each parameter — one return taint per colour basis, so a
 caller can ask "what comes back if I pass a value tainted *this* way?".  There
-are 15 bases, so inferring a summary the direct way is `1 + 15P` complete
+are 17 bases, so inferring a summary the direct way is `1 + 17P` complete
 dataflow solves over the procedure's control-flow graph, for `P` parameters.
 That is the dominant cost of the whole pass: about 80% of `run_all_checks` on
 tcllib's `practcl.tcl`.
@@ -167,18 +163,24 @@ differential keep validating the inference unchanged:
   all three require the return word to contain a `$` or a `[`.  A procedure whose
   executable returns are all value-less or all substitution-free therefore
   returns `clean` whatever the map holds, so the whole summary is the clean one:
-  **0** solves instead of `1 + 15P`.  This is the common case in real Tcl — a
+  **0** solves instead of `1 + 17P`.  This is the common case in real Tcl — a
   procedure that returns nothing, a literal, or a braced constant.
 - **Unread parameter** — `seed_entry_taints` skips a name that is not interned in
   the SSA, so seeding a parameter the body never reads leaves the initial taint
   map bit-identical to the clean base run's.  The scenario *is* `return_base`:
-  **0** solves instead of 15, per such parameter.
+  **0** solves instead of 17, per such parameter.
 
-What remains is `1 + 15 × (parameters actually read, in a procedure whose return
-value is substitution-bearing)`.  Collapsing that last `15×` needs a different
+What remains is `1 + 17 × (parameters actually read, in a procedure whose return
+value is substitution-bearing)`.  Collapsing that last `17×` needs a different
 representation — one multi-colour symbolic traversal carrying a
 per-`(parameter, basis)` dependency bitset — which changes what the solver
 computes rather than skipping work it can prove redundant, and is not attempted.
+
+**Cost note.** Adding `PATH_JOINED` and `CHANNEL` widens the unpruned transfer
+matrix from `1 + 15P` to `1 + 17P`: at most two additional solves per read
+parameter (about 13% on that inner matrix). The constant-return and unread-
+parameter prunes above still apply unchanged; the historical measurements below
+predate this domain widening and are not presented as a new benchmark.
 
 Measured with `cargo run --release -p tcl-lsp-db --example tail_profile` on
 tcllib's `practcl.tcl` (8,463 lines, 116 functions), same machine, same binary:

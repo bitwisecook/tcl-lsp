@@ -133,11 +133,12 @@ pub fn try_lower_hook(
     cmd: &LoweringCommand<'_>,
     aliases: &CommandAliasMap,
     registry: &CommandRegistry,
+    safe_on_uninit: bool,
 ) -> Option<Statement> {
     let arg_refs: Vec<&str> = cmd.args.iter().map(String::as_str).collect();
     let resolved = registry.resolve_invocation(cmd.name, &arg_refs, DialectSet::empty())?;
     let hook = resolved.semantics.lowering_hook?;
-    dispatch_lowering_hook(hook, cmd, aliases)
+    dispatch_lowering_hook(hook, cmd, aliases, safe_on_uninit)
 }
 
 /// Dispatch a typed [`LoweringHookId`] to its implementation.
@@ -153,6 +154,7 @@ pub fn dispatch_lowering_hook(
     hook: LoweringHookId,
     cmd: &LoweringCommand<'_>,
     aliases: &CommandAliasMap,
+    safe_on_uninit: bool,
 ) -> Option<Statement> {
     match hook {
         LoweringHookId::Expr => crate::lowering::hooks::control::try_lower_expr(cmd),
@@ -160,8 +162,11 @@ pub fn dispatch_lowering_hook(
             cmd, aliases,
         )),
         LoweringHookId::Set => Some(lower_set(cmd, aliases)),
-        LoweringHookId::Incr => Some(crate::lowering::hooks::incr::try_lower_incr(cmd)),
-        LoweringHookId::AppendOrLappend => lower_append_lappend(cmd),
+        LoweringHookId::Incr => Some(crate::lowering::hooks::incr::try_lower_incr(
+            cmd,
+            safe_on_uninit,
+        )),
+        LoweringHookId::AppendOrLappend => lower_append_lappend(cmd, safe_on_uninit),
         LoweringHookId::Unset => Some(lower_unset(cmd)),
         LoweringHookId::Global => lower_global(cmd),
         LoweringHookId::Variable => Some(lower_variable(cmd)),
@@ -409,7 +414,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
 
 // append / lappend
 
-fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
+fn lower_append_lappend(cmd: &LoweringCommand<'_>, safe_on_uninit: bool) -> Option<Statement> {
     if cmd.args.is_empty() {
         return None;
     }
@@ -444,7 +449,7 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
         defs,
         reads: vec![],
         reads_own_defs: true,
-        safe_on_uninit: false,
+        safe_on_uninit,
         tokens: cmd.tokens.clone(),
         foreach_groups: None,
     })
@@ -1095,7 +1100,7 @@ mod tests {
             arg_kinds: &kinds,
             dialect: None,
         };
-        let result = try_lower_hook(&cmd, &aliases, &registry);
+        let result = try_lower_hook(&cmd, &aliases, &registry, false);
         assert!(
             matches!(result, Some(Statement::AssignConst { .. })),
             "expected AssignConst from registry-driven dispatch; got {result:?}",
@@ -1122,6 +1127,6 @@ mod tests {
             arg_kinds: &kinds,
             dialect: None,
         };
-        assert!(try_lower_hook(&cmd, &aliases, &registry).is_none());
+        assert!(try_lower_hook(&cmd, &aliases, &registry, false).is_none());
     }
 }

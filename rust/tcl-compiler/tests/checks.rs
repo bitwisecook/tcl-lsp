@@ -567,6 +567,20 @@ mod path_concatenation {
     }
 
     #[test]
+    fn file_join_transform_does_not_masquerade_as_normalisation() {
+        // End-to-end registry transform coverage for #1410: `file join`
+        // stamps PATH_JOINED on a tainted result, but it does not collapse
+        // traversal or otherwise prove the preceding manual concatenation
+        // safe. W201 must therefore still report the original assignment.
+        let source = "set raw [read $fd]\nset p \"/base/$raw\"\nset p [file join /base $raw]\n";
+        assert_eq!(
+            taint_of_code(source, D, "W201").len(),
+            1,
+            "PATH_JOINED must not suppress the W201 portability hint"
+        );
+    }
+
+    #[test]
     fn url_scheme_not_path_concat() {
         // A URL is not a filesystem path → no W201.
         assert!(!fires("set u http://example.com/$page", D, "W201"));

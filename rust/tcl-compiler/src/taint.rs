@@ -107,7 +107,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use tcl_dialect::DialectSet;
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
-use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_registry::{ArgRole, CommandRegistry, TaintColourAtom, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
@@ -165,6 +165,10 @@ bitflags! {
         const PORT               = 1 << 13;
         /// Value is a fully-qualified domain name.
         const FQDN               = 1 << 14;
+        /// Value was assembled via `[file join]`.
+        const PATH_JOINED        = 1 << 15;
+        /// Value is an I/O channel handle.
+        const CHANNEL            = 1 << 16;
     }
 }
 
@@ -187,7 +191,9 @@ impl TaintColour {
             | Self::URL_ENCODED.bits()
             | Self::IP_ADDRESS.bits()
             | Self::PORT.bits()
-            | Self::FQDN.bits(),
+            | Self::FQDN.bits()
+            | Self::PATH_JOINED.bits()
+            | Self::CHANNEL.bits(),
     );
 
     /// Colours that prove a value cannot start with `-` and so
@@ -376,11 +382,65 @@ fn source_colour(
     })
 }
 
-/// Bridge a `tcl_registry::TaintColour` to the compiler's mirror enum.
-/// The bit layouts are identical (registry is the canonical source), so
-/// a `from_bits_truncate` of the raw bits is exact.
+/// Bridge a registry colour to the compiler's mirror enum.
+///
+/// This must remain a total conversion: a registry bit must never disappear
+/// while crossing into the compiler's lattice. `from_bits` makes a future
+/// mismatch fail closed during development instead of silently truncating a
+/// sanitiser declaration (issue #1410).
+const fn compiler_colour_atom(atom: TaintColourAtom) -> TaintColour {
+    match atom {
+        TaintColourAtom::Tainted => TaintColour::TAINTED,
+        TaintColourAtom::PathPrefixed => TaintColour::PATH_PREFIXED,
+        TaintColourAtom::NonDashPrefixed => TaintColour::NON_DASH_PREFIXED,
+        TaintColourAtom::CrlfFree => TaintColour::CRLF_FREE,
+        TaintColourAtom::ShellAtom => TaintColour::SHELL_ATOM,
+        TaintColourAtom::ListCanonical => TaintColour::LIST_CANONICAL,
+        TaintColourAtom::RegexLiteral => TaintColour::REGEX_LITERAL,
+        TaintColourAtom::PathNormalised => TaintColour::PATH_NORMALISED,
+        TaintColourAtom::PathBounded => TaintColour::PATH_BOUNDED,
+        TaintColourAtom::HeaderTokenSafe => TaintColour::HEADER_TOKEN_SAFE,
+        TaintColourAtom::HtmlEscaped => TaintColour::HTML_ESCAPED,
+        TaintColourAtom::UrlEncoded => TaintColour::URL_ENCODED,
+        TaintColourAtom::IpAddress => TaintColour::IP_ADDRESS,
+        TaintColourAtom::Port => TaintColour::PORT,
+        TaintColourAtom::Fqdn => TaintColour::FQDN,
+        TaintColourAtom::PathJoined => TaintColour::PATH_JOINED,
+        TaintColourAtom::Channel => TaintColour::CHANNEL,
+    }
+}
+
 fn reg_colour(c: tcl_registry::TaintColour) -> TaintColour {
-    TaintColour::from_bits_truncate(c.bits())
+    let mut out = TaintColour::empty();
+    for atom in TaintColourAtom::ALL {
+        if c.contains(atom.colour()) {
+            out |= compiler_colour_atom(atom);
+        }
+    }
+    assert_eq!(
+        out.bits(),
+        c.bits(),
+        "registry and compiler TaintColour definitions must stay aligned"
+    );
+    out
+}
+
+/// The inverse bridge, kept beside [`reg_colour`] so conversions stay audited
+/// in both directions whenever the registry adds a colour.
+#[cfg(test)]
+fn compiler_colour(c: TaintColour) -> tcl_registry::TaintColour {
+    let mut out = tcl_registry::TaintColour::empty();
+    for atom in TaintColourAtom::ALL {
+        if c.contains(compiler_colour_atom(atom)) {
+            out |= atom.colour();
+        }
+    }
+    assert_eq!(
+        out.bits(),
+        c.bits(),
+        "compiler and registry TaintColour definitions must stay aligned"
+    );
+    out
 }
 
 /// The colour a command stamps on a tainted value it returns — its
@@ -4775,6 +4835,79 @@ mod tests {
         // Must not spill into unrelated colours.
         assert!(!TaintColour::REDIRECT_SAFE.contains(TaintColour::TAINTED));
         assert!(!TaintColour::REDIRECT_SAFE.contains(TaintColour::CRLF_FREE));
+    }
+
+    /// Issue #1410 — the compiler and registry colour domains are a bijection.
+    /// Keep both directions pinned so a future colour cannot be silently
+    /// dropped by a permissive bitflags conversion.
+    #[test]
+    fn registry_taint_colour_bridge_preserves_every_bit_in_both_directions() {
+        let registry_all = tcl_registry::TaintColour::all();
+        let compiler_all = TaintColour::all();
+        assert_eq!(reg_colour(registry_all), compiler_all);
+        assert_eq!(compiler_colour(compiler_all), registry_all);
+        for colour in [
+            tcl_registry::TaintColour::TAINTED,
+            tcl_registry::TaintColour::PATH_PREFIXED,
+            tcl_registry::TaintColour::NON_DASH_PREFIXED,
+            tcl_registry::TaintColour::CRLF_FREE,
+            tcl_registry::TaintColour::SHELL_ATOM,
+            tcl_registry::TaintColour::LIST_CANONICAL,
+            tcl_registry::TaintColour::REGEX_LITERAL,
+            tcl_registry::TaintColour::PATH_NORMALISED,
+            tcl_registry::TaintColour::PATH_BOUNDED,
+            tcl_registry::TaintColour::HEADER_TOKEN_SAFE,
+            tcl_registry::TaintColour::HTML_ESCAPED,
+            tcl_registry::TaintColour::URL_ENCODED,
+            tcl_registry::TaintColour::IP_ADDRESS,
+            tcl_registry::TaintColour::PORT,
+            tcl_registry::TaintColour::FQDN,
+            tcl_registry::TaintColour::PATH_JOINED,
+            tcl_registry::TaintColour::CHANNEL,
+        ] {
+            let compiler = reg_colour(colour);
+            assert_eq!(compiler_colour(compiler), colour, "round-trip {colour:?}");
+        }
+    }
+
+    #[test]
+    fn file_join_transform_reaches_the_live_cfg_taint_lattice() {
+        use crate::compilation_unit::CompilationUnit;
+
+        let registry = CommandRegistry::build_default();
+        let colour_for = |source: &str, name: &str| {
+            let cu = CompilationUnit::build_for(source, &registry, false);
+            let fu = cu.function("::top").expect("top-level CFG built");
+            fu.taints
+                .iter()
+                .find(|((symbol, _), _)| fu.ssa.var_name(*symbol) == name)
+                .map(|(_, taint)| *taint)
+                .expect("assignment has a live SSA taint value")
+        };
+
+        let joined = colour_for(
+            "set raw [gets stdin]\nset joined [file join /base $raw]",
+            "joined",
+        );
+        assert!(joined.is_tainted(), "the source taint must reach file join");
+        assert!(
+            joined.colours.contains(TaintColour::PATH_JOINED),
+            "file join's registry transform must reach the CFG taint lattice: {joined:?}"
+        );
+
+        // Mutation control: replacing the transform-bearing `file join` with
+        // a same-shape non-transform command removes the only PATH_JOINED
+        // producer. If `word_taint_at` stopped applying registry transforms,
+        // this and the live vector above would become indistinguishable.
+        let without_transform = colour_for(
+            "set raw [gets stdin]\nset joined [file tail $raw]",
+            "joined",
+        );
+        assert!(without_transform.is_tainted());
+        assert!(
+            !without_transform.colours.contains(TaintColour::PATH_JOINED),
+            "the mutation control must not inherit file join's transform: {without_transform:?}"
+        );
     }
 
     #[test]

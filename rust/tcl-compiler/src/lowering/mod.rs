@@ -116,6 +116,27 @@ struct DefinerCall {
 }
 
 impl Lowerer<'_> {
+    /// Whether this concrete invocation is declared to initialise an unset
+    /// target under the lowerer's active dialect profile.
+    ///
+    /// This is registry-driven: command form and Tcl release decide the
+    /// result, not a consumer-side command-name or read-modify-write rule.
+    fn safe_on_uninit(&self, command: &str, args: &[String]) -> bool {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let dialect = self.registry.own_availability_mask();
+        // A profile-less registry is an intentionally dialect-blind union.
+        // `safe_on_uninit` is a release/runtime guarantee, so the union cannot
+        // prove it: in particular, `incr` differs between Tcl 8.4 and 8.5.
+        // Abstain until a concrete profile selects the applicable fact.
+        if dialect.is_empty() {
+            return false;
+        }
+        self.registry
+            .resolve_invocation(command, &arg_refs, dialect)
+            .and_then(|resolved| resolved.semantics.safe_on_uninit)
+            .is_some_and(|allowed| allowed.is_empty() || allowed.intersects(dialect))
+    }
+
     /// Classify one command as a statically-extractable definer call, from
     /// its registry spec (see [`DefinerCall`]).  `None` when the command is
     /// not a definer, uses a non-`create` metaclass form, or does not carry
@@ -1547,7 +1568,12 @@ impl<'r> Lowerer<'r> {
             arg_kinds: &Self::arg_kinds(seg),
             dialect: self.dialect,
         };
-        if let Some(stmt) = try_lower_hook(&hook_cmd, &self.aliases, self.registry) {
+        if let Some(stmt) = try_lower_hook(
+            &hook_cmd,
+            &self.aliases,
+            self.registry,
+            self.safe_on_uninit(cmd_name, args),
+        ) {
             return Some(stmt);
         }
 
@@ -2538,7 +2564,7 @@ impl<'r> Lowerer<'r> {
                 defs: var_defs,
                 reads: var_reads,
                 reads_own_defs: reads_before_write,
-                safe_on_uninit: false,
+                safe_on_uninit: self.safe_on_uninit(&role_cmd, &role_args),
                 tokens: Some(Self::cmd_tokens(seg)),
                 foreach_groups: None,
             };

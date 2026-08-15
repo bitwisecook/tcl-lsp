@@ -39,7 +39,7 @@ use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, has_expansion, make_c
 /// [`Statement::Call`] when the call shape is not the
 /// specialise-able `incr name ?amount?` form.
 #[must_use]
-pub fn try_lower_incr(cmd: &LoweringCommand<'_>) -> Statement {
+pub fn try_lower_incr(cmd: &LoweringCommand<'_>, safe_on_uninit: bool) -> Statement {
     if has_expansion(cmd) || cmd.args.is_empty() || cmd.args.len() > 2 {
         return make_call(cmd);
     }
@@ -73,9 +73,7 @@ pub fn try_lower_incr(cmd: &LoweringCommand<'_>) -> Statement {
         name: cmd.args[0].clone(),
         name_braced,
         amount: cmd.args.get(1).cloned(),
-        // Conservatively `false`: downstream passes treat ``incr``
-        // as if it reads the variable first.
-        safe_on_uninit: false,
+        safe_on_uninit,
     }
 }
 
@@ -268,7 +266,7 @@ mod tests {
         let single = vec![true, true];
         let kinds = vec![ArgTokenKind::Esc];
         let cmd = make_cmd(&args, &single, &kinds, None);
-        match try_lower_incr(&cmd) {
+        match try_lower_incr(&cmd, false) {
             Statement::Incr {
                 name,
                 amount,
@@ -289,7 +287,7 @@ mod tests {
         let single = vec![true, true, true];
         let kinds = vec![ArgTokenKind::Esc, ArgTokenKind::Esc];
         let cmd = make_cmd(&args, &single, &kinds, None);
-        match try_lower_incr(&cmd) {
+        match try_lower_incr(&cmd, false) {
             Statement::Incr { amount, .. } => assert_eq!(amount.as_deref(), Some("5")),
             other => panic!("expected Incr, got {other:?}"),
         }
@@ -301,7 +299,10 @@ mod tests {
         let single = vec![true];
         let kinds: Vec<ArgTokenKind> = vec![];
         let cmd = make_cmd(&args, &single, &kinds, None);
-        assert!(matches!(try_lower_incr(&cmd), Statement::Call { .. }));
+        assert!(matches!(
+            try_lower_incr(&cmd, false),
+            Statement::Call { .. }
+        ));
     }
 
     #[test]
@@ -311,7 +312,7 @@ mod tests {
         let kinds = vec![ArgTokenKind::Var];
         let expand = vec![false, true];
         let cmd = make_cmd(&args, &single, &kinds, Some(&expand));
-        match try_lower_incr(&cmd) {
+        match try_lower_incr(&cmd, false) {
             Statement::Call {
                 command, args: a, ..
             } => {

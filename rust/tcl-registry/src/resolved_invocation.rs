@@ -150,6 +150,9 @@ fn resolve_invocation_semantics<'r>(
             form: form.map_or(&[], |form| form.options),
         },
         return_type: sub.map_or(spec.return_type, |sub| sub.return_type),
+        safe_on_uninit: sub
+            .and_then(|sub| sub.safe_on_uninit)
+            .or(spec.safe_on_uninit),
         var_write_typing: sub.map_or(spec.var_write_typing, |sub| sub.var_write_typing),
         return_elements: sub.map_or(spec.return_elements, |sub| sub.return_elements),
         var_elements_effect: sub.map_or(spec.var_elements_effect, |sub| sub.var_elements_effect),
@@ -488,6 +491,8 @@ pub struct InvocationSemantics<'r> {
     pub options: InvocationOptions<'r>,
     /// Result Tcl internal-representation type, when declared.
     pub return_type: Option<TclType>,
+    /// Dialects in which this invocation safely initialises an unset target.
+    pub safe_on_uninit: Option<crate::dialects::DialectSet>,
     /// How the invocation types variables it writes.
     pub var_write_typing: VarWriteTyping,
     /// Result-to-container-element relationship, when declared.
@@ -914,6 +919,20 @@ mod tests {
             name: "plain",
             arity: Arity::exact(0),
             completion: Some(CompletionDescriptor::exact(SUBCOMMAND_CODES)),
+            ..SubCommand::DEFAULT
+        },
+    ];
+
+    const SAFE_ON_UNINIT_SUBCOMMANDS: &[SubCommand] = &[
+        SubCommand {
+            name: "narrow",
+            arity: Arity::exact(0),
+            safe_on_uninit: Some(DialectSet::TCL85_PLUS),
+            ..SubCommand::DEFAULT
+        },
+        SubCommand {
+            name: "inherit",
+            arity: Arity::exact(0),
             ..SubCommand::DEFAULT
         },
     ];
@@ -1699,6 +1718,34 @@ mod tests {
                 .dispatch_dependencies
                 .contains(DispatchDependencyDomain::UnknownHandling),
             "static registry resolution is not itself a live-dispatch proof"
+        );
+    }
+
+    #[test]
+    fn safe_on_uninit_resolves_from_the_matched_subcommand() {
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "safe-on-uninit-fixture",
+            arity: Arity::any(),
+            safe_on_uninit: Some(DialectSet::ALL_TCL),
+            subcommands: SAFE_ON_UNINIT_SUBCOMMANDS,
+            ..CommandSpec::DEFAULT
+        });
+
+        let narrow = registry
+            .resolve_invocation("safe-on-uninit-fixture", &["narrow"], DialectSet::empty())
+            .expect("fixture subcommand resolves");
+        assert_eq!(
+            narrow.semantics.safe_on_uninit,
+            Some(DialectSet::TCL85_PLUS)
+        );
+
+        let inherited = registry
+            .resolve_invocation("safe-on-uninit-fixture", &["inherit"], DialectSet::empty())
+            .expect("fixture subcommand resolves");
+        assert_eq!(
+            inherited.semantics.safe_on_uninit,
+            Some(DialectSet::ALL_TCL)
         );
     }
 
