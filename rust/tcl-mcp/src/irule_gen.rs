@@ -30,7 +30,6 @@
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
-use std::sync::LazyLock;
 
 use regex::Regex;
 use serde_json::{Value, json};
@@ -42,12 +41,6 @@ const MULTI_TMM_HINT: &str = "This iRule uses patterns that behave differently a
      The generated test includes a multi-TMM scenario using fakeCMP \
      distribution.  Use ::orch::fakecmp_suggest_sources to plan which \
      client addresses hit which TMMs.";
-
-/// Top-level bareword commands `_extract_irule_commands` probes for.
-const TOPLEVEL_CMDS: &[&str] = &[
-    "pool", "node", "snat", "snatpool", "reject", "drop", "discard", "class", "table", "persist",
-    "event", "log", "after", "virtual",
-];
 
 /// Events implying an HTTP profile (`_infer_profiles`).
 const HTTP_EVENTS: &[&str] = &[
@@ -87,17 +80,6 @@ const HOT_EVENTS: &[&str] = &[
     "DNS_RESPONSE",
 ];
 
-static IRULE_CMD_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\b([A-Z][A-Z0-9]*::[a-z_][a-z0-9_]*)\b").expect("valid regex"));
-static STATIC_VAR_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?:set\s+|[\$])static::(\w+)").expect("valid regex"));
-static SET_INCR_STATIC_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\b(?:set|incr)\s+static::").expect("valid regex"));
-static COUNTER_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\bincr\s+(?:static::\w+|\$?\w*count\w*)").expect("valid regex"));
-static TABLE_STATE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\btable\s+(?:incr|set|add)").expect("valid regex"));
-
 /// Object references pulled out of an iRule (`_extract_object_refs`).
 ///
 /// `nodes` and `virtuals` could also be collected, but the `generate_irule_test`
@@ -133,12 +115,14 @@ pub fn generate_irule_test(args: &Value) -> Value {
         .collect();
     let ordered_events = EventRegistry::build().order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
-    let commands_used = extract_irule_commands(source, &when_blocks);
-    let objects = extract_object_refs(source, &when_blocks);
-    let variables = extract_variables(source, &when_blocks);
+    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    let executable = tcl_irules::irules_executable_commands(source, registry);
+    let commands_used = extract_irule_commands(&executable);
+    let objects = extract_object_refs(source, &executable);
+    let variables = extract_variables(&executable);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
-    let multi_tmm = needs_multi_tmm(source, &when_blocks, &commands_used, &variables);
+    let multi_tmm = needs_multi_tmm(&executable, &variables);
 
     let ctx = ScriptContext {
         basename: "irule.tcl",
@@ -178,55 +162,36 @@ pub fn generate_irule_test(args: &Value) -> Value {
 
 // ── Extractors ────────────────────────────────────────────────────────
 
-/// Extract the iRule command names used in `source` (`_extract_irule_commands`):
-/// `NS::cmd` tokens plus any bareword top-level commands, sorted + deduped.
-fn extract_irule_commands(source: &str, blocks: &[tcl_irules::WhenBlock]) -> Vec<String> {
-    let mut commands: BTreeSet<String> = BTreeSet::new();
-    for body in handler_bodies(source, blocks) {
-        for cap in IRULE_CMD_RE.captures_iter(body) {
-            commands.insert(cap[1].to_owned());
-        }
-        for &cmd in TOPLEVEL_CMDS {
-            if word_present(body, cmd) {
-                commands.insert(cmd.to_owned());
-            }
-        }
-    }
-    commands.into_iter().collect()
-}
-
-/// True when `word` appears in `text` bounded by non-word characters on both
-/// sides (equivalent to `re.search(r"\bword\b", text)` for `\w` words).
-fn word_present(text: &str, word: &str) -> bool {
-    let bytes = text.as_bytes();
-    let wlen = word.len();
-    let mut start = 0;
-    while let Some(pos) = text[start..].find(word) {
-        let idx = start + pos;
-        let before_ok = idx == 0 || !is_word_byte(bytes[idx - 1]);
-        let after = idx + wlen;
-        let after_ok = after >= bytes.len() || !is_word_byte(bytes[after]);
-        if before_ok && after_ok {
-            return true;
-        }
-        start = idx + 1;
-    }
-    false
-}
-
-fn is_word_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
+/// Extract executable iRule command identities, sorted and deduplicated.
+fn extract_irule_commands(commands: &[tcl_irules::IrulesExecutableCommand]) -> Vec<String> {
+    commands
+        .iter()
+        .map(|fact| fact.command.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 /// Extract pool / data-group / node / virtual references (`_extract_object_refs`).
-fn extract_object_refs(source: &str, _blocks: &[tcl_irules::WhenBlock]) -> ObjectRefs {
+fn extract_object_refs(
+    source: &str,
+    commands: &[tcl_irules::IrulesExecutableCommand],
+) -> ObjectRefs {
     let mut pools: BTreeSet<String> = BTreeSet::new();
     let mut datagroups: BTreeSet<String> = BTreeSet::new();
-    // The recursive owner follows registry-declared bodies and substitutions,
-    // while rejecting comments and data words. `blocks` is retained by the
-    // request context for all other generators; this walker needs full spans.
+    // The recursive reference owner supplies precise spans; intersect them
+    // with the execution-boundary owner's command spans so invalid top-level
+    // and nested-declaration regions cannot seed test setup.
     let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
-    for reference in tcl_irules::extract_irules_object_references(source, None, registry) {
+    for reference in tcl_irules::extract_irules_object_references(source, None, registry)
+        .into_iter()
+        .filter(|reference| {
+            commands.iter().any(|fact| {
+                fact.span.start() <= reference.range.start()
+                    && reference.range.end() <= fact.span.end()
+            })
+        })
+    {
         if reference.category == tcl_irules::IrulesObjectReferenceCategory::Pool {
             pools.insert(reference.name);
         } else if reference.category == tcl_irules::IrulesObjectReferenceCategory::DataGroup {
@@ -241,11 +206,19 @@ fn extract_object_refs(source: &str, _blocks: &[tcl_irules::WhenBlock]) -> Objec
 }
 
 /// Extract `static::` variable names (`_extract_variables`), sorted + deduped.
-fn extract_variables(source: &str, blocks: &[tcl_irules::WhenBlock]) -> Variables {
+fn extract_variables(commands: &[tcl_irules::IrulesExecutableCommand]) -> Variables {
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
-    for body in handler_bodies(source, blocks) {
-        for cap in STATIC_VAR_RE.captures_iter(body) {
-            static_vars.insert(cap[1].to_owned());
+    for fact in commands {
+        if fact.command == "set"
+            && let Some(name) = fact.args.first()
+            && name.starts_with("static::")
+        {
+            static_vars.insert(name.trim_start_matches("static::").to_owned());
+        }
+        for name in &fact.variable_names {
+            if name.starts_with("static::") {
+                static_vars.insert(name.trim_start_matches("static::").to_owned());
+            }
         }
     }
     Variables {
@@ -277,49 +250,35 @@ fn infer_profiles(events: &[String]) -> Vec<String> {
 /// Detect whether an iRule should be tested in multi-TMM mode
 /// (`_needs_multi_tmm`).
 fn needs_multi_tmm(
-    source: &str,
-    blocks: &[tcl_irules::WhenBlock],
-    commands_used: &[String],
+    commands: &[tcl_irules::IrulesExecutableCommand],
     variables: &Variables,
 ) -> bool {
     let has_static_vars = !variables.static_vars.is_empty();
-    let uses_table = commands_used.iter().any(|c| c == "table");
-
-    // Pattern 1: static:: written in a hot event body.
-    let static_in_hot = HOT_EVENTS.iter().any(|event| {
-        event_body(source, blocks, event).is_some_and(|body| SET_INCR_STATIC_RE.is_match(body))
+    let static_in_hot = commands.iter().any(|fact| {
+        fact.event
+            .as_deref()
+            .is_some_and(|event| HOT_EVENTS.contains(&event))
+            && matches!(fact.command.as_str(), "set" | "incr")
+            && fact
+                .args
+                .first()
+                .is_some_and(|arg| arg.starts_with("static::"))
+    });
+    let has_counter = commands.iter().any(|fact| {
+        fact.command == "incr"
+            && fact.args.first().is_some_and(|arg| {
+                arg.starts_with("static::") || arg.to_ascii_lowercase().contains("count")
+            })
+    });
+    let uses_shared_table = commands.iter().any(|fact| {
+        fact.command == "table"
+            && fact
+                .args
+                .first()
+                .is_some_and(|arg| matches!(arg.as_str(), "incr" | "set" | "add"))
     });
 
-    // Pattern 2: rate-limiting / counter patterns.
-    let has_counter = handler_bodies(source, blocks).any(|body| COUNTER_RE.is_match(body));
-
-    // Pattern 3: table used for shared state.
-    let uses_shared_table =
-        uses_table && handler_bodies(source, blocks).any(|body| TABLE_STATE_RE.is_match(body));
-
     static_in_hot || (has_counter && has_static_vars) || uses_shared_table
-}
-
-/// Return the segmented Tcl bodies of every live event handler.
-fn handler_bodies<'a>(
-    source: &'a str,
-    blocks: &'a [tcl_irules::WhenBlock],
-) -> impl Iterator<Item = &'a str> {
-    blocks
-        .iter()
-        .filter_map(|block| source.get(block.body_span.as_range()))
-}
-
-/// The segmented body of the first live handler for `event`.
-fn event_body<'a>(
-    source: &'a str,
-    blocks: &'a [tcl_irules::WhenBlock],
-    event: &str,
-) -> Option<&'a str> {
-    blocks
-        .iter()
-        .find(|block| block.event == event)
-        .and_then(|block| source.get(block.body_span.as_range()))
 }
 
 // ── Test-script rendering ─────────────────────────────────────────────
@@ -1022,6 +981,13 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
 mod tests {
     use super::*;
 
+    fn executable(src: &str) -> Vec<tcl_irules::IrulesExecutableCommand> {
+        tcl_irules::irules_executable_commands(
+            src,
+            tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules()),
+        )
+    }
+
     fn if_cond(condition: &str) -> Value {
         json!({"kind": "if", "condition": condition})
     }
@@ -1120,20 +1086,20 @@ mod tests {
     #[test]
     fn extractors_ignore_commented_out_handlers() {
         let src = "# when HTTP_REQUEST { pool stale }\nwhen HTTP_REQUEST { pool live }\n";
-        let blocks = tcl_irules::when_blocks(src);
+        let commands = executable(src);
         assert_eq!(
-            extract_object_refs(src, &blocks).pools,
+            extract_object_refs(src, &commands).pools,
             vec!["live".to_owned()]
         );
-        assert!(!extract_irule_commands(src, &blocks).contains(&"stale".to_owned()));
+        assert!(!extract_irule_commands(&commands).contains(&"stale".to_owned()));
     }
 
     #[test]
     fn extractors_ignore_commented_pool_inside_live_handler() {
         let src = "when HTTP_REQUEST {\n # pool stale\n pool live\n}\n";
-        let blocks = tcl_irules::when_blocks(src);
+        let commands = executable(src);
         assert_eq!(
-            extract_object_refs(src, &blocks).pools,
+            extract_object_refs(src, &commands).pools,
             vec!["live".to_owned()]
         );
     }
@@ -1141,9 +1107,9 @@ mod tests {
     #[test]
     fn object_refs_ignore_inline_comments_and_pool_like_data() {
         let src = "when HTTP_REQUEST {\n set x 1; # pool stale\n set quoted \"pool quoted\"\n set braced {pool braced}\n pool live\n}\n";
-        let blocks = tcl_irules::when_blocks(src);
+        let commands = executable(src);
         assert_eq!(
-            extract_object_refs(src, &blocks).pools,
+            extract_object_refs(src, &commands).pools,
             vec!["live".to_owned()]
         );
     }
@@ -1151,8 +1117,8 @@ mod tests {
     #[test]
     fn object_refs_recurse_into_if_and_command_substitution() {
         let src = "when HTTP_REQUEST { if {1} { pool nested_pool }; set hit [class match [HTTP::uri] equals uri_dg] }";
-        let blocks = tcl_irules::when_blocks(src);
-        let refs = extract_object_refs(src, &blocks);
+        let commands = executable(src);
+        let refs = extract_object_refs(src, &commands);
         assert_eq!(refs.pools, vec!["nested_pool".to_owned()]);
         assert!(refs.datagroups.contains(&"uri_dg".to_owned()));
     }
@@ -1160,11 +1126,50 @@ mod tests {
     #[test]
     fn object_refs_ignore_unavailable_aliases_and_keep_qualified_commands() {
         let src = "interp alias {} choose {} pool\nrename class group\nwhen HTTP_REQUEST { choose aliased_pool; ::pool qualified_pool; group match x equals aliased_dg }";
-        let blocks = tcl_irules::when_blocks(src);
-        let refs = extract_object_refs(src, &blocks);
+        let commands = executable(src);
+        let refs = extract_object_refs(src, &commands);
         assert!(!refs.pools.contains(&"aliased_pool".to_owned()));
         assert!(refs.pools.contains(&"qualified_pool".to_owned()));
         assert!(!refs.datagroups.contains(&"aliased_dg".to_owned()));
+    }
+
+    #[test]
+    fn executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions() {
+        let inert = "when HTTP_REQUEST {\n # set static::ghost 1; HTTP::respond 200; pool stale; table incr key\n set q {HTTP::respond 201; pool inert; table incr key; set static::data 1}\n set r \"pool quoted; set static::quoted 1\"\n set x [HTTP::uri]\n pool live\n}\n";
+        let commands = executable(inert);
+        let names = extract_irule_commands(&commands);
+        assert!(names.contains(&"HTTP::uri".to_owned()), "{names:?}");
+        assert!(names.contains(&"pool".to_owned()), "{names:?}");
+        assert!(!names.contains(&"HTTP::respond".to_owned()), "{names:?}");
+        assert!(!names.contains(&"table".to_owned()), "{names:?}");
+        let variables = extract_variables(&commands);
+        assert!(
+            variables.static_vars.is_empty(),
+            "{:?}",
+            variables.static_vars
+        );
+        assert!(!needs_multi_tmm(&commands, &variables));
+        assert_eq!(extract_object_refs(inert, &commands).pools, ["live"]);
+
+        let live = "when HTTP_REQUEST { set static::hits 0; incr static::hits; table incr key; HTTP::respond 200 }";
+        let commands = executable(live);
+        let variables = extract_variables(&commands);
+        assert_eq!(variables.static_vars, ["hits"]);
+        assert!(needs_multi_tmm(&commands, &variables));
+    }
+
+    #[test]
+    fn executable_inventory_includes_proc_bodies_and_excludes_invalid_regions() {
+        let src = concat!(
+            "pool top_level_stale\n",
+            "proc helper {} { pool proc_pool; set x [class match value equals proc_dg] }\n",
+            "when HTTP_REQUEST { call helper; switch -- x { x { pool event_pool } }; when CLIENT_DATA { pool nested_stale } }\n",
+        );
+        let commands = executable(src);
+        let refs = extract_object_refs(src, &commands);
+        assert_eq!(refs.pools, ["event_pool", "proc_pool"], "{commands:?}");
+        assert_eq!(refs.datagroups, ["proc_dg"]);
+        assert!(!extract_irule_commands(&commands).contains(&"when".to_owned()));
     }
 
     #[test]
