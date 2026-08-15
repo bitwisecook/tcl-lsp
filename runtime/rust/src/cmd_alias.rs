@@ -64,7 +64,15 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         RenameOutcome::NoSuchCommand => {
-            let mut m = b"can't rename \"".to_vec();
+            // TclRenameCommand chooses the verb from the requested operation:
+            // an empty destination is a deletion, while a non-empty
+            // destination is a rename (tclNamesp.c).
+            let verb = if new.is_empty() {
+                b"can't delete \"".as_slice()
+            } else {
+                b"can't rename \"".as_slice()
+            };
+            let mut m = verb.to_vec();
             m.extend_from_slice(&old);
             m.extend_from_slice(b"\": command doesn't exist");
             interp.set_error(&m)
@@ -322,6 +330,7 @@ fn not_found_path(interp: &mut Interp, path: &[Vec<u8>]) -> Code {
     interp.set_error(&m)
 }
 
+#[derive(Clone, Copy)]
 enum HideOp {
     Hide,
     Expose,
@@ -458,13 +467,20 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code
             }
         }
     }
-    // Hiding a missing command, or exposing a non-hidden one, is a silent
-    // no-op (as is a child path that does not resolve), matching the prior
-    // single-level behaviour.
-    interp.with_child_path(&path, |c| match op {
+    // Tcl's `Tcl_HideCommand` reports a missing source as `unknown command`;
+    // retaining the old silent no-op swallowed typos in security-sensitive
+    // command-surface setup. Exposure remains a separate operation with its
+    // existing hidden-command error behaviour.
+    let moved = interp.with_child_path(&path, |c| match op {
         HideOp::Hide => c.hide_command(&cmd),
         HideOp::Expose => c.expose_command(&cmd),
     });
+    let Some(moved) = moved else {
+        return not_found_path(interp, &path);
+    };
+    if matches!(op, HideOp::Hide) && !moved {
+        return interp.unknown_command(&cmd);
+    }
     interp.set_result_bytes(b"");
     Code::Ok
 }
@@ -843,6 +859,67 @@ mod tests {
                 i.result_bytes(),
                 b"can't rename \"nope\": command doesn't exist"
             );
+            assert_eq!(i.eval_str(b"rename nope {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't delete \"nope\": command doesn't exist"
+            );
+        });
+    }
+
+    #[test]
+    fn rename_and_hide_error_shapes_and_lifecycle() {
+        leak_free(|i| {
+            // The verb is selected by the empty destination, including for a
+            // qualified missing name (TclRenameCommand / tclNamesp.c).
+            assert_eq!(i.eval_str(b"rename ::missing {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't delete \"::missing\": command doesn't exist"
+            );
+
+            // Qualified moves preserve the command and resolve from the new
+            // namespace; deletion uses the same canonical rename seam.
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval ::rename_ns {proc p {} {return qualified}}; rename ::rename_ns::p ::rename_ns::q"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"::rename_ns::q"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"qualified");
+            assert_eq!(i.eval_str(b"rename ::rename_ns::q {}"), Code::Ok);
+            assert_eq!(i.eval_str(b"::rename_ns::q"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"::rename_ns::q\"");
+
+            // Hiding an absent command is an error, so repeated hide cannot
+            // silently swallow a typo in a security-sensitive setup.
+            assert_eq!(i.eval_str(b"interp hide {} nosuchcmd"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown command \"nosuchcmd\"");
+            assert_eq!(
+                i.eval_str(b"proc visible {} {return visible}; interp hide {} visible"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"interp hidden {}"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"visible");
+            assert_eq!(i.eval_str(b"interp hide {} visible"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown command \"visible\"");
+            assert_eq!(i.eval_str(b"interp invokehidden {} visible"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"visible");
+            assert_eq!(i.eval_str(b"interp expose {} visible"), Code::Ok);
+            assert_eq!(i.eval_str(b"visible"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"visible");
+
+            // Release-hidden builtins are absent from both rename and hide;
+            // neither operation may make an 8.5+ command callable in 8.4.
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(i.eval_str(b"rename lassign {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't delete \"lassign\": command doesn't exist"
+            );
+            assert_eq!(i.eval_str(b"interp hide {} lassign"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown command \"lassign\"");
         });
     }
 

@@ -362,6 +362,7 @@ impl Val {
         match self {
             Val::N(Num::Int(i)) => i.to_string(),
             Val::N(Num::Float(f)) => f.to_string(),
+            Val::N(Num::Big(_)) => unreachable!("default Num has no bignum backend"),
             Val::S(s) => s.clone(),
         }
     }

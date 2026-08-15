@@ -123,6 +123,8 @@
 
 use tcl_core_types::RecursionLimit;
 
+use crate::substitution::{backslash_escape_end, is_line_continuation};
+
 /// Cap on nested `[…]` command-substitution depth for every recursive
 /// scanner in this module ([`BracketIndex`]'s `scan_cmd_sub`,
 /// [`BraceIndex`]'s `scan_script`/`scan_quoted`, and the
@@ -165,6 +167,7 @@ impl BracketIndex {
     pub fn build(source: &str) -> Self {
         let bytes = source.as_bytes();
         let mut b = Builder {
+            source,
             bytes,
             events: Vec::new(),
             inert: Vec::new(),
@@ -297,6 +300,7 @@ impl BracketIndex {
 /// Scanner state. Separated from [`BracketIndex`] so the recursive
 /// command-sub sub-scan can borrow it mutably.
 struct Builder<'a> {
+    source: &'a str,
     bytes: &'a [u8],
     events: Vec<(u32, i32)>,
     inert: Vec<(u32, u32, bool)>,
@@ -318,8 +322,32 @@ impl Builder<'_> {
             .push((u32::try_from(off).expect("offset fits u32"), delta));
     }
 
+    /// Consume a command-position comment, including any lines continued by
+    /// a backslash-newline, and mark its bytes inert for bracket recovery.
+    /// The terminating unescaped newline is left for the caller so it can
+    /// restore command position, matching `Lexer::parse_comment`.
+    fn scan_comment_inert(&mut self, start: usize) -> usize {
+        let n = self.bytes.len();
+        let mut i = start;
+        while i < n {
+            match self.bytes[i] {
+                b'\n' => break,
+                b'\\' => {
+                    // Consume the canonical Tcl escape unit. This is what
+                    // distinguishes an even run (`\\\\\n`, whose newline
+                    // ends the comment) from an odd run, and it handles the
+                    // CRLF continuation spelling as one unit too.
+                    i = backslash_escape_end(self.source, i);
+                }
+                _ => i += 1,
+            }
+        }
+        self.push_inert(start, i, true);
+        i
+    }
+
     /// Top-level / quoted script scan: word-based brace words, quote
-    /// toggling, escapes, `${…}`, and `[…]` command substitutions
+    /// toggling, command-position comments, escapes, `${…}`, and `[…]` command substitutions
     /// (which recurse into [`Self::scan_cmd_sub`]).
     fn scan_top(&mut self) {
         let n = self.bytes.len();
@@ -329,7 +357,13 @@ impl Builder<'_> {
         // Eol).
         let mut newword = true;
         let mut in_quote = false;
+        let mut command_start = true;
         while i < n {
+            if self.bytes[i] == b'#' && command_start && !in_quote {
+                i = self.scan_comment_inert(i);
+                newword = true;
+                continue;
+            }
             match self.bytes[i] {
                 b'\\' => {
                     // Escape pair (lone `\` at EOF: 1 byte). Inert for
@@ -337,15 +371,24 @@ impl Builder<'_> {
                     // (even when truncated at EOF, insertion past them
                     // is structural).
                     let end = (i + 2).min(n);
+                    let continuation = is_line_continuation(self.source, i);
                     self.push_inert(i, end, true);
                     // A backslash-newline (`\<newline>`) is a line continuation
                     // that acts as a word separator (it collapses to a space),
                     // so a `{`/`"` on the continued line still opens a word.
                     // Every other `\X` escape is part of the current word.
-                    newword = !in_quote && i + 1 < n && self.bytes[i + 1] == b'\n';
+                    newword = !in_quote && continuation;
+                    if !newword {
+                        command_start = false;
+                    }
                     i = end;
                 }
-                b' ' | b'\t' | b'\r' | b'\n' | b';' if !in_quote => {
+                b'\n' | b';' if !in_quote => {
+                    i += 1;
+                    newword = true;
+                    command_start = true;
+                }
+                b' ' | b'\t' | b'\r' | 0x0b | 0x0c if !in_quote => {
                     i += 1;
                     newword = true;
                 }
@@ -356,37 +399,44 @@ impl Builder<'_> {
                     self.push_inert(i, end, terminated);
                     i = end;
                     newword = true;
+                    command_start = false;
                 }
                 b'"' if newword && !in_quote => {
                     in_quote = true;
                     i += 1;
                     newword = false;
+                    command_start = false;
                 }
                 b'"' if in_quote => {
                     in_quote = false;
                     i += 1;
                     newword = false;
+                    command_start = false;
                 }
                 b'$' if self.bytes.get(i + 1) == Some(&b'{') => {
                     let (end, terminated) = scan_dollar_brace(self.bytes, i);
                     self.push_inert(i, end, terminated);
                     i = end;
                     newword = false;
+                    command_start = false;
                 }
                 b'[' => {
                     self.push_event(i, 1);
                     let (next_i, _) = self.scan_cmd_sub(i + 1, 0);
                     i = next_i;
                     newword = false;
+                    command_start = false;
                 }
                 b']' => {
                     self.push_event(i, -1);
                     i += 1;
                     newword = false;
+                    command_start = false;
                 }
                 _ => {
                     i += 1;
                     newword = false;
+                    command_start = false;
                 }
             }
         }
@@ -394,7 +444,8 @@ impl Builder<'_> {
 
     /// Scan a `[…]` command-substitution interior starting at `start`
     /// (just past the `[`).
-    /// **count-based** rules: `blevel` tracks `{` / `}` literally, a `]`
+    /// **count-based** rules: `blevel` tracks `{` / `}` literally, a `#` at
+    /// command position starts an inert comment, and a `]`
     /// closes only at `blevel == 0 && !in_quotes`, nested `[` / `]`
     /// recurse. Records nested structural bracket events and inert spans
     /// for brace interiors / escapes / `${…}`. Returns (offset,
@@ -409,20 +460,27 @@ impl Builder<'_> {
         let mut i = start;
         let mut blevel: u32 = 0;
         let mut in_quotes = false;
+        let mut command_start = true;
         let past_cap = MAX_NESTED_BRACKET_DEPTH.exceeded(depth);
         // Start of the current inert brace run (when blevel transitions
         // 0 -> >0), so the whole `{…}` is one inert span.
         let mut brace_run_start: Option<usize> = None;
         while i < n {
+            if self.bytes[i] == b'#' && command_start && !in_quotes && blevel == 0 {
+                i = self.scan_comment_inert(i);
+                continue;
+            }
             match self.bytes[i] {
                 b'"' if blevel == 0 => {
                     in_quotes = !in_quotes;
+                    command_start = false;
                     i += 1;
                 }
                 b'[' if blevel == 0 && !in_quotes && !past_cap => {
                     self.push_event(i, 1);
                     let (next_i, _) = self.scan_cmd_sub(i + 1, depth + 1);
                     i = next_i;
+                    command_start = false;
                 }
                 b']' if blevel == 0 && !in_quotes => {
                     self.push_event(i, -1);
@@ -430,17 +488,23 @@ impl Builder<'_> {
                 }
                 b'\\' => {
                     let end = (i + 2).min(n);
+                    let continuation = is_line_continuation(self.source, i);
                     self.push_inert(i, end, true); // escape pair, always terminated
                     i = end;
+                    if !continuation {
+                        command_start = false;
+                    }
                 }
                 b'$' if !in_quotes && blevel == 0 && self.bytes.get(i + 1) == Some(&b'{') => {
                     let (end, terminated) = scan_dollar_brace(self.bytes, i);
                     self.push_inert(i, end, terminated);
                     i = end;
+                    command_start = false;
                 }
                 b'{' if !in_quotes => {
                     if blevel == 0 {
                         brace_run_start = Some(i);
+                        command_start = false;
                     }
                     blevel += 1;
                     i += 1;
@@ -455,8 +519,17 @@ impl Builder<'_> {
                         // brackets (a `]` inside it never counted).
                         self.push_inert(s, i, true); // terminated
                     }
+                    command_start = false;
+                }
+                b'\n' | b';' if blevel == 0 && !in_quotes => {
+                    command_start = true;
+                    i += 1;
+                }
+                b' ' | b'\t' | b'\r' | 0x0b | 0x0c if blevel == 0 && !in_quotes => {
+                    i += 1;
                 }
                 _ => {
+                    command_start = false;
                     i += 1;
                 }
             }
@@ -1064,7 +1137,7 @@ enum Completeness {
 #[must_use]
 pub fn script_is_complete(source: &str) -> bool {
     let b = source.as_bytes();
-    match scan_complete(b, 0, false, 0).1 {
+    match scan_complete(source, b, 0, false, 0).1 {
         Completeness::Incomplete => false,
         Completeness::Terminal => true,
         // A clean parse is still incomplete if it ends on a
@@ -1110,25 +1183,19 @@ fn ends_with_line_continuation(b: &[u8]) -> bool {
 /// complexity for a case real Tcl never emits. Quantified at < 0.05% of
 /// an adversarial fuzz corpus by
 /// `ctcl9_script_is_complete_iff_info_complete`.
-fn skip_comment(b: &[u8], start: usize) -> usize {
+fn skip_comment(source: &str, start: usize) -> usize {
+    let b = source.as_bytes();
     let n = b.len();
     let mut i = start;
-    loop {
-        let line_start = i;
-        while i < n && b[i] != b'\n' {
-            i += 1;
+    while i < n {
+        match b[i] {
+            b'\n' => break,
+            // Consume one canonical Tcl escape at a time.  Besides avoiding
+            // UTF-8 byte slicing, this naturally distinguishes even and odd
+            // backslash runs and treats CRLF as one continued newline.
+            b'\\' => i = backslash_escape_end(source, i),
+            _ => i += 1,
         }
-        let mut bs = 0usize;
-        let mut k = i;
-        while k > line_start && b[k - 1] == b'\\' {
-            bs += 1;
-            k -= 1;
-        }
-        if bs % 2 == 1 && i < n {
-            i += 1; // swallow the escaped newline
-            continue;
-        }
-        break;
     }
     i
 }
@@ -1174,6 +1241,7 @@ fn step_brace_word(
 }
 
 fn scan_complete(
+    source: &str,
     b: &[u8],
     start: usize,
     stop_at_bracket: bool,
@@ -1210,7 +1278,7 @@ fn scan_complete(
         }
         match b[i] {
             b']' if stop_at_bracket => return (i + 1, Completeness::Closed),
-            b'#' if command_start => i = skip_comment(b, i),
+            b'#' if command_start => i = skip_comment(source, i),
             // A backslash-newline is a line continuation (acts as
             // whitespace -> word boundary, same command); any other
             // escaped char is content.
@@ -1238,7 +1306,7 @@ fn scan_complete(
                 i += 1;
                 command_start = false;
             }
-            b'"' if newword => match scan_complete_quoted(b, i + 1, depth) {
+            b'"' if newword => match scan_complete_quoted(source, b, i + 1, depth) {
                 (_, Completeness::Terminal) => return (n, Completeness::Terminal),
                 (_, Completeness::Incomplete) => return (n, Completeness::Incomplete),
                 (end, Completeness::Closed) => {
@@ -1255,7 +1323,7 @@ fn scan_complete(
                 i += 2; // skip `${`; the `{` is the brace-word opener
                 command_start = false;
             }
-            b'[' if !past_cap => match scan_complete(b, i + 1, true, depth + 1) {
+            b'[' if !past_cap => match scan_complete(source, b, i + 1, true, depth + 1) {
                 (_, Completeness::Terminal) => return (n, Completeness::Terminal),
                 (_, Completeness::Incomplete) => return (n, Completeness::Incomplete),
                 (end, Completeness::Closed) => {
@@ -1283,7 +1351,7 @@ fn scan_complete(
 /// Scan a `"…"` quoted run (opening `"` consumed). Command subs inside
 /// are scripts. `Closed` past the closing `"`, `Incomplete` at EOF
 /// (unterminated quote), `Terminal` if a nested command sub errored.
-fn scan_complete_quoted(b: &[u8], start: usize, depth: u32) -> (usize, Completeness) {
+fn scan_complete_quoted(source: &str, b: &[u8], start: usize, depth: u32) -> (usize, Completeness) {
     let n = b.len();
     let mut i = start;
     let past_cap = MAX_NESTED_BRACKET_DEPTH.exceeded(depth);
@@ -1291,7 +1359,7 @@ fn scan_complete_quoted(b: &[u8], start: usize, depth: u32) -> (usize, Completen
         match b[i] {
             b'\\' => i = (i + 2).min(n),
             b'"' => return (i + 1, Completeness::Closed),
-            b'[' if !past_cap => match scan_complete(b, i + 1, true, depth + 1) {
+            b'[' if !past_cap => match scan_complete(source, b, i + 1, true, depth + 1) {
                 (_, Completeness::Terminal) => return (n, Completeness::Terminal),
                 (_, Completeness::Incomplete) => return (n, Completeness::Incomplete),
                 (end, Completeness::Closed) => i = end,
@@ -1382,23 +1450,7 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
             continue;
         }
         match b[i] {
-            b'#' if command_start => loop {
-                let line_start = i;
-                while i < n && b[i] != b'\n' {
-                    i += 1;
-                }
-                let mut bs = 0usize;
-                let mut k = i;
-                while k > line_start && b[k - 1] == b'\\' {
-                    bs += 1;
-                    k -= 1;
-                }
-                if bs % 2 == 1 && i < n {
-                    i += 1;
-                    continue;
-                }
-                break;
-            },
+            b'#' if command_start => i = skip_comment(source, i),
             b'\\' if matches!(b.get(i + 1), Some(b'\n' | b'\r')) => {
                 i = (i + 2).min(n);
                 newword = true;
@@ -1425,7 +1477,7 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
                 command_start = false;
             }
             b'"' if newword => {
-                i = scan_complete_quoted(b, i + 1, 0).0;
+                i = scan_complete_quoted(source, b, i + 1, 0).0;
                 newword = false;
                 command_start = false;
             }
@@ -1436,7 +1488,7 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
                 command_start = false;
             }
             b'[' => {
-                i = scan_complete(b, i + 1, true, 0).0;
+                i = scan_complete(source, b, i + 1, true, 0).0;
                 newword = false;
                 command_start = false;
             }
@@ -1680,6 +1732,50 @@ mod tests {
         assert!(idx.close_bracket_balances(1));
         // Matches the production lexer.
         assert!(lexer_has_unterminated_bracket("[set x {a]b"));
+    }
+
+    #[test]
+    fn bracket_index_comment_hides_command_closer() {
+        // A command-position comment is part of the nested script.  Its `]`
+        // must be inert, leaving only the final `]` as the substitution's
+        // structural closer (issue #1483).
+        let src = "[\n# ] hidden\nset y 1\n]";
+        let close = u32::try_from(src.len() - 1).unwrap();
+        assert_eq!(BracketIndex::build(src).events(), &[(0, 1), (close, -1)]);
+
+        // Horizontal whitespace separates words but does not start a new
+        // command: this hash is ordinary word content, so the `]` remains a
+        // structural extra closer at top level.
+        let ordinary_hash = "set x #not-comment]";
+        assert!(
+            BracketIndex::build(ordinary_hash)
+                .events()
+                .iter()
+                .any(|&(off, delta)| {
+                    off == u32::try_from(ordinary_hash.len() - 1).unwrap() && delta == -1
+                })
+        );
+        let var_then_hash = "[${x} #not-comment]";
+        assert!(
+            BracketIndex::build(var_then_hash)
+                .events()
+                .iter()
+                .any(|&(off, delta)| {
+                    off == u32::try_from(var_then_hash.len() - 1).unwrap() && delta == -1
+                })
+        );
+
+        // Comment continuations use the same canonical escape-unit decoder
+        // as the lexer: CRLF continues, while an even backslash run leaves
+        // the newline unescaped and ends the comment.
+        let crlf = "[\r\n# hidden \\\r\n] still hidden\r\nset y 1]";
+        assert_eq!(
+            BracketIndex::build(crlf).events(),
+            &[(0, 1), (u32::try_from(crlf.len() - 1).unwrap(), -1)]
+        );
+        let even = "[\n# two \\\\\n]";
+        let events = BracketIndex::build(even);
+        assert_eq!(events.events().iter().filter(|(_, d)| *d == -1).count(), 1);
     }
 
     #[test]
@@ -2617,6 +2713,35 @@ while {1} {
         // `;` inside a quoted string and a command sub don't split.
         let q = "puts \"a;b\"\nset y [a;b]\n";
         assert_eq!(command_boundaries(q), vec![11, 23]);
+
+        // The newline in a command substitution whose first command is a
+        // comment is also nested.  In particular, the commented-out `]`
+        // cannot become a boundary or close the substitution.
+        let comment = "set x [\n# ] hidden\nset y 1\n]\nputs done\n";
+        let first = u32::try_from(comment.find("]\n").unwrap() + 2).unwrap();
+        assert_eq!(
+            command_boundaries(comment),
+            vec![first, u32::try_from(comment.len()).unwrap()]
+        );
+
+        // A CRLF continuation keeps the next line inside the comment, so its
+        // `]` is inert.  The old duplicated byte loop only recognised LF and
+        // closed the substitution at this first bracket.
+        let crlf = "set x [\r\n# hidden \\\r\n] still hidden\r\nset y 1\r\n]\nputs done\n";
+        let first = u32::try_from(crlf.find("]\nputs").unwrap() + 2).unwrap();
+        assert_eq!(
+            command_boundaries(crlf),
+            vec![first, u32::try_from(crlf.len()).unwrap()]
+        );
+
+        // Escape units, rather than a raw backslash count, determine parity:
+        // an even run leaves the newline unescaped and ends the comment.
+        let even = "set x [\n# visible close \\\\\n]\nputs done\n";
+        let first = u32::try_from(even.find("]\n").unwrap() + 2).unwrap();
+        assert_eq!(
+            command_boundaries(even),
+            vec![first, u32::try_from(even.len()).unwrap()]
+        );
     }
 
     #[test]

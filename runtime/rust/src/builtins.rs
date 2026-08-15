@@ -1038,6 +1038,29 @@ mod tests {
         });
     }
 
+    /// Tcl 8.6/9.0 (`Tcl_ParseVarName`, `generic/tclParse.c`) consumes the
+    /// complete colon separator run before looking up an unbraced variable.
+    #[test]
+    fn subst_variable_colon_runs_match_tcl() {
+        leak_free(|i| {
+            ok(i, b"namespace eval a {}");
+            ok(i, b"set ::a::b VALUE");
+            ok(i, b"set ::a::arr(k) ARRAY");
+            assert_eq!(
+                ok(i, b"subst {$a:::b $::a:::b $a:::arr(k) $::a:::arr(k)}"),
+                b"VALUE VALUE ARRAY ARRAY"
+            );
+            ok(i, b"namespace eval foo {}");
+            ok(i, b"set ::foo::: EMPTY");
+            assert_eq!(ok(i, b"subst {$foo:::}"), b"EMPTY");
+            assert_eq!(i.eval_str(b"subst {$missing:::b}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't read \"missing:::b\": no such variable"
+            );
+        });
+    }
+
     #[test]
     fn unset_nocomplain_and_dashdash() {
         leak_free(|i| {

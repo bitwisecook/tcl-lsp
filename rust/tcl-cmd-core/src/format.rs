@@ -25,23 +25,56 @@
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
 
-use tcl_syntax::format::{FmtFlags, MAX_FIELD, Spec, parse_spec};
+use tcl_syntax::format::{FmtFlags, Spec, parse_spec_with_limit};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
+/// Whether `verb` belongs to the format conversion grammar consumed by the
+/// shared renderer.  This forwards the parser owner rather than maintaining a
+/// second editor-only verb table.
+#[must_use]
+pub fn is_verb(verb: u8) -> bool {
+    tcl_syntax::format::is_verb(verb)
+}
+
+/// Whether a parsed conversion is available under one resolved profile.
+/// Version/dialect policy remains in the profile-aware syntax owner.
+#[must_use]
+pub fn is_available(spec: &Spec, profile: &tcl_dialect::DialectProfile) -> bool {
+    tcl_syntax::format::is_available(spec, profile)
+}
+
 /// `format formatString ?arg ...?`.
 pub fn format_cmd<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    format_cmd_with_syntax(ops, args, tcl_syntax::number::runtime_syntax())
+}
+
+/// `format` under an explicitly resolved numeral/alternate-prefix grammar.
+/// Runtime adapters use this entry point so an interpreter pinned to Tcl 8.x
+/// does not inherit Tcl 9's `0d`/`0o` alternate forms.
+pub fn format_cmd_with_syntax<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<O::Value, CmdError> {
     let Some((fmt, rest)) = args.split_first() else {
         return Err(CmdError::wrong_args("format formatString ?arg ...?"));
     };
     let fmt = ops.as_str(fmt).to_string();
-    let rendered = render(ops, &fmt, rest)?;
+    let rendered = render(ops, &fmt, rest, syntax)?;
     Ok(ops.new_string(rendered))
 }
 
+const MAX_RUNTIME_FIELD: usize = i32::MAX as usize;
+
 /// Render `fmt` against `args`, consuming arguments left-to-right.
-fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<String, CmdError> {
+fn render<O: ValueOps>(
+    ops: &mut O,
+    fmt: &str,
+    args: &[O::Value],
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<String, CmdError> {
     let bytes = fmt.as_bytes();
     let mut out = String::new();
     let mut i = 0;
@@ -65,7 +98,7 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
             continue;
         }
         let mut j = i + 1;
-        let Some(mut spec) = parse_spec(bytes, &mut j) else {
+        let Some(mut spec) = parse_spec_with_limit(bytes, &mut j, usize::MAX) else {
             // A `%` that is not `%%` always begins a conversion — Tcl has no
             // literal lone `%`. An incomplete one (`%`, `%5`, a trailing `%`)
             // has no verb to consume an argument, which Tcl reports as
@@ -74,6 +107,13 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
                 "not enough arguments for all format specifiers",
             ));
         };
+        if spec.width.is_some_and(|width| width > MAX_RUNTIME_FIELD)
+            || spec
+                .precision
+                .is_some_and(|precision| precision > MAX_RUNTIME_FIELD)
+        {
+            return Err(CmdError::new("max size for a Tcl value exceeded"));
+        }
         if spec.verb != b'%' {
             // Commit the format to positional or sequential mode and reject a mix
             // (`format {%2$d %d} …` is a Tcl error, not arg-2-then-arg-1).
@@ -111,16 +151,19 @@ fn render<O: ValueOps>(ops: &mut O, fmt: &str, args: &[O::Value]) -> Result<Stri
                 if w < 0 {
                     spec.flags |= FmtFlags::MINUS;
                 }
-                let mag = usize::try_from(w.unsigned_abs()).unwrap_or(MAX_FIELD);
-                spec.width = Some(mag.min(MAX_FIELD));
+                let mag = usize::try_from(w.unsigned_abs()).unwrap_or(usize::MAX);
+                if mag > MAX_RUNTIME_FIELD {
+                    return Err(CmdError::new("max size for a Tcl value exceeded"));
+                }
+                spec.width = Some(mag);
             }
             if spec.precision_star {
                 let p = ops.as_int(take_arg(args, &mut cur, positional)?)?;
                 // A negative `.*` precision is treated as omitted (C).
-                spec.precision = usize::try_from(p).ok().map(|p| p.min(MAX_FIELD));
+                spec.precision = usize::try_from(p).ok().map(|p| p.min(MAX_RUNTIME_FIELD));
             }
             let arg = take_arg(args, &mut cur, positional)?;
-            out.push_str(&render_spec(ops, &spec, arg)?);
+            out.push_str(&render_spec(ops, &spec, arg, syntax)?);
             if !positional {
                 ai = cur;
             }
@@ -155,7 +198,12 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Render one conversion against `arg`.
-fn render_spec<O: ValueOps>(ops: &mut O, spec: &Spec, arg: &O::Value) -> Result<String, CmdError> {
+fn render_spec<O: ValueOps>(
+    ops: &mut O,
+    spec: &Spec,
+    arg: &O::Value,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<String, CmdError> {
     let verb = spec.verb;
     match verb {
         b'd' | b'i' | b'u' => {
@@ -165,14 +213,18 @@ fn render_spec<O: ValueOps>(ops: &mut O, spec: &Spec, arg: &O::Value) -> Result<
             // non-zero value (dropped for zero, like `%#x 0` → `0`). `%u` takes
             // no prefix. The sign and width are applied around it by
             // `pad_number`, so `%#d -42` → `-0d42`.
-            if spec.flags.contains(FmtFlags::HASH) && matches!(verb, b'd' | b'i') && n != 0 {
+            if syntax.has_decimal_prefix()
+                && spec.flags.contains(FmtFlags::HASH)
+                && matches!(verb, b'd' | b'i')
+                && n != 0
+            {
                 digits.insert_str(0, "0d");
             }
             Ok(pad_number(&digits, n < 0 && verb != b'u', spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
             let n = ops.as_int(arg)?;
-            Ok(pad_number(&based_digits(n, spec), false, spec))
+            Ok(pad_number(&based_digits(n, spec, syntax), false, spec))
         }
         b'c' => {
             let n = ops.as_int(arg)?;
@@ -210,7 +262,7 @@ fn int_digits(n: i64, spec: &Spec) -> String {
 }
 
 /// Digits for `x`/`X`/`o`/`b`, with the `#` alternate-form prefix.
-fn based_digits(n: i64, spec: &Spec) -> String {
+fn based_digits(n: i64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> String {
     // reinterpret the two's-complement bit pattern as u64: `%x`/`%o`/`%b` of a
     // negative int prints the unsigned representation, matching C's `format`.
     #[allow(clippy::cast_sign_loss)]
@@ -226,10 +278,14 @@ fn based_digits(n: i64, spec: &Spec) -> String {
         ),
         b'X' => (
             format!("{u:X}"),
-            // Tcl uses a lowercase `0x` prefix even for `%#X` (`0xC`, not `0XC`);
-            // only the digits follow the verb's case (format-1.2).
+            // Tcl 8.x follows the verb's case (`0XC`); Tcl 9's explicit
+            // radix spelling is lowercase even for `%#X` (`0xC`).
             if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                "0x"
+                if syntax.has_decimal_prefix() {
+                    "0x"
+                } else {
+                    "0X"
+                }
             } else {
                 ""
             },
@@ -239,7 +295,11 @@ fn based_digits(n: i64, spec: &Spec) -> String {
             // Tcl 9 `%#o` → `0o` radix prefix (8.6 used a bare leading `0`),
             // dropped for zero (`%#o 0` → `0`).
             if spec.flags.contains(FmtFlags::HASH) && u != 0 {
-                "0o"
+                if syntax.has_decimal_prefix() {
+                    "0o"
+                } else {
+                    "0"
+                }
             } else {
                 ""
             },

@@ -455,17 +455,7 @@ fn parse_var_ref_parts(s: &str, at: usize) -> Option<VarRef<'_>> {
         });
     }
     let start = at + 1;
-    let mut j = start;
-    while j < n && (b[j].is_ascii_alphanumeric() || b[j] == b'_') {
-        j += 1;
-    }
-    // Namespace separators `::`.
-    while j + 1 < n && b[j] == b':' && b[j + 1] == b':' {
-        j += 2;
-        while j < n && (b[j].is_ascii_alphanumeric() || b[j] == b'_') {
-            j += 1;
-        }
-    }
+    let j = tcl_core_types::naming::scan_var_name_end(b, start);
     if j == start {
         return None;
     }
@@ -567,7 +557,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{command_end, subst_command, whole_braced};
+    use super::{command_end, parse_var_ref_parts, subst_command, whole_braced};
     use crate::interp::Vm;
 
     /// `subst_command` with only backslash substitution enabled.
@@ -597,6 +587,22 @@ mod tests {
         // FP guard: `\\` is an escaped backslash, so the newline after it is
         // real content, not a continuation.
         assert_eq!(subst_backslashes("x\\\\\r\ny"), "x\\\r\ny");
+    }
+
+    #[test]
+    fn variable_reference_scanner_consumes_colon_runs() {
+        for (source, base, next) in [
+            ("$a:::b", "a:::b", 6),
+            ("$::a:::b", "::a:::b", 8),
+            ("$foo:::", "foo:::", 7),
+        ] {
+            let parsed = parse_var_ref_parts(source, 0).expect("variable reference");
+            assert_eq!(parsed.base, base);
+            assert_eq!(parsed.next, next);
+        }
+        let parsed = parse_var_ref_parts("$a:::b(k)", 0).expect("array reference");
+        assert_eq!(parsed.base, "a:::b");
+        assert_eq!(parsed.index, Some("k"));
     }
 
     #[test]

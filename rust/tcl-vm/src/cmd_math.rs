@@ -22,8 +22,10 @@
 // `entier`/… follow Tcl's expr numeric conversions, not lossless casts).
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
+use num_bigint::BigInt;
 use num_traits::{FromPrimitive, Signed, ToPrimitive};
 use tcl_runtime_api::Completion;
+use tcl_syntax::expr::mathfunc::{NumValue, dispatch_with_backend};
 use tcl_syntax::number::{self, Number};
 
 use crate::command::err_with_code;
@@ -37,24 +39,6 @@ use crate::value::Value;
 fn num_arg(v: &Value) -> Result<f64, String> {
     v.as_double()
         .map_err(|_| format!("expected number but got \"{}\"", v.to_str()))
-}
-
-/// A double argument for the libm-backed functions: `as_double`, with an
-/// integer beyond the double-parse range coercing through the tower's
-/// correctly-rounded bignum→double conversion — `sqrt(2**200)` computes
-/// (C's `Tcl_GetDoubleFromObj` view), instead of rejecting the operand the
-/// operators already accept.
-fn libm_arg(v: &Value) -> Result<f64, String> {
-    if let Ok(d) = v.as_double() {
-        return Ok(d);
-    }
-    if let Some(b) = crate::expr::value_as_bigint(v) {
-        return Ok(crate::expr::big_to_f64(&b));
-    }
-    Err(format!(
-        "expected floating-point number but got \"{}\"",
-        v.to_str()
-    ))
 }
 
 /// Coerce `v` to a double for the classification predicates (`isnan` /
@@ -97,12 +81,6 @@ fn num_or_nan(v: &Value) -> Result<f64, String> {
     }
 }
 
-/// Coerce the argument of an integer-producing conversion (`int`/`wide`/
-/// `entier`/`round`) to a *finite* double, with C's special-value errors:
-/// NaN — spelled or typed — is "floating point value is Not a Number" and
-/// ±Inf is "integer value too large to represent" (tclsh 8.6/9.0); a
-/// non-number keeps the generic expected-number message. Callers handle
-/// integer arguments first, so a bignum never reaches here.
 fn finite_num_arg(v: &Value) -> Result<f64, String> {
     let f = num_or_nan(v)?;
     if f.is_nan() {
@@ -114,22 +92,12 @@ fn finite_num_arg(v: &Value) -> Result<f64, String> {
     Ok(f)
 }
 
-/// A finite double truncated toward zero, as an exact integer — `from_f64` on
-/// a finite integral double is lossless, so `int(1e300)`-style conversions
-/// see the full 10^300-scale value C does (the `None` fallback is unreachable
-/// for the finite values [`finite_num_arg`] admits).
-fn exact_trunc(f: f64) -> num_bigint::BigInt {
-    num_bigint::BigInt::from_f64(f.trunc()).unwrap_or_default()
+fn exact_trunc(f: f64) -> BigInt {
+    BigInt::from_f64(f.trunc()).unwrap_or_default()
 }
 
-/// Fold an exact integer into the signed 64-bit window (modulo 2^64, bit-cast
-/// to `i64`) — what `int()`/`wide()` do to an out-of-range value. The
-/// integer-*string* case lives in `Value::as_wide`; this is the same fold for
-/// values arriving as a bignum (a truncated double).
-fn wide_window(b: &num_bigint::BigInt) -> i64 {
-    // num-bigint's `&` is two's-complement, so the mask keeps the low 64 bits
-    // with the wrap C computes (`-1 & mask` is 2^64-1, folding back to `-1`).
-    let low = b & &num_bigint::BigInt::from(u64::MAX);
+fn wide_window(b: &BigInt) -> i64 {
+    let low = b & &BigInt::from(u64::MAX);
     low.to_u64().map_or(0, u64::cast_signed)
 }
 
@@ -143,6 +111,96 @@ fn domain_err() -> Completion<Value> {
     err_with_code(DOMAIN_MSG, DOMAIN_CODE)
 }
 
+fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
+    let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
+        return err(format!("invalid command name \"tcl::mathfunc::{name}\""));
+    };
+    let n = args.len();
+    let min = usize::from(spec.arity.min);
+    if n < min || spec.arity.max.is_some_and(|m| n > usize::from(m)) {
+        return err(format!(
+            "{} for math function \"{name}\"",
+            if n < min {
+                "not enough arguments"
+            } else {
+                "too many arguments"
+            }
+        ));
+    }
+    let nums: Result<Vec<NumValue<BigInt>>, Completion<Value>> = args
+        .iter()
+        .map(|v| {
+            if let Ok(i) = v.as_int() {
+                return Ok(NumValue::Int(i));
+            }
+            if let Some(b) = crate::expr::value_as_bigint(v) {
+                return Ok(NumValue::Big(b));
+            }
+            if let Ok(f) = v.as_double() {
+                return Ok(NumValue::Float(f));
+            }
+            if matches!(
+                number::parse_whole(v.to_str().trim()),
+                Some(Number::Nan { .. })
+            ) {
+                return Ok(NumValue::Float(f64::NAN));
+            }
+            let message = if tcl_syntax::expr::mathfunc::expects_floating_operand_error(name) {
+                format!("expected floating-point number but got \"{}\"", v.to_str())
+            } else {
+                format!("expected number but got \"{}\"", v.to_str())
+            };
+            Err(err(message))
+        })
+        .collect();
+    let nums = match nums {
+        Ok(nums) => nums,
+        Err(e) => return e,
+    };
+    match dispatch_with_backend(name, &nums) {
+        Some(NumValue::Int(i)) => ok(Value::int(i)),
+        Some(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
+        Some(NumValue::Float(f)) => ok(Value::double(f)),
+        None => domain_err(),
+    }
+}
+
+macro_rules! shared_wrapper {
+    ($fn_name:ident, $math_name:literal) => {
+        fn $fn_name(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+            shared_math($math_name, args)
+        }
+    };
+}
+
+shared_wrapper!(shared_sqrt, "sqrt");
+shared_wrapper!(shared_max, "max");
+shared_wrapper!(shared_min, "min");
+shared_wrapper!(shared_floor, "floor");
+shared_wrapper!(shared_ceil, "ceil");
+shared_wrapper!(shared_pow, "pow");
+shared_wrapper!(shared_sin, "sin");
+shared_wrapper!(shared_cos, "cos");
+shared_wrapper!(shared_tan, "tan");
+shared_wrapper!(shared_asin, "asin");
+shared_wrapper!(shared_acos, "acos");
+shared_wrapper!(shared_atan, "atan");
+shared_wrapper!(shared_sinh, "sinh");
+shared_wrapper!(shared_cosh, "cosh");
+shared_wrapper!(shared_tanh, "tanh");
+shared_wrapper!(shared_exp, "exp");
+shared_wrapper!(shared_log, "log");
+shared_wrapper!(shared_log10, "log10");
+shared_wrapper!(shared_atan2, "atan2");
+shared_wrapper!(shared_hypot, "hypot");
+shared_wrapper!(shared_fmod, "fmod");
+shared_wrapper!(shared_isfinite, "isfinite");
+shared_wrapper!(shared_isinf, "isinf");
+shared_wrapper!(shared_isnan, "isnan");
+shared_wrapper!(shared_isnormal, "isnormal");
+shared_wrapper!(shared_issubnormal, "issubnormal");
+shared_wrapper!(shared_isunordered, "isunordered");
+
 pub(crate) fn register(vm: &mut Vm) {
     // `::tcl::mathfunc` is a real namespace in C Tcl, so a user
     // `proc tcl::mathfunc::square {x} {…}` (TIP 232's custom-function
@@ -150,99 +208,52 @@ pub(crate) fn register(vm: &mut Vm) {
     // registrations (which only create flat command-table keys).
     vm.declare_namespace("tcl::mathfunc");
     vm.register("tcl::mathfunc::abs", m_abs);
+    // These conversions retain the VM's exact finite-double-to-bignum path;
+    // the shared value seam deliberately has no float-to-arbitrary-integer
+    // operation, so routing them through it would turn `int(1e300)` and
+    // `round(1e300)` into a spurious domain error.
     vm.register("tcl::mathfunc::int", m_int);
     vm.register("tcl::mathfunc::wide", m_wide);
     vm.register("tcl::mathfunc::entier", m_entier);
     vm.register("tcl::mathfunc::double", m_double);
     vm.register("tcl::mathfunc::round", m_round);
-    vm.register("tcl::mathfunc::sqrt", m_sqrt);
+    vm.register("tcl::mathfunc::sqrt", shared_sqrt);
     vm.register("tcl::mathfunc::isqrt", m_isqrt);
-    vm.register("tcl::mathfunc::floor", m_floor);
-    vm.register("tcl::mathfunc::ceil", m_ceil);
-    vm.register("tcl::mathfunc::pow", m_pow);
+    vm.register("tcl::mathfunc::floor", shared_floor);
+    vm.register("tcl::mathfunc::ceil", shared_ceil);
+    vm.register("tcl::mathfunc::pow", shared_pow);
     vm.register("tcl::mathfunc::bool", m_bool);
-    vm.register("tcl::mathfunc::max", m_max);
-    vm.register("tcl::mathfunc::min", m_min);
+    vm.register("tcl::mathfunc::max", shared_max);
+    vm.register("tcl::mathfunc::min", shared_min);
     vm.register("tcl::mathfunc::srand", m_srand);
     vm.register("tcl::mathfunc::rand", m_rand);
     // Trigonometric / transcendental — single `double` argument.
-    vm.register("tcl::mathfunc::sin", |_, a| dom_fn(a, "sin", f64::sin));
-    vm.register("tcl::mathfunc::cos", |_, a| dom_fn(a, "cos", f64::cos));
-    vm.register("tcl::mathfunc::tan", |_, a| dom_fn(a, "tan", f64::tan));
-    vm.register("tcl::mathfunc::asin", |_, a| dom_fn(a, "asin", f64::asin));
-    vm.register("tcl::mathfunc::acos", |_, a| dom_fn(a, "acos", f64::acos));
-    vm.register("tcl::mathfunc::atan", |_, a| dom_fn(a, "atan", f64::atan));
-    vm.register("tcl::mathfunc::sinh", |_, a| dom_fn(a, "sinh", f64::sinh));
-    vm.register("tcl::mathfunc::cosh", |_, a| dom_fn(a, "cosh", f64::cosh));
-    vm.register("tcl::mathfunc::tanh", |_, a| dom_fn(a, "tanh", f64::tanh));
-    vm.register("tcl::mathfunc::exp", |_, a| dom_fn(a, "exp", f64::exp));
-    vm.register("tcl::mathfunc::log", |_, a| dom_fn(a, "log", f64::ln));
-    vm.register("tcl::mathfunc::log10", |_, a| {
-        dom_fn(a, "log10", f64::log10)
-    });
+    vm.register("tcl::mathfunc::sin", shared_sin);
+    vm.register("tcl::mathfunc::cos", shared_cos);
+    vm.register("tcl::mathfunc::tan", shared_tan);
+    vm.register("tcl::mathfunc::asin", shared_asin);
+    vm.register("tcl::mathfunc::acos", shared_acos);
+    vm.register("tcl::mathfunc::atan", shared_atan);
+    vm.register("tcl::mathfunc::sinh", shared_sinh);
+    vm.register("tcl::mathfunc::cosh", shared_cosh);
+    vm.register("tcl::mathfunc::tanh", shared_tanh);
+    vm.register("tcl::mathfunc::exp", shared_exp);
+    vm.register("tcl::mathfunc::log", shared_log);
+    vm.register("tcl::mathfunc::log10", shared_log10);
     // Two `double` arguments.
-    vm.register("tcl::mathfunc::atan2", |_, a| {
-        dom_fn2(a, "atan2", f64::atan2)
-    });
-    vm.register("tcl::mathfunc::hypot", |_, a| {
-        dom_fn2(a, "hypot", f64::hypot)
-    });
-    vm.register("tcl::mathfunc::fmod", |_, a| {
-        dom_fn2(a, "fmod", |x, y| x % y)
-    });
+    vm.register("tcl::mathfunc::atan2", shared_atan2);
+    vm.register("tcl::mathfunc::hypot", shared_hypot);
+    vm.register("tcl::mathfunc::fmod", shared_fmod);
     // Classification predicates — one `double`, returns a boolean (never a
     // domain error, since inspecting a NaN/Inf is their purpose).
-    vm.register("tcl::mathfunc::isfinite", |_, a| {
-        pred_fn(a, "isfinite", f64::is_finite)
-    });
-    vm.register("tcl::mathfunc::isinf", |_, a| {
-        pred_fn(a, "isinf", f64::is_infinite)
-    });
-    vm.register("tcl::mathfunc::isnan", |_, a| {
-        pred_fn(a, "isnan", f64::is_nan)
-    });
-    vm.register("tcl::mathfunc::isnormal", |_, a| {
-        pred_fn(a, "isnormal", f64::is_normal)
-    });
-    vm.register("tcl::mathfunc::issubnormal", |_, a| {
-        pred_fn(a, "issubnormal", |x| {
-            x.classify() == std::num::FpCategory::Subnormal
-        })
-    });
-    vm.register("tcl::mathfunc::isunordered", |_, a| {
-        pred_fn2(a, "isunordered", |x, y| x.is_nan() || y.is_nan())
-    });
+    vm.register("tcl::mathfunc::isfinite", shared_isfinite);
+    vm.register("tcl::mathfunc::isinf", shared_isinf);
+    vm.register("tcl::mathfunc::isnan", shared_isnan);
+    vm.register("tcl::mathfunc::isnormal", shared_isnormal);
+    vm.register("tcl::mathfunc::issubnormal", shared_issubnormal);
+    vm.register("tcl::mathfunc::isunordered", shared_isunordered);
     // `fpclassify` is a top-level command, not a math function.
     vm.register("fpclassify", cmd_fpclassify);
-}
-
-/// A one-`double` classification predicate (`isnan`/`isinf`/…): coerce the
-/// argument and return its boolean as `0`/`1`, with no domain check.
-fn pred_fn(args: &[Value], name: &str, f: impl Fn(f64) -> bool) -> Completion<Value> {
-    let x = match one(args, name) {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    match num_or_nan(x) {
-        Ok(d) => ok(Value::bool(f(d))),
-        Err(m) => err(m),
-    }
-}
-
-/// A two-`double` predicate (`isunordered`).
-fn pred_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> bool) -> Completion<Value> {
-    let [lhs, rhs] = args else {
-        let which = if args.len() < 2 {
-            "not enough arguments"
-        } else {
-            "too many arguments"
-        };
-        return err(format!("{which} for math function \"{name}\""));
-    };
-    match (num_or_nan(lhs), num_or_nan(rhs)) {
-        (Ok(x), Ok(y)) => ok(Value::bool(f(x, y))),
-        (Err(m), _) | (_, Err(m)) => err(m),
-    }
 }
 
 fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>> {
@@ -264,9 +275,6 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
-    // Compute the magnitude in `i128` so the most-negative wide doesn't wrap:
-    // `abs(-9223372036854775808)` is `2^63`, which has no `i64` but is the
-    // bignum tclsh returns (rendered as a decimal string by `int_value`).
     if let Ok(n) = x.as_int() {
         return ok(crate::expr::int_value(i128::from(n).abs()));
     }
@@ -275,15 +283,10 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     {
         return ok(crate::expr::int_value(b.abs()));
     }
-    // An integer past `i128` (or exactly `-2^127`, whose magnitude has no
-    // `i128`) stays exact: tclsh's `abs(-(2**150))` is the full 2^150,
-    // never a rounded double.
     if let Some(b) = crate::expr::value_as_bigint(x) {
         return ok(crate::expr::big_value(&b.abs()));
     }
     match num_or_nan(x) {
-        // C's domain error — `abs(nan)` is not a number (±Inf is fine:
-        // `abs(-inf)` is `inf`).
         Ok(f) if f.is_nan() => err("floating point value is Not a Number".to_string()),
         Ok(f) => ok(Value::double(f.abs())),
         Err(m) => err(m),
@@ -326,15 +329,9 @@ fn m_double(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(c) => return c,
     };
     match x.as_double() {
-        // A typed NaN is not a usable number here, same as the spelled one
-        // below (tclsh: "floating point value is Not a Number").
         Ok(f) if f.is_nan() => err("floating point value is Not a Number"),
         Ok(f) => ok(Value::double(f)),
         Err(e) => {
-            // `as_double` declines integers past its range and NaN spellings;
-            // both are still numbers to `double()`: a bignum converts with
-            // C's `TclBignumToDouble` rounding (`double(2**200)` is
-            // `1.6069380442589903e+60`), NaN is the domain-style error.
             if let Some(b) = crate::expr::value_as_bigint(x) {
                 return ok(Value::double(crate::expr::big_to_f64(&b)));
             }
@@ -372,89 +369,49 @@ fn m_round(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn dbl_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Value> {
-    let x = match one(args, name) {
+/// VM-facing `isqrt` keeps Tcl's specialised negative-argument diagnostic;
+/// the exact positive bignum root is the same shared tower operation used by
+/// the other backends.
+fn m_isqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let x = match one(args, "isqrt") {
         Ok(v) => v,
         Err(c) => return c,
     };
-    match libm_arg(x) {
-        Ok(d) => ok(Value::double(f(d))),
-        Err(m) => err(m),
-    }
-}
-
-/// A single-`double` libm function with Tcl's domain guard: a non-NaN argument
-/// that yields NaN (`sqrt(-1)`, `acos(2)`, `log(-1)`) is a domain error, while a
-/// pole that yields ±Inf (`log(0)`) is allowed. A NaN argument passes through.
-fn dom_fn(args: &[Value], name: &str, f: impl Fn(f64) -> f64) -> Completion<Value> {
-    let x = match one(args, name) {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    match libm_arg(x) {
-        Ok(d) => {
-            let r = f(d);
-            if r.is_nan() && !d.is_nan() {
-                return domain_err();
-            }
-            ok(Value::double(r))
+    if let Ok(n) = x.as_int() {
+        if n < 0 {
+            return err_with_code("square root of negative argument", DOMAIN_CODE);
         }
-        Err(m) => err(m),
+        return ok(Value::int(isqrt_i64(n)));
     }
-}
-
-/// A two-`double` libm function with the same domain guard (`atan2`, `hypot`,
-/// `fmod` — where `fmod(x, 0)` is the domain error).
-fn dom_fn2(args: &[Value], name: &str, f: impl Fn(f64, f64) -> f64) -> Completion<Value> {
-    let [lhs, rhs] = args else {
-        let which = if args.len() < 2 {
-            "not enough arguments"
-        } else {
-            "too many arguments"
-        };
-        return err(format!("{which} for math function \"{name}\""));
-    };
-    match (libm_arg(lhs), libm_arg(rhs)) {
-        (Ok(x), Ok(y)) => {
-            let r = f(x, y);
-            if r.is_nan() && !x.is_nan() && !y.is_nan() {
-                return domain_err();
-            }
-            ok(Value::double(r))
+    if let Some(b) = crate::expr::value_as_bigint(x) {
+        if b.is_negative() {
+            return err_with_code("square root of negative argument", DOMAIN_CODE);
         }
-        (Err(m), _) | (_, Err(m)) => err(m),
+        return ok(crate::expr::big_value(&num_integer::Roots::sqrt(&b)));
     }
-}
-
-fn m_sqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    dom_fn(args, "sqrt", f64::sqrt)
-}
-fn m_floor(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    dbl_fn(args, "floor", f64::floor)
-}
-fn m_ceil(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    dbl_fn(args, "ceil", f64::ceil)
-}
-
-fn m_pow(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let [b, e] = args else {
-        let which = if args.len() < 2 {
-            "not enough arguments"
-        } else {
-            "too many arguments"
-        };
-        return err(format!("{which} for math function \"pow\""));
+    let f = match num_arg(x) {
+        Ok(f) => f,
+        Err(m) => return err(m),
     };
-    match (libm_arg(b), libm_arg(e)) {
-        (Ok(bb), Ok(ee)) => {
-            let r = bb.powf(ee);
-            if r.is_nan() && !bb.is_nan() && !ee.is_nan() {
-                return domain_err();
-            }
-            ok(Value::double(r))
-        }
-        (Err(m), _) | (_, Err(m)) => err(m),
+    if f < 0.0 {
+        return err_with_code("square root of negative argument", DOMAIN_CODE);
     }
+    ok(Value::int(isqrt_i64(f.trunc() as i64)))
+}
+
+fn isqrt_i64(n: i64) -> i64 {
+    if n < 2 {
+        return n;
+    }
+    let nn = i128::from(n);
+    let mut r = (n as f64).sqrt() as i64;
+    while r > 0 && i128::from(r) * i128::from(r) > nn {
+        r -= 1;
+    }
+    while i128::from(r + 1) * i128::from(r + 1) <= nn {
+        r += 1;
+    }
+    r
 }
 
 /// `entier(x)` — the exact integer value of `x`, truncated toward zero and
@@ -478,54 +435,6 @@ fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// `isqrt(n)` — the integer floor of `sqrt(n)` for a non-negative integer (a
-/// non-integer argument is truncated first). A negative argument is the error
-/// `square root of negative argument` (with the `ARITH DOMAIN` code).
-fn m_isqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let x = match one(args, "isqrt") {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    let n = if let Ok(n) = x.as_int() {
-        n
-    } else if let Some(b) = crate::expr::value_as_bigint(x) {
-        // Beyond-wide integers take the exact arbitrary-precision floor
-        // root — tclsh's `isqrt(2**200)` is the full 2^100, never a
-        // rounded double.
-        if num_traits::Signed::is_negative(&b) {
-            return err_with_code("square root of negative argument", DOMAIN_CODE);
-        }
-        return ok(crate::expr::big_value(&num_integer::Roots::sqrt(&b)));
-    } else {
-        match num_arg(x) {
-            Ok(f) => f.trunc() as i64,
-            Err(m) => return err(m),
-        }
-    };
-    if n < 0 {
-        return err_with_code("square root of negative argument", DOMAIN_CODE);
-    }
-    ok(Value::int(isqrt_i64(n)))
-}
-
-/// Integer floor-sqrt, correcting the `f64` seed for rounding so the result is
-/// exact even near a perfect square (the `i128` products avoid overflow at the
-/// top of the `i64` range).
-fn isqrt_i64(n: i64) -> i64 {
-    if n < 2 {
-        return n;
-    }
-    let nn = i128::from(n);
-    let mut r = (n as f64).sqrt() as i64;
-    while r > 0 && i128::from(r) * i128::from(r) > nn {
-        r -= 1;
-    }
-    while i128::from(r + 1) * i128::from(r + 1) <= nn {
-        r += 1;
-    }
-    r
-}
-
 fn m_bool(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let x = match one(args, "bool") {
         Ok(v) => v,
@@ -535,41 +444,6 @@ fn m_bool(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(b) => ok(Value::bool(b)),
         Err(e) => err(e.message),
     }
-}
-
-/// `max`/`min` over their (numeric) arguments. Integer result when all args are
-/// integers, else double.
-fn min_max(args: &[Value], name: &str, want_max: bool) -> Completion<Value> {
-    let Some((first, rest)) = args.split_first() else {
-        return err(format!("not enough arguments for math function \"{name}\""));
-    };
-    // Compare numerically but return the *winning argument* unchanged, so the
-    // result keeps the winner's own type: `max(1.5, 2)` → `2` (an integer),
-    // not `2.0`. A non-numeric argument reports the integer-flavoured
-    // "expected number but got …".
-    let mut best = first;
-    let mut best_d = match num_arg(first).or_else(|m| libm_arg(first).map_err(|_| m)) {
-        Ok(d) => d,
-        Err(m) => return err(m),
-    };
-    for a in rest {
-        let d = match num_arg(a).or_else(|m| libm_arg(a).map_err(|_| m)) {
-            Ok(d) => d,
-            Err(m) => return err(m),
-        };
-        if (want_max && d > best_d) || (!want_max && d < best_d) {
-            best = a;
-            best_d = d;
-        }
-    }
-    ok(best.clone())
-}
-
-fn m_max(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    min_max(args, "max", true)
-}
-fn m_min(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    min_max(args, "min", false)
 }
 
 /// `srand(seed)` — reseed the `expr rand()` generator and return its first draw.
@@ -600,31 +474,4 @@ fn m_rand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("too many arguments for math function \"rand\"");
     }
     ok(Value::double(vm.rand_next()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::isqrt_i64;
-
-    #[test]
-    fn isqrt_small_and_perfect() {
-        assert_eq!(isqrt_i64(0), 0);
-        assert_eq!(isqrt_i64(1), 1);
-        assert_eq!(isqrt_i64(2), 1);
-        assert_eq!(isqrt_i64(3), 1);
-        assert_eq!(isqrt_i64(4), 2);
-        assert_eq!(isqrt_i64(17), 4); // 4*4=16 <= 17 < 25
-        assert_eq!(isqrt_i64(24), 4);
-        assert_eq!(isqrt_i64(25), 5);
-    }
-
-    #[test]
-    fn isqrt_large_exact_near_perfect_squares() {
-        // Values where an `f64` seed can land just over/under the true root.
-        assert_eq!(isqrt_i64(1_000_000_000_000_000_000), 1_000_000_000);
-        let big = 3_037_000_499_i64; // floor(sqrt(i64::MAX))
-        assert_eq!(isqrt_i64(big * big), big);
-        assert_eq!(isqrt_i64(big * big - 1), big - 1);
-        assert_eq!(isqrt_i64(i64::MAX), big);
-    }
 }

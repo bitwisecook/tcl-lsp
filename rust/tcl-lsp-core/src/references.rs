@@ -3438,10 +3438,12 @@ fn cmd_substitution_regions(
 /// name.  Returns `None` when the text isn't a `$`-prefixed
 /// reference.
 pub(crate) fn strip_var_decoration(raw: &str) -> Option<&str> {
-    let rest = raw.strip_prefix('$')?;
-    let inner = rest
-        .strip_prefix('{')
-        .map_or(rest, |r| r.strip_suffix('}').unwrap_or(r));
+    if !raw.starts_with('$') {
+        return None;
+    }
+    // Keep an unclosed `${x` decorated; only a complete `${x}` is a
+    // reference to the real variable `x`.
+    let inner = tcl_syntax::naming::var_reference(raw);
     if inner.is_empty() { None } else { Some(inner) }
 }
 
@@ -4796,6 +4798,26 @@ mod tests {
         // Cursor on the `greet` declaration (line 1, col 11).
         let refs = references(src, "tcl", 1, 11, &analysis, true);
         assert!(refs.len() >= 3, "expected ≥3 refs; got {refs:?}");
+    }
+
+    #[test]
+    fn references_do_not_resolve_an_unclosed_braced_instance_head() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset x [Dog new]\n${x bark\n";
+        let analysis = analyse(src);
+        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        assert_eq!(
+            refs.len(),
+            1,
+            "only the declaration may resolve; malformed `${{x` is not `x`: {refs:?}"
+        );
+        assert_eq!(refs[0].start_line, 1);
+        assert_eq!(strip_var_decoration("${x}"), Some("x"));
+        assert_eq!(strip_var_decoration("$x"), Some("x"));
+        assert_eq!(strip_var_decoration("$arr(idx)"), Some("arr(idx)"));
+        assert_eq!(strip_var_decoration("$::a:::b"), Some("::a:::b"));
+        assert_eq!(strip_var_decoration("$foo:::"), Some("foo:::"));
+        assert_eq!(strip_var_decoration("${x"), Some("{x"));
+        assert_eq!(strip_var_decoration("x"), None);
     }
 
     #[test]

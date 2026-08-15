@@ -486,14 +486,24 @@ pub fn truncate_to_wide(obj: *mut TclObj) -> i64 {
 /// shared math-function dispatch — `None` if non-numeric. A bignum widens to a
 /// double (math functions compute on the double rung, as in C Tcl).
 #[must_use]
-pub fn as_math_num(obj: *mut TclObj) -> Option<tcl_syntax::expr::mathfunc::Num> {
-    use tcl_syntax::expr::mathfunc::Num;
+pub fn as_math_num(obj: *mut TclObj) -> Option<tcl_syntax::expr::mathfunc::NumValue<TowerMp>> {
+    use tcl_syntax::expr::mathfunc::NumValue;
     Some(match read(obj)? {
-        NumVal::Wide(w) => Num::Int(w),
-        NumVal::Float(f) => Num::Float(f),
-        // SAFETY: `mp` is a live mp_int.
-        NumVal::Big(mp) => Num::Float(unsafe { mp_get_double(mp.ptr()) }),
+        NumVal::Wide(w) => NumValue::Int(w),
+        NumVal::Float(f) => NumValue::Float(f),
+        NumVal::Big(mp) => NumValue::Big(TowerMp(mp)),
     })
+}
+
+/// Materialise a result from the shared math-function dispatch, demoting a
+/// bignum that fits the wide representation exactly as the arithmetic tower
+/// does.
+pub fn math_num_to_obj(num: tcl_syntax::expr::mathfunc::NumValue<TowerMp>) -> *mut TclObj {
+    match num {
+        tcl_syntax::expr::mathfunc::NumValue::Int(i) => obj::new_wide_int_obj(i),
+        tcl_syntax::expr::mathfunc::NumValue::Float(f) => obj::new_double_obj(f),
+        tcl_syntax::expr::mathfunc::NumValue::Big(mp) => to_obj(NumVal::Big(mp.0)),
+    }
 }
 
 /// on a non-numeric operand (NaN compares as the IEEE result via `f64`).
@@ -1137,6 +1147,10 @@ impl tcl_syntax::number_tower::BigIntOps for TowerMp {
             // SAFETY: live mp_int within i64 range.
             .then(|| unsafe { mp_get_i64(self.0.ptr()) })
     }
+    fn to_i64_wrapping(&self) -> i64 {
+        // SAFETY: live mp_int; libtommath exposes Tcl's low-64-bit fold.
+        unsafe { mp_get_i64(self.0.ptr()) }
+    }
     fn is_zero(&self) -> bool {
         self.0 .0.used == 0
     }
@@ -1190,6 +1204,11 @@ impl tcl_syntax::number_tower::BigIntOps for TowerMp {
     fn bit_len(&self) -> u64 {
         // SAFETY: live mp_int; count is non-negative.
         u64::try_from(unsafe { mp_count_bits(self.0.ptr()) }).unwrap_or(0)
+    }
+    fn to_f64(&self) -> f64 {
+        // SAFETY: live mp_int; libtommath performs the correctly-rounded
+        // bignum-to-double conversion used by Tcl's numeric tower.
+        unsafe { mp_get_double(self.0.ptr()) }
     }
 }
 

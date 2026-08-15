@@ -148,7 +148,9 @@ enum TokenKind {
     ClockPercent = 20,
     /// `clock` specifier letter (`Y` `m` `d` `H` `M` `S` …).
     ClockSpec = 21,
-    /// `clock` locale modifier (`E` / `O`).
+    /// Reserved protocol slot for a clock locale modifier. The shared clock
+    /// runtime currently does not implement `%E`/`%O`, so no token emits it.
+    #[allow(dead_code)]
     ClockModifier = 22,
     /// `binary format`/`scan` specifier letter (`a` `A` `c` `i` `w` …).
     BinarySpec = 23,
@@ -247,13 +249,6 @@ const IRULES_DIALECT: &str = "f5-irules";
 /// The iApps dialect key — the dialect an APL presentation's embedded `[ … ]`
 /// Tcl is written in.
 const IAPPS_DIALECT: &str = "f5-iapps";
-
-/// `binary format`/`scan` specifier letters.
-const BINARY_FORMAT_SPECIFIERS: &[u8] = b"aAbBhHcsSiInwWmrRfdxX@t";
-
-/// Integer specifiers that accept a `u`/`s` signed/unsigned modifier
-/// (Tcl 8.5+).
-const BINARY_INT_SPECIFIERS: &[u8] = b"csSiIntwWmrR";
 
 /// The token-type / token-modifier legend the server
 /// advertises during `initialize`.
@@ -2740,12 +2735,12 @@ fn insert_user_configure_options(
 /// `$chart` → `chart`, `${chart}` → `chart`, `$arr(k)` → `arr(k)`.  Returns
 /// `None` for a head that is not a plain variable substitution.
 fn object_handle_name(head_text: &str) -> Option<&str> {
-    let rest = head_text.strip_prefix('$')?;
-    Some(
-        rest.strip_prefix('{')
-            .and_then(|r| r.strip_suffix('}'))
-            .unwrap_or(rest),
-    )
+    if !head_text.starts_with('$') {
+        return None;
+    }
+    // `var_reference` does not unwrap an unclosed `${x`, preventing a
+    // malformed receiver from resolving to the real handle `x`.
+    Some(tcl_syntax::naming::var_reference(head_text))
 }
 
 /// The registry class named by a direct manufacturer command-head dispatch,
@@ -3476,77 +3471,48 @@ fn push_binary_subtokens(
     let Some(inner) = source.get(cstart..cend) else {
         return false;
     };
-    let bytes = inner.as_bytes();
-    let allow_mod = !matches!(dialect, "tcl8.4" | "f5");
-    let mut i = 0;
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let allow_mod = tcl_cmd_core::binary::signedness_available(profile);
     let mut emitted = false;
-    while i < bytes.len() {
-        if bytes[i].is_ascii_whitespace() {
-            i += 1;
-            continue;
-        }
-        // Digit run → count.
-        let count_start = i;
-        while i < bytes.len() && bytes[i].is_ascii_digit() {
-            i += 1;
-        }
-        if i > count_start {
-            push_subtoken(
-                source,
-                line_index,
-                cstart + count_start,
-                &inner[count_start..i],
-                TokenKind::BinaryCount,
-                entries,
-            );
-            emitted = true;
-        }
-        if i >= bytes.len() {
-            break;
-        }
-        let spec = bytes[i];
-        if !BINARY_FORMAT_SPECIFIERS.contains(&spec) {
-            i += 1;
-            continue;
-        }
+    for spec in tcl_cmd_core::binary::specifiers(inner.as_bytes(), allow_mod) {
         push_subtoken(
             source,
             line_index,
-            cstart + i,
-            &inner[i..=i],
+            cstart + spec.letter_start,
+            &inner[spec.letter_start..=spec.letter_start],
             TokenKind::BinarySpec,
             entries,
         );
         emitted = true;
-        i += 1;
-        // Signed/unsigned modifier (Tcl 8.5+) after an integer specifier.
-        if i < bytes.len()
-            && matches!(bytes[i], b'u' | b's')
-            && BINARY_INT_SPECIFIERS.contains(&spec)
-            && allow_mod
-        {
+        let count_start = spec
+            .letter_start
+            .saturating_add(1)
+            .saturating_add(usize::from(spec.modifier.is_some()));
+        if count_start > spec.letter_start + 1 {
             push_subtoken(
                 source,
                 line_index,
-                cstart + i,
-                &inner[i..=i],
+                cstart + spec.letter_start + 1,
+                &inner[spec.letter_start + 1..count_start],
                 TokenKind::BinaryFlag,
                 entries,
             );
             emitted = true;
-            i += 1;
         }
-        if i < bytes.len() && bytes[i] == b'*' {
+        if count_start < spec.end {
             push_subtoken(
                 source,
                 line_index,
-                cstart + i,
-                "*",
-                TokenKind::BinaryFlag,
+                cstart + count_start,
+                &inner[count_start..spec.end],
+                if spec.star {
+                    TokenKind::BinaryFlag
+                } else {
+                    TokenKind::BinaryCount
+                },
                 entries,
             );
             emitted = true;
-            i += 1;
         }
     }
     emitted
@@ -3565,59 +3531,48 @@ fn push_clock_subtokens(
     let Some((cstart, inner)) = subspec_content(source, tok) else {
         return false;
     };
-    let bytes = inner.as_bytes();
     let pos = TokenPositionContext { source, line_index };
     let mut emitted = false;
     let mut run = 0usize;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        // `%(?:[EO])?<spec>` — an optional `E`/`O` locale modifier only
-        // counts when it precedes a spec letter (else the `E`/`O` is
-        // itself the spec, as both are in the spec set).
-        if bytes[i] == b'%' {
-            let mut spec = i + 1;
-            let modifier = (matches!(bytes.get(spec), Some(b'E' | b'O'))
-                && bytes.get(spec + 1).copied().is_some_and(is_clock_spec))
-            .then(|| {
-                let m = spec;
-                spec += 1;
-                m
-            });
-            if bytes.get(spec).copied().is_some_and(is_clock_spec) {
-                flush_run(pos, cstart, inner, run, i, TokenKind::String, entries);
-                push_subtoken(
-                    source,
-                    line_index,
-                    cstart + i,
-                    "%",
-                    TokenKind::ClockPercent,
-                    entries,
-                );
-                if let Some(m) = modifier {
-                    push_subtoken(
-                        source,
-                        line_index,
-                        cstart + m,
-                        &inner[m..=m],
-                        TokenKind::ClockModifier,
-                        entries,
-                    );
-                }
-                push_subtoken(
-                    source,
-                    line_index,
-                    cstart + spec,
-                    &inner[spec..=spec],
-                    TokenKind::ClockSpec,
-                    entries,
-                );
-                emitted = true;
-                i = spec + 1;
-                run = i;
-                continue;
-            }
+    for spec in tcl_cmd_core::clock::specifiers(inner) {
+        flush_run(
+            pos,
+            cstart,
+            inner,
+            run,
+            spec.start,
+            TokenKind::String,
+            entries,
+        );
+        push_subtoken(
+            source,
+            line_index,
+            cstart + spec.start,
+            "%",
+            TokenKind::ClockPercent,
+            entries,
+        );
+        if spec.modifier.is_some() {
+            push_subtoken(
+                source,
+                line_index,
+                cstart + spec.start + 1,
+                &inner[spec.start + 1..spec.start + 2],
+                TokenKind::ClockModifier,
+                entries,
+            );
         }
-        i += 1;
+        let letter_start = spec.end - 1;
+        push_subtoken(
+            source,
+            line_index,
+            cstart + letter_start,
+            &inner[letter_start..spec.end],
+            TokenKind::ClockSpec,
+            entries,
+        );
+        emitted = true;
+        run = spec.end;
     }
     if !emitted {
         return false;
@@ -3634,53 +3589,6 @@ fn push_clock_subtokens(
     true
 }
 
-/// `clock format`/`scan` specifier letters (and `%`).
-fn is_clock_spec(b: u8) -> bool {
-    matches!(
-        b,
-        b'a' | b'A'
-            | b'b'
-            | b'B'
-            | b'c'
-            | b'C'
-            | b'd'
-            | b'D'
-            | b'e'
-            | b'E'
-            | b'g'
-            | b'G'
-            | b'h'
-            | b'H'
-            | b'I'
-            | b'j'
-            | b'J'
-            | b'k'
-            | b'l'
-            | b'm'
-            | b'M'
-            | b'N'
-            | b'O'
-            | b'p'
-            | b'P'
-            | b'q'
-            | b'Q'
-            | b's'
-            | b'S'
-            | b'u'
-            | b'U'
-            | b'V'
-            | b'w'
-            | b'W'
-            | b'x'
-            | b'X'
-            | b'y'
-            | b'Y'
-            | b'z'
-            | b'Z'
-            | b'%'
-    )
-}
-
 /// Sub-tokenise a `format`/`scan` conversion string into its `%`
 /// specifier components (`FormatPercent` / `FormatFlag` / `FormatWidth`
 /// / `FormatSpec`), with literal runs classified as `string`.  Returns
@@ -3689,6 +3597,7 @@ fn push_sprintf_subtokens(
     line_index: &LineIndex,
     source: &str,
     tok: Token,
+    dialect: &str,
     entries: &mut Vec<Entry>,
 ) -> bool {
     let Some((cstart, inner)) = subspec_content(source, tok) else {
@@ -3696,12 +3605,13 @@ fn push_sprintf_subtokens(
     };
     let bytes = inner.as_bytes();
     let pos_ctx = TokenPositionContext { source, line_index };
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
     let mut emitted = false;
     let mut run = 0usize;
     let mut i = 0usize;
     while i < bytes.len() {
         if bytes[i] == b'%'
-            && let Some(cuts) = parse_sprintf_cuts(bytes, i)
+            && let Some(cuts) = parse_sprintf_cuts(bytes, i, profile)
         {
             flush_run(pos_ctx, cstart, inner, run, i, TokenKind::String, entries);
             let mut pos = i;
@@ -3730,35 +3640,30 @@ fn push_sprintf_subtokens(
     true
 }
 
-/// `format`/`scan` conversion type letters.
-fn is_sprintf_type(b: u8) -> bool {
-    matches!(
-        b,
-        b'a' | b'A'
-            | b'b'
-            | b'B'
-            | b'c'
-            | b'd'
-            | b'i'
-            | b'e'
-            | b'E'
-            | b'f'
-            | b'g'
-            | b'G'
-            | b'o'
-            | b's'
-            | b'u'
-            | b'x'
-            | b'X'
-            | b'%'
-    )
-}
-
 /// Parse one `%`-specifier at `b[start]` into its component
 /// `(end, kind)` cuts (monotonic ends, consumed in order by
 /// [`emit_part`]), or `None` when it isn't a valid conversion (no type
 /// letter — the `%` is then a literal).
-fn parse_sprintf_cuts(b: &[u8], start: usize) -> Option<Vec<(usize, TokenKind)>> {
+fn parse_sprintf_cuts(
+    b: &[u8],
+    start: usize,
+    profile: &tcl_dialect::DialectProfile,
+) -> Option<Vec<(usize, TokenKind)>> {
+    let mut owner_end = start + 1;
+    let owner_spec = tcl_syntax::format::parse_spec(b, &mut owner_end)?;
+    // `%%` is a literal percent in Tcl format strings, not a value-bearing
+    // conversion. The shared parser represents it as verb `%` for renderers.
+    if owner_spec.verb == b'%' {
+        return None;
+    }
+    // `%%` is a literal percent in Tcl format strings, not a value-bearing
+    // conversion.  The shared parser represents it as verb `%` so renderers
+    // can handle it uniformly; semantic tokens must keep it as string text.
+    if !tcl_cmd_core::format::is_verb(owner_spec.verb)
+        || !tcl_cmd_core::format::is_available(&owner_spec, profile)
+    {
+        return None;
+    }
     let n = b.len();
     let mut cuts: Vec<(usize, TokenKind)> = Vec::new();
     let mut j = start + 1;
@@ -3834,8 +3739,8 @@ fn parse_sprintf_cuts(b: &[u8], start: usize) -> Option<Vec<(usize, TokenKind)>>
     }
 
     // Conversion type — required.
-    if j < n && is_sprintf_type(b[j]) {
-        cuts.push((j + 1, TokenKind::FormatSpec));
+    if owner_end > start && b.get(owner_end - 1) == Some(&owner_spec.verb) {
+        cuts.push((owner_end, TokenKind::FormatSpec));
         Some(cuts)
     } else {
         None
@@ -5186,7 +5091,8 @@ fn emit_arg_token(
             }
         }
         Some(ArgOverride::SprintfFormat) => {
-            let emitted = push_sprintf_subtokens(line_index, full_source, *tok, entries);
+            let emitted =
+                push_sprintf_subtokens(line_index, full_source, *tok, ctx.dialect, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
         Some(ArgOverride::ClockFormat) => {
@@ -8620,6 +8526,37 @@ mod tests {
     }
 
     #[test]
+    fn malformed_braced_object_handle_does_not_resolve_a_method() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        let registry = reg();
+        let src = "oo::configurable create Pin { property node }\n\
+                   set p [Pin new]\n\
+                   ${p configure -node 5\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let analysis = Analyser::new().analyse(src, "tcl9.0");
+        let toks = decode_semantic(&full_with_cu_and_analysis(
+            src,
+            "tcl9.0",
+            &registry,
+            Some(&cu),
+            Some(&analysis),
+        ));
+        assert!(
+            !toks
+                .iter()
+                .any(|&(l, _, _, k, _)| { l == 2 && k == TokenKind::Method as u32 }),
+            "malformed `${{p` must not dispatch to Pin: {toks:?}"
+        );
+        assert_eq!(object_handle_name("${x}"), Some("x"));
+        assert_eq!(object_handle_name("$x"), Some("x"));
+        assert_eq!(object_handle_name("$arr(idx)"), Some("arr(idx)"));
+        assert_eq!(object_handle_name("$::a:::b"), Some("::a:::b"));
+        assert_eq!(object_handle_name("$foo:::"), Some("foo:::"));
+        assert_eq!(object_handle_name("${x"), Some("{x"));
+    }
+
+    #[test]
     fn regex_source_tracks_inside_namespace_eval_body() {
         // `namespace eval` bodies are lowered as their own synthetic body units,
         // so a `set re "…"; regexp $re` inside the eval highlights the def-site
@@ -9359,6 +9296,19 @@ mod tests {
     }
 
     #[test]
+    fn format_binary_specifier_is_release_gated() {
+        let old = kinds("format {%b} 1\n", "tcl8.5", &reg());
+        assert!(!old.contains(&(TokenKind::FormatSpec as u32)), "{old:?}");
+        let modern = kinds("format {%b} 1\n", "tcl8.6", &reg());
+        assert!(
+            modern.contains(&(TokenKind::FormatSpec as u32)),
+            "{modern:?}"
+        );
+        let tcl9 = kinds("format {%b} 1\n", "tcl9.0", &reg());
+        assert!(tcl9.contains(&(TokenKind::FormatSpec as u32)), "{tcl9:?}");
+    }
+
+    #[test]
     fn sprintf_flags_and_width_subtokens() {
         // `%-5.2f` → percent, `-` flag, `5` width, `.` flag, `2` width,
         // `f` spec.
@@ -9384,6 +9334,14 @@ mod tests {
     }
 
     #[test]
+    fn format_literal_percent_stays_string() {
+        let ks = kinds("format {100%%} 1\n", "tcl8.6", &reg());
+        assert!(!ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
+        assert!(!ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
+    }
+
+    #[test]
     fn clock_format_subtokens() {
         // `clock format $t -format {%Y-%m-%d}` → %/letter pairs.
         let ks = kinds("clock format $t -format {%Y-%m-%d}\n", "tcl", &reg());
@@ -9392,11 +9350,20 @@ mod tests {
     }
 
     #[test]
-    fn clock_locale_modifier_subtoken() {
-        // `%Ey` → percent, `E` modifier, `y` spec.
+    fn clock_locale_modifier_uses_shared_grammar() {
+        // Tcl accepts `%Ey`; the shared clock grammar owns both the modifier
+        // and the conversion instead of leaving an editor-only table here.
         let ks = kinds("clock scan $s -format {%Ey}\n", "tcl", &reg());
+        assert!(ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::ClockModifier as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::ClockSpec as u32)), "{ks:?}");
+    }
+
+    #[test]
+    fn unsupported_clock_g_specifier_stays_string() {
+        let ks = kinds("clock scan $s -format {%g}\n", "tcl8.6", &reg());
+        assert!(!ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
+        assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
     }
 
     #[test]
@@ -9417,11 +9384,11 @@ mod tests {
     #[test]
     fn binary_scan_signed_modifier_and_star() {
         // `binary scan $d su r` (arg 3) → spec `s`, modifier `u`.
-        let ks = kinds("binary scan $d su r\n", "tcl", &reg());
+        let ks = kinds("binary scan $d su r\n", "tcl8.6", &reg());
         assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
         // `c*` → spec `c`, `*` flag.
-        let ks = kinds("binary format c* $l\n", "tcl", &reg());
+        let ks = kinds("binary format c* $l\n", "tcl8.6", &reg());
         assert!(ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
     }
 

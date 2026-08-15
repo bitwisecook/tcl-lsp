@@ -32,7 +32,7 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{dispatch, Num};
+use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
 use tcl_syntax::naming::qualifier_segments;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -144,7 +144,7 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     // Operands → Num (object-preserving: a bignum/double keeps its rep).
-    let nums: Option<Vec<Num>> = argv[1..]
+    let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = argv[1..]
         .iter()
         .map(|&o| crate::bignum::as_math_num(o))
         .collect();
@@ -153,13 +153,9 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
-    match dispatch(&lname, &nums) {
-        Some(Num::Int(i)) => {
-            interp.set_result(obj::new_wide_int_obj(i));
-            Code::Ok
-        }
-        Some(Num::Float(f)) => {
-            interp.set_result(obj::new_double_obj(f));
+    match dispatch_with_backend(&lname, &nums) {
+        Some(num) => {
+            interp.set_result(crate::bignum::math_num_to_obj(num));
             Code::Ok
         }
         // A registered name with the right arity reaching `None` is a domain

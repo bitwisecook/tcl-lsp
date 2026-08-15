@@ -43,6 +43,9 @@ pub use diag_code::{
 mod recursion;
 pub use recursion::{RecursionGuard, RecursionLimit};
 
+/// Shared byte-level scanners used by all Tcl runtime variable parsers.
+pub mod naming;
+
 /// A Tcl completion code (`tcl.h` `TCL_OK`..`TCL_CONTINUE`, plus arbitrary user
 /// codes from `return -code N` / `try on N`).
 ///

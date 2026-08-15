@@ -765,11 +765,9 @@ fn resolve_imported_command<'r>(
         if imp.ns != "::" || imp.range.end() > cursor_offset {
             continue;
         }
-        let candidate = if let Some(prefix) = imp.pattern.strip_suffix('*') {
-            format!("{prefix}{name}")
-        } else if imp.pattern.rsplit("::").next() == Some(name) {
-            imp.pattern.clone()
-        } else {
+        let Some(candidate) =
+            tcl_cmd_core::namespace::imported_command_candidate(&imp.pattern, name)
+        else {
             continue;
         };
         if let Some(spec) = registry.get(&candidate) {
@@ -1196,14 +1194,10 @@ const CLOCK_SPEC_DESC: &[(char, &str)] = &[
     ('A', "Full weekday name"),
     ('b', "Abbreviated month name"),
     ('B', "Full month name"),
-    ('c', "Locale date and time"),
     ('C', "Century (00–99)"),
     ('d', "Day of month (01–31)"),
     ('D', "Date as %m/%d/%Y"),
     ('e', "Day of month (1–31, no leading zero)"),
-    ('g', "ISO 8601 2-digit year"),
-    ('G', "ISO 8601 4-digit year"),
-    ('h', "Abbreviated month name (same as %b)"),
     ('H', "Hour (00–23)"),
     ('I', "Hour (01–12)"),
     ('j', "Day of year (001–366)"),
@@ -1212,18 +1206,13 @@ const CLOCK_SPEC_DESC: &[(char, &str)] = &[
     ('l', "Hour (1–12, no leading zero)"),
     ('m', "Month (01–12)"),
     ('M', "Minute (00–59)"),
-    ('N', "Month number (1–12, no leading zero)"),
+    ('n', "Month number (1–12, no leading zero)"),
     ('p', "AM/PM indicator (uppercase)"),
-    ('P', "AM/PM indicator (lowercase)"),
     ('s', "Seconds since Unix epoch"),
     ('S', "Second (00–59)"),
     ('u', "Day of week (1=Monday–7=Sunday)"),
-    ('U', "Week number (Sunday start, 00–53)"),
-    ('V', "ISO 8601 week number (01–53)"),
     ('w', "Day of week (0=Sunday–6=Saturday)"),
-    ('W', "Week number (Monday start, 00–53)"),
     ('x', "Locale date representation"),
-    ('X', "Locale time representation"),
     ('y', "2-digit year (00–99)"),
     ('Y', "4-digit year"),
     ('z', "Timezone offset (+hhmm)"),
@@ -1307,9 +1296,6 @@ const SPRINTF_SPEC_DESC: &[(char, &str)] = &[
     ('c', "Character (by Unicode code point)"),
     ('%', "Literal percent sign"),
     ('b', "Unsigned binary integer"),
-    ('B', "Unsigned binary integer (alternate form)"),
-    ('a', "Double hex fraction (lowercase)"),
-    ('A', "Double hex fraction (uppercase)"),
 ];
 
 fn sprintf_spec_desc(letter: char) -> Option<&'static str> {
@@ -1460,6 +1446,8 @@ const BINARY_SPEC_DESC: &[(char, &str)] = &[
     ('R', "32-bit float (big-endian)"),
     ('f', "32-bit float (native byte order)"),
     ('d', "64-bit double (native byte order)"),
+    ('q', "64-bit double (little-endian)"),
+    ('Q', "64-bit double (big-endian)"),
     ('x', "Null padding byte (format) / skip byte (scan)"),
     ('X', "Move cursor back one byte"),
     ('@', "Move cursor to absolute position"),
@@ -1495,6 +1483,8 @@ fn binary_short_type(letter: char) -> &'static str {
         'R' => "float32 BE",
         'f' => "float32 native",
         'd' => "float64 native",
+        'q' => "float64 LE",
+        'Q' => "float64 BE",
         'x' => "pad/skip",
         'X' => "back",
         '@' => "seek",
@@ -1509,7 +1499,7 @@ fn binary_unit_bytes(letter: char) -> Option<u32> {
         'c' => Some(1),
         's' | 'S' => Some(2),
         'i' | 'I' | 'n' | 'r' | 'R' | 'f' => Some(4),
-        'w' | 'W' | 'm' | 'd' => Some(8),
+        'w' | 'W' | 'm' | 'd' | 'q' | 'Q' => Some(8),
         _ => None,
     }
 }

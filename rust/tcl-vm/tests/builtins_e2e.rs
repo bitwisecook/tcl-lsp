@@ -560,6 +560,14 @@ fn regexp_shared_features() {
     // `-start` resumes the search at a char offset.
     assert_eq!(run("regexp -start 3 {a} {a a a}").1, "1");
     assert_eq!(run("regsub -start 2 -all {a} aaaa X").1, "aaXX");
+    assert_eq!(run("regexp -start 1+1 {a} aaaa").1, "1");
+    assert_eq!(run("regsub -start 0x2 {a} aaaa X").1, "aaXa");
+    let (ok, msg, _) = run("regexp -start bogus {a} aaaa");
+    assert!(!ok);
+    assert!(msg.starts_with("bad index \"bogus\""), "got: {msg}");
+    let (ok, msg, _) = run("regsub -start {end - 2} {a} aaaa X");
+    assert!(!ok);
+    assert!(msg.starts_with("bad index \"end - 2\""), "got: {msg}");
     // `-inline -all` with submatches flattens whole+subs per match.
     assert_eq!(
         run("regexp -inline -all {(\\d)(\\d)} 1234").1,

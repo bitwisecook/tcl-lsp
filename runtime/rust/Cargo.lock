@@ -170,6 +170,7 @@ dependencies = [
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
+ "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
  "tcl-syntax",

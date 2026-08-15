@@ -379,7 +379,11 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.set_error(b"empty import pattern");
         }
         // Split into the source-namespace qualifier and the simple glob tail.
-        let q = tcl_cmd_core::namespace::qualifiers(pat);
+        let q = match tcl_cmd_core::namespace::qualifier(pat) {
+            tcl_cmd_core::namespace::Qualifier::Absolute(q)
+            | tcl_cmd_core::namespace::Qualifier::Relative(q) => q,
+            tcl_cmd_core::namespace::Qualifier::Unqualified => b"",
+        };
         let tail_pat = tcl_cmd_core::namespace::tail(pat);
         let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
             let mut m = b"unknown namespace in import pattern \"".to_vec();
@@ -407,7 +411,9 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         for simple in to_import {
             let mut source = src_fqn.clone();
-            source.extend_from_slice(b"::");
+            if source != b"::" {
+                source.extend_from_slice(b"::");
+            }
             source.extend_from_slice(&simple);
             // Re-importing the *same* command from the *same* source is a silent
             // no-op (C's `TclGetOriginalCommand` reimport check, tclNamesp.c) —
@@ -446,7 +452,11 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let pat = obj_bytes(a);
         // Resolve the pattern's namespace to an absolute FQN so we match against
         // the redirect's stored source FQN.
-        let q = tcl_cmd_core::namespace::qualifiers(&pat);
+        let q = match tcl_cmd_core::namespace::qualifier(&pat) {
+            tcl_cmd_core::namespace::Qualifier::Absolute(q)
+            | tcl_cmd_core::namespace::Qualifier::Relative(q) => q,
+            tcl_cmd_core::namespace::Qualifier::Unqualified => b"",
+        };
         let tail_pat = tcl_cmd_core::namespace::tail(&pat);
         let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
             // C's `Tcl_ForgetImport` errors if the pattern's namespace qualifier

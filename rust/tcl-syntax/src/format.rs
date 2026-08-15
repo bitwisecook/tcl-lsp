@@ -81,6 +81,45 @@ pub struct Spec {
     pub big: bool,
 }
 
+/// Conversion verbs implemented by the shared `format` renderer.
+#[must_use]
+pub fn is_verb(verb: u8) -> bool {
+    matches!(
+        verb,
+        b'b' | b'c'
+            | b'd'
+            | b'e'
+            | b'E'
+            | b'f'
+            | b'g'
+            | b'G'
+            | b'i'
+            | b'o'
+            | b's'
+            | b'u'
+            | b'x'
+            | b'X'
+            | b'%'
+    )
+}
+
+/// Whether a parsed conversion is available under the resolved dialect
+/// profile.  Unknown-release profiles abstain rather than guessing.
+#[must_use]
+pub fn is_available(spec: &Spec, profile: &tcl_dialect::DialectProfile) -> bool {
+    let required = if spec.verb == b'b' {
+        tcl_dialect::DialectSet::TCL86_PLUS
+    } else if spec.big && spec.verb == b'u' {
+        tcl_dialect::DialectSet::TCL90_PLUS
+    } else {
+        tcl_dialect::DialectSet::empty()
+    };
+    // Release-invariant verbs remain recognisable for the permissive
+    // profile; a version-gated verb must abstain until a release is resolved.
+    required.is_empty()
+        || (profile.runtime_base.is_some() && profile.availability_mask.intersects(required))
+}
+
 /// The outcome of parsing a width / `.precision` field.
 enum Field {
     /// No digits were present.
@@ -93,6 +132,12 @@ enum Field {
 /// past the `%` and advancing `i` past the verb. Bails on `*` width / precision,
 /// an over-[`MAX_FIELD`] field, or a missing verb.
 pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
+    parse_spec_with_limit(fmt, i, MAX_FIELD)
+}
+
+/// Parse a conversion with an explicit field-size ceiling. Renderers use the
+/// Tcl value limit; conservative constant-folders retain `MAX_FIELD`.
+pub fn parse_spec_with_limit(fmt: &[u8], i: &mut usize, max_field: usize) -> Option<Spec> {
     // Optional positional selector `n$` (1-based), right after the `%` and
     // before any flags: `%2$d` draws from the 2nd argument. A digit run *not*
     // followed by `$` is an ordinary width, so only commit when the `$` is
@@ -117,7 +162,7 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
         *i += 1;
         None
     } else {
-        match parse_field(fmt, i)? {
+        match parse_field(fmt, i) {
             Field::Absent => None,
             Field::Size(n) => Some(n),
         }
@@ -131,7 +176,7 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
             None
         } else {
             // a `.` with no digits means precision 0
-            Some(match parse_field(fmt, i)? {
+            Some(match parse_field(fmt, i) {
                 Field::Absent => 0,
                 Field::Size(n) => n,
             })
@@ -161,7 +206,7 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
     }
     let verb = *fmt.get(*i)?;
     *i += 1;
-    Some(Spec {
+    let spec = Spec {
         flags,
         width,
         precision,
@@ -170,7 +215,12 @@ pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
         precision_star,
         arg_index,
         big,
-    })
+    };
+    if spec.width.is_some_and(|n| n > max_field) || spec.precision.is_some_and(|n| n > max_field) {
+        None
+    } else {
+        Some(spec)
+    }
 }
 
 /// Parse an optional positional selector `n$` (1-based) at `*i`. Advances `i`
@@ -195,25 +245,22 @@ fn parse_arg_index(fmt: &[u8], i: &mut usize) -> Option<usize> {
 }
 
 /// Parse a run of decimal digits as a width / precision field, advancing `i`.
-/// Bails (`None`) when the value exceeds [`MAX_FIELD`] or overflows.
-fn parse_field(fmt: &[u8], i: &mut usize) -> Option<Field> {
+/// Saturates on overflow; the caller applies its own field-size ceiling.
+fn parse_field(fmt: &[u8], i: &mut usize) -> Field {
     let start = *i;
     let mut n = 0usize;
     while let Some(&d) = fmt.get(*i) {
         if !d.is_ascii_digit() {
             break;
         }
-        n = n.checked_mul(10)?.checked_add((d - b'0') as usize)?;
-        if n > MAX_FIELD {
-            return None;
-        }
+        n = n.saturating_mul(10).saturating_add(usize::from(d - b'0'));
         *i += 1;
     }
-    Some(if *i == start {
+    if *i == start {
         Field::Absent
     } else {
         Field::Size(n)
-    })
+    }
 }
 /// One version-gated feature used in a format string — the §6
 /// argument-DSL rung (dialect-profile-model.md): the conversion parses
@@ -280,4 +327,51 @@ pub fn version_gated_uses(fmt: &str) -> Vec<VersionGatedUse> {
         }
     }
     uses
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_verb, parse_spec, parse_spec_with_limit};
+
+    #[test]
+    fn verb_owner_matches_runtime_surface() {
+        assert!(is_verb(b'b'));
+        assert!(!is_verb(b'q'));
+        assert!(!is_verb(b'a'));
+    }
+
+    #[test]
+    fn field_limits_distinguish_const_fold_and_runtime() {
+        let mut i = 0;
+        assert!(parse_spec(b"4294967294g", &mut i).is_none());
+        let mut i = 0;
+        let spec = parse_spec_with_limit(b"4294967294g", &mut i, usize::MAX)
+            .expect("runtime accepts Tcl-sized width");
+        assert_eq!(
+            spec.width,
+            Some("4294967294".parse::<usize>().unwrap_or(usize::MAX))
+        );
+        let mut i = 0;
+        let spec = parse_spec_with_limit(b"18446744073709551614g", &mut i, usize::MAX)
+            .expect("overflowing width remains a complete spec");
+        assert_eq!(
+            spec.width,
+            Some(
+                "18446744073709551614"
+                    .parse::<usize>()
+                    .unwrap_or(usize::MAX)
+            )
+        );
+        let mut i = 0;
+        assert_eq!(
+            parse_spec_with_limit(
+                b"#d",
+                &mut i,
+                usize::try_from(i32::MAX).expect("usize is at least 32 bits"),
+            )
+            .unwrap()
+            .verb,
+            b'd'
+        );
+    }
 }

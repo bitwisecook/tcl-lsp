@@ -6647,17 +6647,10 @@ impl Interp {
     /// bounded by [`MAX_ALIAS_DISPATCH_DEPTH`], so a cycle that escaped the
     /// definition-time gate errors instead of exhausting the native stack.
     fn dispatch_alias(&mut self, target: &[u8], prefix: &[Vec<u8>], argv: &[*mut TclObj]) -> Code {
-        let target_cmd = self.resolve_dispatchable(GLOBAL, target);
-        let Some(target_cmd) = target_cmd else {
-            // Lazily bound: the target was deleted, never existed, or is a
-            // builtin the emulated release does not carry (the three are
-            // deliberately the same outcome — see `resolve_dispatchable`).
-            // Real tclsh names the *target* here, not the alias.
-            return self.invalid_command(target);
-        };
         if ALIAS_DISPATCH_DEPTH.with(|d| d.get()) >= MAX_ALIAS_DISPATCH_DEPTH {
             return self.error(b"too many nested alias invocations (infinite loop?)");
         }
+        let target_cmd = self.resolve_dispatchable(GLOBAL, target);
         // Build [target, *prefix, *argv[1..]] — each element owned (+1).
         let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len());
         let push_owned = |v: &mut Vec<*mut TclObj>, o: *mut TclObj| {
@@ -6673,7 +6666,24 @@ impl Interp {
             push_owned(&mut new_argv, a);
         }
         ALIAS_DISPATCH_DEPTH.with(|d| d.set(d.get() + 1));
-        let code = self.invoke(target_cmd, &new_argv);
+        let code = match target_cmd {
+            Some(target_cmd) => self.invoke(target_cmd, &new_argv),
+            None => {
+                // Lazily bound: the target was deleted, never existed, or is
+                // a builtin the emulated release does not carry. Feed the
+                // synthesized target call back through ordinary dispatch so
+                // the global `unknown` handler sees the target name, prefix,
+                // and original arguments exactly as C's `TclInvokeAlias`
+                // does (tclBasic.c / tclNamesp.c). Alias targets are resolved
+                // in the global namespace, so do the fallback dispatch there
+                // too; in particular, do not let a caller namespace's
+                // `namespace unknown` intercept this path.
+                let saved_ns = self.current_ns.replace(GLOBAL);
+                let code = self.dispatch(&new_argv);
+                self.current_ns.set(saved_ns);
+                code
+            }
+        };
         ALIAS_DISPATCH_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
         release_all(&new_argv);
         code
@@ -7711,6 +7721,87 @@ mod tests {
     }
 
     #[test]
+    fn missing_alias_target_uses_custom_unknown_with_target_and_args() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"proc unknown {cmd args} {list unknown $cmd $args}"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"interp alias {} la {} nosuch"), Code::Ok);
+            assert_eq!(i.eval_str(b"la a b"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"unknown nosuch {a b}");
+        });
+    }
+
+    #[test]
+    fn missing_alias_target_without_unknown_preserves_target_error_identity() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"interp alias {} la {} nosuch"), Code::Ok);
+            assert_eq!(i.eval_str(b"la a b"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"nosuch\"");
+        });
+    }
+
+    #[test]
+    fn missing_alias_target_preserves_prefix_arguments_for_unknown() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"proc unknown {cmd args} {list $cmd $args}"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"interp alias {} la {} nosuch prefix"), Code::Ok);
+            assert_eq!(i.eval_str(b"la one two"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"nosuch {prefix one two}");
+        });
+    }
+
+    #[test]
+    fn missing_alias_target_uses_global_unknown_not_caller_namespace_unknown() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"proc unknown {cmd args} {list global $cmd $args}"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval n {proc u {cmd args} {list ns $cmd $args}; namespace unknown u; interp alias {} la {} nosuch; la x}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"global nosuch x");
+        });
+    }
+
+    #[test]
+    fn missing_alias_unknown_cycle_is_bounded() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"interp alias {} la {} nosuch"), Code::Ok);
+            assert_eq!(i.eval_str(b"proc unknown {cmd args} {la}"), Code::Ok);
+            assert_eq!(i.eval_str(b"la"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"too many nested evaluations (infinite loop?)"
+            );
+        });
+    }
+
+    #[test]
+    fn release_hidden_alias_target_uses_unknown_under_tcl84() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V8_4);
+            assert_eq!(
+                i.eval_str(b"proc unknown {cmd args} {list hidden $cmd $args}"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"interp alias {} la {} lassign"), Code::Ok);
+            assert_eq!(i.eval_str(b"la {a b} x y"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"hidden lassign {{a b} x y}");
+        });
+    }
+
+    #[test]
     fn absolute_qualified_command_resolves() {
         leak_free(|i| {
             // `::set` is the global `set`, reached via the namespace resolver.
@@ -8090,35 +8181,39 @@ mod tests {
             assert_eq!(ok(i, b"la {a b} x y; list $x $y"), b"a b");
         });
 
-        // The `namespace import` redirect. `::tcl::mathop::+` is 8.5+ and,
-        // unlike `lassign`, lives in a namespace, so it can be imported by an
-        // ordinary script. Import it on a release that carries it, then
-        // re-pin to 8.4: the imported spelling must miss the way its source
-        // does, naming the resolved source.
-        const IMPORT: &[u8] = b"namespace eval ::tcl::mathop {namespace export *}\n\
-             namespace eval n {namespace import ::tcl::mathop::+}";
+        // The `namespace import` redirect.  A leading `::` with no separator
+        // before the command (`::lassign`) must retain its absolute-global
+        // meaning while resolving the import source (the public `namespace
+        // qualifiers` result intentionally returns an empty string here).
+        // First pin the exact issue reproducer, then explicitly export the
+        // builtin so the redirect and release-hidden dispatch halves remain
+        // observable in the same test.
+        const IMPORT: &[u8] = b"namespace eval n {namespace import ::lassign}";
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(i.eval_str(IMPORT), Code::Ok);
-            assert_eq!(ok(i, b"n::+ 1 2"), b"3");
+            // The exact #1493 reproducer is successful without an explicit
+            // export.  Global builtins are not exported by default, so this
+            // records no alias; the important contract is that it does not
+            // resolve the absolute root as the destination namespace.
+            assert_eq!(i.eval_str(b"namespace export lassign"), Code::Ok);
+            assert_eq!(i.eval_str(IMPORT), Code::Ok);
+            assert_eq!(ok(i, b"n::lassign {a b} x y; list $x $y"), b"a b");
             i.set_runtime_version(TclVersion::V8_4);
-            assert_eq!(i.eval_str(b"n::+ 1 2"), Code::Error);
-            assert_eq!(
-                i.result_bytes(),
-                b"invalid command name \"::tcl::mathop::+\""
-            );
+            assert_eq!(i.eval_str(b"n::lassign {a b} x y"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"::lassign\"");
         });
 
         // Direct dispatch is unchanged by moving the gate into the shared
         // resolver — both the hidden and the carried release.
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V8_4);
-            assert_eq!(i.eval_str(b"tcl::mathop::+ 1 2"), Code::Error);
-            assert_eq!(i.result_bytes(), b"invalid command name \"tcl::mathop::+\"");
+            assert_eq!(i.eval_str(b"lassign {a b} x y"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"lassign\"");
         });
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V9_0);
-            assert_eq!(ok(i, b"tcl::mathop::+ 1 2"), b"3");
+            assert_eq!(ok(i, b"lassign {a b} x y; list $x $y"), b"a b");
         });
     }
 
@@ -8129,9 +8224,9 @@ mod tests {
     ///
     /// `rename`'s refusal is oracled against tclsh 8.6.16 / 9.0.4:
     /// `rename nosuchcmd zz` → `can't rename "nosuchcmd": command doesn't
-    /// exist`. Hiding a command that does not exist is this runtime's
-    /// documented silent no-op, so what the hide arm pins is that nothing
-    /// lands in the hidden table.
+    /// exist`; an empty destination uses `can't delete`. Hiding a command that
+    /// does not exist raises `unknown command`, matching Tcl_HideCommand and
+    /// avoiding a swallowed typo in a security-sensitive path.
     #[test]
     fn the_release_command_surface_gates_rename_and_hide() {
         use tcl_dialect::TclVersion;
@@ -8146,12 +8241,15 @@ mod tests {
             assert_eq!(i.eval_str(b"lz {a b} x y"), Code::Error);
             assert_eq!(i.result_bytes(), b"invalid command name \"lz\"");
 
-            assert_eq!(i.eval_str(b"interp hide {} lassign"), Code::Ok);
+            assert_eq!(i.eval_str(b"interp hide {} lassign"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown command \"lassign\"");
             assert_eq!(
                 i.eval_str(b"interp invokehidden {} lassign {a b} x y"),
                 Code::Error
             );
             assert_eq!(i.result_bytes(), b"invalid hidden command name \"lassign\"");
+            assert_eq!(i.eval_str(b"interp hide {} lassign"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown command \"lassign\"");
         });
         // Both stay ordinary operations on a release that carries `lassign`.
         leak_free(|i| {

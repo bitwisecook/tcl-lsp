@@ -65,6 +65,15 @@ use tcl_registry::registry_for_dialect;
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
 
+#[test]
+fn numeral_release_diagnostic_tracks_profile() {
+    assert!(fires("set x 0d5; set y 1_000", "tcl8.4", "W148"));
+    assert!(fires("set x 0d5; set y 1_000", "tcl8.6", "W148"));
+    assert!(!fires("set x 0d5; set y 1_000", "tcl9.0", "W148"));
+    assert!(!fires("set x 010", "tcl8.6", "W148"));
+    assert!(!fires("set x 010", "tcl9.0", "W148"));
+}
+
 /// Every diagnostic code the full pipeline surfaces for `src` under `dialect`,
 /// mirroring the user-facing `tcl diag` path: the analyser pass plus the
 /// `run_all_checks` compiler-checks pass (shimmer / taint / dead-store), with

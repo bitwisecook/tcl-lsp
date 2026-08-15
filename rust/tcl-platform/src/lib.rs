@@ -148,6 +148,17 @@ pub struct Metadata {
     pub len: u64,
     /// Last-modified time, seconds since the Unix epoch.
     pub mtime_secs: i64,
+    /// POSIX stat identity and mode fields when the host exposes them.
+    pub dev: u64,
+    pub ino: u64,
+    pub nlink: u64,
+    pub uid: u64,
+    pub gid: u64,
+    pub mode: u32,
+    pub blocks: u64,
+    pub blksize: u64,
+    pub atime_secs: i64,
+    pub ctime_secs: i64,
 }
 
 /// The output of a finished subprocess ([`Process::run`]).
@@ -185,8 +196,47 @@ pub trait Filesystem {
     fn read_dir(&self, path: &str) -> Result<Vec<String>, HostError>;
     /// Create `path` and any missing parents.
     fn create_dir_all(&self, path: &str) -> Result<(), HostError>;
+    /// Create exactly one directory. Unlike [`Self::create_dir_all`], a
+    /// missing parent is an error; this is the primitive Tcl's `file tempdir`
+    /// needs when a template supplies its containing directory.
+    fn create_dir(&self, path: &str) -> Result<(), HostError> {
+        self.create_dir_all(path)
+    }
     /// Remove `path` (a file, or a directory when `recursive`).
     fn remove(&self, path: &str, recursive: bool) -> Result<(), HostError>;
+    /// Rename or move an entry without following a final symlink.
+    fn rename(&self, _source: &str, _target: &str, _force: bool) -> Result<(), HostError> {
+        Err(HostError::Unsupported)
+    }
+    /// Copy a file, directory, or symlink. The `recursive` flag permits a
+    /// directory tree; `force` permits replacement where the host supports it.
+    fn copy(
+        &self,
+        _source: &str,
+        _target: &str,
+        _recursive: bool,
+        _force: bool,
+    ) -> Result<(), HostError> {
+        Err(HostError::Unsupported)
+    }
+    /// Read the target of a symbolic link without following it.
+    fn readlink(&self, _path: &str) -> Result<String, HostError> {
+        Err(HostError::Unsupported)
+    }
+    /// Create a symbolic or hard link. Hosts without link support report
+    /// `Unsupported` rather than emulating links by copying bytes.
+    fn link(&self, _link: &str, _target: &str, _hard: bool) -> Result<(), HostError> {
+        Err(HostError::Unsupported)
+    }
+    /// Update access and modification times, in Unix epoch seconds.
+    fn set_times(
+        &self,
+        _path: &str,
+        _atime_secs: Option<i64>,
+        _mtime_secs: Option<i64>,
+    ) -> Result<(), HostError> {
+        Err(HostError::Unsupported)
+    }
 }
 
 /// The wall and monotonic clock (`clock seconds`/`milliseconds`). Mandatory —

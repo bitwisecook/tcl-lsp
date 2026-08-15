@@ -73,6 +73,8 @@ pub trait BigIntOps: Sized + Clone + Ord {
     /// Narrow to a wide when the value fits — the demote-when-fits step
     /// (`$big - $big` is `Int(0)`, never a one-word bignum).
     fn to_i64(&self) -> Option<i64>;
+    /// Tcl's low-64-bit `int`/`wide` conversion.
+    fn to_i64_wrapping(&self) -> i64;
     /// Whether the value is zero.
     fn is_zero(&self) -> bool;
     /// Whether the value is negative.
@@ -117,6 +119,42 @@ pub trait BigIntOps: Sized + Clone + Ord {
     fn bitxor(&self, other: &Self) -> Self;
     /// Number of bits in the magnitude (for shift-count collapse).
     fn bit_len(&self) -> u64;
+    /// Correctly rounded conversion to an IEEE-754 double.
+    fn to_f64(&self) -> f64;
+    /// Exact magnitude.
+    #[must_use]
+    fn abs(&self) -> Self {
+        if self.is_negative() {
+            self.neg()
+        } else {
+            self.clone()
+        }
+    }
+}
+
+/// A generic floor square root for backends that provide only exact integer
+/// arithmetic. The initial upper bound is `2^ceil(bit_len/2)`; binary search
+/// then avoids importing a backend-specific root implementation into the
+/// shared semantics.
+#[must_use]
+pub fn int_sqrt<B: BigIntOps>(value: &B) -> Option<B> {
+    if value.is_negative() {
+        return None;
+    }
+    if value.is_zero() {
+        return Some(B::from_i64(0));
+    }
+    let mut lo = B::from_i64(0);
+    let mut hi = B::from_i64(1).shl(u32::try_from(value.bit_len().div_ceil(2)).ok()?);
+    while lo < hi {
+        let mid = lo.add(&hi).add(&B::from_i64(1)).shr(1);
+        if mid.mul(&mid) <= *value {
+            lo = mid;
+        } else {
+            hi = mid.sub(&B::from_i64(1));
+        }
+    }
+    Some(lo)
 }
 
 /// Integer `**` on the tower — C's `INST_EXPON` rules, exactly:
@@ -322,6 +360,12 @@ impl BigIntOps for num_bigint::BigInt {
     fn to_i64(&self) -> Option<i64> {
         num_traits::ToPrimitive::to_i64(self)
     }
+    fn to_i64_wrapping(&self) -> i64 {
+        let low = self & ((num_bigint::BigInt::from(1u8) << 64) - 1u8);
+        num_traits::ToPrimitive::to_u64(&low)
+            .unwrap_or(0)
+            .cast_signed()
+    }
     fn is_zero(&self) -> bool {
         num_traits::Zero::is_zero(self)
     }
@@ -367,6 +411,15 @@ impl BigIntOps for num_bigint::BigInt {
     fn bit_len(&self) -> u64 {
         self.bits()
     }
+    fn to_f64(&self) -> f64 {
+        num_traits::ToPrimitive::to_f64(self).unwrap_or_else(|| {
+            if self.is_negative() {
+                f64::NEG_INFINITY
+            } else {
+                f64::INFINITY
+            }
+        })
+    }
 }
 
 #[cfg(test)]
@@ -384,6 +437,10 @@ mod tests {
         }
         fn to_i64(&self) -> Option<i64> {
             i64::try_from(self.0).ok()
+        }
+        fn to_i64_wrapping(&self) -> i64 {
+            let low = self.0 & i128::from(u64::MAX);
+            u64::try_from(low).unwrap().cast_signed()
         }
         fn is_zero(&self) -> bool {
             self.0 == 0
@@ -437,6 +494,9 @@ mod tests {
         }
         fn bit_len(&self) -> u64 {
             u64::from(128 - self.0.unsigned_abs().leading_zeros())
+        }
+        fn to_f64(&self) -> f64 {
+            num_traits::ToPrimitive::to_f64(&self.0).unwrap()
         }
     }
 

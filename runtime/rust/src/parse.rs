@@ -172,19 +172,7 @@ fn is_var_name_byte(c: u8) -> bool {
 /// Scan an `$name` identifier (already past the `$`), returning the end offset.
 /// Accepts alphanumerics / `_` and `::` namespace separators.
 fn scan_var_name(src: &[u8], start: usize) -> usize {
-    let len = src.len();
-    let mut p = start;
-    while p < len {
-        let c = src[p];
-        if c.is_ascii_alphanumeric() || c == b'_' {
-            p += 1;
-        } else if c == b':' && p + 1 < len && src[p + 1] == b':' {
-            p += 2;
-        } else {
-            break;
-        }
-    }
-    p
+    tcl_core_types::naming::scan_var_name_end(src, start)
 }
 
 /// Cap on `$name(index)` nesting depth [`scan_parts`] will recurse into while
@@ -800,6 +788,14 @@ mod tests {
     }
 
     // ---- low-level scanners ----
+
+    #[test]
+    fn variable_scanner_consumes_colon_runs() {
+        assert_eq!(scan_var_name(b"a:::b rest", 0), 5);
+        assert_eq!(scan_var_name(b"::a:::b rest", 0), 7);
+        assert_eq!(scan_var_name(b"foo::: rest", 0), 6);
+        assert_eq!(scan_var_name(b"a:::b(k)", 0), 5);
+    }
 
     #[test]
     fn command_subst_balances_and_escapes() {

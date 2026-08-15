@@ -114,6 +114,16 @@ impl Filesystem for MemFs {
                 executable: false,
                 len: bytes.len() as u64,
                 mtime_secs: 0,
+                dev: 0,
+                ino: 0,
+                nlink: 1,
+                uid: 0,
+                gid: 0,
+                mode: 0o100644,
+                blocks: 0,
+                blksize: 0,
+                atime_secs: 0,
+                ctime_secs: 0,
             });
         }
         if self.is_dir(&p) {
@@ -124,6 +134,16 @@ impl Filesystem for MemFs {
                 executable: true,
                 len: 0,
                 mtime_secs: 0,
+                dev: 0,
+                ino: 0,
+                nlink: 1,
+                uid: 0,
+                gid: 0,
+                mode: 0o40755,
+                blocks: 0,
+                blksize: 0,
+                atime_secs: 0,
+                ctime_secs: 0,
             });
         }
         Err(HostError::NotFound)
@@ -175,6 +195,21 @@ impl Filesystem for MemFs {
             acc.push_str(seg);
             self.dirs.borrow_mut().insert(acc.clone());
         }
+        Ok(())
+    }
+
+    fn create_dir(&self, path: &str) -> Result<(), HostError> {
+        let p = norm(path);
+        if self.exists(&p) {
+            return Err(HostError::AlreadyExists);
+        }
+        let parent = p
+            .rsplit_once('/')
+            .map_or("/", |(head, _)| if head.is_empty() { "/" } else { head });
+        if !self.is_dir(parent) {
+            return Err(HostError::NotFound);
+        }
+        self.dirs.borrow_mut().insert(p);
         Ok(())
     }
 

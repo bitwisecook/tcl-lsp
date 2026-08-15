@@ -61,6 +61,7 @@
 | W145 | warning | Ambiguous keyword abbreviation — the prefix matches more than one subcommand or option, which is a runtime error in Tcl. | ✓ |
 | W146 | warning | Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type). | ✓ |
 | W147 | warning | Mutually exclusive command options were supplied together. | ✓ |
+| W148 | warning | Numeral spelling is not accepted by the document's resolved Tcl release. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |

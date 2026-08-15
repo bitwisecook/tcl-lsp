@@ -177,22 +177,18 @@ pub struct FileDecls {
 /// Enclosing namespace of a fully-qualified name (`"::ns::foo"` → `"::ns"`,
 /// `"::foo"` → `"::"`).
 fn enclosing_namespace(qualified: &str) -> String {
-    match qualified.rsplit_once("::") {
-        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
-        _ => "::".to_string(),
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qualified);
+    if holder.is_empty() {
+        "::".to_string()
+    } else {
+        holder.to_string()
     }
 }
 
 /// Join a namespace prefix with a (possibly absolute) child name, mirroring the
 /// absolute-reset rule the analyser's `command_resolution_namespace` uses.
 fn join_ns(prefix: &str, name: &str) -> String {
-    if name.starts_with("::") {
-        name.to_string()
-    } else if prefix == "::" {
-        format!("::{name}")
-    } else {
-        format!("{prefix}::{name}")
-    }
+    tcl_syntax::naming::qualify(prefix, name)
 }
 
 /// Walk the scope tree collecting every namespace's qualified name.
@@ -423,6 +419,10 @@ mod tests {
         assert_eq!(enclosing_namespace("::foo"), "::");
         assert_eq!(enclosing_namespace("::ns::foo"), "::ns");
         assert_eq!(enclosing_namespace("::a::b::foo"), "::a::b");
+        assert_eq!(enclosing_namespace("::::::"), ":::");
+        assert_eq!(join_ns("::", ":"), ":::");
+        assert_eq!(join_ns(":::", ":"), "::::::");
+        assert_eq!(join_ns("::", "foo:::"), "::foo::");
     }
 
     #[test]

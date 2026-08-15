@@ -92,7 +92,8 @@ fn scanned_value(v: &Scanned) -> Value {
 }
 
 fn cmd_format(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    match tcl_cmd_core::format::format_cmd(vm, args) {
+    let syntax = vm.runtime_version().number_syntax();
+    match tcl_cmd_core::format::format_cmd_with_syntax(vm, args, syntax) {
         Ok(v) => ok(v),
         Err(e) => err(e.into_message()),
     }

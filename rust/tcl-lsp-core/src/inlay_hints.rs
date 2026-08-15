@@ -408,22 +408,6 @@ fn walk_scope_type_hints(
 // `year`), `binary format`/`scan` (`i` → `i32le`), and the substitution
 // backreferences of `regsub` (`\1` → `grp1`).
 
-/// `format`/`scan` conversion specifier.  Capture
-/// group 6 is the conversion type letter.
-static SPRINTF_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(
-        r"%(?:(\d+)\\?\$)?([-+ 0#]*)?(\*|\d+)?(?:.(\*|\d+))?([hlLzq])?([aAbBcdieEfgGosuxX%])",
-    )
-    .expect("static sprintf regex")
-});
-
-/// `clock format`/`scan` specifier.  The
-/// significant letter is the final character of the match.
-static CLOCK_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(r"%(?:[EO])?[aAbBcCdDeEgGhHIjJklmMNOpPqQsSuUVwWxXyYzZ%]")
-        .expect("static clock regex")
-});
-
 /// `regsub` substitution backreference (`\0`-`\9`, `\&`).
 /// Capture group 1 is the back-reference char.
 static REGSUB_RE: std::sync::LazyLock<regex::Regex> =
@@ -446,9 +430,6 @@ fn sprintf_short(c: char) -> Option<&'static str> {
         'G' => "NUM",
         'c' => "char",
         'b' => "bin",
-        'B' => "BIN",
-        'a' => "hexf",
-        'A' => "HEXF",
         _ => return None,
     })
 }
@@ -458,7 +439,7 @@ fn clock_short(c: char) -> Option<&'static str> {
     Some(match c {
         'Y' => "year",
         'y' => "yr",
-        'm' | 'B' => "month",
+        'm' | 'B' | 'n' => "month",
         'd' | 'e' => "day",
         'H' | 'k' => "hour",
         'I' | 'l' => "hour12",
@@ -466,21 +447,14 @@ fn clock_short(c: char) -> Option<&'static str> {
         'S' => "sec",
         's' => "epoch",
         'p' => "AM/PM",
-        'P' => "am/pm",
         'a' => "wday",
         'A' => "weekday",
         'b' => "mon",
-        'c' => "datetime",
         'D' | 'x' => "date",
         'j' => "yday",
         'u' | 'w' => "wday#",
-        'U' | 'W' => "week",
-        'V' => "isoweek",
         'z' | 'Z' => "tz",
-        'X' => "time",
         'C' => "century",
-        'g' | 'G' => "isoyear",
-        'J' => "julian",
         _ => return None,
     })
 }
@@ -507,6 +481,8 @@ fn binary_short(c: char) -> Option<&'static str> {
         'R' => "f32be",
         'f' => "f32",
         'd' => "f64",
+        'q' => "f64le",
+        'Q' => "f64be",
         'x' => "pad",
         'X' => "back",
         '@' => "seek",
@@ -617,6 +593,7 @@ fn collect_format_string_hints(
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
     let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
         source,
         0,
@@ -637,31 +614,40 @@ fn collect_format_string_hints(
             let content = &source[cstart..cend];
             match kind {
                 tcl_registry::FormatType::Sprintf => {
-                    for m in SPRINTF_RE.captures_iter(content) {
-                        let whole = m.get(0).expect("group 0");
-                        let type_char = m
-                            .get(6)
-                            .and_then(|g| g.as_str().chars().next())
-                            .unwrap_or('%');
-                        if let Some(label) = sprintf_short(type_char) {
-                            push_format_hint(
-                                label,
-                                cstart + whole.end(),
-                                range,
-                                source,
-                                line_index,
-                                out,
-                            );
+                    let bytes = content.as_bytes();
+                    let mut i = 0;
+                    while i < bytes.len() {
+                        if bytes[i] != b'%' {
+                            i += 1;
+                            continue;
                         }
+                        let start = i;
+                        i += 1;
+                        if bytes.get(i) == Some(&b'%') {
+                            i += 1;
+                            continue;
+                        }
+                        let mut end = i;
+                        let Some(spec) = tcl_syntax::format::parse_spec(bytes, &mut end) else {
+                            i = start + 1;
+                            continue;
+                        };
+                        if tcl_cmd_core::format::is_verb(spec.verb)
+                            && tcl_cmd_core::format::is_available(&spec, profile)
+                            && let Some(label) = sprintf_short(char::from(spec.verb))
+                        {
+                            push_format_hint(label, cstart + end, range, source, line_index, out);
+                        }
+                        i = end;
                     }
                 }
                 tcl_registry::FormatType::Clock => {
-                    for m in CLOCK_RE.find_iter(content) {
-                        let letter = m.as_str().chars().last().unwrap_or('%');
+                    for spec in tcl_cmd_core::clock::specifiers(content) {
+                        let letter = char::from(spec.letter);
                         if let Some(label) = clock_short(letter) {
                             push_format_hint(
                                 label,
-                                cstart + m.end(),
+                                cstart + spec.end,
                                 range,
                                 source,
                                 line_index,
@@ -671,7 +657,7 @@ fn collect_format_string_hints(
                     }
                 }
                 tcl_registry::FormatType::Binary => {
-                    collect_binary_hints(content, cstart, range, source, line_index, out);
+                    collect_binary_hints(content, cstart, range, source, line_index, profile, out);
                 }
                 tcl_registry::FormatType::Regsub => {
                     for m in REGSUB_RE.captures_iter(content) {
@@ -697,45 +683,22 @@ fn collect_format_string_hints(
     }
 }
 
-/// Scan a `binary format`/`scan` template for specifier letters and emit
-/// a hint after each.  Hand-rolled:
-/// skip whitespace, skip the optional repeat count, read the spec letter,
-/// then an optional `u`/`s` signedness flag and an optional `*` count.
+/// Scan a `binary format`/`scan` template using the shared field grammar and
+/// emit a hint after each recognised specifier.
 fn collect_binary_hints(
     content: &str,
     cstart: usize,
     range: LspRange,
     source: &str,
     line_index: &LineIndex,
+    profile: &tcl_dialect::DialectProfile,
     out: &mut Vec<InlayHint>,
 ) {
-    let bytes = content.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if matches!(bytes[i], b' ' | b'\t' | b'\r' | b'\n') {
-            i += 1;
-            continue;
+    let allow_modifier = tcl_cmd_core::binary::signedness_available(profile);
+    for spec in tcl_cmd_core::binary::specifiers(content.as_bytes(), allow_modifier) {
+        if let Some(label) = binary_short(char::from(spec.letter)) {
+            push_format_hint(label, cstart + spec.end, range, source, line_index, out);
         }
-        while i < bytes.len() && bytes[i].is_ascii_digit() {
-            i += 1;
-        }
-        if i >= bytes.len() {
-            break;
-        }
-        let ch = bytes[i] as char;
-        let Some(label) = binary_short(ch) else {
-            i += 1;
-            continue;
-        };
-        let mut spec_end = i + 1;
-        if spec_end < bytes.len() && matches!(bytes[spec_end], b'u' | b's') {
-            spec_end += 1;
-        }
-        if spec_end < bytes.len() && bytes[spec_end] == b'*' {
-            spec_end += 1;
-        }
-        push_format_hint(label, cstart + spec_end, range, source, line_index, out);
-        i = spec_end;
     }
 }
 
@@ -1743,11 +1706,15 @@ mod tests {
     // format-string specifier hints (InlayHintKind::Type)
 
     fn type_labels(src: &str) -> Vec<(u32, String)> {
+        type_labels_for_dialect(src, "tcl")
+    }
+
+    fn type_labels_for_dialect(src: &str, dialect: &str) -> Vec<(u32, String)> {
         let analysis = analyse(src);
         let reg = registry();
         inlay_hints(
             src,
-            "tcl",
+            dialect,
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1790,6 +1757,14 @@ mod tests {
         let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
         assert!(names.contains(&"strN"), "{labels:?}");
         assert!(names.contains(&"i32le"), "{labels:?}");
+    }
+
+    #[test]
+    fn binary_q_and_q_hints_are_owned_by_shared_spec_table() {
+        let labels = type_labels_for_dialect("binary format \"q Q\" 1 2\n", "tcl8.6");
+        let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
+        assert!(names.contains(&"f64le"), "{labels:?}");
+        assert!(names.contains(&"f64be"), "{labels:?}");
     }
 
     #[test]

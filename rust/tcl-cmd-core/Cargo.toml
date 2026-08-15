@@ -46,6 +46,7 @@ description = "Portable Tcl command logic (string/list/dict/… + platform helpe
 
 [dependencies]
 tcl-syntax = { path = "../tcl-syntax" }
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-platform = { path = "../tcl-platform" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 

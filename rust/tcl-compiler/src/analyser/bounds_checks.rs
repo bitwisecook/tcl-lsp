@@ -33,7 +33,7 @@
 use tcl_core_types::DiagCode;
 use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType, tokenise_expr};
 
-use crate::segmenter::{SegmentedCommand, segment_commands};
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 
 use super::types::{Diagnostic, Severity};
 
@@ -71,6 +71,7 @@ pub(crate) fn loop_termination_diagnostics(
     args: &[String],
     arg_tokens: &[Token],
     registry: Option<&tcl_registry::CommandRegistry>,
+    lexer_config: tcl_lexer::LexerConfig,
 ) -> Vec<Diagnostic> {
     // (init, cond, step, body, cond_tok) — init/step empty for `while`.
     let (init_text, cond_text, step_text, body_text, cond_tok) = match cmd_name {
@@ -97,7 +98,7 @@ pub(crate) fn loop_termination_diagnostics(
                 fixes: Vec::new(),
             }];
         }
-        Some(true) if !body_may_exit(body_text, registry) => {
+        Some(true) if !body_may_exit(body_text, registry, lexer_config) => {
             return vec![Diagnostic {
                 code: DiagCode::W241,
                 span: cond_tok.span,
@@ -115,8 +116,14 @@ pub(crate) fn loop_termination_diagnostics(
 
     // `for {init} {cond} {step} body` provably-infinite counter shape.
     if cmd_name == "for"
-        && let Some(reason) =
-            for_is_provably_infinite(init_text, cond_text, step_text, body_text, registry)
+        && let Some(reason) = for_is_provably_infinite(
+            init_text,
+            cond_text,
+            step_text,
+            body_text,
+            registry,
+            lexer_config,
+        )
     {
         return vec![Diagnostic {
             code: DiagCode::W241,
@@ -133,7 +140,7 @@ pub(crate) fn loop_termination_diagnostics(
     // W242; the default-off opt-in is applied by the consuming LSP/config
     // layer.
     if let Some(var) = extract_counter_name(cond_text)
-        && !loop_modifies_var(&var, step_text, body_text, registry)
+        && !loop_modifies_var(&var, step_text, body_text, registry, lexer_config)
     {
         return vec![Diagnostic {
             code: DiagCode::W242,
@@ -205,18 +212,19 @@ fn loop_modifies_var(
     step: &str,
     body: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
+    lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
     if !step.is_empty() {
-        if let Some((step_var, _)) = parse_step_incr(step)
+        if let Some((step_var, _)) = parse_step_incr(step, lexer_config)
             && step_var == var
         {
             return true;
         }
-        if body_writes_var(strip_braces(step), var, registry) {
+        if body_writes_var(strip_braces(step), var, registry, lexer_config) {
             return true;
         }
     }
-    body_writes_var(body, var, registry)
+    body_writes_var(body, var, registry, lexer_config)
 }
 
 /// Prove that a `for {set v INT} {$v OP INT} {incr v INT} body` loop
@@ -227,14 +235,17 @@ fn for_is_provably_infinite(
     step: &str,
     body: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
+    lexer_config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let (var_c, op, bound) = parse_simple_for_cond(cond)?;
-    let (var_i, start) = parse_init_var_value(init)?;
-    let (var_s, delta) = parse_step_incr(step)?;
+    let (var_i, start) = parse_init_var_value(init, lexer_config)?;
+    let (var_s, delta) = parse_step_incr(step, lexer_config)?;
     if var_c != var_i || var_c != var_s {
         return None;
     }
-    if body_writes_var(body, &var_c, registry) || body_may_exit(body, registry) {
+    if body_writes_var(body, &var_c, registry, lexer_config)
+        || body_may_exit(body, registry, lexer_config)
+    {
         return None;
     }
     let counter = format!("${var_c}");
@@ -415,8 +426,8 @@ fn flip_comparison(op: &str) -> &str {
 /// `(var, value)` from an init clause `set v INT`.  Parsed via the
 /// segmenter: a lone `set` command with a scalar-name word and a
 /// signed-integer literal.
-fn parse_init_var_value(init: &str) -> Option<(String, i64)> {
-    let cmd = sole_command(init)?;
+fn parse_init_var_value(init: &str, lexer_config: tcl_lexer::LexerConfig) -> Option<(String, i64)> {
+    let cmd = sole_command(init, lexer_config)?;
     if cmd.name() != "set" {
         return None;
     }
@@ -431,8 +442,8 @@ fn parse_init_var_value(init: &str) -> Option<(String, i64)> {
 
 /// `(var, delta)` from a step clause `incr v ?INT?`.  Parsed via the
 /// segmenter; a missing delta defaults to `1`.
-fn parse_step_incr(step: &str) -> Option<(String, i64)> {
-    let cmd = sole_command(step)?;
+fn parse_step_incr(step: &str, lexer_config: tcl_lexer::LexerConfig) -> Option<(String, i64)> {
+    let cmd = sole_command(step, lexer_config)?;
     if cmd.name() != "incr" {
         return None;
     }
@@ -445,8 +456,9 @@ fn parse_step_incr(step: &str) -> Option<(String, i64)> {
 
 /// The single command in `fragment` (after stripping an enclosing brace
 /// pair), or `None` when it segments to zero or more than one command.
-fn sole_command(fragment: &str) -> Option<SegmentedCommand> {
-    let mut cmds = segment_commands(strip_braces(fragment).trim());
+fn sole_command(fragment: &str, lexer_config: tcl_lexer::LexerConfig) -> Option<SegmentedCommand> {
+    let mut cmds =
+        segment_commands_with_offset_and_config(strip_braces(fragment).trim(), 0, lexer_config);
     match cmds.len() {
         1 => cmds.pop(),
         _ => None,
@@ -483,8 +495,9 @@ fn body_writes_var(
     body: &str,
     var: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
+    lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
-    any_command_recursive(body, &mut |cmd| {
+    any_command_recursive(body, lexer_config, &mut |cmd| {
         writes_first_arg(cmd.name(), registry)
             && cmd.args().first().map(String::as_str) == Some(var)
     })
@@ -503,8 +516,12 @@ fn writes_first_arg(name: &str, registry: Option<&tcl_registry::CommandRegistry>
 /// Walk every command in `script`, recursing into braced / quoted word
 /// arguments (which may be nested scripts), and return `true` as soon as
 /// `pred` matches.  A shallow-but-structural body scan.
-fn any_command_recursive(script: &str, pred: &mut impl FnMut(&SegmentedCommand) -> bool) -> bool {
-    for cmd in segment_commands(script) {
+fn any_command_recursive(
+    script: &str,
+    lexer_config: tcl_lexer::LexerConfig,
+    pred: &mut impl FnMut(&SegmentedCommand) -> bool,
+) -> bool {
+    for cmd in segment_commands_with_offset_and_config(script, 0, lexer_config) {
         if pred(&cmd) {
             return true;
         }
@@ -512,7 +529,7 @@ fn any_command_recursive(script: &str, pred: &mut impl FnMut(&SegmentedCommand) 
         for (i, tok) in cmd.arg_tokens().iter().enumerate() {
             if tok.kind == TokenType::Str
                 && let Some(inner) = args.get(i)
-                && any_command_recursive(inner, pred)
+                && any_command_recursive(inner, lexer_config, pred)
             {
                 return true;
             }
@@ -530,6 +547,7 @@ pub(crate) fn list_index_diagnostics(
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[Token],
+    numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
     if !matches!(cmd_name, "lindex" | "lrange" | "lreplace")
         || args.len() < 2
@@ -549,7 +567,7 @@ pub(crate) fn list_index_diagnostics(
         i64::try_from(crate::tcl_expr_eval::split_tcl_list(&args[0]).len()).unwrap_or(i64::MAX);
 
     if cmd_name == "lindex" {
-        return lindex_diagnostics(args, arg_tokens, length);
+        return lindex_diagnostics(args, arg_tokens, length, numbers);
     }
 
     // lrange / lreplace: a (first, last) pair that resolves to an empty
@@ -560,15 +578,15 @@ pub(crate) fn list_index_diagnostics(
     let (lo_text, hi_text) = (&args[1], &args[2]);
     let (lo_token, hi_token) = (&arg_tokens[1], &arg_tokens[2]);
     if has_subst(lo_text, lo_token)
-        || !is_literal_index(lo_text)
+        || !is_literal_index(lo_text, numbers)
         || has_subst(hi_text, hi_token)
-        || !is_literal_index(hi_text)
+        || !is_literal_index(hi_text, numbers)
     {
         return Vec::new();
     }
     let (Some(lo_index), Some(hi_index)) = (
-        resolve_index(lo_text, length),
-        resolve_index(hi_text, length),
+        resolve_index(lo_text, length, numbers),
+        resolve_index(hi_text, length, numbers),
     ) else {
         return Vec::new();
     };
@@ -598,16 +616,21 @@ pub(crate) fn list_index_diagnostics(
 }
 
 /// The per-index `lindex` arm of W230.
-fn lindex_diagnostics(args: &[String], arg_tokens: &[Token], length: i64) -> Vec<Diagnostic> {
+fn lindex_diagnostics(
+    args: &[String],
+    arg_tokens: &[Token],
+    length: i64,
+    numbers: tcl_dialect::NumberSyntax,
+) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for (pos, idx_text) in args.iter().enumerate().skip(1) {
         let Some(idx_tok) = arg_tokens.get(pos) else {
             continue;
         };
-        if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text) {
+        if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text, numbers) {
             continue;
         }
-        let Some(resolved) = resolve_index(idx_text, length) else {
+        let Some(resolved) = resolve_index(idx_text, length, numbers) else {
             continue;
         };
         if (0..length).contains(&resolved) {
@@ -639,6 +662,8 @@ pub(crate) fn lset_index_diagnostics(
     arg_tokens: &[Token],
     source: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
+    lexer_config: tcl_lexer::LexerConfig,
+    numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
     if cmd_name != "lset" || args.len() < 3 || arg_tokens.len() < 3 {
         return Vec::new();
@@ -651,7 +676,13 @@ pub(crate) fn lset_index_diagnostics(
     let list_len = if nested {
         None
     } else {
-        infer_list_length_from_recent_set(source, &args[0], arg_tokens[0].span.start(), registry)
+        infer_list_length_from_recent_set(
+            source,
+            &args[0],
+            arg_tokens[0].span.start(),
+            registry,
+            lexer_config,
+        )
     };
 
     let mut out = Vec::new();
@@ -660,12 +691,12 @@ pub(crate) fn lset_index_diagnostics(
         let Some(idx_tok) = arg_tokens.get(pos) else {
             continue;
         };
-        if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text) {
+        if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text, numbers) {
             continue;
         }
         let stripped = idx_text.trim();
         // Plain negative integer: always errors.
-        if let Some(n) = parse_strict_int(stripped)
+        if let Some(n) = absolute_index(stripped, numbers)
             && n < 0
         {
             out.push(Diagnostic {
@@ -683,7 +714,7 @@ pub(crate) fn lset_index_diagnostics(
         // `lset` accepts the append slot (`index == length`); only
         // indices past it or below zero are runtime errors.
         if let Some(length) = list_len {
-            let Some(resolved) = resolve_index(stripped, length) else {
+            let Some(resolved) = resolve_index(stripped, length, numbers) else {
                 continue;
             };
             if resolved < 0 || resolved > length {
@@ -731,6 +762,7 @@ fn infer_list_length_from_recent_set(
     var_name: &str,
     before_offset: u32,
     registry: Option<&tcl_registry::CommandRegistry>,
+    lexer_config: tcl_lexer::LexerConfig,
 ) -> Option<i64> {
     if before_offset == 0 || before_offset as usize > source.len() || var_name.is_empty() {
         return None;
@@ -742,7 +774,7 @@ fn infer_list_length_from_recent_set(
     for _ in 0..MAX_SCOPE_DESCENT.0 {
         best = None;
         let mut inner: Option<(&str, u32)> = None;
-        for cmd in crate::segmenter::segment_commands_with_offset(script, base) {
+        for cmd in segment_commands_with_offset_and_config(script, base, lexer_config) {
             if cmd.span.start() >= before_offset {
                 break;
             }
@@ -844,6 +876,7 @@ pub(crate) fn string_index_diagnostics(
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[Token],
+    numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
     if cmd_name != "string" || args.len() < 2 {
         return Vec::new();
@@ -878,9 +911,9 @@ pub(crate) fn string_index_diagnostics(
     };
 
     if sub == "index" || sub == "insert" {
-        return string_single_index(sub, args, arg_tokens, str_len);
+        return string_single_index(sub, args, arg_tokens, str_len, numbers);
     }
-    string_pair_index(sub, args, arg_tokens, str_len)
+    string_pair_index(sub, args, arg_tokens, str_len, numbers)
 }
 
 /// The single-index `string index` / `string insert` arm of W232.
@@ -889,14 +922,15 @@ fn string_single_index(
     args: &[String],
     arg_tokens: &[Token],
     str_len: Option<i64>,
+    numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
     let (idx_text, idx_tok) = (&args[2], &arg_tokens[2]);
-    if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text) {
+    if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text, numbers) {
         return Vec::new();
     }
     let stripped = idx_text.trim();
     // A plain negative literal is always invalid.
-    if let Some(n) = parse_strict_int(stripped)
+    if let Some(n) = absolute_index(stripped, numbers)
         && n < 0
     {
         return vec![Diagnostic {
@@ -913,7 +947,7 @@ fn string_single_index(
     // flags an in-bounds miss.
     if sub == "index"
         && let Some(len) = str_len
-        && let Some(resolved) = resolve_index(stripped, len)
+        && let Some(resolved) = resolve_index(stripped, len, numbers)
         && !(0..len).contains(&resolved)
     {
         return vec![Diagnostic {
@@ -936,13 +970,14 @@ fn string_pair_index(
     args: &[String],
     arg_tokens: &[Token],
     str_len: Option<i64>,
+    numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
     let (first_text, last_text) = (&args[2], &args[3]);
     let (first_tok, last_tok) = (&arg_tokens[2], &arg_tokens[3]);
     if has_subst(first_text, first_tok)
-        || !is_literal_index(first_text)
+        || !is_literal_index(first_text, numbers)
         || has_subst(last_text, last_tok)
-        || !is_literal_index(last_text)
+        || !is_literal_index(last_text, numbers)
     {
         return Vec::new();
     }
@@ -956,8 +991,8 @@ fn string_pair_index(
     // Both plain negative literals → always empty, even for a dynamic
     // string.
     if let (Some(f), Some(l)) = (
-        parse_strict_int(first_text.trim()),
-        parse_strict_int(last_text.trim()),
+        absolute_index(first_text.trim(), numbers),
+        absolute_index(last_text.trim(), numbers),
     ) && f < 0
         && l < 0
     {
@@ -976,8 +1011,8 @@ fn string_pair_index(
         return Vec::new();
     };
     let (Some(first_val), Some(last_val)) = (
-        resolve_index(first_text, len),
-        resolve_index(last_text, len),
+        resolve_index(first_text, len, numbers),
+        resolve_index(last_text, len, numbers),
     ) else {
         return Vec::new();
     };
@@ -1028,48 +1063,23 @@ fn has_subst(text: &str, tok: &Token) -> bool {
 
 /// `s` is a constant index expression we can evaluate (`end`, an
 /// integer, or `end±N`).
-fn is_literal_index(s: &str) -> bool {
-    let s = s.trim();
-    s == "end" || parse_strict_int(s).is_some() || end_offset(s).is_some()
+fn is_literal_index(s: &str, numbers: tcl_dialect::NumberSyntax) -> bool {
+    tcl_cmd_core::index::resolve_opt_with(s.trim(), 0, numbers).is_some()
 }
 
 /// Resolve a constant index to an absolute offset given `length`, or
 /// `None` when `s` is not a literal index.
-fn resolve_index(s: &str, length: i64) -> Option<i64> {
+fn resolve_index(s: &str, length: i64, numbers: tcl_dialect::NumberSyntax) -> Option<i64> {
+    tcl_cmd_core::index::resolve_opt_with(s.trim(), usize::try_from(length).ok()?, numbers)
+}
+
+/// Resolve a length-independent (non-`end`) Tcl index expression.
+fn absolute_index(s: &str, numbers: tcl_dialect::NumberSyntax) -> Option<i64> {
     let s = s.trim();
-    if s == "end" {
-        return Some(length - 1);
-    }
-    if let Some((sign, n)) = end_offset(s) {
-        return Some(length - 1 + sign * n);
-    }
-    parse_strict_int(s)
-}
-
-/// Parse a strict `-?\d+` integer (no `+` sign).
-fn parse_strict_int(s: &str) -> Option<i64> {
-    let body = s.strip_prefix('-').unwrap_or(s);
-    if body.is_empty() || !body.bytes().all(|b| b.is_ascii_digit()) {
+    if s.starts_with("end") {
         return None;
     }
-    s.parse::<i64>().ok()
-}
-
-/// Parse an `end-N` / `end+N` offset, returning `(sign, n)` where sign
-/// is -1 / +1 (whitespace around the operator allowed).
-fn end_offset(s: &str) -> Option<(i64, i64)> {
-    let rest = s.strip_prefix("end")?.trim_start();
-    let (sign, digits) = if let Some(d) = rest.strip_prefix('-') {
-        (-1, d)
-    } else {
-        let d = rest.strip_prefix('+')?;
-        (1, d)
-    };
-    let digits = digits.trim_start();
-    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    digits.parse::<i64>().ok().map(|n| (sign, n))
+    tcl_cmd_core::index::resolve_opt_with(s, 0, numbers)
 }
 
 /// Human-readable description of a resolved out-of-range index.
@@ -1117,14 +1127,25 @@ fn condition_constant(cond: &str) -> Option<bool> {
 /// Resolved via the segmenter (recursing into nested bodies) so only a
 /// command in *command position* counts — a `break` appearing as a bare
 /// argument no longer triggers a false exit.
-fn body_may_exit(body: &str, registry: Option<&tcl_registry::CommandRegistry>) -> bool {
-    any_command_recursive(body, &mut |cmd| is_loop_exit_command(cmd.name(), registry))
+fn body_may_exit(
+    body: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
+    lexer_config: tcl_lexer::LexerConfig,
+) -> bool {
+    any_command_recursive(body, lexer_config, &mut |cmd| {
+        is_loop_exit_command(cmd.name(), registry)
+    })
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{any_command_recursive, infer_list_length_from_recent_set, sole_command};
     use crate::analyser::Analyser;
     use tcl_core_types::DiagCode;
+
+    fn config() -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::default()
+    }
 
     fn codes(src: &str) -> Vec<String> {
         let mut a = Analyser::new();
@@ -1140,6 +1161,26 @@ mod tests {
     fn w240_constant_false_condition() {
         assert_eq!(codes("while 0 {puts hi}\n"), vec!["W240"]);
         assert_eq!(codes("for {set i 0} 0 {incr i} {}\n"), vec!["W240"]);
+    }
+
+    #[test]
+    fn configured_bounds_scanners_cover_each_segmenter_site() {
+        // Mutation proof for the three bounds callers: iRules treats `}{` as
+        // a ghost separator, whereas the default Tcl lexer keeps the second
+        // braced word attached to the first command.
+        let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
+        let one = sole_command("cmd {a}{b}", config).expect("one command");
+        assert_eq!(one.args().len(), 2, "iRules words: {:?}", one.texts);
+        assert!(any_command_recursive("cmd {a}{b}", config, &mut |cmd| {
+            cmd.args().len() == 2
+        }));
+
+        let source = "set xs {a b}\nlset xs 9 v\n";
+        let before = u32::try_from(source.find("lset").expect("lset")).expect("offset");
+        assert_eq!(
+            infer_list_length_from_recent_set(source, "xs", before, None, config,),
+            Some(2)
+        );
     }
 
     #[test]
@@ -1248,47 +1289,75 @@ mod tests {
         assert_eq!(super::parse_simple_for_cond("$arr(i) < 5"), None);
         assert_eq!(super::parse_simple_for_cond("$ns::v < 5"), None);
         assert_eq!(
-            super::parse_init_var_value("set i 5"),
+            super::parse_init_var_value("set i 5", config()),
             Some(("i".into(), 5))
         );
         // A non-`set` command, extra words, or a non-integer value reject.
-        assert_eq!(super::parse_init_var_value("incr i 5"), None);
-        assert_eq!(super::parse_init_var_value("set i 5 6"), None);
-        assert_eq!(super::parse_init_var_value("set i foo"), None);
-        assert_eq!(super::parse_step_incr("incr i"), Some(("i".into(), 1)));
-        assert_eq!(super::parse_step_incr("incr i -2"), Some(("i".into(), -2)));
-        assert_eq!(super::parse_step_incr("set i 3"), None);
+        assert_eq!(super::parse_init_var_value("incr i 5", config()), None);
+        assert_eq!(super::parse_init_var_value("set i 5 6", config()), None);
+        assert_eq!(super::parse_init_var_value("set i foo", config()), None);
+        assert_eq!(
+            super::parse_step_incr("incr i", config()),
+            Some(("i".into(), 1))
+        );
+        assert_eq!(
+            super::parse_step_incr("incr i -2", config()),
+            Some(("i".into(), -2))
+        );
+        assert_eq!(super::parse_step_incr("set i 3", config()), None);
     }
 
     #[test]
     fn body_scans_are_command_structural() {
         // A write counts only in command position, not inside a string.
-        assert!(super::body_writes_var("incr i", "i", None));
-        assert!(super::body_writes_var("if {$c} {set i 9}", "i", None)); // nested body
-        assert!(!super::body_writes_var("puts \"set i now\"", "i", None)); // inside a string
-        assert!(!super::body_writes_var("incr index", "i", None)); // word boundary
+        assert!(super::body_writes_var("incr i", "i", None, config()));
+        assert!(super::body_writes_var(
+            "if {$c} {set i 9}",
+            "i",
+            None,
+            config()
+        )); // nested body
+        assert!(!super::body_writes_var(
+            "puts \"set i now\"",
+            "i",
+            None,
+            config()
+        )); // inside a string
+        assert!(!super::body_writes_var("incr index", "i", None, config())); // word boundary
         // `break` / `return` / `throw` / `tailcall` likewise count only as
         // commands. `return`/`throw` resolve via the registry's
         // TERMINATES_BLOCK trait; `break`/`tailcall` are recognised without it.
         let reg = tcl_registry::registry_for_dialect("tcl8.6");
-        assert!(super::body_may_exit("break", Some(reg)));
-        assert!(super::body_may_exit("if {$c} {return}", Some(reg))); // nested
-        assert!(super::body_may_exit("throw MYERR boom", Some(reg))); // now covered
-        assert!(super::body_may_exit("tailcall foo", Some(reg)));
-        assert!(!super::body_may_exit("puts breakfast", Some(reg))); // not a command
+        assert!(super::body_may_exit("break", Some(reg), config()));
+        assert!(super::body_may_exit(
+            "if {$c} {return}",
+            Some(reg),
+            config()
+        )); // nested
+        assert!(super::body_may_exit(
+            "throw MYERR boom",
+            Some(reg),
+            config()
+        )); // now covered
+        assert!(super::body_may_exit("tailcall foo", Some(reg), config()));
+        assert!(!super::body_may_exit("puts breakfast", Some(reg), config())); // not a command
         // `break`/`tailcall` are recognised even without a registry handle.
-        assert!(super::body_may_exit("break", None));
-        assert!(super::body_may_exit("tailcall foo", None));
+        assert!(super::body_may_exit("break", None, config()));
+        assert!(super::body_may_exit("tailcall foo", None, config()));
     }
 
-    fn idx_codes(src: &str) -> Vec<String> {
+    fn idx_codes_for(src: &str, dialect: &str) -> Vec<String> {
         let mut a = Analyser::new();
-        a.analyse(src, "tcl8.6")
+        a.analyse(src, dialect)
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W230" | "W232"))
             .map(|d| d.code.to_string())
             .collect()
+    }
+
+    fn idx_codes(src: &str) -> Vec<String> {
+        idx_codes_for(src, "tcl8.6")
     }
 
     #[test]
@@ -1360,13 +1429,34 @@ mod tests {
 
     #[test]
     fn index_helpers() {
-        assert_eq!(super::resolve_index("end", 3), Some(2));
-        assert_eq!(super::resolve_index("end-5", 3), Some(-3));
-        assert_eq!(super::resolve_index("end+1", 3), Some(3));
-        assert_eq!(super::resolve_index("2", 3), Some(2));
-        assert_eq!(super::resolve_index("$x", 3), None);
-        assert!(super::is_literal_index("end-2"));
-        assert!(!super::is_literal_index("+5")); // strict: no leading +
+        let n = tcl_dialect::NumberSyntax::Tcl85;
+        assert_eq!(super::resolve_index("end", 3, n), Some(2));
+        assert_eq!(super::resolve_index("end-5", 3, n), Some(-3));
+        assert_eq!(super::resolve_index("end+1", 3, n), Some(3));
+        assert_eq!(super::resolve_index("2", 3, n), Some(2));
+        assert_eq!(super::resolve_index("1+1", 3, n), Some(2));
+        assert_eq!(super::resolve_index("0x2", 3, n), Some(2));
+        assert_eq!(super::resolve_index("+5", 3, n), Some(5));
+        assert_eq!(super::resolve_index("$x", 3, n), None);
+        assert!(super::is_literal_index("end-2", n));
+        assert!(!super::is_literal_index("end - 2", n));
+    }
+
+    #[test]
+    fn index_diagnostics_use_the_document_number_syntax() {
+        let list = "lindex {a b c d e f g h i} 010\n";
+        let string = "string index abcdefghi 010\n";
+        // Tcl 8.x reads 010 as octal 8 (in range); Tcl 9.x reads it as
+        // decimal 10 (out of range). Mutation: replacing the threaded
+        // profile syntax with the ambient parser makes these pairs agree.
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
+            assert!(idx_codes_for(list, dialect).is_empty(), "{dialect}");
+            assert!(idx_codes_for(string, dialect).is_empty(), "{dialect}");
+        }
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            assert_eq!(idx_codes_for(list, dialect), vec!["W230"], "{dialect}");
+            assert_eq!(idx_codes_for(string, dialect), vec!["W232"], "{dialect}");
+        }
     }
 
     #[test]
@@ -1379,14 +1469,18 @@ mod tests {
 
     // -- W231 (lset out of range) & W242 (unprovable termination) -----
 
-    fn code_msgs(src: &str, code: &str) -> Vec<String> {
+    fn code_msgs_for(src: &str, dialect: &str, code: &str) -> Vec<String> {
         let mut a = Analyser::new();
-        a.analyse(src, "tcl8.6")
+        a.analyse(src, dialect)
             .diagnostics
             .iter()
             .filter(|d| d.code.as_str() == code)
             .map(|d| d.message.clone())
             .collect()
+    }
+
+    fn code_msgs(src: &str, code: &str) -> Vec<String> {
+        code_msgs_for(src, "tcl8.6", code)
     }
 
     #[test]
@@ -1411,6 +1505,24 @@ mod tests {
         assert!(code_msgs("set L {a b c}\nlset L 3 x\n", "W231").is_empty());
         assert!(code_msgs("set L {a b c}\nlset L end+1 x\n", "W231").is_empty());
         assert!(code_msgs("set L {a b c}\nlset L 2 x\n", "W231").is_empty());
+    }
+
+    #[test]
+    fn w231_uses_the_document_number_syntax() {
+        let src = "set L {a b c d e f g h i}\nlset L 010 x\n";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
+            assert!(
+                code_msgs_for(src, dialect, "W231").is_empty(),
+                "{dialect} reads 010 as in-range octal 8"
+            );
+        }
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            assert_eq!(
+                code_msgs_for(src, dialect, "W231").len(),
+                1,
+                "{dialect} reads 010 as out-of-range decimal 10"
+            );
+        }
     }
 
     #[test]

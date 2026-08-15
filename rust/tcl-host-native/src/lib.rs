@@ -37,7 +37,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tcl_platform::{
     Capabilities, Clock, Env, ExecOutput, Filesystem, Host, HostError, Metadata, Process, StdIo,
@@ -266,6 +266,10 @@ impl Filesystem for NativeFs {
         std::fs::create_dir_all(path).map_err(|e| map_io(&e))
     }
 
+    fn create_dir(&self, path: &str) -> Result<(), HostError> {
+        std::fs::create_dir(path).map_err(|e| map_io(&e))
+    }
+
     fn remove(&self, path: &str, recursive: bool) -> Result<(), HostError> {
         let meta = std::fs::symlink_metadata(path).map_err(|e| map_io(&e))?;
         if meta.is_dir() {
@@ -278,6 +282,128 @@ impl Filesystem for NativeFs {
             std::fs::remove_file(path)
         }
         .map_err(|e| map_io(&e))
+    }
+
+    fn rename(&self, source: &str, target: &str, force: bool) -> Result<(), HostError> {
+        if force {
+            let _ = std::fs::remove_file(target);
+            let _ = std::fs::remove_dir_all(target);
+        }
+        std::fs::rename(source, target).map_err(|e| map_io(&e))
+    }
+
+    fn copy(
+        &self,
+        source: &str,
+        target: &str,
+        recursive: bool,
+        force: bool,
+    ) -> Result<(), HostError> {
+        let src = std::path::Path::new(source);
+        let dst = std::path::Path::new(target);
+        let meta = std::fs::symlink_metadata(src).map_err(|e| map_io(&e))?;
+        if meta.file_type().is_symlink() {
+            let link = std::fs::read_link(src).map_err(|e| map_io(&e))?;
+            if force {
+                let _ = std::fs::remove_file(dst);
+            }
+            create_link(dst, &link, false)
+        } else if meta.is_dir() {
+            if !recursive {
+                return Err(HostError::Io("is a directory".to_string()));
+            }
+            std::fs::create_dir_all(dst).map_err(|e| map_io(&e))?;
+            for entry in std::fs::read_dir(src).map_err(|e| map_io(&e))? {
+                let entry = entry.map_err(|e| map_io(&e))?;
+                let child = dst.join(entry.file_name());
+                self.copy(
+                    &entry.path().to_string_lossy(),
+                    &child.to_string_lossy(),
+                    true,
+                    force,
+                )?;
+            }
+            Ok(())
+        } else {
+            if !force && dst.exists() {
+                return Err(HostError::AlreadyExists);
+            }
+            std::fs::copy(src, dst).map(|_| ()).map_err(|e| map_io(&e))
+        }
+    }
+
+    fn readlink(&self, path: &str) -> Result<String, HostError> {
+        std::fs::read_link(path)
+            .map(|p| p.to_string_lossy().into_owned())
+            .map_err(|e| map_io(&e))
+    }
+
+    fn link(&self, link: &str, target: &str, hard: bool) -> Result<(), HostError> {
+        create_link(
+            std::path::Path::new(link),
+            std::path::Path::new(target),
+            hard,
+        )
+    }
+
+    fn set_times(
+        &self,
+        path: &str,
+        atime_secs: Option<i64>,
+        mtime_secs: Option<i64>,
+    ) -> Result<(), HostError> {
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(false)
+            .open(path)
+            .map_err(|e| map_io(&e))?;
+        let mut times = std::fs::FileTimes::new();
+        if let Some(secs) = atime_secs {
+            times = times.set_accessed(epoch_time(secs));
+        }
+        if let Some(secs) = mtime_secs {
+            times = times.set_modified(epoch_time(secs));
+        }
+        file.set_times(times).map_err(|e| map_io(&e))
+    }
+}
+
+fn epoch_time(secs: i64) -> SystemTime {
+    if secs < 0 {
+        UNIX_EPOCH - Duration::from_secs(secs.unsigned_abs())
+    } else {
+        UNIX_EPOCH + Duration::from_secs(secs.cast_unsigned())
+    }
+}
+
+fn create_link(
+    link: &std::path::Path,
+    target: &std::path::Path,
+    hard: bool,
+) -> Result<(), HostError> {
+    if hard {
+        std::fs::hard_link(target, link).map_err(|e| map_io(&e))
+    } else {
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(target, link).map_err(|e| map_io(&e))
+        }
+        #[cfg(windows)]
+        {
+            let is_dir = std::fs::metadata(target)
+                .map(|m| m.is_dir())
+                .unwrap_or(false);
+            if is_dir {
+                std::os::windows::fs::symlink_dir(target, link).map_err(|e| map_io(&e))
+            } else {
+                std::os::windows::fs::symlink_file(target, link).map_err(|e| map_io(&e))
+            }
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = (link, target);
+            Err(HostError::Unsupported)
+        }
     }
 }
 
@@ -302,6 +428,25 @@ fn meta_from(m: &std::fs::Metadata) -> Metadata {
     };
     #[cfg(not(unix))]
     let executable = true;
+    #[cfg(unix)]
+    let (dev, ino, nlink, uid, gid, mode, blocks, blksize, atime_secs, ctime_secs) = {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        (
+            m.dev(),
+            m.ino(),
+            m.nlink(),
+            u64::from(m.uid()),
+            u64::from(m.gid()),
+            m.permissions().mode(),
+            m.blocks(),
+            m.blksize(),
+            m.atime(),
+            m.ctime(),
+        )
+    };
+    #[cfg(not(unix))]
+    let (dev, ino, nlink, uid, gid, mode, blocks, blksize, atime_secs, ctime_secs) =
+        (0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
     Metadata {
         is_dir: ft.is_dir(),
         is_file: ft.is_file(),
@@ -309,6 +454,16 @@ fn meta_from(m: &std::fs::Metadata) -> Metadata {
         executable,
         len: m.len(),
         mtime_secs,
+        dev,
+        ino,
+        nlink,
+        uid,
+        gid,
+        mode,
+        blocks,
+        blksize,
+        atime_secs,
+        ctime_secs,
     }
 }
 

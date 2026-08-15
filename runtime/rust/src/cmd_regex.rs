@@ -211,6 +211,15 @@ mod tests {
         leak_free(|i| {
             assert_eq!(ok(i, b"regexp -start 3 {a} {a a a}"), b"1");
             assert_eq!(ok(i, b"regsub -start 2 -all {a} aaaa X"), b"aaXX");
+            assert_eq!(ok(i, b"regexp -start 1+1 {a} aaaa"), b"1");
+            assert_eq!(ok(i, b"regsub -start 0x2 {a} aaaa X"), b"aaXa");
+            assert_eq!(i.eval_str(b"regexp -start bogus {a} aaaa"), Code::Error);
+            assert!(i.result_bytes().starts_with(b"bad index \"bogus\""));
+            assert_eq!(
+                i.eval_str(b"regsub -start {end - 2} {a} aaaa X"),
+                Code::Error
+            );
+            assert!(i.result_bytes().starts_with(b"bad index \"end - 2\""));
         });
     }
 

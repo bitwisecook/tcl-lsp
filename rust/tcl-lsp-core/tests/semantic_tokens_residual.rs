@@ -573,12 +573,12 @@ fn st_clock_locale_modifier_then_spec() {
 }
 
 #[test]
-fn st_clock_modifier_letter_alone_is_its_own_spec() {
-    // `%E` with NO spec letter after it: the modifier only counts when it
-    // *precedes* a spec, so here `E` is itself the spec (both `E` and `O` are in
-    // the spec set) — a clockSpec, no clockModifier.
+fn st_clock_modifier_letter_alone_is_not_a_conversion() {
+    // `%E` with no conversion letter after it is a dangling modifier, so the
+    // shared clock grammar leaves the whole field as a string.
     let toks = decode("clock format $t -format {%E}\n", "tcl8.6");
-    assert!(!of_type(&toks, "clockSpec").is_empty(), "{toks:?}");
+    assert!(of_type(&toks, "clockSpec").is_empty(), "{toks:?}");
+    assert!(of_type(&toks, "clockPercent").is_empty(), "{toks:?}");
     assert!(
         of_type(&toks, "clockModifier").is_empty(),
         "a lone `%E` has no modifier; got {toks:?}",
@@ -640,15 +640,13 @@ fn st_binary_unrecognised_specifier_letter_is_skipped() {
 }
 
 #[test]
-fn st_binary_count_only_with_no_following_specifier() {
-    // A field string ending in digits (`a2 99`) hits the `i >= bytes.len()`
-    // break after the trailing count run — exercises the count-then-EOF path.
+fn st_binary_orphan_digits_are_not_a_count() {
+    // Tcl rejects the space in `a2 99`; only the `2` attached to the valid
+    // `a` field is a count. Orphan trailing digits are plain string content.
     let toks = decode("binary format {a2 99} $d\n", "tcl8.6");
-    // The trailing `99` is a count with no spec after it.
-    assert!(
-        of_type(&toks, "binaryCount").iter().any(|t| t.length == 2),
-        "trailing `99` should be a length-2 count; got {toks:?}",
-    );
+    let counts = of_type(&toks, "binaryCount");
+    assert_eq!(counts.len(), 1, "only `a2` has a count; got {toks:?}");
+    assert_eq!(counts[0].length, 1, "the count is `2`; got {toks:?}");
 }
 
 #[test]
