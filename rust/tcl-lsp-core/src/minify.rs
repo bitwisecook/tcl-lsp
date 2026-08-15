@@ -2778,11 +2778,7 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
     // (`switch … { pat body … }`, Expect's `expect { … }`).  Registry
     // data, never a spelled command name (issue #1197).
     let case_list_spec = registry.get(head).and_then(|s| s.case_list);
-    let dialect = registry
-        .profile()
-        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
-            profile.availability_mask
-        });
+    let dialect = tcl_dialect::DialectProfile::by_name(env.dialect).availability_mask;
     let is_case_list = registry
         .case_invocation(head, &post_refs, dialect)
         .is_some_and(|(_, invocation)| invocation.clause_list_index.is_some());

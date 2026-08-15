@@ -479,15 +479,19 @@ impl CaseListSpec {
                 if !word.starts_with('-') {
                     break;
                 }
+                // `--` is a descriptor-owned terminator, not necessarily a
+                // documented option entry. Recognise it before looking up a
+                // command option so the following hyphenated subject remains
+                // positional (notably `switch -- -x {...}`).
+                if self.end_options_option == Some(word) {
+                    i += 1;
+                    break;
+                }
                 let option = options
                     .iter()
                     .copied()
                     .find(|option| option.matches(word))?;
                 let option_name = option.name;
-                if self.end_options_option == Some(option_name) {
-                    i += 1;
-                    break;
-                }
                 if self.exact_option == Some(option_name) {
                     mode = CaseMatchMode::Exact;
                     i += 1;

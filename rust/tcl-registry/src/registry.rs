@@ -6360,6 +6360,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // descriptor layout matrix
     fn case_list_invocation_layout_is_registry_owned() {
         use crate::spec::CaseMatchMode;
         let reg = crate::registry_for_dialect("tcl9.0");
@@ -6424,6 +6425,16 @@ mod tests {
             default
                 .case_invocation("switch", &["subject", "pattern {}"], DialectSet::TCL90,)
                 .is_some()
+        );
+        assert!(
+            default
+                .case_invocation(
+                    "switch",
+                    &["--", "-x", "-x {puts hit} default {puts miss}"],
+                    DialectSet::TCL90,
+                )
+                .is_some(),
+            "the descriptor's -- terminator keeps a hyphenated switch subject positional"
         );
         assert!(
             reg.case_invocation("switch", &["subject", "pattern -"], DialectSet::TCL90)

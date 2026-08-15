@@ -210,7 +210,9 @@ pub fn split_case_list(inner: &str, shape: &CaseListShape<'_>) -> Vec<Clause> {
         let mut options_ended = false;
         // Leading clause flags. A braced element is never a flag — `{-re}` is a
         // pattern that happens to look like one.
-        while let Some(e) = elements.get(i) {
+        while !shape.clause_flags.is_empty()
+            && let Some(e) = elements.get(i)
+        {
             let word = text(e).trim_start_matches('{');
             if options_ended || e.braced || !word.starts_with('-') {
                 break;
