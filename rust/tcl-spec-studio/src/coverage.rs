@@ -1148,6 +1148,7 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
         clause_end_options_flag: _,
         clause_force_inline_flag: _,
         clause_force_list_flag: _,
+        clause_force_list_shape: _,
         allow_omitted_final_body: _,
         keyword_patterns: _,
         keyword_patterns_require_final: _,
@@ -1177,6 +1178,7 @@ pub const CASE_LIST_SPEC: &[Field] = &[
         Surface::Excluded(NAMED_CONSTANT),
     ),
     f("clause_force_list_flag", Surface::Excluded(NAMED_CONSTANT)),
+    f("clause_force_list_shape", Surface::Excluded(NAMED_CONSTANT)),
     f(
         "allow_omitted_final_body",
         Surface::Excluded(NAMED_CONSTANT),

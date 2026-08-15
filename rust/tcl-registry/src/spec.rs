@@ -333,6 +333,8 @@ pub struct CaseListSpec {
     pub clause_force_inline_flag: Option<&'static str>,
     /// Exact-only outer-shape flag selecting a braced clause list (`-brace`).
     pub clause_force_list_flag: Option<&'static str>,
+    /// Shape required by [`Self::clause_force_list_flag`], when present.
+    pub clause_force_list_shape: Option<CaseForceListShape>,
     /// Whether a final pattern may omit its action (Expect permits this).
     pub allow_omitted_final_body: bool,
     /// Patterns that are keywords, not match text (`default`; Expect's
@@ -344,6 +346,24 @@ pub struct CaseListSpec {
     /// Expect actions deliberately use a different evaluation model, so its
     /// descriptor leaves this off rather than making a consumer name `switch`.
     pub warn_unbraced_bodies: bool,
+}
+
+/// Registry-owned position/arity shape for an outer clause-list selector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaseForceListShape {
+    /// The selector is the first argument and must have exactly one following
+    /// argument containing the clause list.
+    FirstArgOnlyRemainder,
+}
+
+impl CaseForceListShape {
+    fn matches(self, args: &[&str], selector: Option<&str>, index: usize) -> bool {
+        match self {
+            Self::FirstArgOnlyRemainder => {
+                index == 0 && args.len() == 2 && selector == args.first().copied()
+            }
+        }
+    }
 }
 
 /// Registry-owned comparison mode for a case-list invocation.
@@ -402,6 +422,7 @@ impl CaseListSpec {
         clause_end_options_flag: None,
         clause_force_inline_flag: None,
         clause_force_list_flag: None,
+        clause_force_list_shape: None,
         allow_omitted_final_body: false,
         keyword_patterns: &["default"],
         keyword_patterns_require_final: true,
@@ -421,9 +442,9 @@ impl CaseListSpec {
         // Expect 5.45.4, after either option and its value, one braced word is
         // the final action-less *pattern*, not a clause list: `expect -timeout
         // 5 {ready {action}}` does not execute `action`.  A clause list is
-        // only the sole argument (`expect { … }`) or the exact `-brace { … }`
-        // outer shape.  Keep these options out of a speculative list-remainder
-        // grammar so every consumer abstains consistently.
+        // only the sole argument (`expect { … }`) or the exact first-argument
+        // `-brace { … }` shape. Keep these options out of a speculative
+        // list-remainder grammar so every consumer abstains consistently.
         value_options_require_regex: &[],
         clause_flags: &[
             "-glob",
@@ -444,6 +465,7 @@ impl CaseListSpec {
         clause_end_options_flag: Some("--"),
         clause_force_inline_flag: Some("-nobrace"),
         clause_force_list_flag: Some("-brace"),
+        clause_force_list_shape: Some(CaseForceListShape::FirstArgOnlyRemainder),
         allow_omitted_final_body: true,
         keyword_patterns: &["timeout", "eof", "default", "full_buffer", "null"],
         keyword_patterns_require_final: false,
@@ -492,7 +514,9 @@ impl CaseListSpec {
                 // `-brace` is deliberately not a prefix abbreviation.
                 let clause_flag = shape.resolve_flag(word);
                 let force_selector = self.clause_force_inline_flag == Some(word)
-                    || self.clause_force_list_flag == Some(word);
+                    || self
+                        .clause_force_list_shape
+                        .is_some_and(|shape| shape.matches(args, self.clause_force_list_flag, i));
                 if self.subject_args == 0
                     && (force_selector
                         || clause_flag.is_some_and(|flag| {
@@ -542,8 +566,10 @@ impl CaseListSpec {
         // Selectors are descriptor syntax, not ordinary command options.
         // They are considered only while the outer scan is active: after an
         // outer `--`, an option-shaped word is positional data instead.
-        let force_list =
-            !outer_options_ended && self.clause_force_list_flag == args.get(i).copied();
+        let force_list = !outer_options_ended
+            && self
+                .clause_force_list_shape
+                .is_some_and(|shape| shape.matches(args, self.clause_force_list_flag, i));
         let force_inline =
             !outer_options_ended && self.clause_force_inline_flag == args.get(i).copied();
         if force_list {

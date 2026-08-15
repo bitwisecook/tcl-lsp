@@ -2239,6 +2239,7 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         clause_end_options_flag: None,
         clause_force_inline_flag: None,
         clause_force_list_flag: None,
+        clause_force_list_shape: None,
         allow_omitted_final_body: false,
         keyword_patterns: &[],
         keyword_patterns_require_final: false,
@@ -2263,6 +2264,14 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
             "clause_end_options_flag" => spec.clause_end_options_flag = Some(leak_str(&value)),
             "clause_force_inline_flag" => spec.clause_force_inline_flag = Some(leak_str(&value)),
             "clause_force_list_flag" => spec.clause_force_list_flag = Some(leak_str(&value)),
+            "clause_force_list_shape" => {
+                spec.clause_force_list_shape = match value.as_str() {
+                    "first_arg_only_remainder" => {
+                        Some(tcl_registry::CaseForceListShape::FirstArgOnlyRemainder)
+                    }
+                    _ => None,
+                };
+            }
             "allow_omitted_final_body" => spec.allow_omitted_final_body = parse_flag(stmt.tail()),
             "warn_unbraced_bodies" => spec.warn_unbraced_bodies = parse_flag(stmt.tail()),
             "keyword_patterns" => {

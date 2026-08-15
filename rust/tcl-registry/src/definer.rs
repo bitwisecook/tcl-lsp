@@ -2095,6 +2095,7 @@ const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("clause_end_options_flag"),
     MemberSpec::keyword_only("clause_force_inline_flag"),
     MemberSpec::keyword_only("clause_force_list_flag"),
+    MemberSpec::keyword_only("clause_force_list_shape"),
     MemberSpec::keyword_only("allow_omitted_final_body"),
     MemberSpec::keyword_only("keyword_patterns"),
     MemberSpec::keyword_only("warn_unbraced_bodies"),

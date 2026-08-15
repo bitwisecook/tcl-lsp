@@ -6652,14 +6652,18 @@ mod tests {
                 .is_none(),
             "-brace must not accept a near-complete prefix either"
         );
-        let (_, after_value) = expect
-            .case_invocation(
-                "expect",
-                &["-timeout", "5", "-brace", "{default {return FOLDED}}"],
-                DialectSet::EXPECT,
-            )
-            .expect("an exact shape selector remains visible after outer values");
-        assert_eq!(after_value.clause_list_index, Some(3));
+        for args in [
+            &["-timeout", "5", "-brace", "{default {return FOLDED}}"] as &[&str],
+            &["-i", "spawn", "-brace", "{default {return FOLDED}}"],
+            &["-brace", "{default {return FOLDED}}", "extra"],
+        ] {
+            assert!(
+                expect
+                    .case_invocation("expect", args, DialectSet::EXPECT)
+                    .is_none(),
+                "force-list selector must be first and have one remainder: {args:?}"
+            );
+        }
     }
 
     #[test]
@@ -6686,6 +6690,7 @@ mod tests {
             clause_end_options_flag: Some("--"),
             clause_force_inline_flag: None,
             clause_force_list_flag: None,
+            clause_force_list_shape: None,
             allow_omitted_final_body: true,
             keyword_patterns: &[],
             keyword_patterns_require_final: false,
