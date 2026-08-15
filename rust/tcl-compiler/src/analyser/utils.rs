@@ -25,8 +25,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_lexer::{SourceMap, Span, Token};
-use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
+use tcl_lexer::{SourceMap, Span, Token, TokenType};
+use tcl_registry::definer::DefinitionBodyGrammar;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::ir::Statement;
@@ -131,17 +131,12 @@ fn parse_noqa_line_suppressions_with_registry(
 ) -> std::collections::HashMap<i32, HashSet<String>> {
     let mut result: std::collections::HashMap<i32, HashSet<String>> =
         std::collections::HashMap::new();
-    let comment_lines = script_comment_lines(source, config, registry);
-    for (idx, line) in source.split('\n').enumerate() {
-        if !comment_lines.contains(&idx) {
-            continue;
-        }
-        let stripped = line.trim();
-        let lower = stripped.to_ascii_lowercase();
+    for fact in script_comment_facts(source, config, registry) {
+        let lower = fact.text.to_ascii_lowercase();
         let Some(noqa_pos) = lower.find("noqa") else {
             continue;
         };
-        let rest = stripped[noqa_pos + 4..].trim();
+        let rest = fact.text[noqa_pos + 4..].trim();
         let codes: HashSet<String> = if let Some(after_colon) = rest.strip_prefix(':') {
             let parsed: HashSet<String> = after_colon
                 .split([',', ' ', '\t', '\r', '\n'])
@@ -157,30 +152,49 @@ fn parse_noqa_line_suppressions_with_registry(
         } else {
             std::iter::once("*".to_string()).collect()
         };
-        let next_line = i32::try_from(idx).unwrap_or(i32::MAX).saturating_add(1);
+        let next_line = i32::try_from(fact.line)
+            .unwrap_or(i32::MAX)
+            .saturating_add(1);
         result.entry(next_line).or_default().extend(codes);
     }
     result
 }
 
-/// Physical lines occupied by command-position comments in the document's
-/// top-level script or a registry-declared script body. Braced data arguments
-/// are never recursively tokenised as scripts.
-/// Physical comment lines, using lexer facts and registry-declared script
-/// bodies.  Callers must pass the document's resolved lexer configuration and
-/// registry; there is deliberately no implicit Tcl profile here.
+/// One lexer-confirmed command-position comment in a registry-reachable script.
+///
+/// `span` is an absolute byte range in the whole document and includes the
+/// leading `#`.  A fact only represents a physical comment line (the first
+/// non-horizontal-whitespace token is `#`), never a `;#` tail comment.  The
+/// caller can therefore inspect the exact comment slice without re-reading
+/// source text before the marker.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ScriptCommentFact {
+    /// Absolute lexer-confirmed comment-token span, including `#`.
+    pub span: Span,
+    /// Zero-based physical line on which the `#` begins.
+    pub line: usize,
+    /// Exact lexer-confirmed comment text, including `#` and any continued
+    /// physical lines. Consumers must inspect this instead of rescanning the
+    /// source line that happens to contain the comment.
+    pub text: String,
+}
+
+/// Lexer-confirmed physical comments in the document's top-level script or a
+/// registry-declared script body. Braced data arguments are never recursively
+/// tokenised as scripts. Callers must pass the document's resolved lexer
+/// configuration and registry; there is deliberately no implicit Tcl profile.
 #[must_use]
-pub fn script_comment_lines(
+pub fn script_comment_facts(
     source: &str,
     config: tcl_lexer::LexerConfig,
     registry: &tcl_registry::CommandRegistry,
-) -> HashSet<usize> {
+) -> Vec<ScriptCommentFact> {
     CommentLineWalker::new(source, config, registry).collect()
 }
 
 /// Lexer-fact walk over every registry-declared script shape.  This is shared
-/// by `# noqa` and W115 so neither feature can accidentally invent a separate
-/// idea of where executable comment lines may occur.
+/// by `# noqa`, W115, and code actions so neither feature can accidentally
+/// invent a separate idea of where executable comment lines may occur.
 struct CommentLineWalker<'a> {
     whole: &'a str,
     config: tcl_lexer::LexerConfig,
@@ -189,7 +203,7 @@ struct CommentLineWalker<'a> {
     line_index: tcl_lexer::LineIndex,
     availability: tcl_dialect::DialectSet,
     visited: HashSet<(u32, u32)>,
-    lines: HashSet<usize>,
+    facts: Vec<ScriptCommentFact>,
 }
 
 impl<'a> CommentLineWalker<'a> {
@@ -206,13 +220,15 @@ impl<'a> CommentLineWalker<'a> {
                 .profile()
                 .map_or_else(tcl_dialect::DialectSet::empty, |p| p.availability_mask),
             visited: HashSet::new(),
-            lines: HashSet::new(),
+            facts: Vec::new(),
         }
     }
 
-    fn collect(mut self) -> HashSet<usize> {
+    fn collect(mut self) -> Vec<ScriptCommentFact> {
         self.visit(self.whole, 0, 0, None);
-        self.lines
+        self.facts.sort_unstable_by_key(|fact| fact.span.start());
+        self.facts.dedup_by_key(|fact| fact.span);
+        self.facts
     }
 
     fn visit(
@@ -229,10 +245,34 @@ impl<'a> CommentLineWalker<'a> {
         {
             return;
         }
-        let base_line = self.line_index.line_at(base_offset);
-        for local_line in tcl_lexer::comment_line_starts(script, self.config.at_depth(depth)) {
-            if let Ok(line) = usize::try_from(base_line.saturating_add(local_line)) {
-                self.lines.insert(line);
+        if let Ok(tokens) =
+            tcl_lexer::Lexer::with_config(script, self.config.at_depth(depth)).tokenise_all()
+        {
+            for token in tokens
+                .into_iter()
+                .filter(|token| token.kind == TokenType::Comment)
+            {
+                let start = usize::try_from(token.span.start()).unwrap_or(script.len());
+                let line_start = script[..start].rfind('\n').map_or(0, |offset| offset + 1);
+                if !script[line_start..start]
+                    .bytes()
+                    .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | 0x0b | 0x0c))
+                {
+                    continue;
+                }
+                let span = Span::new(
+                    base_offset.saturating_add(token.span.start()),
+                    base_offset.saturating_add(token.span.end()),
+                );
+                self.facts.push(ScriptCommentFact {
+                    span,
+                    line: usize::try_from(self.line_index.line_at(span.start()))
+                        .unwrap_or(usize::MAX),
+                    text: script
+                        .get(token.span.start() as usize..token.span.end() as usize)
+                        .unwrap_or_default()
+                        .to_owned(),
+                });
             }
         }
         for command in crate::segmenter::segment_commands_with_offset_and_config(
@@ -254,13 +294,10 @@ impl<'a> CommentLineWalker<'a> {
                     self.registry
                         .arg_indices_for_role(&name, &args, ArgRole::Body)
                 },
-                |member| {
-                    member_body_indices(
-                        definition_grammar.expect("member has grammar"),
-                        member,
-                        &args,
-                        self.availability,
-                    )
+                |_| {
+                    definition_grammar
+                        .expect("member has grammar")
+                        .member_body_indices_in(&name, &args, self.availability)
                 },
             );
             let next_grammar =
@@ -441,49 +478,6 @@ fn registry_head(head: &str, registry: &CommandRegistry) -> String {
         return rooted.to_owned();
     }
     canonical
-}
-
-fn member_body_indices(
-    grammar: &DefinitionBodyGrammar,
-    member: &'static tcl_registry::definer::MemberSpec,
-    args: &[&str],
-    availability: tcl_dialect::DialectSet,
-) -> Vec<usize> {
-    if member.unavailable_option_for(args, availability).is_some() {
-        return Vec::new();
-    }
-    match member.kind {
-        MemberKind::Flat => member
-            .indices_for_call_in(args, availability, ArgRole::Body)
-            .filter(|index| *index < args.len())
-            .collect(),
-        MemberKind::Wrapper => {
-            let Some((inner, rest)) = args.split_first() else {
-                return Vec::new();
-            };
-            if let Some(inner_member) = grammar.member(inner) {
-                return member_body_indices(grammar, inner_member, rest, availability)
-                    .into_iter()
-                    .map(|index| index + 1)
-                    .collect();
-            }
-            if member.wrapper_block_body {
-                member
-                    .indices_for_call_in(args, availability, ArgRole::Body)
-                    .filter(|index| *index < args.len())
-                    .collect()
-            } else {
-                Vec::new()
-            }
-        }
-        MemberKind::FlagKeyed => args
-            .iter()
-            .enumerate()
-            .filter_map(|(index, arg)| {
-                ((*arg == "-get" || *arg == "-set") && index + 1 < args.len()).then_some(index + 1)
-            })
-            .collect(),
-    }
 }
 
 fn next_definition_grammar(
@@ -1781,6 +1775,39 @@ mod tests {
     }
 
     #[test]
+    fn comment_facts_are_exact_slices_and_never_promote_pre_comment_noqa() {
+        let src = "set marker \"noqa\"; # ordinary comment\n# café noqa: W305\nputs \"\u{202e}\"\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let facts = script_comment_facts(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert_eq!(
+            facts.len(),
+            1,
+            "tail comments are not physical facts: {facts:?}"
+        );
+        assert_eq!(facts[0].line, 1);
+        assert_eq!(facts[0].text, "# café noqa: W305");
+        assert_eq!(
+            src.get(facts[0].span.start() as usize..facts[0].span.end() as usize),
+            Some(facts[0].text.as_str()),
+            "fact span must identify precisely the lexer-confirmed slice"
+        );
+        let suppressions = parse_noqa_line_suppressions(src);
+        assert!(
+            suppressions
+                .get(&2)
+                .is_some_and(|codes| codes.contains("W305"))
+        );
+        assert!(
+            !suppressions.contains_key(&1),
+            "string data must not become noqa"
+        );
+    }
+
+    #[test]
     fn parse_noqa_line_suppressions_ignores_braced_data() {
         let src = "proc example {} {\n    set help {\nline one\n# noqa\n    }\n    puts $undefined_var\n}\n";
         let map = parse_noqa_line_suppressions(src);
@@ -1799,54 +1826,54 @@ mod tests {
     }
 
     #[test]
-    fn script_comment_lines_reaches_expect_clause_flags_and_lambda_bodies() {
+    fn script_comment_facts_reaches_expect_clause_flags_and_lambda_bodies() {
         let src = "expect {\n    -re {ready} {\n        # expect arm\n        # continuation \\\n        hidden\n    }\n}\napply {{} {\n    # lambda body\n    puts ok\n}}\n";
         let profile = tcl_dialect::DialectProfile::by_name("expect");
-        let comments = script_comment_lines(
+        let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("expect"),
             tcl_registry::cache::registry_for_profile(profile),
         );
         assert!(
-            comments.contains(&2),
+            comments.iter().any(|fact| fact.line == 2),
             "Expect comment missing: {comments:?}"
         );
         assert!(
-            comments.contains(&3),
+            comments.iter().any(|fact| fact.line == 3),
             "continued comment missing: {comments:?}"
         );
         assert!(
-            comments.contains(&8),
+            comments.iter().any(|fact| fact.line == 8),
             "lambda comment missing: {comments:?}"
         );
     }
 
     #[test]
-    fn script_comment_lines_reaches_definition_member_bodies() {
+    fn script_comment_facts_reaches_definition_member_bodies() {
         let src = "oo::class create Example {\n    method run {} {\n        # member body\n        puts ok\n    }\n}\n";
         let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
-        let comments = script_comment_lines(
+        let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
             tcl_registry::cache::registry_for_profile(profile),
         );
         assert!(
-            comments.contains(&2),
+            comments.iter().any(|fact| fact.line == 2),
             "definition-member comment missing: {comments:?}"
         );
     }
 
     #[test]
-    fn script_comment_lines_reaches_nested_command_substitution_case_arms() {
+    fn script_comment_facts_reaches_nested_command_substitution_case_arms() {
         let src = "set result [switch $kind {\n    alpha {\n        # nested comment \\\n        hidden\n    }\n}]\nset data {[switch $kind { beta { # inert } }]}\n";
         let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
-        let comments = script_comment_lines(
+        let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
             tcl_registry::cache::registry_for_profile(profile),
         );
         assert!(
-            comments.contains(&2),
+            comments.iter().any(|fact| fact.line == 2),
             "nested comment missing: {comments:?}"
         );
         assert_eq!(
@@ -1857,16 +1884,16 @@ mod tests {
     }
 
     #[test]
-    fn script_comment_lines_uses_proven_alias_identity_for_body_roles() {
+    fn script_comment_facts_uses_proven_alias_identity_for_body_roles() {
         let src = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
         let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
-        let comments = script_comment_lines(
+        let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
             tcl_registry::cache::registry_for_profile(profile),
         );
         assert!(
-            comments.contains(&2),
+            comments.iter().any(|fact| fact.line == 2),
             "alias body comment missing: {comments:?}"
         );
     }

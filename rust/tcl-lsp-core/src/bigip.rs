@@ -351,13 +351,13 @@ fn collect_extracted_comment_folds(
         let Some(body) = source.get(rule.body_start_offset..rule.body_end_offset) else {
             continue;
         };
-        let facts: FxHashSet<u32> = tcl_compiler::analyser::utils::script_comment_lines(
+        let facts: FxHashSet<u32> = tcl_compiler::analyser::utils::script_comment_facts(
             body,
             tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
             irules_registry,
         )
         .into_iter()
-        .filter_map(|line| u32::try_from(line).ok())
+        .filter_map(|fact| u32::try_from(fact.line).ok())
         .collect();
         crate::folding::collect_comment_folds_from_facts(
             body,

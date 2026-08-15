@@ -29,7 +29,7 @@
 
 use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::definition::LspRange;
-use tcl_lsp_core::selection_range::{SelectionRange, selection_range};
+use tcl_lsp_core::selection_range::{SelectionRange, selection_range, selection_range_for_dialect};
 
 /// The chain ordered innermost → outermost by following `parent_index`.
 fn chain(source: &str, line: u32, character: u32) -> Vec<LspRange> {
@@ -154,6 +154,63 @@ fn no_duplicate_adjacent_ranges() {
             ),
             "adjacent chain ranges must differ"
         );
+    }
+}
+
+#[test]
+fn registry_recursive_command_spans_cover_case_lambda_and_definition_members() {
+    // Each expected range is the innermost command, not its enclosing list or
+    // definition script. The traversal receives only registry roles and the
+    // resolved DialectProfile; no command name selects a descent path.
+    let cases = [
+        (
+            "switch $kind {\n    ok { puts switch-hit }\n}\n",
+            1,
+            17,
+            9,
+            24,
+            "tcl9.0",
+        ),
+        (
+            "set result [if {1} { puts command-hit }]\n",
+            0,
+            29,
+            21,
+            37,
+            "tcl9.0",
+        ),
+        (
+            "apply {{value} {\n    puts $value\n}} item\n",
+            1,
+            10,
+            4,
+            15,
+            "tcl9.0",
+        ),
+        (
+            "oo::class create C {\n    method run {} {\n        puts member-hit\n    }\n}\n",
+            2,
+            15,
+            8,
+            23,
+            "tcl9.0",
+        ),
+    ];
+    for (source, line, character, start, end, dialect) in cases {
+        let links = selection_range_for_dialect(source, line, character, None, dialect);
+        assert!(
+            links.iter().any(|link| {
+                link.range.start_line == line
+                    && link.range.start_character == start
+                    && link.range.end_line == line
+                    && link.range.end_character == end
+            }),
+            "{dialect}: missing exact nested command span in {links:?}"
+        );
+        for pair in links.windows(2) {
+            assert!(contains(pair[1].range, pair[0].range), "{links:?}");
+            assert_ne!(pair[0].range, pair[1].range, "{links:?}");
+        }
     }
 }
 

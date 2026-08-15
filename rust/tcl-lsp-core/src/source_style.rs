@@ -305,7 +305,7 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
 pub fn check_comment_continuation_for_dialect(source: &str, dialect: &str) -> Vec<StyleDiagnostic> {
     let lines: Vec<&str> = source.split('\n').collect();
     let profile = tcl_dialect::DialectProfile::by_name(dialect);
-    let comments = tcl_compiler::analyser::utils::script_comment_lines(
+    let comments = tcl_compiler::analyser::utils::script_comment_facts(
         source,
         tcl_lexer::LexerConfig::for_file_dialect(dialect),
         tcl_registry::cache::registry_for_profile(profile),
@@ -391,21 +391,29 @@ pub fn check_comment_continuation_for_dialect(source: &str, dialect: &str) -> Ve
 /// and its rewrite action consume this detector.
 #[must_use]
 pub fn comment_continuation_run(lines: &[&str], start_line: usize) -> Option<usize> {
-    let facts: HashSet<usize> = (0..lines.len())
-        .filter(|line| lines[*line].trim_start().starts_with('#'))
-        .collect();
-    comment_continuation_run_with_facts(lines, &facts, start_line)
+    let first = *lines.get(start_line)?;
+    first
+        .trim_start()
+        .trim_end_matches('\r')
+        .ends_with('\\')
+        .then_some(())?;
+    let mut end = start_line + 1;
+    while end < lines.len() && lines[end - 1].trim_end_matches('\r').ends_with('\\') {
+        end += 1;
+    }
+    Some(end.min(lines.len()))
 }
 
 /// W115 run detector using lexer-confirmed physical comment lines.
 #[must_use]
-pub fn comment_continuation_run_with_facts<S: BuildHasher>(
+pub fn comment_continuation_run_with_facts(
     lines: &[&str],
-    comment_lines: &HashSet<usize, S>,
+    comment_facts: &[tcl_compiler::analyser::utils::ScriptCommentFact],
     start_line: usize,
 ) -> Option<usize> {
-    let first = *lines.get(start_line)?;
-    if !comment_lines.contains(&start_line) || !first.trim_end_matches('\r').ends_with('\\') {
+    let comment = comment_facts.iter().find(|fact| fact.line == start_line)?;
+    let first_comment_line = comment.text.split('\n').next().unwrap_or_default();
+    if !first_comment_line.trim_end_matches('\r').ends_with('\\') {
         return None;
     }
     let mut end = start_line + 1;
@@ -652,8 +660,10 @@ mod tests {
     fn w115_uses_lexer_comment_positions_not_braced_or_quoted_data() {
         let braced = "set payload {# hidden \\\nputs live}\n";
         let quoted = "set payload \"# hidden \\\nputs live\"\n";
+        let tail = "set marker \"noqa\"; # ordinary comment \\\nputs live\n";
         assert!(check_comment_continuation_for_dialect(braced, "tcl9.0").is_empty());
         assert!(check_comment_continuation_for_dialect(quoted, "tcl9.0").is_empty());
+        assert!(check_comment_continuation_for_dialect(tail, "tcl9.0").is_empty());
     }
 
     #[test]

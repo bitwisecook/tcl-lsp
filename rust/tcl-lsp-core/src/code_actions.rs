@@ -1027,7 +1027,7 @@ fn continuation_comment_actions(source: &str, range: LspRange, dialect: &str) ->
         return Vec::new();
     }
     let profile = tcl_dialect::DialectProfile::by_name(dialect);
-    let comments = tcl_compiler::analyser::utils::script_comment_lines(
+    let comments = tcl_compiler::analyser::utils::script_comment_facts(
         source,
         tcl_lexer::LexerConfig::for_file_dialect(dialect),
         tcl_registry::cache::registry_for_profile(profile),
@@ -3136,6 +3136,7 @@ mod tests {
         for src in [
             "set payload {# pseudo \\\nputs live}\n",
             "set payload \"# pseudo \\\nputs live\"\n",
+            "set marker \"noqa\"; # ordinary comment \\\nputs live\n",
         ] {
             let analysis = analyse(src);
             let actions = code_actions(

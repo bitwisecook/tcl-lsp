@@ -296,10 +296,12 @@ fn command_span_at(
         script: &str,
         base: u32,
         cursor: u32,
+        profile: &'static tcl_dialect::DialectProfile,
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
         identities: &tcl_compiler::head_identity::HeadIdentityMap,
         depth: u32,
+        definition_grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
         best: &mut Option<Span>,
     ) {
         if depth > 64 {
@@ -333,10 +335,32 @@ fn command_span_at(
             } else {
                 canonical
             };
+            let head = tcl_compiler::head_identity::HeadWords {
+                written: command.name(),
+                resolved: &semantic_head,
+            };
+            let availability = profile.availability_mask;
+            let body_indices = definition_grammar
+                .filter(|grammar| grammar.is_member(head.written))
+                .map_or_else(
+                    || {
+                        registry.arg_indices_for_role(
+                            &semantic_head,
+                            &args,
+                            tcl_registry::ArgRole::Body,
+                        )
+                    },
+                    |grammar| grammar.member_body_indices_in(head.written, &args, availability),
+                );
+            let next_grammar =
+                crate::oo_body::next_definition_grammar(head, &args, definition_grammar, registry);
+            let case_list = registry
+                .case_invocation(&semantic_head, &args, availability)
+                .and_then(|(case, invocation)| {
+                    invocation.clause_list_index.map(|index| (case, index))
+                });
             let mut recursed = std::collections::HashSet::new();
-            for index in
-                registry.arg_indices_for_role(&semantic_head, &args, tcl_registry::ArgRole::Body)
-            {
+            for index in body_indices {
                 let Some(token) = command.arg_tokens().get(index) else {
                     continue;
                 };
@@ -355,17 +379,96 @@ fn command_span_at(
                 let Some(body) = script.get(start + 1..end - 1) else {
                     continue;
                 };
+                // Case-list bodies are data containing separately-braced arm
+                // scripts. Descend into those arms below, never as one script.
+                if case_list.is_some_and(|(_, case_index)| case_index == index) {
+                    continue;
+                }
                 visit(
                     body,
                     base.saturating_add(u32::try_from(start + 1).unwrap_or(u32::MAX)),
                     cursor,
+                    profile,
                     config,
                     registry,
                     identities,
                     depth + 1,
+                    next_grammar,
                     best,
                 );
                 recursed.insert((token.span.start(), token.span.end()));
+            }
+
+            if let Some((case, index)) = case_list
+                && let Some(token) = command.arg_tokens().get(index)
+                && token.kind == tcl_lexer::TokenType::Str
+            {
+                let whole = tcl_lexer::word_span_at(script, token.span);
+                let start = usize::try_from(whole.start()).unwrap_or(script.len());
+                let end = usize::try_from(whole.end()).unwrap_or(script.len());
+                if end > start + 1
+                    && script.as_bytes().get(start) == Some(&b'{')
+                    && let Some(list) = script.get(start + 1..end - 1)
+                {
+                    let shape = tcl_syntax::case_list::CaseListShape {
+                        clause_flags: case.clause_flags,
+                        clause_value_flags: case.clause_value_flags,
+                    };
+                    for clause in tcl_syntax::case_list::split_case_list(list, &shape) {
+                        let Some(body) = clause.body.filter(|body| body.braced) else {
+                            continue;
+                        };
+                        let arm_start = start + 1 + body.start + 1;
+                        let arm_end = start + 1 + body.end;
+                        let Some(arm) = script.get(arm_start..arm_end) else {
+                            continue;
+                        };
+                        visit(
+                            arm,
+                            base.saturating_add(u32::try_from(arm_start).unwrap_or(u32::MAX)),
+                            cursor,
+                            profile,
+                            config,
+                            registry,
+                            identities,
+                            depth + 1,
+                            None,
+                            best,
+                        );
+                    }
+                }
+            }
+
+            for index in registry.arg_indices_for_role(
+                &semantic_head,
+                &args,
+                tcl_registry::ArgRole::LambdaLiteral,
+            ) {
+                let Some(token) = command.arg_tokens().get(index) else {
+                    continue;
+                };
+                let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(script, *token)
+                    .and_then(|literal| literal.braced_body())
+                else {
+                    continue;
+                };
+                let start = usize::try_from(body.start()).unwrap_or(script.len());
+                let end = usize::try_from(body.end()).unwrap_or(script.len());
+                let Some(lambda) = script.get(start..end) else {
+                    continue;
+                };
+                visit(
+                    lambda,
+                    base.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
+                    cursor,
+                    profile,
+                    config,
+                    registry,
+                    identities,
+                    depth + 1,
+                    None,
+                    best,
+                );
             }
 
             // Command substitutions execute Tcl scripts regardless of the
@@ -397,10 +500,12 @@ fn command_span_at(
                     inner,
                     base.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
                     cursor,
+                    profile,
                     config,
                     registry,
                     identities,
                     depth + 1,
+                    None,
                     best,
                 );
             }
@@ -415,10 +520,12 @@ fn command_span_at(
         source,
         0,
         cursor_offset,
+        profile,
         config,
         registry,
         &identities,
         0,
+        None,
         &mut best,
     );
     best
