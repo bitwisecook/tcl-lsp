@@ -179,6 +179,7 @@ fn resolve_head<'a>(
 /// collect references, recursing into body / expr / command-substitution
 /// arguments with child scopes. Token spans are absolute into `ctx.full`.
 /// `depth` is this call's nesting level — see [`MAX_WALK_DEPTH`].
+#[allow(clippy::too_many_lines)] // recursive registry-body walk is intentionally local
 fn walk(
     ctx: &WalkCtx<'_>,
     slice: &str,
@@ -220,22 +221,30 @@ fn walk(
         // Only canonicalise the iRules global commands this walker owns.
         // `::tcl::dict::*` is a distinct qualified core command whose BODY
         // declarations must remain visible to the registry.
-        let semantic_head = match head {
-            "::pool" => "pool",
-            "::class" => "class",
-            _ => head,
+        let canonical = tcl_syntax::naming::canonical_written_command(head);
+        let semantic_head = if registry.get(&canonical).is_some() {
+            canonical
+        } else if canonical.starts_with("::") {
+            let rooted_name = canonical.trim_start_matches("::");
+            if registry.get(rooted_name).is_some() {
+                rooted_name.to_owned()
+            } else {
+                canonical
+            }
+        } else {
+            canonical
         };
 
         // Resolve declared references *before* mutating the binding table, so a
         // same-command `set` re-bind doesn't leak into this call's refs.
-        for (argument_index, kinds) in resolve_object_ref_args(semantic_head, &args, rule_module) {
+        for (argument_index, kinds) in resolve_object_ref_args(&semantic_head, &args, rule_module) {
             if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
                 out.push(IrulesObjectReference {
                     name,
                     kinds,
                     command: cmd.name().to_owned(),
-                    effective_command: semantic_head.to_owned(),
-                    category: match semantic_head {
+                    effective_command: semantic_head.clone(),
+                    category: match semantic_head.as_str() {
                         "pool" => IrulesObjectReferenceCategory::Pool,
                         "class" => IrulesObjectReferenceCategory::DataGroup,
                         _ => IrulesObjectReferenceCategory::Other,
@@ -245,9 +254,9 @@ fn walk(
                 });
             }
         }
-        record_set_binding(full, semantic_head, &cmd, scope);
+        record_set_binding(full, &semantic_head, &cmd, scope);
 
-        let body_indices = registry.arg_indices_for_role(semantic_head, &args, ArgRole::Body);
+        let body_indices = registry.arg_indices_for_role(&semantic_head, &args, ArgRole::Body);
         let mut recursed: HashSet<(u32, u32)> = HashSet::new();
         for body_idx in body_indices {
             let word_index = body_idx + 1;
