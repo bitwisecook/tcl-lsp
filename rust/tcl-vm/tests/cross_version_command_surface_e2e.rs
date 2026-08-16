@@ -1491,3 +1491,34 @@ fn vectors_match_real_tclsh_when_available() {
         eprintln!("no system tclsh found — pinned expectations still verified");
     }
 }
+
+/// An enter trace may delete the command currently being invoked while also
+/// installing a replacement under its former visible name.  Tcl treats the
+/// in-flight command token as deleted; it neither invokes nor resurrects it,
+/// and the callback-created replacement remains authoritative.
+#[test]
+fn deleted_hidden_enter_trace_matches_real_tclsh() {
+    let src = concat!(
+        "proc p {} {return hidden}\n",
+        "proc replace args {\n",
+        "  rename p {}\n",
+        "  interp expose {} held p\n",
+        "  rename p {}\n",
+        "  proc p {} {return replacement}\n",
+        "}\n",
+        "trace add execution p enter replace\n",
+        "interp hide {} p held\n",
+        "proc p {} {return initial}\n",
+        "set rc [catch {interp invokehidden {} held} msg]\n",
+        "puts [list $rc $msg [p] [interp hidden {}]]\n",
+    );
+    let want = "1 {attempt to invoke a deleted command} replacement {}";
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] hidden enter-trace lifecycle");
+        }
+    }
+}

@@ -4626,7 +4626,7 @@ impl Vm {
     /// under its own key, so later calls while the same trace-deopt epoch
     /// holds reuse the compiled body instead of recompiling on every call.
     pub(crate) fn ensure_proc_ready(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
-        self.ensure_proc_ready_in(proc, None)
+        self.ensure_proc_ready_in(proc, None, None)
     }
 
     /// Refresh a stored procedure and memoise it in the command domain from
@@ -4637,6 +4637,7 @@ impl Vm {
         &mut self,
         proc: Rc<ProcDef>,
         sidecar: Option<&CommandSidecarKey>,
+        sidecar_handle: Option<&CommandSidecarHandle>,
     ) -> Rc<ProcDef> {
         if proc.compiled_epoch == self.trace_deopt_epoch()
             && proc.compiled_profile_generation == self.profile_generation
@@ -4644,7 +4645,15 @@ impl Vm {
             return proc;
         }
         let fresh = self.ensure_proc_traced(proc);
-        match sidecar {
+        // A traced invocation's handle follows the command through hide/expose
+        // and becomes detached when a callback deletes it.  Never fall back to
+        // the pre-callback key in that case: doing so would resurrect the stale
+        // proc or overwrite a replacement installed by the callback.
+        let memo_sidecar = match sidecar_handle {
+            Some(handle) => handle.key(),
+            None => sidecar.cloned(),
+        };
+        match memo_sidecar.as_ref() {
             Some(CommandSidecarKey::Hidden(token)) => {
                 self.hidden_commands
                     .insert(token.clone(), Command::Proc(Rc::clone(&fresh)));
@@ -6411,6 +6420,23 @@ mod family_b_tests {
         vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
     }
 
+    fn prepare_trace_deleted_hidden_proc(vm: &mut Vm) {
+        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
+        assert_eq!(
+            eval_value(
+                vm,
+                "proc replace args { rename p {}; interp expose {} held p; rename p {}; proc p {} { return replacement } }"
+            ),
+            ""
+        );
+        assert_eq!(eval_value(vm, "trace add execution p enter replace"), "");
+        vm.hide_command("p", "held").unwrap();
+        assert_eq!(eval_value(vm, "proc p {} { return initial }"), "");
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+    }
+
     #[test]
     fn refreshed_hidden_proc_stays_hidden_and_preserves_visible_replacement() {
         let mut vm = Vm::new();
@@ -6453,6 +6479,74 @@ mod family_b_tests {
             Some(Command::Proc(proc))
                 if proc.compiled_profile_generation == state.profile_generation
         ));
+    }
+
+    #[test]
+    fn trace_deleted_hidden_refresh_never_resurrects_or_overwrites_replacement() {
+        let mut vm = Vm::new();
+        prepare_trace_deleted_hidden_proc(&mut vm);
+        let root = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
+        assert_eq!(root.code, Code::Error);
+        assert_eq!(
+            root.result.to_str().as_ref(),
+            "attempt to invoke a deleted command"
+        );
+        assert_eq!(eval_value(&mut vm, "p"), "replacement");
+        assert!(!vm.hidden_commands.contains_key("held"));
+
+        for by_id in [false, true] {
+            let child_name = vm.create_child(None, false);
+            let child = vm.child_id(&child_name).unwrap();
+            vm.in_interp(child, prepare_trace_deleted_hidden_proc);
+            let result = if by_id {
+                vm.invoke_hidden_by_id(child, "held", &[]).unwrap()
+            } else {
+                vm.invoke_hidden_in_child(&child_name, "held", &[]).unwrap()
+            };
+            assert_eq!(result.code, Code::Error);
+            assert_eq!(
+                result.result.to_str().as_ref(),
+                "attempt to invoke a deleted command"
+            );
+            assert_eq!(
+                vm.in_interp(child, |child| eval_value(child, "p")),
+                "replacement"
+            );
+            assert!(
+                !vm.st_of(child)
+                    .unwrap()
+                    .hidden_commands
+                    .contains_key("held")
+            );
+        }
+    }
+
+    #[test]
+    fn relocated_hidden_refresh_persists_at_the_live_visible_key() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        assert_eq!(eval_value(&mut vm, "proc p {} { return hidden }"), "");
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "proc expose args { rename p {}; interp expose {} held p; trace remove execution p enter expose }"
+            ),
+            ""
+        );
+        assert_eq!(
+            eval_value(&mut vm, "trace add execution p enter expose"),
+            ""
+        );
+        vm.hide_command("p", "held").unwrap();
+        assert_eq!(eval_value(&mut vm, "proc p {} { return replacement }"), "");
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+
+        let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
+        assert_eq!(result.code, Code::Ok);
+        assert_eq!(result.result.to_str().as_ref(), "hidden");
+        assert!(!vm.hidden_commands.contains_key("held"));
+        assert_eq!(eval_value(&mut vm, "p"), "hidden");
     }
 
     struct TestNative;

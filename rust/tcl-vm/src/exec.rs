@@ -4549,6 +4549,7 @@ impl Vm {
                 command,
                 argv,
                 Some(trace_key),
+                None,
             );
         }
         let mut words = Vec::with_capacity(argv.len() + 1);
@@ -4611,10 +4612,19 @@ impl Vm {
         }
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: sidecar,
+            key: sidecar.clone(),
             step_scopes: pushed,
         };
-        let c = self.invoke_resolved_command_inner(display_name, command, argv, Some(trace_key));
+        let Some(live_key) = sidecar.key() else {
+            return err("attempt to invoke a deleted command");
+        };
+        let c = self.invoke_resolved_command_inner(
+            display_name,
+            command,
+            argv,
+            Some(live_key),
+            Some(&sidecar),
+        );
         match self.finish_exec_leave(&ctx, &c) {
             Some(replacement) => replacement,
             None => c,
@@ -4677,7 +4687,7 @@ impl Vm {
     /// The untraced invoke body — see [`Self::invoke_command`].
     fn invoke_command_inner(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         match self.lookup_command(name) {
-            Some(command) => self.invoke_resolved_command_inner(name, command, argv, None),
+            Some(command) => self.invoke_resolved_command_inner(name, command, argv, None, None),
             None if name != "unknown" => {
                 if let Some(handler) = self.ns_unknown_handler() {
                     let mut handler_words = handler;
@@ -4704,6 +4714,7 @@ impl Vm {
         command: Command,
         argv: &[Value],
         sidecar: Option<CommandSidecarKey>,
+        sidecar_handle: Option<&CommandSidecarHandle>,
     ) -> Completion<Value> {
         match command {
             Command::Builtin(bf) => {
@@ -4719,7 +4730,7 @@ impl Vm {
                 self.settle_native_invoke(res)
             }
             Command::Proc(p) => {
-                let p = self.ensure_proc_ready_in(p, sidecar.as_ref());
+                let p = self.ensure_proc_ready_in(p, sidecar.as_ref(), sidecar_handle);
                 match self.enter_proc(&p, argv) {
                     Ok(()) => self.run_activation(Frame::new(
                         Rc::clone(&p.body),
