@@ -183,7 +183,6 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                     if (branchTails.isEmpty()) {
                         active = listOf(Tail(decision))
                     } else {
-                        val join = node("if join", "round")
                         // A conditional without an explicit else also has a
                         // fall-through path; keep it connected to the same
                         // continuation rather than dropping it.
@@ -191,12 +190,21 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             it.isJsonObject && it.asJsonObject.string("condition") == "else"
                         }
                         val normalTails = branchTails.filter { it.completion == DiagramCompletion.NORMAL }
-                        normalTails.forEach { connect(it.id, join) }
-                        if (!hasElse) {
-                            connect(decision, join, "false")
+                        val fallsThrough = normalTails.isNotEmpty() || !hasElse
+                        if (fallsThrough) {
+                            val join = node("if join", "round")
+                            normalTails.forEach { connect(it.id, join) }
+                            if (!hasElse) {
+                                connect(decision, join, "false")
+                            }
+                            active = listOf(Tail(join))
+                        } else {
+                            // An explicit else covers every condition.  If all
+                            // arms complete abruptly, no path reaches the next
+                            // statement, so do not manufacture a join tail.
+                            active = emptyList()
                         }
                         abrupt += branchTails.filter { it.completion != DiagramCompletion.NORMAL }
-                        active = listOf(Tail(join))
                     }
                 }
                 "switch" -> {
@@ -222,13 +230,21 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         // Every matching arm continues at one shared point.
                         // Without a default, Tcl also reaches that point when
                         // no pattern matched; a default consumes that path.
-                        val join = node("switch join", "round")
-                        armTails.filter { it.completion == DiagramCompletion.NORMAL }.forEach { connect(it.id, join) }
-                        if (!hasDefault) {
-                            connect(decision, join, "no match")
+                        val normalTails = armTails.filter { it.completion == DiagramCompletion.NORMAL }
+                        val fallsThrough = normalTails.isNotEmpty() || !hasDefault
+                        if (fallsThrough) {
+                            val join = node("switch join", "round")
+                            normalTails.forEach { connect(it.id, join) }
+                            if (!hasDefault) {
+                                connect(decision, join, "no match")
+                            }
+                            active = listOf(Tail(join))
+                        } else {
+                            // A default covers every match outcome.  With no
+                            // normal arm tail, the continuation is unreachable.
+                            active = emptyList()
                         }
                         abrupt += armTails.filter { it.completion != DiagramCompletion.NORMAL }
-                        active = listOf(Tail(join))
                     }
                 }
                 "loop" -> {
@@ -517,6 +533,13 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                     val outcome = completion(item)
                     val completionCode = item.get("completion_code")?.takeIf { it.isJsonPrimitive }?.asInt
                     if (outcome == DiagramCompletion.NORMAL) {
+                        active = listOf(Tail(step))
+                    } else if (outcome == DiagramCompletion.DYNAMIC) {
+                        // `return -options $options` may resolve to `-code ok`.
+                        // Retain both that normal continuation and the dynamic
+                        // abrupt outcomes so an enclosing construct can route
+                        // every possible completion.
+                        abrupt += Tail(step, outcome, completionCode)
                         active = listOf(Tail(step))
                     } else {
                         abrupt += Tail(step, outcome, completionCode)

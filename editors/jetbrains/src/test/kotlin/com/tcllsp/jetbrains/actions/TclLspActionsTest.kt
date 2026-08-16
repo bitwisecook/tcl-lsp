@@ -95,6 +95,20 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun exhaustiveAbruptConditionalDoesNotReachItsContinuation() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"if","branches":[
+              {"condition":"a","body":[{"kind":"action","label":"then return","completion":"return"}]},
+              {"condition":"else","body":[{"kind":"action","label":"else return","completion":"return"}]}
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        assertContains(mermaid, "then return")
+        assertContains(mermaid, "else return")
+        kotlin.test.assertFalse(mermaid.contains("if join"), mermaid)
+        kotlin.test.assertFalse(mermaid.contains("after"), mermaid)
+    }
+
+    @Test
     fun nestedConditionJoinsPropagateToOuterContinuation() {
         val payload = JsonParser.parseString(
             """{"events":[{"name":"E","flow":[{"kind":"if","branches":[
@@ -146,6 +160,20 @@ class TclLspActionsTest {
         // a mutation guard: deleting the per-switch default check adds a
         // second no-match edge from the outer decision.
         kotlin.test.assertEquals(1, Regex("\\|no match\\|").findAll(mermaid).count(), mermaid)
+    }
+
+    @Test
+    fun exhaustiveAbruptSwitchDoesNotReachItsContinuation() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"switch","subject":"kind","arms":[
+              {"pattern":"a","body":[{"kind":"action","label":"first return","completion":"return"}]},
+              {"pattern":"default","body":[{"kind":"action","label":"default return","completion":"return"}]}
+            ]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        assertContains(mermaid, "first return")
+        assertContains(mermaid, "default return")
+        kotlin.test.assertFalse(mermaid.contains("switch join"), mermaid)
+        kotlin.test.assertFalse(mermaid.contains("after"), mermaid)
     }
 
     @Test
@@ -327,6 +355,19 @@ class TclLspActionsTest {
             assertContains(mermaid, handler)
         }
         assertContains(mermaid, "after")
+    }
+
+    @Test
+    fun dynamicCompletionOutsideTryRetainsItsNormalContinuation() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[
+              {"kind":"action","label":"return -options ${'$'}options","completion":"dynamic"},
+              {"kind":"action","label":"after"}
+            ]}],"procedures":[]}"""
+        )))
+        assertContains(mermaid, "return -options ${'$'}options")
+        assertContains(mermaid, "after")
+        assertContains(mermaid, "n1 --> n2")
     }
 
     @Test
