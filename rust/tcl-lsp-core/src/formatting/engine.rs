@@ -110,6 +110,8 @@ struct CommentLine {
 /// A single Tcl command with its arguments, ready for reformatting.
 struct ParsedCommand {
     name: String,
+    /// Byte offset of the written command head in this formatter slice.
+    head_start: u32,
     /// The registry name [`Self::name`] effectively resolves to — the command
     /// this call really *is* once the document's `namespace import` / `interp
     /// alias` / `rename` / built-in-shadowing `proc` statements are folded in
@@ -273,9 +275,14 @@ fn parse_commands(
             .first()
             .map(|a| a.text.clone())
             .unwrap_or_default();
+        let head_start = taken_args
+            .first()
+            .and_then(|arg| arg.tokens.first())
+            .map_or(0, |token| token.span.start());
         commands.push(ParsedCommand {
             resolved_name: name.clone(),
             name,
+            head_start,
             args: taken_args,
             preceding_comments: std::mem::take(pending_comments),
             preceding_blank_lines: pending_blank_lines,
@@ -381,6 +388,7 @@ fn identify_body_args(
     cmd: &mut ParsedCommand,
     registry: &CommandRegistry,
     identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    source_offset: u32,
 ) {
     // {*}-expanded command word: dynamic identity, skip.
     if cmd
@@ -399,13 +407,8 @@ fn identify_body_args(
     // origfmt` or `interp alias {} myfmt {} format` was still laid out under
     // the grammar of the command it no longer is.
     //
-    // The read is *unpositioned*: this engine re-lexes each nested body out of
-    // its own decoded `arg.text`, and range formatting lexes a line slice, so
-    // no document-absolute offset exists here.  `resolve_unpositioned` folds
-    // every fact about the spelling and abstains when they disagree, rather
-    // than falling back to the written name.
     cmd.resolved_name = identities
-        .head_words_unpositioned(&cmd.name)
+        .head_words(&cmd.name, source_offset.saturating_add(cmd.head_start))
         .resolved
         .to_owned();
     let name = cmd.resolved_name.clone();
@@ -520,6 +523,7 @@ fn compute_blank_lines(
 /// shared descriptor parser proved are action bodies.
 fn format_case_list_body(
     body_text: &str,
+    body_source_offset: u32,
     case_list: CaseListSpec,
     config: &FormatterConfig,
     registry: &CommandRegistry,
@@ -571,7 +575,16 @@ fn format_case_list_body(
                     prefix.push(raw.to_owned());
                     lines.push(format!("{indent}{}", prefix.join(" ")));
                 } else {
-                    let formatted = format_body(content, config, registry, identities, inner_level);
+                    let action_source_offset = body_source_offset
+                        .saturating_add(u32::try_from(element.start + 1).unwrap_or(u32::MAX));
+                    let formatted = format_body(
+                        content,
+                        action_source_offset,
+                        config,
+                        registry,
+                        identities,
+                        inner_level,
+                    );
                     let head = prefix.join(" ");
                     if formatted.trim().is_empty() {
                         lines.push(format!("{indent}{head} {{}}"));
@@ -1226,13 +1239,30 @@ fn case_list_body_index(
         return Some((index + 1, *case_list));
     }
 
-    // Formatting must recover inside an incomplete case list even when the
-    // semantic invocation correctly abstains. Probe the same registry-owned
-    // outer grammar with a known-valid list in the final word: this proves
-    // that the word occupies the clause-list slot without blessing the
-    // malformed original as executable. Inline pattern/body forms remain
-    // inline because replacing their final body does not change their arity.
+    // Formatting may present an incomplete flag-free (switch-shaped) case
+    // list even when semantic consumers correctly abstain. A flagged
+    // descriptor cannot recover safely: after an unknown, ambiguous, or
+    // truncated flag, later words have no proven pattern/body roles and the
+    // shared splitter deliberately resynchronises only for diagnostics. Keep
+    // that whole value opaque instead of formatting an apparent later body.
+    if !case_list.clause_flags.is_empty() || !case_list.clause_value_flags.is_empty() {
+        return None;
+    }
+
+    // Prove that the original value is a complete Tcl list with precisely the
+    // odd pattern/body prefix shape formatter recovery supports. Empty and
+    // otherwise malformed values remain byte-semantically opaque.
     let last = args.len().checked_sub(1)?;
+    let elements = tcl_syntax::list::split_list(args[last]).ok()?;
+    if elements.is_empty() || elements.len().is_multiple_of(2) {
+        return None;
+    }
+
+    // Probe the registry-owned *outer* grammar with a known-valid list in the
+    // final word. This proves that the original word occupies the clause-list
+    // slot without blessing its dangling pattern as executable. Inline
+    // pattern/body forms remain inline because replacing their final body does
+    // not change their arity.
     let mut recovery_args = args;
     recovery_args[last] = "default {}";
     registry
@@ -1440,6 +1470,25 @@ fn reconstruct_case_list(
     format!("{indent}{}", parts.concat())
 }
 
+fn token_content_source_offset(source_offset: u32, token: Token) -> u32 {
+    source_offset
+        .saturating_add(token.span.start())
+        .saturating_add(u32::from(token.content_offset))
+}
+
+fn lambda_body_source_offset(source: &str, source_offset: u32, token: Token) -> u32 {
+    // For a braced lambda body this is its exact source position. A decoded
+    // bare/quoted element can contract escapes, but the element's source start
+    // still keeps outer binding facts on the correct side of the containing
+    // command.
+    tcl_compiler::lambda_literal::split_lambda_literal(source, token)
+        .and_then(|elements| elements.body)
+        .map_or_else(
+            || token_content_source_offset(source_offset, token),
+            |body| source_offset.saturating_add(body.start()),
+        )
+}
+
 // Main entry points
 
 /// Format a Tcl script body at the given indent level.  The core
@@ -1451,6 +1500,7 @@ fn reconstruct_case_list(
 /// both paths share identical layout rules.
 pub(crate) fn format_body(
     source: &str,
+    source_offset: u32,
     config: &FormatterConfig,
     registry: &CommandRegistry,
     identities: &tcl_compiler::head_identity::HeadIdentityMap,
@@ -1487,7 +1537,7 @@ pub(crate) fn format_body(
             emit_comment_lines(comment, config, &indent, indent_level, &mut lines);
         }
 
-        identify_body_args(&mut commands[i], registry, identities);
+        identify_body_args(&mut commands[i], registry, identities, source_offset);
 
         // A registry-declared case-list body is formatted from arg.text via
         // the pattern/body splitter; other bodies recurse normally.
@@ -1501,10 +1551,17 @@ pub(crate) fn format_body(
         for a in 0..arg_count {
             if commands[i].args[a].kind == ArgKind::Body && commands[i].args[a].is_braced {
                 let body_text = commands[i].args[a].text.clone();
+                let body_source_offset = commands[i].args[a]
+                    .tokens
+                    .first()
+                    .map_or(source_offset, |&token| {
+                        token_content_source_offset(source_offset, token)
+                    });
                 let formatted =
                     if let Some((_, case_list)) = case_list_body.filter(|(index, _)| *index == a) {
                         format_case_list_body(
                             &body_text,
+                            body_source_offset,
                             case_list,
                             config,
                             registry,
@@ -1512,7 +1569,14 @@ pub(crate) fn format_body(
                             inner_level,
                         )
                     } else {
-                        format_body(&body_text, config, registry, identities, inner_level)
+                        format_body(
+                            &body_text,
+                            body_source_offset,
+                            config,
+                            registry,
+                            identities,
+                            inner_level,
+                        )
                     };
                 commands[i].args[a].formatted_body = Some(formatted);
             } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
@@ -1530,7 +1594,15 @@ pub(crate) fn format_body(
                 // must be collapsed before the result is parsed as a script,
                 // exactly as Tcl's own list-then-script evaluation would
                 // (codex review of #954's follow-up).
-                let formatted = format_body(&body_text, config, registry, identities, inner_level);
+                let lambda_body_offset = lambda_body_source_offset(source, source_offset, tok);
+                let formatted = format_body(
+                    &body_text,
+                    lambda_body_offset,
+                    config,
+                    registry,
+                    identities,
+                    inner_level,
+                );
                 commands[i].args[a].formatted_body = Some(formatted);
             }
         }
@@ -1660,7 +1732,7 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
         config.lexer_config(),
         registry,
     );
-    let mut result = format_body(source, config, registry, &identities, 0);
+    let mut result = format_body(source, 0, config, registry, &identities, 0);
 
     if config.trim_trailing_whitespace {
         result = trim_trailing_ws_preserving_literals(&result);
@@ -2186,6 +2258,20 @@ mod tests {
                 "malformed data was treated as an action:\n{formatted}"
             );
         }
+
+        // Once a descriptor flag cannot be resolved, no later apparent
+        // pattern/action pairing is proven. The formatter must keep the
+        // entire case-list value opaque rather than resynchronising at `q`
+        // or `x` and interpreting data as Tcl scripts.
+        for malformed in [
+            "expect {\n-bogus p q {puts falsely_formatted}\nx {puts also_formatted}\n}\n",
+            "expect {\n-n p {puts ambiguous}\nx {puts also_ambiguous}\n}\n",
+            "expect {\n-timeout\n}\n",
+        ] {
+            let formatted = fmt_dialect(malformed, "expect");
+            assert_eq!(formatted, malformed, "malformed list was rewritten");
+            assert_eq!(fmt_dialect(&formatted, "expect"), formatted);
+        }
         let dynamic = fmt_dialect("expect {\n-re $pattern {puts dynamic}\n}\n", "expect");
         assert!(
             dynamic.contains("-re $pattern {"),
@@ -2629,5 +2715,83 @@ mod tests {
         // Guard: an unbound `pick` keeps its braced word verbatim.
         let formatted = fmt("set y 1\npick $v {a {puts 1} b {puts 2}}\n");
         assert!(!formatted.contains("a {\n        puts 1\n    }"));
+    }
+
+    fn case_list_action_was_expanded(formatted: &str, marker: &str) -> bool {
+        formatted.contains(&format!("{{\n        puts {marker}\n    }}"))
+    }
+
+    #[test]
+    fn case_list_alias_formatting_uses_the_binding_at_each_call_position() {
+        let source = concat!(
+            "pick subject {default {puts before_alias}}\n",
+            "interp alias {} pick {} switch\n",
+            "pick subject {default {puts through_alias}}\n",
+            "interp alias {} pick {}\n",
+            "pick subject {default {puts deleted_alias}}\n",
+            "interp alias {} pick {} puts\n",
+            "pick subject {default {puts rebound_other}}\n",
+            "interp alias {} pick {} switch\n",
+            "pick subject {default {puts rebound_switch}}\n",
+        );
+        let formatted = fmt(source);
+
+        for opaque in ["before_alias", "deleted_alias", "rebound_other"] {
+            assert!(
+                formatted.contains(&format!("default {{puts {opaque}}}")),
+                "binding state at {opaque} was applied retroactively:\n{formatted}"
+            );
+            assert!(!case_list_action_was_expanded(&formatted, opaque));
+        }
+        for active in ["through_alias", "rebound_switch"] {
+            assert!(
+                case_list_action_was_expanded(&formatted, active),
+                "live switch alias did not format {active}:\n{formatted}"
+            );
+        }
+        assert_eq!(fmt(&formatted), formatted);
+    }
+
+    #[test]
+    fn case_list_rename_formatting_uses_the_binding_at_each_call_position() {
+        let source = concat!(
+            "pick subject {default {puts before_rename}}\n",
+            "rename switch pick\n",
+            "pick subject {default {puts after_rename}}\n",
+            "rename pick {}\n",
+            "pick subject {default {puts after_delete}}\n",
+        );
+        let formatted = fmt(source);
+        for opaque in ["before_rename", "after_delete"] {
+            assert!(formatted.contains(&format!("default {{puts {opaque}}}")));
+            assert!(!case_list_action_was_expanded(&formatted, opaque));
+        }
+        assert!(case_list_action_was_expanded(&formatted, "after_rename"));
+        assert_eq!(fmt(&formatted), formatted);
+    }
+
+    #[test]
+    fn rooted_and_namespaced_case_list_aliases_format_at_their_positions() {
+        let source = concat!(
+            "::root_pick subject {default {puts before_root}}\n",
+            "::case_alias::pick subject {default {puts before_namespace}}\n",
+            "namespace eval ::case_alias {}\n",
+            "interp alias {} ::root_pick {} ::switch\n",
+            "interp alias {} ::case_alias::pick {} switch\n",
+            "::root_pick subject {default {puts rooted_alias}}\n",
+            "::case_alias::pick subject {default {puts namespaced_alias}}\n",
+        );
+        let formatted = fmt(source);
+        for opaque in ["before_root", "before_namespace"] {
+            assert!(formatted.contains(&format!("default {{puts {opaque}}}")));
+            assert!(!case_list_action_was_expanded(&formatted, opaque));
+        }
+        for active in ["rooted_alias", "namespaced_alias"] {
+            assert!(
+                case_list_action_was_expanded(&formatted, active),
+                "qualified switch alias did not format {active}:\n{formatted}"
+            );
+        }
+        assert_eq!(fmt(&formatted), formatted);
     }
 }

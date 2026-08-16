@@ -184,8 +184,16 @@ pub fn range_formatting(
         config.lexer_config(),
         registry,
     );
+    let slice_source_offset = LineIndex::new(&normalised).line_start(start_line);
     let formatted_slice = finalise_slice(
-        &engine::format_body(&slice_text, config, registry, &identities, depth),
+        &engine::format_body(
+            &slice_text,
+            slice_source_offset,
+            config,
+            registry,
+            &identities,
+            depth,
+        ),
         config,
         line_ending,
     );
@@ -448,6 +456,30 @@ mod tests {
             edits[0].new_text.starts_with("    set x 1"),
             "expected indented set; got {:?}",
             edits[0].new_text,
+        );
+    }
+
+    #[test]
+    fn range_formatting_resolves_aliases_at_the_slice_source_offset() {
+        let src = concat!(
+            "interp alias {} pick {} switch\n",
+            "pick subject {default {puts    through_alias}}\n",
+        );
+        let edits = range_fmt(
+            src,
+            LspRange {
+                start_line: 1,
+                start_character: 0,
+                end_line: 1,
+                end_character: 100,
+            },
+        );
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert!(
+            edits[0]
+                .new_text
+                .contains("default {\n        puts through_alias\n    }"),
+            "the alias declaration before the selected slice was ignored: {edits:?}"
         );
     }
 
