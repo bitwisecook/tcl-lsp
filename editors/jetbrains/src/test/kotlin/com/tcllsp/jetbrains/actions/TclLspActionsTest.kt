@@ -281,6 +281,27 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun tcl8OutOfRangeExitRoutesItsCatchableErrorThroughTryFinallyAndAfter() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"exit 4294967296","completion":"error"}],"handlers":[
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"handled range error"}]}],
+              "finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        // Tcl 8.x rejects the first value beyond Tcl_GetIntFromObj's
+        // `UINT_MAX` ceiling as an ordinary error. It therefore takes the
+        // on-error branch, runs finally, and reaches the following statement
+        // through the handled path.
+        assertContains(mermaid, "n2 -->|on| n3")
+        assertContains(mermaid, "n4 --> n5")
+        kotlin.test.assertFalse(mermaid.contains("n2 --> n5"), mermaid)
+        assertContains(mermaid, "handled range error")
+        assertContains(mermaid, "finally")
+        assertContains(mermaid, "cleanup")
+        assertContains(mermaid, "after")
+    }
+
+    @Test
     fun catchAbsorbsEveryTclCompletionButNotProcessExit() {
         fun render(completion: String, code: Int? = null): String {
             val completionCode = code?.let { ",\"completion_code\":$it" } ?: ""

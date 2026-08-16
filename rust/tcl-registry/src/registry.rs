@@ -159,9 +159,12 @@ enum ExactReturnCompletion {
 }
 
 /// Parse `exit ?returnCode?` after its descriptor has established the exact
-/// one-word-or-omitted shape. Tcl parses the status with its normal wide
-/// integer grammar, so an invalid literal is an ordinary catchable error,
-/// not a process termination.
+/// one-word-or-omitted shape.  Tcl 8.x passes its argument through
+/// `Tcl_GetIntFromObj`, which accepts `-UINT_MAX..=UINT_MAX` before the C cast;
+/// Tcl 9.0+ instead uses `TclGetWideBitsFromObj`, accepting every integer
+/// (including bignums) before truncating its low bits to the C exit status.
+/// A literal rejected by its release's conversion is an ordinary catchable
+/// error, not a process termination.
 enum ExactProcessExitCompletion {
     ProcessExit,
     StaticError,
@@ -171,11 +174,33 @@ enum ExactProcessExitCompletion {
 fn exact_process_exit_completion(
     args: crate::invocation_words::InvocationArguments<'_>,
     numbers: tcl_syntax::number::Numbers,
+    version: Option<tcl_dialect::TclVersion>,
 ) -> ExactProcessExitCompletion {
     match args.get(0) {
         None => ExactProcessExitCompletion::ProcessExit,
         Some(_) => match args.literal_at(0) {
-            Some(value) if numbers.parse_wide(value).is_some() => {
+            // Tcl 9 intentionally asks its bit-preserving wide conversion,
+            // not `Tcl_GetIntFromObj`: bignums are accepted and truncated to
+            // a C `int` only at `Tcl_Exit`. Tcl 8.x's public conversion has
+            // the fixed asymmetric `-UINT_MAX..=UINT_MAX` (32-bit) range.
+            Some(value)
+                if matches!(
+                    version,
+                    Some(tcl_dialect::TclVersion::V9_0 | tcl_dialect::TclVersion::V9_1)
+                ) && matches!(
+                    numbers.parse_whole(value),
+                    Some(
+                        tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
+                    )
+                ) =>
+            {
+                ExactProcessExitCompletion::ProcessExit
+            }
+            Some(value)
+                if numbers.parse_wide(value).is_some_and(|value| {
+                    (-i64::from(u32::MAX)..=i64::from(u32::MAX)).contains(&value)
+                }) =>
+            {
                 ExactProcessExitCompletion::ProcessExit
             }
             Some(_) => ExactProcessExitCompletion::StaticError,
@@ -2217,6 +2242,7 @@ impl CommandRegistry {
             return match exact_process_exit_completion(
                 args,
                 tcl_syntax::number::Numbers::of_profile(self.profile()),
+                self.runtime_version(),
             ) {
                 ExactProcessExitCompletion::ProcessExit => {
                     Some(ExactInvocationCompletion::ProcessExit)
@@ -7214,23 +7240,63 @@ mod tests {
     }
 
     #[test]
-    fn exit_status_completion_follows_the_tcl86_and_tcl90_oracle() {
+    fn exit_status_completion_follows_the_release_specific_tcl_oracle() {
         use crate::completion::CompletionCode;
         use crate::invocation_words::{InvocationArguments, InvocationWord};
 
-        for dialect in ["tcl8.6", "tcl9.0"] {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
             let reg = crate::registry_for_dialect(dialect);
-            // tclsh8.6/9: omitted and Tcl-wide integer spellings run the
-            // process-exit path; the width parser accepts hex and signs too.
-            for args in [&[][..], &["0"][..], &["-7"][..], &["0x10"][..]] {
+            // Tcl 8.x's `exit` calls `Tcl_GetIntFromObj`. Despite the `int`
+            // destination, its 64-bit implementation accepts the asymmetric
+            // `-UINT_MAX..=UINT_MAX` range before casting to `int`.
+            for args in [
+                &[][..],
+                &["0"][..],
+                &["-7"][..],
+                &["0x10"][..],
+                &["-4294967295"][..],
+                &["4294967295"][..],
+            ] {
                 assert_eq!(
                     reg.exact_invocation_completion("exit", args, DialectSet::empty()),
                     Some(ExactInvocationCompletion::ProcessExit),
                     "{dialect}: exit {args:?}"
                 );
             }
-            // `exit nope` and excess arguments never get as far as process
-            // termination: Tcl raises an ordinary, catchable error instead.
+            // One value beyond either Tcl 8.x conversion endpoint never gets
+            // as far as process termination: it is a catchable Tcl error.
+            for args in [
+                &["nope"][..],
+                &["1.5"][..],
+                &["-4294967296"][..],
+                &["4294967296"][..],
+            ] {
+                assert_eq!(
+                    reg.exact_invocation_completion("exit", args, DialectSet::empty()),
+                    Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
+                    "{dialect}: exit {args:?}"
+                );
+            }
+        }
+
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            let reg = crate::registry_for_dialect(dialect);
+            // Tcl 9.0+ changed `exit` to `TclGetWideBitsFromObj`: every
+            // integer, including a bignum beyond wide range, reaches
+            // `Tcl_Exit` and has its low bits cast to `int` there.
+            for args in [
+                &[][..],
+                &["0"][..],
+                &["-4294967296"][..],
+                &["4294967296"][..],
+                &["18446744073709551616"][..],
+            ] {
+                assert_eq!(
+                    reg.exact_invocation_completion("exit", args, DialectSet::empty()),
+                    Some(ExactInvocationCompletion::ProcessExit),
+                    "{dialect}: exit {args:?}"
+                );
+            }
             for args in [&["nope"][..], &["1.5"][..], &["0", "extra"][..]] {
                 assert_eq!(
                     reg.exact_invocation_completion("exit", args, DialectSet::empty()),
@@ -7238,7 +7304,10 @@ mod tests {
                     "{dialect}: exit {args:?}"
                 );
             }
+        }
 
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let reg = crate::registry_for_dialect(dialect);
             let dynamic = [InvocationWord::Dynamic];
             assert_eq!(
                 reg.invocation_completion_knowledge(

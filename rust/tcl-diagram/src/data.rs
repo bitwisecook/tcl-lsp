@@ -873,24 +873,51 @@ mod tests {
     }
 
     #[test]
-    fn exit_statuses_project_exact_error_and_typed_dynamic_outcomes() {
-        for dialect in ["tcl8.6", "tcl9.0"] {
-            let data = diagram_data_for_dialect(
-                r"
-                    proc paths {status} {
-                        try { exit nope } on error {message options} { set caught yes } finally { set cleaned yes }
-                        try { exit $status } on error {message options} { set caught_dynamic yes } finally { set cleaned_dynamic yes }
-                        set after yes
-                    }
-                ",
-                tcl_registry::registry_for_dialect(dialect),
-                dialect,
-            );
-            assert_eq!(
-                data.pointer("/procedures/0/flow/0/body/0/completion"),
-                Some(&Value::String("error".to_owned())),
-                "{dialect}: static invalid exit is a Tcl error"
-            );
+    fn exit_statuses_project_release_specific_errors_and_typed_dynamic_outcomes() {
+        let source = r"
+            proc paths {status} {
+                try { exit 4294967296 } on error {message options} { set caught [clock seconds] } finally { set cleaned [clock seconds] }
+                try { exit $status } on error {message options} { set caught_dynamic [clock seconds] } finally { set cleaned_dynamic [clock seconds] }
+                set after [clock seconds]
+            }
+        ";
+        let tcl86 = diagram_data_for_dialect(
+            source,
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+        assert_eq!(
+            tcl86.pointer("/procedures/0/flow/0/body/0/completion"),
+            Some(&Value::String("error".to_owned())),
+            "Tcl 8.6 rejects the first value above Tcl_GetIntFromObj's UINT_MAX ceiling: {tcl86}"
+        );
+        assert_eq!(
+            tcl86.pointer("/procedures/0/flow/0/handlers/0/body/0/kind"),
+            Some(&Value::String("assign".to_owned())),
+            "Tcl 8.6's static range error reaches on-error: {tcl86}"
+        );
+        assert_eq!(
+            tcl86.pointer("/procedures/0/flow/0/finally/0/kind"),
+            Some(&Value::String("assign".to_owned())),
+            "Tcl 8.6's static range error reaches finally: {tcl86}"
+        );
+        assert_eq!(
+            tcl86.pointer("/procedures/0/flow/2/kind"),
+            Some(&Value::String("assign".to_owned())),
+            "Tcl 8.6's handled error preserves the after path: {tcl86}"
+        );
+
+        let tcl90 = diagram_data_for_dialect(
+            source,
+            tcl_registry::registry_for_dialect("tcl9.0"),
+            "tcl9.0",
+        );
+        assert_eq!(
+            tcl90.pointer("/procedures/0/flow/0/body/0/completion"),
+            Some(&Value::String("process_exit".to_owned())),
+            "Tcl 9.0's bit-preserving wide conversion accepts 4294967296: {tcl90}"
+        );
+        for (dialect, data) in [("tcl8.6", &tcl86), ("tcl9.0", &tcl90)] {
             assert_eq!(
                 data.pointer("/procedures/0/flow/1/body/0/completion"),
                 Some(&Value::String("exit_or_error".to_owned())),
