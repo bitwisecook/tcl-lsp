@@ -174,19 +174,37 @@ fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
 }
 
 #[test]
-fn command_surface_override_cannot_hide_compiled_release_commands() {
+fn command_surface_override_accepts_the_universal_fallback_from_tcl91() {
+    let v91 = DialectProfile::by_name("tcl9.1");
+    let fallback = DialectProfile::plain_tcl();
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(v91);
+
+    assert_eq!(fallback.vm_runtime_version, TclVersion::V9_0);
+    assert!(
+        vm.set_command_surface_profile(fallback),
+        "the permissive fallback must cover every Tcl 9.1 builtin despite its inert 9.0 base"
+    );
+    assert!(std::ptr::eq(vm.command_surface_profile(), fallback));
+}
+
+#[test]
+fn named_command_surface_override_cannot_hide_compiled_release_commands() {
+    let v91 = DialectProfile::by_name("tcl9.1");
     let v90 = DialectProfile::by_name("tcl9.0");
-    let v84 = DialectProfile::by_name("tcl8.4");
-    let registry = tcl_registry::registry_for_profile(v90);
-    let config = tcl_lexer::LexerConfig::from_grammar(v90.grammar);
-    let ir = lower_to_ir("lassign {a b} x; set x", registry, config, v90.name);
+    let registry = tcl_registry::registry_for_profile(v91);
+    let config = tcl_lexer::LexerConfig::from_grammar(v91.grammar);
+    let ir = lower_to_ir("lassign {a b} x; set x", registry, config, v91.name);
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, registry);
 
     let mut vm = Vm::new();
-    vm.set_dialect_profile(v90);
-    assert!(!vm.set_command_surface_profile(v84));
-    assert!(std::ptr::eq(vm.command_surface_profile(), v90));
+    vm.set_dialect_profile(v91);
+    assert!(
+        !vm.set_command_surface_profile(v90),
+        "a named Tcl 9.0 surface cannot host Tcl 9.1 bytecode"
+    );
+    assert!(std::ptr::eq(vm.command_surface_profile(), v91));
     let completion = vm.run_module(&module);
     assert!(completion.code.is_ok(), "{}", completion.result.to_str());
     assert_eq!(&*completion.result.to_str(), "a");

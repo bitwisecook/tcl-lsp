@@ -1051,18 +1051,26 @@ impl Vm {
     /// Compilation, bytecode profile validation, lexer/expr semantics, and
     /// [`Self::dialect_profile`] remain unchanged. This is for embedding hosts
     /// that execute a sandboxed dialect inside a broader host interpreter.
-    /// The override is rejected when its Tcl runtime base is older than the
-    /// compilation dialect's base, or when it hides a bytecode-compiled
-    /// command available to that dialect. Otherwise a specialised opcode
-    /// could execute a command that ordinary lookup hides. Returns whether the
-    /// requested surface was installed.
+    /// A named override is rejected when its Tcl runtime base is older than
+    /// the compilation dialect's base, or when it hides a bytecode-compiled
+    /// command available to that dialect. The permissive fallback is the
+    /// deliberate universal-surface exception: it never hides a builtin, even
+    /// though its inert runtime base remains Tcl 9.0. Otherwise a specialised
+    /// opcode could execute a command that ordinary lookup hides. Returns
+    /// whether the requested surface was installed.
     #[must_use]
     pub fn set_command_surface_profile(
         &mut self,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> bool {
-        if profile.vm_runtime_version < self.dialect_profile.vm_runtime_version
-            || !Self::command_surface_covers_compiled_commands(self.dialect_profile, profile)
+        // `plain_tcl` deliberately gates no commands, so it is compatible
+        // with every dialect independently of its fallback runtime base.
+        // Keep the runtime and visibility checks coupled for named profiles:
+        // a named surface must still be new enough *and* expose each compiled
+        // command from the execution dialect.
+        if !profile.is_fallback()
+            && (profile.vm_runtime_version < self.dialect_profile.vm_runtime_version
+                || !Self::command_surface_covers_compiled_commands(self.dialect_profile, profile))
         {
             return false;
         }
