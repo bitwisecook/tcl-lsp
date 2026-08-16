@@ -97,22 +97,27 @@ export function isAiEnabled(): boolean {
   return workspace.getConfiguration("tclLsp.ai").get<boolean>("enabled", true);
 }
 
+// @generated:dialect-labels:begin
 const DIALECT_LABELS: Record<string, string> = {
+  bpf: "BPF",
+  "cadence-eda-tcl": "Cadence EDA Tcl",
+  expect: "Expect",
+  "f5-bigip": "F5 BIG-IP",
+  "f5-iapps": "F5 iApps",
+  "f5-irules": "F5 iRules",
+  "f5-tmsh": "F5 tmsh Scripts",
+  "intel-quartus-eda-tcl": "Intel Quartus EDA Tcl",
+  "mentor-eda-tcl": "Mentor EDA Tcl",
+  spectcl: "SpecTcl",
+  "synopsys-eda-tcl": "Synopsys EDA Tcl",
   "tcl8.4": "Tcl 8.4",
   "tcl8.5": "Tcl 8.5",
   "tcl8.6": "Tcl 8.6",
   "tcl9.0": "Tcl 9.0",
   "tcl9.1": "Tcl 9.1",
-  "f5-irules": "F5 iRules",
-  "f5-iapps": "F5 iApps",
-  "f5-bigip": "F5 BIG-IP Config",
-  "synopsys-eda-tcl": "Synopsys EDA",
-  "cadence-eda-tcl": "Cadence EDA",
-  "xilinx-eda-tcl": "Xilinx EDA",
-  "intel-quartus-eda-tcl": "Intel Quartus",
-  "mentor-eda-tcl": "Mentor EDA",
-  expect: "Expect",
+  "xilinx-eda-tcl": "Xilinx EDA Tcl",
 };
+// @generated:dialect-labels:end
 
 const DEFAULT_DIALECT = "tcl8.6";
 

@@ -40,6 +40,7 @@ use tcl_dialect::DialectProfile;
 use crate::util::repo_root;
 
 const VSCODE_PACKAGE: &str = "editors/vscode/package.json";
+const VSCODE_RUNTIME: &str = "editors/vscode/src/extension.ts";
 const JETBRAINS_SETTINGS: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt";
 const SUBLIME_PLUGIN: &str = "editors/sublime-text/plugin.py";
@@ -157,6 +158,20 @@ fn render_vscode(original: &str, ds: &[EditorDialect]) -> Result<String> {
     Ok(rendered)
 }
 
+fn render_vscode_runtime(original: &str, ds: &[EditorDialect]) -> Result<String> {
+    let mut rows = String::new();
+    for d in ds {
+        let _ = writeln!(rows, "  \"{}\": \"{}\",", d.name, d.label);
+    }
+    let body = format!("const DIALECT_LABELS: Record<string, string> = {{\n{rows}}};\n");
+    replace_marked_block(
+        original,
+        "// @generated:dialect-labels:begin",
+        "// @generated:dialect-labels:end",
+        &body,
+    )
+}
+
 fn render_jetbrains(original: &str, ds: &[EditorDialect]) -> Result<String> {
     let mut rows = String::new();
     for d in ds {
@@ -245,6 +260,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     eprintln!("  {} selectable dialect profiles", ds.len());
     let targets: &[(&str, Render)] = &[
         (VSCODE_PACKAGE, render_vscode),
+        (VSCODE_RUNTIME, render_vscode_runtime),
         (JETBRAINS_SETTINGS, render_jetbrains),
         (SUBLIME_PLUGIN, render_sublime_plugin),
         (SUBLIME_README, render_sublime_readme),
@@ -299,6 +315,7 @@ mod tests {
         let ds = dialects();
         for (rel, render) in [
             (VSCODE_PACKAGE, render_vscode as Render),
+            (VSCODE_RUNTIME, render_vscode_runtime),
             (JETBRAINS_SETTINGS, render_jetbrains),
             (SUBLIME_PLUGIN, render_sublime_plugin),
             (SUBLIME_README, render_sublime_readme),
@@ -339,6 +356,7 @@ mod tests {
         });
         for (rel, render) in [
             (VSCODE_PACKAGE, render_vscode as Render),
+            (VSCODE_RUNTIME, render_vscode_runtime),
             (JETBRAINS_SETTINGS, render_jetbrains),
             (SUBLIME_PLUGIN, render_sublime_plugin),
             (SUBLIME_README, render_sublime_readme),
