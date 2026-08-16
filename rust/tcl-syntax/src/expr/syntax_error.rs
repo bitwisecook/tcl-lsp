@@ -36,7 +36,7 @@
 //! The expected strings are pinned by C's own suite: `tests/parseExpr.test`
 //! cases `parseExpr-21.1` … `parseExpr-21.31`.
 
-use tcl_dialect::DialectProfile;
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_lexer::{ExprToken, ExprTokenType, tokenise_expr_checked};
 
 /// C's `limit` (`tclCompExpr.c:615`): the longest substring of the expression
@@ -208,6 +208,7 @@ impl ExprSyntaxError {
             source,
             &tokens,
             super::parser::numbers_for(dialect, profile),
+            profile.expr_grammar_base,
         )
         .run()
     }
@@ -427,14 +428,23 @@ struct Scan<'a> {
     /// The release's numeric grammar, so a `Number` token the lexer only
     /// delimited can be re-tested here the way C's `ParseLexeme` does.
     numbers: crate::number::NumberSyntax,
+    /// The paired expression word-operator grammar for the shared numeral
+    /// boundary check.
+    expr_grammar_base: Option<TclVersion>,
 }
 
 impl<'a> Scan<'a> {
-    fn new(source: &'a str, tokens: &'a [ExprToken], numbers: crate::number::NumberSyntax) -> Self {
+    fn new(
+        source: &'a str,
+        tokens: &'a [ExprToken],
+        numbers: crate::number::NumberSyntax,
+        expr_grammar_base: Option<TclVersion>,
+    ) -> Self {
         Self {
             source,
             tokens,
             numbers,
+            expr_grammar_base,
             pos: 0,
             // C seeds the tree with a `START` node, which `IsOperator` accepts.
             expecting: Expecting::Operand,
@@ -497,7 +507,13 @@ impl<'a> Scan<'a> {
             // prefix this release lacks (`0d99` before 9.0) arrives as a
             // `Number`. C classifies exactly those as barewords, with a radix
             // hint where it can guess (`tclCompExpr.c:716-809`).
-            ExprTokenType::Number if !crate::number::is_whole_number(&token.text, self.numbers) => {
+            ExprTokenType::Number
+                if !crate::number::is_expr_number(
+                    &token.text,
+                    self.numbers,
+                    self.expr_grammar_base,
+                ) =>
+            {
                 Some(ExprSyntaxError::bad_numeral(at, &token.text, self.numbers))
             }
             ExprTokenType::Number

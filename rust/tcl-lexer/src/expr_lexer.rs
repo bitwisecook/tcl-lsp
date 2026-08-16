@@ -224,14 +224,6 @@ const MULTI_OPS: &[&str] = &[
     "ge",
 ];
 
-/// C's `TclIsBareword` — ASCII letters, digits and `_`. Note it does *not*
-/// include `.`, which is what splits a numeric run holding a decimal point
-/// from one that doesn't at the number/bareword junction (see
-/// [`Inner::number`]).
-fn is_bareword_byte(ch: u8) -> bool {
-    ch.is_ascii_alphanumeric() || ch == b'_'
-}
-
 fn is_single_op(ch: u8) -> bool {
     matches!(
         ch,
@@ -285,23 +277,9 @@ struct Inner<'s> {
     /// `tcl_dialect::LexerGrammar::expr_comments`). When false, `#` stays an
     /// unknown character, which is what C 8.4-8.6 does with it.
     expr_comments: bool,
-    /// Whether `_` may sit inside a *fractional or exponent* digit run — 9.0+
-    /// only, and unlike the integer run this genuinely changes the lexeme
-    /// boundary, so it cannot be left to `tcl-syntax` to sort out.
-    ///
-    /// C's bareword scan takes `[A-Za-z0-9_]` but stops at `.`, which splits
-    /// the two cases (tclsh 8.6.16):
-    ///
-    /// | input | 8.6 | 9.0 |
-    /// |---|---|---|
-    /// | `1_0`, `1e1_0`, `0x1_f` | `invalid bareword` | valid |
-    /// | `1.0_2` | **`invalid character "_"`** | valid |
-    ///
-    /// With no `.`, the whole run is one bareword candidate on every release,
-    /// so the integer run absorbs `_` unconditionally. After a `.` the number
-    /// lexeme *ends* before 9.0 and the `_` is its own invalid lexeme — so
-    /// absorbing it there would report a bareword where C reports a character.
-    digit_separators: bool,
+    /// The release's number grammar, forwarded intact to the shared
+    /// expression-numeral boundary scanner.
+    numbers: tcl_dialect::NumberSyntax,
     /// The release whose `expr` lexeme table this dialect uses, for the
     /// word-shaped operators (`eq`, `in`, `lt`, …) — the profile's
     /// `expr_grammar_base`, resolved through
@@ -310,6 +288,10 @@ struct Inner<'s> {
     /// be settled above the lexer. `None` (plain `tcl`, iRules) takes the
     /// newest grammar, like every other knob on `LexerGrammar`.
     expr_grammar_base: Option<tcl_dialect::TclVersion>,
+    /// The previous emitted lexeme was a number with no intervening byte.
+    /// C's successful explicit-radix path recursively starts a fresh lexeme at
+    /// this point, so a word operator then has only a right-side boundary.
+    numeric_suffix_probe: bool,
     unknown: bool,
 }
 
@@ -322,8 +304,9 @@ impl<'s> Inner<'s> {
             i: 0,
             irules_operators: profile.is_irules(),
             expr_comments: profile.grammar.expr_comments.comments(),
-            digit_separators: profile.grammar.numbers.allows_digit_separators(),
+            numbers: profile.grammar.numbers,
             expr_grammar_base: profile.expr_grammar_base,
+            numeric_suffix_probe: false,
             unknown: false,
         }
     }
@@ -368,6 +351,8 @@ impl<'s> Inner<'s> {
         let irops = irules_ops();
         let mut out = Vec::new();
         while self.i < self.b.len() {
+            let follows_numeric_lexeme = self.numeric_suffix_probe;
+            self.numeric_suffix_probe = false;
             let ch = self.b[self.i];
             if matches!(ch, b' ' | b'\t' | b'\n' | b'\r') || self.is_backslash_nl(self.i) {
                 let start = self.i;
@@ -383,10 +368,13 @@ impl<'s> Inner<'s> {
                 out.push(self.tok(ExprTokenType::Whitespace, start));
             } else if ch == b'#' && self.expr_comments {
                 out.push(self.comment());
-            } else if ch.is_ascii_digit()
-                || (ch == b'.' && self.i + 1 < self.b.len() && self.b[self.i + 1].is_ascii_digit())
+            } else if let Some(number) =
+                tcl_dialect::scan_expr_number(self.b, self.i, self.numbers, self.expr_grammar_base)
             {
-                out.push(self.number());
+                let start = self.i;
+                self.i = number.end();
+                out.push(self.tok(ExprTokenType::Number, start));
+                self.numeric_suffix_probe = true;
             } else if ch == b'$' {
                 out.push(self.variable());
             } else if ch == b'[' {
@@ -403,7 +391,7 @@ impl<'s> Inner<'s> {
                 out.push(self.single(ExprTokenType::TernaryQ, "?"));
             } else if ch == b':' {
                 out.push(self.single(ExprTokenType::TernaryC, ":"));
-            } else if let Some(t) = self.multi_op() {
+            } else if let Some(t) = self.multi_op(follows_numeric_lexeme) {
                 out.push(t);
             } else if is_single_op(ch) {
                 out.push(ExprToken {
@@ -457,113 +445,6 @@ impl<'s> Inner<'s> {
                 start + k + usize::from(self.b[start + k] == 0)
             });
         self.tok(ExprTokenType::Comment, start)
-    }
-
-    /// Scan a numeric-looking run. Deliberately *dialect-blind* and greedy over
-    /// a radix prefix's alphanumerics: this only delimits the lexeme, exactly as
-    /// C's `ParseLexeme` scans before deciding. Whether the run is a valid
-    /// number in this release is settled above the lexer (`tcl-syntax` owns the
-    /// number parser and sits above this crate), which reclassifies an invalid
-    /// one as a bareword — so `0o8`, and `0d99` before 9.0, stay a single token
-    /// and are reported whole.
-    fn number(&mut self) -> ExprToken {
-        let start = self.i;
-        if self.b[self.i] == b'0'
-            && self.i + 1 < self.b.len()
-            && matches!(
-                self.b[self.i + 1],
-                b'x' | b'X' | b'o' | b'O' | b'b' | b'B' | b'd' | b'D'
-            )
-        {
-            self.i += 2;
-            while self.i < self.b.len()
-                && (self.b[self.i].is_ascii_alphanumeric() || self.b[self.i] == b'_')
-            {
-                self.i += 1;
-            }
-            return self.tok(ExprTokenType::Number, start);
-        }
-        // `_` rides along inside a digit run: 9.0 allows it as a separator, and
-        // before 9.0 the whole run must still be ONE lexeme so it is reported as
-        // a single bareword rather than a number followed by junk.
-        while self.i < self.b.len() && (self.b[self.i].is_ascii_digit() || self.b[self.i] == b'_') {
-            self.i += 1;
-        }
-        // The fraction and exponent digit runs take `_` for the same reason the
-        // integer run above does: 9.0 allows a separator anywhere between two
-        // digits, so `1.0_2` and `1e1_0` are single numerals (tclsh 9.0: 1.02
-        // and 10000000000.0). Keeping them digit-only split the lexeme and
-        // degraded valid input to a parse error.
-        if self.i < self.b.len() && self.b[self.i] == b'.' {
-            self.i += 1;
-            while self.i < self.b.len()
-                && (self.b[self.i].is_ascii_digit()
-                    || (self.digit_separators && self.b[self.i] == b'_'))
-            {
-                self.i += 1;
-            }
-        }
-        if self.i < self.b.len() && matches!(self.b[self.i], b'e' | b'E') {
-            let save = self.i;
-            self.i += 1;
-            if self.i < self.b.len() && matches!(self.b[self.i], b'+' | b'-') {
-                self.i += 1;
-            }
-            // The exponent commits only on a *digit*: `_` must sit between two
-            // digits, so `1e_0` is not an exponent at all (tclsh 9.0 errors).
-            // Once committed, the run takes separators like any other.
-            if self.i < self.b.len() && self.b[self.i].is_ascii_digit() {
-                while self.i < self.b.len()
-                    && (self.b[self.i].is_ascii_digit()
-                        || (self.digit_separators && self.b[self.i] == b'_'))
-                {
-                    self.i += 1;
-                }
-            } else {
-                self.i = save;
-            }
-        }
-        self.join_trailing_bareword(start);
-        self.tok(ExprTokenType::Number, start)
-    }
-
-    /// Extend a numeric run that butts straight against bareword characters
-    /// into the single bareword C would scan there.
-    ///
-    /// `tclCompExpr.c:2080-2126` (9.0.4): when `TclParseNumber` stops on a
-    /// `TclIsBareword` byte, C does *not* emit a number — it usually falls
-    /// through and rescans `[A-Za-z0-9_]*` from the start as one BAREWORD.
-    /// Two exceptions put it back on the number path (`goto number`):
-    ///
-    /// * **The run holds a non-bareword character.** C's
-    ///   `TclHasInternalRep(&tclDoubleType)` walk: a double whose spelling
-    ///   contains something a bareword cannot hold (`.`, an exponent sign)
-    ///   stays a number, so the junk after it is its own lexeme. This is why
-    ///   `1.5abc` names only `abc`, and why 8.6's `1.0_2` is
-    ///   `invalid character "_"` rather than naming the whole run.
-    /// * **A binary word operator follows.** `1eq 2` is `1 eq 2` (tclsh: 0).
-    ///   Release-sensitive, hence [`Self::word_operator_follows`]: under 8.6
-    ///   `lt` is not an operator, so `1lt 2` is `invalid bareword "1lt"`.
-    ///
-    /// Everything else is one bareword — `1_eq`, `1abc`, `12x`, `1e_0`,
-    /// `9_ne`, `1_2_eq` — all tclsh-verified on 8.5, 8.6, 9.0 and 9.1. The
-    /// token stays [`ExprTokenType::Number`]; `tcl-syntax` reclassifies an
-    /// invalid one to a bareword, and it can only name the whole run if the
-    /// lexeme was not split here first.
-    fn join_trailing_bareword(&mut self, start: usize) {
-        let end = self.i;
-        if !self.b.get(end).copied().is_some_and(is_bareword_byte) {
-            return;
-        }
-        if !self.b[start..end].iter().copied().all(is_bareword_byte) {
-            return;
-        }
-        if self.word_operator_follows(end) {
-            return;
-        }
-        while self.i < self.b.len() && is_bareword_byte(self.b[self.i]) {
-            self.i += 1;
-        }
     }
 
     fn variable(&mut self) -> ExprToken {
@@ -724,14 +605,6 @@ impl<'s> Inner<'s> {
             ExprTokenType::Bool
         } else if self.irules_operators && irops.contains(text) {
             ExprTokenType::Operator
-        } else if matches!(
-            text,
-            "Inf" | "inf" | "Infinity" | "infinity" | "NaN" | "nan"
-        ) {
-            // IEEE 754 special float literals — Tcl 9.0 recognises
-            // these as numeric literals in expressions, not function
-            // calls.
-            ExprTokenType::Number
         } else {
             ExprTokenType::Function
         };
@@ -776,47 +649,9 @@ impl<'s> Inner<'s> {
         self.tok(ExprTokenType::String, start)
     }
 
-    /// The release-independent half of C's word-operator case: the two
-    /// boundary guards that decide whether `op` at `at` is a standalone
-    /// lexeme rather than part of a neighbouring bareword.
-    ///
-    /// * **Nothing bareword-ish precedes it.** C never checks this explicitly;
-    ///   it falls out of the bareword scan having already consumed `a_eq` /
-    ///   `9_ne` whole. Checking `prev` here reproduces that boundary.
-    /// * **No *letter* follows it.** C's guard is `!isalpha(UCHAR(start[2]))`
-    ///   (`tclCompExpr.c:2014` in 9.0.4) — deliberately not `TclIsBareword`,
-    ///   so a digit or `_` after the operator leaves it an operator and the
-    ///   rest becomes its own lexeme: `1 eq2` is `1 eq 2` (tclsh: 0), and
-    ///   `1 eq_ 2` is `invalid character "_"` on every release 8.4–9.1.
-    fn word_operator_boundary_ok(&self, op: &str, at: usize) -> bool {
-        if at > 0 {
-            let prev = self.b[at - 1];
-            if prev.is_ascii_alphabetic() || prev == b'_' {
-                return false;
-            }
-        }
-        !self
-            .b
-            .get(at + op.len())
-            .is_some_and(u8::is_ascii_alphabetic)
-    }
-
-    /// Whether `op` at `at` is genuinely a binary operator lexeme in this
-    /// release — the faithful `ParseLexeme` answer, boundary guards plus the
-    /// release's own operator table.
-    ///
-    /// Used by [`Self::word_operator_follows`], where the truthful answer is
-    /// what C's `(NODE_TYPE & lexeme) == BINARY` probe needs: `1lt 2` is
-    /// `invalid bareword "1lt"` under 8.6 (no `lt` lexeme to stop the join)
-    /// but `1` `lt` `2` under 9.0.
-    fn word_operator_at(&self, op: &str, at: usize) -> bool {
-        tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base)
-            && self.word_operator_boundary_ok(op, at)
-    }
-
     /// Whether the main scan should emit `op` at `at` as an operator token.
     ///
-    /// Deliberately *weaker* than [`Self::word_operator_at`]: the release gate
+    /// Deliberately *weaker* than [`tcl_dialect::expr_word_operator_boundary_ok`]: the release gate
     /// is applied only where it actually moves a boundary — when a bareword
     /// byte (a digit or `_`) follows, so the run would otherwise fuse into one
     /// bareword. tclsh 8.6 vs 9.0:
@@ -835,29 +670,20 @@ impl<'s> Inner<'s> {
     /// Tcl 9.0+ (TIP 461)", and it can only say so about an operator it can
     /// still see. Suppressing the token here made W003 silent on the very
     /// dialects it targets.
-    fn word_operator_lexeme_at(&self, op: &str, at: usize) -> bool {
-        self.word_operator_boundary_ok(op, at)
-            && (!self
-                .b
-                .get(at + op.len())
-                .copied()
-                .is_some_and(is_bareword_byte)
-                || tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base))
+    fn word_operator_lexeme_at(&self, op: &str, at: usize, after_numeric_lexeme: bool) -> bool {
+        (if after_numeric_lexeme {
+            tcl_dialect::expr_word_operator_right_boundary_ok(self.b, op, at)
+        } else {
+            tcl_dialect::expr_word_operator_boundary_ok(self.b, op, at)
+        }) && (!self
+            .b
+            .get(at + op.len())
+            .copied()
+            .is_some_and(tcl_dialect::is_expr_bareword_byte)
+            || tcl_dialect::is_expr_word_operator(op, self.expr_grammar_base))
     }
 
-    /// Whether any word operator this release has begins at byte `at` — C's
-    /// `ParseLexeme(end, …)` probe at the number/bareword junction, whose
-    /// `(NODE_TYPE & lexeme) == BINARY` test keeps `1eq 2` a number followed
-    /// by an operator instead of one bareword.
-    fn word_operator_follows(&self, at: usize) -> bool {
-        MULTI_OPS.iter().any(|&op| {
-            tcl_dialect::expr_word_operator_since(op).is_some()
-                && self.b[at..].starts_with(op.as_bytes())
-                && self.word_operator_at(op, at)
-        })
-    }
-
-    fn multi_op(&mut self) -> Option<ExprToken> {
+    fn multi_op(&mut self, after_numeric_lexeme: bool) -> Option<ExprToken> {
         for &op in MULTI_OPS {
             // Compare on bytes, not `self.s[self.i..]`: `self.i` is a byte index
             // that the byte-wise scanner can leave *inside* a multi-byte UTF-8
@@ -866,7 +692,7 @@ impl<'s> Inner<'s> {
             // ASCII, so a byte-prefix check is exactly equivalent and total.
             if self.b[self.i..].starts_with(op.as_bytes()) {
                 if tcl_dialect::expr_word_operator_since(op).is_some()
-                    && !self.word_operator_lexeme_at(op, self.i)
+                    && !self.word_operator_lexeme_at(op, self.i, after_numeric_lexeme)
                 {
                     continue;
                 }
@@ -1091,15 +917,25 @@ mod tests {
 
     #[test]
     fn ieee_754_special_literals() {
-        // Tcl 9.0 treats Inf/NaN as numeric literals, not function
-        // names.
-        for word in ["Inf", "inf", "Infinity", "infinity", "NaN", "nan"] {
+        // Tcl's `TclParseNumber` treats these case-insensitively. The shared
+        // scanner also owns the NaN payload and number/bareword junction:
+        // tclsh 8.6.17 and 9.0.3 both accept `iNf`, `NaN(1)`, and
+        // `Infinityeq 1`, but keep `Infinityx` a bareword/function name.
+        for word in [
+            "Inf", "inf", "iNf", "Infinity", "infinity", "NaN", "nan", "NaN(1)",
+        ] {
             assert_eq!(
                 types(word),
                 vec![ExprTokenType::Number],
                 "word `{word}` should tokenise as NUMBER",
             );
         }
+        assert_eq!(
+            texts("Infinityeq 1"),
+            vec!["Infinity", "eq", "1"],
+            "a word operator after a special float starts a new lexeme",
+        );
+        assert_eq!(types("Infinityx"), vec![ExprTokenType::Function]);
     }
 
     #[test]
@@ -1432,6 +1268,97 @@ mod tests {
 #[cfg(test)]
 mod separator_boundary_tests {
     use super::*;
+
+    /// Tcl 8.4's `GetLexeme` takes an integer prefix before it reaches the
+    /// generic function-name/unknown scanner; it does not have the 8.5+
+    /// number-to-bareword rescan. The shared lower scanner must therefore keep
+    /// these token boundaries distinct for the last 8.4 profile.
+    #[test]
+    fn tcl84_keeps_legacy_integer_prefix_boundaries() {
+        let (tokens, unknown) = tokenise_expr_checked("1_eq", Some("tcl8.4"));
+        assert!(
+            unknown,
+            "`_` must be Tcl 8.4's invalid next lexeme: {tokens:?}"
+        );
+        assert_eq!(tokens[0].kind, ExprTokenType::Number);
+        assert_eq!(tokens[0].text, "1");
+
+        for (source, first, second) in [("12x", "12", "x"), ("0x1p2", "0x1", "p2")] {
+            let tokens = tokenise_expr(source, Some("tcl8.4"));
+            assert_eq!(
+                tokens[0].kind,
+                ExprTokenType::Number,
+                "{source}: {tokens:?}"
+            );
+            assert_eq!(tokens[0].text, first, "{source}: {tokens:?}");
+            assert_eq!(tokens[1].text, second, "{source}: {tokens:?}");
+        }
+    }
+
+    /// Explicit-radix spelling validity comes from the shared `NumberSyntax`
+    /// owner. Once a prefix has valid digits, a following release-available
+    /// word operator is a separate lexeme; an invalid radix stays whole.
+    #[test]
+    fn explicit_radix_numbers_stop_before_word_operators() {
+        for (dialect, source, number, operator) in [
+            ("tcl8.6", "0x1ne 1", "0x1", "ne"),
+            ("tcl8.6", "0xfne 1", "0xf", "ne"),
+            ("tcl8.6", "0xffin {255}", "0xff", "in"),
+            ("tcl9.0", "0xfge 15", "0xf", "ge"),
+            ("tcl8.6", "0b1ne 1", "0b1", "ne"),
+            ("tcl8.6", "0o7in {7}", "0o7", "in"),
+            ("tcl8.6", "0b1ni {1}", "0b1", "ni"),
+            ("tcl9.0", "0d9lt 10", "0d9", "lt"),
+            ("tcl9.0", "0d9le 9", "0d9", "le"),
+            ("tcl9.0", "0d9gt 8", "0d9", "gt"),
+            ("tcl9.0", "0d9ge 9", "0d9", "ge"),
+        ] {
+            let tokens = tokenise_expr(source, Some(dialect));
+            assert_eq!(
+                tokens[0].kind,
+                ExprTokenType::Number,
+                "{dialect}: {source}: {tokens:?}"
+            );
+            assert_eq!(tokens[0].text, number, "{dialect}: {source}: {tokens:?}");
+            assert_eq!(tokens[1].text, operator, "{dialect}: {source}: {tokens:?}");
+        }
+        for (dialect, source) in [
+            ("tcl8.6", "0o8ne 1"),
+            ("tcl8.6", "0d9ne 1"),
+            ("tcl9.0", "0b2ne 1"),
+        ] {
+            let tokens = tokenise_expr(source, Some(dialect));
+            assert_eq!(
+                tokens[0].text,
+                source.split_whitespace().next().unwrap(),
+                "{dialect}: {tokens:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_number_barewords_stay_whole_after_a_nonzero_offset() {
+        for source in ["0 + 1_eq", "0 + 12x"] {
+            let expected = source.split(" + ").nth(1).unwrap();
+            let tokens = tokenise_expr(source, Some("tcl9.0"));
+            assert!(
+                tokens.iter().any(|token| token.text == expected),
+                "{source}: {tokens:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn completed_nan_payload_is_a_number_before_following_bareword() {
+        let tokens = tokenise_expr("NaN(1)x", Some("tcl9.0"));
+        assert_eq!(tokens[0].kind, ExprTokenType::Number, "{tokens:?}");
+        assert_eq!(tokens[0].text, "NaN(1)");
+        assert_eq!(tokens[1].text, "x");
+        assert_eq!(
+            tokenise_expr("NaNx", Some("tcl9.0"))[0].kind,
+            ExprTokenType::Function
+        );
+    }
 
     /// `_` inside a *fraction* changes the lexeme boundary, so unlike the
     /// integer run it has to follow the release. C's bareword scan takes

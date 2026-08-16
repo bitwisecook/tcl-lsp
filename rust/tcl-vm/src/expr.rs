@@ -951,6 +951,40 @@ mod tests {
         assert_eq!(vm.eval_expr("sqrt(4)").unwrap().to_str().as_ref(), "99");
     }
 
+    /// These boundaries are established below the VM by the shared expression
+    /// numeral scanner. The parse success and error shape are direct tclsh
+    /// 8.6.17 / 9.0.3 oracle rows; if a radix run or completed NaN payload
+    /// fuses with its suffix, `eval_expr` reaches a different AST or misses
+    /// C's bareword. The VM's comparison coercion is intentionally not the
+    /// lexeme-boundary assertion here.
+    #[test]
+    fn shared_expr_numeral_boundaries_reach_the_vm() {
+        let mut vm = Vm::new();
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        assert!(vm.eval_expr("0b1ne 1").is_ok());
+        assert!(vm.eval_expr("0xfne 1").is_ok());
+        assert!(vm.eval_expr("0xffin {255}").is_ok());
+
+        vm.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+        assert!(vm.eval_expr("0xfge 15").is_ok());
+        assert!(vm.eval_expr("0d9lt 10").is_ok());
+        for source in ["0 + 1_eq", "0 + 12x"] {
+            assert!(
+                vm.eval_expr(source)
+                    .unwrap_err()
+                    .message
+                    .contains("invalid bareword"),
+                "{source}"
+            );
+        }
+        assert!(
+            vm.eval_expr("NaN(1)x")
+                .unwrap_err()
+                .message
+                .starts_with("invalid bareword \"x\"")
+        );
+    }
+
     #[test]
     fn int_div_mod_floored() {
         // Tcl: -7 / 2 == -4, -7 % 2 == 1

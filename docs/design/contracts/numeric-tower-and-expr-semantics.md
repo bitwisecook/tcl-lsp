@@ -199,11 +199,42 @@ dialect takes the newest grammar, like every other `LexerGrammar` knob — the
 operator set only ever grows, and inventing a split for a release that has no
 such operator reports a boundary that exists nowhere.
 
+The lower owner of those boundaries is
+`tcl_dialect::scan_expr_number` (`rust/tcl-dialect/src/expr_number.rs`). It
+takes the paired `NumberSyntax` and expression-word grammar, returns an
+exclusive byte end for a numeric candidate, and deliberately does not decide
+whether that candidate has a value. `tcl-lexer` uses it to create a `NUMBER`
+token; `tcl_syntax::number::is_expr_number` uses it again before its
+`TclParseNumber` port validates the complete spelling. This preserves the
+dependency direction (`tcl-dialect` below lexer and syntax) while ensuring a
+bad `0o8`, `1_eq`, `12x`, fractional separator, radix run, or `Inf`/`NaN`
+spelling cannot acquire separate boundaries in the two consumers. The scanner
+is source-derived from `ParseLexeme` in Tcl 8.4, 8.5, 8.6, 9.0, and 9.1; its
+mutation-sensitive rows are oracle-checked with tclsh 8.6.17 and 9.0.3.
+
+An explicit radix prefix has a real numeric boundary only after an available
+prefix and at least one radix-valid digit. Then the shared word-operator probe
+applies: `0b1ne 1` is `0b1` / `ne` / `1` on 8.5+, and `0d9lt 10` is
+`0d9` / `lt` / `10` from 9.0. `0o8ne` and a pre-9.0 `0d9ne` instead remain
+whole invalid bareword candidates. The release table is
+`NumberSyntax::explicit_radix`, shared by the value parser and lower scanner.
+
+Tcl 8.4 is intentionally a separate branch in that owner. Its `GetLexeme`
+first accepts the prefix returned by `TclParseInteger` and never executes the
+8.5+ bareword rescan: `1_eq` is literal `1` then invalid `_`, `12x` is `12`
+then `x`, and `0x1p2` is `0x1` then `p2`. For 8.5+, the same lower owner also
+owns `NaN(...)`: `TclParseNumber` accepts ASCII whitespace among one through
+thirteen hex digits, but a fourteenth digit invalidates the parenthesised form
+instead of truncating it. `tcl_syntax::number` calls `scan_nan_payload` for the
+decoded value, so tokenization and semantic validation share that ceiling.
+
 ### One facility, dialect-parameterised
 
-`rust/tcl-syntax/src/number.rs` is the **only** numeral parser in the workspace.
-It takes a `NumberSyntax` (`Tcl84` / `Tcl85` / `Tcl90`) and implements the table
-above. Every consumer asks it; nothing re-derives a prefix.
+`rust/tcl-syntax/src/number.rs` is the **only** numeral value parser in the
+workspace. It takes a `NumberSyntax` (`Tcl84` / `Tcl85` / `Tcl90`) and
+implements the table above. The expression-specific byte boundary is its
+separate, lower `tcl_dialect::scan_expr_number` owner; every other consumer
+asks one of those two facilities, never re-derives a prefix or boundary.
 
 How the grammar reaches a consumer depends on what the consumer is:
 
@@ -259,12 +290,20 @@ Abstaining is cheap: an unfolded expression is evaluated later by something that
 *does* know its release. Guessing is not — it bakes one release's answer into a
 program built for another.
 
-`cargo xtask number-drift` enforces the single-parser rule: it fails on
-hand-rolled radix-prefix recognition outside the facility. Parsing a prefix out
+`cargo xtask number-drift` enforces both ownership rules: it fails on
+hand-rolled radix-prefix recognition outside the value parser, and it checks
+that the lexer and syntax classifier call the one lower expression-boundary
+scanner rather than declaring another `scan_expr_number`; it applies the same
+check to the shared NaN-payload scanner. It also requires the named
+mutation-sensitive owner/consumer regression rows (legacy 8.4, radix/operator,
+and NaN payload), but this is wiring evidence rather than a proof that arbitrary
+source text cannot duplicate semantics; code review and those executed tests
+remain the semantic backstop. Parsing a prefix out
 of something that is *not* Tcl script text — a packet field, a hex colour, a
 hex-encoded byte string — is legitimate and carries a `// number-drift-ok:`
-waiver. The gate exists because the rule was broken six independent times, each
-with the identical shape: strip two characters, call `from_str_radix`.
+waiver. The value-parser gate exists because the rule was broken six independent
+times, each with the identical shape: strip two characters, call
+`from_str_radix`.
 
 ## Numeric semantics that are tested verbatim
 

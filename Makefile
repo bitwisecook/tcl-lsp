@@ -617,7 +617,7 @@ xtask-resolution-drift: ## Flag namespace-blind simple-name scans over all_procs
 	@echo "==> Checking for name-resolution drift (cargo xtask)"
 	cd $(ROOT) && cargo xtask resolution-drift
 
-xtask-number-drift: ## Flag hand-rolled Tcl radix-prefix recognition outside tcl_syntax::number (numeric-grammar drift gate)
+xtask-number-drift: ## Check Tcl numeral parser and expression-boundary scanner ownership (numeric-grammar drift gate)
 	@echo "==> Checking for numeric-grammar drift (cargo xtask)"
 	cd $(ROOT) && cargo xtask number-drift
 

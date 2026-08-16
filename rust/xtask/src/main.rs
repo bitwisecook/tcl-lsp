@@ -43,7 +43,8 @@
 //! - `gen-editor-catalogs` — generate the Zed/VS Code command & iRules-event
 //!   catalog JSON from the registry (`--check` to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
-//!   the one numeral parser (`tcl_syntax::number`).
+//!   `tcl_syntax::number`, and verify expression boundaries use
+//!   `tcl_dialect::scan_expr_number`.
 //! - `owner-resolution` — verify that the shared semantic-owner contract
 //!   resolves to live source files and drift gates.
 
@@ -205,8 +206,8 @@ enum Command {
         check: bool,
     },
 
-    /// Flag hand-rolled Tcl radix-prefix recognition outside the one numeral
-    /// parser (`tcl_syntax::number`) — the numeric-grammar drift class.
+    /// Flag hand-rolled Tcl radix-prefix recognition outside the value parser,
+    /// and verify the single expression-number boundary scanner.
     #[command(name = "number-drift")]
     NumberDrift {
         /// Accepted for symmetry with the other gates (the lint always

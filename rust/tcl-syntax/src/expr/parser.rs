@@ -43,7 +43,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use tcl_dialect::{DialectProfile, NumberSyntax};
+use tcl_dialect::{DialectProfile, NumberSyntax, TclVersion};
 use tcl_lexer::{ExprToken, ExprTokenType, tokenise_expr_checked};
 
 use crate::expr::ast::{BinOp, ExprNode, UnaryOp};
@@ -172,17 +172,25 @@ struct PrattParser<'a> {
     /// Current recursion depth, bounded by [`MAX_EXPR_DEPTH`].
     depth: usize,
     /// The release's numeric-literal grammar, used to reject a `Number` token
-    /// the lexer only *delimited* (see [`Self::number_literal`]).
+    /// the lexer only delimited.
     numbers: NumberSyntax,
+    /// The profile's word-operator grammar, paired with [`Self::numbers`] for
+    /// the shared expression-number boundary validation.
+    expr_grammar_base: Option<TclVersion>,
 }
 
 impl<'a> PrattParser<'a> {
-    fn new(tokens: &'a [ExprToken], numbers: NumberSyntax) -> Self {
+    fn new(
+        tokens: &'a [ExprToken],
+        numbers: NumberSyntax,
+        expr_grammar_base: Option<TclVersion>,
+    ) -> Self {
         Self {
             tokens,
             pos: 0,
             depth: 0,
             numbers,
+            expr_grammar_base,
         }
     }
 
@@ -300,7 +308,7 @@ impl<'a> PrattParser<'a> {
         // what produces `invalid bareword "0o8"` instead of silently evaluating
         // the literal to its own text.
         if tok.kind == ExprTokenType::Number {
-            if !crate::number::is_whole_number(&tok.text, self.numbers) {
+            if !crate::number::is_expr_number(&tok.text, self.numbers, self.expr_grammar_base) {
                 return Err(ParseError);
             }
             let tok = self.advance();
@@ -464,7 +472,11 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
         };
     }
 
-    let mut parser = PrattParser::new(&tokens, numbers_for(dialect, profile));
+    let mut parser = PrattParser::new(
+        &tokens,
+        numbers_for(dialect, profile),
+        profile.expr_grammar_base,
+    );
     match parser.expression(0) {
         Ok(result) if parser.pos >= tokens.len() => result,
         _ => ExprNode::Raw {
