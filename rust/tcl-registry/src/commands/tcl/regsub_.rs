@@ -53,24 +53,8 @@ fn fold_regsub(args: &[&str]) -> Option<String> {
 /// replacement count — so omitting it simply yields no `VarWrite` index,
 /// with no dialect/version gating of its own.
 fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut i = 0;
-    let mut has_command = false;
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            has_command |= a == "-command";
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
-        }
-        break;
-    }
+    let i = first_positional_index(OPTIONS, args, 0);
+    let has_command = args[..i.min(args.len())].contains(&"-command");
     // exp (i), string (i+1), subSpec (i+2), varName (i+3).
     let mut roles: Vec<(u8, ArgRole)> = Vec::new();
     let push = |roles: &mut Vec<(u8, ArgRole)>, idx: usize, role: ArgRole| {
@@ -107,33 +91,8 @@ fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// present, identically, in the fetched 9.0 and 9.1 manpages.
 fn regsub_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     let args = args.spellings();
-    let mut i = 0;
-    let mut has_command = false;
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            // No abbreviation: Tcl's option parser resolves regsub's switch
-            // table with `Tcl_GetIndexFromObj(..., TCL_EXACT, ...)`
-            // (confirmed in the fetched Tcl 9.0.4 `generic/tclCmdMZ.c`
-            // `Tcl_RegsubObjCmd`), and empirically in live tclsh 8.6.14:
-            // `regsub -noc {a} aaa X y` errors with `bad option "-noc"`
-            // rather than matching `-nocase`. Only the exact spelling
-            // `-command` enables command-prefix mode.
-            if a == "-command" {
-                has_command = true;
-            }
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
-        }
-        break;
-    }
+    let i = first_positional_index(OPTIONS, args, 0);
+    let has_command = args[..i.min(args.len())].contains(&"-command");
     let sub_idx = i + 2;
     if has_command && sub_idx < args.len() {
         u8::try_from(sub_idx)

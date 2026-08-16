@@ -37,6 +37,10 @@ command upvar {
     #  -layout ScriptInSelectedFrame`.)
     frame_effect -level-word ArityParity -layout AliasPairs
 
+    # The local name in each otherVar/myVar pair is a VarWrite position;
+    # the optional leading level word is selected by argument-count parity.
+    repeat VarWrite -from 1 -stride 2 -optional-leading
+
     lowering_hook -native Upvar
     codegen_hook  -native Upvar
     analyser_hook -native Upvar

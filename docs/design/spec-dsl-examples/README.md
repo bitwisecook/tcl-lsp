@@ -280,7 +280,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 |---|---|
 | `hover` | `summary`, `synopsis`*, `description`, `source`, `example`*, `returns` |
 | `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N? ?-introduced V? ?-deprecated V? ?-retired V?`* |
-| `case_list` | `subject_args`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `keyword_patterns {…} ?-final-only?` |
+| `case_list` | `subject_args`, `two_arg_optionless_dialects`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies` |
 | `clause_grammar` | `head {slots}`, `repeated KEYWORD {slots}`*, `tail ?KEYWORD? {slots}` |
 | `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
@@ -559,7 +559,7 @@ it, and the loader warns if a `clause_grammar` command omits it.
 Case lists are the other clause shape and stay a separate field, because
 they are a *value* (`{pattern body …}` inside one word) rather than a
 word grammar. `case_list switch` names the shipped descriptor;
-`case_list { … }` spells out all thirteen plain-data fields, which is
+`case_list { … }` spells out all nineteen plain-data fields, which is
 what a private Expect-like command needs.
 
 ## Derivations, exactly
@@ -836,7 +836,7 @@ finding alive. Silence is defined per field in the table above.
 temptation is to treat every `RustExpr` field in the studio schema as
 un-authorable. Most of them are plain data that the studio simply edits
 as one text box: `frame_effect` is two closed enums, `event_requires` is
-eight scalars, `case_list` thirteen, `binds_handle` three,
+eight scalars, `case_list` eighteen, `binds_handle` three,
 `defines_symbol` four, `byte_array_payload` two. Porting `upvar` and
 `HTTP::header` is what surfaced this — both look like hard cases in the
 `.rs` and are trivial in the DSL.
@@ -1072,7 +1072,7 @@ schema order. "excluded" rows carry the reason.
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |
 | `manufacturer_methods` | `manufacturer KEYWORD ?-unexported? ?-names-instance-at N? ?-definition-body-at N? -constructor-args-from N` | one row per method |
-| `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the 13 plain-data fields inline |
+| `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the 19 plain-data fields inline |
 | `oo_context_facts` | `oo_context_fact WORD FACT` | one row per fact |
 | `self_receiver_words` | `self_receiver_words {WORD …}` |  |
 | `object_class` | `object_class NAME` \| `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }` | `method` rows reuse the `subcommand` body grammar |

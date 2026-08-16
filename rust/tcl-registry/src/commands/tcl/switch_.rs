@@ -42,32 +42,19 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
-/// Options that consume a following value argument.
-const SWITCH_VALUE_OPTIONS: &[&str] = &["-matchvar", "-indexvar"];
-
 /// Dynamic arg role resolver for `switch`.
 ///
 /// Skips option flags (including value-consuming options like
 /// `-matchvar`/`-indexvar`), then identifies pattern/body pairs
 /// or a single braced-list body.
 fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut i: usize = 0;
-    // Skip option flags.
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if !a.starts_with('-') {
-            break;
-        }
-        if SWITCH_VALUE_OPTIONS.contains(&a) {
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
+    // The case-list descriptor owns the release gate for this exact
+    // two-argument exception; this resolver only supplies the shape.
+    let mut i = if args.len() == 2 {
+        0
+    } else {
+        first_positional_index(OPTIONS, args, 0)
+    };
     // Skip switch value.
     if i < args.len() {
         i += 1;
@@ -246,10 +233,13 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        // `TclNRSwitchObjCmd` (generic/tclCmdMZ.c) only scans for `-flag`
-        // words up to `objc - 2`: the trailing `string` and
-        // pattern-list-or-first-pattern words are never mistaken for
-        // options, even when dynamic/tainted and starting with `-`.
+        // `TclNRSwitchObjCmd` (generic/tclCmdMZ.c) normally only scans for
+        // `-flag` words up to `objc - 2`: the trailing `string` and
+        // pattern-list-or-first-pattern words are never mistaken for options,
+        // even when dynamic/tainted and starting with `-`. Tcl 8.4's
+        // option-like two-word shape is the one exception; the case-list
+        // descriptor removes this reservation for that release so W304/T102
+        // scan the same words the C implementation scans.
         reserved_trailing_words: 2,
         case_list: Some(&CaseListSpec::SWITCH),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),

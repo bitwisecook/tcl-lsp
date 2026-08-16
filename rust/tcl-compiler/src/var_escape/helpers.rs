@@ -155,8 +155,8 @@ pub fn is_dynamic_token(arg: &str) -> bool {
 /// the pessimism, leaving caller-side mirrors stale after an alias
 /// write through the dynamic level.
 ///
-/// The caller is expected to have already excluded literal-integer
-/// and `#N` forms via [`crate::var_scoping::looks_like_level`]; this
+/// The caller is expected to invoke this only when the registry's
+/// `FrameLevelWord::ArityParity` layout says a level word is present; this
 /// helper only classifies the dynamic shape.
 #[must_use]
 pub fn is_dynamic_upvar_level(head: &str) -> bool {

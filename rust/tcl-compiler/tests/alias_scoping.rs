@@ -315,8 +315,8 @@ mod alias_escapes_lifecycle {
     fn upvar_hash_zero_global_write_escapes() {
         // `upvar #0 g l` binds the absolute-frame (global) cell `g`; a write
         // through `l` escapes, so it is neither unused nor dead. (`#0` is the
-        // `looks_like_level` `#<digits>` form — covered structurally below and
-        // pinned here behaviourally.)
+        // `FrameLevelWord::ArityParity` `#<digits>` form — covered structurally
+        // below and pinned here behaviourally.)
         // tclsh: `proc f {} { upvar #0 g l; set l 88 }; f; puts $::g` ⇒ `88`
         // (8.6 and 9.0).
         assert!(!fires("proc f {} { upvar #0 g l\n set l 5 }", "W211"));

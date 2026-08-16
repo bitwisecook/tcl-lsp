@@ -312,7 +312,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             "case_list",
             &crate::definer::SPECTCL_CASE_LIST_GRAMMAR,
             "Declare the pattern/body list shape of a `switch`-like command.",
-            "A case list is a *value* (`{pattern body …}` inside one word) rather than a word grammar, which is why it is a separate field from `clause_grammar`. `case_list switch` names the shipped descriptor; the block spells out all thirteen plain-data fields.",
+            "A case list is a *value* (`{pattern body …}` inside one word) rather than a word grammar, which is why it is a separate field from `clause_grammar`. `case_list switch` names the shipped descriptor; the block spells out all eighteen plain-data fields.",
         ),
         // --- iRules event surface ---
         block(

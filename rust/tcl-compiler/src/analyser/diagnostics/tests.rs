@@ -1279,19 +1279,18 @@ fn variable_name_positions_are_registry_driven() {
 fn upvar_local_positions_parity() {
     // Only the local names are strict name positions; the paired remote names
     // (indices 1, 3, …) are excluded so a computed `$remote` is not flagged.
+    let registry = tcl_registry::CommandRegistry::build_default();
     assert_eq!(
-        upvar_local_name_positions(&["1".into(), "a".into(), "b".into()]),
+        registry.arg_indices_for_role(
+            "upvar",
+            &["$lvl", "a", "b"],
+            tcl_registry::ArgRole::VarWrite,
+        ),
         vec![2],
     );
     assert_eq!(
-        upvar_local_name_positions(&[
-            "#0".into(),
-            "r1".into(),
-            "l1".into(),
-            "r2".into(),
-            "l2".into(),
-        ]),
-        vec![2, 4],
+        registry.arg_indices_for_role("upvar", &["1", "b"], tcl_registry::ArgRole::VarWrite,),
+        vec![1],
     );
 }
 
@@ -12833,6 +12832,102 @@ fn vendor_command_inherited_options_resolve_cleanly() {
         !codes.iter().any(|c| c == "W004"),
         "inherited expect options must resolve under expect, got {codes:?}"
     );
+}
+
+#[test]
+fn expect_clause_flags_keep_pattern_and_body_roles_aligned() {
+    let codes = codes_for_dialect(
+        "expect {-re {^ready$} {puts ready} -timeout 5 timeout {puts slow}}",
+        "expect",
+    );
+    assert!(
+        !codes.iter().any(|c| c == "W123"),
+        "Expect clause flags must not make a body look like a command: {codes:?}"
+    );
+}
+
+#[test]
+fn nested_expect_clause_body_reports_unknown_command() {
+    let codes = codes_for_dialect("expect {ready {expect_body_unknown_command}}", "expect");
+    assert!(
+        codes.iter().any(|c| c == "W123"),
+        "Expect clause bodies must be analysed for unresolved commands: {codes:?}"
+    );
+}
+
+#[test]
+fn unbraced_expect_action_keeps_its_complete_script_span() {
+    let codes = codes_for_dialect("expect {ready puts;expect_semicolon_unknown}", "expect");
+    assert!(
+        codes.iter().any(|code| code == "W123"),
+        "the command after a semicolon in an unbraced Expect action must be analysed: {codes:?}"
+    );
+}
+
+#[test]
+fn backslash_built_expect_action_stays_an_opaque_barrier() {
+    let codes = codes_for_dialect(
+        r"expect {ready puts\ ok\;expect_backslash_unknown}",
+        "expect",
+    );
+    assert!(
+        !codes.iter().any(|code| code == "W123"),
+        "a decoded list value has no 1:1 source span and must not be partially walked: {codes:?}"
+    );
+}
+
+#[test]
+fn expect_list_comment_and_separator_patterns_still_walk_arm_bodies() {
+    for pattern in ["#", ";"] {
+        let codes = codes_for_dialect(
+            &format!("expect {{{pattern} {{expect_literal_pattern_unknown}} default {{puts ok}}}}"),
+            "expect",
+        );
+        assert!(
+            codes.iter().any(|code| code == "W123"),
+            "{pattern:?} is a Tcl list pattern, and its arm must be analysed: {codes:?}"
+        );
+    }
+}
+
+#[test]
+fn inline_expect_clause_flags_reach_actions_without_switch_w106() {
+    let codes = codes_for_dialect(
+        "expect -re {ready} {expect_inline_unknown} -timeout 5 timeout {expect_timeout_unknown}",
+        "expect",
+    );
+    assert_eq!(
+        codes.iter().filter(|code| code.as_str() == "W123").count(),
+        2,
+        "both inline Expect actions must be analysed: {codes:?}"
+    );
+    assert!(
+        !codes.iter().any(|code| code == "W106"),
+        "the switch-only bracing diagnostic must not apply to Expect: {codes:?}"
+    );
+}
+
+#[test]
+fn abbreviated_inline_expect_flag_reaches_action() {
+    let codes = codes_for_dialect("expect -not ready {expect_abbrev_unknown}", "expect");
+    assert!(
+        codes.iter().any(|code| code == "W123"),
+        "a unique Expect flag abbreviation must not hide its action: {codes:?}"
+    );
+}
+
+#[test]
+fn outer_expect_value_options_do_not_make_a_final_pattern_a_clause_list() {
+    for source in [
+        "expect -timeout 5 {ready {expect_outer_timeout_unknown}}",
+        "expect -i spawn {ready {expect_outer_spawn_unknown}}",
+    ] {
+        let codes = codes_for_dialect(source, "expect");
+        assert!(
+            !codes.iter().any(|code| code == "W123"),
+            "the braced final pattern is not an Expect action list: {source:?}, {codes:?}"
+        );
+    }
 }
 
 // Issue #1006 — the W123 alias / rename-target checks used file-end-only

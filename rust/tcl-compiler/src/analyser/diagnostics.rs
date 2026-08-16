@@ -95,7 +95,7 @@ pub(in crate::analyser::diagnostics) use security::has_redos_shape;
 #[cfg(test)]
 pub(in crate::analyser::diagnostics) use usage::{
     first_nested_expr, is_benign_unicode, is_safe_literal, is_safe_literal_expr,
-    is_valid_subnet_mask, looks_like_subnet_mask, nearest_valid_mask, upvar_local_name_positions,
+    is_valid_subnet_mask, looks_like_subnet_mask, nearest_valid_mask,
 };
 #[cfg(test)]
 pub(in crate::analyser::diagnostics) use validity::contains_gated_word;

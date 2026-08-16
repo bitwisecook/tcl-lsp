@@ -46,22 +46,7 @@ const FORMS: &[FormSpec] = &[
 /// `VarWrite` for every trailing capture var dynamically (the leading-option
 /// shift means a static slot list cannot place them).
 fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let mut i = 0;
-    while i < args.len() {
-        let a = args[i];
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
-        }
-        break;
-    }
+    let i = first_positional_index(REGEXP_OPTIONS, args, 0);
     let capture_start = i + 2; // skip pattern + string
     (capture_start..args.len())
         .filter_map(|j| u8::try_from(j).ok().map(|j| (j, ArgRole::VarWrite)))

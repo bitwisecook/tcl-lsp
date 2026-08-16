@@ -715,53 +715,59 @@ Use braces: {{ \u{2026} }}"
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if cmd_name != "switch" || args.is_empty() || arg_tokens.is_empty() {
+        if args.is_empty() || arg_tokens.is_empty() {
             return;
         }
-        // Option flags, then the subject string.
-        let mut i = 0;
-        let mut has_regexp = false;
-        while i < args.len() && args[i].starts_with('-') {
-            if args[i] == "-regexp" {
-                has_regexp = true;
-            }
-            if args[i] == "--" {
-                i += 1;
-                break;
-            }
-            i += 1;
-        }
-        if i >= args.len() {
+        let Some(registry) = self.registry.as_deref() else {
             return;
-        }
-        i += 1; // skip subject
-        if i >= args.len() {
+        };
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some((case, invocation)) =
+            registry.case_invocation(cmd_name, &refs, self.profile.availability_mask)
+        else {
+            return;
+        };
+        if !case.warn_unbraced_bodies {
             return;
         }
 
         // Single trailing arg: the braced-list form (W105 / bracing
         // handles a braced block); only flag an *unbraced* single block.
-        if i == args.len() - 1 {
+        if let Some(i) = invocation.clause_list_index {
             if let Some(tok) = arg_tokens.get(i)
                 && !is_braced_word(tok)
             {
                 let dangerous = has_substitution(&args[i], tok);
-                self.push_w106(tok.span, dangerous, has_regexp, true);
+                self.push_w106(
+                    tok.span,
+                    dangerous,
+                    invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp,
+                    true,
+                );
             }
             return;
         }
 
         // Alternating pattern/body pairs.
-        while i + 1 < args.len() {
-            let body_idx = i + 1;
+        let Some(i) = invocation.inline_clause_start else {
+            return;
+        };
+        let Some(clauses) = case.inline_clauses(&refs, i) else {
+            return;
+        };
+        for clause in clauses {
+            let Some(body_idx) = clause.body_index else {
+                continue;
+            };
             if let (Some(tok), Some(text)) = (arg_tokens.get(body_idx), args.get(body_idx))
                 && !is_braced_word(tok)
                 && text != "-"
             {
+                let has_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp
+                    || clause.mode == tcl_registry::spec::CaseMatchMode::Regexp;
                 let dangerous = has_substitution(text, tok) || has_regexp;
                 self.push_w106(tok.span, dangerous, has_regexp, false);
             }
-            i += 2;
         }
     }
 
@@ -821,23 +827,24 @@ Use braces: {{ \u{2026} }}"
     /// hand-maintained list — the two previous lists (`name_arg_indices` and
     /// `w216_varname_word_indices`) had drifted, each missing what the other
     /// had. The one structural exception is `upvar`: its frame-linking
-    /// semantics are modelled by the dedicated var-escape machinery rather than
-    /// a generic `VarWrite` role (the registry deliberately omits its roles),
-    /// and only its *local*-name slots are name positions — a computed
-    /// `$remote` in an other-var slot is a legitimate indirect link.
+    /// semantics are modelled by the registry's repeated layout, and only its
+    /// *local*-name slots are name positions — a computed `$remote` in an
+    /// other-var slot is a legitimate indirect link.
     pub(in crate::analyser) fn variable_name_positions(
         &self,
         cmd: &str,
         args: &[String],
     ) -> Vec<usize> {
         use tcl_registry::arg_role::ArgRole::{VarRead, VarWrite};
-        if cmd == "upvar" {
-            return upvar_local_name_positions(args);
-        }
         let Some(registry) = self.registry.as_deref() else {
             return Vec::new();
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        if registry.frame_effect(cmd).is_some_and(|effect| {
+            effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+        }) {
+            return registry.arg_indices_for_role(cmd, &arg_strs, VarWrite);
+        }
         let mut idx = registry.arg_indices_for_role(cmd, &arg_strs, VarWrite);
         idx.extend(registry.arg_indices_for_role(cmd, &arg_strs, VarRead));
         idx.sort_unstable();
@@ -1553,22 +1560,6 @@ pub(super) fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
 /// var-escape machinery, and only the *local* names are strict name positions
 /// (the paired *other* names may legitimately be a computed `$remote`). See
 /// `Analyser::variable_name_positions`.
-pub(super) fn upvar_local_name_positions(args: &[String]) -> Vec<usize> {
-    if args.is_empty() {
-        return vec![];
-    }
-    let head = &args[0];
-    let is_level = head.starts_with('#')
-        || (!head.is_empty()
-            && head
-                .trim_start_matches('-')
-                .bytes()
-                .all(|b| b.is_ascii_digit())
-            && head.trim_start_matches('-').bytes().next().is_some());
-    let start = usize::from(is_level);
-    (start + 1..args.len()).step_by(2).collect()
-}
-
 /// Find the first `[`-`expr`-whitespace sequence in `slice` (the
 /// `_NESTED_EXPR_RE = \[\s*expr\s` pattern) and return
 /// `(open_bracket_index, matching_close_bracket_index)`.  The close is

@@ -4261,10 +4261,6 @@ impl Analyser {
         arg_tokens: &[Token],
         scope_path: &[usize],
     ) -> bool {
-        if args.len() < 2 {
-            return false;
-        }
-
         let Some(registry) = self.registry.as_deref() else {
             return true;
         };
@@ -4272,61 +4268,88 @@ impl Analyser {
         let Some((case, invocation)) =
             registry.case_invocation(cmd_name, &arg_refs, self.profile.availability_mask)
         else {
-            return true;
+            // Preserve malformed-switch handling while allowing valid
+            // subjectless Expect clause lists through the registry resolver.
+            return args.len() >= 2;
         };
-        let is_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp;
-
+        let invocation_is_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp;
         if let Some(i) = invocation.clause_list_index {
             // Form 2 — single braced body containing all pairs.
             let body_text = args[i].clone();
             let Some(body_tok) = arg_tokens.get(i).copied() else {
                 return true;
             };
-            let elements =
-                crate::segmenter::flatten_clause_list_elements(&self.source, &body_text, body_tok);
-            let clause_count = elements.len() / 2;
-            let mut j = 0;
-            while j + 1 < elements.len() {
-                let (pat_text, pat_tok) = &elements[j];
-                let (body_text, body_tok) = &elements[j + 1];
-                if is_regexp {
+            let clauses = crate::segmenter::flatten_case_list_clauses(
+                &self.source,
+                &body_text,
+                body_tok,
+                &case,
+            );
+            let shape = tcl_syntax::case_list::CaseListShape {
+                clause_flags: case.clause_flags,
+                clause_value_flags: case.clause_value_flags,
+            };
+            let clause_regexp: Vec<bool> =
+                tcl_syntax::case_list::split_case_list(&body_text, &shape)
+                    .iter()
+                    .map(|clause| {
+                        clause.flags.iter().any(|flag| {
+                            body_text
+                                .get(flag.start..flag.end)
+                                .and_then(|word| shape.resolve_flag(word))
+                                == case.clause_regex_flag
+                        })
+                    })
+                    .collect();
+            let clause_count = clauses.len();
+            for (clause_index, ((pat_text, pat_tok), (body_text, body_tok))) in
+                clauses.iter().enumerate()
+            {
+                if invocation_is_regexp || clause_regexp.get(clause_index) == Some(&true) {
                     self.record_switch_regexp_pattern(
                         cmd_name,
                         case,
                         pat_text,
                         *pat_tok,
-                        (j / 2, clause_count),
+                        (clause_index, clause_count),
                         scope_path,
                     );
                 }
                 if case.fallthrough_body != Some(body_text.as_str()) {
                     self.analyse_body(body_text, *body_tok, scope_path);
                 }
-                j += 2;
             }
-        } else if let Some(mut i) = invocation.inline_clause_start {
+        } else if let Some(i) = invocation.inline_clause_start {
             // Form 1 — pattern/body pairs inline in args/arg_tokens.
-            let clause_count = (args.len() - i) / 2;
-            let mut clause_index = 0usize;
-            while i + 1 < args.len() {
-                if is_regexp && let Some(pat_tok) = arg_tokens.get(i).copied() {
+            let Some(clauses) = case.inline_clauses(&arg_refs, i) else {
+                return true;
+            };
+            let clause_count = clauses.len();
+            for (clause_index, clause) in clauses.iter().enumerate() {
+                let pattern_index = clause.pattern_index;
+                let body_index = clause.body_index;
+                if (invocation_is_regexp
+                    || clause.mode == tcl_registry::spec::CaseMatchMode::Regexp)
+                    && let Some(pat_tok) = arg_tokens.get(pattern_index).copied()
+                {
                     self.record_switch_regexp_pattern(
                         cmd_name,
                         case,
-                        &args[i],
+                        &args[pattern_index],
                         pat_tok,
                         (clause_index, clause_count),
                         scope_path,
                     );
                 }
-                let body_text = &args[i + 1];
-                if let Some(body_tok) = arg_tokens.get(i + 1).copied()
+                let Some(body_index) = body_index else {
+                    continue;
+                };
+                let body_text = &args[body_index];
+                if let Some(body_tok) = arg_tokens.get(body_index).copied()
                     && case.fallthrough_body != Some(body_text.as_str())
                 {
                     self.analyse_body(body_text, body_tok, scope_path);
                 }
-                i += 2;
-                clause_index += 1;
             }
         }
         true
@@ -6861,14 +6884,18 @@ impl Analyser {
                 continue;
             };
             if case_call == Some(idx) {
-                let elements =
-                    crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
-                for pair in elements.chunks_exact(2) {
-                    let body_word = &pair[1].0;
-                    let body_token = pair[1].1;
+                let Some((case, _)) =
+                    registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
+                else {
+                    complete = false;
+                    continue;
+                };
+                for (_, (body_word, body_token)) in
+                    crate::segmenter::flatten_case_list_clauses(&self.source, word, token, &case)
+                {
                     if body_token.kind == TokenType::Str
                         || (body_token.kind == TokenType::Esc
-                            && !tcl_syntax::naming::is_dynamic_word(body_word)
+                            && !tcl_syntax::naming::is_dynamic_word(&body_word)
                             && !body_word.contains('\\'))
                     {
                         arms.push(ControlArm {
@@ -6966,10 +6993,10 @@ impl Analyser {
         if let Some(list_index) = invocation.clause_list_index {
             let word = arm.controller.args().get(list_index)?;
             let token = *arm.controller.arg_tokens().get(list_index)?;
-            let elements =
-                crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
-            for pair in elements.chunks_exact(2) {
-                clauses.push((pair[0].0.clone(), pair[1].0.clone(), pair[1].1.span));
+            for ((pattern, _), (body, body_token)) in
+                crate::segmenter::flatten_case_list_clauses(&self.source, word, token, &case)
+            {
+                clauses.push((pattern, body, body_token.span));
             }
         } else {
             let mut idx = invocation.inline_clause_start?;
@@ -7724,10 +7751,17 @@ impl Analyser {
                     continue;
                 };
                 if case_call == Some(body_idx) {
-                    let elements =
-                        crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
-                    for pair in elements.chunks_exact(2) {
-                        let body_token = pair[1].1;
+                    let Some((case, _)) =
+                        registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
+                    else {
+                        continue;
+                    };
+                    for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                        &self.source,
+                        word,
+                        token,
+                        &case,
+                    ) {
                         if body_token.kind != TokenType::Str {
                             continue;
                         }
@@ -7838,10 +7872,17 @@ impl Analyser {
                     continue;
                 };
                 if case_call == Some(body_idx) {
-                    let elements =
-                        crate::segmenter::flatten_clause_list_elements(&self.source, word, token);
-                    for pair in elements.chunks_exact(2) {
-                        let body_token = pair[1].1;
+                    let Some((case, _)) =
+                        registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
+                    else {
+                        continue;
+                    };
+                    for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                        &self.source,
+                        word,
+                        token,
+                        &case,
+                    ) {
                         if body_token.kind != TokenType::Str {
                             continue;
                         }
@@ -13138,7 +13179,7 @@ mod tests {
     fn handle_switch_form2_braced_body_walks_each_arm() {
         // Form 2: ``switch $x { a {set y 1} b {set z 2} }``.
         // The single braced body holds all pattern/body pairs;
-        // ``flatten_clause_list_elements`` re-segments to surface
+        // ``flatten_clause_list_elements`` uses Tcl list offsets to surface
         // each pair, then each body recurses.
         let mut a = switch_analyser();
         let body_text = " a {set y 1} b {set z 2} ".to_string();

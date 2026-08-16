@@ -19,30 +19,50 @@
 //! `expect` command.
 use crate::prelude::*;
 const OPTIONS: &[OptionSpec] = &[
+    // `-brace` is deliberately an exact-only outer-shape selector, not a
+    // clause flag: it makes one braced word a pattern/action list.
     OptionSpec {
-        name: "-re",
+        name: "-brace",
+        value: OptionValue::flag(),
+        detail: "Interpret the following braced word as pattern/action pairs.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: Some(6),
+    },
+    OptionSpec {
+        name: "-nobrace",
+        value: OptionValue::flag(),
+        detail: "Treat a following braced word as one pattern, not a clause list.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-regexp",
         value: OptionValue::flag(),
         detail: "Match pattern as a Tcl regular expression.",
         dialects: None,
-        aliases: &[],
+        aliases: &["-re"],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
     },
     OptionSpec {
-        name: "-ex",
+        name: "-exact",
         value: OptionValue::flag(),
         detail: "Match pattern as an exact string.",
         dialects: None,
-        aliases: &[],
+        aliases: &["-ex"],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
     },
     OptionSpec {
-        name: "-gl",
+        name: "-glob",
         value: OptionValue::flag(),
         detail: "Match pattern as a glob (default).",
         dialects: None,
-        aliases: &[],
+        aliases: &["-gl"],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
     },
@@ -77,6 +97,24 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-indices",
         value: OptionValue::flag(),
         detail: "Store match indices in expect_out.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-iread",
+        value: OptionValue::flag(),
+        detail: "Use the current indirect-read mode for this clause.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-timestamp",
+        value: OptionValue::flag(),
+        detail: "Record the match timestamp for this clause.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -119,6 +157,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         case_list: Some(&CaseListSpec::EXPECT),
+        analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
         ..CommandSpec::DEFAULT
     }
 }

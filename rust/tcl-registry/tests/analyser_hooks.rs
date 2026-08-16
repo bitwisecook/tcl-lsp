@@ -128,6 +128,14 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("foreach_in_collection", "", H::Foreach),
         ("for", "", H::For),
         ("switch", "", H::Switch),
+        // Expect's clause-list commands share the switch analyser's generic
+        // case-list body walker; their grammar is carried by `case_list`.
+        ("expect", "", H::Switch),
+        ("expect_after", "", H::Switch),
+        ("expect_before", "", H::Switch),
+        ("expect_user", "", H::Switch),
+        ("expect_tty", "", H::Switch),
+        ("expect_background", "", H::Switch),
         ("catch", "", H::Catch),
         ("try", "", H::Try),
         ("upvar", "", H::Upvar),

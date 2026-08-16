@@ -108,6 +108,8 @@ pub mod version;
 pub mod version_range;
 pub mod world_effect;
 
+pub use crate::hover::first_positional_index;
+
 /// Convenience prelude for command spec files.
 ///
 /// `use crate::prelude::*;` in each command file brings in all the
@@ -158,7 +160,7 @@ pub mod prelude {
     };
     pub use crate::hover::{
         ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity,
-        OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome,
+        OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, first_positional_index,
     };
     pub use crate::intrinsic::IntrinsicId;
     pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
@@ -178,9 +180,9 @@ pub mod prelude {
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
     pub use crate::spec::{
-        BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord,
-        ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand, SubSubCommand,
-        VersionedArgValue,
+        BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
+        DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
+        SubCommand, SubSubCommand, VersionedArgValue,
     };
     pub use crate::state_transition::{
         CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,
@@ -265,8 +267,9 @@ pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, ContextGate, DefaultFormFirstWord, ObjectClassSpec,
-    OoContextFact, OptionConstraint, SubCommand, SubSubCommand, VersionedArgValue,
+    BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
+    DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
+    SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,

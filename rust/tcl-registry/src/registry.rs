@@ -1831,7 +1831,10 @@ impl CommandRegistry {
             || resolved.spec.option_specs(Some(dialect)),
             |profile| crate::ProfileQueries::available_option_specs(profile, resolved.spec),
         );
-        Some((*case, case.invocation(args, &options)?))
+        let effective_dialect = self
+            .profile()
+            .map_or(dialect, |profile| profile.availability_mask);
+        Some((*case, case.invocation(args, &options, effective_dialect)?))
     }
 
     /// Classify whether a concrete invocation falls through, returns a normal
@@ -2244,6 +2247,10 @@ impl CommandRegistry {
         };
         let n = args.len();
         let mut out: Vec<usize> = Vec::new();
+        let case_body_roles_allowed = spec.case_list.is_none()
+            || self
+                .case_invocation(name, args, self.own_availability_mask())
+                .is_some();
 
         // Check subcommand (exact or unique-prefix abbreviation).
         if !spec.subcommands.is_empty()
@@ -2281,14 +2288,18 @@ impl CommandRegistry {
             out.extend(
                 resolver(args)
                     .into_iter()
-                    .filter(|(_, r)| *r == role)
+                    .filter(|(_, r)| {
+                        *r == role && (role != ArgRole::Body || case_body_roles_allowed)
+                    })
                     .map(|(i, _)| i as usize),
             );
         } else {
             out.extend(
                 spec.arg_roles
                     .iter()
-                    .filter(|(_, r)| *r == role)
+                    .filter(|(_, r)| {
+                        *r == role && (role != ArgRole::Body || case_body_roles_allowed)
+                    })
                     .map(|(i, _)| *i as usize),
             );
         }
@@ -2817,11 +2828,22 @@ impl CommandRegistry {
         // `CommandSpec.options` level (a single set per spec), so we
         // consult that directly when no subcommand match was found.
         if spec.options.iter().any(|o| o.name == "--") {
+            let effective_dialect = self
+                .profile()
+                .map_or(dialect, |profile| profile.availability_mask);
+            let reserved_trailing_words =
+                spec.case_list.map_or(spec.reserved_trailing_words, |case| {
+                    case.option_scan_reserved_trailing_words(
+                        args,
+                        effective_dialect,
+                        spec.reserved_trailing_words,
+                    )
+                });
             return Some(ResolvedTerminator {
                 scan_start: 0,
                 subcommand: None,
                 options: spec.options,
-                reserved_trailing_words: spec.reserved_trailing_words,
+                reserved_trailing_words,
             });
         }
 
@@ -3908,6 +3930,31 @@ mod tests {
         assert_eq!(
             reg.arg_indices_for_role("foreach", &["{body}"], ArgRole::LoopVarList),
             Vec::<usize>::new()
+        );
+    }
+
+    #[test]
+    fn option_value_arity_shifts_registry_argument_roles() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "regexp",
+                &["-start", "2", "pattern", "$text", "match"],
+                ArgRole::VarWrite,
+            ),
+            vec![4]
+        );
+        assert_eq!(
+            reg.arg_indices_for_role(
+                "regsub",
+                &["-start", "2", "pattern", "$text", "replacement", "result"],
+                ArgRole::VarWrite,
+            ),
+            vec![5]
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("upvar", &["$level", "remote", "local"], ArgRole::VarWrite,),
+            vec![2]
         );
     }
 
@@ -6335,6 +6382,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // descriptor layout matrix
     fn case_list_invocation_layout_is_registry_owned() {
         use crate::spec::CaseMatchMode;
         let reg = crate::registry_for_dialect("tcl9.0");
@@ -6375,6 +6423,48 @@ mod tests {
         );
 
         let tcl84 = crate::registry_for_dialect("tcl8.4");
+        for two_arg_switch in [
+            ["-regexp", "default {puts hit}"],
+            ["--", "default {puts hit}"],
+        ] {
+            assert!(
+                tcl84
+                    .case_invocation("switch", &two_arg_switch, DialectSet::TCL84)
+                    .is_none(),
+                "Tcl 8.4 scans the option-like first word and rejects the missing subject: {two_arg_switch:?}"
+            );
+            assert!(
+                tcl84
+                    .arg_indices_for_role("switch", &two_arg_switch, ArgRole::Body)
+                    .is_empty(),
+                "Tcl 8.4 must not assign the second word a body role: {two_arg_switch:?}"
+            );
+            assert_eq!(
+                tcl84
+                    .resolve_option_terminator("switch", &two_arg_switch, DialectSet::TCL84)
+                    .expect("switch declares --")
+                    .reserved_trailing_words,
+                0,
+                "Tcl 8.4 must scan both words in the option-like two-word form: {two_arg_switch:?}"
+            );
+        }
+        for args in [
+            &["subject", "default {puts hit}"][..],
+            &["-regexp", "subject", "default {puts hit}"][..],
+            &["--", "-subject", "default {puts hit}"][..],
+        ] {
+            assert!(
+                tcl84
+                    .case_invocation("switch", args, DialectSet::TCL84)
+                    .is_some(),
+                "Tcl 8.4 accepts the unambiguous switch case-list form: {args:?}"
+            );
+            assert_eq!(
+                tcl84.arg_indices_for_role("switch", args, ArgRole::Body),
+                vec![args.len() - 1],
+                "Tcl 8.4 assigns the final case-list word a body role: {args:?}"
+            );
+        }
         assert!(
             tcl84
                 .case_invocation(
@@ -6385,6 +6475,37 @@ mod tests {
                 .is_none()
         );
         let tcl85 = crate::registry_for_dialect("tcl8.5");
+        for (dialect, availability) in [
+            ("tcl8.5", DialectSet::TCL85),
+            ("tcl8.6", DialectSet::TCL86),
+            ("tcl9.0", DialectSet::TCL90),
+        ] {
+            let registry = crate::registry_for_dialect(dialect);
+            for two_arg_switch in [
+                ["-regexp", "default {puts hit}"],
+                ["--", "default {puts hit}"],
+            ] {
+                assert!(
+                    registry
+                        .case_invocation("switch", &two_arg_switch, availability)
+                        .is_some(),
+                    "{dialect} accepts the optionless two-word switch form: {two_arg_switch:?}"
+                );
+                assert_eq!(
+                    registry.arg_indices_for_role("switch", &two_arg_switch, ArgRole::Body),
+                    vec![1],
+                    "{dialect} assigns the clause-list word a body role: {two_arg_switch:?}"
+                );
+                assert_eq!(
+                    registry
+                        .resolve_option_terminator("switch", &two_arg_switch, availability)
+                        .expect("switch declares --")
+                        .reserved_trailing_words,
+                    2,
+                    "{dialect} reserves the subject and clause-list words: {two_arg_switch:?}"
+                );
+            }
+        }
         assert!(
             tcl85
                 .case_invocation(
@@ -6399,6 +6520,16 @@ mod tests {
             default
                 .case_invocation("switch", &["subject", "pattern {}"], DialectSet::TCL90,)
                 .is_some()
+        );
+        assert!(
+            default
+                .case_invocation(
+                    "switch",
+                    &["--", "-x", "-x {puts hit} default {puts miss}"],
+                    DialectSet::TCL90,
+                )
+                .is_some(),
+            "the descriptor's -- terminator keeps a hyphenated switch subject positional"
         );
         assert!(
             reg.case_invocation("switch", &["subject", "pattern -"], DialectSet::TCL90)
@@ -6425,14 +6556,337 @@ mod tests {
         assert!(
             expect
                 .case_invocation("expect", &["-re {ye+s}"], DialectSet::EXPECT)
-                .is_none(),
-            "a clause without its body must remain invalid"
+                .is_some(),
+            "Expect permits a final pattern without an action"
         );
+        for args in [
+            ["-timeout", "5", "ready {action}"],
+            ["-i", "spawn", "ready {action}"],
+        ] {
+            let (_, invocation) = expect
+                .case_invocation("expect", &args, DialectSet::EXPECT)
+                .expect("outer Expect value option followed by a final pattern");
+            assert_eq!(invocation.clause_list_index, None, "{args:?}");
+            assert_eq!(invocation.inline_clause_start, Some(2), "{args:?}");
+            let clauses = crate::CaseListSpec::EXPECT
+                .inline_clauses(&args, invocation.inline_clause_start.unwrap())
+                .expect("one action-less inline clause");
+            assert_eq!(clauses.len(), 1, "{args:?}");
+            assert_eq!(clauses[0].pattern_index, 2, "{args:?}");
+            assert_eq!(clauses[0].body_index, None, "{args:?}");
+        }
+        for pattern in ["#", ";"] {
+            assert!(
+                expect
+                    .case_invocation(
+                        "expect",
+                        &[&format!(
+                            "{pattern} {{send literal}} default {{send other}}"
+                        )],
+                        DialectSet::EXPECT,
+                    )
+                    .is_some(),
+                "{pattern:?} is a literal Tcl list pattern, not script syntax"
+            );
+        }
         assert!(
             expect
                 .case_invocation("expect", &["-timeout"], DialectSet::EXPECT)
                 .is_none(),
             "a value-taking clause flag without a value/pattern/body is invalid"
+        );
+    }
+
+    #[test]
+    fn inline_expect_case_flags_and_actions_are_registry_owned() {
+        let expect = crate::registry_for_dialect("expect");
+        let args = [
+            "-re",
+            "{ye+s}",
+            "{send yes}",
+            "-timeout",
+            "5",
+            "timeout",
+            "{send slow}",
+        ];
+        let (_, inline) = expect
+            .case_invocation("expect", &args, DialectSet::EXPECT)
+            .expect("inline Expect flags and value flags must parse");
+        let clauses = crate::CaseListSpec::EXPECT
+            .inline_clauses(&args, inline.inline_clause_start.expect("inline form"))
+            .expect("inline clauses");
+        assert_eq!(clauses.len(), 2);
+        assert_eq!(clauses[0].pattern_index, 1);
+        assert_eq!(clauses[0].body_index, Some(2));
+        assert_eq!(clauses[0].mode, crate::spec::CaseMatchMode::Regexp);
+        assert_eq!(clauses[1].pattern_index, 5);
+        assert_eq!(clauses[1].body_index, Some(6));
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["-not", "ready", "{send ok}"],
+                    DialectSet::EXPECT
+                )
+                .is_some(),
+            "unique Expect flag abbreviations must retain the action body"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)] // Expect oracle layout matrix
+    fn expect_inline_flag_table_matches_the_oracle() {
+        let expect = crate::registry_for_dialect("expect");
+        for flag in [
+            "-glob",
+            "-regexp",
+            "-exact",
+            "-notransfer",
+            "-nocase",
+            "-i",
+            "-indices",
+            "-iread",
+            "-timestamp",
+            "-nobrace",
+        ] {
+            let args = if matches!(flag, "-i") {
+                vec![flag, "spawn", "pattern", "{action}"]
+            } else {
+                vec![flag, "pattern", "{action}"]
+            };
+            assert!(
+                expect
+                    .case_invocation("expect", &args, DialectSet::EXPECT)
+                    .is_some(),
+                "canonical {flag} must parse"
+            );
+        }
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["-timeout", "5", "pattern", "{action}"],
+                    DialectSet::EXPECT
+                )
+                .is_some()
+        );
+        for flag in ["-gl", "-re", "-ex", "-not"] {
+            assert!(
+                expect
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .is_some(),
+                "unique abbreviation {flag} must parse"
+            );
+        }
+        for flag in ["-g", "-r", "-e", "-noc", "-nob"] {
+            assert!(
+                expect
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .is_some(),
+                "unique canonical-prefix {flag} must remain an inline clause flag"
+            );
+        }
+        for flag in ["-n", "-bogus"] {
+            assert!(
+                expect
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .is_none(),
+                "ambiguous or unknown {flag} must invalidate the invocation"
+            );
+        }
+        let args = ["--", "-re", "{action}"];
+        let (_, invocation) = expect
+            .case_invocation("expect", &args, DialectSet::EXPECT)
+            .expect("-- makes -re a pattern");
+        let clauses = crate::CaseListSpec::EXPECT
+            .inline_clauses(&args, invocation.inline_clause_start.expect("inline"))
+            .expect("clause");
+        assert_eq!(clauses[0].pattern_index, 1);
+        assert_eq!(clauses[0].body_index, Some(2));
+        let (_, omitted) = expect
+            .case_invocation("expect", &["-re", "pattern"], DialectSet::EXPECT)
+            .expect("omitted final action is valid");
+        assert_eq!(
+            crate::CaseListSpec::EXPECT
+                .inline_clauses(&["-re", "pattern"], omitted.inline_clause_start.unwrap())
+                .unwrap()[0]
+                .body_index,
+            None
+        );
+        assert!(
+            expect
+                .case_invocation("expect", &["-nobrace", "{pattern}"], DialectSet::EXPECT)
+                .is_some(),
+            "-nobrace makes one braced word an action-less pattern"
+        );
+        let (_, brace) = expect
+            .case_invocation(
+                "expect",
+                &["-brace", "{default {return FOLDED}}"],
+                DialectSet::EXPECT,
+            )
+            .expect("exact -brace selects a clause list");
+        assert_eq!(brace.clause_list_index, Some(1));
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["-b", "{default {return FOLDED}}"],
+                    DialectSet::EXPECT,
+                )
+                .is_none(),
+            "-brace is exact-only, so -b is not a clause flag abbreviation"
+        );
+        assert!(
+            expect
+                .case_invocation(
+                    "expect",
+                    &["-brac", "{default {return FOLDED}}"],
+                    DialectSet::EXPECT,
+                )
+                .is_none(),
+            "-brace must not accept a near-complete prefix either"
+        );
+        for args in [
+            &["-timeout", "5", "-brace", "{default {return FOLDED}}"] as &[&str],
+            &["-i", "spawn", "-brace", "{default {return FOLDED}}"],
+            &["-brace", "{default {return FOLDED}}", "extra"],
+        ] {
+            assert!(
+                expect
+                    .case_invocation("expect", args, DialectSet::EXPECT)
+                    .is_none(),
+                "force-list selector must be first and have one remainder: {args:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn subjectless_case_list_defers_clause_flags_after_outer_value_options() {
+        use crate::hover::{OptionSpec, OptionValue};
+        use crate::spec::CaseListSpec;
+
+        // This deliberately does not name `expect`: a future descriptor with
+        // one value-taking outer option and one overlapping clause flag must
+        // use the same precedence rule. The body is the observable proof that
+        // `-clause` was not swallowed by the outer scan.
+        let case = CaseListSpec {
+            subject_args: 0,
+            two_arg_optionless_dialects: None,
+            regex_option: None,
+            exact_option: None,
+            glob_option: None,
+            nocase_option: None,
+            end_options_option: Some("--"),
+            fallthrough_body: None,
+            value_options_require_regex: &[],
+            clause_flags: &["-clause", "--"],
+            clause_regex_flag: None,
+            clause_value_flags: &[],
+            clause_end_options_flag: Some("--"),
+            clause_force_inline_flag: None,
+            clause_force_list_flag: None,
+            clause_force_list_shape: None,
+            allow_omitted_final_body: true,
+            keyword_patterns: &[],
+            keyword_patterns_require_final: false,
+            warn_unbraced_bodies: false,
+        };
+        let options = [
+            OptionSpec {
+                name: "-outer",
+                value: OptionValue::value("value"),
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "-clause",
+                ..OptionSpec::DEFAULT
+            },
+        ];
+        let option_refs: Vec<&OptionSpec> = options.iter().collect();
+        let args = ["-outer", "value", "-clause", "pattern", "{body}"];
+        let invocation = case
+            .invocation(&args, &option_refs, DialectSet::ALL_TCL)
+            .expect("the outer value must precede, not consume, the clause flag");
+        assert_eq!(invocation.inline_clause_start, Some(2));
+        let clauses = case
+            .inline_clauses(&args, invocation.inline_clause_start.unwrap())
+            .expect("the deferred flag must retain the action body");
+        assert_eq!(clauses[0].pattern_index, 3);
+        assert_eq!(clauses[0].body_index, Some(4));
+    }
+
+    #[test]
+    fn case_list_invocation_abstains_on_empty_and_truncated_shapes() {
+        let switch = crate::registry_for_dialect("tcl9.0");
+        for args in [
+            &[][..],
+            &["subject"][..],
+            &["subject", ""][..],
+            &["-regexp"][..],
+            &["-regexp", "subject"][..],
+            &["--"][..],
+        ] {
+            assert!(
+                switch
+                    .case_invocation("switch", args, DialectSet::TCL90)
+                    .is_none(),
+                "truncated switch invocation must abstain: {args:?}",
+            );
+        }
+
+        let expect = crate::registry_for_dialect("expect");
+        for args in [
+            &[][..],
+            &["-brace"][..],
+            &["-nobrace"][..],
+            &["-timeout"][..],
+            &["-timeout", "5"][..],
+            &[""][..],
+        ] {
+            assert!(
+                expect
+                    .case_invocation("expect", args, DialectSet::EXPECT)
+                    .is_none(),
+                "truncated Expect invocation must abstain: {args:?}",
+            );
+        }
+
+        // Exercise the generic selector branch independently of either
+        // built-in descriptor. The selector is intentionally outside the
+        // clause-flag vocabulary, so a complete call consumes it as shape
+        // syntax while a missing subject/body must simply abstain.
+        let custom = crate::CaseListSpec {
+            clause_force_inline_flag: Some("-inline"),
+            allow_omitted_final_body: false,
+            ..crate::CaseListSpec::EXPECT
+        };
+        for args in [
+            &[][..],
+            &["-inline"][..],
+            &["-inline", "subject"][..],
+            &[""][..],
+        ] {
+            assert!(
+                custom.invocation(args, &[], DialectSet::ALL_TCL).is_none(),
+                "truncated custom selector invocation must abstain: {args:?}",
+            );
+        }
+        assert!(
+            custom
+                .invocation(&["-inline", "pattern", "{body}"], &[], DialectSet::ALL_TCL,)
+                .is_some(),
+            "complete custom inline-selector invocation remains valid",
+        );
+
+        // A dynamic two-word switch cannot expose a static body region, but
+        // asking for roles must remain a conservative abstention rather than
+        // a panic. The compiler's W304 regression separately proves Tcl's
+        // optionless two-word rule is retained for diagnostics.
+        assert!(
+            switch
+                .arg_indices_for_role("switch", &["$subject", "$cases"], ArgRole::Body)
+                .is_empty(),
         );
     }
 

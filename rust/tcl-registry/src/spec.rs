@@ -304,6 +304,12 @@ pub struct CaseListSpec {
     /// Non-option words between the command's options and the clause list —
     /// `switch`'s subject string is 1; `expect` has none.
     pub subject_args: u8,
+    /// Tcl release availability for the two-post-command-word form that
+    /// suppresses option scanning. Tcl 8.5 changed `switch` so
+    /// `switch -regexp {pattern body}` treats `-regexp` as the subject;
+    /// Tcl 8.4 still scans it as an option and rejects the missing subject.
+    /// `None` means this case-list descriptor has no such exception.
+    pub two_arg_optionless_dialects: Option<DialectSet>,
     /// A *command* option that makes every pattern a regex (`switch -regexp`).
     pub regex_option: Option<&'static str>,
     /// Command option selecting literal equality (the default switch mode).
@@ -325,11 +331,45 @@ pub struct CaseListSpec {
     pub clause_regex_flag: Option<&'static str>,
     /// Clause flags that consume a following value word (`-timeout 5`).
     pub clause_value_flags: &'static [&'static str],
+    /// Clause flag that ends flag parsing, making a following hyphenated word
+    /// a pattern rather than an option.
+    pub clause_end_options_flag: Option<&'static str>,
+    /// Clause flag that makes a following braced word one pattern rather than
+    /// a braced clause list (Expect's `-nobrace`).
+    pub clause_force_inline_flag: Option<&'static str>,
+    /// Exact-only outer-shape flag selecting a braced clause list (`-brace`).
+    pub clause_force_list_flag: Option<&'static str>,
+    /// Shape required by [`Self::clause_force_list_flag`], when present.
+    pub clause_force_list_shape: Option<CaseForceListShape>,
+    /// Whether a final pattern may omit its action (Expect permits this).
+    pub allow_omitted_final_body: bool,
     /// Patterns that are keywords, not match text (`default`; Expect's
     /// `timeout` / `eof` / `full_buffer`).
     pub keyword_patterns: &'static [&'static str],
     /// Whether a keyword pattern is special only in the final clause.
     pub keyword_patterns_require_final: bool,
+    /// Whether unbraced action bodies carry the `switch` substitution warning.
+    /// Expect actions deliberately use a different evaluation model, so its
+    /// descriptor leaves this off rather than making a consumer name `switch`.
+    pub warn_unbraced_bodies: bool,
+}
+
+/// Registry-owned position/arity shape for an outer clause-list selector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaseForceListShape {
+    /// The selector is the first argument and must have exactly one following
+    /// argument containing the clause list.
+    FirstArgOnlyRemainder,
+}
+
+impl CaseForceListShape {
+    fn matches(self, args: &[&str], selector: Option<&str>, index: usize) -> bool {
+        match self {
+            Self::FirstArgOnlyRemainder => {
+                index == 0 && args.len() == 2 && selector == args.first().copied()
+            }
+        }
+    }
 }
 
 /// Registry-owned comparison mode for a case-list invocation.
@@ -358,10 +398,24 @@ pub struct CaseInvocation {
     pub nocase: bool,
 }
 
+/// A validated inline pattern/action pair.  Indices are post-command-name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InlineCaseClause {
+    /// Leading clause-flag word indices (values of value-taking flags omitted).
+    pub flag_indices: Vec<usize>,
+    /// Pattern word index in the invocation.
+    pub pattern_index: usize,
+    /// Action-body word index in the invocation.
+    pub body_index: Option<usize>,
+    /// Matching mode selected by this clause's leading flags.
+    pub mode: CaseMatchMode,
+}
+
 impl CaseListSpec {
     /// The `switch … { pat body … }` shape.
     pub const SWITCH: Self = Self {
         subject_args: 1,
+        two_arg_optionless_dialects: Some(DialectSet::TCL85_PLUS),
         regex_option: Some("-regexp"),
         exact_option: Some("-exact"),
         glob_option: Some("-glob"),
@@ -372,59 +426,127 @@ impl CaseListSpec {
         clause_flags: &[],
         clause_regex_flag: None,
         clause_value_flags: &[],
+        clause_end_options_flag: None,
+        clause_force_inline_flag: None,
+        clause_force_list_flag: None,
+        clause_force_list_shape: None,
+        allow_omitted_final_body: false,
         keyword_patterns: &["default"],
         keyword_patterns_require_final: true,
+        warn_unbraced_bodies: true,
     };
 
     /// The Expect `expect { ?-flags? pat body … }` shape.
     pub const EXPECT: Self = Self {
         subject_args: 0,
+        two_arg_optionless_dialects: None,
         regex_option: None,
         exact_option: None,
         glob_option: None,
         nocase_option: Some("-nocase"),
         end_options_option: Some("--"),
         fallthrough_body: None,
-        // `-timeout` / `-i` also appear as *command-level* options ahead of the
-        // list (`expect -timeout 5 { … }`, `expect -i $spawn { … }`).  Leaving
-        // this empty stopped the option scan on the value word, so the braced
-        // list was never recognised as a clause list and its bodies were never
-        // recursed.
+        // `-timeout` / `-i` are command-level, value-taking options.  In
+        // Expect 5.45.4, after either option and its value, one braced word is
+        // the final action-less *pattern*, not a clause list: `expect -timeout
+        // 5 {ready {action}}` does not execute `action`.  A clause list is
+        // only the sole argument (`expect { … }`) or the exact first-argument
+        // `-brace { … }` shape. Keep these options out of a speculative
+        // list-remainder grammar so every consumer abstains consistently.
         value_options_require_regex: &[],
-        clause_flags: &["-re", "-gl", "-ex", "-nocase", "-timeout", "-i", "--"],
-        clause_regex_flag: Some("-re"),
+        clause_flags: &[
+            "-glob",
+            "-regexp",
+            "-exact",
+            "-notransfer",
+            "-nocase",
+            "-i",
+            "-indices",
+            "-iread",
+            "-timestamp",
+            "-timeout",
+            "-nobrace",
+            "--",
+        ],
+        clause_regex_flag: Some("-regexp"),
         clause_value_flags: &["-timeout", "-i"],
-        keyword_patterns: &["timeout", "eof", "default", "full_buffer"],
+        clause_end_options_flag: Some("--"),
+        clause_force_inline_flag: Some("-nobrace"),
+        clause_force_list_flag: Some("-brace"),
+        clause_force_list_shape: Some(CaseForceListShape::FirstArgOnlyRemainder),
+        allow_omitted_final_body: true,
+        keyword_patterns: &["timeout", "eof", "default", "full_buffer", "null"],
         keyword_patterns_require_final: false,
+        warn_unbraced_bodies: false,
     };
 
     /// Parse and validate this case-list command's option/subject/clause
     /// layout. The two-argument switch exception, `--`, option values, and
     /// pair arity are all registry-owned here.
     #[must_use]
+    #[allow(clippy::too_many_lines)] // option and outer-shape grammar are one descriptor operation
     pub fn invocation(
         self,
         args: &[&str],
         options: &[&crate::hover::OptionSpec],
+        dialect: DialectSet,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
         let mut nocase = false;
         let mut saw_regex_value_option = false;
         let mut i = 0usize;
-        if !(self.subject_args == 1 && args.len() == 2) {
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: self.clause_flags,
+            clause_value_flags: self.clause_value_flags,
+        };
+        let mut outer_options_ended = false;
+        // Segmenters pass a braced Expect clause list as one content word;
+        // its first element may itself begin with `-re`/`-timeout`, which is
+        // clause grammar, not a command-level option.  A flag-bearing,
+        // subject-less case list with one remaining word is therefore already
+        // in list form and must bypass the command-option scan.
+        let per_clause_flags = self.subject_args == 0 && !self.clause_flags.is_empty();
+        let sole_clause_list = per_clause_flags && args.len() == 1;
+        let two_arg_optionless = self.two_arg_optionless_form_is_available(args, dialect);
+        if !(sole_clause_list || self.subject_args == 1 && args.len() == 2 && two_arg_optionless) {
             while let Some(word) = args.get(i).copied() {
                 if !word.starts_with('-') {
                     break;
                 }
-                let option = options
-                    .iter()
-                    .copied()
-                    .find(|option| option.matches(word))?;
-                let option_name = option.name;
-                if self.end_options_option == Some(option_name) {
-                    i += 1;
+                let option = Self::resolve_option(options, word);
+                // A subjectless descriptor has two option vocabularies at
+                // this position. Its clause flags own the first inline
+                // clause, including `--`; only a matching, value-taking
+                // command option remains an outer option. This keeps `-re`
+                // and friends attached to their pattern while still making
+                // `-timeout 5 {pattern body}` an action-less final pattern.
+                // The outer-shape selectors are exact descriptor spellings:
+                // `-brace` is deliberately not a prefix abbreviation.
+                let clause_flag = shape.resolve_flag(word);
+                let force_selector = self.clause_force_inline_flag == Some(word)
+                    || self
+                        .clause_force_list_shape
+                        .is_some_and(|shape| shape.matches(args, self.clause_force_list_flag, i));
+                if self.subject_args == 0
+                    && (force_selector
+                        || clause_flag.is_some_and(|flag| {
+                            !shape.flag_takes_value(flag)
+                                || !option.is_some_and(OptionSpec::takes_value)
+                        }))
+                {
                     break;
                 }
+                // `--` is a descriptor-owned terminator, not necessarily a
+                // documented option entry. Recognise it before looking up a
+                // command option so the following hyphenated subject remains
+                // positional (notably `switch -- -x {...}`).
+                if self.end_options_option == Some(word) {
+                    i += 1;
+                    outer_options_ended = true;
+                    break;
+                }
+                let option = option?;
+                let option_name = option.name;
                 if self.exact_option == Some(option_name) {
                     mode = CaseMatchMode::Exact;
                     i += 1;
@@ -451,41 +573,74 @@ impl CaseListSpec {
         if saw_regex_value_option && mode != CaseMatchMode::Regexp {
             return None;
         }
+        // Selectors are descriptor syntax, not ordinary command options.
+        // They are considered only while the outer scan is active: after an
+        // outer `--`, an option-shaped word is positional data instead.
+        let force_list = !outer_options_ended
+            && self
+                .clause_force_list_shape
+                .is_some_and(|shape| shape.matches(args, self.clause_force_list_flag, i));
+        let force_inline = !outer_options_ended
+            && self
+                .clause_force_inline_flag
+                .is_some_and(|flag| args.get(i).copied() == Some(flag));
+        if force_list {
+            i += 1;
+        } else if force_inline
+            && args
+                .get(i)
+                .and_then(|word| shape.resolve_flag(word))
+                .is_none()
+        {
+            // When the inline selector is itself a clause flag (Expect's
+            // `-nobrace`), leave it to `inline_clauses` so consumers retain
+            // its decorator location. A selector outside that vocabulary is
+            // shape-only and is not part of the first clause.
+            i += 1;
+        }
         let subject_index = (self.subject_args == 1).then_some(i);
         i += usize::from(self.subject_args);
         if i >= args.len() {
             return None;
         }
         let remaining = args.len() - i;
-        if remaining == 1 {
+        if force_list {
+            if remaining != 1 || !self.valid_clause_list(args[i]) {
+                return None;
+            }
+            Some(CaseInvocation {
+                subject_index: None,
+                clause_list_index: Some(i),
+                inline_clause_start: None,
+                mode,
+                nocase,
+            })
+        } else if remaining == 1 && !force_inline && (sole_clause_list || self.subject_args == 1) {
             // Validate the list grammar first, then its registry-declared
             // clause grammar.  Strict pattern/body parity is sufficient for
             // `switch`, but not for Expect: a clause may start with `-re` or
             // a value-taking `-timeout 5`, so counting raw list elements
             // rejects valid clauses and leaves generic consumers unable to
             // recurse their bodies.
-            let elements = tcl_syntax::list::split_list(args[i]).ok()?;
-            let shape = tcl_syntax::case_list::CaseListShape {
-                clause_flags: self.clause_flags,
-                clause_value_flags: self.clause_value_flags,
-            };
-            let clauses = tcl_syntax::case_list::split_case_list(args[i], &shape);
-            if clauses
-                .iter()
-                .any(|clause| clause.pattern.is_none() || clause.body.is_none())
-            {
-                return None;
-            }
-            if elements.last().is_some_and(|body| {
-                self.fallthrough_body
-                    .is_some_and(|marker| body.as_ref() == marker)
-            }) {
+            if !self.valid_clause_list(args[i]) {
                 return None;
             }
             Some(CaseInvocation {
                 subject_index,
                 clause_list_index: Some(i),
                 inline_clause_start: None,
+                mode,
+                nocase,
+            })
+        } else if per_clause_flags {
+            // Expect's flags belong to the following pattern, not to the
+            // command as a whole.  Parse them from this descriptor before
+            // pairing bodies, including unique flag abbreviations.
+            self.inline_clauses(args, i)?;
+            Some(CaseInvocation {
+                subject_index,
+                clause_list_index: None,
+                inline_clause_start: Some(i),
                 mode,
                 nocase,
             })
@@ -503,6 +658,151 @@ impl CaseListSpec {
         } else {
             None
         }
+    }
+
+    /// Whether the descriptor's two-word optionless form may assign a body
+    /// role for `dialect`. A non-option subject remains valid in every
+    /// release; the gate only applies when Tcl 8.4 would scan an option-like
+    /// first word and consume it.
+    #[must_use]
+    pub(crate) fn two_arg_body_roles_allowed(self, args: &[&str], dialect: DialectSet) -> bool {
+        self.two_arg_optionless_form_is_available(args, dialect)
+    }
+
+    fn two_arg_optionless_form_is_available(self, args: &[&str], dialect: DialectSet) -> bool {
+        args.len() != 2
+            || self.subject_args != 1
+            || args.first().is_none_or(|word| !word.starts_with('-'))
+            || self
+                .two_arg_optionless_dialects
+                .is_none_or(|available| available.intersects(dialect))
+    }
+
+    /// Adjust a command's static trailing-word reservation for the
+    /// optionless two-word form. The regular switch shape reserves its
+    /// subject and clause-list words from option scanning, but Tcl 8.4 still
+    /// scans both words when that shape begins with an option-like subject.
+    #[must_use]
+    pub(crate) fn option_scan_reserved_trailing_words(
+        self,
+        args: &[&str],
+        dialect: DialectSet,
+        default: usize,
+    ) -> usize {
+        if self.two_arg_body_roles_allowed(args, dialect) {
+            default
+        } else {
+            0
+        }
+    }
+
+    /// Resolve one outer option exactly or by its unique declared prefix.
+    ///
+    /// The result is an `OptionSpec`, rather than just its spelling, because
+    /// aliases and canonical names are one option for ambiguity purposes.
+    /// That makes descriptor consumers agree with the registry's usual
+    /// `KeywordTable` option semantics without treating two aliases of one
+    /// option as two ambiguous candidates.
+    fn resolve_option<'a>(options: &'a [&'a OptionSpec], word: &str) -> Option<&'a OptionSpec> {
+        if let Some(option) = options.iter().copied().find(|option| option.matches(word)) {
+            return Some(option);
+        }
+        if word.len() < 2 {
+            return None;
+        }
+        let mut matches = options.iter().copied().filter(|option| {
+            (option.name.starts_with(word)
+                || option.aliases.iter().any(|alias| alias.starts_with(word)))
+                && option
+                    .min_abbrev
+                    .is_none_or(|minimum| word.len() >= usize::from(minimum))
+        });
+        let option = matches.next()?;
+        matches.next().is_none().then_some(option)
+    }
+
+    fn valid_clause_list(self, text: &str) -> bool {
+        let Ok(elements) = tcl_syntax::list::split_list(text) else {
+            return false;
+        };
+        // Tcl's case-list commands require at least one pattern clause.  An
+        // empty value is a syntactically valid Tcl list, but not a valid
+        // `switch`/Expect case list (Tcl reports wrong # args rather than
+        // evaluating a zero-clause dispatch).  Keep that distinction in the
+        // shared descriptor boundary so every semantic consumer abstains;
+        // formatter recovery can still present an incomplete list locally.
+        if elements.is_empty() {
+            return false;
+        }
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: self.clause_flags,
+            clause_value_flags: self.clause_value_flags,
+        };
+        let clauses = tcl_syntax::case_list::split_case_list(text, &shape);
+        !clauses.iter().enumerate().any(|(index, clause)| {
+            !clause.valid
+                || clause.pattern.is_none()
+                || (clause.body.is_none()
+                    && !(self.allow_omitted_final_body && index + 1 == clauses.len()))
+        }) && !elements.last().is_some_and(|body| {
+            self.fallthrough_body
+                .is_some_and(|marker| body.as_ref() == marker)
+        })
+    }
+
+    /// Parse descriptor-declared inline pattern/action clauses.  A future
+    /// case-list command gets the same body locations by changing only its
+    /// descriptor; consumers never infer flag or value arity themselves.
+    #[must_use]
+    pub fn inline_clauses(self, args: &[&str], start: usize) -> Option<Vec<InlineCaseClause>> {
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: self.clause_flags,
+            clause_value_flags: self.clause_value_flags,
+        };
+        let mut clauses = Vec::new();
+        let mut i = start;
+        while i < args.len() {
+            let mut mode = CaseMatchMode::Exact;
+            let mut options_ended = false;
+            let mut flag_indices = Vec::new();
+            while let Some(word) = args.get(i).copied() {
+                if options_ended || !word.starts_with('-') {
+                    break;
+                }
+                let flag = shape.resolve_flag(word)?;
+                flag_indices.push(i);
+                i += 1;
+                if self.clause_end_options_flag == Some(flag) {
+                    options_ended = true;
+                    continue;
+                }
+                if shape.flag_takes_value(flag) {
+                    args.get(i)?;
+                    i += 1;
+                }
+                if self.clause_regex_flag == Some(flag) {
+                    mode = CaseMatchMode::Regexp;
+                }
+            }
+            let pattern_index = i;
+            args.get(pattern_index)?;
+            let body_index = pattern_index + 1;
+            let body_index = args.get(body_index).is_some().then_some(body_index);
+            if body_index.is_none() && !self.allow_omitted_final_body {
+                return None;
+            }
+            clauses.push(InlineCaseClause {
+                flag_indices,
+                pattern_index,
+                body_index,
+                mode,
+            });
+            let Some(body_index) = body_index else {
+                break;
+            };
+            i = body_index + 1;
+        }
+        (!clauses.is_empty()).then_some(clauses)
     }
 
     /// Whether `pattern` is a special keyword at this clause position.

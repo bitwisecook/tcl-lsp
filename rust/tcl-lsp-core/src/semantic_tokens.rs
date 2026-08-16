@@ -1544,7 +1544,7 @@ fn special_arg_kinds(
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_definer_class_name_override(seg, registry, &mut overrides);
     insert_lambda_literal_overrides(seg, registry, head, deferred_role, &mut overrides);
-    insert_case_list_override(seg, registry, &mut overrides);
+    insert_case_list_override(seg, registry, head, dialect, &mut overrides);
     insert_role_overrides(seg, registry, head, arg_texts, &mut overrides);
     insert_oo_body_overrides(seg, oo_grammar, arg_texts, dialect, &mut overrides);
     insert_scoped_subcommand_overrides(seg, scoped_env, head, &mut overrides);
@@ -1950,17 +1950,8 @@ fn insert_regex_overrides(
         // A `Regex` command whose spec does not (yet) declare where its
         // pattern sits: fall back to the first positional word past the
         // leading switches, the layout every stock regex command shares.
-        let mut idx = 0;
-        while idx < arg_texts.len() && arg_texts[idx].starts_with('-') && arg_texts[idx] != "--" {
-            if arg_texts[idx] == "-start" && idx + 1 < arg_texts.len() {
-                idx += 2;
-            } else {
-                idx += 1;
-            }
-        }
-        if idx < arg_texts.len() && arg_texts[idx] == "--" {
-            idx += 1;
-        }
+        let options = registry.get(head).map_or(&[][..], |spec| spec.options);
+        let idx = tcl_registry::first_positional_index(options, arg_texts, 0);
         vec![idx]
     } else {
         declared
@@ -3359,6 +3350,8 @@ fn is_plain_var_name(text: &str) -> bool {
 fn insert_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    resolved_head: &str,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // The clause-list shape is registry data (`CommandSpec::case_list`), so this
@@ -3367,7 +3360,7 @@ fn insert_case_list_override(
     // `expect_before` / `expect_after` / … come along for free.  Naming
     // `switch` here instead would leave every Expect clause body unrecursed,
     // rendering an entire `expect {…}` block as flat per-line `string` tokens.
-    let Some(spec) = registry.get(&seg.texts[0]).and_then(|s| s.case_list) else {
+    let Some(spec) = registry.get(resolved_head).and_then(|s| s.case_list) else {
         return;
     };
     // Where the list sits (and whether the command-level regex option was
@@ -3377,15 +3370,32 @@ fn insert_case_list_override(
     // form only: the inline `pat body …` form leaves more than one trailing
     // word and `clause_list_call` answers `None` for it.
     let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
-    let dialect = registry
-        .profile()
-        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
-            profile.availability_mask
-        });
-    let Some((_, invocation)) = registry.case_invocation(&seg.texts[0], &args, dialect) else {
+    let Some((_, invocation)) = registry.case_invocation(resolved_head, &args, dialect) else {
         return;
     };
     let Some(index) = invocation.clause_list_index else {
+        if let Some(start) = invocation.inline_clause_start
+            && let Some(clauses) = spec.inline_clauses(&args, start)
+        {
+            for clause in clauses {
+                for flag_index in clause.flag_indices {
+                    if let Some(tok) = seg.argv.get(flag_index + 1) {
+                        overrides.insert(tok.span.start(), ArgOverride::Decorator);
+                    }
+                }
+                if clause.mode == tcl_registry::spec::CaseMatchMode::Regexp
+                    && let Some(tok) = seg.argv.get(clause.pattern_index + 1)
+                {
+                    mark_literal_fragments(seg, tok.span, ArgOverride::RegexPattern, overrides);
+                }
+                if let Some(body_index) = clause.body_index
+                    && let Some(tok) = seg.argv.get(body_index + 1)
+                    && matches!(tok.kind, TokenType::Str)
+                {
+                    overrides.insert(tok.span.start(), ArgOverride::BodyScript);
+                }
+            }
+        }
         return;
     };
     // `args` is 0-based post-command-name; `seg.texts` / `seg.argv` are 1-based.
@@ -4307,13 +4317,17 @@ fn collect_case_list(
         let mut clause_regexp = regexp;
         for f in &clause.flags {
             let text = inner.get(f.start..f.end).unwrap_or_default();
-            if spec.clause_regex_flag == Some(text) {
+            // The descriptor permits unique prefixes (`-re` for `-regexp`),
+            // so compare the resolved canonical flag rather than the spelling
+            // that appeared in the clause list.
+            let flag = shape.resolve_flag(text);
+            if spec.clause_regex_flag == flag {
                 clause_regexp = true;
             }
             let ftok = as_token(*f);
             // A flag word is a decorator; its *value* word (`-timeout 5`) takes
             // its own literal classification.
-            let kind = if spec.clause_flags.contains(&text) {
+            let kind = if flag.is_some() {
                 Some(TokenKind::Decorator)
             } else {
                 classify_arg_token(ftok, full_source, ctx.numbers)
@@ -6434,6 +6448,12 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    fn expect_reg() -> CommandRegistry {
+        let mut registry = reg();
+        registry.load_dialect(DialectSet::EXPECT);
+        registry
+    }
+
     fn kinds(src: &str, dialect: &str, registry: &CommandRegistry) -> Vec<u32> {
         full(src, dialect, registry)
             .data
@@ -6531,6 +6551,85 @@ mod tests {
         assert!(
             toks.contains(&(0, 5, 1)),
             "expected a length-1 string token at col 5, got {toks:?}",
+        );
+    }
+
+    #[test]
+    fn expect_canonical_and_abbreviated_regex_flags_tokenise_in_both_shapes() {
+        for (label, source, flag) in [
+            (
+                "braced canonical",
+                "expect {\n    -regexp {a+} {\n        puts matched\n    }\n}\n",
+                "-regexp",
+            ),
+            (
+                "braced abbreviation",
+                "expect {\n    -re {a+} {\n        puts matched\n    }\n}\n",
+                "-re",
+            ),
+            (
+                "inline canonical",
+                "expect -regexp {a+} {\n    puts matched\n    puts again\n}\n",
+                "-regexp",
+            ),
+            (
+                "inline abbreviation",
+                "expect -re {a+} {\n    puts matched\n    puts again\n}\n",
+                "-re",
+            ),
+        ] {
+            let tokens = decode_full(source, "expect", &expect_reg());
+            let flag_len = u32::try_from(flag.len()).unwrap();
+            assert!(
+                tokens.iter().any(|&(_, _, len, kind, _)| {
+                    len == flag_len && kind == TokenKind::Decorator as u32
+                }),
+                "{label}: {flag} must be a clause decorator: {tokens:?}"
+            );
+            assert!(
+                tokens
+                    .iter()
+                    .any(|&(_, _, _, kind, _)| kind == TokenKind::RegexpQuantifier as u32),
+                "{label}: {flag} must enable regexp tokenisation: {tokens:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn expect_literal_comment_and_separator_patterns_recurse_into_actions() {
+        for pattern in ["#", ";"] {
+            let source = format!("expect {{{pattern} {{puts matched}} default {{puts other}}}}\n");
+            let tokens = decode_full(&source, "expect", &expect_reg());
+            let puts_col = u32::try_from(source.find("puts matched").unwrap()).unwrap();
+            assert!(
+                tokens.iter().any(|&(line, col, len, kind, _)| {
+                    line == 0 && col == puts_col && len == 4 && kind == TokenKind::Function as u32
+                }),
+                "{pattern:?} is a literal list pattern, and its action must be tokenised: {tokens:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_case_lists_do_not_tokenise_action_words_as_commands() {
+        let source = "switch subject {a {puts hidden} orphan}\n";
+        let tokens = decode_full(source, "tcl8.6", &reg());
+        let puts_col = u32::try_from(source.find("puts hidden").unwrap()).unwrap();
+        assert!(
+            !tokens.iter().any(|&(line, col, len, kind, _)| {
+                line == 0 && col == puts_col && len == 4 && kind == TokenKind::Function as u32
+            }),
+            "semantic tokens must abstain for an odd case list: {tokens:?}"
+        );
+    }
+
+    #[test]
+    fn renamed_away_expect_spelling_gets_no_case_list_overrides() {
+        let source = "rename expect other\nexpect -re {a+} { puts matched }\n";
+        let kinds = kinds(source, "expect", &expect_reg());
+        assert!(
+            !kinds.contains(&(TokenKind::RegexpQuantifier as u32)),
+            "a proven rebound head must not inherit Expect overrides: {kinds:?}"
         );
     }
 

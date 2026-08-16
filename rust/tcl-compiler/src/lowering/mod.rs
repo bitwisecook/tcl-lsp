@@ -2501,9 +2501,19 @@ impl<'r> Lowerer<'r> {
         let body_indices =
             self.registry
                 .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::Body);
-        let var_indices =
+        let var_indices = if self.registry.frame_effect(&role_cmd).is_some_and(|effect| {
+            effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+        }) {
+            // Frame alias pairs are handled by the analyser's upvar grammar;
+            // treating their local-name slots as ordinary VarWrite defs makes
+            // an aliased upvar falsely silence W210.  Keep the prepended-level
+            // vector above for the other registry role queries, but do not
+            // manufacture generic Call defs for this layout.
+            Vec::new()
+        } else {
             self.registry
-                .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarWrite);
+                .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarWrite)
+        };
         let var_read_indices =
             self.registry
                 .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarRead);

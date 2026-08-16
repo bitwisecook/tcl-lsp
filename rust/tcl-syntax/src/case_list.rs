@@ -56,6 +56,36 @@ pub struct CaseListShape<'a> {
     pub clause_value_flags: &'a [&'a str],
 }
 
+impl<'a> CaseListShape<'a> {
+    /// Resolve a clause-leading flag by its canonical spelling or a unique
+    /// Expect-style abbreviation.  The descriptor supplies this vocabulary,
+    /// so list and inline forms cannot disagree about where a pattern starts.
+    #[must_use]
+    pub fn resolve_flag(self, word: &str) -> Option<&'a str> {
+        if let Some(&flag) = self.clause_flags.iter().find(|&&flag| flag == word) {
+            return Some(flag);
+        }
+        // Tcl option abbreviations include the leading `-`, so `-r` may be a
+        // unique prefix but a bare `-` is never a flag.
+        if word.len() < 2 {
+            return None;
+        }
+        let mut matches = self
+            .clause_flags
+            .iter()
+            .copied()
+            .filter(|flag| flag.starts_with(word));
+        let flag = matches.next()?;
+        matches.next().is_none().then_some(flag)
+    }
+
+    /// Whether a resolved canonical flag consumes one following word.
+    #[must_use]
+    pub fn flag_takes_value(self, flag: &str) -> bool {
+        self.clause_value_flags.contains(&flag)
+    }
+}
+
 /// How a clause-list command's *call* is shaped ahead of the list itself.
 ///
 /// Built from the registry's `CaseListSpec` by the caller, for the same reason
@@ -152,6 +182,12 @@ pub struct Clause {
     pub pattern: Option<Element>,
     /// The body element. `None` when the list ends after a pattern.
     pub body: Option<Element>,
+    /// Zero-based element ordinal of `pattern` in the enclosing list.
+    pub pattern_index: Option<usize>,
+    /// Zero-based element ordinal of `body` in the enclosing list.
+    pub body_index: Option<usize>,
+    /// Whether all option-shaped leading words resolved through the descriptor.
+    pub valid: bool,
 }
 
 /// Split the *content* of a clause list into clauses.
@@ -166,18 +202,32 @@ pub fn split_case_list(inner: &str, shape: &CaseListShape<'_>) -> Vec<Clause> {
     let mut clauses = Vec::new();
     let mut i = 0usize;
     while i < elements.len() {
-        let mut clause = Clause::default();
+        let mut clause = Clause {
+            valid: true,
+            ..Clause::default()
+        };
 
+        let mut options_ended = false;
         // Leading clause flags. A braced element is never a flag — `{-re}` is a
         // pattern that happens to look like one.
-        while let Some(e) = elements.get(i) {
+        while !shape.clause_flags.is_empty()
+            && let Some(e) = elements.get(i)
+        {
             let word = text(e).trim_start_matches('{');
-            if e.braced || !shape.clause_flags.contains(&word) {
+            if options_ended || e.braced || !word.starts_with('-') {
                 break;
             }
+            let Some(flag) = shape.resolve_flag(word) else {
+                clause.valid = false;
+                break;
+            };
             clause.flags.push(*e);
             i += 1;
-            if shape.clause_value_flags.contains(&word)
+            if flag == "--" {
+                options_ended = true;
+                continue;
+            }
+            if shape.flag_takes_value(flag)
                 && let Some(v) = elements.get(i)
             {
                 clause.flags.push(*v);
@@ -185,8 +235,10 @@ pub fn split_case_list(inner: &str, shape: &CaseListShape<'_>) -> Vec<Clause> {
             }
         }
 
+        clause.pattern_index = elements.get(i).map(|_| i);
         clause.pattern = elements.get(i).copied();
         i += 1;
+        clause.body_index = elements.get(i).map(|_| i);
         clause.body = elements.get(i).copied();
         i += 1;
 
@@ -227,7 +279,20 @@ mod tests {
     use super::{CaseListShape, split_case_list};
 
     const EXPECT: CaseListShape<'static> = CaseListShape {
-        clause_flags: &["-re", "-gl", "-ex", "-nocase", "-timeout", "-i", "--"],
+        clause_flags: &[
+            "-glob",
+            "-regexp",
+            "-exact",
+            "-notransfer",
+            "-nocase",
+            "-i",
+            "-indices",
+            "-iread",
+            "-timestamp",
+            "-timeout",
+            "-nobrace",
+            "--",
+        ],
         clause_value_flags: &["-timeout", "-i"],
     };
     const SWITCH: CaseListShape<'static> = CaseListShape {

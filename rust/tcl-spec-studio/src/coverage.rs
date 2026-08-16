@@ -1135,6 +1135,7 @@ pub const OBJECT_CLASS_SPEC: &[Field] = &[
 pub fn witness_case_list_spec(spec: &CaseListSpec) {
     let CaseListSpec {
         subject_args: _,
+        two_arg_optionless_dialects: _,
         regex_option: _,
         exact_option: _,
         glob_option: _,
@@ -1145,14 +1146,24 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
         clause_flags: _,
         clause_regex_flag: _,
         clause_value_flags: _,
+        clause_end_options_flag: _,
+        clause_force_inline_flag: _,
+        clause_force_list_flag: _,
+        clause_force_list_shape: _,
+        allow_omitted_final_body: _,
         keyword_patterns: _,
         keyword_patterns_require_final: _,
+        warn_unbraced_bodies: _,
     } = spec;
 }
 
 /// Where the studio surfaces each [`CaseListSpec`] field.
 pub const CASE_LIST_SPEC: &[Field] = &[
     f("subject_args", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "two_arg_optionless_dialects",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
     f("regex_option", Surface::Excluded(NAMED_CONSTANT)),
     f("exact_option", Surface::Excluded(NAMED_CONSTANT)),
     f("glob_option", Surface::Excluded(NAMED_CONSTANT)),
@@ -1166,11 +1177,23 @@ pub const CASE_LIST_SPEC: &[Field] = &[
     f("clause_flags", Surface::Excluded(NAMED_CONSTANT)),
     f("clause_regex_flag", Surface::Excluded(NAMED_CONSTANT)),
     f("clause_value_flags", Surface::Excluded(NAMED_CONSTANT)),
+    f("clause_end_options_flag", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "clause_force_inline_flag",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
+    f("clause_force_list_flag", Surface::Excluded(NAMED_CONSTANT)),
+    f("clause_force_list_shape", Surface::Excluded(NAMED_CONSTANT)),
+    f(
+        "allow_omitted_final_body",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
     f("keyword_patterns", Surface::Excluded(NAMED_CONSTANT)),
     f(
         "keyword_patterns_require_final",
         Surface::Excluded(NAMED_CONSTANT),
     ),
+    f("warn_unbraced_bodies", Surface::Excluded(NAMED_CONSTANT)),
 ];
 
 #[cfg(test)]

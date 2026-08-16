@@ -22,7 +22,7 @@
 //! boundaries. Both the analyser and lowerer consume these structures
 //! instead of running their own token-iteration loops.
 
-use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 
 /// One lexical fragment that contributes to a segmented Tcl word.
 ///
@@ -425,10 +425,12 @@ pub fn body_text_in_region<'t>(
 /// form of a [`tcl_registry::CommandSpec::case_list`] command (`switch`'s
 /// braced-list form, Expect's `expect { ... }`).
 ///
-/// Uses the segmenter to split the body: every word across every
-/// (pseudo-)command in the body is one element, so the result alternates
-/// pattern, body, pattern, body, … in source order, whatever whitespace or
-/// brace nesting separates them.
+/// Uses the Tcl list parser to split the body.  A clause list is a list, not a
+/// script: `#` and `;` are valid literal patterns, and consequently must not
+/// be treated as a comment or command separator while locating its elements.
+/// The returned tokens are constructed directly from the list parser's source
+/// offsets, so their ordinal positions agree with
+/// [`tcl_syntax::case_list::split_case_list`].
 ///
 /// Returns `(text, token)` pairs; each token's span is rebased into the
 /// outer source's offset space via `body_tok`'s `content_offset`, so a
@@ -457,17 +459,99 @@ pub fn flatten_clause_list_elements(
         body_tok.span.end() as usize,
         body_text,
     );
-    let cmds = segment_commands_with_offset(body_text, base_offset);
     let mut elements = Vec::new();
-    for cmd in cmds {
-        if cmd.is_partial {
-            continue;
+    let mut scan = 0;
+    while let Ok(Some(element)) = tcl_syntax::list::find_element(body_text, scan) {
+        let raw = &body_text[element.value.clone()];
+        let text = if element.literal {
+            raw.to_owned()
+        } else {
+            tcl_lexer::backslash_subst(raw).into_owned()
+        };
+        let start = element.value.start - usize::from(element.braced);
+        let (Ok(start), Ok(value_start), Ok(end)) = (
+            u32::try_from(base_offset as usize + start),
+            u32::try_from(base_offset as usize + element.value.start),
+            u32::try_from(base_offset as usize + element.value.end),
+        ) else {
+            return Vec::new();
+        };
+        let token = if element.braced {
+            Token::with_content_offset(TokenType::Str, Span::new(start, end), 1)
+        } else {
+            // Pairing and spans come solely from the list grammar; lexing the
+            // one already-located element merely preserves the representative
+            // token kind (`$var`, `[command]`, or bare text) that consumers
+            // use for semantic classification.
+            Lexer::new(raw)
+                .tokenise_all()
+                .ok()
+                .and_then(|tokens| {
+                    tokens.into_iter().find(|token| {
+                        token.kind != TokenType::Eof
+                            && token.span.start() == 0
+                            && u32::try_from(raw.len()) == Ok(token.span.end())
+                    })
+                })
+                .map_or_else(
+                    || Token::new(TokenType::Esc, Span::new(start, end)),
+                    |mut token| {
+                        token.span = shift_span(token.span, value_start);
+                        token
+                    },
+                )
+        };
+        elements.push((text, token));
+        if element.next <= scan {
+            break;
         }
-        for (text, tok) in cmd.texts.iter().zip(cmd.argv.iter()) {
-            elements.push((text.clone(), *tok));
-        }
+        scan = element.next;
     }
     elements
+}
+
+/// Flatten a registry-described case-list into validated pattern/body pairs.
+/// Clause flags and their value words are consumed by the syntax-layer grammar,
+/// so Expect's per-clause options cannot shift the body token. Returned tokens
+/// retain absolute source spans from the enclosing list token.
+#[must_use]
+pub fn flatten_case_list_clauses(
+    source: &str,
+    text: &str,
+    tok: Token,
+    case: &tcl_registry::CaseListSpec,
+) -> Vec<((String, Token), (String, Token))> {
+    let elements = flatten_clause_list_elements(source, text, tok);
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: case.clause_flags,
+        clause_value_flags: case.clause_value_flags,
+    };
+    tcl_syntax::case_list::split_case_list(text, &shape)
+        .into_iter()
+        .filter_map(|clause| {
+            let (Some(pattern_index), Some(body_index)) = (clause.pattern_index, clause.body_index)
+            else {
+                return None;
+            };
+            let pattern = elements.get(pattern_index).cloned()?;
+            let mut body = elements.get(body_index).cloned()?;
+            // A non-braced, literal case action is still a script the
+            // case-list command evaluates.  It has no substitution barrier,
+            // so mark the complete list element as script-capable; this is
+            // what lets `puts;unknown` reach both commands.  Dynamic or
+            // backslash-built actions retain their conservative opaque kind.
+            let raw_body = source
+                .get(body.1.span.start() as usize..body.1.span.end() as usize)
+                .unwrap_or_default();
+            if body.1.kind == TokenType::Esc
+                && !tcl_syntax::naming::is_dynamic_word(&body.0)
+                && !raw_body.contains('\\')
+            {
+                body.1 = Token::with_content_offset(TokenType::Str, body.1.span, 0);
+            }
+            Some((pattern, body))
+        })
+        .collect()
 }
 
 /// Incrementally re-segment `new_text` from the segmentation of
@@ -826,6 +910,75 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
 mod tests {
     use super::*;
     use tcl_core_types::DiagCode;
+
+    #[test]
+    fn flatten_clause_list_uses_list_offsets_for_comment_and_separator_patterns() {
+        for pattern in ["#", ";"] {
+            let source = format!("expect {{{pattern} {{helper}} default {{other}}}}");
+            let body_start = source.find('{').unwrap();
+            let body_end = source.len() - 1;
+            let body = &source[(body_start + 1)..body_end];
+            let token = Token::with_content_offset(
+                TokenType::Str,
+                Span::new(
+                    u32::try_from(body_start).unwrap(),
+                    u32::try_from(body_end).unwrap(),
+                ),
+                1,
+            );
+
+            let elements = flatten_clause_list_elements(&source, body, token);
+            assert_eq!(
+                elements
+                    .iter()
+                    .map(|(text, _)| text.as_str())
+                    .collect::<Vec<_>>(),
+                vec![pattern, "helper", "default", "other"]
+            );
+            assert_eq!(
+                elements[1].1.span,
+                Span::new(
+                    u32::try_from(body_start + 3).unwrap(),
+                    u32::try_from(body_start + 10).unwrap(),
+                )
+            );
+            assert_eq!(elements[1].1.kind, TokenType::Str);
+        }
+    }
+
+    #[test]
+    fn flatten_clause_list_keeps_an_unbraced_action_as_one_span() {
+        let source = "expect {ready puts;expect_semicolon_unknown}";
+        let body_start = source.find('{').unwrap();
+        let body_end = source.len() - 1;
+        let body = &source[(body_start + 1)..body_end];
+        let token = Token::with_content_offset(
+            TokenType::Str,
+            Span::new(
+                u32::try_from(body_start).unwrap(),
+                u32::try_from(body_end).unwrap(),
+            ),
+            1,
+        );
+
+        let elements = flatten_clause_list_elements(source, body, token);
+        assert_eq!(
+            elements
+                .iter()
+                .map(|(text, _)| text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ready", "puts;expect_semicolon_unknown"]
+        );
+        let action_start = source.find("puts;").unwrap();
+        assert_eq!(
+            elements[1].1.span,
+            Span::new(
+                u32::try_from(action_start).unwrap(),
+                u32::try_from(body_end).unwrap(),
+            ),
+            "the action token must cover the complete list element, not only `puts`"
+        );
+    }
 
     /// `(start, end, texts, is_partial, token-spans)` — the fields that
     /// define a command's identity for incremental-vs-full comparison.

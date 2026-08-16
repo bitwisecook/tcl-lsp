@@ -571,6 +571,15 @@ fn resolve_arg_roles(
 ) -> HashMap<u8, ArgRole> {
     let mut roles: HashMap<u8, ArgRole> = HashMap::new();
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    // `upvar`'s VarWrite slots are binding destinations, not ordinary
+    // callee-local variable-name writes.  Treating a `$param` in one of those
+    // slots as a parameter-flow write upgrades its ProcArgTrait spuriously
+    // (the binding is established in another frame).  The frame-effect
+    // descriptor remains the owner of the pair layout; param-trait inference
+    // simply abstains from this binding role.
+    let alias_binding = registry.frame_effect(command).is_some_and(|effect| {
+        effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+    });
     for role in [
         ArgRole::Body,
         ArgRole::Expr,
@@ -578,6 +587,9 @@ fn resolve_arg_roles(
         ArgRole::VarRead,
         ArgRole::CommandPrefix,
     ] {
+        if alias_binding && role == ArgRole::VarWrite {
+            continue;
+        }
         for idx in registry.arg_indices_for_role(command, &arg_strs, role) {
             if let Ok(idx_u8) = u8::try_from(idx) {
                 roles.insert(idx_u8, role);
@@ -628,7 +640,9 @@ fn scan_command<'p>(
     // the command it is, and a spelling whose binding was provably taken over
     // matches nothing.
     match resolved {
-        "upvar" => handle_upvar(cmd_args, ctx, traits, aliases),
+        "upvar" => {
+            handle_upvar(cmd_args, ctx, traits, aliases);
+        }
         "namespace" if cmd_args.first().map(String::as_str) == Some("upvar") => {
             handle_namespace_upvar(cmd_args, param_set, traits, aliases);
         }
@@ -1007,16 +1021,12 @@ pub fn caller_frame_upvar_params(
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
     for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config) {
-        // Registry-driven recognition (`FrameArgLayout::AliasPairs`), the
-        // same test `caller_frame_literal_targets` applies — never a
-        // spelled command name, and against the head's *resolved* identity so
-        // a proven alias or rename of `upvar` still counts (issue #1275).
-        if seg.texts.first().is_none_or(|head| {
-            registry
-                .frame_effect(env.identities.resolve_unpositioned(head).spec_name())
-                .is_none_or(|spec| {
-                    spec.layout != tcl_registry::frame_effect::FrameArgLayout::AliasPairs
-                })
+        let Some(head) = seg.texts.first() else {
+            continue;
+        };
+        let resolved = env.identities.resolve_unpositioned(head).spec_name();
+        if registry.frame_effect(resolved).is_none_or(|spec| {
+            spec.layout != tcl_registry::frame_effect::FrameArgLayout::AliasPairs
         }) {
             continue;
         }
@@ -1088,11 +1098,6 @@ pub fn caller_frame_literal_targets(
         let Some(written) = seg.texts.first() else {
             continue;
         };
-        // Registry-driven recognition: any command whose frame-effect
-        // grammar is `otherVar myVar` alias pairs (`upvar`), never a
-        // spelled name — and against the head's *resolved* identity, so a
-        // proven alias or rename of `upvar` still counts and a spelling whose
-        // binding was taken over does not (issue #1275).
         let head = env.identities.resolve_unpositioned(written).spec_name();
         if registry
             .frame_effect(head)
@@ -1122,6 +1127,11 @@ pub fn caller_frame_literal_targets(
             continue;
         };
         let head = env.identities.resolve_unpositioned(written).spec_name();
+        if registry.frame_effect(head).is_some_and(|effect| {
+            effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+        }) {
+            continue;
+        }
         let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
         for idx in registry.arg_indices_for_role(head, &args, ArgRole::VarWrite) {
             if let Some(word) = args.get(idx)

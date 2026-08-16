@@ -1862,7 +1862,7 @@ fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
 /// (`takes_regex_pattern` — `regexp` / `regsub`) contributes
 /// its first positional (option-skipping) argument; `switch -regexp`
 /// contributes every non-`default` pattern arm — inline pairs (form 1)
-/// or a single braced case list (form 2, re-segmented via
+/// or a single braced case list (form 2, split with list offsets via
 /// [`crate::segmenter::flatten_clause_list_elements`]).
 fn find_regex_patterns_in_command(
     source: &str,
