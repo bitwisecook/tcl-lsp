@@ -23,6 +23,26 @@ CHROMIUM_REVISION="${SSLICTCL_CHROMIUM_REVISION:-}"
 command -v curl >/dev/null || { echo "update-source-data requires curl" >&2; exit 1; }
 command -v git >/dev/null || { echo "update-source-data requires git" >&2; exit 1; }
 command -v tar >/dev/null || { echo "update-source-data requires tar" >&2; exit 1; }
+command -v base64 >/dev/null || { echo "update-source-data requires base64" >&2; exit 1; }
+
+sha256_digest() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$@" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$@" | awk '{print $1}'
+    else
+        echo "update-source-data requires sha256sum or shasum" >&2
+        return 1
+    fi
+}
+
+decode_base64() {
+    if base64 --decode </dev/null >/dev/null 2>&1; then
+        base64 --decode
+    else
+        base64 -D
+    fi
+}
 
 if [[ -z "$REVISION" ]]; then
     REVISION="$(git ls-remote "$OBSERVATORY" HEAD | awk 'NR == 1 {print $1}')"
@@ -67,16 +87,16 @@ CHROME_DIR="$STAGE/chrome_root_store"
 echo "fetching Chromium Chrome Root Store at $CHROMIUM_REVISION"
 curl --fail --location --retry 3 --silent --show-error \
     "$CHROMIUM_RAW/$CHROMIUM_REVISION/net/data/ssl/chrome_root_store/root_store.certs?format=TEXT" \
-    | base64 --decode > "$CHROME_DIR/root_store.certs"
+    | decode_base64 > "$CHROME_DIR/root_store.certs"
 curl --fail --location --retry 3 --silent --show-error \
     "$CHROMIUM_RAW/$CHROMIUM_REVISION/net/data/ssl/chrome_root_store/root_store.textproto?format=TEXT" \
-    | base64 --decode > "$CHROME_DIR/root_store.textproto"
+    | decode_base64 > "$CHROME_DIR/root_store.textproto"
 printf '%s\n' "$CHROMIUM_REVISION" > "$CHROME_DIR/revision.txt"
 cp "$CHROME_DIR/root_store.certs" "$STAGE/pem/chrome.pem"
 
 curl --fail --location --retry 3 --silent --show-error \
     "$CHROMIUM_RAW/$CHROMIUM_REVISION/LICENSE?format=TEXT" \
-    | base64 --decode > "$STAGE/licenses/chromium-LICENSE"
+    | decode_base64 > "$STAGE/licenses/chromium-LICENSE"
 
 # Validate every staged certificate before replacing the committed snapshot.
 for pem in "$STAGE"/pem/*.pem "$CHROME_DIR/root_store.certs"; do
@@ -107,7 +127,7 @@ trap 'rm -rf "$STAGE"; rm -f "$FILES_JSON"' EXIT
     find "$ROOT/rust/tcl-sslictcl/data/generated" -type f -print0
 } | while IFS= read -r -d '' file; do
     relative="${file#"$ROOT/"}"
-    digest="$(sha256sum "$file" | awk '{print $1}')"
+    digest="$(sha256_digest "$file")"
     if [[ "$relative" == rust/tcl-sslictcl/data/raw/* ]]; then
         kind=raw
     else

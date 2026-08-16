@@ -48,6 +48,7 @@ use regex::Regex;
 use tcl_core_types::DiagCode;
 use tcl_irules::extract_irules_event_handlers;
 use tcl_lexer::LineIndex;
+use tcl_registry::base_objects::is_base_object;
 use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 
 use crate::canonical::Canon;
@@ -904,12 +905,13 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
                 for value in property_reference_values(&property, &parsed.value) {
                     let candidates =
                         reference_candidates(&value, &object.identifier, &config.default_partition);
-                    let resolved = objects.iter().any(|(target, target_kind)| {
-                        edge.to_kinds.contains(target_kind)
-                            && candidates
-                                .iter()
-                                .any(|candidate| candidate == &target.identifier)
-                    });
+                    let resolved =
+                        objects.iter().any(|(target, target_kind)| {
+                            edge.to_kinds.contains(target_kind)
+                                && candidates
+                                    .iter()
+                                    .any(|candidate| candidate == &target.identifier)
+                        }) || resolves_factory_reference(&registry, edge.to_kinds, &candidates);
                     if !resolved {
                         out.push(ConfigDiagnostic {
                             code: DiagCode::Bigip6013.as_str().to_owned(),
@@ -926,6 +928,24 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
             }
         }
     }
+}
+
+fn resolves_factory_reference(
+    registry: &tcl_registry::bigip::BigipRegistry,
+    target_kinds: &[&str],
+    candidates: &[String],
+) -> bool {
+    target_kinds
+        .iter()
+        .filter_map(|kind| registry.get(kind))
+        .flat_map(|spec| spec.header_types)
+        .any(|&(module, object_type)| {
+            candidates.iter().any(|candidate| {
+                candidate
+                    .strip_prefix("/Common/")
+                    .is_some_and(|name| is_base_object(module, object_type, name))
+            })
+        })
 }
 
 /// BIGIP6014: duplicate declarations are ambiguous even when the source
@@ -1283,6 +1303,15 @@ mod tests {
         assert!(!has(source, "BIGIP6013"));
         let common = source.replace("local_persist", "common_persist");
         assert!(!has(&common, "BIGIP6013"));
+    }
+
+    #[test]
+    fn bigip6013_recognises_registry_owned_factory_profiles_only() {
+        let factory = "ltm virtual /Common/vs {\n  profiles {\n    /Common/http { }\n    /Common/tcp { }\n    /Common/clientssl { context clientside }\n  }\n}\n";
+        assert!(!has(factory, "BIGIP6013"));
+
+        let mutated = factory.replace("/Common/clientssl", "/Common/not-a-factory-profile");
+        assert!(has(&mutated, "BIGIP6013"));
     }
 
     #[test]

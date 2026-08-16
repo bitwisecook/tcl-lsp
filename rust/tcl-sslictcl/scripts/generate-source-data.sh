@@ -18,6 +18,30 @@ elif [[ $# -ne 0 ]]; then
     exit 2
 fi
 
+sha256_digest() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$@" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$@" | awk '{print $1}'
+    else
+        echo "generate-source-data requires sha256sum or shasum" >&2
+        return 1
+    fi
+}
+
+base64_file() {
+    base64 "$1" | tr -d '\n'
+}
+
+date_to_epoch() {
+    local timestamp="$1"
+    if date -u -d "$timestamp" +%s >/dev/null 2>&1; then
+        date -u -d "$timestamp" +%s
+    else
+        date -u -j -f '%b %e %T %Y %Z' "$timestamp" +%s
+    fi
+}
+
 REVISION_FILE="$RAW/observatory-revision.txt"
 if [[ ! -s "$REVISION_FILE" ]]; then
     echo "missing pinned Observatory revision: $REVISION_FILE" >&2
@@ -65,14 +89,14 @@ for pem in "$RAW"/pem/*.pem; do
         grep -q -- '-----BEGIN CERTIFICATE-----' "$cert" || continue
         der="$TMP/der"
         openssl x509 -in "$cert" -outform DER -out "$der"
-        fingerprint="$(sha256sum "$der" | awk '{print $1}')"
-        der_base64="$(base64 -w 0 "$der")"
-        spki_sha256="$(openssl x509 -in "$cert" -pubkey -noout | openssl pkey -pubin -outform DER 2>/dev/null | sha256sum | awk '{print $1}')"
+        fingerprint="$(sha256_digest "$der")"
+        der_base64="$(base64_file "$der")"
+        spki_sha256="$(openssl x509 -in "$cert" -pubkey -noout | openssl pkey -pubin -outform DER 2>/dev/null | sha256_digest)"
         subject_key_id="$(openssl x509 -in "$cert" -noout -ext subjectKeyIdentifier 2>/dev/null | awk '/Subject Key Identifier/{getline; gsub(/[^0-9A-Fa-f]/, ""); print tolower($0)}')"
         not_before_text="$(openssl x509 -in "$cert" -noout -startdate | sed 's/^notBefore=//')"
         not_after_text="$(openssl x509 -in "$cert" -noout -enddate | sed 's/^notAfter=//')"
-        not_before="$(date -u -d "$not_before_text" +%s)"
-        not_after="$(date -u -d "$not_after_text" +%s)"
+        not_before="$(date_to_epoch "$not_before_text")"
+        not_after="$(date_to_epoch "$not_after_text")"
         subject="$(openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 | sed 's/^subject=//')"
         printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$fingerprint" "$der_base64" "$spki_sha256" "$subject_key_id" "$not_before" "$not_after" "$subject" >> "$MATERIAL_TSV"
     done
