@@ -6,7 +6,7 @@
 
 use std::error::Error;
 use std::fmt;
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -89,8 +89,12 @@ impl Certificate {
     /// clients require SAN, and silently accepting CN would overstate trust.
     #[must_use]
     pub fn covers_hostname(&self, hostname: &str) -> bool {
-        if hostname.parse::<std::net::IpAddr>().is_ok() {
-            return self.ip_addresses.iter().any(|name| name == hostname);
+        if let Ok(hostname) = hostname.parse::<IpAddr>() {
+            return self
+                .ip_addresses
+                .iter()
+                .filter_map(|name| name.parse::<IpAddr>().ok())
+                .any(|name| name == hostname);
         }
         self.dns_names
             .iter()
@@ -492,5 +496,40 @@ mod tests {
     #[test]
     fn bad_der_is_an_error() {
         assert!(parse_certificates(b"not a certificate").is_err());
+    }
+
+    #[test]
+    fn ip_sans_match_addresses_not_textual_spellings() {
+        let certificate = Certificate {
+            fingerprint_sha256: String::new(),
+            spki_sha256: String::new(),
+            subject: String::new(),
+            issuer: String::new(),
+            common_names: Vec::new(),
+            serial: String::new(),
+            not_before: 0,
+            not_after: 0,
+            public_key_algorithm: String::new(),
+            public_key_bits: None,
+            signature_algorithm: String::new(),
+            subject_key_id: None,
+            authority_key_id: None,
+            dns_names: Vec::new(),
+            ip_addresses: vec!["2001:db8::1".to_owned(), "not-an-ip".to_owned()],
+            key_usage: Vec::new(),
+            extended_key_usage: Vec::new(),
+            is_ca: false,
+            path_len_constraint: None,
+            policy_oids: Vec::new(),
+            permitted_name_subtrees: Vec::new(),
+            excluded_name_subtrees: Vec::new(),
+            ocsp_uris: Vec::new(),
+            ca_issuer_uris: Vec::new(),
+            crl_uris: Vec::new(),
+            unknown_critical_extensions: Vec::new(),
+            raw_der: Vec::new(),
+        };
+        assert!(certificate.covers_hostname("2001:0db8:0:0:0:0:0:1"));
+        assert!(!certificate.covers_hostname("2001:db8::2"));
     }
 }
