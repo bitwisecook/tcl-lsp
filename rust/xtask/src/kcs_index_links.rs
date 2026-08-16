@@ -61,12 +61,24 @@ const DIAGNOSTIC_KCS_TAGS: &[&str] = &[
     "liveness",
     "mcp",
     "naming",
+    "lowering",
     "sccp",
+    "ssa",
     "shimmer",
     "taint",
     "tcl-lsp-cli",
     "tcloo",
     "tclpkg",
+];
+
+/// Compiler pass that owns the emission of the diagnostic. Keep this table
+/// keyed by code rather than accepting any globally-valid pass tag: a page
+/// must describe the pass that actually produces its diagnostic.
+const EXPECTED_DIAGNOSTIC_STAGES: &[(&str, &str)] = &[
+    ("IRULE4004", "cfg"),
+    ("IRULE4005", "ssa"),
+    ("IRULE5002", "lowering"),
+    ("IRULE5004", "lowering"),
 ];
 
 /// Run the docs link/index check.
@@ -246,13 +258,19 @@ fn heading_slugs(text: &str) -> BTreeSet<String> {
             continue;
         }
         let count = duplicates.entry(base.clone()).or_insert(0);
-        let slug = if *count == 0 {
-            base
-        } else {
-            format!("{base}-{count}")
-        };
-        *count += 1;
-        used.insert(slug);
+        let mut suffix = *count;
+        loop {
+            let slug = if suffix == 0 {
+                base.clone()
+            } else {
+                format!("{base}-{suffix}")
+            };
+            *count = suffix + 1;
+            if used.insert(slug) {
+                break;
+            }
+            suffix += 1;
+        }
     }
     used
 }
@@ -463,8 +481,27 @@ fn check_diagnostic_kcs_tags(root: &Path, docs: &Path) -> Result<Vec<String>> {
                 problems.push(format!("unknown diagnostic KCS tag `{tag}` in {rel}"));
             }
         }
+        if let Some(code) = diagnostic_code(&note)
+            && let Some(expected) = EXPECTED_DIAGNOSTIC_STAGES
+                .iter()
+                .find_map(|(known, stage)| (*known == code).then_some(*stage))
+            && !tags.iter().any(|tag| tag == expected)
+        {
+            problems.push(format!(
+                "diagnostic {code} must use `{expected}` stage in {rel}"
+            ));
+        }
     }
     Ok(problems)
+}
+
+/// Extract the stable diagnostic code from a `kcs-diagnostic-<code>-*.md`
+/// filename. The code is kept separate from prose so stage ownership remains
+/// explicit even when a page's title or wording changes.
+fn diagnostic_code(path: &Path) -> Option<String> {
+    let stem = path.file_stem()?.to_str()?;
+    let code = stem.strip_prefix("kcs-diagnostic-")?.split('-').next()?;
+    (!code.is_empty()).then(|| code.to_ascii_uppercase())
 }
 
 /// Parse the one-line comma-separated Applies-to list from a KCS note.
@@ -657,6 +694,14 @@ mod tests {
     }
 
     #[test]
+    fn heading_slugs_skip_occupied_generated_suffixes() {
+        let headings = heading_slugs("# Foo\n# Foo-1\n# Foo\n");
+        assert!(headings.contains("foo"));
+        assert!(headings.contains("foo-1"));
+        assert!(headings.contains("foo-2"));
+    }
+
+    #[test]
     fn fragments_cover_intra_file_and_ignore_fences_and_templates() {
         let headings = heading_slugs("# Current section\n```md\n# Hidden section\n```\n");
         let (path, fragment) = split_link_fragment("#current-section");
@@ -672,6 +717,16 @@ mod tests {
         assert_eq!(normalise_tag("Command walk"), "command-walk");
         assert!(DIAGNOSTIC_KCS_TAGS.contains(&"command-walk"));
         assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"command-wlak"));
-        assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"lowering"));
+        assert!(DIAGNOSTIC_KCS_TAGS.contains(&"lowering"));
+    }
+
+    #[test]
+    fn diagnostic_stage_mapping_is_code_specific() {
+        assert_eq!(
+            diagnostic_code(Path::new("kcs-diagnostic-irule4004-page.md")),
+            Some("IRULE4004".to_owned())
+        );
+        assert!(EXPECTED_DIAGNOSTIC_STAGES.contains(&("IRULE4005", "ssa")));
+        assert!(EXPECTED_DIAGNOSTIC_STAGES.contains(&("IRULE5002", "lowering")));
     }
 }
