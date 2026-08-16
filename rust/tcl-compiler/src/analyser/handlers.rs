@@ -1199,9 +1199,17 @@ impl Analyser {
             let words: Vec<&str> = args.iter().map(String::as_str).collect();
             let valid = self.body_depth == 0
                 && self.registry.as_deref().is_some_and(|registry| {
-                    tcl_registry::events::IrulesDeclarationArguments::new(
-                        &words, arg_tokens, arg_single,
+                    tcl_registry::events::closed_braced_argument_words(
+                        &self.source,
+                        arg_tokens,
+                        arg_single,
                     )
+                    .as_deref()
+                    .and_then(|closed| {
+                        tcl_registry::events::IrulesDeclarationArguments::new(
+                            &words, arg_tokens, arg_single, closed,
+                        )
+                    })
                     .and_then(|arguments| {
                         registry.irules_top_level_declaration_shape(cmd_name, arguments)
                     })
@@ -1884,7 +1892,18 @@ impl Analyser {
             .registry
             .as_deref()
             .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
-        tcl_registry::events::IrulesDeclarationArguments::new(&words, arg_tokens, arg_single)
+        let closed = tcl_registry::events::closed_braced_argument_words(
+            &self.source,
+            arg_tokens,
+            arg_single,
+        );
+        closed
+            .as_deref()
+            .and_then(|closed| {
+                tcl_registry::events::IrulesDeclarationArguments::new(
+                    &words, arg_tokens, arg_single, closed,
+                )
+            })
             .and_then(|arguments| {
                 registry.irules_top_level_declaration(
                     "proc",
@@ -10350,6 +10369,7 @@ mod tests {
     fn irules_profile_without_attached_registry_keeps_valid_proc_semantics() {
         let mut analyser = Analyser::new();
         analyser.profile = tcl_dialect::DialectProfile::irules();
+        analyser.source = "proc set {} {}".to_owned();
         assert!(analyser.registry.is_none());
         let handled = analyser.handle_proc_command(
             &["set".to_owned(), String::new(), String::new()],
@@ -10483,6 +10503,7 @@ mod tests {
         // namespace, not a core-global shadow.)
         let mut a = Analyser::new();
         a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        a.source = "proc pool {} {}".to_owned();
         a.handle_proc_command(
             &["pool".to_string(), String::new(), String::new()],
             &[

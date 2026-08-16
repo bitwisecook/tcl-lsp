@@ -70,10 +70,10 @@ mod tests {
 
     #[test]
     fn data_group_ref_inside_if_condition() {
-        // `class match` inside an `if` *condition* (an EXPR-role word) lives in
-        // a braced expression; the EXPR recursion must still find `dg`.
+        // A real command substitution in an `if` EXPR-role word is live and
+        // must retain the data-group reference.
         let got = spans(
-            "when HTTP_REQUEST {\n  if {[class match [HTTP::host] equals dg]} {\n    pool p\n  }\n}\n",
+            "when HTTP_REQUEST {\n  if [class match [HTTP::host] equals dg] {\n    pool p\n  }\n}\n",
         );
         let names: Vec<&str> = got.iter().map(|(_, n)| *n).collect();
         assert!(names.contains(&"dg"), "{names:?}");

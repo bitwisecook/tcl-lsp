@@ -59,7 +59,7 @@ fn has_command_name(
 fn extract_irules_refs_for_pool_snatpool_and_datagroup() {
     let source = "\n\
         when HTTP_REQUEST {\n\
-        \x20   if {[class match -- [HTTP::host] equals /Common/host_dg]} {\n\
+        \x20   if [class match -- [HTTP::host] equals /Common/host_dg] {\n\
         \x20       snatpool /Common/sp1\n\
         \x20       pool /Common/web_pool\n\
         \x20   }\n\

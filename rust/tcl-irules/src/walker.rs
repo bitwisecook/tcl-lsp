@@ -616,7 +616,7 @@ mod tests {
     fn extracts_pool_snatpool_and_datagroup_refs() {
         let source = "\n\
             when HTTP_REQUEST {\n\
-            \x20   if {[class match -- [HTTP::host] equals /Common/host_dg]} {\n\
+            \x20   if [class match -- [HTTP::host] equals /Common/host_dg] {\n\
             \x20       snatpool /Common/sp1\n\
             \x20       pool /Common/web_pool\n\
             \x20   }\n\
@@ -771,14 +771,24 @@ mod tests {
     fn expr_role_substitutions_run_live_without_duplicate_references() {
         let source = "when HTTP_REQUEST {\n\
                       set p /Common/old\n\
-                      if {[set p /Common/new] ne {}} { set seen 1 }\n\
-                      if {[active_members /Common/expr_pool] > 0} { set seen 1 }\n\
+                      if [string length [set p /Common/new]] { set seen 1 }\n\
+                      if [string length [active_members /Common/expr_pool]] { set seen 1 }\n\
                       pool $p\n\
                       }\n";
         assert_eq!(
             ref_names(source),
             vec!["/Common/expr_pool".to_owned(), "/Common/new".to_owned()]
         );
+    }
+
+    #[test]
+    fn braced_expr_text_does_not_invent_object_references() {
+        let source = "when HTTP_REQUEST {\n\
+                      if {class match [HTTP::host] equals /Common/inert_dg} { set seen 1 }\n\
+                      if [class match [HTTP::host] equals /Common/live_dg] { set seen 1 }\n\
+                      }\n";
+        let names = ref_names(source);
+        assert_eq!(names, ["/Common/live_dg"]);
     }
 
     /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual

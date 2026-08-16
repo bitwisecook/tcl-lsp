@@ -40,6 +40,10 @@ pub struct EventHandler {
     pub argument_tokens: Vec<Token>,
     /// Whether each argument word consists of exactly one lexer token.
     pub argument_single_tokens: Vec<bool>,
+    /// Whether each argument word is one braced literal with an actual
+    /// closing `}`.  `TokenType::Str` alone is insufficient because lexer
+    /// recovery represents an unterminated `{…` as the same token kind.
+    pub argument_closed_braced_tokens: Vec<bool>,
 }
 
 /// Parse complete event handlers with one lexer/naming contract.
@@ -225,7 +229,18 @@ fn parse_handler(
             .map(|word| shift_token(word[0], base))
             .collect(),
         argument_single_tokens: words[1..].iter().map(|word| word.len() == 1).collect(),
+        argument_closed_braced_tokens: words[1..]
+            .iter()
+            .map(|word| closed_braced_argument_word(text, word))
+            .collect(),
     })
+}
+
+fn closed_braced_argument_word(source: &str, word: &[Token]) -> bool {
+    let [token] = word else {
+        return false;
+    };
+    token.kind == TokenType::Str && closed_brace(source, word_span_at(source, token.span))
 }
 
 fn closed_brace(source: &str, whole: Span) -> bool {

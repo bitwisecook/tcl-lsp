@@ -499,8 +499,14 @@ impl Analyser {
         }
         let registry = self.registry.as_deref()?;
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        let arguments =
-            tcl_registry::events::IrulesDeclarationArguments::new(&words, arg_tokens, arg_single)?;
+        let closed = tcl_registry::events::closed_braced_argument_words(
+            &self.source,
+            arg_tokens,
+            arg_single,
+        )?;
+        let arguments = tcl_registry::events::IrulesDeclarationArguments::new(
+            &words, arg_tokens, arg_single, &closed,
+        )?;
         registry.irules_top_level_declaration_shape(cmd_name, arguments)
     }
 

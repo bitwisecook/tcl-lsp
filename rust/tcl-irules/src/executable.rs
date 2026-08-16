@@ -128,10 +128,18 @@ fn collect_top_level_regions(
             canonical.trim_start_matches("::").to_owned()
         };
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+        let Some(closed) = tcl_registry::events::closed_braced_argument_words(
+            source,
+            cmd.arg_tokens(),
+            cmd.arg_single_token(),
+        ) else {
+            continue;
+        };
         let Some(arguments) = tcl_registry::events::IrulesDeclarationArguments::new(
             &args,
             cmd.arg_tokens(),
             cmd.arg_single_token(),
+            &closed,
         ) else {
             continue;
         };
@@ -279,21 +287,25 @@ fn walk(
             let Some(token) = cmd.argv.get(index + 1) else {
                 continue;
             };
-            recurse_token(
-                full,
-                token,
-                registry,
-                identities,
-                context.clone(),
-                out,
-                depth + 1,
-            );
+            // An `Expr` word is expression-language data, not a Tcl script.
+            // Only nested `[…]` substitutions execute Tcl; re-segmenting the
+            // full literal would invent calls from operators/identifiers and
+            // make inventory depend on how expression text happens to look.
             for nested in cmd.all_tokens.iter().filter(|nested| {
                 nested.kind == TokenType::Cmd
                     && token.span.start() <= nested.span.start()
                     && nested.span.end() <= token.span.end()
             }) {
                 owned_spans.insert((nested.span.start(), nested.span.end()));
+                recurse_token(
+                    full,
+                    nested,
+                    registry,
+                    identities,
+                    context.clone(),
+                    out,
+                    depth + 1,
+                );
             }
         }
         for token in &cmd.all_tokens {
@@ -475,6 +487,26 @@ mod tests {
                     .first()
                     .is_none_or(|arg| !arg.starts_with("static::"))
         }));
+    }
+
+    #[test]
+    fn inventory_treats_expr_literals_as_data_but_follows_live_substitutions() {
+        let facts = commands(concat!(
+            "when HTTP_REQUEST {\n",
+            "  expr { pool expr_literal; HTTP::respond 500 }\n",
+            "  expr [HTTP::uri]\n",
+            "}\n",
+        ));
+        assert!(
+            facts.iter().any(|fact| fact.command == "HTTP::uri"),
+            "a real TokenType::Cmd expression substitution executes Tcl"
+        );
+        for inert in ["pool", "HTTP::respond"] {
+            assert!(
+                facts.iter().all(|fact| fact.command != inert),
+                "expression literal text must not become an executable {inert} command"
+            );
+        }
     }
 
     #[test]

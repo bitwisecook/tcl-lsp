@@ -2087,15 +2087,25 @@ impl Analyser {
             .registry
             .as_deref()
             .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
-        let declaration =
-            tcl_registry::events::IrulesDeclarationArguments::new(&words, arg_tokens, arg_single)
-                .and_then(|arguments| {
-                    registry.irules_top_level_declaration(
-                        command,
-                        arguments,
-                        &tcl_registry::events::EventRegistry::build(),
-                    )
-                });
+        let closed = tcl_registry::events::closed_braced_argument_words(
+            &self.source,
+            arg_tokens,
+            arg_single,
+        );
+        let declaration = closed
+            .as_deref()
+            .and_then(|closed| {
+                tcl_registry::events::IrulesDeclarationArguments::new(
+                    &words, arg_tokens, arg_single, closed,
+                )
+            })
+            .and_then(|arguments| {
+                registry.irules_top_level_declaration(
+                    command,
+                    arguments,
+                    &tcl_registry::events::EventRegistry::build(),
+                )
+            });
         self.body_depth == 0
             && matches!(
                 declaration,

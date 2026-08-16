@@ -392,10 +392,54 @@ pub fn command_head_identities_with_config(
         match effect {
             CommandTableEffect::RenamesCommands => record_rename(&mut map, args, at, registry),
             CommandTableEffect::CreatesAliases => record_alias(&mut map, args, at, registry),
-            CommandTableEffect::DefinesProcedure => record_proc(&mut map, args, at, registry),
+            CommandTableEffect::DefinesProcedure
+                if valid_irules_procedure_declaration(source, seg, registry) =>
+            {
+                record_proc(&mut map, args, at, registry);
+            }
+            CommandTableEffect::DefinesProcedure => {}
         }
     }
     map
+}
+
+/// Whether this top-level segmented `proc` can actually create an iRules
+/// procedure declaration.  iRules keeps Tcl's `proc` spelling but restricts
+/// it to the shared declaration surface; a malformed or unterminated body is
+/// not executable and therefore must not poison command-head identity for the
+/// rest of the document.  Other profiles retain ordinary Tcl's historical
+/// name-only identity semantics.
+fn valid_irules_procedure_declaration(
+    source: &str,
+    seg: &crate::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> bool {
+    if !registry
+        .profile()
+        .is_some_and(tcl_dialect::DialectProfile::is_irules)
+    {
+        return true;
+    }
+    let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+    let Some(closed) = tcl_registry::events::closed_braced_argument_words(
+        source,
+        seg.arg_tokens(),
+        seg.arg_single_token(),
+    ) else {
+        return false;
+    };
+    let Some(arguments) = tcl_registry::events::IrulesDeclarationArguments::new(
+        &args,
+        seg.arg_tokens(),
+        seg.arg_single_token(),
+        &closed,
+    ) else {
+        return false;
+    };
+    matches!(
+        registry.irules_top_level_declaration_shape(seg.name(), arguments),
+        Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+    )
 }
 
 /// Whether this profile's command table actually exposes `name`.
@@ -650,6 +694,11 @@ mod tests {
     fn map_for(src: &str) -> HeadIdentityMap {
         let registry = tcl_registry::registry_for_dialect("tcl");
         command_head_identities(src, "tcl", registry)
+    }
+
+    fn irules_map_for(src: &str) -> HeadIdentityMap {
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        command_head_identities(src, "f5-irules", registry)
     }
 
     /// Offset just past the first line of `src`, i.e. "after statement 1".
@@ -935,6 +984,36 @@ mod tests {
         // every registry query answer "unknown" without a variant check.
         let registry = tcl_registry::registry_for_dialect("tcl");
         assert!(registry.get(HeadIdentity::Rebound.spec_name()).is_none());
+    }
+
+    #[test]
+    fn irules_proc_identity_requires_a_closed_declaration_body() {
+        // In iRules, unlike generic Tcl, only a real file-level declaration
+        // takes over a command identity.  These malformed spellings must not
+        // hide the following event handler.
+        for src in [
+            "proc when {} bare\nwhen HTTP_REQUEST {}\n",
+            "proc when {} \"quoted\"\nwhen HTTP_REQUEST {}\n",
+            "proc when {} {closed} trailing\nwhen HTTP_REQUEST {}\n",
+            // The unterminated body consumes the tail as Tcl recovery does;
+            // it still must not leave a persistent `when` rebinding behind.
+            "proc when {} {unterminated",
+        ] {
+            let map = irules_map_for(src);
+            assert_eq!(
+                map.resolve("when", u32::MAX),
+                HeadIdentity::Command("when"),
+                "malformed iRules proc poisoned `when`: {src:?}"
+            );
+        }
+
+        let valid = irules_map_for("proc when {args} {}\nwhen HTTP_REQUEST {}\n");
+        assert_eq!(valid.resolve("when", u32::MAX), HeadIdentity::Rebound);
+
+        // Generic Tcl deliberately preserves its existing `proc` binding
+        // behaviour; the iRules declaration gate is profile-specific.
+        let generic = map_for("proc format {} bare\nformat %d 1\n");
+        assert_eq!(generic.resolve("format", u32::MAX), HeadIdentity::Rebound);
     }
 
     #[test]

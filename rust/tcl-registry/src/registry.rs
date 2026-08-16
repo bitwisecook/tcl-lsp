@@ -5933,9 +5933,13 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             let single = vec![true; args.len()];
+            let closed = tokens
+                .iter()
+                .map(|token| token.kind == tcl_lexer::TokenType::Str)
+                .collect::<Vec<_>>();
             registry.irules_top_level_declaration(
                 name,
-                crate::events::IrulesDeclarationArguments::new(args, &tokens, &single)
+                crate::events::IrulesDeclarationArguments::new(args, &tokens, &single, &closed)
                     .expect("parallel source-word views"),
                 &events,
             )
@@ -6014,20 +6018,27 @@ mod tests {
                     args.len()
                 ];
             let single = vec![true; args.len()];
-            for in_quote in [false, true] {
+            let closed = vec![false; args.len()];
+            for (kind, in_quote) in [
+                (tcl_lexer::TokenType::Esc, false),
+                (tcl_lexer::TokenType::Esc, true),
+                // Lexer recovery uses Str for `{body` at EOF; the separate
+                // closed-brace fact must keep it out of declarations too.
+                (tcl_lexer::TokenType::Str, false),
+            ] {
                 tokens[body_index] = tcl_lexer::Token {
-                    kind: tcl_lexer::TokenType::Esc,
+                    kind,
                     in_quote,
                     ..tokens[body_index]
                 };
                 let arguments =
-                    crate::events::IrulesDeclarationArguments::new(args, &tokens, &single)
+                    crate::events::IrulesDeclarationArguments::new(args, &tokens, &single, &closed)
                         .expect("parallel source-word views");
                 assert!(
                     registry
                         .irules_top_level_declaration_shape(name, arguments)
                         .is_none(),
-                    "{name} must reject a non-braced body"
+                    "{name} must reject a non-closed-braced body"
                 );
             }
         }

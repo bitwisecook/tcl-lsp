@@ -246,6 +246,7 @@ pub struct IrulesDeclarationArguments<'a> {
     values: &'a [&'a str],
     tokens: &'a [Token],
     single_tokens: &'a [bool],
+    closed_braced_tokens: &'a [bool],
 }
 
 impl<'a> IrulesDeclarationArguments<'a> {
@@ -258,11 +259,16 @@ impl<'a> IrulesDeclarationArguments<'a> {
         values: &'a [&'a str],
         tokens: &'a [Token],
         single_tokens: &'a [bool],
+        closed_braced_tokens: &'a [bool],
     ) -> Option<Self> {
-        (values.len() == tokens.len() && values.len() == single_tokens.len()).then_some(Self {
+        (values.len() == tokens.len()
+            && values.len() == single_tokens.len()
+            && values.len() == closed_braced_tokens.len())
+        .then_some(Self {
             values,
             tokens,
             single_tokens,
+            closed_braced_tokens,
         })
     }
 
@@ -272,7 +278,7 @@ impl<'a> IrulesDeclarationArguments<'a> {
         self.values
     }
 
-    /// Whether `index` is exactly one braced literal source word.
+    /// Whether `index` is exactly one *closed* braced literal source word.
     #[must_use]
     pub fn is_braced_literal(self, index: usize) -> bool {
         self.single_tokens.get(index).copied().unwrap_or(false)
@@ -280,7 +286,42 @@ impl<'a> IrulesDeclarationArguments<'a> {
                 .tokens
                 .get(index)
                 .is_some_and(|token| token.kind == TokenType::Str)
+            && self
+                .closed_braced_tokens
+                .get(index)
+                .copied()
+                .unwrap_or(false)
     }
+}
+
+/// Determine which declaration argument words are closed braced literals.
+///
+/// A lexer [`TokenType::Str`] represents both `{body}` and recovery's
+/// unterminated `{body`, so this source fact is deliberately separate from
+/// token kind.  Callers retain the resulting parallel vector and hand it to
+/// [`IrulesDeclarationArguments::new`], keeping declaration admission
+/// identical across lowering, analysis, identity, and inventories.
+#[must_use]
+pub fn closed_braced_argument_words(
+    source: &str,
+    tokens: &[Token],
+    single_tokens: &[bool],
+) -> Option<Vec<bool>> {
+    (tokens.len() == single_tokens.len()).then(|| {
+        tokens
+            .iter()
+            .zip(single_tokens)
+            .map(|(token, single)| {
+                *single
+                    && token.kind == TokenType::Str
+                    && tcl_lexer::word_span_at(source, token.span)
+                        .end()
+                        .checked_sub(1)
+                        .and_then(|close| source.as_bytes().get(close as usize))
+                        == Some(&b'}')
+            })
+            .collect()
+    })
 }
 
 /// Stateful effect of an iRules-only top-level declaration.
@@ -1160,6 +1201,7 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
             &args,
             &handler.argument_tokens,
             &handler.argument_single_tokens,
+            &handler.argument_closed_braced_tokens,
         )
         .and_then(|arguments| registry.irules_event_declaration(arguments, &events))
         .is_some()
@@ -1252,6 +1294,7 @@ pub fn top_level_when_handler_candidates_with_registry_and_head_resolver(
             &args,
             &handler.argument_tokens,
             &handler.argument_single_tokens,
+            &handler.argument_closed_braced_tokens,
         )
         .and_then(|arguments| registry.irules_event_declaration_shape(arguments))
         .is_some()
@@ -4496,5 +4539,30 @@ mod tests {
         .map(|handler| handler.event)
         .collect();
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn declaration_source_facts_distinguish_closed_and_unterminated_braces() {
+        let closed = "when HTTP_REQUEST { pool live }";
+        let unterminated = "when HTTP_REQUEST { pool inert";
+        for (source, expected) in [(closed, true), (unterminated, false)] {
+            let command = tcl_syntax::event_handler::script_commands(
+                source,
+                LexerConfig::for_file_dialect("f5-irules"),
+            )
+            .into_iter()
+            .next()
+            .expect("one recovered command");
+            let tokens: Vec<Token> = command.words.iter().skip(1).map(|word| word[0]).collect();
+            let single: Vec<bool> = command
+                .words
+                .iter()
+                .skip(1)
+                .map(|word| word.len() == 1)
+                .collect();
+            let facts = closed_braced_argument_words(source, &tokens, &single)
+                .expect("parallel argument facts");
+            assert_eq!(facts.last().copied(), Some(expected), "{source:?}");
+        }
     }
 }
