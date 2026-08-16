@@ -132,8 +132,7 @@ fn result(src: &str) -> String {
     res
 }
 
-#[test]
-fn workers_inherit_a_separate_host_command_surface() {
+fn assert_workers_inherit_a_separate_host_command_surface() {
     let dialect = DialectProfile::by_name("f5-irules");
     let host = DialectProfile::by_name("tcl8.4");
     let registry = tcl_registry::registry_for_profile(dialect);
@@ -155,6 +154,19 @@ fn workers_inherit_a_separate_host_command_surface() {
     let completion = vm.run_module(&asm);
     assert!(completion.code.is_ok(), "{}", completion.result.to_str());
     assert_eq!(&*completion.result.to_str(), "1 1");
+}
+
+/// This must hold in release too: a `debug_assert!` around the setter would
+/// make the override disappear only in an optimised worker.
+#[test]
+fn workers_inherit_a_separate_host_command_surface() {
+    assert_workers_inherit_a_separate_host_command_surface();
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn workers_inherit_a_separate_host_command_surface_in_release() {
+    assert_workers_inherit_a_separate_host_command_surface();
 }
 
 // ===========================================================================

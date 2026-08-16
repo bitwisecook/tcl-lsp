@@ -1052,15 +1052,18 @@ impl Vm {
     /// [`Self::dialect_profile`] remain unchanged. This is for embedding hosts
     /// that execute a sandboxed dialect inside a broader host interpreter.
     /// The override is rejected when its Tcl runtime base is older than the
-    /// compilation dialect's base: otherwise release-specific bytecode could
-    /// execute a command that ordinary lookup hides. Returns whether the
+    /// compilation dialect's base, or when it hides a bytecode-compiled
+    /// command available to that dialect. Otherwise a specialised opcode
+    /// could execute a command that ordinary lookup hides. Returns whether the
     /// requested surface was installed.
     #[must_use]
     pub fn set_command_surface_profile(
         &mut self,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> bool {
-        if profile.vm_runtime_version < self.dialect_profile.vm_runtime_version {
+        if profile.vm_runtime_version < self.dialect_profile.vm_runtime_version
+            || !Self::command_surface_covers_compiled_commands(self.dialect_profile, profile)
+        {
             return false;
         }
         self.bump_cmd_epoch();
@@ -1072,6 +1075,37 @@ impl Vm {
         self.profile_registry =
             (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
         true
+    }
+
+    /// Whether `surface` exposes every registry command whose source-profile
+    /// bytecode may bypass normal command lookup.  Runtime-version ordering is
+    /// necessary but not sufficient: profiles on the same Tcl release can
+    /// carry disjoint availability masks (for example BPF versus BIG-IP).
+    ///
+    /// `Traits::BYTE_COMPILED` is the registry-owned declaration that a
+    /// literal command head may be lowered to bytecode.  Checking its actual
+    /// source and target profile visibility preserves compatible cross-profile
+    /// hosts such as iRules over a plain Tcl 8.4 host without allowing a
+    /// narrowed same-release surface to hide an intrinsic.
+    fn command_surface_covers_compiled_commands(
+        dialect: &'static tcl_dialect::DialectProfile,
+        surface: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        if surface.is_fallback() {
+            return true;
+        }
+        let compiled_registry = tcl_registry::registry_for_profile(dialect);
+        let surface_registry = tcl_registry::registry_for_profile(surface);
+        compiled_registry.command_names().all(|name| {
+            let Some(spec) = compiled_registry.get_for_dialect(name, dialect.availability_mask)
+            else {
+                return true;
+            };
+            !spec.traits.contains(tcl_registry::Traits::BYTE_COMPILED)
+                || surface_registry
+                    .get_for_dialect(name, surface.availability_mask)
+                    .is_some()
+        })
     }
 
     /// The profile currently governing builtin command availability.

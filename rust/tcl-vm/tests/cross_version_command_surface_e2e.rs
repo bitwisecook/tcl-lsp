@@ -192,6 +192,40 @@ fn command_surface_override_cannot_hide_compiled_release_commands() {
     assert_eq!(&*completion.result.to_str(), "a");
 }
 
+#[test]
+fn command_surface_override_rejects_a_same_release_narrower_profile() {
+    let bpf = DialectProfile::by_name("bpf");
+    let bigip = DialectProfile::by_name("f5-bigip");
+    let registry = tcl_registry::registry_for_profile(bpf);
+    let config = tcl_lexer::LexerConfig::from_grammar(bpf.grammar);
+    // `lassign` becomes list/variable opcodes, so it proves that module
+    // profile validation alone cannot enforce a later command-surface change.
+    let ir = lower_to_ir("lassign {a b} x; set x", registry, config, bpf.name);
+    let cfg = build_cfg_codegen(&ir, false);
+    let module = codegen_module(&cfg, &ir, registry);
+
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(bpf);
+    assert!(
+        !vm.set_command_surface_profile(bigip),
+        "the config-only BIG-IP surface hides BPF's Tcl bytecode commands"
+    );
+    assert!(std::ptr::eq(vm.command_surface_profile(), bpf));
+    let completion = vm.run_module(&module);
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(&*completion.result.to_str(), "a");
+}
+
+#[test]
+fn compatible_irules_host_surface_override_remains_accepted() {
+    let irules = DialectProfile::by_name("f5-irules");
+    let host = DialectProfile::by_name("tcl8.4");
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(irules);
+    assert!(vm.set_command_surface_profile(host));
+    assert!(std::ptr::eq(vm.command_surface_profile(), host));
+}
+
 /// Run `src` on a VM pinned to `profile`, compiling for that profile exactly
 /// as `tclvm --tcl-version` does. Returns the `puts` output; a compile
 /// rejection or an uncaught runtime error becomes the error's message, so a
