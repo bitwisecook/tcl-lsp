@@ -40,7 +40,7 @@ dispatch, projection layer, parser AST shape) see
 |---|---|
 | A single builtin's signature + examples | `manual.md` → builtin family link → `builtins.md` anchor.  CLI: `f5 query --help-builtins NAME`. |
 | Grammar of a syntactic form | `dsl.md`.  CLI: `f5 query --help-dsl`. |
-| How probes / cert audit work | `manual.md#network-probes`, `manual.md#x509-cert-dict-shape`. |
+| How probes / cert audit work | `manual.md#network-probes-network-probes`, `manual.md#x509-cert-dict-shape-x509-cert-dict-shape`. |
 | Why a monitor check fails (response truncation, etc.) | `f5-kb-monitor-articles.md`. |
-| Sample config + cert one-liner | `manual.md#operator-handbook`. |
+| Sample config + cert one-liner | `manual.md#operator-handbook-operator-handbook`. |
 | All-in-one CLI dump | `f5 query --help-manual`. |

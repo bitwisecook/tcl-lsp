@@ -98,6 +98,7 @@ const DIAGNOSTIC_KCS_TAGS: &[&str] = &[
     "code-sinking",
     "unused-procs",
     "side-effects",
+    "exec-intent",
     "rendered-props",
     "const-fold",
     "strength-reduce",
@@ -109,11 +110,162 @@ const DIAGNOSTIC_KCS_TAGS: &[&str] = &[
 /// keyed by code rather than accepting any globally-valid pass tag: a page
 /// must describe the pass that actually produces its diagnostic.
 const EXPECTED_DIAGNOSTIC_STAGES: &[(&str, &str)] = &[
+    ("E001", "command-walk"),
+    ("E002", "command-walk"),
+    ("E003", "command-walk"),
+    ("E004", "command-walk"),
+    ("E005", "command-walk"),
+    ("E006", "command-walk"),
+    ("E100", "lexing"),
+    ("E101", "lexing"),
+    ("E102", "lexing"),
+    ("E103", "lexing"),
+    ("E200", "lexing"),
+    ("E201", "lexing"),
+    ("E202", "lexing"),
+    ("E203", "lexing"),
+    ("E204", "lexing"),
+    ("E205", "lexing"),
+    ("E206", "lexing"),
+    ("E207", "command-walk"),
+    ("H300", "cfg"),
+    ("I230", "sccp"),
+    ("I231", "sccp"),
+    ("IRULE1001", "command-walk"),
+    ("IRULE1002", "command-walk"),
+    ("IRULE1003", "command-walk"),
+    ("IRULE1004", "command-walk"),
+    ("IRULE1005", "dataflow"),
+    ("IRULE1006", "dataflow"),
+    ("IRULE1007", "dataflow"),
+    ("IRULE1008", "dataflow"),
+    ("IRULE1201", "dataflow"),
+    ("IRULE1202", "dataflow"),
+    ("IRULE2001", "command-walk"),
+    ("IRULE2002", "command-walk"),
+    ("IRULE2003", "command-walk"),
+    ("IRULE2101", "command-walk"),
+    ("IRULE3001", "taint"),
+    ("IRULE3002", "taint"),
+    ("IRULE3003", "taint"),
+    ("IRULE3004", "taint"),
+    ("IRULE3101", "taint"),
+    ("IRULE3102", "taint"),
+    ("IRULE3103", "taint"),
+    ("IRULE4001", "command-walk"),
+    ("IRULE4002", "command-walk"),
+    ("IRULE4003", "command-walk"),
     ("IRULE4004", "cfg"),
     ("IRULE4005", "ssa"),
+    ("IRULE5001", "command-walk"),
     ("IRULE5002", "lowering"),
+    ("IRULE5003", "command-walk"),
     ("IRULE5004", "lowering"),
+    ("IRULE5005", "command-walk"),
+    ("IRULE5006", "command-walk"),
+    ("IRULE5007", "command-walk"),
+    ("IRULE6001", "command-walk"),
+    ("S100", "shimmer"),
+    ("S101", "shimmer"),
+    ("S102", "shimmer"),
+    ("S103", "shimmer"),
+    ("S110", "shimmer"),
+    ("T100", "taint"),
+    ("T101", "taint"),
+    ("T102", "taint"),
+    ("T104", "taint"),
+    ("T105", "taint"),
+    ("TK1001", "command-walk"),
+    ("TK1002", "command-walk"),
+    ("TK1003", "command-walk"),
+    ("W001", "command-walk"),
+    ("W002", "command-walk"),
+    ("W003", "command-walk"),
+    ("W004", "command-walk"),
+    ("W100", "lexing"),
+    ("W101", "command-walk"),
+    ("W102", "command-walk"),
+    ("W103", "command-walk"),
+    ("W104", "lexing"),
+    ("W105", "lexing"),
+    ("W106", "lexing"),
+    ("W107", "lexing"),
+    ("W108", "lexing"),
+    ("W109", "lexing"),
+    ("W110", "lexing"),
+    ("W111", "lexing"),
+    ("W112", "lexing"),
+    ("W113", "command-walk"),
+    ("W114", "lexing"),
+    ("W115", "lexing"),
+    ("W116", "command-walk"),
+    ("W117", "command-walk"),
+    ("W118", "lexing"),
+    ("W120", "command-walk"),
+    ("W121", "lexing"),
+    ("W123", "command-walk"),
+    ("W124", "lexing"),
+    ("W125", "command-walk"),
+    ("W126", "command-walk"),
+    ("W127", "command-walk"),
+    ("W128", "cfg"),
+    ("W129", "command-walk"),
+    ("W135", "command-walk"),
+    ("W136", "command-walk"),
+    ("W137", "command-walk"),
+    ("W138", "command-walk"),
+    ("W139", "command-walk"),
+    ("W140", "command-walk"),
+    ("W141", "command-walk"),
+    ("W142", "command-walk"),
+    ("W143", "command-walk"),
+    ("W144", "command-walk"),
+    ("W145", "command-walk"),
+    ("W146", "command-walk"),
+    ("W147", "command-walk"),
+    ("W148", "command-walk"),
+    ("W200", "command-walk"),
+    ("W201", "taint"),
+    ("W210", "liveness"),
+    ("W211", "liveness"),
+    ("W212", "command-walk"),
+    ("W213", "liveness"),
+    ("W214", "liveness"),
+    ("W215", "command-walk"),
+    ("W216", "command-walk"),
+    ("W217", "command-walk"),
+    ("W218", "command-walk"),
+    ("W220", "dce"),
+    ("W230", "const-fold"),
+    ("W231", "const-fold"),
+    ("W232", "const-fold"),
+    ("W233", "sccp"),
+    ("W240", "dataflow"),
+    ("W241", "dataflow"),
+    ("W242", "dataflow"),
+    ("W250", "command-walk"),
+    ("W300", "command-walk"),
+    ("W301", "command-walk"),
+    ("W302", "command-walk"),
+    ("W303", "command-walk"),
+    ("W304", "command-walk"),
+    ("W305", "lexing"),
+    ("W306", "command-walk"),
+    ("W307", "command-walk"),
+    ("W308", "command-walk"),
+    ("W309", "command-walk"),
+    ("W310", "command-walk"),
+    ("W311", "command-walk"),
+    ("W312", "command-walk"),
+    ("W313", "taint"),
+    ("W314", "command-walk"),
+    ("W315", "command-walk"),
 ];
+
+/// Reserved diagnostic pages that document a registry code not emitted by
+/// the current compiler. They are deliberately not assigned a fictional
+/// compiler-pass owner; all active diagnostic pages must have an entry above.
+const DIAGNOSTICS_WITHOUT_EMISSION: &[&str] = &["W130", "W131", "W132", "W133", "W134"];
 
 /// Run the docs link/index check.
 pub fn run() -> Result<ExitCode> {
@@ -283,10 +435,6 @@ fn heading_slugs(text: &str) -> BTreeSet<String> {
         let Some(heading) = atx_heading_text(line) else {
             continue;
         };
-        let (heading, explicit_id) = split_explicit_heading_id(heading);
-        if let Some(explicit_id) = explicit_id {
-            used.insert(explicit_id.to_owned());
-        }
         let base = github_heading_slug(heading);
         if base.is_empty() {
             continue;
@@ -307,23 +455,6 @@ fn heading_slugs(text: &str) -> BTreeSet<String> {
         }
     }
     used
-}
-
-/// Split the Pandoc-style `{#id}` syntax used by a few generated reference
-/// pages. The target is an explicit author-provided anchor rather than a
-/// GitHub-generated slug, so it is admitted alongside the normal heading id.
-fn split_explicit_heading_id(heading: &str) -> (&str, Option<&str>) {
-    let Some((visible, id)) = heading.rsplit_once(" {#") else {
-        return (heading, None);
-    };
-    let Some(id) = id.strip_suffix('}') else {
-        return (heading, None);
-    };
-    if id.is_empty() {
-        (heading, None)
-    } else {
-        (visible, Some(id))
-    }
 }
 
 /// Extract the visible text of an ATX heading. Setext headings are not used
@@ -510,11 +641,26 @@ fn check_diagnostic_kcs_tags(root: &Path, docs: &Path) -> Result<Vec<String>> {
     let mut problems = Vec::new();
     for note in notes {
         let rel = rel_to(root, &note);
+        let Some(code) = diagnostic_code(&note) else {
+            problems.push(format!("diagnostic page has no code in {rel}"));
+            continue;
+        };
+        let expected = EXPECTED_DIAGNOSTIC_STAGES
+            .iter()
+            .find_map(|(known, stage)| (*known == code).then_some(*stage));
+        let is_unemitted = DIAGNOSTICS_WITHOUT_EMISSION.contains(&code.as_str());
+        if expected.is_none() && !is_unemitted {
+            problems.push(format!(
+                "diagnostic {code} has no expected stage mapping in {rel}"
+            ));
+            continue;
+        }
         let Some(tags) = applies_to_tags(&read(&note)?) else {
-            // The ordinary KCS style check predates this tag gate and has
-            // existing pages without an Applies-to heading. Do not turn this
-            // targeted vocabulary guard into an unrelated documentation
-            // migration; whenever a page does declare tags, they are strict.
+            if let Some(expected) = expected {
+                problems.push(format!(
+                    "diagnostic {code} must declare `{expected}` stage in {rel}"
+                ));
+            }
             continue;
         };
         for tag in &tags {
@@ -522,10 +668,7 @@ fn check_diagnostic_kcs_tags(root: &Path, docs: &Path) -> Result<Vec<String>> {
                 problems.push(format!("unknown diagnostic KCS tag `{tag}` in {rel}"));
             }
         }
-        if let Some(code) = diagnostic_code(&note)
-            && let Some(expected) = EXPECTED_DIAGNOSTIC_STAGES
-                .iter()
-                .find_map(|(known, stage)| (*known == code).then_some(*stage))
+        if let Some(expected) = expected
             && !tags.iter().any(|tag| tag == expected)
         {
             problems.push(format!(
@@ -726,7 +869,10 @@ mod tests {
         assert!(headings.contains("command-walk--args--commandspec"));
         assert!(headings.contains("repeat"));
         assert!(headings.contains("repeat-1"));
-        assert!(headings.contains("grammar"));
+        // GitHub renders Pandoc's `{#grammar}` as literal heading text, so
+        // its generated id is `grammar-grammar`, not the Pandoc id `grammar`.
+        assert!(headings.contains("grammar-grammar"));
+        assert!(!headings.contains("grammar"));
         assert!(!headings.contains("command-walk-args-commandspec"));
         assert_eq!(
             github_heading_slug("Example 6: `if {1} { ... } else { ... }` (constant condition)"),
@@ -769,6 +915,7 @@ mod tests {
         assert!(DIAGNOSTIC_KCS_TAGS.contains(&"lowering"));
         assert!(DIAGNOSTIC_KCS_TAGS.contains(&"vs-code"));
         assert!(DIAGNOSTIC_KCS_TAGS.contains(&"warning"));
+        assert!(DIAGNOSTIC_KCS_TAGS.contains(&"exec-intent"));
         assert!(DIAGNOSTIC_KCS_TAGS.contains(&"type-infer"));
         assert!(DIAGNOSTIC_KCS_TAGS.contains(&"ipa"));
         assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"naming"));

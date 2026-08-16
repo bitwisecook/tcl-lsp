@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, analyser
+all-editors, diagnostic, analyser, command-walk
 
 ## Profiles
 

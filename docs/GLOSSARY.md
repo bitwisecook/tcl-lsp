@@ -111,6 +111,16 @@ There is no distinct token type for an injected delimiter: `segment_with_recover
 mapping a source offset to the byte inserted there, and re-lexes through
 `build_document_with_ghosts`.
 
+```mermaid
+flowchart LR
+    SRC["Malformed source"] --> P1["First parse"]
+    P1 -->|"unclosed delimiter"| HEUR["Heuristic match"]
+    HEUR --> VT["ghost byte injection"]
+    VT --> P2["Second parse"]
+    P2 --> CLEAN["Clean SegmentedCommand list"]
+    P2 --> DIAG["E201–E206 diagnostics"]
+```
+
 ### Command walk
 
 The registry-driven analyser traversal that visits each segmented command
@@ -121,16 +131,6 @@ version, iRules-event, Tk, and scope diagnostics originate here; they do not
 require a typed IR statement. Implemented across `tcl_compiler::analyser`.
 
 KCS tag: `command-walk`.
-
-```mermaid
-flowchart LR
-    SRC["Malformed source"] --> P1["First parse"]
-    P1 -->|"unclosed delimiter"| HEUR["Heuristic match"]
-    HEUR --> VT["ghost byte injection"]
-    VT --> P2["Second parse"]
-    P2 --> CLEAN["Clean SegmentedCommand list"]
-    P2 --> DIAG["E201–E206 diagnostics"]
-```
 
 ### Concrete syntax tree (CST) / red-green tree
 
