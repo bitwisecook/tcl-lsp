@@ -4626,14 +4626,38 @@ impl Vm {
     /// under its own key, so later calls while the same trace-deopt epoch
     /// holds reuse the compiled body instead of recompiling on every call.
     pub(crate) fn ensure_proc_ready(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
+        self.ensure_proc_ready_in(proc, None)
+    }
+
+    /// Refresh a stored procedure and memoise it in the command domain from
+    /// which this invocation was resolved. Hidden and visible commands may
+    /// share the same spelling, so publishing by `ProcDef::name` would leak a
+    /// hidden proc back into the visible table (and overwrite a replacement).
+    pub(crate) fn ensure_proc_ready_in(
+        &mut self,
+        proc: Rc<ProcDef>,
+        sidecar: Option<&CommandSidecarKey>,
+    ) -> Rc<ProcDef> {
         if proc.compiled_epoch == self.trace_deopt_epoch()
             && proc.compiled_profile_generation == self.profile_generation
         {
             return proc;
         }
-        let key = proc.name.clone();
         let fresh = self.ensure_proc_traced(proc);
-        self.commands.insert(key, Command::Proc(Rc::clone(&fresh)));
+        match sidecar {
+            Some(CommandSidecarKey::Hidden(token)) => {
+                self.hidden_commands
+                    .insert(token.clone(), Command::Proc(Rc::clone(&fresh)));
+            }
+            Some(CommandSidecarKey::Visible(name)) => {
+                self.commands
+                    .insert(name.clone(), Command::Proc(Rc::clone(&fresh)));
+            }
+            None => {
+                self.commands
+                    .insert(fresh.name.clone(), Command::Proc(Rc::clone(&fresh)));
+            }
+        }
         fresh
     }
 
@@ -6304,10 +6328,35 @@ fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
 mod family_b_tests {
     use super::*;
     use crate::command::NativeCommand;
+    use tcl_compiler::cfg_builder::build_cfg_codegen;
+    use tcl_compiler::codegen::codegen_module;
+    use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
     use tcl_dialect::DialectProfile;
-    use tcl_runtime_api::GLOBAL_FRAME;
+    use tcl_runtime_api::{CompileError, GLOBAL_FRAME};
 
     const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
+
+    struct TestCompiler;
+
+    impl CompileService for TestCompiler {
+        type Module = ModuleAsm;
+
+        fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+            self.compile_for_profile(src, DialectProfile::plain_tcl())
+        }
+
+        fn compile_for_profile(
+            &self,
+            src: &str,
+            profile: &'static DialectProfile,
+        ) -> Result<Self::Module, CompileError> {
+            let registry = tcl_registry::registry_for_profile(profile);
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let ir = lower_to_ir(src, registry, config, profile.name);
+            let cfg = build_cfg_codegen(&ir, false);
+            Ok(codegen_module(&cfg, &ir, registry))
+        }
+    }
 
     #[test]
     fn invokehidden_rechecks_a_hidden_builtin_against_the_child_profile() {
@@ -6345,6 +6394,65 @@ mod family_b_tests {
         assert!(!vm.commands.contains_key("held"));
         assert!(!vm.builtin_identities.contains_key("held"));
         assert!(!vm.imported_commands.contains_key("held"));
+    }
+
+    fn eval_value(vm: &mut Vm, script: &str) -> String {
+        let completion = vm.eval_source(script).expect("script compiles");
+        assert_eq!(completion.code, Code::Ok, "{script}: {completion:?}");
+        completion.result.to_str().to_string()
+    }
+
+    fn prepare_stale_hidden_proc(vm: &mut Vm) {
+        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
+        vm.hide_command("p", "held").unwrap();
+        assert_eq!(eval_value(vm, "proc p {} { return replacement }"), "");
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+    }
+
+    #[test]
+    fn refreshed_hidden_proc_stays_hidden_and_preserves_visible_replacement() {
+        let mut vm = Vm::new();
+        prepare_stale_hidden_proc(&mut vm);
+        let hidden = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
+        assert_eq!(hidden.code, Code::Ok);
+        assert_eq!(hidden.result.to_str().as_ref(), "hidden");
+        assert_eq!(eval_value(&mut vm, "p"), "replacement");
+        assert!(matches!(
+            vm.hidden_commands.get("held"),
+            Some(Command::Proc(proc))
+                if proc.compiled_profile_generation == vm.profile_generation
+        ));
+
+        let child_name = vm.create_child(Some("child".to_owned()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        vm.in_interp(child, prepare_stale_hidden_proc);
+
+        let named = vm.invoke_hidden_in_child("child", "held", &[]).unwrap();
+        assert_eq!(named.code, Code::Ok);
+        assert_eq!(named.result.to_str().as_ref(), "hidden");
+        assert_eq!(
+            vm.in_interp(child, |child| eval_value(child, "p")),
+            "replacement"
+        );
+
+        vm.in_interp(child, |child| {
+            child.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        });
+        let by_id = vm.invoke_hidden_by_id(child, "held", &[]).unwrap();
+        assert_eq!(by_id.code, Code::Ok);
+        assert_eq!(by_id.result.to_str().as_ref(), "hidden");
+        assert_eq!(
+            vm.in_interp(child, |child| eval_value(child, "p")),
+            "replacement"
+        );
+        let state = vm.st_of(child).unwrap();
+        assert!(matches!(
+            state.hidden_commands.get("held"),
+            Some(Command::Proc(proc))
+                if proc.compiled_profile_generation == state.profile_generation
+        ));
     }
 
     struct TestNative;

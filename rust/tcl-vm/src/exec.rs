@@ -4719,7 +4719,7 @@ impl Vm {
                 self.settle_native_invoke(res)
             }
             Command::Proc(p) => {
-                let p = self.ensure_proc_ready(p);
+                let p = self.ensure_proc_ready_in(p, sidecar.as_ref());
                 match self.enter_proc(&p, argv) {
                     Ok(()) => self.run_activation(Frame::new(
                         Rc::clone(&p.body),
