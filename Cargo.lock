@@ -4458,6 +4458,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "tar",
+ "tcl-lexer",
  "tcl-registry",
  "tcl-sandbox",
  "tcl-syntax",

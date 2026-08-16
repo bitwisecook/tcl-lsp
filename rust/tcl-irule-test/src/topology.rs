@@ -28,6 +28,7 @@ use std::fmt::Write as _;
 use tcl_bigip::model::ModelObject;
 use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 use tcl_bigip::value::ListItemValue;
+use tcl_syntax::list::{join_list, list_element};
 
 /// Errors raised when generating a topology setup.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +93,7 @@ impl Topology {
     ///
     /// # Errors
     /// [`TopologyError::VirtualServerNotFound`] when no VS matches `vs_name`.
+    #[allow(clippy::too_many_lines)] // emits the setup sections in their script order
     pub fn generate_tcl_setup(&self, vs_name: &str) -> Result<String, TopologyError> {
         let vs = self
             .resolve_virtual(vs_name)
@@ -139,12 +141,22 @@ impl Topology {
                 continue;
             }
             any_pool = true;
-            let members_tcl = members.join(" ");
+            let members_tcl = join_list(&members);
             let key = placed.full_path.as_str();
-            let _ = writeln!(out, "::orch::add_pool {key} {{{members_tcl}}}");
+            let _ = writeln!(
+                out,
+                "::orch::add_pool {} {}",
+                list_element(key),
+                list_element(&members_tcl)
+            );
             let short = short_name(key);
             if short != key {
-                let _ = writeln!(out, "::orch::add_pool {short} {{{members_tcl}}}");
+                let _ = writeln!(
+                    out,
+                    "::orch::add_pool {} {}",
+                    list_element(short),
+                    list_element(&members_tcl)
+                );
             }
         }
         if any_pool {
@@ -170,13 +182,19 @@ impl Topology {
             let key = placed.full_path.as_str();
             let _ = writeln!(
                 out,
-                "::orch::add_datagroup {key} {dg_type} {{{records_tcl}}}"
+                "::orch::add_datagroup {} {} {}",
+                list_element(key),
+                list_element(dg_type),
+                list_element(&records_tcl)
             );
             let short = short_name(key);
             if short != key {
                 let _ = writeln!(
                     out,
-                    "::orch::add_datagroup {short} {dg_type} {{{records_tcl}}}"
+                    "::orch::add_datagroup {} {} {}",
+                    list_element(short),
+                    list_element(dg_type),
+                    list_element(&records_tcl)
                 );
             }
         }
@@ -187,7 +205,7 @@ impl Topology {
         // Attached iRules.
         for rule_ref in vs_rule_refs(vs) {
             if let Some(source) = self.rule_source(&rule_ref) {
-                let _ = writeln!(out, "::orch::load_irule {{{source}}}");
+                let _ = writeln!(out, "::orch::load_irule {}", list_element(source));
             }
         }
         out.push('\n');
@@ -317,21 +335,10 @@ fn vs_profile_refs(vs: &tcl_bigip::model::BigipVirtualServer) -> Vec<String> {
     vs.profiles.paths()
 }
 
-/// Render data-group records as the even-length `{key {}}` Tcl list the
+/// Render data-group records as the even-length `key {}` Tcl list the
 /// orchestrator's `add_datagroup` expects.
 fn datagroup_records_tcl(records: &[String]) -> String {
-    let mut parts: Vec<String> = Vec::new();
-    for rec in records {
-        // key -> empty value (`{}`), keeping the list even-length.
-        let key = if rec.contains(' ') && rec != "{}" {
-            format!("{{{rec}}}")
-        } else {
-            rec.clone()
-        };
-        parts.push(key);
-        parts.push("{}".to_owned());
-    }
-    parts.join(" ")
+    join_list(records.iter().flat_map(|record| [record.as_str(), ""]))
 }
 
 /// Infer a TMM profile-type tag from a profile reference name.
@@ -451,6 +458,27 @@ ltm virtual www_vs {
         assert_eq!(infer_profile_type("http"), Some("HTTP"));
         assert_eq!(infer_profile_type("/Common/my-fasthttp"), Some("FASTHTTP"));
         assert_eq!(infer_profile_type("/Common/weird"), None);
+    }
+
+    #[test]
+    fn datagroup_records_keep_arbitrary_keys_as_literal_list_elements() {
+        let records = [
+            "$variable".to_owned(),
+            "[command]".to_owned(),
+            "a \"quote\"".to_owned(),
+            r"path\\with\\slashes".to_owned(),
+            "unbalanced { brace".to_owned(),
+        ];
+        let rendered = datagroup_records_tcl(&records);
+        let expected = records
+            .iter()
+            .flat_map(|record| [record.as_str(), ""])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            tcl_syntax::list::split_list(&rendered).unwrap(),
+            expected,
+            "records must remain literal list values"
+        );
     }
 
     #[test]

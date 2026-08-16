@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-sandbox = { path = "../tcl-sandbox" }
 tcl-userdirs = { path = "../tcl-userdirs" }
