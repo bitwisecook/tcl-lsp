@@ -215,8 +215,15 @@ pub fn import_bigip_tls<S: BuildHasher>(
             _ => None,
         })
         .collect();
-    let mut endpoints =
-        import_virtual_endpoints(&virtuals, &profiles, &mut effective, version, &mut notices);
+    let mut endpoints = import_virtual_endpoints(
+        &virtuals,
+        &profiles,
+        &mut effective,
+        &pem_by_object,
+        &key_by_object,
+        version,
+        &mut notices,
+    );
 
     let used: BTreeMap<String, BTreeSet<String>> =
         endpoints.iter().fold(BTreeMap::new(), |mut acc, endpoint| {
@@ -255,6 +262,8 @@ fn import_virtual_endpoints(
     virtuals: &[&BigipVirtualServer],
     profiles: &BTreeMap<String, &BigipProfile>,
     effective: &mut BTreeMap<String, EffectiveTlsProfile>,
+    pem_by_object: &BTreeMap<String, Vec<Certificate>>,
+    key_by_object: &BTreeMap<String, String>,
     version: Option<BigipVersion>,
     notices: &mut Vec<BigipTlsNotice>,
 ) -> Vec<VirtualTlsEndpoint> {
@@ -264,13 +273,15 @@ fn import_virtual_endpoints(
             let ListItemValue::Profile(attachment) = &item.value else {
                 continue;
             };
-            let Some(path) = resolve_reference(&attachment.path, profiles)
+            let Some(path) = resolve_attached_profile(&attachment.path, virtual_server, profiles)
                 .or_else(|| factory_profile_path(&attachment.path))
             else {
                 continue;
             };
             if !effective.contains_key(&path) {
-                let Some(profile) = factory_profile(&path, version, notices) else {
+                let Some(profile) =
+                    factory_profile(&path, pem_by_object, key_by_object, version, notices)
+                else {
                     continue;
                 };
                 effective.insert(path.clone(), profile);
@@ -286,6 +297,27 @@ fn import_virtual_endpoints(
         }
     }
     endpoints
+}
+
+fn resolve_attached_profile(
+    reference: &str,
+    virtual_server: &BigipVirtualServer,
+    profiles: &BTreeMap<String, &BigipProfile>,
+) -> Option<String> {
+    if profiles.contains_key(reference) {
+        return Some(reference.to_owned());
+    }
+    if !reference.starts_with('/')
+        && let Some(partition) = virtual_server
+            .full_path
+            .strip_prefix('/')
+            .and_then(|path| path.split('/').next())
+        && let candidate = format!("/{partition}/{reference}")
+        && profiles.contains_key(&candidate)
+    {
+        return Some(candidate);
+    }
+    resolve_reference(reference, profiles)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -378,18 +410,24 @@ fn resolve_profile(
 
 fn factory_profile(
     path: &str,
+    pem_by_object: &BTreeMap<String, Vec<Certificate>>,
+    key_by_object: &BTreeMap<String, String>,
     version: Option<BigipVersion>,
     notices: &mut Vec<BigipTlsNotice>,
 ) -> Option<EffectiveTlsProfile> {
     let side = factory_profile_side(path)?;
     add_unknown_version_notice(path, version, notices);
+    let fields = factory_default_fields(side, version);
+    let certificate_bindings =
+        resolve_bindings(path, &fields, None, pem_by_object, key_by_object, notices);
+    add_unexpanded_cipher_notice(path, &fields, notices);
     Some(EffectiveTlsProfile {
         full_path: path.to_owned(),
         side,
         defaults_from: String::new(),
         inheritance_chain: Vec::new(),
-        fields: factory_default_fields(side, version),
-        certificate_bindings: Vec::new(),
+        fields,
+        certificate_bindings,
         events: events_for_profile(type_name(side))
             .into_iter()
             .map(str::to_owned)
@@ -1095,6 +1133,51 @@ ltm virtual https {
             &HashMap::new(),
         );
         assert!(mutated_import.endpoints.is_empty());
+    }
+
+    #[test]
+    fn resolves_partition_local_profile_before_factory_fallback() {
+        let source = r"
+ltm profile client-ssl /Tenant/clientssl { ciphers TENANT }
+ltm profile client-ssl /Other/clientssl { ciphers OTHER }
+ltm virtual /Tenant/https {
+    destination /Tenant/192.0.2.1:443
+    profiles { clientssl { context clientside } }
+}
+";
+        let config = parse_bigip_conf(source, "Tenant");
+        let imported = import_bigip_tls(&config, BigipVersion::parse("17.1"), &HashMap::new());
+        assert_eq!(imported.endpoints.len(), 1);
+        assert_eq!(imported.endpoints[0].profile, "/Tenant/clientssl");
+        assert_eq!(
+            imported.endpoints[0].endpoint.extensions["bigip-cipher-expression"],
+            [TlsValue::Scalar("TENANT".to_owned())]
+        );
+    }
+
+    #[test]
+    fn factory_profile_materialises_available_default_certificate() {
+        let source = r"
+sys file ssl-cert /Common/default.crt { cache-path /config/ssl/ssl.crt/default.crt }
+ltm virtual /Common/https {
+    destination /Common/192.0.2.1:443
+    profiles { /Common/clientssl { context clientside } }
+}
+";
+        let config = parse_bigip_conf(source, "Common");
+        let material = HashMap::from([(
+            "/Common/default.crt".to_owned(),
+            include_str!("../../tcl-bigip-query/tests/fixtures/x509_example.pem").to_owned(),
+        )]);
+        let imported = import_bigip_tls(&config, BigipVersion::parse("17.1"), &material);
+        let endpoint = &imported.endpoints[0];
+        assert_eq!(endpoint.profile, "/Common/clientssl");
+        assert_eq!(endpoint.binding.as_deref(), Some("legacy"));
+        assert_eq!(endpoint.certificates.len(), 1);
+        assert_eq!(
+            endpoint.key_match.status,
+            tcl_sslictcl::KeyMatchStatus::Unknown
+        );
     }
 
     #[test]

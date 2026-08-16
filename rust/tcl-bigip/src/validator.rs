@@ -48,7 +48,7 @@ use regex::Regex;
 use tcl_core_types::DiagCode;
 use tcl_irules::extract_irules_event_handlers;
 use tcl_lexer::LineIndex;
-use tcl_registry::base_objects::is_base_object;
+use tcl_registry::base_objects::base_object_identities;
 use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 
 use crate::canonical::Canon;
@@ -60,6 +60,12 @@ use crate::parser::helpers::{
 };
 use crate::range::Range;
 use crate::value::MonitorExpression;
+
+static FACTORY_OBJECT_IDENTITIES: LazyLock<HashSet<String>> = LazyLock::new(|| {
+    base_object_identities()
+        .map(|(module, object_type, name)| factory_object_identity(module, object_type, name))
+        .collect()
+});
 
 /// BIG-IP model diagnostics emitted by this validator.
 pub const BIGIP_DIAGNOSTIC_CODES: &[DiagCode] = &[
@@ -941,11 +947,20 @@ fn resolves_factory_reference(
         .flat_map(|spec| spec.header_types)
         .any(|&(module, object_type)| {
             candidates.iter().any(|candidate| {
-                candidate
-                    .strip_prefix("/Common/")
-                    .is_some_and(|name| is_base_object(module, object_type, name))
+                factory_object_exists(module, object_type, candidate)
+                    || candidate
+                        .strip_prefix("/Common/")
+                        .is_some_and(|name| factory_object_exists(module, object_type, name))
             })
         })
+}
+
+fn factory_object_exists(module: &str, object_type: &str, name: &str) -> bool {
+    FACTORY_OBJECT_IDENTITIES.contains(&factory_object_identity(module, object_type, name))
+}
+
+fn factory_object_identity(module: &str, object_type: &str, name: &str) -> String {
+    format!("{module}\0{object_type}\0{name}")
 }
 
 /// BIGIP6014: duplicate declarations are ambiguous even when the source
