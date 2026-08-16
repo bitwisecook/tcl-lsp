@@ -270,7 +270,7 @@ fn lexical_regexes() -> LexicalRegexes {
         ""
     };
     let escape = format!(
-        r#"\\(?:[abfnrtv\\"{{}}\[\]\$]|{octal_escape}|{hex_escape}|u[0-9a-fA-F]{{1,4}}{wide}|\n)"#
+        r#"\\(?:[abfnrtv\\"{{}}()\[\]\$]|{octal_escape}|{hex_escape}|u[0-9a-fA-F]{{1,4}}{wide}|\n)"#
     );
 
     LexicalRegexes {
@@ -699,6 +699,7 @@ mod tests {
         assert!(lexical.escape.contains("U[0-9a-fA-F]{1,8}"));
         assert!(lexical.escape.contains("[0-3][0-7]{0,2}"));
         assert!(lexical.escape.contains("[4-7][0-7]?"));
+        assert!(lexical.escape.contains("{}()"));
         // Namespace separator runs use the shared naming fragment, not the
         // former exactly-two-colon spelling.
         assert!(lexical.variable.contains("[:]{2,}"));

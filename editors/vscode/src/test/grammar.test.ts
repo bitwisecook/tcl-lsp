@@ -304,6 +304,14 @@ suite("TextMate grammar: generated lexical owners (#1469)", () => {
       "8.6+ leaves the third digit of \\777 outside the escape",
     );
   });
+
+  test("parenthesis backslash substitutions remain escape tokens", () => {
+    const line = 'puts "\\("';
+    assert.ok(
+      scopesAt(line, line.indexOf("\\(")).includes("constant.character.escape.tcl"),
+      "\\( should remain one escape token",
+    );
+  });
 });
 
 // Issue #903: the grammar is the paint the user sees before the server answers,

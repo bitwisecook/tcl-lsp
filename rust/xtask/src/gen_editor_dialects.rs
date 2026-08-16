@@ -44,6 +44,7 @@ const JETBRAINS_SETTINGS: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt";
 const SUBLIME_PLUGIN: &str = "editors/sublime-text/plugin.py";
 const SUBLIME_README: &str = "editors/sublime-text/README.md";
+const SUBLIME_PACKAGE: &str = "editors/sublime-text/sublime-package.json";
 
 #[derive(Clone, Copy)]
 struct EditorDialect {
@@ -198,6 +199,41 @@ fn render_sublime_readme(original: &str, ds: &[EditorDialect]) -> Result<String>
     )
 }
 
+/// Replace one JSON string array without reserialising the whole Sublime
+/// schema.  The schema intentionally keeps a few compact one-item arrays, so
+/// a full `serde_json` round trip would create unrelated formatting drift.
+fn render_sublime_package(original: &str, ds: &[EditorDialect]) -> Result<String> {
+    let dialect_key = "\"dialect\": {";
+    let dialect_start = original
+        .find(dialect_key)
+        .with_context(|| format!("missing {dialect_key:?}"))?;
+    let key = "\"enum\": [";
+    let key_start = dialect_start
+        + original[dialect_start..]
+            .find(key)
+            .with_context(|| format!("missing {key:?} after {dialect_key:?}"))?;
+    let values_start = key_start + key.len();
+    let end = original[values_start..]
+        .find(']')
+        .map(|offset| values_start + offset)
+        .with_context(|| format!("missing closing array for {key:?}"))?;
+    let key_line_start = original[..key_start].rfind('\n').map_or(0, |n| n + 1);
+    let key_indent = &original[key_line_start..key_start];
+    let item_indent = format!("{key_indent}    ");
+    let mut values = String::new();
+    for (index, d) in ds.iter().enumerate() {
+        let encoded = serde_json::to_string(d.name).context("serialising dialect name")?;
+        let comma = if index + 1 == ds.len() { "" } else { "," };
+        let _ = writeln!(values, "{item_indent}{encoded}{comma}");
+    }
+    let replacement = format!("\n{values}{key_indent}]");
+    Ok(format!(
+        "{}{replacement}{}",
+        &original[..values_start],
+        &original[end + 1..]
+    ))
+}
+
 type Render = fn(&str, &[EditorDialect]) -> Result<String>;
 
 pub fn run(check: bool) -> Result<ExitCode> {
@@ -212,6 +248,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         (JETBRAINS_SETTINGS, render_jetbrains),
         (SUBLIME_PLUGIN, render_sublime_plugin),
         (SUBLIME_README, render_sublime_readme),
+        (SUBLIME_PACKAGE, render_sublime_package),
     ];
     let mut drift = Vec::new();
     for &(rel, render) in targets {
@@ -265,12 +302,28 @@ mod tests {
             (JETBRAINS_SETTINGS, render_jetbrains),
             (SUBLIME_PLUGIN, render_sublime_plugin),
             (SUBLIME_README, render_sublime_readme),
+            (SUBLIME_PACKAGE, render_sublime_package),
         ] {
             let path = root.join(rel);
             let original = fs::read_to_string(&path)
                 .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
             assert_eq!(render(&original, &ds).unwrap(), original, "{rel} is stale");
         }
+    }
+
+    #[test]
+    fn sublime_settings_schema_is_valid_and_covers_catalogue() {
+        let root = repo_root();
+        let text = fs::read_to_string(root.join(SUBLIME_PACKAGE)).unwrap();
+        let json: Value = serde_json::from_str(&text).expect("Sublime package schema is JSON");
+        let values = &json["contributions"]["settings"][0]["schema"]["properties"]["settings"]["properties"]
+            ["tclLsp"]["properties"]["dialect"]["enum"];
+        assert_eq!(
+            values.as_array().unwrap().len(),
+            DialectProfile::all().len()
+        );
+        assert!(values.as_array().unwrap().iter().any(|v| v == "bpf"));
+        assert!(values.as_array().unwrap().iter().any(|v| v == "spectcl"));
     }
 
     #[test]
@@ -289,6 +342,7 @@ mod tests {
             (JETBRAINS_SETTINGS, render_jetbrains),
             (SUBLIME_PLUGIN, render_sublime_plugin),
             (SUBLIME_README, render_sublime_readme),
+            (SUBLIME_PACKAGE, render_sublime_package),
         ] {
             let original = fs::read_to_string(root.join(rel)).unwrap();
             assert_ne!(
