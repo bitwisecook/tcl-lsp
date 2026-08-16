@@ -30,11 +30,17 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value, json};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
-use tcl_compiler::ir::{Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name};
+use tcl_compiler::ir::{
+    CommandTokens, Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name,
+};
+use tcl_compiler::registry_invocation::effective_command_arguments;
 use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
-use tcl_registry::registry::{ExactInvocationCompletion, InvocationCompletion};
+use tcl_registry::registry::{
+    ExactInvocationCompletion, InvocationCompletion, InvocationCompletionKnowledge,
+};
+use tcl_registry::InvocationArguments;
 
 const MAX_DEPTH: usize = 8;
 const MAX_EVENTS: usize = 12;
@@ -88,12 +94,32 @@ impl DiagramCompletion {
 fn command_completion(
     command: &str,
     args: &[String],
+    tokens: Option<&CommandTokens>,
     registry: &CommandRegistry,
 ) -> DiagramCompletion {
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    if let Some(completion) =
-        registry.exact_invocation_completion(command, &arg_refs, DialectSet::empty())
-    {
+    let effective = tokens.map(|tokens| {
+        effective_command_arguments(
+            tokens,
+            tcl_dialect::EscapeSyntax::of_dialect_name(registry.profile().map(|profile| profile.name)),
+        )
+    });
+    let knowledge = if let Some(effective) = effective.as_ref() {
+        let words: Vec<_> = effective
+            .iter()
+            .map(|word| word.as_registry_word())
+            .collect();
+        registry.invocation_completion_knowledge(
+            command,
+            InvocationArguments::structured(&words),
+            DialectSet::empty(),
+        )
+    } else {
+        registry
+            .exact_invocation_completion(command, &arg_refs, DialectSet::empty())
+            .map(InvocationCompletionKnowledge::Exact)
+    };
+    if let Some(InvocationCompletionKnowledge::Exact(completion)) = knowledge {
         return match completion {
             ExactInvocationCompletion::Tcl(tcl_registry::CompletionCode::Ok) => {
                 DiagramCompletion::Normal
@@ -116,23 +142,13 @@ fn command_completion(
             ExactInvocationCompletion::ProcessExit => DiagramCompletion::ProcessExit,
         };
     }
-    if registry
-        .resolve_call(command, &arg_refs, DialectSet::empty())
-        .is_some_and(|resolved| {
-            resolved.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Return)
-        })
-    {
-        // Exact literal options returned above. A remaining `-code` is
-        // therefore dynamic (or otherwise not statically evaluable).
-        let has_dynamic_code = args.windows(2).any(|words| words[0] == "-code");
-        // A dynamic -code with no explicit level remains Tcl's default
-        // TCL_RETURN, except that an invalid code errors while configuring
-        // it. Any explicit or dynamic level has wider observable outcomes.
-        let has_level = args.windows(2).any(|words| words[0] == "-level");
-        return if has_dynamic_code && !has_level && !args.iter().any(|word| word == "-options") {
-            DiagramCompletion::DynamicReturnOrError
-        } else {
-            DiagramCompletion::Dynamic
+    if let Some(knowledge) = knowledge {
+        return match knowledge {
+            InvocationCompletionKnowledge::Exact(_) => unreachable!("handled above"),
+            InvocationCompletionKnowledge::DynamicReturnOrError => {
+                DiagramCompletion::DynamicReturnOrError
+            }
+            InvocationCompletionKnowledge::Dynamic => DiagramCompletion::Dynamic,
         };
     }
     match registry.invocation_completion(command, &arg_refs, DialectSet::empty()) {
@@ -394,6 +410,7 @@ fn walk_call(
     command: &str,
     canonical_command: Option<&str>,
     args: &[String],
+    tokens: Option<&CommandTokens>,
     proc_names: &HashSet<&str>,
     registry: &CommandRegistry,
 ) -> Option<Value> {
@@ -417,7 +434,7 @@ fn walk_call(
             "command": display,
         }));
     }
-    let completion = command_completion(canonical, args, registry);
+    let completion = command_completion(canonical, args, tokens, registry);
     // Keep an exact non-normal completion visible even when it is not a
     // diagram action (for example `error` / `throw`), so a surrounding try
     // can route it through `finally`.  Ordinary unknown calls remain omitted
@@ -545,11 +562,13 @@ fn walk_statement(
             command,
             canonical_command,
             args,
+            tokens,
             ..
         } => walk_call(
             command,
             canonical_command.as_deref(),
             args,
+            tokens.as_ref(),
             proc_names,
             registry,
         ),
@@ -558,10 +577,11 @@ fn walk_statement(
             command,
             canonical_command,
             args,
+            tokens,
             ..
         } => {
             let canonical = canonical_command.as_deref().unwrap_or(command.as_str());
-            let completion = command_completion(canonical, args, registry);
+            let completion = command_completion(canonical, args, tokens.as_ref(), registry);
             (registry.is_diagram_action(canonical) || completion != DiagramCompletion::Normal)
                 .then(|| with_completion(action_node(command, args), completion))
         }
@@ -866,6 +886,40 @@ mod tests {
                 assert_eq!(
                     data.pointer(&format!("/procedures/0/flow/{index}/body/0/completion")),
                     Some(&Value::String("error".to_owned())),
+                    "{dialect}: {data}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn return_completion_preserves_source_word_shape() {
+        let source = r#"
+            proc paths {} {
+                try { return -code {$code} } on error {m o} {}
+                try { return -code $code } on error {m o} {}
+                try { return -code "$code" } on error {m o} {}
+                try { return -code \x32 } on return {m o} {}
+                try { return -code {\x32} } on error {m o} {}
+            }
+        "#;
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let data = diagram_data_for_dialect(
+                source,
+                tcl_registry::registry_for_dialect(dialect),
+                dialect,
+            );
+            let completions = [
+                "error",
+                "dynamic_return_or_error",
+                "dynamic_return_or_error",
+                "return",
+                "error",
+            ];
+            for (index, expected) in completions.into_iter().enumerate() {
+                assert_eq!(
+                    data.pointer(&format!("/procedures/0/flow/{index}/body/0/completion")),
+                    Some(&Value::String(expected.to_owned())),
                     "{dialect}: {data}"
                 );
             }

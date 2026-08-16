@@ -178,6 +178,13 @@ impl<'w> InvocationArguments<'w> {
         !self.are_all_literals()
     }
 
+    /// Whether this view retained source word shape rather than accepting the
+    /// legacy string-only compatibility projection.
+    #[must_use]
+    pub const fn is_source_aware(self) -> bool {
+        matches!(self, Self::Structured(_))
+    }
+
     /// Return every post-head Tcl value when all source words are literal.
     ///
     /// This is the explicit compatibility bridge for established registry

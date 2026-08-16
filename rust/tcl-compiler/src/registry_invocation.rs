@@ -24,13 +24,41 @@
 //! analyses all resolve exactly the same structured [`WordExpr`] facts under
 //! an explicitly supplied dialect profile.
 
+use tcl_dialect::EscapeSyntax;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::{
     CommandRegistry, InvocationFacts, InvocationResolutionUnresolved, InvocationWord,
     InvocationWordKind, InvocationWords,
 };
 
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::{CommandTokens, WordExpr, WordPart};
+
+/// Owned source-aware word fact for callers that must decode a static Tcl
+/// word before lending it to the registry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EffectiveInvocationWord {
+    /// A Tcl value proven static after applying the active escape syntax.
+    Literal(String),
+    /// One argv word produced by substitution.
+    Dynamic,
+    /// An expansion with an unknown resulting argv length.
+    Expanded,
+    /// A compatibility/recovery word whose source meaning is unavailable.
+    Opaque,
+}
+
+impl EffectiveInvocationWord {
+    /// Lend this owned fact to the registry's allocation-free vocabulary.
+    #[must_use]
+    pub fn as_registry_word(&self) -> InvocationWord<'_> {
+        match self {
+            Self::Literal(value) => InvocationWord::Literal(value),
+            Self::Dynamic => InvocationWord::Dynamic,
+            Self::Expanded => InvocationWord::Expanded,
+            Self::Opaque => InvocationWord::Opaque,
+        }
+    }
+}
 
 /// An owned, target-neutral result from registry invocation resolution.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -101,6 +129,56 @@ pub fn invocation_word(word: &WordExpr) -> InvocationWord<'_> {
         WordExpr::Expand { .. } => InvocationWord::Expanded,
         WordExpr::Opaque { .. } => InvocationWord::Opaque,
     }
+}
+
+/// Evaluate the statically-known portion of a source word under the active
+/// escape grammar. Braced words deliberately do not decode backslashes.
+#[must_use]
+pub fn effective_invocation_word(
+    word: &WordExpr,
+    escapes: EscapeSyntax,
+) -> EffectiveInvocationWord {
+    match word {
+        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => {
+            EffectiveInvocationWord::Literal(text.clone())
+        }
+        WordExpr::Template { parts, .. }
+            if parts
+                .iter()
+                .all(|part| matches!(part, WordPart::Text { .. })) =>
+        {
+            let raw: String = parts
+                .iter()
+                .map(|part| match part {
+                    WordPart::Text { text, .. } => text.as_str(),
+                    _ => unreachable!("guard admits text parts only"),
+                })
+                .collect();
+            EffectiveInvocationWord::Literal(
+                tcl_syntax::backslash::decode_in(&raw, escapes).into_owned(),
+            )
+        }
+        WordExpr::Variable { .. }
+        | WordExpr::CommandSubstitution { .. }
+        | WordExpr::Template { .. } => EffectiveInvocationWord::Dynamic,
+        WordExpr::Expand { .. } => EffectiveInvocationWord::Expanded,
+        WordExpr::Opaque { .. } => EffectiveInvocationWord::Opaque,
+    }
+}
+
+/// Convert a command-token snapshot into source-aware effective argv facts.
+#[must_use]
+pub fn effective_command_arguments(
+    tokens: &CommandTokens,
+    escapes: EscapeSyntax,
+) -> Vec<EffectiveInvocationWord> {
+    tokens
+        .words()
+        .get(1..)
+        .unwrap_or_default()
+        .iter()
+        .map(|word| effective_invocation_word(word, escapes))
+        .collect()
 }
 
 /// Resolve semantic source words through the registry under `dialect`.
@@ -185,6 +263,34 @@ mod tests {
                         if alias.local == TransitionSubject::Literal("shared".to_owned())
                 )
         ));
+    }
+
+    #[test]
+    fn effective_words_keep_braces_and_decode_bare_escapes() {
+        let source = SourceSite::source(tcl_lexer::Span::new(0, 0));
+        assert_eq!(
+            effective_invocation_word(
+                &WordExpr::Template {
+                    parts: vec![WordPart::Text {
+                        text: r"\x32".to_owned(),
+                        source: source.clone()
+                    }],
+                    source: source.clone(),
+                },
+                EscapeSyntax::Tcl86,
+            ),
+            EffectiveInvocationWord::Literal("2".to_owned())
+        );
+        assert_eq!(
+            effective_invocation_word(
+                &WordExpr::BracedLiteral {
+                    text: r"\x32".to_owned(),
+                    source
+                },
+                EscapeSyntax::Tcl86,
+            ),
+            EffectiveInvocationWord::Literal(r"\x32".to_owned())
+        );
     }
 
     #[test]

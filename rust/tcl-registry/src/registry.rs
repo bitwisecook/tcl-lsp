@@ -129,6 +129,17 @@ pub enum ExactInvocationCompletion {
     ProcessExit,
 }
 
+/// Registry-owned completion knowledge for a source-aware invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvocationCompletionKnowledge {
+    /// A fully determined Tcl completion or process exit.
+    Exact(ExactInvocationCompletion),
+    /// `return -code $value` can either propagate return or reject the code.
+    DynamicReturnOrError,
+    /// The invocation has a runtime-dependent completion.
+    Dynamic,
+}
+
 /// Parse the literal option subset of `return` that fixes the completion code
 /// visible to an enclosing `try`.  With the default `-level 1`, `return`
 /// itself propagates `TCL_RETURN` even when its eventual procedure result is
@@ -145,7 +156,7 @@ enum ExactReturnCompletion {
 }
 
 fn exact_return_completion(
-    args: &[&str],
+    args: crate::invocation_words::InvocationArguments<'_>,
     numbers: tcl_syntax::number::Numbers,
 ) -> ExactReturnCompletion {
     use crate::completion::CompletionCode;
@@ -153,11 +164,15 @@ fn exact_return_completion(
     let mut i = 0usize;
     let mut code = CompletionCode::Ok;
     let mut level = 1_i64;
-    while let Some(word) = args.get(i).copied() {
+    while let Some(word) = args.literal_at(i) {
         match word {
             "-code" => {
-                let Some(value) = args.get(i + 1).copied() else {
-                    return ExactReturnCompletion::StaticError;
+                let Some(value) = args.literal_at(i + 1) else {
+                    return if args.get(i + 1).is_some() {
+                        ExactReturnCompletion::Dynamic
+                    } else {
+                        ExactReturnCompletion::StaticError
+                    };
                 };
                 code = match value {
                     "ok" | "0" => CompletionCode::Ok,
@@ -167,7 +182,9 @@ fn exact_return_completion(
                     "continue" | "4" => CompletionCode::Continue,
                     value => match crate::completion::canonical_completion_code(value, numbers) {
                         Some(value) => CompletionCode::from_int(value),
-                        None if tcl_syntax::naming::is_dynamic_word(value) => {
+                        None if !args.is_source_aware()
+                            && tcl_syntax::naming::is_dynamic_word(value) =>
+                        {
                             return ExactReturnCompletion::Dynamic;
                         }
                         None => return ExactReturnCompletion::StaticError,
@@ -176,12 +193,18 @@ fn exact_return_completion(
                 i += 2;
             }
             "-level" => {
-                let Some(value) = args.get(i + 1).copied() else {
-                    return ExactReturnCompletion::StaticError;
+                let Some(value) = args.literal_at(i + 1) else {
+                    return if args.get(i + 1).is_some() {
+                        ExactReturnCompletion::Dynamic
+                    } else {
+                        ExactReturnCompletion::StaticError
+                    };
                 };
                 level = match numbers.parse_wide(value) {
                     Some(value) if value >= 0 => value,
-                    None if tcl_syntax::naming::is_dynamic_word(value) => {
+                    None if !args.is_source_aware()
+                        && tcl_syntax::naming::is_dynamic_word(value) =>
+                    {
                         return ExactReturnCompletion::Dynamic;
                     }
                     _ => return ExactReturnCompletion::StaticError,
@@ -212,7 +235,10 @@ fn exact_return_completion(
     }
     // `return` accepts one result word after its options; additional words are
     // an arity error, so no exact runtime completion is promised.
-    if args.len().saturating_sub(i) > 1 {
+    if args
+        .exact_argv_len()
+        .is_some_and(|len| len.saturating_sub(i) > 1)
+    {
         return ExactReturnCompletion::StaticError;
     }
     ExactReturnCompletion::Completion(if level == 0 {
@@ -2047,7 +2073,25 @@ impl CommandRegistry {
         args: &[&str],
         dialect: DialectSet,
     ) -> Option<ExactInvocationCompletion> {
-        let resolved = self.resolve_call(name, args, dialect)?;
+        self.exact_invocation_completion_words(
+            name,
+            crate::invocation_words::InvocationArguments::literals(args),
+            dialect,
+        )
+    }
+
+    /// Source-aware counterpart to [`Self::exact_invocation_completion`].
+    /// Dynamic words remain dynamic; literal brace words retain their literal
+    /// value rather than being mistaken for a variable spelling.
+    #[must_use]
+    pub fn exact_invocation_completion_words(
+        &self,
+        name: &str,
+        args: crate::invocation_words::InvocationArguments<'_>,
+        dialect: DialectSet,
+    ) -> Option<ExactInvocationCompletion> {
+        let literal_args = args.literal_values().unwrap_or_default();
+        let resolved = self.resolve_call(name, &literal_args, dialect)?;
         let positional_len = args
             .len()
             .saturating_sub(usize::from(resolved.sub.is_some()));
@@ -2086,6 +2130,35 @@ impl CommandRegistry {
             return None;
         };
         (codes.len() == 1).then_some(ExactInvocationCompletion::Tcl(codes[0]))
+    }
+
+    /// Return source-aware completion knowledge without exposing return-option
+    /// parsing to a consumer such as the diagram renderer.
+    #[must_use]
+    pub fn invocation_completion_knowledge(
+        &self,
+        name: &str,
+        args: crate::invocation_words::InvocationArguments<'_>,
+        dialect: DialectSet,
+    ) -> Option<InvocationCompletionKnowledge> {
+        if let Some(exact) = self.exact_invocation_completion_words(name, args, dialect) {
+            return Some(InvocationCompletionKnowledge::Exact(exact));
+        }
+        let literals = args.literal_values().unwrap_or_default();
+        let resolved = self.resolve_call(name, &literals, dialect)?;
+        if resolved.lowering_hook != Some(LoweringHookId::Return) {
+            return None;
+        }
+        let dynamic_code = (0..args.len()).any(|index| {
+            args.literal_at(index) == Some("-code") && args.literal_at(index + 1).is_none()
+        });
+        let has_level = (0..args.len()).any(|index| args.literal_at(index) == Some("-level"));
+        let has_options = (0..args.len()).any(|index| args.literal_at(index) == Some("-options"));
+        Some(if dynamic_code && !has_level && !has_options {
+            InvocationCompletionKnowledge::DynamicReturnOrError
+        } else {
+            InvocationCompletionKnowledge::Dynamic
+        })
     }
 
     /// Whether `name` is valid only at the top level of an iRule script
@@ -6730,6 +6803,62 @@ mod tests {
                     reg.exact_invocation_completion("return", args, DialectSet::empty()),
                     Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
                     "{dialect}: {args:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn exact_return_source_words_distinguish_literals_from_substitution() {
+        use crate::completion::CompletionCode;
+        use crate::invocation_words::{InvocationArguments, InvocationWord};
+
+        // Tcl 8.6 and 9.0 oracle: braces keep `$code` and `\\x32` literal,
+        // while a bare/quoted substitution remains unknown and a decoded bare
+        // escape can be supplied to this API as its effective static value.
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let reg = crate::registry_for_dialect(dialect);
+            for words in [
+                vec![
+                    InvocationWord::Literal("-code"),
+                    InvocationWord::Literal("$code"),
+                ],
+                vec![
+                    InvocationWord::Literal("-code"),
+                    InvocationWord::Literal("\\x32"),
+                ],
+            ] {
+                assert_eq!(
+                    reg.exact_invocation_completion_words(
+                        "return",
+                        InvocationArguments::structured(&words),
+                        DialectSet::empty()
+                    ),
+                    Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
+                    "{dialect}: {words:?}"
+                );
+            }
+            let decoded = [
+                InvocationWord::Literal("-code"),
+                InvocationWord::Literal("2"),
+            ];
+            assert_eq!(
+                reg.exact_invocation_completion_words(
+                    "return",
+                    InvocationArguments::structured(&decoded),
+                    DialectSet::empty()
+                ),
+                Some(ExactInvocationCompletion::Tcl(CompletionCode::Return)),
+            );
+            for dynamic in [InvocationWord::Dynamic, InvocationWord::Dynamic] {
+                let words = [InvocationWord::Literal("-code"), dynamic];
+                assert_eq!(
+                    reg.exact_invocation_completion_words(
+                        "return",
+                        InvocationArguments::structured(&words),
+                        DialectSet::empty()
+                    ),
+                    None,
                 );
             }
         }
