@@ -49,10 +49,11 @@ use std::collections::HashMap;
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
 use tcl_lexer::{LexerConfig, Token, TokenType};
-use tcl_registry::CommandRegistry;
+use tcl_registry::{CommandRegistry, InvocationArguments};
 
 use crate::definition::utf16_col_to_char_col;
 
@@ -638,7 +639,11 @@ fn pattern_format_hover_for_command(
         .registry
         .resolve_call(head, &args, context.profile.availability_mask)?;
 
-    for pattern in context.registry.pattern_args(head, &args) {
+    let source_args = segmented_command_arguments(command);
+    for pattern in context
+        .registry
+        .pattern_args_words(head, InvocationArguments::structured(&source_args))
+    {
         let Some(&token) = command.argv.get(usize::from(pattern.index) + 1) else {
             continue;
         };
@@ -5126,6 +5131,16 @@ mod tests {
         let analysis = a.analyse(src, "tcl8.6").clone();
         let h = hover(src, 0, 24, &analysis, None).expect("hover");
         assert!(h.value.contains("Regex pattern"), "{}", h.value);
+    }
+
+    #[test]
+    fn dynamic_lsearch_option_prefix_does_not_claim_the_following_list_as_glob() {
+        let src = "lsearch $mode {a b} {a*}\n";
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let analysis = a.analyse(src, "tcl8.6").clone();
+        // `$mode` can evaluate to a value-taking lsearch option. The source
+        // shape therefore cannot prove that `{a b}` is the pattern word.
+        assert!(hover(src, 0, 16, &analysis, None).is_none());
     }
 
     // regsub substitution-spec hover

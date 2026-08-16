@@ -32,6 +32,7 @@ use tcl_registry::{
 };
 
 use crate::ir::{CommandTokens, WordExpr, WordPart};
+use crate::segmenter::SegmentedCommand;
 
 /// Owned source-aware word fact for callers that must decode a static Tcl
 /// word before lending it to the registry.
@@ -178,6 +179,45 @@ pub fn effective_command_arguments(
         .unwrap_or_default()
         .iter()
         .map(|word| effective_invocation_word(word, escapes))
+        .collect()
+}
+
+/// Borrow source-aware post-head words from a segmented command.
+///
+/// The segmenter's compatibility text is still the literal value bridge for
+/// callers that do not need escape decoding.  Its lossless fragment list is
+/// what prevents a `$word` / `[command]` / `{*}word` from becoming a literal
+/// option or operand during a registry query.
+#[must_use]
+pub fn segmented_command_arguments(command: &SegmentedCommand) -> Vec<InvocationWord<'_>> {
+    command
+        .texts
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(index, text)| {
+            if command
+                .expand_word
+                .as_ref()
+                .and_then(|markers| markers.get(index))
+                == Some(&true)
+            {
+                return InvocationWord::Expanded;
+            }
+            let Some(fragments) = command.word_fragments.get(index) else {
+                return InvocationWord::Opaque;
+            };
+            if fragments.iter().any(|fragment| {
+                matches!(
+                    fragment.token.kind,
+                    tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+                )
+            }) {
+                InvocationWord::Dynamic
+            } else {
+                InvocationWord::Literal(text)
+            }
+        })
         .collect()
 }
 

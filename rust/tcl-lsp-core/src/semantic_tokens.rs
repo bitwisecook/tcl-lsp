@@ -88,13 +88,14 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::types::{ProcArgTrait, ProcDef};
 use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_dialect::{DialectSet, NumberSyntax};
-use tcl_registry::CommandRegistry;
 use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
+use tcl_registry::{CommandRegistry, InvocationArguments};
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -1497,7 +1498,7 @@ fn special_arg_kinds(
         overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
     }
 
-    insert_regex_overrides(seg, registry, head, arg_texts, &mut overrides);
+    insert_regex_overrides(seg, registry, head, &mut overrides);
     insert_format_overrides(seg, registry, head, arg_texts, &mut overrides);
 
     // `proc NAME …` — the name argument is a function definition.  Procedure
@@ -1925,7 +1926,6 @@ fn insert_regex_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    arg_texts: &[&str],
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // Sub-tokenise only the *literal* fragments of the pattern word as regex:
@@ -1939,8 +1939,9 @@ fn insert_regex_overrides(
     // consumer must not guess that `-start` has a value or that the first
     // non-switch word is a pattern: those are command grammars owned by the
     // declared `OptionSpec` and `arg_role_resolver`.
+    let source_args = segmented_command_arguments(seg);
     for found in registry
-        .pattern_args(head, arg_texts)
+        .pattern_args_words(head, InvocationArguments::structured(&source_args))
         .into_iter()
         .filter(|found| found.kind == tcl_registry::patterns::PatternType::Regex)
     {

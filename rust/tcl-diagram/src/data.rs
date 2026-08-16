@@ -875,7 +875,31 @@ mod tests {
             proc paths {} {
                 try { return -code bogus payload } on error {m o} {}
                 try { return -level -1 payload } on error {m o} {}
-                try { return -code } on error {m o} {}
+            }
+        ";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let data = diagram_data_for_dialect(
+                source,
+                tcl_registry::registry_for_dialect(dialect),
+                dialect,
+            );
+            for index in 0..2 {
+                assert_eq!(
+                    data.pointer(&format!("/procedures/0/flow/{index}/body/0/completion")),
+                    Some(&Value::String("error".to_owned())),
+                    "{dialect}: {data}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn trailing_return_option_words_are_results_not_missing_values() {
+        let source = r"
+            proc paths {} {
+                try { return -code } on return {m o} {}
+                try { return -level } on return {m o} {}
+                try { return -options } on return {m o} {}
             }
         ";
         for dialect in ["tcl8.6", "tcl9.0"] {
@@ -885,6 +909,32 @@ mod tests {
                 dialect,
             );
             for index in 0..3 {
+                assert_eq!(
+                    data.pointer(&format!("/procedures/0/flow/{index}/body/0/completion")),
+                    Some(&Value::String("return".to_owned())),
+                    "{dialect}: {data}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_known_terminator_arity_projects_as_catchable_error() {
+        let source = r"
+            proc paths {} {
+                try { error } on error {m o} { set caught_error yes }
+                try { throw TYPE } on error {m o} { set caught_throw yes }
+                try { break extra } on error {m o} { set caught_break yes }
+                try { exit 0 extra } on error {m o} { set caught_exit yes }
+            }
+        ";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let data = diagram_data_for_dialect(
+                source,
+                tcl_registry::registry_for_dialect(dialect),
+                dialect,
+            );
+            for index in 0..4 {
                 assert_eq!(
                     data.pointer(&format!("/procedures/0/flow/{index}/body/0/completion")),
                     Some(&Value::String("error".to_owned())),

@@ -358,6 +358,32 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun dynamicNormalOutcomeRoutesOnceThroughOnOkAndFinally() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -options ${'$'}opts","completion":"dynamic"}],"handlers":[
+              {"kind_handler":"on","match":"ok","completion_code":0,"fallthrough":false,"body":[{"kind":"action","label":"ok path"}]}
+            ],"finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        assertEquals(1, mermaid.lines().count { it == "n2 -->|on| n3" }, mermaid)
+        assertEquals(1, mermaid.lines().count { it == "n4 --> n5" }, mermaid)
+        assertEquals(1, mermaid.lines().count { it == "n5 --> n6" }, mermaid)
+        assertEquals(1, mermaid.lines().count { it == "n6 --> n7" }, mermaid)
+    }
+
+    @Test
+    fun dynamicNormalOutcomeRoutesOnceThroughFinallyWithoutAHandler() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"return -options ${'$'}opts","completion":"dynamic"}],"finally":[
+              {"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        assertEquals(1, mermaid.lines().count { it == "n2 --> n3" }, mermaid)
+        assertEquals(1, mermaid.lines().count { it == "n3 --> n4" }, mermaid)
+        assertEquals(1, mermaid.lines().count { it == "n4 --> n5" }, mermaid)
+    }
+
+    @Test
     fun dynamicCompletionOutsideTryRetainsItsNormalContinuation() {
         val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
             """{"events":[{"name":"E","flow":[

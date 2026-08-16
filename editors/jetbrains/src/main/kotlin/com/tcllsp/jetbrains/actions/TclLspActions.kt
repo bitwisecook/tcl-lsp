@@ -116,6 +116,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
     val events = root.array("events") ?: return null
     val procedures = root.array("procedures") ?: return null
     val out = mutableListOf("flowchart TD")
+    val edges = mutableSetOf<String>()
     val ids = MermaidIds()
 
     fun label(value: String): String = value
@@ -140,7 +141,9 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
     }
 
     fun connect(from: String?, to: String, caption: String? = null) {
-        if (from != null) out += if (caption == null) "$from --> $to" else "$from -->|${label(caption)}| $to"
+        if (from == null) return
+        val edge = if (caption == null) "$from --> $to" else "$from -->|${label(caption)}| $to"
+        if (edges.add(edge)) out += edge
     }
 
     data class Tail(val id: String, val completion: DiagramCompletion = DiagramCompletion.NORMAL, val completionCode: Int? = null)
@@ -369,8 +372,12 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             bodyExit.completion == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
                         ) {
                             val possible = if (bodyExit.completion == DiagramCompletion.DYNAMIC) {
+                                // Dynamic action nodes retain their normal
+                                // outcome as an ordinary active tail. This
+                                // companion tail represents only the other
+                                // possible completions, so an `on ok` handler
+                                // receives one edge rather than two.
                                 val standard = listOf(
-                                    PossibleCompletion.NORMAL,
                                     PossibleCompletion.ERROR,
                                     PossibleCompletion.RETURN,
                                     PossibleCompletion.BREAK,
