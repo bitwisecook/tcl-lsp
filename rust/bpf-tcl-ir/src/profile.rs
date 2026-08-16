@@ -41,12 +41,13 @@
 //! else is rejected rather than silently dropped.
 
 use tcl_compiler::ir::IfClause;
-use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
+use crate::lower::parse_int;
+use crate::source::lower_bpf_source;
 use crate::ty::ByteOrder;
 
 /// A named header field at a fixed packet offset.
@@ -196,7 +197,7 @@ fn parse_user_profile(
     body: &str,
     registry: &CommandRegistry,
 ) -> Result<BpfProfileSpec, BpfError> {
-    let module = lower_to_ir(body, registry);
+    let module = lower_bpf_source(body, registry);
     let mut fields = Vec::new();
     for stmt in &module.top_level.statements {
         let Statement::Call {
@@ -234,10 +235,12 @@ fn parse_user_profile(
                 "`field` expects: field NAME OFFSET WIDTHBITS ?be|le|native?",
             ));
         }
-        let offset = args[1].parse::<i32>().map_err(|_| {
-            BpfError::new(BpfDiag::BadInt, *span, "field offset must be an integer")
-        })?;
-        let width_bits = parse_width(&args[2]).ok_or_else(|| {
+        let offset = parse_int(&args[1], registry.numbers())
+            .and_then(|value| i32::try_from(value).ok())
+            .ok_or_else(|| {
+                BpfError::new(BpfDiag::BadInt, *span, "field offset must be an integer")
+            })?;
+        let width_bits = parse_width(&args[2], registry.numbers()).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadProfile,
                 *span,
@@ -265,13 +268,9 @@ fn parse_user_profile(
     })
 }
 
-fn parse_width(s: &str) -> Option<u8> {
-    match s.trim() {
-        "8" => Some(8),
-        "16" => Some(16),
-        "32" => Some(32),
-        _ => None,
-    }
+fn parse_width(s: &str, numbers: tcl_syntax::number::NumberSyntax) -> Option<u8> {
+    let width = u8::try_from(parse_int(s, numbers)?).ok()?;
+    matches!(width, 8 | 16 | 32).then_some(width)
 }
 
 /// Rewrite a handler body's field-access commands into `load*` calls, recursing

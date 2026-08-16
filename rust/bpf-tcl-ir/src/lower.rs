@@ -54,10 +54,11 @@ const MAX_RAW_SLOTS: usize = 4096;
 
 /// Lower a single CFG function to a typed [`BpfProgram`] of the given type.
 ///
-/// `registry` must have the BPF dialect loaded (its `BpfOpSpec` descriptors
-/// drive all command dispatch). Slot allocation (liveness-based reuse + the
-/// 512-byte stack cap) runs as part of lowering, so the returned program is
-/// ready for any codegen target.
+/// `registry` must be the profile-stamped BPF registry: its `BpfOpSpec`
+/// descriptors drive command dispatch and its Tcl 9.0 embedding supplies the
+/// numeric grammar. Slot allocation (liveness-based reuse + the 512-byte stack
+/// cap) runs as part of lowering, so the returned program is ready for any
+/// codegen target.
 ///
 /// # Errors
 /// Returns a [`BpfError`] for any construct outside the typed DSL subset, a
@@ -85,6 +86,7 @@ pub fn lower_function(
         // uses. With no profile loaded, fall back to the grammar the process
         // was built for.
         numbers: registry.numbers(),
+        expr_dialect: registry.profile().map(|profile| profile.name),
         prog_type,
         env: HashMap::new(),
         slot_types: Vec::new(),
@@ -128,12 +130,16 @@ pub fn lower_function(
 
 struct Lowerer<'f> {
     func: &'f Function,
-    /// The command registry (with the BPF dialect loaded) whose `BpfOpSpec`
-    /// descriptors drive all command dispatch.
+    /// The profile-stamped BPF command registry whose `BpfOpSpec` descriptors
+    /// drive all command dispatch.
     registry: &'f CommandRegistry,
     /// The numeric-literal grammar of the dialect being compiled for — every
     /// integer literal in the DSL is read through it.
     numbers: NumberSyntax,
+    /// Named target profile for expression parsing. Unlike an unpinned parser,
+    /// this cannot inherit the ambient grammar of an interpreter that happened
+    /// to run earlier on the current thread.
+    expr_dialect: Option<&'static str>,
     /// Program type — selects verdict semantics (`accept`/`drop` vs `pass`/`tx`).
     prog_type: ProgType,
     /// Typed symbol table: variable name → (stable slot, type). Function-global
@@ -324,7 +330,7 @@ impl Lowerer<'_> {
             return Err(arity(span, "map_get", "DST NAME {KEY}"));
         }
         let map = self.resolve_map(&args[1], span)?;
-        let key = self.lower_expr(&parse_expr(&args[2], None), insts, span)?;
+        let key = self.lower_expr(&self.parse_expr(&args[2]), insts, span)?;
         let dst = self.var_slot(&args[0], Ty::Int, span)?;
         insts.push(Inst::MapGet {
             dst,
@@ -346,7 +352,7 @@ impl Lowerer<'_> {
             return Err(arity(span, "map_has", "DST NAME {KEY}"));
         }
         let map = self.resolve_map(&args[1], span)?;
-        let key = self.lower_expr(&parse_expr(&args[2], None), insts, span)?;
+        let key = self.lower_expr(&self.parse_expr(&args[2]), insts, span)?;
         let dst = self.var_slot(&args[0], Ty::Int, span)?;
         insts.push(Inst::MapHas {
             dst,
@@ -368,8 +374,8 @@ impl Lowerer<'_> {
             return Err(arity(span, "map_set", "NAME {KEY} {VAL}"));
         }
         let map = self.resolve_map(&args[0], span)?;
-        let key = self.lower_expr(&parse_expr(&args[1], None), insts, span)?;
-        let val = self.lower_expr(&parse_expr(&args[2], None), insts, span)?;
+        let key = self.lower_expr(&self.parse_expr(&args[1]), insts, span)?;
+        let val = self.lower_expr(&self.parse_expr(&args[2]), insts, span)?;
         insts.push(Inst::MapSet {
             map,
             key,
@@ -469,7 +475,7 @@ impl Lowerer<'_> {
                     insts.push(Inst::CtxLen { dst, span });
                     dst
                 } else if args.len() == 1 {
-                    self.lower_expr(&parse_expr(&args[0], None), insts, span)?
+                    self.lower_expr(&self.parse_expr(&args[0]), insts, span)?
                 } else {
                     return Err(arity(span, cmd, "?N?"));
                 }
@@ -730,7 +736,7 @@ impl Lowerer<'_> {
                 if args.len() != 2 {
                     return Err(arity(span, cmd, "NAME {EXPR}"));
                 }
-                let expr = parse_expr(&args[1], None);
+                let expr = self.parse_expr(&args[1]);
                 let tmp = self.lower_expr(&expr, insts, span)?;
                 let dst = self.var_slot(&args[0], Ty::Int, span)?;
                 self.emit_width_set(width, tmp, dst, insts, span)?;
@@ -800,6 +806,11 @@ impl Lowerer<'_> {
                 framework_in_handler_message(cmd, decl),
             )),
         }
+    }
+
+    /// Parse a BPF expression under the profile stamped on this registry.
+    fn parse_expr(&self, source: &str) -> ExprNode {
+        parse_expr(source, self.expr_dialect)
     }
 
     fn lower_expr(
@@ -1091,7 +1102,7 @@ fn map_un(op: UnaryOp) -> Option<UnOp> {
 /// it), the same octal-by-leading-zero rule, and the same `_` separators.
 /// `integer_only` makes a fractional part trailing junk, and a magnitude past
 /// `i64` is rejected here because every BPF operand is a wide or narrower.
-fn parse_int(text: &str, numbers: NumberSyntax) -> Option<i64> {
+pub(crate) fn parse_int(text: &str, numbers: NumberSyntax) -> Option<i64> {
     let flags = ParseFlags {
         integer_only: true,
         ..ParseFlags::for_syntax(numbers)
@@ -1272,7 +1283,7 @@ mod tests {
     /// and `1_000` were all rejected as bad integers.
     #[test]
     fn integer_literals_follow_the_target_dialects_number_grammar() {
-        let numbers = tcl_dialect::DialectProfile::by_name("bpf").grammar.numbers;
+        let numbers = tcl_registry::registry_for_dialect("bpf").numbers();
         for (text, want) in [
             ("42", Some(42)),
             ("-42", Some(-42)),

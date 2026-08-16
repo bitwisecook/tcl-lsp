@@ -502,28 +502,27 @@ mod tests {
     use super::*;
     use tcl_compiler::lowering::lower_to_ir;
     use tcl_registry::dialects::DialectSet;
+    use tcl_registry::registry_for_dialect;
 
-    fn bpf_registry() -> CommandRegistry {
-        let mut registry = CommandRegistry::build_default();
-        registry.load_bpf();
-        registry
+    fn bpf_registry() -> &'static CommandRegistry {
+        registry_for_dialect("bpf")
     }
 
     #[test]
     fn bpf_descriptor_alone_never_seals_a_generic_tcl_invocation() {
         let registry = bpf_registry();
-        let module = lower_to_ir("setint result {1}", &registry);
+        let module = lower_to_ir("setint result {1}", registry);
         let bundle = SemanticAnalysisBundle::build(
-            &registry,
+            registry,
             DialectSet::BPF,
             &module.top_level,
             tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
 
         let EbpfRegionEligibility::Declined(EbpfRegionDecline::Invocations(declines)) =
-            EbpfSemanticBridge::new().assess(&registry, &bundle)
+            EbpfSemanticBridge::new().assess(registry, &bundle)
         else {
-            panic!("unstamped BPF command must not be certified as direct eBPF");
+            panic!("a BPF descriptor alone must not certify direct eBPF");
         };
         assert_eq!(declines.len(), 1);
         assert_eq!(declines[0].canonical_command.as_deref(), Some("setint"));
@@ -536,16 +535,16 @@ mod tests {
     #[test]
     fn non_bpf_lowered_statement_retains_a_typed_shape_decline() {
         let registry = bpf_registry();
-        let module = lower_to_ir("set result 1", &registry);
+        let module = lower_to_ir("set result 1", registry);
         let bundle = SemanticAnalysisBundle::build(
-            &registry,
+            registry,
             DialectSet::BPF,
             &module.top_level,
             tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
 
         let EbpfRegionEligibility::Declined(EbpfRegionDecline::ExecutableShape(declines)) =
-            EbpfSemanticBridge::new().assess(&registry, &bundle)
+            EbpfSemanticBridge::new().assess(registry, &bundle)
         else {
             panic!("ordinary lowered Tcl must retain its typed executable-shape decline");
         };
@@ -609,9 +608,9 @@ mod tests {
     #[test]
     fn any_common_tcl_world_access_prevents_sealing() {
         let registry = bpf_registry();
-        let module = lower_to_ir("setint result {1}", &registry);
+        let module = lower_to_ir("setint result {1}", registry);
         let bundle = SemanticAnalysisBundle::build(
-            &registry,
+            registry,
             DialectSet::BPF,
             &module.top_level,
             tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
