@@ -48,27 +48,61 @@ use crate::util::repo_root;
 /// `AGENTS.md`. Diagnostic pages are deliberately checked here rather than
 /// relying on the CLI help builder, which only indexes feature pages and
 /// historically accepted arbitrary tokens.
+///
+/// This is the complete vocabulary from STYLE.md: editor, tool, KCS type,
+/// content, and compiler-pass tags. A diagnostic page may use any of these
+/// facets; the per-code stage map below adds the stricter ownership check for
+/// the compiler-pass tag.
 const DIAGNOSTIC_KCS_TAGS: &[&str] = &[
     "all-editors",
-    "analyser",
-    "cfg",
-    "command-walk",
-    "const-fold",
-    "dataflow",
-    "dce",
-    "diagnostic",
-    "lexing",
-    "liveness",
-    "mcp",
-    "naming",
-    "lowering",
-    "sccp",
-    "ssa",
-    "shimmer",
-    "taint",
+    "vs-code",
+    "zed",
+    "jetbrains",
+    "neovim",
+    "helix",
+    "emacs",
+    "sublime-text",
     "tcl-lsp-cli",
-    "tcloo",
-    "tclpkg",
+    "mcp",
+    "claude-skill",
+    "copilot-chat",
+    "issue",
+    "qa",
+    "howto",
+    "feature",
+    "diagnostic",
+    "warning",
+    "optimisation",
+    "refactoring",
+    "analyser",
+    "transform",
+    "lexing",
+    "command-walk",
+    "lowering",
+    "cfg",
+    "ssa",
+    "sccp",
+    "liveness",
+    "type-infer",
+    "gvn",
+    "cse",
+    "dce",
+    "licm",
+    "instcombine",
+    "ipa",
+    "memssa",
+    "dataflow",
+    "taint",
+    "shimmer",
+    "tail-call",
+    "code-sinking",
+    "unused-procs",
+    "side-effects",
+    "rendered-props",
+    "const-fold",
+    "strength-reduce",
+    "pattern",
+    "codegen",
 ];
 
 /// Compiler pass that owns the emission of the diagnostic. Keep this table
@@ -295,7 +329,14 @@ fn split_explicit_heading_id(heading: &str) -> (&str, Option<&str>) {
 /// Extract the visible text of an ATX heading. Setext headings are not used
 /// in the repository, while GitHub-generated KCS/design anchors are all ATX.
 fn atx_heading_text(line: &str) -> Option<&str> {
-    let line = line.trim_start();
+    // CommonMark permits at most three leading spaces before an ATX heading.
+    // Four-space indentation starts an indented code block, even when the
+    // first non-space character is `#`; do not invent an anchor for it.
+    let leading_spaces = line.bytes().take_while(|byte| *byte == b' ').count();
+    if leading_spaces > 3 || line.as_bytes().get(leading_spaces) == Some(&b'\t') {
+        return None;
+    }
+    let line = &line[leading_spaces..];
     let hashes = line.chars().take_while(|ch| *ch == '#').count();
     if !(1..=6).contains(&hashes) || !line[hashes..].starts_with(char::is_whitespace) {
         return None;
@@ -713,11 +754,26 @@ mod tests {
     }
 
     #[test]
+    fn indented_code_is_not_treated_as_a_heading() {
+        let headings = heading_slugs("   # Heading\n    # Code\n\t# Tabbed code\n");
+        assert!(headings.contains("heading"));
+        assert!(!headings.contains("code"));
+        assert!(!headings.contains("tabbed-code"));
+    }
+
+    #[test]
     fn diagnostic_tags_are_normalised_and_closed() {
         assert_eq!(normalise_tag("Command walk"), "command-walk");
         assert!(DIAGNOSTIC_KCS_TAGS.contains(&"command-walk"));
         assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"command-wlak"));
         assert!(DIAGNOSTIC_KCS_TAGS.contains(&"lowering"));
+        assert!(DIAGNOSTIC_KCS_TAGS.contains(&"vs-code"));
+        assert!(DIAGNOSTIC_KCS_TAGS.contains(&"warning"));
+        assert!(DIAGNOSTIC_KCS_TAGS.contains(&"type-infer"));
+        assert!(DIAGNOSTIC_KCS_TAGS.contains(&"ipa"));
+        assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"naming"));
+        assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"tcloo"));
+        assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"tclpkg"));
     }
 
     #[test]

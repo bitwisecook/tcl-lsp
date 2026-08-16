@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, naming
+all-editors, diagnostic, analyser
 
 ## Profiles
 
