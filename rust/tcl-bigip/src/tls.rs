@@ -341,6 +341,7 @@ fn resolve_profile(
         current.clone_from(&parent.defaults_from);
     }
     ancestors.reverse();
+    let mut effective_raw_properties = None;
     for (ancestor_path, ancestor) in ancestors {
         overlay_profile(
             &mut fields,
@@ -348,27 +349,24 @@ fn resolve_profile(
             &ancestor_path,
             EffectiveValueOrigin::Inherited,
         );
+        if let Some(properties) = cert_key_chain_properties(raw_profiles, &ancestor_path) {
+            effective_raw_properties = Some(properties);
+        }
     }
     overlay_profile(&mut fields, profile, path, EffectiveValueOrigin::Explicit);
+    if let Some(properties) = cert_key_chain_properties(raw_profiles, path) {
+        effective_raw_properties = Some(properties);
+    }
 
     let certificate_bindings = resolve_bindings(
         path,
         &fields,
-        raw_profiles.get(path),
+        effective_raw_properties,
         pem_by_object,
         key_by_object,
         notices,
     );
-    let cipher_expression = field_value(&fields, "ciphers");
-    let cipher_group = field_value(&fields, "cipher-group");
-    if !cipher_expression.is_empty() || (!cipher_group.is_empty() && cipher_group != "none") {
-        notices.push(BigipTlsNotice {
-            kind: "unexpanded-cipher-policy".to_owned(),
-            object: path.to_owned(),
-            message: "BIG-IP cipher expressions/groups are preserved as evidence but are not graded as literal negotiated suites"
-                .to_owned(),
-        });
-    }
+    add_unexpanded_cipher_notice(path, &fields, notices);
 
     EffectiveTlsProfile {
         full_path: path.to_owned(),
@@ -383,6 +381,32 @@ fn resolve_profile(
             .collect(),
         used_by_virtuals: Vec::new(),
     }
+}
+
+fn add_unexpanded_cipher_notice(
+    path: &str,
+    fields: &BTreeMap<String, EffectiveTlsField>,
+    notices: &mut Vec<BigipTlsNotice>,
+) {
+    let expression = field_value(fields, "ciphers");
+    let group = field_value(fields, "cipher-group");
+    if !expression.is_empty() || (!group.is_empty() && group != "none") {
+        notices.push(BigipTlsNotice {
+            kind: "unexpanded-cipher-policy".to_owned(),
+            object: path.to_owned(),
+            message: "BIG-IP cipher expressions/groups are preserved as evidence but are not graded as literal negotiated suites"
+                .to_owned(),
+        });
+    }
+}
+
+fn cert_key_chain_properties<'a>(
+    profiles: &'a BTreeMap<String, BTreeMap<String, String>>,
+    path: &str,
+) -> Option<&'a BTreeMap<String, String>> {
+    profiles
+        .get(path)
+        .filter(|properties| properties.contains_key("cert-key-chain"))
 }
 
 fn resolve_bindings(
@@ -907,6 +931,34 @@ sys file ssl-cert roots.crt { cache-path /config/ssl/ssl.crt/roots.crt }
                 .iter()
                 .all(|endpoint| endpoint.endpoint.ciphers.is_empty())
         );
+    }
+
+    #[test]
+    fn inherits_cert_key_chain_bindings_from_parent_profile() {
+        let source = r"
+ltm profile client-ssl parent {
+    defaults-from /Common/clientssl
+    cert-key-chain {
+        inherited { cert /Common/inherited.crt key /Common/inherited.key }
+    }
+}
+ltm profile client-ssl child { defaults-from /Common/parent }
+ltm virtual https {
+    destination /Common/192.0.2.1:443
+    profiles { /Common/child { context clientside } }
+}
+";
+        let config = parse_bigip_conf(source, "Common");
+        let imported = import_bigip_tls(&config, BigipVersion::parse("17.1"), &HashMap::new());
+        let child = imported
+            .profiles
+            .iter()
+            .find(|profile| profile.full_path == "/Common/child")
+            .expect("child profile");
+        assert_eq!(child.certificate_bindings.len(), 1);
+        assert_eq!(child.certificate_bindings[0].name, "inherited");
+        assert_eq!(imported.endpoints.len(), 1);
+        assert_eq!(imported.endpoints[0].binding.as_deref(), Some("inherited"));
     }
 
     #[test]

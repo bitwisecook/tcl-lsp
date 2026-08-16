@@ -392,7 +392,7 @@ ltm virtual /Common/https {
             .as_array()
             .is_some_and(|protocols| protocols.iter().any(|value| value == "tls1.2"))
     );
-    assert_eq!(tls["endpoints"][0]["estimate"]["grade"], "Unknown");
+    assert_eq!(tls["endpoints"][0]["estimate"]["grade"], "T");
     assert_eq!(tls["endpoints"][0]["key_match"]["status"], "unknown");
     assert!(
         tls["endpoints"][0]["estimate"]["methodology"]

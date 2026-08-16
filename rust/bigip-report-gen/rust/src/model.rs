@@ -50,11 +50,9 @@ fn is_iapp_presentation_uri(uri: &str) -> bool {
 /// Whether `uri` names an iApp implementation that can be paired with a
 /// presentation in the same directory.
 fn is_iapp_implementation_uri(uri: &str) -> bool {
-    uri.rsplit('/')
-        .next()
-        .unwrap_or(uri)
-        .rsplit_once('.')
-        .is_some_and(|(_, ext)| {
+    let basename = uri.rsplit('/').next().unwrap_or(uri);
+    basename.eq_ignore_ascii_case("implementation")
+        || basename.rsplit_once('.').is_some_and(|(_, ext)| {
             matches!(
                 ext.to_ascii_lowercase().as_str(),
                 "iapp" | "iappimpl" | "impl"
@@ -2429,7 +2427,7 @@ mod config_diagnostic_tests {
                 presentation.to_owned(),
             ),
             (
-                "memory://iapp/implementation.impl".to_owned(),
+                "memory://iapp/implementation".to_owned(),
                 implementation.to_owned(),
             ),
         ];
@@ -2442,7 +2440,7 @@ mod config_diagnostic_tests {
             .expect("presentation device");
         let implementation_device = devices
             .iter()
-            .find(|device| device["uri"] == "memory://iapp/implementation.impl")
+            .find(|device| device["uri"] == "memory://iapp/implementation")
             .expect("implementation device");
         let codes = |device: &J| {
             device["configDiagnostics"]

@@ -75,7 +75,9 @@ pub(crate) fn collect_tls(
                     }))
                 }
                 KeyMatchStatus::Unknown => {
-                    estimate_value["grade"] = J::String("Unknown".to_owned());
+                    if !estimate_value["grade"].as_str().is_some_and(is_fatal_grade) {
+                        estimate_value["grade"] = J::String("Unknown".to_owned());
+                    }
                     let confidence = estimate_value["confidence"].as_u64().unwrap_or(0).min(45);
                     estimate_value["confidence"] = J::from(confidence);
                     Some(serde_json::json!({
@@ -194,6 +196,10 @@ pub(crate) fn collect_tls(
     J::Object(result)
 }
 
+fn is_fatal_grade(grade: &str) -> bool {
+    matches!(grade, "F" | "T" | "M")
+}
+
 const fn purpose_name(purpose: TrustPurpose) -> &'static str {
     match purpose {
         TrustPurpose::ServerAuth => "server-auth",
@@ -218,6 +224,15 @@ const fn client_name(client: ClientFamily) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_key_evidence_does_not_hide_a_fatal_grade() {
+        assert!(is_fatal_grade("F"));
+        assert!(is_fatal_grade("T"));
+        assert!(is_fatal_grade("M"));
+        assert!(!is_fatal_grade("A"));
+        assert!(!is_fatal_grade("Unknown"));
+    }
 
     #[test]
     fn multi_sni_profiles_become_separate_report_endpoints() {

@@ -58,6 +58,7 @@ use crate::parser::helpers::{
     parse_keyed_block_entries, parse_list_block, parse_properties_with_spans,
 };
 use crate::range::Range;
+use crate::value::MonitorExpression;
 
 /// BIG-IP model diagnostics emitted by this validator.
 pub const BIGIP_DIAGNOSTIC_CODES: &[DiagCode] = &[
@@ -829,6 +830,19 @@ fn reference_values(raw: &str) -> Vec<String> {
         .collect()
 }
 
+fn property_reference_values(property: &str, raw: &str) -> Vec<String> {
+    if property == "monitor"
+        && let Some(expression) = MonitorExpression::try_parse(raw)
+    {
+        return expression
+            .monitors
+            .into_iter()
+            .filter(|value| is_static_reference(value))
+            .collect();
+    }
+    reference_values(raw)
+}
+
 fn reference_candidates(reference: &str, owner: &str, default_partition: &str) -> Vec<String> {
     let mut reference = clean_name(reference).trim().to_owned();
     // Node and virtual-address references often include `:port`, while their
@@ -887,7 +901,7 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
             for edge in tcl_registry::bigip::reference_edges_from(from_kind)
                 .filter(|edge| edge.section.is_none() && edge.property == property)
             {
-                for value in reference_values(&parsed.value) {
+                for value in property_reference_values(&property, &parsed.value) {
                     let candidates =
                         reference_candidates(&value, &object.identifier, &config.default_partition);
                     let resolved = objects.iter().any(|(target, target_kind)| {
@@ -1438,6 +1452,33 @@ mod tests {
     fn bigip6006_quiet_when_data_group_is_referenced() {
         let src = "ltm data-group internal /Common/used {\n  type string\n  records {\n    foo { }\n  }\n}\nltm rule /Common/r {\n  when HTTP_REQUEST {\n    if { [class match [HTTP::host] equals /Common/used] } { }\n  }\n}\n";
         assert!(!has(src, "BIGIP6006"));
+    }
+
+    #[test]
+    fn monitor_reference_extraction_ignores_expression_grammar() {
+        assert_eq!(
+            property_reference_values("monitor", "/Common/http and /Common/tcp"),
+            ["/Common/http", "/Common/tcp"]
+        );
+        assert_eq!(
+            property_reference_values("monitor", "min 1 of { /Common/http /Common/tcp }"),
+            ["/Common/http", "/Common/tcp"]
+        );
+    }
+
+    #[test]
+    fn bigip6013_does_not_treat_monitor_operators_as_references() {
+        let src = r"
+ltm monitor http /Common/http { }
+ltm monitor tcp /Common/tcp { }
+ltm pool /Common/all {
+    monitor /Common/http and /Common/tcp
+}
+ltm pool /Common/quorum {
+    monitor min 1 of { /Common/http /Common/tcp }
+}
+";
+        assert!(!has(src, "BIGIP6013"));
     }
 
     #[test]

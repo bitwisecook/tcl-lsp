@@ -207,8 +207,8 @@ $(printf '%s\n' "$dirty" | sed 's/^/         /')
 
     echo "    channel:  pre-release (GitHub --prerelease, VS Code --pre-release, JetBrains eap)"
 
-    if printenv SSLICTCL_SOURCE_DATA_WAIVER >/dev/null 2>&1; then
-        echo "    SslicTcl source data: freshness waived — $(printenv SSLICTCL_SOURCE_DATA_WAIVER)"
+    if [ -n "${SSLICTCL_SOURCE_DATA_WAIVER:-}" ]; then
+        echo "    SslicTcl source data: freshness waived — $SSLICTCL_SOURCE_DATA_WAIVER"
     else
         step "Checking embedded SslicTcl source data"
         make --no-print-directory check-source-data SOURCE_DATA_MAX_AGE_DAYS=180
