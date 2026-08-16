@@ -828,24 +828,6 @@ fn run_irule_context(
 
 // trace
 
-/// First token of each non-blank, non-comment line in `body`: the leading
-/// whitespace-delimited word, right-trimmed of `{`, `}`, `;`.
-fn extract_commands(body: &str) -> Vec<String> {
-    let mut cmds: Vec<String> = Vec::new();
-    for raw in body.lines() {
-        let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let head = line.split_whitespace().next().unwrap_or("");
-        let head = head.trim_end_matches(['{', '}', ';']);
-        if !head.is_empty() {
-            cmds.push(head.to_owned());
-        }
-    }
-    cmds
-}
-
 /// One resolved object reference in a trace.
 struct TraceRef {
     kind: &'static str,
@@ -868,7 +850,9 @@ struct Trace {
 /// block, else `1`.
 fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
     use tcl_bigip::irule_context::{classify_kind, resolve_reference};
-    use tcl_irules::extract_irules_object_references;
+    use tcl_irules::{
+        extract_irules_object_references_in_closure, irules_event_executable_closure,
+    };
 
     let loaded = resolve_irule_inputs(input)?;
 
@@ -883,14 +867,17 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
 
     let mut traces: Vec<Trace> = Vec::new();
     for entry in &loaded.inputs {
-        let Some(block) = tcl_irules::when_blocks(&entry.source)
+        if !tcl_irules::when_blocks(&entry.source)
             .into_iter()
-            .find(|block| block.event.eq_ignore_ascii_case(event))
-        else {
+            .any(|block| block.event.eq_ignore_ascii_case(event))
+        {
             continue;
-        };
-        let body = entry.source[block.body_span.as_range()].to_owned();
-        let commands = extract_commands(&body);
+        }
+        let executable = irules_event_executable_closure(&entry.source, event, registry);
+        let commands = executable
+            .iter()
+            .map(|command| command.command.clone())
+            .collect();
         let rule_label = entry
             .rule_full_path
             .clone()
@@ -898,16 +885,11 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
 
         let mut references: Vec<TraceRef> = Vec::new();
         let mut seen: std::collections::HashSet<(&str, String)> = std::collections::HashSet::new();
-        // The shared extractor proves reachability from a complete `when`
-        // declaration. Keep that execution root, then select references from
-        // the event body requested by this trace; passing `body` directly
-        // would turn every command into invalid top-level iRules text.
-        for reference in extract_irules_object_references(&entry.source, None, registry)
-            .into_iter()
-            .filter(|reference| {
-                block.body_span.start() <= reference.range.start()
-                    && reference.range.end() <= block.body_span.end()
-            })
+        // The closure is the execution owner for both the command inventory
+        // and object references.  No physical-body range check can express a
+        // reached helper procedure (or distinguish a dormant one) correctly.
+        for reference in
+            extract_irules_object_references_in_closure(&entry.source, None, registry, &executable)
         {
             let Some(kind) = classify_kind(&reference.kinds) else {
                 continue;

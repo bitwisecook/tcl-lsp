@@ -379,7 +379,7 @@ pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
         match bytes[pos] {
             b'"' => return Some(pos),
             b'\\' => pos = backslash_escape_end(source, pos),
-            b'[' => pos = command_subst_end(source, pos)?,
+            b'[' => pos = command_substitution_end(source, pos)?,
             _ => pos += 1,
         }
     }
@@ -413,8 +413,12 @@ pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
 /// text, never a comment — hence the invariant that `at_command_start`
 /// is only ever raised while `braces == 0 && !in_quotes`, which is what
 /// lets the `#` arm below test that flag alone.
-fn command_subst_end(source: &str, open_bracket: usize) -> Option<usize> {
+#[must_use]
+pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usize> {
     let bytes = source.as_bytes();
+    if bytes.get(open_bracket) != Some(&b'[') {
+        return None;
+    }
     let mut pos = open_bracket + 1;
     let mut depth: u32 = 1;
     let mut braces: u32 = 0;
@@ -1079,6 +1083,14 @@ mod tests {
     fn close_quote_unterminated_command_substitution_is_none() {
         // No trustworthy closer exists once the `[` never closes.
         assert_eq!(close_quote_offset("\"a[foo \"", 0), None);
+    }
+
+    #[test]
+    fn command_substitution_end_requires_a_complete_open_bracket() {
+        let src = "[set x 1; # ] comment\nHTTP::host]";
+        assert_eq!(command_substitution_end(src, 0), Some(src.len()));
+        assert_eq!(command_substitution_end(src, 1), None);
+        assert_eq!(command_substitution_end("[unterminated", 0), None);
     }
 
     #[test]

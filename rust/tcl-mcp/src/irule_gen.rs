@@ -120,7 +120,7 @@ pub fn generate_irule_test(args: &Value) -> Value {
     let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
     let executable = tcl_irules::irules_executable_commands(source, registry);
     let commands_used = extract_irule_commands(&executable);
-    let objects = extract_object_refs(source, &executable);
+    let objects = extract_object_refs(source);
     let variables = extract_variables(&executable);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
@@ -175,25 +175,16 @@ fn extract_irule_commands(commands: &[tcl_irules::IrulesExecutableCommand]) -> V
 }
 
 /// Extract pool / data-group / node / virtual references (`_extract_object_refs`).
-fn extract_object_refs(
-    source: &str,
-    commands: &[tcl_irules::IrulesExecutableCommand],
-) -> ObjectRefs {
+fn extract_object_refs(source: &str) -> ObjectRefs {
     let mut pools: BTreeSet<String> = BTreeSet::new();
     let mut datagroups: BTreeSet<String> = BTreeSet::new();
-    // The recursive reference owner supplies precise spans; intersect them
-    // with the execution-boundary owner's command spans so invalid top-level
-    // and nested-declaration regions cannot seed test setup.
+    // The shared reference owner consumes the event-rooted executable closure
+    // itself, so invalid top-level/nested declarations and dormant procedures
+    // cannot seed test setup.  Do not reclassify reachability by checking
+    // whether a reference happens to sit inside a handler's physical body:
+    // reached helper procedures live outside that body.
     let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
-    for reference in tcl_irules::extract_irules_object_references(source, None, registry)
-        .into_iter()
-        .filter(|reference| {
-            commands.iter().any(|fact| {
-                fact.span.start() <= reference.range.start()
-                    && reference.range.end() <= fact.span.end()
-            })
-        })
-    {
+    for reference in tcl_irules::extract_irules_object_references(source, None, registry) {
         if reference.category == tcl_irules::IrulesObjectReferenceCategory::Pool {
             pools.insert(reference.name);
         } else if reference.category == tcl_irules::IrulesObjectReferenceCategory::DataGroup {
@@ -1089,38 +1080,26 @@ mod tests {
     fn extractors_ignore_commented_out_handlers() {
         let src = "# when HTTP_REQUEST { pool stale }\nwhen HTTP_REQUEST { pool live }\n";
         let commands = executable(src);
-        assert_eq!(
-            extract_object_refs(src, &commands).pools,
-            vec!["live".to_owned()]
-        );
+        assert_eq!(extract_object_refs(src).pools, vec!["live".to_owned()]);
         assert!(!extract_irule_commands(&commands).contains(&"stale".to_owned()));
     }
 
     #[test]
     fn extractors_ignore_commented_pool_inside_live_handler() {
         let src = "when HTTP_REQUEST {\n # pool stale\n pool live\n}\n";
-        let commands = executable(src);
-        assert_eq!(
-            extract_object_refs(src, &commands).pools,
-            vec!["live".to_owned()]
-        );
+        assert_eq!(extract_object_refs(src).pools, vec!["live".to_owned()]);
     }
 
     #[test]
     fn object_refs_ignore_inline_comments_and_pool_like_data() {
         let src = "when HTTP_REQUEST {\n set x 1; # pool stale\n set quoted \"pool quoted\"\n set braced {pool braced}\n pool live\n}\n";
-        let commands = executable(src);
-        assert_eq!(
-            extract_object_refs(src, &commands).pools,
-            vec!["live".to_owned()]
-        );
+        assert_eq!(extract_object_refs(src).pools, vec!["live".to_owned()]);
     }
 
     #[test]
     fn object_refs_recurse_into_if_and_command_substitution() {
         let src = "when HTTP_REQUEST { if {1} { pool nested_pool }; set hit [class match [HTTP::uri] equals uri_dg] }";
-        let commands = executable(src);
-        let refs = extract_object_refs(src, &commands);
+        let refs = extract_object_refs(src);
         assert_eq!(refs.pools, vec!["nested_pool".to_owned()]);
         assert!(refs.datagroups.contains(&"uri_dg".to_owned()));
     }
@@ -1128,8 +1107,7 @@ mod tests {
     #[test]
     fn generated_test_inventory_keeps_data_groups_from_braced_expressions() {
         let src = "when HTTP_REQUEST { if {[class match [HTTP::uri] equals expr_dg]} { pool selected_pool } }";
-        let commands = executable(src);
-        let refs = extract_object_refs(src, &commands);
+        let refs = extract_object_refs(src);
         assert_eq!(refs.pools, ["selected_pool"]);
         assert_eq!(refs.datagroups, ["expr_dg"]);
     }
@@ -1137,8 +1115,7 @@ mod tests {
     #[test]
     fn object_refs_ignore_unavailable_aliases_and_keep_qualified_commands() {
         let src = "interp alias {} choose {} pool\nrename class group\nwhen HTTP_REQUEST { choose aliased_pool; ::pool qualified_pool; group match x equals aliased_dg }";
-        let commands = executable(src);
-        let refs = extract_object_refs(src, &commands);
+        let refs = extract_object_refs(src);
         assert!(!refs.pools.contains(&"aliased_pool".to_owned()));
         assert!(refs.pools.contains(&"qualified_pool".to_owned()));
         assert!(!refs.datagroups.contains(&"aliased_dg".to_owned()));
@@ -1160,7 +1137,7 @@ mod tests {
             variables.static_vars
         );
         assert!(!needs_multi_tmm(&commands, &variables));
-        assert_eq!(extract_object_refs(inert, &commands).pools, ["live"]);
+        assert_eq!(extract_object_refs(inert).pools, ["live"]);
 
         let live = "when HTTP_REQUEST { set static::hits 0; incr static::hits; table incr key; HTTP::respond 200 }";
         let commands = executable(live);
@@ -1177,10 +1154,30 @@ mod tests {
             "when HTTP_REQUEST { call helper; switch -- x { x { pool event_pool } }; when CLIENT_DATA { pool nested_stale } }\n",
         );
         let commands = executable(src);
-        let refs = extract_object_refs(src, &commands);
+        let refs = extract_object_refs(src);
         assert_eq!(refs.pools, ["event_pool", "proc_pool"], "{commands:?}");
         assert_eq!(refs.datagroups, ["proc_dg"]);
         assert!(!extract_irule_commands(&commands).contains(&"when".to_owned()));
+    }
+
+    #[test]
+    fn generated_object_setup_follows_the_shared_event_closure() {
+        let src = concat!(
+            "proc helper {} { pool helper_pool }\n",
+            "proc dormant {} { pool dormant_pool }\n",
+            "when HTTP_REQUEST { call helper; dormant; pool event_pool }\n",
+            "when CLIENT_DATA { pool other_event_pool }\n",
+        );
+        let refs = extract_object_refs(src);
+        assert_eq!(
+            refs.pools,
+            ["event_pool", "helper_pool", "other_event_pool"],
+            "the aggregate owner includes each event root and only reached helpers"
+        );
+        assert!(
+            !refs.pools.contains(&"dormant_pool".to_owned()),
+            "a direct procedure-looking call cannot make dormant setup live"
+        );
     }
 
     #[test]

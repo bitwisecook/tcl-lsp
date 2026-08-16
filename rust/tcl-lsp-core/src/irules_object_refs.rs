@@ -86,4 +86,25 @@ mod tests {
         let got = spans("when HTTP_REQUEST {\n  pool $p\n}\n");
         assert!(got.is_empty(), "{got:?}");
     }
+
+    #[test]
+    fn semantic_object_spans_follow_reached_helpers_and_complete_quoted_exprs() {
+        let source = concat!(
+            "proc helper {} { pool helper_pool }\n",
+            "proc dormant {} { pool dormant_pool }\n",
+            "when HTTP_REQUEST {\n",
+            "  call helper\n",
+            "  dormant\n",
+            "  if {\"[class match [HTTP::host] equals quoted_dg]\"} {}\n",
+            "  if {[class match [HTTP::uri] equals malformed_dg} {}\n",
+            "}\n",
+        );
+        let names: Vec<_> = spans(source).into_iter().map(|(_, name)| name).collect();
+        assert!(names.contains(&"helper_pool"), "{names:?}");
+        assert!(names.contains(&"quoted_dg"), "{names:?}");
+        assert!(
+            !names.contains(&"dormant_pool") && !names.contains(&"malformed_dg"),
+            "only reached code and complete expression substitutions are highlighted: {names:?}"
+        );
+    }
 }

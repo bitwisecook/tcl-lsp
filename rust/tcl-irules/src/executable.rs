@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use tcl_compiler::head_identity::{HeadIdentityMap, command_head_identities_with_config};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_lexer::{ExprTokenType, LexerConfig, Token, TokenType, tokenise_expr};
+use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -69,7 +69,51 @@ pub fn irules_executable_commands(
     let mut event_bodies = Vec::new();
     let mut procedures = HashMap::<String, Token>::new();
     collect_top_level_regions(source, &ctx, &mut event_bodies, &mut procedures);
+    event_rooted_closure(source, &ctx, event_bodies, &procedures)
+}
 
+/// Return the event-rooted executable closure for every valid top-level
+/// `when EVENT { … }` handler matching `event`.
+///
+/// The closure includes all matching handlers, not merely the first source
+/// occurrence, followed by procedures reached through registry-declared
+/// [`Traits::INVOKES_USER_PROC`] edges.  Ordinary Tcl-looking direct calls do
+/// not make a procedure reachable.  Procedure traversal is cycle-safe and
+/// each returned command keeps its exact source span.
+#[must_use]
+pub fn irules_event_executable_closure(
+    source: &str,
+    event: &str,
+    registry: &CommandRegistry,
+) -> Vec<IrulesExecutableCommand> {
+    let lexing = InventoryLexing::for_registry(registry);
+    let identities = command_head_identities_with_config(source, lexing.config, registry);
+    let ctx = InventoryContext {
+        registry,
+        identities: &identities,
+        lexing,
+    };
+    let mut event_bodies = Vec::new();
+    let mut procedures = HashMap::<String, Token>::new();
+    collect_top_level_regions(source, &ctx, &mut event_bodies, &mut procedures);
+    event_rooted_closure(
+        source,
+        &ctx,
+        event_bodies
+            .into_iter()
+            .filter(|(candidate, _)| candidate.eq_ignore_ascii_case(event))
+            .collect(),
+        &procedures,
+    )
+}
+
+/// Build an executable closure from already-proven event roots.
+fn event_rooted_closure(
+    source: &str,
+    ctx: &InventoryContext<'_>,
+    event_bodies: Vec<(String, Token)>,
+    procedures: &HashMap<String, Token>,
+) -> Vec<IrulesExecutableCommand> {
     // Events are the only execution roots in an iRule. Procedure bodies enter
     // the inventory only through a statically resolved registry-declared
     // user-proc invocation (`call`), recursively and cycle-safely.
@@ -77,8 +121,8 @@ pub fn irules_executable_commands(
     let mut pending = VecDeque::new();
     for (event, body) in event_bodies {
         let before = out.len();
-        recurse_token(source, &body, &ctx, Context::Event(event), &mut out, 1);
-        enqueue_proc_calls(&out[before..], registry, &mut pending);
+        recurse_token(source, &body, ctx, Context::Event(event), &mut out, 1);
+        enqueue_proc_calls(&out[before..], ctx.registry, &mut pending);
     }
     let mut reached = HashSet::new();
     while let Some(name) = pending.pop_front() {
@@ -89,13 +133,22 @@ pub fn irules_executable_commands(
             continue;
         };
         let before = out.len();
-        recurse_token(source, body, &ctx, Context::Procedure, &mut out, 1);
-        enqueue_proc_calls(&out[before..], registry, &mut pending);
+        recurse_token(source, body, ctx, Context::Procedure, &mut out, 1);
+        enqueue_proc_calls(&out[before..], ctx.registry, &mut pending);
     }
     // A local proc spelling is not an invocation form in iRules; only a
     // registry-declared `INVOKES_USER_PROC` edge (`call`) can dispatch it.
-    out.retain(|command| !procedures.contains_key(&command.command));
+    out.retain(|command| !procedures.contains_key(&procedure_key(&command.command)));
     out
+}
+
+/// iRules user procedures live in the global command namespace.  The absolute
+/// marker is spelling, not a distinct procedure identity, so `call helper`
+/// and `call ::helper` must reach the same top-level declaration.
+fn procedure_key(name: &str) -> String {
+    tcl_syntax::naming::canonical_written_command(name)
+        .trim_start_matches("::")
+        .to_owned()
 }
 
 fn enqueue_proc_calls(
@@ -115,7 +168,7 @@ fn enqueue_proc_calls(
             if let Some(name) = command.args.get(index)
                 && !name.contains(['$', '[', ']', ';'])
             {
-                pending.push_back(name.clone());
+                pending.push_back(procedure_key(name));
             }
         }
     }
@@ -180,7 +233,7 @@ fn collect_top_level_regions(
                     continue;
                 };
                 if !name.contains(['$', '[', ']', ';']) {
-                    procedures.insert((*name).to_owned(), body);
+                    procedures.insert(procedure_key(name), body);
                 }
             }
             Some(
@@ -267,7 +320,7 @@ fn walk(
 
         recurse_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
         recurse_case_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
-        let owned_spans: HashSet<_> = registry
+        let mut owned_spans: HashSet<_> = registry
             .arg_indices_for_role(&head, &args, ArgRole::Body)
             .into_iter()
             .filter_map(|idx| cmd.argv.get(idx + 1))
@@ -277,42 +330,54 @@ fn walk(
             let Some(token) = cmd.argv.get(index + 1) else {
                 continue;
             };
-            // The main Tcl lexer deliberately leaves a braced word opaque, so
-            // its `all_tokens` contains no `Cmd` token for `if {[class match
-            // ...]}`. The expression lexer owns that nested language. Its
-            // command end is inclusive; preserve that contract while stripping
-            // only the actual `[` and optional closing `]` before handing the
-            // interior back to the script walker. Everything else in an
-            // expression, including quoted strings and malformed non-command
-            // data, remains inert.
-            if token.kind != TokenType::Str || token.content_offset != 1 {
+            // The main Tcl lexer deliberately leaves a braced expression word
+            // opaque, so its `all_tokens` contains no `Cmd` token for `if
+            // {[class match ...]}`.  The shared expression owner supplies
+            // only complete, live substitutions (including quoted expression
+            // operands); malformed or braced-literal brackets remain inert.
+            if !matches!(token.kind, TokenType::Str | TokenType::Esc) || token.content_offset != 1 {
                 continue;
             }
+            // The generic Tcl-substitution pass below sees commands inside a
+            // quoted Expr word too.  This expression owner is the one that
+            // admits them, so mark every lexer token in this expression word
+            // consumed even when it ultimately reports no complete span.
+            owned_spans.extend(
+                cmd.all_tokens
+                    .iter()
+                    .filter(|nested| {
+                        nested.kind == TokenType::Cmd
+                            && token.span.start() <= nested.span.start()
+                            && nested.span.end() <= token.span.end()
+                    })
+                    .map(|nested| (nested.span.start(), nested.span.end())),
+            );
             let expression_start = token.span.start() as usize + token.content_offset as usize;
             let expression_end = token.span.end() as usize;
             let Some(expression) = full.get(expression_start..expression_end) else {
                 continue;
             };
-            for expr_token in tokenise_expr(expression, Some(lexing.expr_dialect)) {
-                if expr_token.kind != ExprTokenType::Command {
-                    continue;
-                }
-                let command_start = expression_start + expr_token.start as usize;
-                let command_end = expression_start + expr_token.end as usize + 1;
-                let Some(command) = full.get(command_start..command_end) else {
-                    continue;
-                };
-                let Some(interior) = command.strip_prefix('[') else {
+            for span in
+                tcl_syntax::expr::command_substitution_spans(expression, Some(lexing.expr_dialect))
+            {
+                let command_start = expression_start + span.start() as usize;
+                let command_end = expression_start + span.end() as usize;
+                let Some(interior_start) = command_start.checked_add(1) else {
                     continue;
                 };
-                let interior = interior.strip_suffix(']').unwrap_or(interior);
-                if interior.is_empty() {
+                let Some(interior_end) = command_end.checked_sub(1) else {
+                    continue;
+                };
+                if interior_start >= interior_end {
                     continue;
                 }
+                let Some(interior) = full.get(interior_start..interior_end) else {
+                    continue;
+                };
                 walk(
                     full,
                     interior,
-                    u32::try_from(command_start + 1).unwrap_or(0),
+                    u32::try_from(interior_start).unwrap_or(0),
                     ctx,
                     context.clone(),
                     out,
@@ -418,6 +483,15 @@ fn recurse_token(
     out: &mut Vec<IrulesExecutableCommand>,
     depth: u16,
 ) {
+    // The recovery lexer preserves a `Cmd` token for an unterminated `[` so
+    // editor features can still colour the fragment.  It is not an executable
+    // command substitution, however: only the lexer range owner can prove a
+    // closing `]` through nested Tcl syntax and comments.
+    if token.kind == TokenType::Cmd
+        && tcl_lexer::command_substitution_end(full, token.span.start() as usize).is_none()
+    {
+        return;
+    }
     let start = token.span.start() as usize + token.content_offset as usize;
     let end = token.span.end() as usize;
     if let Some(inner) = full.get(start..end) {
@@ -457,6 +531,49 @@ mod tests {
             .map(|fact| fact.args[0].as_str())
             .collect();
         assert_eq!(pools, ["from_event", "from_proc"]);
+    }
+
+    #[test]
+    fn event_closure_selects_every_matching_handler_and_only_registry_call_edges() {
+        let source = concat!(
+            "proc first_helper {} { pool helper_one; call second_helper }\n",
+            "proc second_helper {} { pool helper_two; call first_helper }\n",
+            "proc dormant {} { pool dormant_pool }\n",
+            "when HTTP_REQUEST { pool first_pool; call first_helper; dormant; apply {{} { pool lambda_pool }} }\n",
+            "when http_request { pool second_pool; call second_helper }\n",
+            "when CLIENT_DATA { pool other_event_pool; call dormant }\n",
+        );
+        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let closure = irules_event_executable_closure(source, "HTTP_REQUEST", registry);
+        let pools: Vec<_> = closure
+            .iter()
+            .filter(|fact| fact.command == "pool")
+            .map(|fact| fact.args[0].as_str())
+            .collect();
+        assert_eq!(
+            pools,
+            ["first_pool", "second_pool", "helper_one", "helper_two"],
+            "both roots and the cycle-safe call closure are present exactly once"
+        );
+        assert!(
+            closure.iter().all(|fact| {
+                !matches!(
+                    fact.args.first().map(String::as_str),
+                    Some("dormant_pool" | "other_event_pool" | "lambda_pool")
+                )
+            }),
+            "cross-event, dormant, direct-call, and lambda body regions are not in the closure"
+        );
+        let first_span = closure
+            .iter()
+            .find(|fact| fact.command == "pool" && fact.args == ["first_pool"])
+            .map(|fact| fact.span)
+            .expect("first matching handler pool");
+        assert_eq!(
+            &source[first_span.as_range()],
+            "pool first_pool",
+            "closure spans slice the original source exactly"
+        );
     }
 
     #[test]
@@ -503,7 +620,7 @@ mod tests {
     }
 
     #[test]
-    fn inventory_uses_expr_command_token_spans_without_walking_expr_data() {
+    fn inventory_uses_complete_live_expression_spans_without_walking_expr_data() {
         let source = concat!(
             "when HTTP_REQUEST {\n",
             "  set marker \"☃\"\n",
@@ -530,19 +647,31 @@ mod tests {
             [
                 ("class", 46, 95),
                 ("HTTP::host", 59, 69),
+                ("class", 120, 163),
                 ("class", 189, 235),
                 ("HTTP::uri", 202, 211),
                 ("class", 259, 308),
                 ("HTTP::path", 272, 282),
-                ("class", 335, 389),
-                ("HTTP::method", 348, 360),
             ],
-            "spans are absolute bytes, include each command's final body byte, and never include the expression brackets"
+            "spans are absolute bytes, include each command's final body byte, include quoted expression substitutions, and never include malformed brackets"
         );
         assert!(
             facts
                 .iter()
-                .all(|fact| { !fact.args.iter().any(|arg| arg == "/Common/inert_dg") })
+                .any(|fact| { fact.args.iter().any(|arg| arg == "/Common/inert_dg") }),
+            "a substitution inside an expression double quote is executable"
+        );
+    }
+
+    #[test]
+    fn inventory_drops_unterminated_unbraced_expression_substitutions() {
+        let facts =
+            commands("when HTTP_REQUEST { if [class match [HTTP::host] equals malformed_dg }");
+        assert!(
+            facts
+                .iter()
+                .all(|fact| !matches!(fact.command.as_str(), "class" | "HTTP::host")),
+            "a recovery Cmd token without a closing bracket is not executable: {facts:?}"
         );
     }
 
@@ -598,5 +727,19 @@ mod tests {
         ));
         assert!(facts.iter().all(|fact| fact.command != "helper"));
         assert!(facts.iter().all(|fact| fact.command != "pool"));
+    }
+
+    #[test]
+    fn call_edges_normalise_the_global_procedure_marker() {
+        let facts = commands(concat!(
+            "proc ::helper {} { pool rooted_helper }\n",
+            "when HTTP_REQUEST { call helper }\n",
+        ));
+        assert!(
+            facts
+                .iter()
+                .any(|fact| fact.command == "pool" && fact.args == ["rooted_helper"]),
+            "the absolute marker is not a distinct user-procedure identity: {facts:?}"
+        );
     }
 }

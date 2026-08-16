@@ -40,6 +40,8 @@
 //!   answered from a bare byte offset, for callers holding source and an
 //!   offset rather than a token (it skips `\`-escapes and whole `[…]`
 //!   command substitutions).
+//! - [`command_substitution_end`] — byte offset just past a complete `[…]`
+//!   command substitution, including Tcl's nested-script/comment rules.
 //! - [`word_closer_offset_at`], [`word_span_at`] — the same closer
 //!   question for **any** delimited word (`${name}` included) answered
 //!   from the word's own [`Span`], for callers that kept a span but not
@@ -75,8 +77,8 @@ pub use highlight::{
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
 pub use ranges::{
-    close_quote_offset, word_append_offset, word_closer_offset, word_closer_offset_at,
-    word_end_position, word_span, word_span_at,
+    close_quote_offset, command_substitution_end, word_append_offset, word_closer_offset,
+    word_closer_offset_at, word_end_position, word_span, word_span_at,
 };
 pub use source_map::SourceMap;
 pub use span::Span;

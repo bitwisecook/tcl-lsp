@@ -146,8 +146,40 @@ pub fn extract_irules_object_references(
     rule_module: Option<&str>,
     registry: &CommandRegistry,
 ) -> Vec<IrulesObjectReference> {
-    let executable_spans: HashSet<(u32, u32)> = crate::irules_executable_commands(source, registry)
-        .into_iter()
+    let executable = crate::irules_executable_commands(source, registry);
+    extract_irules_object_references_in_closure(source, rule_module, registry, &executable)
+}
+
+/// Extract object references in the executable closure of one iRules event.
+///
+/// Every valid matching handler is a root.  Only procedure bodies reached by
+/// registry-declared user-procedure invocation edges participate; unrelated
+/// event handlers, dormant procedures, direct procedure-looking calls, and
+/// lambda literals do not.
+#[must_use]
+pub fn extract_irules_event_object_references(
+    source: &str,
+    event: &str,
+    rule_module: Option<&str>,
+    registry: &CommandRegistry,
+) -> Vec<IrulesObjectReference> {
+    let executable = crate::irules_event_executable_closure(source, event, registry);
+    extract_irules_object_references_in_closure(source, rule_module, registry, &executable)
+}
+
+/// Extract object references selected by an already-computed executable
+/// closure.  This is useful to consumers that need the same closure for a
+/// command inventory and its object references, without reinterpreting source
+/// ranges as event-body membership.
+#[must_use]
+pub fn extract_irules_object_references_in_closure(
+    source: &str,
+    rule_module: Option<&str>,
+    registry: &CommandRegistry,
+    executable: &[crate::IrulesExecutableCommand],
+) -> Vec<IrulesObjectReference> {
+    let executable_spans: HashSet<(u32, u32)> = executable
+        .iter()
         .map(|command| (command.span.start(), command.span.end()))
         .collect();
     let mut out = Vec::new();
