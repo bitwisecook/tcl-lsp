@@ -36,41 +36,22 @@ use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use crate::query::{Source, query};
 
-/// Explicit report ownership for every current model-level BIG-IP diagnostic.
-const CONFIG_DIAGNOSTIC_TABS: &[(&str, &str)] = &[
-    ("BIGIP6001", "rules"),
-    ("BIGIP6002", "rules"),
-    ("BIGIP6003", "virtuals"),
-    ("BIGIP6004", "virtuals"),
-    ("BIGIP6005", "virtuals"),
-    ("BIGIP6006", "dataGroups"),
-    ("BIGIP6007", "rules"),
-    ("BIGIP6008", "pools"),
-    ("BIGIP6009", "virtuals"),
-    ("BIGIP6010", "virtuals"),
-    ("BIGIP6011", "dataGroups"),
-    ("BIGIP6012", "virtuals"),
-];
-
-/// Report tab that owns a model-level BIG-IP configuration diagnostic. New
-/// codes remain visible in Virtual Servers until explicitly classified above.
-fn config_diagnostic_tab(code: &str) -> &'static str {
-    CONFIG_DIAGNOSTIC_TABS
-        .iter()
-        .find_map(|(known, tab)| (*known == code).then_some(*tab))
-        .unwrap_or("virtuals")
-}
-
 /// Run the shared BIG-IP config validator and expose every finding to the
 /// report. The complete list is retained as `configDiagnostics`; routed lists
 /// let the template render findings in the tab where they are actionable.
 #[must_use]
 pub fn collect_config_diagnostics(source: &str) -> J {
-    use tcl_bigip::validator::{DiagSeverity, validate_bigip_source};
+    use tcl_bigip::validator::{ConfigDiagnosticSubject, DiagSeverity, validate_bigip_source};
 
     let mut all = Vec::new();
     for diagnostic in validate_bigip_source(source, "Common") {
-        let tab = config_diagnostic_tab(&diagnostic.code);
+        let tab = match diagnostic.subject {
+            ConfigDiagnosticSubject::IRule => "rules",
+            ConfigDiagnosticSubject::VirtualServer => "virtuals",
+            ConfigDiagnosticSubject::Pool => "pools",
+            ConfigDiagnosticSubject::DataGroup => "dataGroups",
+            ConfigDiagnosticSubject::IApp => continue,
+        };
         let item = serde_json::json!({
             "code": diagnostic.code,
             "message": diagnostic.message,
@@ -2174,27 +2155,6 @@ mod app_tests {
 #[cfg(test)]
 mod config_diagnostic_tests {
     use super::*;
-
-    #[test]
-    fn every_current_config_diagnostic_has_an_explicit_report_tab() {
-        let expected = [
-            ("BIGIP6001", "rules"),
-            ("BIGIP6002", "rules"),
-            ("BIGIP6003", "virtuals"),
-            ("BIGIP6004", "virtuals"),
-            ("BIGIP6005", "virtuals"),
-            ("BIGIP6006", "dataGroups"),
-            ("BIGIP6007", "rules"),
-            ("BIGIP6008", "pools"),
-            ("BIGIP6009", "virtuals"),
-            ("BIGIP6010", "virtuals"),
-            ("BIGIP6011", "dataGroups"),
-            ("BIGIP6012", "virtuals"),
-        ];
-        for (code, tab) in expected {
-            assert_eq!(config_diagnostic_tab(code), tab, "routing for {code}");
-        }
-    }
 
     #[test]
     fn report_model_preserves_and_routes_validator_output() {

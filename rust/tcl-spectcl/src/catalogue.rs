@@ -436,6 +436,10 @@ pub const TRAITS: &[Variant] = &[
         "IRULES_TOP_LEVEL_ONLY",
         "iRules: valid only at the top level",
     ),
+    v(
+        "SETS_EVENT_PRIORITY",
+        "sets the inherited iRules event priority",
+    ),
     v("IS_OO_METACLASS", "a TclOO metaclass factory"),
     v(
         "OBJECT_COMMAND_SURFACE",

@@ -62,6 +62,22 @@ pub enum DiagSeverity {
     Hint,
 }
 
+/// Configuration object that owns a diagnostic in object-oriented consumers
+/// such as the BIG-IP report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigDiagnosticSubject {
+    /// An iRule.
+    IRule,
+    /// A virtual server.
+    VirtualServer,
+    /// A pool.
+    Pool,
+    /// A data group.
+    DataGroup,
+    /// An iApp presentation or implementation.
+    IApp,
+}
+
 /// One ranged BIG-IP config diagnostic — the validator analogue of an LSP
 /// `Diagnostic`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,6 +88,8 @@ pub struct ConfigDiagnostic {
     pub message: String,
     /// Severity.
     pub severity: DiagSeverity,
+    /// Object surface where this finding is actionable.
+    pub subject: ConfigDiagnosticSubject,
     /// Source range. For per-iRule checks this is relative to the iRule
     /// body (each rule gets a fresh `DocumentBuffer`); for object-level checks
     /// it is the object's own range, or the zero range when the model carries
@@ -217,6 +235,7 @@ fn check_irule_data_groups(
                 code: "BIGIP6001".to_owned(),
                 message: format!("Data-group '{dg_name}' not found in BIG-IP configuration."),
                 severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::IRule,
                 range: range_from_capture(&rule.source, &line_index, start, end),
             });
         }
@@ -245,6 +264,7 @@ fn check_irule_pools(
                 code: "BIGIP6002".to_owned(),
                 message: format!("Pool '{pool_name}' not found in BIG-IP configuration."),
                 severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::IRule,
                 range: range_from_capture(&rule.source, &line_index, m.start(), m.end()),
             });
         }
@@ -272,6 +292,7 @@ fn check_irule_snatpools(
                 code: "BIGIP6007".to_owned(),
                 message: format!("SNAT pool '{sp_name}' not found in BIG-IP configuration."),
                 severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::IRule,
                 range: range_from_capture(&rule.source, &line_index, m.start(), m.end()),
             });
         }
@@ -305,6 +326,7 @@ fn check_virtual_rules(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
                         vs.name
                     ),
                     severity: DiagSeverity::Warning,
+                    subject: ConfigDiagnosticSubject::VirtualServer,
                     range: object_range(vs.range),
                 });
             }
@@ -318,6 +340,7 @@ fn check_virtual_rules(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
                         vs.name
                     ),
                     severity: DiagSeverity::Warning,
+                    subject: ConfigDiagnosticSubject::VirtualServer,
                     range: object_range(vs.range),
                 });
             }
@@ -343,7 +366,7 @@ fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<Con
                 handlers
                     .entry((handler.event, handler.priority))
                     .or_default()
-                    .insert(rule.name.clone());
+                    .insert(rule.full_path.clone());
             }
         }
 
@@ -364,6 +387,7 @@ fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<Con
                     vs.name
                 ),
                 severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::VirtualServer,
                 range: object_range(vs.range),
             });
         }
@@ -383,6 +407,7 @@ fn check_virtual_pools(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
                     vs.name, vs.pool
                 ),
                 severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::VirtualServer,
                 range: object_range(vs.range),
             });
         }
@@ -417,6 +442,7 @@ fn check_virtual_profile_requirements(view: &ModelView<'_>, out: &mut Vec<Config
                         rule.name, vs.name
                     ),
                     severity: DiagSeverity::Hint,
+                    subject: ConfigDiagnosticSubject::VirtualServer,
                     range: object_range(vs.range),
                 });
             }
@@ -428,6 +454,7 @@ fn check_virtual_profile_requirements(view: &ModelView<'_>, out: &mut Vec<Config
                         rule.name, vs.name
                     ),
                     severity: DiagSeverity::Hint,
+                    subject: ConfigDiagnosticSubject::VirtualServer,
                     range: object_range(vs.range),
                 });
             }
@@ -479,6 +506,7 @@ fn check_virtual_persistence(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnosti
                             rule.name, vs.name
                         ),
                         severity: DiagSeverity::Hint,
+                        subject: ConfigDiagnosticSubject::VirtualServer,
                         range: object_range(vs.range),
                     });
                 }
@@ -508,6 +536,7 @@ fn check_unused_data_groups(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic
                     dg.name
                 ),
                 severity: DiagSeverity::Hint,
+                subject: ConfigDiagnosticSubject::DataGroup,
                 range: object_range(dg.range),
             });
         }
@@ -522,6 +551,7 @@ fn check_empty_pools(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
                 code: "BIGIP6008".to_owned(),
                 message: format!("Pool '{}' has no members defined.", pool.name),
                 severity: DiagSeverity::Hint,
+                subject: ConfigDiagnosticSubject::Pool,
                 range: object_range(pool.range),
             });
         }
@@ -556,6 +586,7 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
                         dg.name
                     ),
                     severity: DiagSeverity::Warning,
+                    subject: ConfigDiagnosticSubject::DataGroup,
                     range: object_range(dg.range),
                 });
             }
@@ -746,6 +777,20 @@ mod tests {
                    ltm rule /Common/second {\n  when HTTP_REQUEST priority 200 { two }\n  when HTTP_RESPONSE priority 100 { three }\n}\n\
                    ltm virtual /Common/vs {\n  rules { /Common/first /Common/second }\n}\n";
         assert!(!has(src, "BIGIP6012"));
+    }
+
+    #[test]
+    fn bigip6012_distinguishes_same_named_rules_in_different_partitions() {
+        let src = "ltm rule /TenantA/shared {\n  when HTTP_REQUEST { one }\n}\n\
+                   ltm rule /TenantB/shared {\n  when HTTP_REQUEST { two }\n}\n\
+                   ltm virtual /Common/vs {\n  rules { /TenantA/shared /TenantB/shared }\n}\n";
+        let diagnostics = validate_bigip_source(src, "Common");
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "BIGIP6012")
+            .expect("same-named cross-partition rules remain distinct");
+        assert!(diagnostic.message.contains("/TenantA/shared"));
+        assert!(diagnostic.message.contains("/TenantB/shared"));
     }
 
     #[test]

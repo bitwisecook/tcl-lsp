@@ -168,6 +168,7 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::PASSWORD_OPTION,
     Traits::IS_SIDE_SWITCH,
     Traits::IRULES_TOP_LEVEL_ONLY,
+    Traits::SETS_EVENT_PRIORITY,
     Traits::IS_OO_METACLASS,
     Traits::DIAGRAM_ACTION,
     Traits::NEEDS_START_CMD,

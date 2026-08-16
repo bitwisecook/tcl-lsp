@@ -53,11 +53,7 @@ pub fn extract_irules_event_handlers(
         let Some(event) = args.first() else {
             continue;
         };
-        if cmd
-            .arg_tokens()
-            .first()
-            .is_none_or(|tok| matches!(tok.kind, TokenType::Var | TokenType::Cmd))
-        {
+        if !literal_arg(&cmd, 0) {
             continue;
         }
 
@@ -80,11 +76,18 @@ pub fn extract_irules_event_handlers(
 }
 
 fn literal_u16_arg(cmd: &tcl_compiler::segmenter::SegmentedCommand, index: usize) -> Option<u16> {
-    let token = cmd.arg_tokens().get(index)?;
-    if matches!(token.kind, TokenType::Var | TokenType::Cmd) {
+    if !literal_arg(cmd, index) {
         return None;
     }
     cmd.args().get(index)?.parse().ok()
+}
+
+fn literal_arg(cmd: &tcl_compiler::segmenter::SegmentedCommand, index: usize) -> bool {
+    cmd.arg_single_token().get(index).copied() == Some(true)
+        && cmd
+            .arg_tokens()
+            .get(index)
+            .is_some_and(|token| !matches!(token.kind, TokenType::Var | TokenType::Cmd))
 }
 
 #[cfg(test)]
@@ -140,6 +143,24 @@ mod tests {
                     priority: 500
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn dynamic_compound_events_and_priorities_are_not_treated_as_literals() {
+        assert_eq!(
+            extract(
+                "when HTTP_$suffix { dynamic-event }\n\
+                 priority 2$zero\n\
+                 when HTTP_REQUEST { unknown-inherited-priority }\n\
+                 priority 200\n\
+                 when HTTP_RESPONSE priority 3$zero { dynamic-priority }\n\
+                 when SERVER_CONNECTED { literal }"
+            ),
+            vec![IrulesEventHandler {
+                event: "SERVER_CONNECTED".into(),
+                priority: 200,
+            }]
         );
     }
 }

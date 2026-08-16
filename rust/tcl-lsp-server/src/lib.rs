@@ -24612,6 +24612,7 @@ mod tests {
             code: "BIGIP6002".to_owned(),
             message: "x".to_owned(),
             severity: tcl_bigip::validator::DiagSeverity::Warning,
+            subject: tcl_bigip::validator::ConfigDiagnosticSubject::IRule,
             range: tcl_bigip::Range { start: pos, end },
         };
         let lifted = lift_config_diagnostic(&d);

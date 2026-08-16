@@ -71,6 +71,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ),
     ("has_switch_body", Traits::HAS_SWITCH_BODY),
     ("irules_top_level_only", Traits::IRULES_TOP_LEVEL_ONLY),
+    ("sets_event_priority", Traits::SETS_EVENT_PRIORITY),
     ("is_control_flow", Traits::CONTROL_FLOW),
     ("is_irules_event_handler", Traits::IS_EVENT_HANDLER),
     ("is_language_keyword", Traits::LANGUAGE_KEYWORD),
