@@ -115,6 +115,19 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
                 .case_invocation(head.resolved, &args, self.availability)
                 .and_then(|(spec, invocation)| invocation.clause_list_index.map(|i| (spec, i)));
 
+            // A case-list descriptor owns its nested scripts even when the
+            // outer list word has no generic `ArgRole::Body`.  In particular,
+            // Expect's descriptor supplies its clause bodies directly rather
+            // than duplicating that grammar as a flat argument role.
+            if let Some((spec, case_index)) = case_list
+                && let (Some(&token), Some(list)) =
+                    (command.arg_tokens().get(case_index), args.get(case_index))
+                && token.kind == TokenType::Str
+                && self.case_list_regions(token, list, &spec, depth, next_grammar)
+            {
+                return true;
+            }
+
             for index in body_indices {
                 let Some(&token) = command.arg_tokens().get(index) else {
                     continue;
@@ -122,13 +135,10 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
                 if token.kind != TokenType::Str {
                     continue;
                 }
-                if let Some((spec, case_index)) = case_list
-                    && case_index == index
-                {
-                    if self.case_list_regions(token, &spec, depth, next_grammar) {
-                        return true;
-                    }
-                } else if let Some((body_start, body_end)) = braced_body_region(self.source, token)
+                if case_list.is_some_and(|(_, case_index)| case_index == index) {
+                    continue;
+                }
+                if let Some((body_start, body_end)) = braced_body_region(self.source, token)
                     && self.region(body_start, body_end, depth + 1, next_grammar)
                 {
                     return true;
@@ -158,34 +168,52 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
     fn case_list_regions(
         &mut self,
         token: Token,
+        list: &str,
         spec: &tcl_registry::CaseListSpec,
         depth: u32,
         grammar: Option<&'static DefinitionBodyGrammar>,
     ) -> bool {
-        let content_start = token.span.start() as usize + token.content_offset as usize;
-        let content_end = token.span.end() as usize;
-        let Some(list) = self.source.get(content_start..content_end) else {
-            return false;
-        };
-        let shape = tcl_syntax::case_list::CaseListShape {
-            clause_flags: spec.clause_flags,
-            clause_value_flags: spec.clause_value_flags,
-        };
-        for clause in tcl_syntax::case_list::split_case_list(list, &shape) {
-            let Some(body) = clause.body.filter(|body| body.braced) else {
+        // The compiler-owned flattener is the source-coordinate bridge between
+        // a Tcl list element and a source token.  Besides braced actions, it
+        // marks a substitution-free quoted action as `Str`; dynamic and
+        // backslash-built actions remain opaque, so this traversal cannot
+        // invent a statically executable body.
+        for (_, (body_text, body_token)) in
+            tcl_compiler::segmenter::flatten_case_list_clauses(self.source, list, token, spec)
+        {
+            if spec.fallthrough_body == Some(body_text.as_str()) {
+                continue;
+            }
+            let Some((start, end)) = case_action_region(self.source, body_token) else {
                 continue;
             };
-            // The list splitter's end sits on the closing brace; give the
-            // segmenter just the verbatim body content, still in whole-file
-            // coordinates.
-            let start = content_start + body.start + 1;
-            let end = content_start + body.end;
             if self.region(start, end, depth + 1, grammar) {
                 return true;
             }
         }
         false
     }
+}
+
+/// Return a statically executable case action's verbatim script region.
+///
+/// [`tcl_compiler::segmenter::flatten_case_list_clauses`] only gives a
+/// `TokenType::Str` body token to an action that it proved literal.  List
+/// elements may still be braced, quoted, or bare, so strip their opening
+/// delimiter here while retaining the segmenter's absolute spans.  The list
+/// parser's token end is already the byte at the closing delimiter.
+fn case_action_region(source: &str, token: Token) -> Option<(usize, usize)> {
+    if token.kind != TokenType::Str {
+        return None;
+    }
+    let start = token.span.start() as usize;
+    let end = token.span.end() as usize;
+    if start >= end || end > source.len() {
+        return None;
+    }
+    let bytes = source.as_bytes();
+    let start = start + usize::from(matches!(bytes.get(start), Some(b'{' | b'"')));
+    (start < end).then_some((start, end))
 }
 
 /// Return a braced body's verbatim source content, excluding delimiters.
@@ -261,4 +289,90 @@ pub(crate) fn cursor_in_command_substitution(
     command_substitution_regions(source, config, token)
         .into_iter()
         .any(|(start, end)| cursor as usize >= start && (cursor as usize) < end)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn visited_format_heads(source: &str, dialect: &str) -> Vec<(String, String, u32)> {
+        let profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = LexerConfig::for_file_dialect(profile.name);
+        let identities = tcl_compiler::head_identity::command_head_identities_with_config(
+            source, config, registry,
+        );
+        let mut heads = Vec::new();
+        visit_executable_commands(
+            source,
+            config,
+            registry,
+            profile.availability_mask,
+            &identities,
+            &mut |command, identity| {
+                if command.name() == "format" || command.name() == "fmt" {
+                    heads.push((
+                        identity.written.to_owned(),
+                        identity.resolved.to_owned(),
+                        command.span.start(),
+                    ));
+                }
+                false
+            },
+        );
+        heads
+    }
+
+    #[test]
+    fn quoted_case_actions_retain_absolute_spans_for_each_registry_descriptor() {
+        for (source, dialect, written) in [
+            ("switch $x {a \"format {%d} 1\"}", "tcl8.6", "format"),
+            ("expect {-re {ready} \"format {%d} 1\"}", "expect", "format"),
+        ] {
+            let heads = visited_format_heads(source, dialect);
+            assert_eq!(
+                heads,
+                vec![(
+                    written.to_owned(),
+                    "format".to_owned(),
+                    u32::try_from(source.rfind(written).expect("nested head")).unwrap(),
+                ),],
+                "quoted case action must preserve its whole-document command span: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn quoted_case_actions_preserve_identity_and_abstain_for_dynamic_or_malformed_lists() {
+        let aliased = "interp alias {} fmt {} format\nswitch $x {a \"fmt {%d} 1\"}";
+        assert_eq!(
+            visited_format_heads(aliased, "tcl8.6"),
+            vec![(
+                "fmt".to_owned(),
+                "format".to_owned(),
+                u32::try_from(aliased.rfind("fmt").expect("nested alias")).unwrap(),
+            )]
+        );
+
+        let renamed = "rename format saved\nswitch $x {a \"format {%d} 1\"}";
+        assert_eq!(
+            visited_format_heads(renamed, "tcl8.6"),
+            vec![(
+                "format".to_owned(),
+                String::new(),
+                u32::try_from(renamed.rfind("format").expect("nested head")).unwrap(),
+            )],
+            "the nested call remains executable but must not reclaim a renamed builtin"
+        );
+
+        for source in [
+            "set actions {a \"format {%d} 1\"}\nswitch $x $actions",
+            "switch $x {a \"format {%d} 1\" orphan}",
+        ] {
+            assert!(
+                visited_format_heads(source, "tcl8.6").is_empty(),
+                "dynamic and malformed lists must not expose nested actions: {source}"
+            );
+        }
+    }
 }

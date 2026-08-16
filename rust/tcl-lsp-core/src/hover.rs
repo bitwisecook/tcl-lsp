@@ -4787,6 +4787,18 @@ mod tests {
                 "tcl8.6",
             ),
             (
+                "switch $x { a \"format {%08d} 1\" default { puts no } }\n",
+                "%08d",
+                "**Format string**",
+                "tcl8.6",
+            ),
+            (
+                "expect { -re {ready} \"format {%09d} 1\" }\n",
+                "%09d",
+                "**Format string**",
+                "expect",
+            ),
+            (
                 "apply {{} {format {%02d} 1}}\n",
                 "%02d",
                 "**Format string**",
@@ -4813,6 +4825,32 @@ mod tests {
             let hover = hover_with_profile(source, line, column, &analysis, None, profile)
                 .unwrap_or_else(|| panic!("no hover for {dialect}: {source}"));
             assert!(hover.value.contains(expected), "{}", hover.value);
+        }
+    }
+
+    #[test]
+    fn quoted_case_action_hover_obeys_head_mutations_and_static_list_validation() {
+        let aliased = "interp alias {} fmt {} format\nswitch $x { a \"fmt {%10d} 1\" }\n";
+        let analysis = analyse(aliased);
+        let (line, column) = position_of(aliased, "%10d");
+        let result = hover(aliased, line, column, &analysis, None).expect("aliased quoted action");
+        assert!(
+            result.value.contains("**Format string**"),
+            "{}",
+            result.value
+        );
+
+        for source in [
+            "rename format saved\nswitch $x { a \"format {%11d} 1\" }\n",
+            "set actions { a \"format {%12d} 1\" }\nswitch $x $actions\n",
+            "switch $x { a \"format {%13d} 1\" orphan }\n",
+        ] {
+            let analysis = analyse(source);
+            let (line, column) = position_of(source, "%");
+            assert!(
+                hover(source, line, column, &analysis, None).is_none(),
+                "mutated, dynamic, or malformed case list leaked a nested hover: {source}"
+            );
         }
     }
 
