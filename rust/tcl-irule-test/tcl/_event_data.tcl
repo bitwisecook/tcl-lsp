@@ -1,20 +1,30 @@
-# _event_data.tcl -- AUTO-GENERATED from Python event registry
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 #
-# DO NOT EDIT.  Regenerate with:
-#   python -m tooling.irule_test.codegen_event_data
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# Source: compiler/registry/event_flow_chains.py
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
 #
-# Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# _event_data.tcl -- AUTO-GENERATED from tcl-registry by `cargo xtask gen-irule-test-data`
+#
+# DO NOT EDIT. Regenerate with:
+#   cargo xtask gen-irule-test-data
+#
+# Source owner: tcl-registry::events::EventRegistry.
 
 namespace eval ::orch {
 
-    # Master event ordering
-    #
-    # Each entry: {event_name profile_gates}
-    # Profile gates: empty = always relevant; non-empty = requires
-    # at least one of these profiles to be active.
-
+    # Canonical event firing order: {event_name profile_gates}.
     variable MASTER_ORDER {
         {RULE_INIT                                {}}
         {FLOW_INIT                                {FLOW}}
@@ -92,7 +102,6 @@ namespace eval ::orch {
         {ACCESS_SESSION_CLOSED                    {ACCESS}}
     }
 
-    # Build index: event -> position in master ordering
     variable _event_index
     array set _event_index {}
     variable _idx 0
@@ -102,7 +111,7 @@ namespace eval ::orch {
     }
     unset _idx _entry
 
-    # Events that fire at most once per connection
+    # Events that fire at most once per connection.
     variable ONCE_PER_CONNECTION {
         ACCESS_POLICY_AGENT_EVENT
         ACCESS_POLICY_COMPLETED
@@ -119,7 +128,7 @@ namespace eval ::orch {
         RULE_INIT
     }
 
-    # Events that fire once per HTTP transaction (repeatable on keep-alive)
+    # Events that fire once per request/transaction.
     variable PER_REQUEST {
         ACCESS_ACL_ALLOWED
         ACCESS_ACL_DENIED
@@ -165,10 +174,7 @@ namespace eval ::orch {
         STREAM_MATCHED
     }
 
-    # Pre-built flow chains
-    #
-    # Each chain: profiles + ordered steps {event phase}
-
+    # Pre-built registry-owned flow chains.
     variable FLOW_CHAINS
     array set FLOW_CHAINS {}
 

@@ -41,13 +41,17 @@ The Rust modules are:
 
 ## Decision rules / contracts
 
-1. **The command registry is the single source of truth.** The three data
-   files (`_event_data.tcl`, `_registry_data.tcl`, `_mock_stubs.tcl`) are
-   generated from it and must never be edited by hand. `_mock_stubs.tcl` is a
-   single data table consumed by one generic `::itest::cmd::_stub` proc rather
-   than ~1500 individual stub procs, because defining that many proc bodies
-   cost seconds of compilation on every fresh session; the decision log is
-   identical either way.
+1. **Registry-backed generated data has a native owner.**
+   `_event_data.tcl` is generated from `EventRegistry` and `_mock_stubs.tcl`
+   from the resolved F5 iRules profile registry plus the hand-written-mock boundary
+   in `command_mocks.tcl`. They must never be edited by hand: `cargo xtask
+   gen-irule-test-data` regenerates them and `make xtask-check` detects drift.
+   `_mock_stubs.tcl` is a single data table consumed by one generic
+   `::itest::cmd::_stub` proc rather than ~1500 individual stub procs, because
+   defining that many proc bodies cost seconds of compilation on every fresh
+   session; the decision log is identical either way. `_registry_data.tcl` is
+   a retained legacy fixture outside this generated-asset contract and is not
+   changed by this partial #1404 work.
 
 2. **Decision log over state inspection**: Tests assert on the
    decision log (`{category action args}` triples) rather than raw
