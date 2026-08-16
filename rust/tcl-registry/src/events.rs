@@ -1092,6 +1092,35 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
     .collect()
 }
 
+/// Parse syntactically valid top-level event declarations without filtering
+/// unknown event names. This is exclusively for unknown-event diagnostics;
+/// executable inventories must use [`top_level_when_handlers_with_registry_and_head_resolver`].
+#[must_use]
+pub fn top_level_when_handler_candidates_with_registry_and_head_resolver(
+    source: &str,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn CommandHeadResolver,
+) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let config = registry.profile().map_or_else(
+        || LexerConfig::for_file_dialect("f5-irules"),
+        |profile| LexerConfig::from_grammar(profile.grammar),
+    );
+    tcl_syntax::event_handler::event_handlers_with_head_predicate(
+        source,
+        config,
+        |written, offset| {
+            let effective_head = resolver.resolve(written, offset);
+            is_event_handler_head(registry, effective_head.as_ref())
+        },
+    )
+    .into_iter()
+    .filter(|handler| {
+        let args: Vec<&str> = handler.arguments.iter().map(String::as_str).collect();
+        registry.irules_event_declaration_shape(&args).is_some()
+    })
+    .collect()
+}
+
 /// Scan distinct top-level event handlers through the shared Tcl syntax
 /// owner. Names are normalised to upper case and returned in first-seen order;
 /// the caller orders them canonically via [`EventRegistry::order_events`].

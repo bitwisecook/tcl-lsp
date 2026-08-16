@@ -30,6 +30,21 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
     )
 }
 
+/// Return syntactically valid top-level handler candidates, including unknown
+/// event names, for the unknown-event diagnostic only.
+#[must_use]
+pub fn when_block_candidates(source: &str) -> Vec<WhenBlock> {
+    let config = LexerConfig::for_file_dialect("f5-irules");
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let identities =
+        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+    tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
+        source,
+        registry,
+        &identities,
+    )
+}
+
 /// Whether a discovered handler body contains no executable command.  This
 /// intentionally delegates comment classification to the iRules lexer.
 #[must_use]

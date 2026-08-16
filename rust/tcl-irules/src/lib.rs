@@ -48,7 +48,7 @@ pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
 mod executable;
 pub use executable::{IrulesExecutableCommand, irules_executable_commands};
 mod when_block;
-pub use when_block::{WhenBlock, when_block_is_empty, when_blocks};
+pub use when_block::{WhenBlock, when_block_candidates, when_block_is_empty, when_blocks};
 
 mod specs {
     use super::Deserialize;

@@ -2025,8 +2025,22 @@ impl CommandRegistry {
         args: &[&str],
         events: &crate::events::EventRegistry,
     ) -> Option<crate::events::IrulesTopLevelDeclaration> {
-        use crate::events::IrulesTopLevelDeclaration as Declaration;
+        let declaration = self.irules_event_declaration_shape(args)?;
+        let crate::events::IrulesTopLevelDeclaration::Event { event, .. } = &declaration else {
+            return None;
+        };
+        events.is_known(event).then_some(declaration)
+    }
 
+    /// Validate event-handler layout without requiring the event name to be
+    /// known. Diagnostic consumers use this to report an otherwise valid
+    /// top-level declaration whose event selector is unknown.
+    #[must_use]
+    pub fn irules_event_declaration_shape(
+        &self,
+        args: &[&str],
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
         let valid_layout = match args {
             [_, _] => true,
             [_, "priority", value, _] => value.parse::<i64>().is_ok(),
@@ -2043,7 +2057,7 @@ impl CommandRegistry {
             return None;
         }
         let event = args.first()?.to_uppercase();
-        events.is_known(&event).then_some(Declaration::Event {
+        Some(Declaration::Event {
             event,
             body_index: args.len() - 1,
         })

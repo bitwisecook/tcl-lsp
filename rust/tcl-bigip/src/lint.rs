@@ -439,7 +439,7 @@ fn rule_irule_unknown_event(view: &ModelView<'_>, events: &EventRegistry, out: &
         // Collect canonical boundary matches into a set; dedup first-seen so a
         // repeated event fires at most one finding per rule.
         let mut seen: HashSet<String> = HashSet::new();
-        for block in tcl_irules::when_blocks(&rule.source) {
+        for block in tcl_irules::when_block_candidates(&rule.source) {
             if !seen.insert(block.event.clone()) {
                 continue;
             }
