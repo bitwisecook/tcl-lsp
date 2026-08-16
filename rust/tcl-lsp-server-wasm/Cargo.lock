@@ -797,6 +797,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
