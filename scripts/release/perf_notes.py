@@ -170,11 +170,22 @@ def build_section(version: str, versions: Sequence[str]) -> str:
             + " never released."
         )
 
-    lines += _para(
-        f"**`{version}` is this release**: it is the rightmost point or bar in each "
-        "graph below. The series are distinguished by the categorical colours and "
-        "dash patterns shown in each graph's legend."
-    )
+    if version == "2.1.19":
+        # v2.1.19's immutable release assets predate the highlighted renderer.
+        # Its line charts use elapsed benchmark time on the x-axis, so only the
+        # wall-time bars are ordered by release and have a rightmost v2.1.19 bar.
+        lines += _para(
+            f"**`{version}` is this release**: in the wall-time graph, it is the "
+            "rightmost bar in each group. In the memory and CPU graphs, identify "
+            "its line using the graph legend; these immutable assets use "
+            "categorical colours and dash patterns to distinguish the series."
+        )
+    else:
+        lines += _para(
+            f"**`{version}` is this release**: it is the bright-blue line in the "
+            "memory and CPU graphs and the rightmost bar in each wall-time group. "
+            "Earlier releases are drawn in grey and fade with age."
+        )
 
     hosts = _hosts(versions)
     if len(hosts) > 1:
