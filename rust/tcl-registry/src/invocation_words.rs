@@ -35,6 +35,12 @@ pub enum InvocationWord<'w> {
     Literal(&'w str),
     /// One non-expanded argv word whose value is produced by substitution.
     Dynamic,
+    /// One substituted argv word whose non-empty literal prefix proves its
+    /// evaluated value cannot begin with `-` and therefore cannot be a
+    /// leading option. For example, `"prefix-$value"` remains dynamic as a
+    /// value, but it cannot select a command option before the known
+    /// positional layout.
+    DynamicNonOption,
     /// A `{*}` word whose evaluated Tcl list contributes an unknown number of
     /// argv entries.
     Expanded,
@@ -62,7 +68,7 @@ impl<'w> InvocationWord<'w> {
     pub const fn literal(self) -> Option<&'w str> {
         match self {
             Self::Literal(value) => Some(value),
-            Self::Dynamic | Self::Expanded | Self::Opaque => None,
+            Self::Dynamic | Self::DynamicNonOption | Self::Expanded | Self::Opaque => None,
         }
     }
 
@@ -72,7 +78,7 @@ impl<'w> InvocationWord<'w> {
     pub const fn kind(self) -> InvocationWordKind {
         match self {
             Self::Literal(_) => InvocationWordKind::Literal,
-            Self::Dynamic => InvocationWordKind::Dynamic,
+            Self::Dynamic | Self::DynamicNonOption => InvocationWordKind::Dynamic,
             Self::Expanded => InvocationWordKind::Expanded,
             Self::Opaque => InvocationWordKind::Opaque,
         }
@@ -82,7 +88,10 @@ impl<'w> InvocationWord<'w> {
     /// entry after evaluation.
     #[must_use]
     pub const fn has_exactly_one_argv_entry(self) -> bool {
-        matches!(self, Self::Literal(_) | Self::Dynamic)
+        matches!(
+            self,
+            Self::Literal(_) | Self::Dynamic | Self::DynamicNonOption
+        )
     }
 }
 
@@ -176,6 +185,13 @@ impl<'w> InvocationArguments<'w> {
     #[must_use]
     pub fn has_non_literal(self) -> bool {
         !self.are_all_literals()
+    }
+
+    /// Whether this view retained source word shape rather than accepting the
+    /// legacy string-only compatibility projection.
+    #[must_use]
+    pub const fn is_source_aware(self) -> bool {
+        matches!(self, Self::Structured(_))
     }
 
     /// Return every post-head Tcl value when all source words are literal.
@@ -364,6 +380,18 @@ mod tests {
         assert_eq!(
             InvocationArguments::structured(&structured).literal_values(),
             Some(vec!["first", "second"])
+        );
+    }
+
+    #[test]
+    fn non_option_dynamic_keeps_argv_shape_without_exposing_a_value() {
+        let arguments = InvocationArguments::structured(&[InvocationWord::DynamicNonOption]);
+        assert!(arguments.has_exact_argv_len());
+        assert_eq!(arguments.literal_at(0), None);
+        assert_eq!(arguments.literal_values(), None);
+        assert_eq!(
+            arguments.get(0).map(InvocationWord::kind),
+            Some(InvocationWordKind::Dynamic)
         );
     }
 }

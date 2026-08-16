@@ -48,6 +48,9 @@ tcl-lsp-db = { path = "../tcl-lsp-db" }
 # Powers the `tcl-lsp.compilerExplorer` workspace command (same pipeline +
 # JSON serialisation the `tcl explore` CLI uses).
 tcl-explorer = { path = "../tcl-explorer" }
+# Shared structured control-flow projection used by the CLI, MCP, and LSP
+# diagram command.
+tcl-diagram = { path = "../tcl-diagram" }
 # Same minimal set as `tcl-lsp-db`, and for the same reason: salsa's
 # defaults pull in `rayon`, whose thread pool cannot start in a browser
 # worker. Trimming it in `tcl-lsp-db` alone would achieve nothing — cargo

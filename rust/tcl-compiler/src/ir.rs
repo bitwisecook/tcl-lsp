@@ -731,6 +731,14 @@ pub struct TryHandler {
     pub kind: String,
     /// Return code or error class pattern to match.
     pub match_arg: String,
+    /// Parsed error-code prefix for a statically literal `trap` selector.
+    ///
+    /// `None` means either an `on` handler, a selector containing Tcl word
+    /// substitutions, or a malformed Tcl list. Literal `$`, `[`, and
+    /// backslashes remain ordinary element data when protected by braces or
+    /// escapes; lowering decides that from source token shape before the
+    /// decoded word loses the distinction.
+    pub trap_pattern: Option<Vec<String>>,
     /// Variable bound to the result, if any.
     pub var_name: Option<String>,
     /// Variable bound to the options dict, if any.
@@ -1980,6 +1988,7 @@ mod tests {
             handlers: vec![TryHandler {
                 kind: "on".into(),
                 match_arg: "error".into(),
+                trap_pattern: None,
                 var_name: Some("e".into()),
                 options_var: None,
                 body: Script::new(),

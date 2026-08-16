@@ -245,6 +245,15 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    // This is a native resolver over a command's own OptionSpec table. Packs
+    // can describe the table and static pattern facts, but not arbitrary
+    // option-selected language dispatch yet; keeping it excluded makes the
+    // native-only boundary explicit until a declarative selector exists.
+    Gap {
+        key: "pattern_arg_resolver",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
     Gap {
         key: "command_forms",
         spelling: "",
@@ -1877,6 +1886,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     enum_word(out, ctx, draft, "body_kind");
     expr_word(out, ctx, draft, "byte_array_effect", byte_array_effect_word);
     enum_word(out, ctx, draft, "pattern_type");
+    gap_todo(out, ctx, draft, "pattern_arg_resolver");
     enum_word(out, ctx, draft, "format_string_type");
     expr_row(
         out,

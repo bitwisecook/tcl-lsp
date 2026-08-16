@@ -19,6 +19,28 @@
 //! `string` — perform one of several string operations.
 
 use crate::prelude::*;
+
+/// `string match ?-nocase? pattern string` — the declared option prefix shifts
+/// the pattern.  The shared descriptor walk also accepts Tcl's unambiguous
+/// `-noc` abbreviation without teaching any consumer about this subcommand.
+fn match_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let index = leading_option_word_count(MATCH_OPTIONS, args);
+    (index < args.len())
+        .then(|| u8::try_from(index).ok().map(|i| (i, ArgRole::Pattern)))
+        .flatten()
+        .into_iter()
+        .collect()
+}
+
+const MATCH_OPTIONS: &[OptionSpec] = &[OptionSpec {
+    name: "-nocase",
+    value: OptionValue::flag(),
+    detail: "Match without regard to case; the endpoints of a [x-y] range are lower-cased first, so [A-z] behaves like [A-Za-z].",
+    dialects: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+}];
 use tcl_syntax::number::{Number, parse_whole};
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -1325,17 +1347,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         const_fold: Some(fold_match),
         return_type: Some(TclType::Boolean),
-        options: const {
-            &[OptionSpec {
-                name: "-nocase",
-                value: OptionValue::flag(),
-                detail: "Match without regard to case; the endpoints of a [x-y] range are lower-cased first, so [A-z] behaves like [A-Za-z].",
-                dialects: None,
-                aliases: &[],
-                lifecycle: Lifecycle::UNSPECIFIED,
-                min_abbrev: None,
-            }]
-        },
+        options: MATCH_OPTIONS,
+        arg_role_resolver: Some(match_arg_roles),
+        pattern_type: Some(PatternType::Glob),
         ..SubCommand::DEFAULT
     },
     SubCommand {

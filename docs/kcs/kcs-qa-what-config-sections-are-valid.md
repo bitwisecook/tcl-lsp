@@ -104,13 +104,13 @@ the server stop advertising or running that feature. Valid keys:
 `folding`, `rename`, `signatureHelp`, `workspaceSymbols`,
 `inlayHints`, `callHierarchy`, `documentLinks`, `selectionRange`,
 `documentHighlight`, `codeLens`, `workspaceFileOps`,
-`pullDiagnostics`, `willSaveWaitUntil`, `progress`,
+`willSaveWaitUntil`, `progress`,
 `implementation`, `typeDefinition`, `declaration`,
 `linkedEditingRange`, `crossFileResolution`.
 
-A few of these (notably `pullDiagnostics`) only take effect after a
-server restart because they change which LSP handlers are
-registered.
+Delivery-model changes are not configuration toggles: diagnostics use push
+publication, while pull requests are supported only when a client requests
+them directly.
 
 `crossFileResolution` (default off) enables the broader, bare-name
 workspace inference for W123. Exact cross-file command candidates are already

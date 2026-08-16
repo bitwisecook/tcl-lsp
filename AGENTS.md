@@ -726,18 +726,18 @@ registered, and the handler body checks whether the feature is enabled before
 doing work (returning nothing when disabled). This allows features to be
 toggled via `didChangeConfiguration` without restarting.
 
-A small set of features cannot follow this pattern because their handler
-registration changes the `ServerCapabilities` advertised during `initialize`,
-which alters client behaviour irreversibly for the session. These
-restart-required toggles are decided at `initialize` time in the native
-server (`tcl-lsp-server` / `tcl-lsp-core`). Currently this set includes:
+A small set of features cannot follow this pattern because their capability
+advertisement is decided during `initialize`, which alters client behaviour
+for the session. There are currently no user-configurable restart-required
+toggles.
 
-- **`pull_diagnostics_enabled`** — registers `textDocument/diagnostic` and
-  `workspace/diagnostic` handlers, which flips `vscode-languageclient` into
-  pull mode and disables the push pipeline.
-
-Changing a restart-required toggle at runtime logs a warning but has no
-effect until the server process is restarted.
+Diagnostics are deliberately not one: the server always advertises the push
+model and never advertises `diagnosticProvider`. Its
+`textDocument/diagnostic` and `workspace/diagnostic` handlers remain available
+for direct requests against the shared cache, but a setting must not attempt to
+switch the delivery model after initialisation. See
+`docs/design/contracts/lsp-diagnostics-publication.md` for the delivery
+contract.
 
 ## Lexer token types
 

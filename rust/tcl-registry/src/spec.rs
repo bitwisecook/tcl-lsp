@@ -1264,10 +1264,10 @@ pub struct CommandSpec {
     /// substitution beginning with `-` — hence `switch $x $caseListVar`
     /// needs no `--` terminator. Consumed by
     /// [`crate::registry::CommandRegistry::resolve_option_terminator`]'s
-    /// `reserved_trailing_words` on [`crate::registry::ResolvedTerminator`],
-    /// which both W304 and T102's option-scan-region walk cap their scan
-    /// against. Default `0` (no reservation) keeps every existing spec
-    /// correct.
+    /// `reserved_trailing_words` on [`crate::registry::ResolvedTerminator`]
+    /// and the source-aware pattern resolver, which both cap their option
+    /// scans against it. W304 and T102 use the former path. Default `0` (no
+    /// reservation) keeps every existing spec correct.
     pub reserved_trailing_words: usize,
 
     /// Enumerable positional-argument values, keyed by 0-based
@@ -1411,6 +1411,15 @@ pub struct CommandSpec {
     /// (`regexp`/`regsub` ⇒ `Regex`), for semantic-token sub-tokens and
     /// pattern validation. `None` = not a pattern command.
     pub pattern_type: Option<PatternType>,
+
+    /// Call-specific pattern positions and languages for an option-selected
+    /// grammar such as `lsearch -regexp list pattern`.  Static pattern
+    /// commands use [`Self::pattern_type`] and [`Self::arg_roles`] instead.
+    ///
+    /// This is deliberately a registry hook, never an editor-side command
+    /// name match: the option grammar remains co-located with its
+    /// [`OptionSpec`] descriptors.
+    pub pattern_arg_resolver: Option<crate::patterns::PatternArgResolver>,
 
     /// Kind of format string this command's format argument uses
     /// (`format`/`scan` ⇒ `Sprintf`, …), for inlay-hint parsing and
@@ -1675,7 +1684,65 @@ fn option_table_from<'a>(
     KeywordTable::from_keywords(keywords, prefix_matching)
 }
 
-fn leading_option_word_count(options: &[OptionSpec], args: &[&str]) -> usize {
+/// Resolve one leading option word against its descriptor table.
+///
+/// Tcl accepts an exact canonical spelling or alias, then an unambiguous
+/// abbreviation of either spelling.  Keeping that rule beside
+/// [`OptionSpec`] means the layout resolvers, option-value role walk, and
+/// declaration helpers all consume precisely the words Tcl's option parser
+/// consumes; no command consumer needs its own list of value-taking switches.
+#[must_use]
+pub fn resolve_option_prefix<'a>(options: &'a [OptionSpec], word: &str) -> Option<&'a OptionSpec> {
+    resolve_option_prefix_with(options, word, PrefixMatching::Enabled)
+}
+
+/// [`resolve_option_prefix`] with the table's declared prefix policy.
+#[must_use]
+pub fn resolve_option_prefix_with<'a>(
+    options: &'a [OptionSpec],
+    word: &str,
+    prefix_matching: PrefixMatching,
+) -> Option<&'a OptionSpec> {
+    if let Some(exact) = options.iter().find(|option| option.matches(word)) {
+        return Some(exact);
+    }
+    if !prefix_matching.accepts_prefixes() || !word.starts_with('-') || word.len() < 2 {
+        return None;
+    }
+    let mut matched: Option<&OptionSpec> = None;
+    for option in options {
+        if std::iter::once(option.name)
+            .chain(option.aliases.iter().copied())
+            .any(|spelling| spelling.starts_with(word))
+        {
+            match matched {
+                None => matched = Some(option),
+                Some(previous) if std::ptr::eq(previous, option) => {}
+                Some(_) => return None,
+            }
+        }
+    }
+    matched
+}
+
+/// Return the index immediately after a declared leading option prefix.
+///
+/// The descriptor-driven walk honours unique abbreviations, aliases, each
+/// option's actual value arity, and a declared `--` terminator.  It is the
+/// common layout primitive for commands whose positional grammar starts only
+/// after their option prefix.
+#[must_use]
+pub fn leading_option_word_count(options: &[OptionSpec], args: &[&str]) -> usize {
+    leading_option_word_count_with(options, args, PrefixMatching::Enabled)
+}
+
+/// [`leading_option_word_count`] with the table's declared prefix policy.
+#[must_use]
+pub fn leading_option_word_count_with(
+    options: &[OptionSpec],
+    args: &[&str],
+    prefix_matching: PrefixMatching,
+) -> usize {
     if options.is_empty() {
         return 0;
     }
@@ -1684,20 +1751,9 @@ fn leading_option_word_count(options: &[OptionSpec], args: &[&str]) -> usize {
         if !word.starts_with('-') || word.len() < 2 {
             break;
         }
-        let resolved = options
-            .iter()
-            .find(|o| o.name == word || o.aliases.contains(&word))
-            .or_else(|| {
-                let mut prefixed = options.iter().filter(|o| o.name.starts_with(word));
-                let first = prefixed.next();
-                if prefixed.next().is_some() {
-                    None
-                } else {
-                    first
-                }
-            });
+        let resolved = resolve_option_prefix_with(options, word, prefix_matching);
         let Some(opt) = resolved else { break };
-        i += 1 + usize::from(opt.takes_value());
+        i += 1 + opt.value_word_count(args, i);
         if opt.name == "--" {
             // `--` ends option parsing (Tcl's own `Tcl_ParseArgsObjv`-style
             // convention: every subsequent word — even one that looks like a
@@ -1812,6 +1868,7 @@ impl CommandSpec {
         sensitive_headers: &[],
         setter_constraints: &[],
         pattern_type: None,
+        pattern_arg_resolver: None,
         format_string_type: None,
         tcllib_package: None,
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -2326,7 +2383,7 @@ impl CommandSpec {
     /// [`Self::defines_command_at`]) can be shifted past them.
     #[must_use]
     pub fn leading_option_word_count(&self, args: &[&str]) -> usize {
-        leading_option_word_count(self.options, args)
+        leading_option_word_count_with(self.options, args, self.prefix_matching)
     }
 
     /// Like [`Self::switch_names`], but optionally including documented
@@ -3072,7 +3129,7 @@ impl SubCommand {
     /// them all would shift a positional index past real arguments.
     #[must_use]
     pub fn leading_option_word_count(&self, args: &[&str]) -> usize {
-        let counted = leading_option_word_count(self.options, args);
+        let counted = leading_option_word_count_with(self.options, args, self.prefix_matching);
         match self.max_leading_option_words {
             Some(cap) => counted.min(usize::from(cap)),
             None => counted,

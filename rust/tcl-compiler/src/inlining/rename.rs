@@ -419,6 +419,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
                 .map(|h| TryHandler {
                     kind: h.kind.clone(),
                     match_arg: h.match_arg.clone(),
+                    trap_pattern: h.trap_pattern.clone(),
                     var_name: h.var_name.as_ref().map(|v| rename_local(v, rename)),
                     options_var: h.options_var.as_ref().map(|v| rename_local(v, rename)),
                     body: rewrite_script(&h.body, rename),

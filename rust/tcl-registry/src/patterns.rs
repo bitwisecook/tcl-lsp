@@ -24,6 +24,9 @@
 //! emit *sub-tokens* (semantic-token splitting inside the string
 //! literal) and run pattern-specific validation.
 
+use crate::abbrev::PrefixMatching;
+use crate::hover::OptionSpec;
+
 /// Kind of pattern language an argument uses, for semantic tokens and
 /// validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -34,6 +37,93 @@ pub enum PatternType {
     /// Regular expression (`regexp`, `regsub`, `lsearch -regexp`,
     /// `switch -regexp`).
     Regex,
+}
+
+/// One concrete pattern-bearing argument of an invocation.
+///
+/// Most commands use one static [`PatternType`] plus an [`ArgRole::Pattern`]
+/// position. Commands such as `lsearch` select the language with an option,
+/// so their registry resolver returns this paired fact rather than forcing an
+/// LSP consumer to understand `-regexp` itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PatternArg {
+    /// Index into the post-head argument list.
+    pub index: u8,
+    /// Embedded language accepted at this position.
+    pub kind: PatternType,
+}
+
+/// Registry context supplied to a call-specific pattern resolver.
+///
+/// The caller filters [`options`](Self::options) for the document's resolved
+/// profile before invoking the resolver.  Keeping the option grammar and the
+/// reserved positional suffix together means an option-selected pattern
+/// layout cannot accidentally recognise a switch that this Tcl release does
+/// not have, nor scan a mandatory operand merely because it looks like one.
+#[derive(Debug, Clone, Copy)]
+pub struct PatternArgResolverContext<'a> {
+    /// Available option descriptors in declaration order.
+    pub options: &'a [&'static OptionSpec],
+    /// Mandatory trailing operands excluded from the leading option scan.
+    pub reserved_trailing_words: usize,
+}
+
+/// Resolve a command's call-specific pattern arguments.
+///
+/// Resolver callbacks receive the profile-filtered option metadata and the
+/// command's reserved trailing operand boundary.  The callback must use both
+/// rather than carrying a private option table or inferring the positional
+/// boundary itself.
+pub type PatternArgResolver = for<'a> fn(&[&str], PatternArgResolverContext<'a>) -> Vec<PatternArg>;
+
+/// Resolve an option word against profile-filtered descriptor references.
+///
+/// Static option tables use [`crate::spec::resolve_option_prefix`]; this
+/// counterpart preserves the same exact-or-unique-prefix rule after a
+/// profile has selected only the options this invocation can actually use.
+#[must_use]
+pub(crate) fn resolve_available_option_prefix<'a>(
+    options: &'a [&crate::hover::OptionSpec],
+    word: &str,
+) -> Option<&'a crate::hover::OptionSpec> {
+    resolve_available_option_prefix_with(options, word, PrefixMatching::Enabled)
+}
+
+/// [`resolve_available_option_prefix`] with the command's declared prefix
+/// policy.  A profile has already removed unavailable options from `options`,
+/// so this one walk preserves the remaining exact-or-unique abbreviation
+/// grammar without accidentally restoring an option from another release.
+#[must_use]
+pub(crate) fn resolve_available_option_prefix_with<'a>(
+    options: &'a [&crate::hover::OptionSpec],
+    word: &str,
+    prefix_matching: PrefixMatching,
+) -> Option<&'a crate::hover::OptionSpec> {
+    if let Some(option) = options.iter().copied().find(|option| option.matches(word)) {
+        return Some(option);
+    }
+    if !prefix_matching.accepts_prefixes() || !word.starts_with('-') || word.len() < 2 {
+        return None;
+    }
+    let mut found = None;
+    for option in options.iter().copied() {
+        if std::iter::once(option.name)
+            .chain(option.aliases.iter().copied())
+            .any(|spelling| {
+                spelling.starts_with(word)
+                    && option
+                        .min_abbrev
+                        .is_none_or(|minimum| word.len() >= usize::from(minimum))
+            })
+        {
+            match found {
+                None => found = Some(option),
+                Some(previous) if std::ptr::eq(previous, option) => {}
+                Some(_) => return None,
+            }
+        }
+    }
+    found
 }
 
 impl PatternType {

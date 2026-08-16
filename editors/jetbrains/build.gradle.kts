@@ -25,6 +25,7 @@ kotlin {
 }
 
 dependencies {
+    testImplementation(kotlin("test"))
     intellijPlatform {
         intellijIdeaUltimate("2024.1")
         bundledPlugin("org.jetbrains.plugins.textmate")
@@ -32,6 +33,10 @@ dependencies {
         pluginVerifier()
         zipSigner()
     }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 intellijPlatform {

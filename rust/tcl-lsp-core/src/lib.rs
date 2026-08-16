@@ -53,6 +53,7 @@ pub mod declaration;
 pub mod definition;
 pub mod document_links;
 pub mod document_symbols;
+mod executable_regions;
 pub mod expr_context;
 pub mod file_ops;
 pub mod folding;

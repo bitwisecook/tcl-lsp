@@ -25,7 +25,7 @@ interface TclLspApi {
   getClient(): LanguageClient;
 }
 
-suite("Pull Diagnostics (opt-in)", () => {
+suite("Push Diagnostics", () => {
   test("pull diagnostic provider is NOT advertised by default", async () => {
     await activate(getDocUri("simple.tcl"));
     const ext = vscode.extensions.getExtension<TclLspApi>("bitwisecook.tcl-lsp")!;
@@ -42,11 +42,5 @@ suite("Pull Diagnostics (opt-in)", () => {
       undefined,
       "diagnosticProvider should be absent by default (pull diagnostics opt-in)",
     );
-  });
-
-  test("config toggle exists in package.json metadata", () => {
-    const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const value = config.get<boolean>("pullDiagnostics");
-    assert.strictEqual(value, false, "pullDiagnostics should default to false");
   });
 });

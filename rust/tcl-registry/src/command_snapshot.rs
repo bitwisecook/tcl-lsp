@@ -99,6 +99,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("sources_file", Traits::SOURCES_FILE),
     ("taint_sink", Traits::TAINT_SINK),
     ("terminates_block", Traits::TERMINATES_BLOCK),
+    ("terminates_process", Traits::TERMINATES_PROCESS),
     ("unsafe", Traits::UNSAFE),
 ];
 

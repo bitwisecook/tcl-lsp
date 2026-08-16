@@ -57,9 +57,10 @@
 use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::LineIndex;
-use tcl_registry::{CommandRegistry, TclType};
+use tcl_registry::{CommandRegistry, InvocationArguments, TclType};
 
 use crate::definition::LspRange;
 
@@ -533,9 +534,9 @@ fn format_args(
     // `rename` gets the target's format family and a `rename`d-away or
     // `proc`-shadowed spelling gets none (issue #1185).
     let resolved = identities.resolve(head, tok.span.start()).spec_name();
-    let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    let source_args = segmented_command_arguments(seg);
     registry
-        .format_string_args(resolved, &arg_texts)
+        .format_string_args_words(resolved, InvocationArguments::structured(&source_args))
         .into_iter()
         // `+ 1` converts a post-head argument index into an `argv` index
         // (`argv[0]` is the command word).
@@ -1773,6 +1774,32 @@ mod tests {
         let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
         assert!(names.contains(&"grp1"), "{labels:?}");
         assert!(names.contains(&"grp2"), "{labels:?}");
+    }
+
+    #[test]
+    fn dynamic_leading_option_does_not_claim_regsub_subspec_hints() {
+        let dynamic = type_labels("regsub $mode {a} $value {\\1}\n");
+        assert!(
+            !dynamic.iter().any(|(_, label)| label == "grp1"),
+            "a dynamic leading word can shift regsub's replacement: {dynamic:?}"
+        );
+
+        for src in [
+            "regsub -c {a} $value {\\1}\n",
+            "regsub -command {a} $value callback\n",
+        ] {
+            let labels = type_labels(src);
+            assert!(
+                !labels.iter().any(|(_, label)| label == "grp1"),
+                "{src:?}: only a valid replacement template has capture hints: {labels:?}"
+            );
+        }
+
+        let fixed = type_labels("regsub -start $start {a} $value {\\1}\n");
+        assert!(
+            fixed.iter().any(|(_, label)| label == "grp1"),
+            "a declared -start value keeps the replacement layout fixed: {fixed:?}"
+        );
     }
 
     /// Issue #1185: format hints follow the head's *effective command

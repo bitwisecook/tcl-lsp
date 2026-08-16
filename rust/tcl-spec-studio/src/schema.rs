@@ -891,6 +891,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "The pattern language the command's pattern argument uses.",
     ),
     f(
+        "pattern_arg_resolver",
+        "Pattern-argument resolver",
+        OPTS,
+        FieldKind::RustExpr {
+            hint: "Some(lsearch_pattern_args)",
+        },
+        "Native hook selecting pattern positions and languages for a concrete call.",
+    ),
+    f(
         "format_string_type",
         "Format-string type",
         OPTS,

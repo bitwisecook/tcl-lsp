@@ -4237,8 +4237,10 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -4395,6 +4397,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-compiler",
  "tcl-core-types",
+ "tcl-diagram",
  "tcl-dialect",
  "tcl-explorer",
  "tcl-lexer",

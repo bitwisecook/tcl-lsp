@@ -50,8 +50,16 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
         dialects: Some(DialectSet::ALL_TCL),
-        traits: Traits::BYTE_COMPILED | Traits::TERMINATES_BLOCK | Traits::SAFE_INTERP_HIDDEN,
+        traits: Traits::BYTE_COMPILED
+            | Traits::TERMINATES_BLOCK
+            | Traits::TERMINATES_PROCESS
+            | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::new(0, 1),
+        // The process-terminal trait says that a *successful* invocation
+        // cannot fall through.  This descriptor owns the value grammar too:
+        // a static non-integer returnCode is TCL_ERROR, while a substituted
+        // one is the typed ProcessExit-or-Error union for flow consumers.
+        completion: Some(CompletionDescriptor::process_exit_status()),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,

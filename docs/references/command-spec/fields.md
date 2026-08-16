@@ -331,6 +331,12 @@ The completable values for specific argument positions — the mode words of `bi
 
 Which pattern language the command's Pattern argument speaks: glob (`string match`, `lsearch` default) or regular expression (`regexp`, `regsub`, `lsearch -regexp`). The pattern is then checked and highlighted in the right language — a `*` means something very different in each.
 
+### `pattern_arg_resolver` — Pattern-argument resolver
+
+*command only* — Native hook selecting pattern positions and languages for a concrete call.
+
+A native hook that selects the Pattern argument positions and language for this particular call. Use it when options change the pattern grammar, such as `lsearch -regexp`; the Studio preserves the need for the hook but cannot recover a Rust function pointer from a loaded spec, so supply the expression.
+
 ### `format_string_type` — Format-string type
 
 *command and subcommand* — The format-string language the command's format argument uses.
@@ -1222,6 +1228,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `LANGUAGE_KEYWORD` | a language keyword rather than a plain command |
 | `HAS_BOOLEAN_COND` | takes a boolean condition |
 | `TERMINATES_BLOCK` | terminates the enclosing basic block |
+| `TERMINATES_PROCESS` | terminates the interpreter process without Tcl unwinding |
 | `HAS_LOOP_BODY` | takes a loop body |
 | `NEVER_INLINE_BODY` | its body must never be inlined |
 | `LOOP_LIST_HEADER` | a loop header with list-expression arguments |

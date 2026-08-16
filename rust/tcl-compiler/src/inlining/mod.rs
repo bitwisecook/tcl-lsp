@@ -1105,6 +1105,7 @@ fn rewrite_try_stmt(
             new_handlers.push(TryHandler {
                 kind: h.kind.clone(),
                 match_arg: h.match_arg.clone(),
+                trap_pattern: h.trap_pattern.clone(),
                 var_name: h.var_name.clone(),
                 options_var: h.options_var.clone(),
                 body: hbody,

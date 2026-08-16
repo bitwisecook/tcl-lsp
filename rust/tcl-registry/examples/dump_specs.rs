@@ -137,6 +137,7 @@ const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("is_control_flow", Traits::CONTROL_FLOW),
     ("needs_start_cmd", Traits::NEEDS_START_CMD),
     ("terminates_block", Traits::TERMINATES_BLOCK),
+    ("terminates_process", Traits::TERMINATES_PROCESS),
     ("is_oo_metaclass", Traits::IS_OO_METACLASS),
     ("irules_top_level_only", Traits::IRULES_TOP_LEVEL_ONLY),
     ("sets_event_priority", Traits::SETS_EVENT_PRIORITY),

@@ -99,31 +99,11 @@ where
     }
 }
 
-/// Collect every frame the server emits within `window`.
-async fn collect_frames<R>(reader: &mut BufReader<R>, window: Duration) -> Vec<String>
-where
-    R: tokio::io::AsyncRead + Unpin,
-{
-    let mut frames = Vec::new();
-    let deadline = tokio::time::Instant::now() + window;
-    loop {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if remaining.is_zero() {
-            break;
-        }
-        match tokio::time::timeout(remaining, read_frame(reader)).await {
-            Ok(body) => frames.push(body),
-            Err(_) => break,
-        }
-    }
-    frames
-}
-
 /// Read frames into `sink` until the accumulated frames satisfy `reached`, and
 /// report whether they did before `backstop` expired.
 ///
-/// The counterpart of [`collect_frames`] for anything that has a *terminal
-/// signal* rather than a quiet period: instead of guessing how long the server
+/// For anything that has a *terminal signal* rather than a quiet period, wait
+/// for that signal instead of guessing how long the server
 /// needs, wait for the thing that says it is done. A fixed collection window is
 /// a wall-clock bet on the server's speed, so on a machine short of CPU it ends
 /// the collection early and turns a correct server into a missing publish; the
@@ -207,7 +187,39 @@ async fn pull_capable_client_still_gets_push_by_default() {
     // Push is the sole channel: the server must deliver exactly one
     // content-bearing `publishDiagnostics` carrying the E003, even to this
     // pull-capable client (which, absent a `diagnosticProvider`, never pulls).
-    let frames = collect_frames(&mut reader, Duration::from_millis(1500)).await;
+    let mut frames = Vec::new();
+    assert!(
+        drain_until(&mut reader, &mut frames, RESPONSE_BACKSTOP, |frames| {
+            frames.iter().any(|frame| {
+                frame.contains("textDocument/publishDiagnostics")
+                    && frame.contains("file:///dup.tcl")
+            })
+        })
+        .await,
+        "expected a diagnostic publish before the hang guard: {frames:?}",
+    );
+    // #1417: prove delivery has quiesced by changing the document to a clean
+    // revision, then waiting for the terminal empty publish for *that*
+    // revision. A 200 ms collection window only guesses that a duplicate has
+    // arrived; this mutation is a negative control and the resulting publish
+    // is the protocol-level condition that analysis reached the new state.
+    let did_change = r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///dup.tcl","version":2},"contentChanges":[{"text":"puts ok\n"}]}}"#;
+    client_write
+        .write_all(frame(did_change).as_bytes())
+        .await
+        .unwrap();
+    assert!(
+        drain_until(&mut reader, &mut frames, RESPONSE_BACKSTOP, |frames| {
+            frames.iter().any(|frame| {
+                frame.contains("textDocument/publishDiagnostics")
+                    && frame.contains("file:///dup.tcl")
+                    && frame.contains("\"version\":2")
+                    && frame.contains("\"diagnostics\":[]")
+            })
+        })
+        .await,
+        "clean mutation never published its empty diagnostic set: {frames:?}",
+    );
     let e003_pushes = frames
         .iter()
         .filter(|f| f.contains("textDocument/publishDiagnostics") && f.contains("E003"))
@@ -215,6 +227,12 @@ async fn pull_capable_client_still_gets_push_by_default() {
     assert_eq!(
         e003_pushes, 1,
         "expected exactly one pushed E003 publish, got {e003_pushes}: {frames:?}",
+    );
+    assert!(
+        frames.iter().any(|frame| {
+            frame.contains("file:///dup.tcl") && frame.contains("\"diagnostics\":[]")
+        }),
+        "the clean mutation must clear the prior diagnostic: {frames:?}",
     );
 
     let shutdown = r#"{"jsonrpc":"2.0","id":9,"method":"shutdown","params":null}"#;
@@ -271,7 +289,34 @@ async fn push_only_client_still_receives_one_push() {
 
     // The push-only client gets the diagnostics over `publishDiagnostics`, with
     // exactly one E003 (no duplicate).
-    let frames = collect_frames(&mut reader, Duration::from_millis(1200)).await;
+    let mut frames = Vec::new();
+    assert!(
+        drain_until(&mut reader, &mut frames, RESPONSE_BACKSTOP, |frames| {
+            frames.iter().any(|frame| {
+                frame.contains("textDocument/publishDiagnostics")
+                    && frame.contains("file:///push.tcl")
+            })
+        })
+        .await,
+        "expected a diagnostic publish before the hang guard: {frames:?}",
+    );
+    let did_change = r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///push.tcl","version":2},"contentChanges":[{"text":"puts ok\n"}]}}"#;
+    client_write
+        .write_all(frame(did_change).as_bytes())
+        .await
+        .unwrap();
+    assert!(
+        drain_until(&mut reader, &mut frames, RESPONSE_BACKSTOP, |frames| {
+            frames.iter().any(|frame| {
+                frame.contains("textDocument/publishDiagnostics")
+                    && frame.contains("file:///push.tcl")
+                    && frame.contains("\"version\":2")
+                    && frame.contains("\"diagnostics\":[]")
+            })
+        })
+        .await,
+        "clean mutation never published its empty diagnostic set: {frames:?}",
+    );
     let publishes: Vec<&String> = frames
         .iter()
         .filter(|f| f.contains("textDocument/publishDiagnostics") && f.contains("file:///push.tcl"))
@@ -287,6 +332,12 @@ async fn push_only_client_still_receives_one_push() {
         1,
         "the publish itself must not duplicate the diagnostic: {}",
         with_e003[0],
+    );
+    assert!(
+        frames.iter().any(|frame| {
+            frame.contains("file:///push.tcl") && frame.contains("\"diagnostics\":[]")
+        }),
+        "the clean mutation must clear the prior diagnostic: {frames:?}",
     );
 
     let exit = r#"{"jsonrpc":"2.0","method":"exit","params":null}"#;

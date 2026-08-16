@@ -228,6 +228,62 @@ static OPTIONS: &[OptionSpec] = &[
     // `analyse_no_w304_for_lsearch` regression test depends on this.
 ];
 
+/// `lsearch ?options? list pattern` has one list operand followed by its
+/// pattern.  The option table is the grammar: `-start`/`-index`/`-stride`
+/// consume their declared values, and a unique abbreviation consumes exactly
+/// the same layout as its canonical spelling.
+fn lsearch_pattern_args(
+    args: &[&str],
+    context: crate::patterns::PatternArgResolverContext<'_>,
+) -> Vec<PatternArg> {
+    let mut option_end = 0;
+    let mut kind = Some(PatternType::Glob);
+    // Tcl's outer parser scans only while both mandatory operands remain.
+    // In particular, `lsearch -regexp -glob` searches list `-regexp` for
+    // glob pattern `-glob`; neither trailing word is an option candidate.
+    let option_scan_end = args.len().saturating_sub(context.reserved_trailing_words);
+    while option_end < option_scan_end {
+        let word = args[option_end];
+        let Some(option) = crate::patterns::resolve_available_option_prefix(context.options, word)
+        else {
+            // This is still Tcl's outer option region, not a free-form
+            // positional prefix. A dash-prefixed literal that cannot resolve
+            // in this release is an invalid invocation: it may be unknown,
+            // ambiguous, `--` (which lsearch does not support), or name an
+            // option introduced by a later release. Do not invent a pattern
+            // position after an invocation the interpreter rejects. A
+            // non-option word, by contrast, is the mandatory list operand
+            // and ends the scan normally.
+            if word.starts_with('-') {
+                return Vec::new();
+            }
+            break;
+        };
+        // The matching-style options are mutually overriding: the final one
+        // Tcl accepts decides the embedded language. Exact and sorted forms
+        // have no pattern mini-language, so they intentionally produce none.
+        kind = match option.name {
+            "-glob" => Some(PatternType::Glob),
+            "-regexp" => Some(PatternType::Regex),
+            "-exact" | "-sorted" => None,
+            _ => kind,
+        };
+        option_end += 1 + option.value_word_count(args, option_end);
+        if option.name == "--" {
+            break;
+        }
+    }
+    let pattern = option_end.saturating_add(1); // skip list
+    kind.filter(|_| pattern < args.len())
+        .and_then(|kind| {
+            u8::try_from(pattern)
+                .ok()
+                .map(|index| PatternArg { index, kind })
+        })
+        .into_iter()
+        .collect()
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsearch",
@@ -244,7 +300,13 @@ pub fn spec() -> CommandSpec {
         // style per call, but the registry's `pattern_type` is a single
         // per-command fact, so it records the default.
         pattern_type: Some(PatternType::Glob),
+        pattern_arg_resolver: Some(lsearch_pattern_args),
         options: OPTIONS,
+        // `Tcl_LsearchObjCmd` scans outer options with `i < objc - 2` in
+        // Tcl 8.4, 8.6, and 9.0's generic/tclCmdIL.c. The mandatory list and
+        // pattern operands are therefore never option candidates, even when
+        // source substitution will produce their runtime values.
+        reserved_trailing_words: 2,
         hover: Some(HoverSnippet {
             summary: "Search a list for an element matching a pattern.",
             synopsis: &["lsearch ?options? list pattern"],

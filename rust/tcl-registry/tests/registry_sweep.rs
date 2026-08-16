@@ -138,6 +138,7 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::LANGUAGE_KEYWORD,
     Traits::HAS_BOOLEAN_COND,
     Traits::TERMINATES_BLOCK,
+    Traits::TERMINATES_PROCESS,
     Traits::HAS_LOOP_BODY,
     Traits::NEVER_INLINE_BODY,
     Traits::LOOP_LIST_HEADER,

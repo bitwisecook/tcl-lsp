@@ -24,13 +24,42 @@
 //! analyses all resolve exactly the same structured [`WordExpr`] facts under
 //! an explicitly supplied dialect profile.
 
+use tcl_dialect::EscapeSyntax;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::{
     CommandRegistry, InvocationFacts, InvocationResolutionUnresolved, InvocationWord,
     InvocationWordKind, InvocationWords,
 };
 
-use crate::ir::{CommandTokens, WordExpr};
+use crate::ir::{CommandTokens, WordExpr, WordPart};
+use crate::segmenter::SegmentedCommand;
+
+/// Owned source-aware word fact for callers that must decode a static Tcl
+/// word before lending it to the registry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EffectiveInvocationWord {
+    /// A Tcl value proven static after applying the active escape syntax.
+    Literal(String),
+    /// One argv word produced by substitution.
+    Dynamic,
+    /// An expansion with an unknown resulting argv length.
+    Expanded,
+    /// A compatibility/recovery word whose source meaning is unavailable.
+    Opaque,
+}
+
+impl EffectiveInvocationWord {
+    /// Lend this owned fact to the registry's allocation-free vocabulary.
+    #[must_use]
+    pub fn as_registry_word(&self) -> InvocationWord<'_> {
+        match self {
+            Self::Literal(value) => InvocationWord::Literal(value),
+            Self::Dynamic => InvocationWord::Dynamic,
+            Self::Expanded => InvocationWord::Expanded,
+            Self::Opaque => InvocationWord::Opaque,
+        }
+    }
+}
 
 /// An owned, target-neutral result from registry invocation resolution.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,6 +132,125 @@ pub fn invocation_word(word: &WordExpr) -> InvocationWord<'_> {
     }
 }
 
+/// Evaluate the statically-known portion of a source word under the active
+/// escape grammar. Braced words deliberately do not decode backslashes.
+#[must_use]
+pub fn effective_invocation_word(
+    word: &WordExpr,
+    escapes: EscapeSyntax,
+) -> EffectiveInvocationWord {
+    match word {
+        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => {
+            EffectiveInvocationWord::Literal(text.clone())
+        }
+        WordExpr::Template { parts, .. }
+            if parts
+                .iter()
+                .all(|part| matches!(part, WordPart::Text { .. })) =>
+        {
+            let raw: String = parts
+                .iter()
+                .map(|part| match part {
+                    WordPart::Text { text, .. } => text.as_str(),
+                    _ => unreachable!("guard admits text parts only"),
+                })
+                .collect();
+            EffectiveInvocationWord::Literal(
+                tcl_syntax::backslash::decode_in(&raw, escapes).into_owned(),
+            )
+        }
+        WordExpr::Variable { .. }
+        | WordExpr::CommandSubstitution { .. }
+        | WordExpr::Template { .. } => EffectiveInvocationWord::Dynamic,
+        WordExpr::Expand { .. } => EffectiveInvocationWord::Expanded,
+        WordExpr::Opaque { .. } => EffectiveInvocationWord::Opaque,
+    }
+}
+
+/// Convert a command-token snapshot into source-aware effective argv facts.
+#[must_use]
+pub fn effective_command_arguments(
+    tokens: &CommandTokens,
+    escapes: EscapeSyntax,
+) -> Vec<EffectiveInvocationWord> {
+    tokens
+        .words()
+        .get(1..)
+        .unwrap_or_default()
+        .iter()
+        .map(|word| effective_invocation_word(word, escapes))
+        .collect()
+}
+
+/// Borrow source-aware post-head words from a segmented command.
+///
+/// The segmenter's compatibility text is still the literal value bridge for
+/// callers that do not need escape decoding. Its lossless fragment list is
+/// what prevents a `$word` / `[command]` / `{*}word` from becoming a literal
+/// option or operand during a registry query, while retaining the distinct
+/// safe shape of `prefix-$word`: it remains dynamic as a value but cannot
+/// start a leading option.
+#[must_use]
+pub fn segmented_command_arguments(command: &SegmentedCommand) -> Vec<InvocationWord<'_>> {
+    command
+        .texts
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(index, text)| {
+            if command
+                .expand_word
+                .as_ref()
+                .and_then(|markers| markers.get(index))
+                == Some(&true)
+            {
+                return InvocationWord::Expanded;
+            }
+            let Some(fragments) = command.word_fragments.get(index) else {
+                return InvocationWord::Opaque;
+            };
+            if fragments.iter().any(|fragment| {
+                matches!(
+                    fragment.token.kind,
+                    tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+                )
+            }) {
+                // A non-empty literal prefix before the first substitution
+                // proves the evaluated word cannot begin with `-`. Keep that
+                // narrower source fact so option-dependent descriptors may
+                // still locate its positional embedded language; it is never
+                // exposed as a literal value to registry hooks.
+                let literal_prefix = fragments
+                    .iter()
+                    .take_while(|fragment| {
+                        !matches!(
+                            fragment.token.kind,
+                            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+                        )
+                    })
+                    .map(|fragment| fragment.text.as_str())
+                    .collect::<String>();
+                // `word_piece` retains a quoted word's opening quote in an
+                // empty leading `Esc` fragment, and a leading backslash can
+                // decode to `-`; neither proves a non-option value. Every
+                // other direct first character is stable under Tcl word
+                // substitution.
+                let proves_non_option = literal_prefix
+                    .chars()
+                    .next()
+                    .is_some_and(|first| !matches!(first, '-' | '\\' | '"'));
+                if proves_non_option {
+                    InvocationWord::DynamicNonOption
+                } else {
+                    InvocationWord::Dynamic
+                }
+            } else {
+                InvocationWord::Literal(text)
+            }
+        })
+        .collect()
+}
+
 /// Resolve semantic source words through the registry under `dialect`.
 ///
 /// The borrowed registry resolution is materialised immediately into owned
@@ -154,6 +302,7 @@ mod tests {
     use tcl_registry::{StateTransition, TransitionSubject};
 
     use crate::ir::{SourceSite, WordOpacity};
+    use crate::segmenter::segment_commands;
 
     fn literal(text: &str) -> WordExpr {
         WordExpr::Literal {
@@ -185,6 +334,47 @@ mod tests {
                         if alias.local == TransitionSubject::Literal("shared".to_owned())
                 )
         ));
+    }
+
+    #[test]
+    fn segmented_arguments_preserve_a_static_non_option_template_prefix() {
+        let command = segment_commands("regexp \"abc$part.*\" $subject\n")
+            .into_iter()
+            .next()
+            .expect("one command");
+        assert_eq!(
+            segmented_command_arguments(&command),
+            vec![InvocationWord::DynamicNonOption, InvocationWord::Dynamic],
+            "the first template remains dynamic but cannot be a leading option"
+        );
+    }
+
+    #[test]
+    fn effective_words_keep_braces_and_decode_bare_escapes() {
+        let source = SourceSite::source(tcl_lexer::Span::new(0, 0));
+        assert_eq!(
+            effective_invocation_word(
+                &WordExpr::Template {
+                    parts: vec![WordPart::Text {
+                        text: r"\x32".to_owned(),
+                        source: source.clone()
+                    }],
+                    source: source.clone(),
+                },
+                EscapeSyntax::Tcl86,
+            ),
+            EffectiveInvocationWord::Literal("2".to_owned())
+        );
+        assert_eq!(
+            effective_invocation_word(
+                &WordExpr::BracedLiteral {
+                    text: r"\x32".to_owned(),
+                    source
+                },
+                EscapeSyntax::Tcl86,
+            ),
+            EffectiveInvocationWord::Literal(r"\x32".to_owned())
+        );
     }
 
     #[test]

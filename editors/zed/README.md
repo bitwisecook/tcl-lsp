@@ -29,14 +29,8 @@ Tcl, iRules, and iApps language support powered by
 ### Feature availability in Zed
 
 All features listed above are advertised by the language server and
-activate automatically when Zed's LSP client requests them.  Two features
-are intentionally gated on explicit client support:
-
-- **Pull diagnostics** (`textDocument/diagnostic`) are **off by default**.
-  Turning this on causes most LSP clients to stop honouring push
-  notifications, so the setting is opt-in and requires a server restart:
-  `"tclLsp": { "features": { "pullDiagnostics": true } }`.
-- **Workspace file operations** (`workspace/willRenameFiles` /
+activate automatically when Zed's LSP client requests them.  Workspace file
+operations (`workspace/willRenameFiles` /
   `didRenameFiles`) are auto-wired when the client advertises
   `workspace.fileOperations` in its capabilities.  Zed forwards file
   rename events from its project panel when the client capability is
@@ -125,7 +119,6 @@ Add to your Zed `settings.json` to configure the language server:
             "documentHighlight": true,
             "codeLens": true,
             "workspaceFileOps": true,
-            "pullDiagnostics": false,
             "willSaveWaitUntil": false,
             "implementation": true,
             "typeDefinition": true,

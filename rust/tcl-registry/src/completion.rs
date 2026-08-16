@@ -27,6 +27,21 @@
 
 pub use tcl_core_types::Code as CompletionCode;
 
+/// Parse Tcl's integer completion-code spelling and apply its C-compatible
+/// 32-bit conversion. Tcl accepts `INT_MIN..UINT_MAX`: the upper unsigned
+/// half wraps into the corresponding signed code (`4294967295` is `-1`).
+/// Values outside that range, including integers beyond Tcl's wide parser,
+/// are not valid completion-code selectors.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)] // Intentional Tcl UINT_MAX → signed-code wrap.
+pub fn canonical_completion_code(value: &str, numbers: tcl_syntax::number::Numbers) -> Option<i32> {
+    let value = numbers.parse_wide(value)?;
+    if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
+        return None;
+    }
+    Some(value as i32)
+}
+
 /// The statically possible Tcl completion codes for an invocation.
 ///
 /// [`Self::Exact`] retains named Tcl codes and arbitrary integer codes alike:
@@ -40,6 +55,26 @@ pub enum CompletionCodeDomain {
     Exact(&'static [CompletionCode]),
     /// Any Tcl integer completion code may result.
     Any,
+}
+
+/// Value-dependent completion behaviour declared by a command descriptor.
+///
+/// Most Tcl commands' completion does not depend on parsing one of their
+/// ordinary value operands, so [`Self::None`] keeps their descriptor purely
+/// code-domain based.  `exit` is the important exception: a valid integer
+/// status terminates the process, while an invalid status raises Tcl error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionValueSemantics {
+    /// No value-sensitive completion parser is needed.
+    None,
+    /// Parse an optional Tcl integer process-exit status.
+    ///
+    /// Omission and a static valid integer terminate the process; a static
+    /// invalid value raises `TCL_ERROR`; a dynamic word is the typed union of
+    /// those two outcomes.  The registry applies this parser before generic
+    /// terminal traits, so invalid `exit` values never become false process
+    /// exits in diagram or control-flow consumers.
+    ProcessExitStatus,
 }
 
 /// The data-flow obligation for one completion payload.
@@ -100,6 +135,8 @@ pub struct CompletionDescriptor {
     pub codes: CompletionCodeDomain,
     /// Result and return-options data-flow obligations.
     pub payloads: CompletionPayloadObligations,
+    /// Value-sensitive completion parser, when this command declares one.
+    pub value_semantics: CompletionValueSemantics,
 }
 
 impl CompletionDescriptor {
@@ -107,6 +144,7 @@ impl CompletionDescriptor {
     pub const CONSERVATIVE: Self = Self {
         codes: CompletionCodeDomain::Any,
         payloads: CompletionPayloadObligations::UNKNOWN,
+        value_semantics: CompletionValueSemantics::None,
     };
 
     /// Build an exact completion descriptor with produced result/options.
@@ -115,6 +153,19 @@ impl CompletionDescriptor {
         Self {
             codes: CompletionCodeDomain::Exact(codes),
             payloads: CompletionPayloadObligations::PRODUCED,
+            value_semantics: CompletionValueSemantics::None,
+        }
+    }
+
+    /// Build the value-sensitive descriptor for `exit ?returnCode?`.
+    #[must_use]
+    pub const fn process_exit_status() -> Self {
+        Self {
+            // Process termination is deliberately not a Tcl completion code.
+            // The value parser above is the authoritative projection.
+            codes: CompletionCodeDomain::Exact(&[]),
+            payloads: CompletionPayloadObligations::PRODUCED,
+            value_semantics: CompletionValueSemantics::ProcessExitStatus,
         }
     }
 }

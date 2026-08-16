@@ -541,6 +541,7 @@ mod defs_from_ir_script_arms {
             handlers: vec![TryHandler {
                 kind: "on".into(),
                 match_arg: "error".into(),
+                trap_pattern: None,
                 var_name: Some("e".into()),
                 options_var: Some("opts".into()),
                 body: Script::from_statements(vec![assign("hb")]),

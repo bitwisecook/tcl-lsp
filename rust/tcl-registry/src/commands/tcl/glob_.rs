@@ -127,6 +127,22 @@ const OPTION_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
     ..OptionConstraint::DEFAULT
 }];
 
+/// Locate every pattern in glob's tail after its declared option prefix.
+///
+/// [`leading_option_word_count`] resolves abbreviations and reads each
+/// descriptor's value arity, so `-dir tmp`, `-di tmp`, and future
+/// value-taking options shift the tail identically for every consumer.
+fn glob_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let start = leading_option_word_count(spec().options, args);
+    (start..args.len())
+        .filter_map(|index| {
+            u8::try_from(index)
+                .ok()
+                .map(|index| (index, ArgRole::Pattern))
+        })
+        .collect()
+}
+
 /// Command spec for `glob`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -155,6 +171,8 @@ pub fn spec() -> CommandSpec {
         // misflagging a legitimate modern zero-pattern call; the exact
         // per-era requirement is documented precisely on `FORMS` above.
         arity: Arity::any(),
+        pattern_type: Some(PatternType::Glob),
+        arg_role_resolver: Some(glob_arg_roles),
         return_type: Some(TclType::List),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,

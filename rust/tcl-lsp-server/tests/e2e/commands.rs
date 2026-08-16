@@ -353,7 +353,7 @@ fn list_irule_events_nonempty() {
 #[test]
 fn diagram_extracts_irule_events() {
     let mut lsp = Lsp::tcl();
-    let source = "when HTTP_REQUEST {\n    if {[HTTP::uri] eq \"/\"} { pool web }\n}\n";
+    let source = "proc helper {x} {\n    if {$x} { return ok }\n}\nwhen HTTP_REQUEST {\n    if {[HTTP::uri] eq \"/\"} { pool web }\n}\n";
     let result = lsp.execute_command("tcl-lsp.diagramData", json!([source]));
     assert!(!result.is_null());
     let names: Vec<&str> = result
@@ -366,6 +366,45 @@ fn diagram_extracts_irule_events() {
         })
         .unwrap_or_default();
     assert!(names.contains(&"HTTP_REQUEST"), "{names:?}");
+    let event = result["events"]
+        .as_array()
+        .and_then(|events| events.first())
+        .expect("event payload");
+    assert!(event.get("priority").is_some(), "{event}");
+    assert!(
+        event.get("multiplicity").and_then(Value::as_str).is_some(),
+        "{event}"
+    );
+    assert!(
+        event["flow"]
+            .as_array()
+            .is_some_and(|flow| !flow.is_empty()),
+        "{event}"
+    );
+    let procedures = result["procedures"].as_array().expect("procedures payload");
+    assert_eq!(procedures.len(), 1, "{procedures:?}");
+    assert_eq!(procedures[0]["name"], "helper");
+    assert_eq!(procedures[0]["params"], json!(["x"]));
+    assert!(
+        procedures[0]["flow"]
+            .as_array()
+            .is_some_and(|flow| !flow.is_empty())
+    );
+}
+
+#[test]
+fn diagram_data_serialises_completion_contract_for_clients() {
+    let mut lsp = Lsp::tcl();
+    let source = r"
+        proc paths {} {
+            return stop
+            set after [clock seconds]
+        }
+    ";
+    let result = lsp.execute_command("tcl-lsp.diagramData", json!([source]));
+    let return_node = &result["procedures"][0]["flow"][0];
+    assert_eq!(return_node["kind"], "return", "{result}");
+    assert_eq!(return_node["completion"], "return", "{result}");
 }
 
 #[test]

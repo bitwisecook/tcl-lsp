@@ -635,6 +635,13 @@ rarely needed outside the F5 command packs.",
 in the right language — a `*` means something very different in each.",
     ),
     (
+        "pattern_arg_resolver",
+        "A native hook that selects the Pattern argument positions and language \
+for this particular call. Use it when options change the pattern grammar, such \
+as `lsearch -regexp`; the Studio preserves the need for the hook but cannot \
+recover a Rust function pointer from a loaded spec, so supply the expression.",
+    ),
+    (
         "format_string_type",
         "Which template mini-language the command's format argument uses: \
 printf-style (`format`/`scan`), `clock format` fields, `binary` \

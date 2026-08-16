@@ -716,6 +716,27 @@ impl Lowerer<'_> {
 
             if (keyword == "on" || keyword == "trap") && i + 3 < args.len() {
                 let match_arg = args[i + 1].clone();
+                // A trap selector is evaluated as one Tcl word and its value
+                // is then parsed as a Tcl list. Preserve the source-level
+                // substitution decision here: inspecting the decoded elements
+                // for `$` or `[` would reject literal data such as `{A {$B}}`
+                // and `{A \$B}`. A substitution-free bare/quoted word still
+                // needs backslash substitution before list parsing, whereas a
+                // braced word's content is already its literal runtime value.
+                let trap_pattern =
+                    if keyword == "trap" && super::seg_word_is_static_literal(seg, i + 2) {
+                        let match_tok = arg_tokens.get(i + 1);
+                        let value = if match_tok.is_some_and(|tok| tok.kind == TokenType::Str) {
+                            std::borrow::Cow::Borrowed(match_arg.as_str())
+                        } else {
+                            tcl_lexer::backslash_subst_in(&match_arg, self.config.escapes)
+                        };
+                        tcl_syntax::list::split_list(&value)
+                            .ok()
+                            .map(|elements| elements.into_iter().map(Into::into).collect())
+                    } else {
+                        None
+                    };
                 let var_list = &args[i + 2];
                 let handler_tok = arg_tokens.get(i + 3);
                 let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
@@ -745,7 +766,7 @@ impl Lowerer<'_> {
                 let body_value = if is_braced {
                     std::borrow::Cow::Borrowed(args[i + 3].as_str())
                 } else {
-                    tcl_lexer::backslash_subst(&args[i + 3])
+                    tcl_lexer::backslash_subst_in(&args[i + 3], self.config.escapes)
                 };
                 let is_fallthrough = handler_single && body_value == "-";
                 // Every handler body that is *not* the fallthrough marker gets
@@ -771,6 +792,7 @@ impl Lowerer<'_> {
                 handlers.push(TryHandler {
                     kind: keyword.clone(),
                     match_arg,
+                    trap_pattern,
                     var_name: result_var,
                     options_var,
                     body: handler_body,
@@ -1301,6 +1323,67 @@ mod tests {
         } else {
             panic!("expected Try");
         }
+    }
+
+    #[test]
+    fn try_trap_pattern_projection_preserves_tcl_word_literalness() {
+        let source = r#"try {} \
+            trap {A \$B} {m o} {} \
+            trap {A {$B}} {m o} {} \
+            trap {A \[B\]} {m o} {} \
+            trap {A {[B]}} {m o} {} \
+            trap {A C:\\tmp} {m o} {} \
+            trap {A {C:\tmp}} {m o} {} \
+            trap "A \{" {m o} {} \
+            trap $pattern {m o} {} \
+            trap "A $pattern" {m o} {} \
+            trap [list A B] {m o} {}"#;
+        let module = lower_to_ir(source, &reg());
+        let Statement::Try { handlers, .. } = &module.top_level.statements[0] else {
+            panic!("expected structured try");
+        };
+        let patterns: Vec<_> = handlers
+            .iter()
+            .map(|handler| handler.trap_pattern.clone())
+            .collect();
+        assert_eq!(
+            patterns,
+            vec![
+                Some(vec!["A".into(), "$B".into()]),
+                Some(vec!["A".into(), "$B".into()]),
+                Some(vec!["A".into(), "[B]".into()]),
+                Some(vec!["A".into(), "[B]".into()]),
+                Some(vec!["A".into(), r"C:\tmp".into()]),
+                Some(vec!["A".into(), r"C:\tmp".into()]),
+                None,
+                None,
+                None,
+                None,
+            ]
+        );
+    }
+
+    #[test]
+    fn try_trap_pattern_projection_uses_the_release_escape_grammar() {
+        // Tcl 8.6 consumes the same wide-unicode escape extent as Tcl 9,
+        // but its UTF-16-internal build replaces a non-BMP scalar with
+        // U+FFFD. Tcl 9 retains the scalar. This is observable in trap's
+        // error-code prefix and therefore must follow the lowerer's profile.
+        let source = r#"try {} trap "A \U0001F600" {m o} {}"#;
+        let pattern = |dialect| {
+            let module = crate::lowering::lower_to_ir_with_config(
+                source,
+                &reg(),
+                tcl_lexer::LexerConfig::for_dialect(dialect),
+            );
+            let Statement::Try { handlers, .. } = &module.top_level.statements[0] else {
+                panic!("expected structured try");
+            };
+            handlers[0].trap_pattern.clone()
+        };
+
+        assert_eq!(pattern("tcl8.6"), Some(vec!["A".into(), "\u{fffd}".into()]));
+        assert_eq!(pattern("tcl9.0"), Some(vec!["A".into(), "😀".into()]));
     }
 
     #[test]

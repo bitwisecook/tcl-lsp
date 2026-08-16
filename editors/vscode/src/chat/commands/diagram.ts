@@ -37,7 +37,11 @@ interface DiagramData {
   error?: string;
 }
 
-function buildDiagramPrompt(code: string, structuredData: string, userExtra: string): string {
+export function buildDiagramPrompt(
+  code: string,
+  structuredData: string,
+  userExtra: string,
+): string {
   return `You are generating a Mermaid flowchart and explanation for an F5 BIG-IP iRule.
 
 ## Task

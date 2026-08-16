@@ -29,8 +29,10 @@ authors.workspace = true
 
 [dependencies]
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-syntax = { path = "../tcl-syntax" }
 serde_json = "1"
 
 [lints]

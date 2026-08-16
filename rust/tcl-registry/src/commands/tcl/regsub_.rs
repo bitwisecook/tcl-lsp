@@ -220,6 +220,11 @@ pub fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         options: OPTIONS,
+        // `Tcl_RegsubObjCmd` resolves this table with `TCL_EXACT`: unlike
+        // `switch`, neither `-c` nor any other unique prefix is a valid
+        // `regsub` switch. Keep the source-aware layout proof and the legacy
+        // resolver on the same exact-spelling grammar.
+        prefix_matching: PrefixMatching::Strict,
         hover: Some(HoverSnippet {
             summary: "Perform substitutions based on regular expression pattern matching.",
             synopsis: &["regsub ?switches? exp string subSpec ?varName?"],
@@ -309,6 +314,18 @@ mod tests {
     /// command-prefix mode, only the exact spelling may.
     #[test]
     fn command_prefix_resolver_requires_exact_command_spelling() {
+        assert_eq!(
+            spec().prefix_matching,
+            PrefixMatching::Strict,
+            "the CommandSpec option table must agree with this resolver's exact spellings"
+        );
+        assert!(
+            spec()
+                .options
+                .iter()
+                .all(|option| option.aliases.is_empty()),
+            "regsub has no option aliases that could provide an alternate exact spelling"
+        );
         // Exact `-command` at the front: `subSpec` (index 3: -command, exp,
         // string, subSpec) is a command prefix appending >= 1 arg.
         assert_eq!(
