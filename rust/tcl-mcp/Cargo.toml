@@ -59,5 +59,10 @@ rmcp = { version = "3", features = ["server", "transport-io"] }
 # tighter requirement, and the lockfile carries the exact version.
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
 
+[dev-dependencies]
+# Enables the request-local closure counter only while this crate's unit tests
+# are linked; normal `tcl-mcp` builds carry no instrumentation.
+tcl-irules = { path = "../tcl-irules", features = ["test-instrumentation"] }
+
 [lints]
 workspace = true

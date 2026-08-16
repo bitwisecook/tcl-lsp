@@ -3,10 +3,14 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::OnceLock;
 
+#[cfg(feature = "test-instrumentation")]
+use std::cell::Cell;
+
 use tcl_compiler::head_identity::{HeadIdentityMap, command_head_identities_with_config};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
+use tcl_registry::expr_surface::RuntimeExprSurface;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 /// The one resolved iRules grammar drives both script and expression lexing.
@@ -16,8 +20,13 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 /// loaded the iRules pack without retaining its profile.
 #[derive(Clone, Copy)]
 struct InventoryLexing {
+    /// The resolved profile is the single source for expression grammar and
+    /// runtime-surface selection.  Keep it beside the script lexer config so
+    /// an inventory never mixes an iRules script parse with another release's
+    /// expression rules.
+    profile: &'static tcl_dialect::DialectProfile,
     config: LexerConfig,
-    expr_dialect: &'static str,
+    expr_surface: RuntimeExprSurface,
 }
 
 impl InventoryLexing {
@@ -27,8 +36,9 @@ impl InventoryLexing {
             .filter(|profile| profile.is_irules())
             .unwrap_or_else(tcl_dialect::DialectProfile::irules);
         Self {
+            profile,
             config: LexerConfig::for_file_grammar(profile.grammar),
-            expr_dialect: profile.name,
+            expr_surface: RuntimeExprSurface::for_profile(profile),
         }
     }
 }
@@ -50,6 +60,29 @@ pub struct IrulesExecutableCommand {
     pub event: Option<String>,
 }
 
+#[cfg(feature = "test-instrumentation")]
+thread_local! {
+    static EXECUTABLE_CLOSURE_BUILDS: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Reset this thread's executable-closure build count.
+///
+/// Available only to the integration test feature. Production consumers never
+/// carry this instrumentation.
+#[cfg(feature = "test-instrumentation")]
+#[doc(hidden)]
+pub fn reset_executable_closure_builds_for_tests() {
+    EXECUTABLE_CLOSURE_BUILDS.with(|builds| builds.set(0));
+}
+
+/// Return this thread's executable-closure build count.
+#[cfg(feature = "test-instrumentation")]
+#[doc(hidden)]
+#[must_use]
+pub fn executable_closure_builds_for_tests() -> usize {
+    EXECUTABLE_CLOSURE_BUILDS.with(Cell::get)
+}
+
 /// Commands that can execute from valid top-level event and procedure
 /// declarations. Invalid top-level executable statements and nested
 /// declarations are excluded; registry-declared bodies and command
@@ -59,6 +92,8 @@ pub fn irules_executable_commands(
     source: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesExecutableCommand> {
+    #[cfg(feature = "test-instrumentation")]
+    EXECUTABLE_CLOSURE_BUILDS.with(|builds| builds.set(builds.get() + 1));
     let lexing = InventoryLexing::for_registry(registry);
     let identities = command_head_identities_with_config(source, lexing.config, registry);
     let ctx = InventoryContext {
@@ -320,7 +355,7 @@ fn walk(
 
         recurse_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
         recurse_case_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
-        let mut owned_spans: HashSet<_> = registry
+        let owned_spans: HashSet<_> = registry
             .arg_indices_for_role(&head, &args, ArgRole::Body)
             .into_iter()
             .filter_map(|idx| cmd.argv.get(idx + 1))
@@ -330,36 +365,28 @@ fn walk(
             let Some(token) = cmd.argv.get(index + 1) else {
                 continue;
             };
-            // The main Tcl lexer deliberately leaves a braced expression word
-            // opaque, so its `all_tokens` contains no `Cmd` token for `if
-            // {[class match ...]}`.  The shared expression owner supplies
-            // only complete, live substitutions (including quoted expression
-            // operands); malformed or braced-literal brackets remain inert.
-            if !matches!(token.kind, TokenType::Str | TokenType::Esc) || token.content_offset != 1 {
+            // Tcl substitutes an unbraced or quoted argument *before* `if`
+            // asks `expr` to parse it.  Therefore its complete lexer-owned
+            // `Cmd` tokens must flow through the generic substitution pass
+            // below even if the resulting expression is invalid. A braced
+            // word is opaque to the script lexer and is evaluated by `expr`
+            // itself, so only that form needs the syntax/runtime-surface gate
+            // to recover its live command substitutions.
+            let token_start = token.span.start() as usize;
+            if full.as_bytes().get(token_start) != Some(&b'{') || token.content_offset != 1 {
                 continue;
             }
-            // The generic Tcl-substitution pass below sees commands inside a
-            // quoted Expr word too.  This expression owner is the one that
-            // admits them, so mark every lexer token in this expression word
-            // consumed even when it ultimately reports no complete span.
-            owned_spans.extend(
-                cmd.all_tokens
-                    .iter()
-                    .filter(|nested| {
-                        nested.kind == TokenType::Cmd
-                            && token.span.start() <= nested.span.start()
-                            && nested.span.end() <= token.span.end()
-                    })
-                    .map(|nested| (nested.span.start(), nested.span.end())),
-            );
-            let expression_start = token.span.start() as usize + token.content_offset as usize;
+            let expression_start = token_start + token.content_offset as usize;
             let expression_end = token.span.end() as usize;
             let Some(expression) = full.get(expression_start..expression_end) else {
                 continue;
             };
-            for span in
-                tcl_syntax::expr::command_substitution_spans(expression, Some(lexing.expr_dialect))
-            {
+            for span in tcl_syntax::expr::command_substitution_spans(
+                expression,
+                lexing.profile,
+                lexing.config,
+                |parsed| lexing.expr_surface.validate(parsed).is_ok(),
+            ) {
                 let command_start = expression_start + span.start() as usize;
                 let command_end = expression_start + span.end() as usize;
                 let Some(interior_start) = command_start.checked_add(1) else {
@@ -672,6 +699,31 @@ mod tests {
                 .iter()
                 .all(|fact| !matches!(fact.command.as_str(), "class" | "HTTP::host")),
             "a recovery Cmd token without a closing bracket is not executable: {facts:?}"
+        );
+    }
+
+    #[test]
+    fn inventory_matches_tcl86_and_tcl9_word_substitution_before_expr_errors() {
+        // C Tcl 8.6 and 9 both execute the complete substitutions in the
+        // quoted and bare words before `if` reports their trailing `+` as an
+        // expression error. A braced word reaches expr without Tcl word
+        // substitution, so its malformed expression executes neither command.
+        let facts = commands(concat!(
+            "when HTTP_REQUEST {\n",
+            "  if \"[HTTP::uri] +\" {}\n",
+            "  if [HTTP::host] + {}\n",
+            "  if {[HTTP::method] +} {}\n",
+            "}\n",
+        ));
+        let commands: Vec<_> = facts
+            .iter()
+            .filter(|fact| fact.command.starts_with("HTTP::"))
+            .map(|fact| fact.command.as_str())
+            .collect();
+        assert_eq!(
+            commands,
+            ["HTTP::uri", "HTTP::host"],
+            "quoted and bare word substitutions precede expression parsing; braced ones do not"
         );
     }
 

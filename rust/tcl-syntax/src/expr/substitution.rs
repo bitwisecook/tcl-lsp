@@ -12,7 +12,10 @@
 //! keeps expression-level braces and comments inert, while delegating every
 //! actual `[…]` closer to the lexer range owner.
 
-use tcl_lexer::{Span, backslash_escape_end, command_substitution_end};
+use tcl_dialect::DialectProfile;
+use tcl_lexer::{LexerConfig, Span, backslash_escape_end, command_substitution_end};
+
+use super::{ExprNode, parse_expr};
 
 /// Return the complete, outermost command substitutions directly evaluated by
 /// `source` as a Tcl expression.
@@ -24,20 +27,57 @@ use tcl_lexer::{Span, backslash_escape_end, command_substitution_end};
 /// returned command is intentionally not repeated: it belongs to that
 /// command's Tcl-script body and its script consumer will recurse into it.
 ///
-/// `dialect` controls TIP 582 expression comments in the same way as the
-/// expression lexer.  The closer itself is owned by
+/// `profile` controls TIP 582 expression comments and every other expression
+/// grammar axis; `lexer_config` must be derived from the same profile and
+/// carries the script-side grammar used to consume returned spans.  The API
+/// fails closed if those two resolved inputs disagree. `surface_accepts` is the
+/// caller's resolved runtime expression surface: syntax alone cannot decide
+/// whether a parsed operator is executable for that runtime without making
+/// this foundational crate depend on the registry. A malformed expression, or
+/// one the runtime surface rejects, returns no spans. This is deliberately
+/// all-or-nothing: a syntactically invalid expression executes no embedded
+/// commands.
+///
+/// The closer itself is owned by
 /// [`tcl_lexer::command_substitution_end`], so quotes, braces, nested command
 /// substitutions, escapes, and command-position comments *inside* a returned
 /// command use Tcl script grammar rather than a duplicate expression scan.
 #[must_use]
-pub fn command_substitution_spans(source: &str, dialect: Option<&str>) -> Vec<Span> {
-    let comments = tcl_dialect::DialectProfile::by_opt_name(dialect)
-        .grammar
-        .expr_comments
-        .comments();
+pub fn command_substitution_spans(
+    source: &str,
+    profile: &'static DialectProfile,
+    lexer_config: LexerConfig,
+    surface_accepts: impl FnOnce(&ExprNode) -> bool,
+) -> Vec<Span> {
+    if !lexer_config_matches_profile(lexer_config, profile) {
+        return Vec::new();
+    }
+    // `parse_expr` is the canonical expression lexer/parser seam.  In
+    // particular, it rejects a Tcl 8.x `#`, dangling operators, and unbalanced
+    // parentheses before we expose any otherwise well-formed `[…]` range.
+    let parsed = parse_expr(source, Some(profile.name));
+    if matches!(parsed, ExprNode::Raw { .. }) || !surface_accepts(&parsed) {
+        return Vec::new();
+    }
+
+    let comments = profile.grammar.expr_comments.comments();
     let mut spans = Vec::new();
     scan_expression(source, 0, source.len(), comments, &mut spans);
     spans
+}
+
+/// The caller may change offsets, strictness, or file-vs-nested BOM handling,
+/// but not the dialect-derived script grammar while using this expression
+/// profile.  `command_substitution_end` is release-blind because no supported
+/// release's escape *width* changes a `[`/`]` boundary; checking the resolved
+/// config here still prevents a caller from mixing Tcl 8/iRules word grammar
+/// with a Tcl 9 expression parse.
+fn lexer_config_matches_profile(config: LexerConfig, profile: &DialectProfile) -> bool {
+    let expected = LexerConfig::from_grammar(profile.grammar);
+    config.expand_syntax == expected.expand_syntax
+        && config.irules_brace_separator == expected.irules_brace_separator
+        && config.braced_var == expected.braced_var
+        && config.escapes == expected.escapes
 }
 
 fn scan_expression(
@@ -147,18 +187,32 @@ fn span(start: usize, end: usize) -> Span {
 #[cfg(test)]
 mod tests {
     use super::command_substitution_spans;
+    use tcl_dialect::DialectProfile;
+    use tcl_lexer::LexerConfig;
 
     fn texts(source: &str, dialect: Option<&str>) -> Vec<String> {
-        command_substitution_spans(source, dialect)
-            .into_iter()
-            .map(|span| source[span.as_range()].to_owned())
-            .collect()
+        let profile = DialectProfile::by_opt_name(dialect);
+        command_substitution_spans(
+            source,
+            profile,
+            LexerConfig::from_grammar(profile.grammar),
+            |_| true,
+        )
+        .into_iter()
+        .map(|span| source[span.as_range()].to_owned())
+        .collect()
     }
 
     #[test]
     fn reports_direct_live_substitutions_with_exact_unicode_offsets() {
-        let source = "☃ + \"[HTTP::host]\" + [HTTP::uri]";
-        let spans = command_substitution_spans(source, Some("f5-irules"));
+        let source = "\"☃[HTTP::host]\" eq \"host\" || [HTTP::uri] eq \"/\"";
+        let profile = DialectProfile::by_name("f5-irules");
+        let spans = command_substitution_spans(
+            source,
+            profile,
+            LexerConfig::from_grammar(profile.grammar),
+            |_| true,
+        );
         assert_eq!(
             texts(source, Some("f5-irules")),
             ["[HTTP::host]", "[HTTP::uri]"]
@@ -176,9 +230,10 @@ mod tests {
     #[test]
     fn excludes_escaped_braced_and_unterminated_brackets() {
         assert_eq!(
-            texts(r"\[escaped] + {[braced]} + [live]", Some("f5-irules")),
+            texts(r#""\[escaped]" eq "[live]""#, Some("f5-irules")),
             ["[live]"]
         );
+        assert_eq!(texts("{[braced]} eq [live]", Some("f5-irules")), ["[live]"]);
         assert!(texts("[unterminated", Some("f5-irules")).is_empty());
         assert!(texts("\"[complete_but_unquoted]", Some("f5-irules")).is_empty());
     }
@@ -192,7 +247,8 @@ mod tests {
         );
         assert_eq!(
             texts(source, Some("tcl8.6")),
-            ["[inert]", "[set x 1; # ] in command\nHTTP::host]"]
+            Vec::<String>::new(),
+            "Tcl 8 treats the expression-level comment marker as invalid"
         );
     }
 
@@ -201,6 +257,56 @@ mod tests {
         assert_eq!(
             texts("[expr {[HTTP::host] ne \"\"}]", Some("f5-irules")),
             ["[expr {[HTTP::host] ne \"\"}]"]
+        );
+    }
+
+    #[test]
+    fn fails_closed_when_the_complete_expression_is_invalid() {
+        for source in [
+            "[live] +",
+            "([live]",
+            "[live] # Tcl 8 treats this as an invalid character",
+        ] {
+            assert!(
+                texts(source, Some("tcl8.6")).is_empty(),
+                "invalid Tcl 8 expression leaked a command span: {source:?}"
+            );
+        }
+
+        assert_eq!(
+            texts("[live] # Tcl 9 comment", Some("tcl9.0")),
+            ["[live]"],
+            "TIP 582 comments stay valid in Tcl 9"
+        );
+    }
+
+    #[test]
+    fn fails_closed_when_the_runtime_surface_rejects_the_expression() {
+        let profile = DialectProfile::by_name("tcl9.0");
+        assert!(
+            command_substitution_spans(
+                "[live]",
+                profile,
+                LexerConfig::from_grammar(profile.grammar),
+                |_| false,
+            )
+            .is_empty(),
+            "the caller's runtime expression surface gates execution"
+        );
+    }
+
+    #[test]
+    fn fails_closed_when_the_script_config_is_for_another_profile() {
+        let profile = DialectProfile::by_name("tcl9.0");
+        assert!(
+            command_substitution_spans(
+                "[live]",
+                profile,
+                LexerConfig::from_grammar(DialectProfile::by_name("tcl8.6").grammar),
+                |_| true,
+            )
+            .is_empty(),
+            "mixed profile/config inputs must not execute a span"
         );
     }
 }

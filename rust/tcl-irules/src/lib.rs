@@ -50,6 +50,10 @@ mod executable;
 pub use executable::{
     IrulesExecutableCommand, irules_event_executable_closure, irules_executable_commands,
 };
+#[cfg(feature = "test-instrumentation")]
+pub use executable::{
+    executable_closure_builds_for_tests, reset_executable_closure_builds_for_tests,
+};
 mod when_block;
 pub use when_block::{WhenBlock, when_block_candidates, when_block_is_empty, when_blocks};
 
