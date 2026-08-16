@@ -38,7 +38,7 @@ use crate::segmenter::SegmentedCommand;
 use crate::signature_scan::command_prefix::CommandPrefixWords;
 
 use super::state::Analyser;
-use super::types::{CodeFix, Diagnostic, Severity};
+use super::types::{CodeFix, Severity};
 
 /// A command head collected from a `[...]` substitution / expression scan,
 /// ready to push as a `command_invocations` entry:
@@ -206,18 +206,19 @@ impl Analyser {
             // never the right failure mode either way (issue #996).
             if !self.structure_only && !self.e207_emitted {
                 self.e207_emitted = true;
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::E207,
-                    span: body_tok.span,
-                    message: format!(
-                        "nesting depth exceeds the analysis limit ({} levels) — \
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::E207,
+                        body_tok.span,
+                        format!(
+                            "nesting depth exceeds the analysis limit ({} levels) — \
                          diagnostics for this body and anything nested inside it are not \
                          collected",
-                        MAX_BODY_DEPTH.0
-                    ),
-                    severity: Severity::Error,
-                    fixes: Vec::new(),
-                });
+                            MAX_BODY_DEPTH.0
+                        ),
+                        Severity::Error,
+                    ));
             }
             self.body_depth -= 1;
             return;
@@ -425,17 +426,18 @@ impl Analyser {
             return false;
         }
         if !self.structure_only {
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: tcl_core_types::DiagCode::W129,
-                span: cmd_tok.span,
-                message: format!(
-                    "'{cmd_name}' is hidden in this safe interpreter — the call \
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    tcl_core_types::DiagCode::W129,
+                    cmd_tok.span,
+                    format!(
+                        "'{cmd_name}' is hidden in this safe interpreter — the call \
                      raises `invalid command name` unless it is exposed or \
                      invoked via `interp invokehidden`"
-                ),
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+                    ),
+                    super::types::Severity::Warning,
+                ));
         }
         true
     }
@@ -1467,16 +1469,17 @@ impl Analyser {
                 .as_ref()
                 .is_none_or(|r| r.get(cmd_name).is_none())
         {
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::W125,
-                span: cmd_tok.span,
-                message: format!(
-                    "\"{cmd_name}\" used as standalone command — should be part of \
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W125,
+                    cmd_tok.span,
+                    format!(
+                        "\"{cmd_name}\" used as standalone command — should be part of \
                      \"{parent}\" (check for misplaced newline)"
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+                    ),
+                    Severity::Warning,
+                ));
         }
 
         let irules_proc_dispatch_context = self.profile.is_irules()
@@ -1491,14 +1494,14 @@ impl Analyser {
             } else {
                 format!(" {}", args.join(" "))
             };
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::Irule5005,
-                span: cmd_tok.span,
-                message: format!(
-                    "iRules procs must be invoked with 'call': call {cmd_name}{suffix}"
-                ),
-                severity: Severity::Error,
-                fixes: vec![CodeFix {
+            self.result.diagnostics.push(
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::Irule5005,
+                    cmd_tok.span,
+                    format!("iRules procs must be invoked with 'call': call {cmd_name}{suffix}"),
+                    Severity::Error,
+                )
+                .with_fixes(vec![CodeFix {
                     span: cmd_tok.span,
                     new_text: format!("call {cmd_name}"),
                     description: format!("Use 'call {cmd_name}'"),
@@ -1506,8 +1509,8 @@ impl Analyser {
                     // iRules proc, but the analyser cannot prove the head resolves to a
                     // proc rather than to a renamed or aliased command.
                     safety: crate::irules_checks::FixSafety::RequiresReview,
-                }],
-            });
+                }]),
+            );
         }
     }
 
@@ -1763,16 +1766,17 @@ impl Analyser {
             {
                 continue;
             }
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::W148,
-                span: token.span,
-                message: format!(
-                    "Numeral '{}' is not accepted by the resolved Tcl numeral grammar.",
-                    arg.trim()
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W148,
+                    token.span,
+                    format!(
+                        "Numeral '{}' is not accepted by the resolved Tcl numeral grammar.",
+                        arg.trim()
+                    ),
+                    Severity::Warning,
+                ));
         }
     }
 

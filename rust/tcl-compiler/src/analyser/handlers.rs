@@ -1522,13 +1522,14 @@ impl Analyser {
                 format!(" ({})", self.dialect())
             };
             let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W113,
-                span: name_span,
-                message,
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W113,
+                    name_span,
+                    message,
+                    super::types::Severity::Warning,
+                ));
         }
     }
 
@@ -1574,18 +1575,19 @@ impl Analyser {
         if !unaddressable {
             return;
         }
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W314,
-            span: name_span,
-            message: format!(
-                "'{raw_name}' has no absolute (fully-qualified) name — a written colon run \
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W314,
+                name_span,
+                format!(
+                    "'{raw_name}' has no absolute (fully-qualified) name — a written colon run \
                  is a namespace separator, so this definition is reachable only by \
                  unqualified/relative lookup ([namespace which] output will not resolve, \
                  and ensembles cannot dispatch it)"
-            ),
-            severity: super::types::Severity::Warning,
-            fixes: Vec::new(),
-        });
+                ),
+                super::types::Severity::Warning,
+            ));
     }
 
     /// **W315.** Drain `class`'s recorded
@@ -1647,13 +1649,14 @@ impl Analyser {
             });
         }
         for abort in aborts {
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W315,
-                span: abort.span,
-                message: abort.message(),
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W315,
+                    abort.span,
+                    abort.message(),
+                    super::types::Severity::Warning,
+                ));
         }
     }
 
@@ -1669,17 +1672,18 @@ impl Analyser {
         if !has_all_colon_segment {
             return;
         }
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W314,
-            span,
-            message: format!(
-                "namespace '{written_ns}' has no absolute (fully-qualified) path — a \
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W314,
+                span,
+                format!(
+                    "namespace '{written_ns}' has no absolute (fully-qualified) path — a \
                  written colon run is a namespace separator, so everything defined \
                  inside is reachable only by relative lookup"
-            ),
-            severity: super::types::Severity::Warning,
-            fixes: Vec::new(),
-        });
+                ),
+                super::types::Severity::Warning,
+            ));
     }
 
     /// **W218.** `args` declared anywhere but the final parameter position
@@ -1703,14 +1707,13 @@ impl Analyser {
                 continue;
             }
             let span = param_spans.get(i).copied().unwrap_or(fallback_tok.span);
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W218,
-                span,
-                message: "`args` here is an ordinary parameter — it only has its special                           collect-the-rest meaning as the final parameter. Move it last, or                           rename it if a plain parameter is intended."
+            self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+    DiagCode::W218,
+    span,
+    "`args` here is an ordinary parameter — it only has its special                           collect-the-rest meaning as the final parameter. Move it last, or                           rename it if a plain parameter is intended."
                     .to_string(),
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+    super::types::Severity::Warning,
+));
         }
     }
 
@@ -2911,17 +2914,18 @@ impl Analyser {
                 && !self.dynamic_interp_ops
                 && let Some(tok) = arg_tokens.get(1)
             {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: tcl_core_types::DiagCode::W140,
-                    span: tok.span,
-                    message: format!(
-                        "interpreter '{}' is never created in this file — \
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        tcl_core_types::DiagCode::W140,
+                        tok.span,
+                        format!(
+                            "interpreter '{}' is never created in this file — \
                          `interp eval` will raise `could not find interpreter`",
-                        args[1]
-                    ),
-                    severity: super::types::Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                            args[1]
+                        ),
+                        super::types::Severity::Warning,
+                    ));
             }
         }
         // Multiple script words concatenate at run time (`Tcl_ConcatObj`),
@@ -5723,13 +5727,12 @@ impl Analyser {
                 }
             };
             if emit {
-                diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W315,
-                    span: cand.abort.span,
-                    message: cand.abort.object_message(),
-                    severity: super::types::Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                diagnostics.push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W315,
+                    cand.abort.span,
+                    cand.abort.object_message(),
+                    super::types::Severity::Warning,
+                ));
             }
         }
         self.result.diagnostics.extend(diagnostics);

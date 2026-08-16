@@ -106,6 +106,39 @@ pub struct Diagnostic {
     pub fixes: Vec<CodeFix>,
 }
 
+impl Diagnostic {
+    /// Construct a diagnostic without a suggested fix.
+    ///
+    /// Emitters that can offer a source edit add it with
+    /// [`Self::with_fix`] or [`Self::with_fixes`]. Keeping the empty list
+    /// here makes the common, fix-less case explicit without repeating the
+    /// representation detail at every emission site.
+    #[must_use]
+    pub fn new(code: DiagCode, span: Span, message: impl Into<String>, severity: Severity) -> Self {
+        Self {
+            code,
+            span,
+            message: message.into(),
+            severity,
+            fixes: Vec::new(),
+        }
+    }
+
+    /// Attach one suggested edit.
+    #[must_use]
+    pub fn with_fix(mut self, fix: CodeFix) -> Self {
+        self.fixes.push(fix);
+        self
+    }
+
+    /// Attach the complete set of suggested edits computed by an emitter.
+    #[must_use]
+    pub fn with_fixes(mut self, fixes: Vec<CodeFix>) -> Self {
+        self.fixes = fixes;
+        self
+    }
+}
+
 /// One statically recorded `namespace ensemble` subcommand: the command it
 /// dispatches to, plus **how** the ensemble bound the two together
 /// (issue #1281).

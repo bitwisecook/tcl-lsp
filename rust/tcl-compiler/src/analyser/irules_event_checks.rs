@@ -51,7 +51,7 @@ use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use super::state::Analyser;
-use super::types::{CodeFix, Diagnostic, Severity};
+use super::types::{CodeFix, Severity};
 
 /// Process-wide cached iRules event registry.  The data is static, so
 /// building it once and sharing it avoids rebuilding the table on every
@@ -262,6 +262,10 @@ impl Analyser {
     ///
     /// Only fires inside a `when EVENT` block; `emit_irules_event_checks`
     /// supplies the enclosing `event`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "event legality, protocol requirements, and profile hints intentionally produce one cohesive diagnostic"
+    )]
     fn emit_irule1001_command_event_validity(
         &mut self,
         cmd_name: &str,
@@ -310,13 +314,14 @@ impl Analyser {
                     })
                 });
             if let Some(info) = hint {
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::Irule1001,
-                    span: cmd_tok.span,
-                    message: format!("'{cmd_name}' {info}."),
-                    severity: Severity::Hint,
-                    fixes: Vec::new(),
-                });
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::Irule1001,
+                        cmd_tok.span,
+                        format!("'{cmd_name}' {info}."),
+                        Severity::Hint,
+                    ));
             }
             return;
         }
@@ -327,16 +332,17 @@ impl Analyser {
         // This is entirely form-data-driven: the analyser does not name the
         // command or its selector words.
         if !requirements.only_in.is_empty() && !requirements.only_in.contains(&event) {
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::Irule1001,
-                span: cmd_tok.span,
-                message: format!(
-                    "'{cmd_name}' cannot be used in {event}. Available in: {}.",
-                    requirements.only_in.join(", ")
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::Irule1001,
+                    cmd_tok.span,
+                    format!(
+                        "'{cmd_name}' cannot be used in {event}. Available in: {}.",
+                        requirements.only_in.join(", ")
+                    ),
+                    Severity::Warning,
+                ));
             return;
         }
 
@@ -353,13 +359,14 @@ impl Analyser {
                 }
                 hint.push('.');
             }
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::Irule1001,
-                span: cmd_tok.span,
-                message: format!("'{cmd_name}' cannot be used in {event}.{hint}"),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::Irule1001,
+                    cmd_tok.span,
+                    format!("'{cmd_name}' cannot be used in {event}.{hint}"),
+                    Severity::Warning,
+                ));
             return;
         }
 
@@ -373,13 +380,14 @@ impl Analyser {
                     format!("'{cmd_name}' may not work in {event}: {desc}.")
                 }
             };
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::Irule1001,
-                span: cmd_tok.span,
-                message,
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::Irule1001,
+                    cmd_tok.span,
+                    message,
+                    Severity::Warning,
+                ));
         }
     }
 
@@ -402,16 +410,17 @@ impl Analyser {
         if !body_decrements(&args[1], &var_name) {
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule5003,
-            span: tok.span,
-            message: format!(
-                "Loop condition '${var_name} != 0' can miss zero if decremented past it. \
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule5003,
+                tok.span,
+                format!(
+                    "Loop condition '${var_name} != 0' can miss zero if decremented past it. \
                  Consider '${var_name} > 0'."
-            ),
-            severity: Severity::Hint,
-            fixes: Vec::new(),
-        });
+                ),
+                Severity::Hint,
+            ));
     }
 
     /// **IRULE5006.** A top-level-only command (`when` / `proc` /
@@ -429,13 +438,14 @@ impl Analyser {
         if !misplaced {
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule5006,
-            span: cmd_tok.span,
-            message: format!("'{cmd_name}' is only valid at the top level of an iRule."),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule5006,
+                cmd_tok.span,
+                format!("'{cmd_name}' is only valid at the top level of an iRule."),
+                Severity::Warning,
+            ));
     }
 
     /// **IRULE5007.** An executable command used on iRules' declaration-only
@@ -455,15 +465,14 @@ impl Analyser {
         {
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule5007,
-            span: cmd_tok.span,
-            message: format!(
+        self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+    DiagCode::Irule5007,
+    cmd_tok.span,
+    format!(
                 "'{cmd_name}' is executable and cannot appear at iRules top level — use it inside a `when` block or a top-level `proc`."
             ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+    Severity::Warning,
+));
     }
 
     pub(super) fn irules_execution_context(
@@ -580,26 +589,28 @@ impl Analyser {
                     }
                     (None, None) => "an unknown BIG-IP range".to_owned(),
                 };
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::Irule1002,
-                    span: tok.span,
-                    message: format!(
-                        "iRules event '{event_name}' exists in {range}, but the target \
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::Irule1002,
+                        tok.span,
+                        format!(
+                            "iRules event '{event_name}' exists in {range}, but the target \
                          release is {target}."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                        ),
+                        Severity::Warning,
+                    ));
             }
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule1002,
-            span: tok.span,
-            message: format!("Unknown iRules event '{event_name}'. Check the event name spelling."),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule1002,
+                tok.span,
+                format!("Unknown iRules event '{event_name}'. Check the event name spelling."),
+                Severity::Warning,
+            ));
     }
 
     /// **IRULE2003.** Unsafe iRules command (context escalation).
@@ -611,13 +622,14 @@ impl Analyser {
         if !is_unsafe {
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule2003,
-            span: cmd_tok.span,
-            message: format!("'{cmd_name}' is unsafe in iRules and may allow context escalation"),
-            severity: Severity::Error,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule2003,
+                cmd_tok.span,
+                format!("'{cmd_name}' is unsafe in iRules and may allow context escalation"),
+                Severity::Error,
+            ));
     }
 
     /// **IRULE3102.** `HTTP::path` / `HTTP::uri` / `HTTP::query` getter
@@ -639,13 +651,14 @@ impl Analyser {
         if !fires {
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule3102,
-            span: cmd_tok.span,
-            message: crate::irules_checks::format_message(cmd_name),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule3102,
+                cmd_tok.span,
+                crate::irules_checks::format_message(cmd_name),
+                Severity::Warning,
+            ));
     }
 
     /// **IRULE1003.** Deprecated iRules event referenced by `when`.
@@ -677,13 +690,14 @@ impl Analyser {
             .event_lifecycle(event_name)
             .and_then(|life| life.deprecated)
             .map_or_else(String::new, |release| format!(" as of BIG-IP {release}"));
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule1003,
-            span: tok.span,
-            message: format!("'{event_name}' event is deprecated{since}."),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule1003,
+                tok.span,
+                format!("'{event_name}' event is deprecated{since}."),
+                Severity::Warning,
+            ));
     }
 
     /// **IRULE1004.** An event-handler command whose registry policy requires
@@ -712,16 +726,17 @@ impl Analyser {
         if !policy.warn_when_implicit || args.iter().skip(1).any(|arg| arg == policy.keyword) {
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule1004,
-            span: cmd_tok.span,
-            message: format!(
-                "'{cmd_name}' missing an explicit {}. Add '{} <N>' to control execution order.",
-                policy.keyword, policy.keyword,
-            ),
-            severity: Severity::Hint,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule1004,
+                cmd_tok.span,
+                format!(
+                    "'{cmd_name}' missing an explicit {}. Add '{} <N>' to control execution order.",
+                    policy.keyword, policy.keyword,
+                ),
+                Severity::Hint,
+            ));
     }
 
     /// **IRULE2101.** Heavy `regexp` in a high-frequency event.
@@ -733,16 +748,17 @@ impl Analyser {
         if !is_hot_event(event) {
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule2101,
-            span: cmd_tok.span,
-            message: format!(
-                "'regexp' in {event} may be expensive at high traffic volumes. \
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule2101,
+                cmd_tok.span,
+                format!(
+                    "'regexp' in {event} may be expensive at high traffic volumes. \
                  Consider 'string match', 'switch -glob', or a data-group lookup."
-            ),
-            severity: Severity::Hint,
-            fixes: Vec::new(),
-        });
+                ),
+                Severity::Hint,
+            ));
     }
 
     /// **IRULE5001.** Ungated `log` in a high-frequency event.
@@ -754,17 +770,18 @@ impl Analyser {
         if !is_hot_event(event) {
             return;
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule5001,
-            span: cmd_tok.span,
-            message: format!(
-                "'log' in {event} fires on every request. \
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule5001,
+                cmd_tok.span,
+                format!(
+                    "'log' in {event} fires on every request. \
                  Set a debug flag in CLIENT_ACCEPTED (e.g. set debug 0) and gate with \
                  if {{$debug}} {{...}}."
-            ),
-            severity: Severity::Hint,
-            fixes: Vec::new(),
-        });
+                ),
+                Severity::Hint,
+            ));
     }
 
     /// **IRULE4001.** Write to a `static::` variable outside `RULE_INIT`.
@@ -781,17 +798,18 @@ impl Analyser {
         let Some(var_name) = static_var_from_set(cmd_name, args) else {
             return;
         };
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule4001,
-            span: cmd_tok.span,
-            message: format!(
-                "Writing to '{var_name}' outside RULE_INIT is dangerous. \
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule4001,
+                cmd_tok.span,
+                format!(
+                    "Writing to '{var_name}' outside RULE_INIT is dangerous. \
                  static:: variables are shared across all connections; \
                  concurrent writes can cause race conditions."
-            ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+                ),
+                Severity::Warning,
+            ));
     }
 
     /// **IRULE4003.** Variable scoping concern across `when` events.
@@ -842,13 +860,14 @@ impl Analyser {
         if concerns.len() > 1 {
             msg = format!("{msg}; {}", concerns[1..].join("; "));
         }
-        self.result.diagnostics.push(Diagnostic {
-            code: DiagCode::Irule4003,
-            span: cmd_tok.span,
-            message: msg,
-            severity: Severity::Hint,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule4003,
+                cmd_tok.span,
+                msg,
+                Severity::Hint,
+            ));
     }
 
     /// **IRULE6001.** Global namespace variable usage (CMP pinning).
@@ -865,17 +884,18 @@ impl Analyser {
             && let Some(var_name) = args.first()
         {
             let static_name = format!("static::{var_name}");
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::Irule6001,
-                span: cmd_tok.span,
-                message: format!(
-                    "'global {var_name}' imports from the global namespace, \
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::Irule6001,
+                    cmd_tok.span,
+                    format!(
+                        "'global {var_name}' imports from the global namespace, \
                      forcing CMP compatibility mode and pinning the virtual server \
                      to a single TMM. Use '{static_name}' instead."
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+                    ),
+                    Severity::Warning,
+                ));
             return;
         }
 
@@ -893,16 +913,18 @@ impl Analyser {
             if let Some(bare) = word.strip_prefix("::") {
                 let var_name = word.as_str();
                 let static_name = format!("static::{bare}");
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::Irule6001,
-                    span: fix_span,
-                    message: format!(
-                        "Global namespace variable '{var_name}' forces CMP compatibility \
+                self.result.diagnostics.push(
+                    crate::analyser::types::Diagnostic::new(
+                        DiagCode::Irule6001,
+                        fix_span,
+                        format!(
+                            "Global namespace variable '{var_name}' forces CMP compatibility \
                          mode, pinning the virtual server to a single TMM. \
                          Use '{static_name}' instead."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: vec![CodeFix {
+                        ),
+                        Severity::Warning,
+                    )
+                    .with_fixes(vec![CodeFix {
                         span: fix_span,
                         new_text: static_name.clone(),
                         description: format!("Replace '{var_name}' with '{static_name}'"),
@@ -910,8 +932,8 @@ impl Analyser {
                         // different lifetime from a global — the CMP fix, and a change of
                         // where the value lives.
                         safety: crate::irules_checks::FixSafety::RequiresReview,
-                    }],
-                });
+                    }]),
+                );
                 continue;
             }
             // Implicit globals in RULE_INIT: `set var value` (no `::`) is
@@ -923,24 +945,26 @@ impl Analyser {
             }
             let bare = word.as_str();
             let static_name = format!("static::{bare}");
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::Irule6001,
-                span: fix_span,
-                message: format!(
-                    "'{bare}' in RULE_INIT is implicitly global — RULE_INIT \
+            self.result.diagnostics.push(
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::Irule6001,
+                    fix_span,
+                    format!(
+                        "'{bare}' in RULE_INIT is implicitly global — RULE_INIT \
                      runs at the global namespace scope. This forces CMP \
                      compatibility mode, pinning the virtual server to a \
                      single TMM. Use '{static_name}' instead."
-                ),
-                severity: Severity::Warning,
-                fixes: vec![CodeFix {
+                    ),
+                    Severity::Warning,
+                )
+                .with_fixes(vec![CodeFix {
                     span: fix_span,
                     new_text: static_name.clone(),
                     description: format!("Replace '{bare}' with '{static_name}'"),
                     // IRULE6001: as above.
                     safety: crate::irules_checks::FixSafety::RequiresReview,
-                }],
-            });
+                }]),
+            );
         }
     }
 }

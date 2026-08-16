@@ -143,13 +143,12 @@ fn detect_e201(
         return d;
     }
     // Fallback: highlight just the opening `[`, no fix.
-    Diagnostic {
-        code: DiagCode::E201,
-        span: Span::new(bracket_off, bracket_off),
-        message: "missing close-bracket".to_string(),
-        severity: Severity::Error,
-        fixes: Vec::new(),
-    }
+    crate::analyser::types::Diagnostic::new(
+        DiagCode::E201,
+        Span::new(bracket_off, bracket_off),
+        "missing close-bracket".to_string(),
+        Severity::Error,
+    )
 }
 
 /// Build an E201 anchored from the `[` to `insert_idx`-in-content, with
@@ -163,19 +162,19 @@ fn e201_with_insert(
     let insert_off = content_start + u32::try_from(insert_idx).unwrap_or(0);
     // Diagnostic end: the last content byte before the insertion.
     let diag_end = content_start + u32::try_from(insert_idx.saturating_sub(1)).unwrap_or(0);
-    Diagnostic {
-        code: DiagCode::E201,
-        span: Span::new(bracket_off, diag_end.max(bracket_off)),
-        message: "missing close-bracket".to_string(),
-        severity: Severity::Error,
-        fixes: vec![CodeFix {
-            span: Span::new(insert_off, insert_off),
-            new_text: "]".to_string(),
-            description: fix_desc.to_string(),
-            // E201: a close-bracket recovery heuristic.
-            safety: crate::irules_checks::FixSafety::RequiresReview,
-        }],
-    }
+    crate::analyser::types::Diagnostic::new(
+        DiagCode::E201,
+        Span::new(bracket_off, diag_end.max(bracket_off)),
+        "missing close-bracket".to_string(),
+        Severity::Error,
+    )
+    .with_fixes(vec![CodeFix {
+        span: Span::new(insert_off, insert_off),
+        new_text: "]".to_string(),
+        description: fix_desc.to_string(),
+        // E201: a close-bracket recovery heuristic.
+        safety: crate::irules_checks::FixSafety::RequiresReview,
+    }])
 }
 
 /// E201 heuristic: a `#` comment line follows — insert `]` at the end of
@@ -443,31 +442,30 @@ fn detect_e202(
             if known.contains(extract_first_word(stripped)) {
                 // Virtual `"` right after the opening `"`.
                 let insert_off = quote_off + 1;
-                return Diagnostic {
-                    code: DiagCode::E202,
-                    span: diag_span,
-                    message: "missing \"".to_string(),
-                    severity: Severity::Error,
-                    fixes: vec![CodeFix {
-                        span: Span::new(insert_off, insert_off),
-                        new_text: "\"".to_string(),
-                        description: "Insert missing '\"' to close string".to_string(),
-                        // E202: a close-quote recovery heuristic.
-                        safety: crate::irules_checks::FixSafety::RequiresReview,
-                    }],
-                };
+                return crate::analyser::types::Diagnostic::new(
+                    DiagCode::E202,
+                    diag_span,
+                    "missing \"".to_string(),
+                    Severity::Error,
+                )
+                .with_fixes(vec![CodeFix {
+                    span: Span::new(insert_off, insert_off),
+                    new_text: "\"".to_string(),
+                    description: "Insert missing '\"' to close string".to_string(),
+                    // E202: a close-quote recovery heuristic.
+                    safety: crate::irules_checks::FixSafety::RequiresReview,
+                }]);
             }
             // First non-blank line isn't a known command — stop.
             break;
         }
     }
-    Diagnostic {
-        code: DiagCode::E202,
-        span: diag_span,
-        message: "missing \"".to_string(),
-        severity: Severity::Error,
-        fixes: Vec::new(),
-    }
+    crate::analyser::types::Diagnostic::new(
+        DiagCode::E202,
+        diag_span,
+        "missing \"".to_string(),
+        Severity::Error,
+    )
 }
 
 /// Build the E203 diagnostic for an unterminated `{`: the de-indented
@@ -495,21 +493,20 @@ fn detect_e203(
     // known-command-name universe.
     let expr_role = registry.is_some_and(|reg| unterminated_arg_is_expr(tok, cmd, reg));
     if let Some(fix) = e203_brace_fix(tok, source, content_start, known, expr_role) {
-        return Diagnostic {
-            code: DiagCode::E203,
-            span: diag_span,
-            message: "missing close-brace".to_string(),
-            severity: Severity::Error,
-            fixes: vec![fix],
-        };
+        return crate::analyser::types::Diagnostic::new(
+            DiagCode::E203,
+            diag_span,
+            "missing close-brace".to_string(),
+            Severity::Error,
+        )
+        .with_fixes(vec![fix]);
     }
-    Diagnostic {
-        code: DiagCode::E203,
-        span: diag_span,
-        message: "missing close-brace".to_string(),
-        severity: Severity::Error,
-        fixes: Vec::new(),
-    }
+    crate::analyser::types::Diagnostic::new(
+        DiagCode::E203,
+        diag_span,
+        "missing close-brace".to_string(),
+        Severity::Error,
+    )
 }
 
 /// `true` when the unterminated brace-word token `tok` sits in an
@@ -815,13 +812,13 @@ fn make_e100(
         bracket_off
     };
 
-    Diagnostic {
-        code: DiagCode::E100,
-        span: Span::new(diag_start.min(bracket_off), bracket_end),
-        message: "Unmatched ']' \u{2014} missing opening '['?".to_string(),
-        severity: Severity::Error,
-        fixes,
-    }
+    crate::analyser::types::Diagnostic::new(
+        DiagCode::E100,
+        Span::new(diag_start.min(bracket_off), bracket_end),
+        "Unmatched ']' \u{2014} missing opening '['?".to_string(),
+        Severity::Error,
+    )
+    .with_fixes(fixes)
 }
 
 /// Find where the missing `[` should go.  Heuristics, in order: a
@@ -895,13 +892,13 @@ fn make_e102(tok: &Token, rel: usize, source: &str) -> Diagnostic {
     let fixes = stray_brace_fix(tok, brace_off, source)
         .into_iter()
         .collect();
-    Diagnostic {
-        code: DiagCode::E102,
-        span: Span::new(brace_off, brace_off + 1),
-        message: "Unmatched '}' \u{2014} missing opening '{'?".to_string(),
-        severity: Severity::Error,
-        fixes,
-    }
+    crate::analyser::types::Diagnostic::new(
+        DiagCode::E102,
+        Span::new(brace_off, brace_off + 1),
+        "Unmatched '}' \u{2014} missing opening '{'?".to_string(),
+        Severity::Error,
+    )
+    .with_fixes(fixes)
 }
 
 /// Build a fix that deletes a stray `}` and its line, when the line

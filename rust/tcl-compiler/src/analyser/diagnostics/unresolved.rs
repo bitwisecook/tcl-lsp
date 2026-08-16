@@ -892,13 +892,15 @@ impl Analyser {
                     safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W123,
-                span: inv.range,
-                message,
-                severity: Severity::Hint,
-                fixes,
-            });
+            self.result.diagnostics.push(
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::W123,
+                    inv.range,
+                    message,
+                    Severity::Hint,
+                )
+                .with_fixes(fixes),
+            );
         }
         self.result.command_invocations = invocations;
     }
@@ -1087,13 +1089,15 @@ impl Analyser {
                 // initialisation code and changing what commands exist.
                 safety: crate::irules_checks::FixSafety::BehaviourHardening,
             };
-            new_diags.push(super::types::Diagnostic {
-                code: DiagCode::W120,
-                span: inv.range,
-                message: format!("\"{}\" requires `package require {pkg}`", inv.name),
-                severity: Severity::Warning,
-                fixes: vec![fix],
-            });
+            new_diags.push(
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::W120,
+                    inv.range,
+                    format!("\"{}\" requires `package require {pkg}`", inv.name),
+                    Severity::Warning,
+                )
+                .with_fixes(vec![fix]),
+            );
         }
         self.result.diagnostics.extend(new_diags);
     }

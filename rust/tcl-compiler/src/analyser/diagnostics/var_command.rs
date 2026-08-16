@@ -558,13 +558,8 @@ impl Analyser {
                 });
             }
         }
-        super::types::Diagnostic {
-            code: DiagCode::W308,
-            span,
-            message,
-            severity: Severity::Warning,
-            fixes,
-        }
+        crate::analyser::types::Diagnostic::new(DiagCode::W308, span, message, Severity::Warning)
+            .with_fixes(fixes)
     }
 
     /// **E001** (`TclOO` form) — `$obj` invoked with no method word at all.
@@ -611,13 +606,12 @@ impl Analyser {
         if !all_tcloo {
             return None;
         }
-        Some(super::types::Diagnostic {
-            code: DiagCode::E001,
-            span: site.cmd_span,
-            message: format!("'{}' requires a method", site.var_name),
-            severity: Severity::Error,
-            fixes: Vec::new(),
-        })
+        Some(crate::analyser::types::Diagnostic::new(
+            DiagCode::E001,
+            site.cmd_span,
+            format!("'{}' requires a method", site.var_name),
+            Severity::Error,
+        ))
     }
 
     /// **E001** (`TclOO` form) for a command-substitution head: a bare
@@ -655,13 +649,12 @@ impl Analyser {
             .strip_prefix('[')
             .and_then(|w| w.strip_suffix(']'))
             .map_or(inner, str::trim);
-        Some(super::types::Diagnostic {
-            code: DiagCode::E001,
-            span: site.cmd_span,
-            message: format!("'{inner}' requires a method"),
-            severity: Severity::Error,
-            fixes: Vec::new(),
-        })
+        Some(crate::analyser::types::Diagnostic::new(
+            DiagCode::E001,
+            site.cmd_span,
+            format!("'{inner}' requires a method"),
+            Severity::Error,
+        ))
     }
 
     /// Check a resolved `$obj method …` dispatch's argument count
@@ -1463,12 +1456,13 @@ impl Analyser {
             return self.w308_for_object_var(site, &live_classes, hierarchy, objdefined_vars);
         }
 
-        (!self.w307_site_suppressed(site, w307_ctx)).then(|| super::types::Diagnostic {
-            code: DiagCode::W307,
-            span: site.cmd_span,
-            message: "Non-literal command name — cannot statically analyze".to_string(),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
+        (!self.w307_site_suppressed(site, w307_ctx)).then(|| {
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::W307,
+                site.cmd_span,
+                "Non-literal command name — cannot statically analyze".to_string(),
+                Severity::Warning,
+            )
         })
     }
 
@@ -1508,6 +1502,10 @@ impl Analyser {
     /// call isn't an OO self-dispatch (`my` / `self`).  When the return type is
     /// a known class, the method is validated against the hierarchy and W308 is
     /// emitted instead.  Restores `cmd_command_sites` on exit.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the diagnostic's closely coupled dispatch and type-validation cases share one restored-site lifecycle"
+    )]
     fn emit_cmd_command_diagnostics(
         &mut self,
         registry: &tcl_registry::CommandRegistry,
@@ -1569,13 +1567,14 @@ impl Analyser {
                     self.oo_self_method_returns_literal(site.cmd_span.start(), method)
                 });
                 if returns_literal {
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: DiagCode::W307,
-                        span: site.cmd_span,
-                        message: "Non-literal command name — cannot statically analyze".to_string(),
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+                    self.result
+                        .diagnostics
+                        .push(crate::analyser::types::Diagnostic::new(
+                            DiagCode::W307,
+                            site.cmd_span,
+                            "Non-literal command name — cannot statically analyze".to_string(),
+                            Severity::Warning,
+                        ));
                     continue;
                 }
                 // `[self]` / `[self object]` is not just *some* self-dispatch
@@ -1647,13 +1646,14 @@ impl Analyser {
 
             // Type is unknown — emit W307 (only the emit-half
             // for the residual unknown-type case).
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W307,
-                span: site.cmd_span,
-                message: "Non-literal command name — cannot statically analyze".to_string(),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W307,
+                    site.cmd_span,
+                    "Non-literal command name — cannot statically analyze".to_string(),
+                    Severity::Warning,
+                ));
         }
         self.cmd_command_sites = cmd_sites;
     }
@@ -1985,15 +1985,12 @@ impl Analyser {
         };
         let mut diags: Vec<super::types::Diagnostic> = Vec::new();
         let mut flag = |span: tcl_lexer::Span, class: &str| {
-            diags.push(super::types::Diagnostic {
-                code: DiagCode::W250,
+            diags.push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W250,
                 span,
-                message: format!(
-                    "Instantiating abstract class '{class}' — use a concrete subclass"
-                ),
-                severity: super::types::Severity::Warning,
-                fixes: Vec::new(),
-            });
+                format!("Instantiating abstract class '{class}' — use a concrete subclass"),
+                super::types::Severity::Warning,
+            ));
         };
         let units = std::iter::once(&cu.top_level)
             .chain(cu.procedures.values())
