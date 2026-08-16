@@ -688,10 +688,15 @@ fn collect_clause_folds(
         let Some(body) = clause.body else {
             continue;
         };
-        // `Element::start` includes the opening `{` and `Element::end` sits
-        // *at* the closing `}` — the lexer's own inner-end convention, so the
-        // span drops straight into the shared emitter.
-        let (abs_start, abs_end) = (content_start + body.start, content_start + body.end);
+        // Preserve the syntax owner's lexer-compatible arm range: it starts
+        // at `{` and ends at the closing brace. The content range below then
+        // excludes exactly the opener, without every consumer guessing at
+        // boundary arithmetic.
+        let token_range = body.token_range();
+        let (abs_start, abs_end) = (
+            content_start + token_range.start,
+            content_start + token_range.end,
+        );
         let (Ok(start), Ok(end)) = (u32::try_from(abs_start), u32::try_from(abs_end)) else {
             continue;
         };
@@ -709,11 +714,13 @@ fn collect_clause_folds(
         if !body.braced {
             continue;
         }
-        let inner_start = abs_start + 1;
-        if abs_end <= inner_start {
+        let content_range = body.content_range();
+        let inner_start = content_start + content_range.start;
+        let inner_end = content_start + content_range.end;
+        if inner_end <= inner_start {
             continue;
         }
-        let Some(arm) = ctx.original_source.get(inner_start..abs_end) else {
+        let Some(arm) = ctx.original_source.get(inner_start..inner_end) else {
             continue;
         };
         let Ok(base) = u32::try_from(inner_start) else {

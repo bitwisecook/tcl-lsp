@@ -36,5 +36,7 @@ pub use eval::{ExprOps, NumericCompare, eval};
 pub use mathfunc::MathFuncSpec;
 pub use operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorShape, OperatorSpec};
 pub use parser::parse_expr;
-pub use substitution::command_substitution_spans;
+pub use substitution::{
+    LiveExpressionSubstitutions, command_substitution_spans, live_expression_substitutions,
+};
 pub use syntax_error::{ExprSyntaxError, ExprSyntaxErrorKind};

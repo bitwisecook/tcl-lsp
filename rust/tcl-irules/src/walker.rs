@@ -446,11 +446,12 @@ fn case_list_body_tokens(full: &str, tok: &Token, spec: &tcl_registry::CaseListS
         // Only a braced body is a script.
         .filter(|b| b.braced)
         .map(|b| {
+            let range = b.token_range();
             Token::with_content_offset(
                 TokenType::Str,
                 tcl_lexer::Span::new(
-                    u32::try_from(cstart + b.start).unwrap_or(0),
-                    u32::try_from(cstart + b.end).unwrap_or(0),
+                    u32::try_from(cstart + range.start).unwrap_or(0),
+                    u32::try_from(cstart + range.end).unwrap_or(0),
                 ),
                 1,
             )

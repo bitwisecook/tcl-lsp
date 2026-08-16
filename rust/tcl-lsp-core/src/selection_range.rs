@@ -418,8 +418,9 @@ fn command_span_at(
                         let Some(body) = clause.body.filter(|body| body.braced) else {
                             continue;
                         };
-                        let arm_start = start + 1 + body.start + 1;
-                        let arm_end = start + 1 + body.end;
+                        let body_range = body.content_range();
+                        let arm_start = start + 1 + body_range.start;
+                        let arm_end = start + 1 + body_range.end;
                         let Some(arm) = script.get(arm_start..arm_end) else {
                             continue;
                         };

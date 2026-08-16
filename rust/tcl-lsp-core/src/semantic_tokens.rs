@@ -4324,6 +4324,7 @@ fn collect_case_list(
     // `content_offset` strips the opener) so the downstream helpers work
     // unchanged.
     let as_token = |e: tcl_syntax::case_list::Element| {
+        let range = e.token_range();
         let (kind, content_offset) = if e.braced {
             (TokenType::Str, 1u8)
         } else if inner.as_bytes().get(e.start) == Some(&b'"') {
@@ -4334,8 +4335,8 @@ fn collect_case_list(
         Token::with_content_offset(
             kind,
             tcl_lexer::Span::new(
-                u32::try_from(cstart + e.start).unwrap_or(0),
-                u32::try_from(cstart + e.end).unwrap_or(0),
+                u32::try_from(cstart + range.start).unwrap_or(0),
+                u32::try_from(cstart + range.end).unwrap_or(0),
             ),
             content_offset,
         )

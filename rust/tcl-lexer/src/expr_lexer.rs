@@ -576,6 +576,11 @@ impl<'s> Inner<'s> {
             }
             if self.i < self.b.len() {
                 self.i += 1;
+            } else {
+                // Preserve a recovery token for editor callers, but a
+                // variable whose `${…}` closer is absent cannot participate in
+                // an executable expression.
+                self.unknown = true;
             }
         } else {
             // A bare `$name` consumes alphanumerics / `_`, and `:` only as part
@@ -595,7 +600,11 @@ impl<'s> Inner<'s> {
             }
             if self.i < self.b.len() && self.b[self.i] == b'(' {
                 self.i += 1;
-                self.scan_array_index(0);
+                if !self.scan_array_index(0) {
+                    // As with an unterminated command or quote, let recovery
+                    // retain the token while making `parse_expr` fail closed.
+                    self.unknown = true;
+                }
             }
         }
         self.tok(ExprTokenType::Variable, start)
@@ -617,33 +626,22 @@ impl<'s> Inner<'s> {
     /// ordinary character rather than recursed into, so pathologically
     /// deep `$a($b($c(...)))` input degrades gracefully rather than
     /// overflowing the native stack.
-    fn scan_array_index(&mut self, depth: u32) {
+    fn scan_array_index(&mut self, depth: u32) -> bool {
         let past_cap = MAX_EXPR_ARRAY_INDEX_DEPTH.exceeded(depth);
         while self.i < self.b.len() {
             match self.b[self.i] {
                 b')' => {
                     self.i += 1;
-                    return;
+                    return true;
                 }
                 b'\\' => self.i = (self.i + 2).min(self.b.len()),
-                b'[' => {
-                    self.i += 1;
-                    let mut depth: u32 = 1;
-                    while self.i < self.b.len() && depth > 0 {
-                        match self.b[self.i] {
-                            b'\\' => self.i = (self.i + 2).min(self.b.len()),
-                            b'[' => {
-                                depth += 1;
-                                self.i += 1;
-                            }
-                            b']' => {
-                                depth -= 1;
-                                self.i += 1;
-                            }
-                            _ => self.i += 1,
-                        }
-                    }
-                }
+                b'[' => match command_substitution_end(self.s, self.i) {
+                    Some(end) => self.i = end,
+                    // A `]` in a nested braced/quoted script word cannot
+                    // close the substitution. Delegate that grammar to the
+                    // shared range owner rather than approximating it here.
+                    None => return false,
+                },
                 b'$' if !past_cap => {
                     self.i += 1;
                     if self.i < self.b.len() && self.b[self.i] == b'{' {
@@ -670,13 +668,16 @@ impl<'s> Inner<'s> {
                         }
                         if self.i < self.b.len() && self.b[self.i] == b'(' {
                             self.i += 1;
-                            self.scan_array_index(depth + 1); // nested index
+                            if !self.scan_array_index(depth + 1) {
+                                return false;
+                            }
                         }
                     }
                 }
                 _ => self.i += 1,
             }
         }
+        false
     }
 
     fn command(&mut self) -> ExprToken {
@@ -1160,6 +1161,17 @@ mod tests {
     fn checked_no_unknown() {
         let (_, u) = tokenise_expr_checked("1 + 2", None);
         assert!(!u);
+    }
+
+    #[test]
+    fn checked_rejects_unclosed_variable_delimiters() {
+        for source in ["${name", "$array(key", "$array([command)"] {
+            let (_, unknown) = tokenise_expr_checked(source, Some("f5-irules"));
+            assert!(
+                unknown,
+                "unterminated variable syntax stayed executable: {source:?}"
+            );
+        }
     }
 
     #[test]

@@ -43,6 +43,8 @@
 //! module takes it as plain slices so the syntax layer stays free of the
 //! registry.
 
+use std::ops::Range;
+
 /// Which clause-leading flags a clause list admits.
 ///
 /// Built from the registry's `CaseListSpec` by the caller. `switch` declares no
@@ -171,6 +173,35 @@ pub struct Element {
     pub end: usize,
     /// Whether the element was written braced (`{…}`).
     pub braced: bool,
+}
+
+impl Element {
+    /// The range represented by this element using the lexer-compatible token
+    /// boundary convention.
+    ///
+    /// For a braced element this starts at its opening `{` and ends at (but
+    /// does not include) its closing `}`.  That is intentionally the same
+    /// range a `TokenType::Str` uses with `content_offset == 1`: callers that
+    /// need to re-enter Tcl syntax can preserve this range and ask the token
+    /// owner for its content.  Bare and quoted elements are simply
+    /// `start..end`.
+    #[must_use]
+    pub fn token_range(self) -> Range<usize> {
+        self.start..self.end
+    }
+
+    /// The exact value content of this element, with a braced element's
+    /// delimiters excluded.
+    ///
+    /// Every returned range is end-exclusive.  In particular, for
+    /// `{pool /Common/p}`, the range includes the final `p` and excludes only
+    /// the closing `}`.  Consumers that recursively parse case-arm scripts
+    /// must use this rather than independently adding or subtracting boundary
+    /// bytes.
+    #[must_use]
+    pub fn content_range(self) -> Range<usize> {
+        self.start + usize::from(self.braced)..self.end
+    }
 }
 
 /// One clause: its leading flags, its pattern, and its body.
@@ -450,5 +481,67 @@ mod tests {
             shape_of("a {puts 1} b", &SWITCH),
             vec![(vec![], "a", "{puts 1"), (vec![], "b", "")]
         );
+    }
+
+    #[test]
+    fn element_content_ranges_are_end_exclusive_and_keep_final_bytes() {
+        let list = concat!(
+            "first {pool /Common/\u{2603}} ",
+            "second plain_action ",
+            "third \"quoted action\" ",
+            "default {pool /Common/last} ",
+            "odd",
+        );
+        let clauses = split_case_list(list, &SWITCH);
+        let bodies: Vec<_> = clauses.iter().filter_map(|clause| clause.body).collect();
+
+        assert_eq!(
+            &list[bodies[0].content_range()],
+            "pool /Common/\u{2603}",
+            "a braced arm includes its final Unicode code point"
+        );
+        assert_eq!(&list[bodies[1].content_range()], "plain_action");
+        assert_eq!(&list[bodies[2].content_range()], "quoted action");
+        assert_eq!(
+            &list[bodies[3].content_range()],
+            "pool /Common/last",
+            "the final default arm keeps its final ASCII byte"
+        );
+        assert!(clauses.last().is_some_and(|clause| clause.body.is_none()));
+
+        let braced = bodies[0];
+        assert_eq!(&list[braced.token_range()], "{pool /Common/\u{2603}");
+        assert_eq!(
+            braced.content_range().end,
+            braced.token_range().end,
+            "the braced closer is the token boundary, not part of the content"
+        );
+    }
+
+    #[test]
+    fn nested_braced_body_content_is_not_shortened() {
+        let list = "nested {if {$flag} {pool /Common/nested}} default {pool /Common/final}";
+        let clauses = split_case_list(list, &SWITCH);
+        let nested = clauses[0].body.expect("nested arm body");
+        let default = clauses[1].body.expect("default arm body");
+
+        assert_eq!(
+            &list[nested.content_range()],
+            "if {$flag} {pool /Common/nested}",
+        );
+        assert_eq!(&list[default.content_range()], "pool /Common/final");
+    }
+
+    #[test]
+    fn element_content_ranges_preserve_empty_and_escaped_braced_arms() {
+        let list = r"empty {} escaped {puts \}still_here} final {puts last}";
+        let clauses = split_case_list(list, &SWITCH);
+        let empty = clauses[0].body.expect("empty arm");
+        let escaped = clauses[1].body.expect("escaped arm");
+        let final_arm = clauses[2].body.expect("final arm");
+
+        assert_eq!(&list[empty.content_range()], "");
+        assert_eq!(&list[escaped.content_range()], r"puts \}still_here");
+        assert_eq!(&list[final_arm.content_range()], "puts last");
     }
 }

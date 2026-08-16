@@ -285,14 +285,9 @@ impl Census<'_> {
         };
         for clause in split_case_list(inner, &clause_shape) {
             let Some(body) = clause.body else { continue };
-            // `case_list::Element` includes the opening `{` (for fold-range
-            // purposes) but its `end` already sits before the closing `}`, so a
-            // braced body's clean content is `[start+1, end)`.
-            let text = if body.braced {
-                inner.get(body.start + 1..body.end)
-            } else {
-                inner.get(body.start..body.end)
-            };
+            // The syntax owner supplies the one end-exclusive content range
+            // for braced, bare, and quoted arms.
+            let text = inner.get(body.content_range());
             let Some(text) = text else { continue };
             // A bare fallthrough marker (switch's `-` body) is not code — it
             // means "fall through to the next clause's body".

@@ -1136,6 +1136,36 @@ mod tests {
     }
 
     #[test]
+    fn generated_test_sets_up_live_braced_expression_and_quoted_operand_static_variables() {
+        let generated = generate_irule_test(&json!({
+            "source": concat!(
+                "when HTTP_REQUEST {\n",
+                "  if {$static::maintenance} { return }\n",
+                "  if {\"$static::quoted\" eq {${static::braced_data}}} {}\n",
+                "  if {$static::broken +} {}\n",
+                "}\n",
+            ),
+        }));
+        let script = generated["test_script"]
+            .as_str()
+            .expect("generated test script");
+        assert!(
+            script.contains("::orch::configure_static maintenance \"\""),
+            "a live braced expression read needs generated setup: {script}"
+        );
+        assert!(
+            script.contains("::orch::configure_static quoted \"\""),
+            "a quoted operand evaluated by expr needs generated setup: {script}"
+        );
+        for inert in ["braced_data", "broken"] {
+            assert!(
+                !script.contains(&format!("::orch::configure_static {inert} ")),
+                "inert or malformed expression variable leaked into setup: {script}"
+            );
+        }
+    }
+
+    #[test]
     fn generated_inventory_keeps_quoted_substitutions_before_an_expr_error() {
         // Tcl 8.6 and 9 substitute the quoted word before `if` rejects its
         // trailing operator. The braced form reaches expr as literal source,

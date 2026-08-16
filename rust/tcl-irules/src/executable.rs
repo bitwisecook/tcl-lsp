@@ -338,29 +338,17 @@ fn walk(
                 let start = token.span.start() as usize + token.content_offset as usize;
                 let end = token.span.end() as usize;
                 if let Some(raw) = full.get(start..end) {
-                    variable_names.push(raw.trim_matches(['{', '}']).to_owned());
+                    variable_names.push(variable_name(raw));
                 }
             }
         }
-        out.push(IrulesExecutableCommand {
-            span: cmd.span,
-            command: head.clone(),
-            args: cmd.args().to_vec(),
-            variable_names,
-            event: match &context {
-                Context::Event(event) => Some(event.clone()),
-                Context::Procedure => None,
-            },
-        });
-
-        recurse_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
-        recurse_case_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
         let owned_spans: HashSet<_> = registry
             .arg_indices_for_role(&head, &args, ArgRole::Body)
             .into_iter()
             .filter_map(|idx| cmd.argv.get(idx + 1))
             .map(|tok| (tok.span.start(), tok.span.end()))
             .collect();
+        let mut expression_command_spans = Vec::new();
         for index in registry.arg_indices_for_role(&head, &args, ArgRole::Expr) {
             let Some(token) = cmd.argv.get(index + 1) else {
                 continue;
@@ -381,12 +369,20 @@ fn walk(
             let Some(expression) = full.get(expression_start..expression_end) else {
                 continue;
             };
-            for span in tcl_syntax::expr::command_substitution_spans(
+            let substitutions = tcl_syntax::expr::live_expression_substitutions(
                 expression,
                 lexing.profile,
                 lexing.config,
                 |parsed| lexing.expr_surface.validate(parsed).is_ok(),
-            ) {
+            );
+            for span in substitutions.variables {
+                let variable_start = expression_start + span.start() as usize;
+                let variable_end = expression_start + span.end() as usize;
+                if let Some(raw) = full.get(variable_start..variable_end) {
+                    variable_names.push(variable_name(raw));
+                }
+            }
+            for span in substitutions.commands {
                 let command_start = expression_start + span.start() as usize;
                 let command_end = expression_start + span.end() as usize;
                 let Some(interior_start) = command_start.checked_add(1) else {
@@ -398,19 +394,35 @@ fn walk(
                 if interior_start >= interior_end {
                     continue;
                 }
-                let Some(interior) = full.get(interior_start..interior_end) else {
-                    continue;
-                };
-                walk(
-                    full,
-                    interior,
-                    u32::try_from(interior_start).unwrap_or(0),
-                    ctx,
-                    context.clone(),
-                    out,
-                    depth + 1,
-                );
+                expression_command_spans.push(interior_start..interior_end);
             }
+        }
+        out.push(IrulesExecutableCommand {
+            span: cmd.span,
+            command: head.clone(),
+            args: cmd.args().to_vec(),
+            variable_names,
+            event: match &context {
+                Context::Event(event) => Some(event.clone()),
+                Context::Procedure => None,
+            },
+        });
+
+        recurse_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
+        recurse_case_bodies(full, &cmd, &head, &args, ctx, context.clone(), out, depth);
+        for command_range in expression_command_spans {
+            let Some(interior) = full.get(command_range.clone()) else {
+                continue;
+            };
+            walk(
+                full,
+                interior,
+                u32::try_from(command_range.start).unwrap_or(0),
+                ctx,
+                context.clone(),
+                out,
+                depth + 1,
+            );
         }
         for token in &cmd.all_tokens {
             if token.kind == TokenType::Cmd
@@ -420,6 +432,21 @@ fn walk(
             }
         }
     }
+}
+
+/// Convert a lexer-owned variable spelling into the public inventory name.
+///
+/// Script tokens arrive with their `$` / `${` introducer stripped through
+/// `content_offset`; expression spans intentionally include it so their exact
+/// source range remains available to every consumer. Normalise only those
+/// delimiters here, preserving array keys and namespace spelling exactly like
+/// the pre-existing script-token path.
+fn variable_name(raw: &str) -> String {
+    let raw = raw.strip_prefix('$').unwrap_or(raw);
+    raw.strip_prefix('{')
+        .and_then(|name| name.strip_suffix('}'))
+        .unwrap_or(raw)
+        .to_owned()
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
@@ -466,8 +493,13 @@ fn recurse_case_bodies(
         .filter_map(|clause| clause.body)
         .filter(|body| body.braced)
     {
-        let body_start = start + body.start + 1;
-        let body_end = start + body.end.saturating_sub(1);
+        // The case-list owner alone defines the braced arm's interior. Its
+        // end is already exclusive (at the closing brace), so subtracting
+        // from it would shave the final byte of the nested command and make
+        // this closure disagree with the reference walker.
+        let body_range = body.content_range();
+        let body_start = start + body_range.start;
+        let body_end = start + body_range.end;
         if let Some(script) = full.get(body_start..body_end) {
             walk(
                 full,
@@ -687,6 +719,133 @@ mod tests {
                 .iter()
                 .any(|fact| { fact.args.iter().any(|arg| arg == "/Common/inert_dg") }),
             "a substitution inside an expression double quote is executable"
+        );
+    }
+
+    #[test]
+    fn inventory_keeps_complete_case_arm_spans_for_reference_consumers() {
+        let source = concat!(
+            "when HTTP_REQUEST {\n",
+            "  switch $route {\n",
+            "    first { pool /Common/\u{2603} }\n",
+            "    nested { if {$enabled} { pool /Common/nested } }\n",
+            "    default { pool /Common/final }\n",
+            "  }\n",
+            "}\n",
+        );
+        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let facts = irules_executable_commands(source, registry);
+        let pools: Vec<_> = facts.iter().filter(|fact| fact.command == "pool").collect();
+        assert_eq!(
+            pools
+                .iter()
+                .map(|fact| fact.args[0].as_str())
+                .collect::<Vec<_>>(),
+            ["/Common/\u{2603}", "/Common/nested", "/Common/final"],
+        );
+        for fact in pools {
+            assert_eq!(
+                &source[fact.span.as_range()],
+                format!("pool {}", fact.args[0]),
+                "an executable span includes its final body byte"
+            );
+        }
+
+        let references = crate::extract_irules_object_references(source, None, registry);
+        assert_eq!(
+            references
+                .iter()
+                .map(|reference| reference.name.as_str())
+                .collect::<Vec<_>>(),
+            ["/Common/\u{2603}", "/Common/nested", "/Common/final"],
+            "the shared reference walk accepts every complete closure span",
+        );
+
+        let malformed =
+            commands("when HTTP_REQUEST { switch x { first { pool /Common/live } odd } }");
+        assert!(
+            malformed.iter().all(|fact| fact.command != "pool"),
+            "a malformed clause list errors before any arm runs: {malformed:?}"
+        );
+    }
+
+    #[test]
+    fn inventory_collects_live_braced_expr_variables_and_keeps_command_ownership() {
+        let source = concat!(
+            "when HTTP_REQUEST {\n",
+            "  set marker \"\u{2603}\"\n",
+            "  if {$static::maintenance && $static::table($static::slot) && ${static::braced} && [set static::from_command 1]} {}\n",
+            "  if {\"$static::quoted\" eq {${static::braced_data}}} {}\n",
+            "  if \"$static::word_timed +\" {}\n",
+            "  if {$static::broken +} {}\n",
+            "}\n",
+        );
+        let facts = commands(source);
+        let live = facts
+            .iter()
+            .find(|fact| {
+                fact.command == "if"
+                    && fact
+                        .args
+                        .first()
+                        .is_some_and(|arg| arg.contains("static::maintenance"))
+            })
+            .expect("live braced expression command");
+        assert_eq!(
+            live.variable_names,
+            [
+                "static::maintenance",
+                "static::table($static::slot)",
+                "static::slot",
+                "static::braced",
+            ],
+        );
+        assert!(
+            !live
+                .variable_names
+                .iter()
+                .any(|name| name.contains("from_command")),
+            "the nested command owns its script variable facts"
+        );
+        assert!(facts.iter().any(|fact| {
+            fact.command == "set"
+                && fact
+                    .args
+                    .first()
+                    .is_some_and(|arg| arg == "static::from_command")
+        }));
+        let quoted_in_braced_expr = facts
+            .iter()
+            .find(|fact| {
+                fact.command == "if"
+                    && fact
+                        .args
+                        .first()
+                        .is_some_and(|arg| arg.contains("static::quoted"))
+            })
+            .expect("quoted operand inside braced expression");
+        assert_eq!(quoted_in_braced_expr.variable_names, ["static::quoted"]);
+        assert!(facts.iter().all(|fact| {
+            !(fact.command == "if"
+                && fact
+                    .variable_names
+                    .iter()
+                    .any(|name| matches!(name.as_str(), "static::braced_data" | "static::broken")))
+        }));
+        let quoted = facts
+            .iter()
+            .find(|fact| {
+                fact.command == "if"
+                    && fact
+                        .args
+                        .first()
+                        .is_some_and(|arg| arg.contains("word_timed"))
+            })
+            .expect("quoted expression command");
+        assert_eq!(
+            quoted.variable_names,
+            ["static::word_timed"],
+            "a quoted word substitutes before expr rejects its trailing operator"
         );
     }
 

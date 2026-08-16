@@ -379,8 +379,9 @@ impl<'a> CommentLineWalker<'a> {
             let Some(body) = clause.body.filter(|body| body.braced) else {
                 continue;
             };
-            let start = content_start + body.start + 1;
-            let end = content_start + body.end;
+            let range = body.content_range();
+            let start = content_start + range.start;
+            let end = content_start + range.end;
             let Some(arm) = script.get(start..end) else {
                 continue;
             };
