@@ -45,6 +45,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::LazyLock;
 
 use regex::Regex;
+use tcl_core_types::DiagCode;
 use tcl_irules::extract_irules_event_handlers;
 use tcl_lexer::LineIndex;
 
@@ -52,6 +53,22 @@ use crate::lint::{ModelView, resolve_name};
 use crate::model::ProfileType;
 use crate::parser::driver::BigipConfig;
 use crate::range::Range;
+
+/// BIG-IP model diagnostics emitted by this validator.
+pub const BIGIP_DIAGNOSTIC_CODES: &[DiagCode] = &[
+    DiagCode::Bigip6001,
+    DiagCode::Bigip6002,
+    DiagCode::Bigip6003,
+    DiagCode::Bigip6004,
+    DiagCode::Bigip6005,
+    DiagCode::Bigip6006,
+    DiagCode::Bigip6007,
+    DiagCode::Bigip6008,
+    DiagCode::Bigip6009,
+    DiagCode::Bigip6010,
+    DiagCode::Bigip6011,
+    DiagCode::Bigip6012,
+];
 
 /// Severity of a config diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -232,7 +249,7 @@ fn check_irule_data_groups(
     for (start, end, dg_name) in iter_class_dg_references(&rule.source) {
         if resolve_name(&dg_name, &view.data_groups, view.default_partition).is_none() {
             out.push(ConfigDiagnostic {
-                code: "BIGIP6001".to_owned(),
+                code: DiagCode::Bigip6001.as_str().to_owned(),
                 message: format!("Data-group '{dg_name}' not found in BIG-IP configuration."),
                 severity: DiagSeverity::Warning,
                 subject: ConfigDiagnosticSubject::IRule,
@@ -261,7 +278,7 @@ fn check_irule_pools(
         }
         if resolve_name(pool_name, &view.pools, view.default_partition).is_none() {
             out.push(ConfigDiagnostic {
-                code: "BIGIP6002".to_owned(),
+                code: DiagCode::Bigip6002.as_str().to_owned(),
                 message: format!("Pool '{pool_name}' not found in BIG-IP configuration."),
                 severity: DiagSeverity::Warning,
                 subject: ConfigDiagnosticSubject::IRule,
@@ -289,7 +306,7 @@ fn check_irule_snatpools(
         }
         if resolve_name(sp_name, &view.snat_pools, view.default_partition).is_none() {
             out.push(ConfigDiagnostic {
-                code: "BIGIP6007".to_owned(),
+                code: DiagCode::Bigip6007.as_str().to_owned(),
                 message: format!("SNAT pool '{sp_name}' not found in BIG-IP configuration."),
                 severity: DiagSeverity::Warning,
                 subject: ConfigDiagnosticSubject::IRule,
@@ -320,7 +337,7 @@ fn check_virtual_rules(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
         for rule_ref in vs.rules.paths() {
             if seen.contains(&rule_ref) {
                 out.push(ConfigDiagnostic {
-                    code: "BIGIP6009".to_owned(),
+                    code: DiagCode::Bigip6009.as_str().to_owned(),
                     message: format!(
                         "Virtual server '{}' has duplicate iRule attachment '{rule_ref}'.",
                         vs.name
@@ -334,7 +351,7 @@ fn check_virtual_rules(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
 
             if resolve_name(&rule_ref, &view.rules, view.default_partition).is_none() {
                 out.push(ConfigDiagnostic {
-                    code: "BIGIP6003".to_owned(),
+                    code: DiagCode::Bigip6003.as_str().to_owned(),
                     message: format!(
                         "Virtual server '{}' references iRule '{rule_ref}' which is not defined.",
                         vs.name
@@ -380,7 +397,7 @@ fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<Con
                 .collect::<Vec<_>>()
                 .join(", ");
             out.push(ConfigDiagnostic {
-                code: "BIGIP6012".to_owned(),
+                code: DiagCode::Bigip6012.as_str().to_owned(),
                 message: format!(
                     "Virtual server '{}' attaches iRules {names} which all handle event \
                      '{event}' at priority {priority}; execution order between them is ambiguous.",
@@ -401,7 +418,7 @@ fn check_virtual_pools(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
             && resolve_name(&vs.pool, &view.pools, view.default_partition).is_none()
         {
             out.push(ConfigDiagnostic {
-                code: "BIGIP6005".to_owned(),
+                code: DiagCode::Bigip6005.as_str().to_owned(),
                 message: format!(
                     "Virtual server '{}' references pool '{}' which is not defined.",
                     vs.name, vs.pool
@@ -436,7 +453,7 @@ fn check_virtual_profile_requirements(view: &ModelView<'_>, out: &mut Vec<Config
             }
             if !has_http && HTTP_COMMANDS_RE.is_match(&rule.source) {
                 out.push(ConfigDiagnostic {
-                    code: "BIGIP6004".to_owned(),
+                    code: DiagCode::Bigip6004.as_str().to_owned(),
                     message: format!(
                         "iRule '{}' on virtual '{}' uses HTTP:: commands but no HTTP profile is attached.",
                         rule.name, vs.name
@@ -448,7 +465,7 @@ fn check_virtual_profile_requirements(view: &ModelView<'_>, out: &mut Vec<Config
             }
             if !has_ssl && SSL_COMMANDS_RE.is_match(&rule.source) {
                 out.push(ConfigDiagnostic {
-                    code: "BIGIP6004".to_owned(),
+                    code: DiagCode::Bigip6004.as_str().to_owned(),
                     message: format!(
                         "iRule '{}' on virtual '{}' uses SSL:: commands but no SSL profile is attached.",
                         rule.name, vs.name
@@ -499,7 +516,7 @@ fn check_virtual_persistence(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnosti
                 });
                 if !in_vs {
                     out.push(ConfigDiagnostic {
-                        code: "BIGIP6010".to_owned(),
+                        code: DiagCode::Bigip6010.as_str().to_owned(),
                         message: format!(
                             "iRule '{}' on virtual '{}' uses persistence profile '{persist_name}' \
                              which is not attached to the virtual server.",
@@ -530,7 +547,7 @@ fn check_unused_data_groups(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic
     for (dg_path, dg) in view.data_groups.iter() {
         if !referenced.contains(dg_path) {
             out.push(ConfigDiagnostic {
-                code: "BIGIP6006".to_owned(),
+                code: DiagCode::Bigip6006.as_str().to_owned(),
                 message: format!(
                     "Data-group '{}' is defined but not referenced by any iRule in this configuration.",
                     dg.name
@@ -548,7 +565,7 @@ fn check_empty_pools(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
     for (_path, pool) in view.pools.iter() {
         if pool.members.is_empty() {
             out.push(ConfigDiagnostic {
-                code: "BIGIP6008".to_owned(),
+                code: DiagCode::Bigip6008.as_str().to_owned(),
                 message: format!("Pool '{}' has no members defined.", pool.name),
                 severity: DiagSeverity::Hint,
                 subject: ConfigDiagnosticSubject::Pool,
@@ -580,7 +597,7 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
             let net_ok = record.trim().parse::<ipnet::IpNet>().is_ok();
             if !addr_ok && !net_ok {
                 out.push(ConfigDiagnostic {
-                    code: "BIGIP6011".to_owned(),
+                    code: DiagCode::Bigip6011.as_str().to_owned(),
                     message: format!(
                         "Invalid IP address '{record}' in IP-type data-group '{}'",
                         dg.name
@@ -829,5 +846,23 @@ mod tests {
     fn bigip6006_quiet_when_data_group_is_referenced() {
         let src = "ltm data-group internal /Common/used {\n  type string\n  records {\n    foo { }\n  }\n}\nltm rule /Common/r {\n  when HTTP_REQUEST {\n    if { [class match [HTTP::host] equals /Common/used] } { }\n  }\n}\n";
         assert!(!has(src, "BIGIP6006"));
+    }
+
+    #[test]
+    fn bigip_diagnostic_catalogue_is_complete_and_user_configurable() {
+        let expected: Vec<String> = (6001..=6012).map(|n| format!("BIGIP{n}")).collect();
+        let actual: Vec<_> = BIGIP_DIAGNOSTIC_CODES
+            .iter()
+            .map(|code| code.as_str().to_owned())
+            .collect();
+        assert_eq!(actual, expected);
+        for code in BIGIP_DIAGNOSTIC_CODES {
+            assert_eq!(
+                code.diag_section(),
+                Some(tcl_core_types::DiagSection::Bigip)
+            );
+            assert!(!code.is_internal());
+            assert!(!code.is_reserved());
+        }
     }
 }

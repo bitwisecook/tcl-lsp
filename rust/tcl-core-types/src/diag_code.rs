@@ -87,6 +87,8 @@ pub enum DiagSection {
     IrulesSecurity,
     /// iRules variable-scoping checks.
     IrulesVariable,
+    /// BIG-IP configuration-model checks.
+    Bigip,
     /// `tclpkg` package-manager diagnostics.
     Tclpkg,
 }
@@ -107,6 +109,7 @@ impl DiagSection {
             Self::Irules => "irules",
             Self::IrulesSecurity => "irules_security",
             Self::IrulesVariable => "irules_variable",
+            Self::Bigip => "bigip",
             Self::Tclpkg => "tclpkg",
         }
     }
@@ -428,6 +431,18 @@ diagnostic_codes! {
     Irule3101 => "IRULE3101", diag(IrulesSecurity, true, "`HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.");
     Irule3102 => "IRULE3102", diag(IrulesSecurity, true, "`HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.");
     Irule3103 => "IRULE3103", diag_internal(IrulesSecurity, true, "Manual split/match of an un-normalised URI getter — parse-differential / traversal risk.");
+    Bigip6001 => "BIGIP6001", diag(Bigip, true, "iRule references a data group not found in the configuration.");
+    Bigip6002 => "BIGIP6002", diag(Bigip, true, "iRule references a pool not found in the configuration.");
+    Bigip6003 => "BIGIP6003", diag(Bigip, true, "iRule contains a dynamic pool reference that cannot be validated statically.");
+    Bigip6004 => "BIGIP6004", diag(Bigip, true, "Virtual server references an object not found in the configuration.");
+    Bigip6005 => "BIGIP6005", diag(Bigip, true, "Pool has no members.");
+    Bigip6006 => "BIGIP6006", diag(Bigip, true, "Data group has duplicate keys.");
+    Bigip6007 => "BIGIP6007", diag(Bigip, true, "iRule references a virtual server not found in the configuration.");
+    Bigip6008 => "BIGIP6008", diag(Bigip, true, "iApp presentation and implementation variables do not agree.");
+    Bigip6009 => "BIGIP6009", diag(Bigip, true, "iRule contains a dynamic virtual-server reference that cannot be validated statically.");
+    Bigip6010 => "BIGIP6010", diag(Bigip, true, "Virtual server has a missing or invalid source-address-translation pool reference.");
+    Bigip6011 => "BIGIP6011", diag(Bigip, true, "Virtual server references a persistence profile not found in the configuration.");
+    Bigip6012 => "BIGIP6012", diag(Bigip, true, "Attached iRules handle the same event at the same effective priority.");
     Irule4001 => "IRULE4001", diag(IrulesVariable, true, "Write to `static::` variable outside `RULE_INIT`.");
     Irule4002 => "IRULE4002", diag(IrulesVariable, true, "Generic `static::` variable name — collision likely across iRules.");
     Irule4003 => "IRULE4003", diag(IrulesVariable, true, "Variable scoping concern across events.");

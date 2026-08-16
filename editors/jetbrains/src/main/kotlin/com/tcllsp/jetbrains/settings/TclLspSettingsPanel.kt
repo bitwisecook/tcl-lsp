@@ -242,6 +242,20 @@ class TclLspSettingsPanel {
     private val diagIRULE4003 = JBCheckBox("IRULE4003: Variable scoping concern across events")
     private val diagIRULE4004 = JBCheckBox("IRULE4004: Constant set in per-request event could be hoisted t...")
     private val diagIRULE4005 = JBCheckBox("IRULE4005: Potential race")
+
+    // Diagnostics — BIG-IP Configuration
+    private val diagBIGIP6001 = JBCheckBox("BIGIP6001: iRule references a data group not found in the confi...")
+    private val diagBIGIP6002 = JBCheckBox("BIGIP6002: iRule references a pool not found in the configuration")
+    private val diagBIGIP6003 = JBCheckBox("BIGIP6003: iRule contains a dynamic pool reference that cannot ...")
+    private val diagBIGIP6004 = JBCheckBox("BIGIP6004: Virtual server references an object not found in the...")
+    private val diagBIGIP6005 = JBCheckBox("BIGIP6005: Pool has no members")
+    private val diagBIGIP6006 = JBCheckBox("BIGIP6006: Data group has duplicate keys")
+    private val diagBIGIP6007 = JBCheckBox("BIGIP6007: iRule references a virtual server not found in the c...")
+    private val diagBIGIP6008 = JBCheckBox("BIGIP6008: iApp presentation and implementation variables do no...")
+    private val diagBIGIP6009 = JBCheckBox("BIGIP6009: iRule contains a dynamic virtual-server reference th...")
+    private val diagBIGIP6010 = JBCheckBox("BIGIP6010: Virtual server has a missing or invalid source-addre...")
+    private val diagBIGIP6011 = JBCheckBox("BIGIP6011: Virtual server references a persistence profile not ...")
+    private val diagBIGIP6012 = JBCheckBox("BIGIP6012: Attached iRules handle the same event at the same ef...")
     // @generated:diag-checkboxes:end
 
     // XC Diagnostics
@@ -441,6 +455,14 @@ class TclLspSettingsPanel {
             diagIRULE4005,
         ).forEach { diagIRulePanel.add(it) }
         builder.addComponent(diagIRulePanel)
+
+        builder.addComponent(TitledSeparator("Diagnostics — BIG-IP Configuration"))
+        val diagPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        listOf(
+            diagBIGIP6001, diagBIGIP6002, diagBIGIP6003, diagBIGIP6004, diagBIGIP6005, diagBIGIP6006,
+            diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
+        ).forEach { diagPanel.add(it) }
+        builder.addComponent(diagPanel)
         // @generated:diag-ui:end
 
         // Style section
@@ -687,6 +709,18 @@ class TclLspSettingsPanel {
             diagIRULE4003.isSelected != s.diagnosticIRULE4003 ||
             diagIRULE4004.isSelected != s.diagnosticIRULE4004 ||
             diagIRULE4005.isSelected != s.diagnosticIRULE4005 ||
+            diagBIGIP6001.isSelected != s.diagnosticBIGIP6001 ||
+            diagBIGIP6002.isSelected != s.diagnosticBIGIP6002 ||
+            diagBIGIP6003.isSelected != s.diagnosticBIGIP6003 ||
+            diagBIGIP6004.isSelected != s.diagnosticBIGIP6004 ||
+            diagBIGIP6005.isSelected != s.diagnosticBIGIP6005 ||
+            diagBIGIP6006.isSelected != s.diagnosticBIGIP6006 ||
+            diagBIGIP6007.isSelected != s.diagnosticBIGIP6007 ||
+            diagBIGIP6008.isSelected != s.diagnosticBIGIP6008 ||
+            diagBIGIP6009.isSelected != s.diagnosticBIGIP6009 ||
+            diagBIGIP6010.isSelected != s.diagnosticBIGIP6010 ||
+            diagBIGIP6011.isSelected != s.diagnosticBIGIP6011 ||
+            diagBIGIP6012.isSelected != s.diagnosticBIGIP6012 ||
             // @generated:diag-dirty:end
             // XC Diagnostics
             xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
@@ -934,6 +968,18 @@ class TclLspSettingsPanel {
         s.diagnosticIRULE4003 = diagIRULE4003.isSelected
         s.diagnosticIRULE4004 = diagIRULE4004.isSelected
         s.diagnosticIRULE4005 = diagIRULE4005.isSelected
+        s.diagnosticBIGIP6001 = diagBIGIP6001.isSelected
+        s.diagnosticBIGIP6002 = diagBIGIP6002.isSelected
+        s.diagnosticBIGIP6003 = diagBIGIP6003.isSelected
+        s.diagnosticBIGIP6004 = diagBIGIP6004.isSelected
+        s.diagnosticBIGIP6005 = diagBIGIP6005.isSelected
+        s.diagnosticBIGIP6006 = diagBIGIP6006.isSelected
+        s.diagnosticBIGIP6007 = diagBIGIP6007.isSelected
+        s.diagnosticBIGIP6008 = diagBIGIP6008.isSelected
+        s.diagnosticBIGIP6009 = diagBIGIP6009.isSelected
+        s.diagnosticBIGIP6010 = diagBIGIP6010.isSelected
+        s.diagnosticBIGIP6011 = diagBIGIP6011.isSelected
+        s.diagnosticBIGIP6012 = diagBIGIP6012.isSelected
         // @generated:diag-apply:end
         s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
@@ -1198,6 +1244,18 @@ class TclLspSettingsPanel {
         diagIRULE4003.isSelected = s.diagnosticIRULE4003
         diagIRULE4004.isSelected = s.diagnosticIRULE4004
         diagIRULE4005.isSelected = s.diagnosticIRULE4005
+        diagBIGIP6001.isSelected = s.diagnosticBIGIP6001
+        diagBIGIP6002.isSelected = s.diagnosticBIGIP6002
+        diagBIGIP6003.isSelected = s.diagnosticBIGIP6003
+        diagBIGIP6004.isSelected = s.diagnosticBIGIP6004
+        diagBIGIP6005.isSelected = s.diagnosticBIGIP6005
+        diagBIGIP6006.isSelected = s.diagnosticBIGIP6006
+        diagBIGIP6007.isSelected = s.diagnosticBIGIP6007
+        diagBIGIP6008.isSelected = s.diagnosticBIGIP6008
+        diagBIGIP6009.isSelected = s.diagnosticBIGIP6009
+        diagBIGIP6010.isSelected = s.diagnosticBIGIP6010
+        diagBIGIP6011.isSelected = s.diagnosticBIGIP6011
+        diagBIGIP6012.isSelected = s.diagnosticBIGIP6012
         // @generated:diag-reset:end
         xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 

@@ -62,6 +62,7 @@ use tcl_core_types::DiagCode;
 /// in the LSP server rather than going through `DiagCode` construction at
 /// all.
 const SEARCH_ROOTS: &[&str] = &[
+    "rust/tcl-bigip/src",
     "rust/tcl-compiler/src",
     "rust/tcl-lsp-core/src",
     "rust/tcl-lsp-server/src",

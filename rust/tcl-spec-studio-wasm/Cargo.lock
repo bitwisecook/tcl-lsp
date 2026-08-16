@@ -376,6 +376,7 @@ dependencies = [
  "regex",
  "serde_json",
  "sha2",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",

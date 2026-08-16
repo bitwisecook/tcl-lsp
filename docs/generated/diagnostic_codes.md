@@ -154,6 +154,18 @@
 | IRULE4003 | irules_variable | Variable scoping concern across events. | ✓ |
 | IRULE4004 | irules_variable | Constant `set` in per-request event could be hoisted to an earlier once-per-connection event. | ✓ |
 | IRULE4005 | irules_variable | Potential race — `static::` variable written outside `RULE_INIT` and read in another event. | ✓ |
+| BIGIP6001 | bigip | iRule references a data group not found in the configuration. | ✓ |
+| BIGIP6002 | bigip | iRule references a pool not found in the configuration. | ✓ |
+| BIGIP6003 | bigip | iRule contains a dynamic pool reference that cannot be validated statically. | ✓ |
+| BIGIP6004 | bigip | Virtual server references an object not found in the configuration. | ✓ |
+| BIGIP6005 | bigip | Pool has no members. | ✓ |
+| BIGIP6006 | bigip | Data group has duplicate keys. | ✓ |
+| BIGIP6007 | bigip | iRule references a virtual server not found in the configuration. | ✓ |
+| BIGIP6008 | bigip | iApp presentation and implementation variables do not agree. | ✓ |
+| BIGIP6009 | bigip | iRule contains a dynamic virtual-server reference that cannot be validated statically. | ✓ |
+| BIGIP6010 | bigip | Virtual server has a missing or invalid source-address-translation pool reference. | ✓ |
+| BIGIP6011 | bigip | Virtual server references a persistence profile not found in the configuration. | ✓ |
+| BIGIP6012 | bigip | Attached iRules handle the same event at the same effective priority. | ✓ |
 | W130 | tclpkg | tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'. | ✓ |
 | W131 | tclpkg | tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'. | ✓ |
 | W132 | tclpkg | tclpkg.lock integrity mismatch — CAS hash differs from lockfile. | ✓ |
