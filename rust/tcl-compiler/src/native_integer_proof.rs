@@ -270,7 +270,12 @@ pub fn prove_native_integer_adds(
     // operand's value depends on it (`0755` is 493 up to 8.6, 755 from 9.0), and
     // this proof turns a range into a native-width decision, so it must be the
     // target's grammar rather than whatever is ambient.
-    let numbers = numbers_for_dialect(unit.ir_module.dialect.as_deref());
+    let numbers = numbers_for_dialect(
+        unit.ir_module
+            .dialect
+            .as_deref()
+            .map(tcl_dialect::DialectProfile::by_name),
+    );
     let intervals = compute_intervals_with(
         &function_unit.cfg,
         &function_unit.ssa,
@@ -438,6 +443,10 @@ struct CallerRangeEvidence {
     dispatch_dependencies: DispatchDependencies,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the caller-evidence walk shares one conservative decline path across every supported call shape"
+)]
 fn collect_caller_ranges(
     unit: &CompilationUnit,
     function: &str,
@@ -487,7 +496,12 @@ fn collect_caller_ranges(
             &caller.cfg,
             &caller.ssa,
             &caller.sccp.values,
-            numbers_for_dialect(unit.ir_module.dialect.as_deref()),
+            numbers_for_dialect(
+                unit.ir_module
+                    .dialect
+                    .as_deref()
+                    .map(tcl_dialect::DialectProfile::by_name),
+            ),
         );
         let caller_observability = analyse_var_observability(&caller.cfg, registry);
         for (param, argument) in params.iter().zip(args.iter()) {

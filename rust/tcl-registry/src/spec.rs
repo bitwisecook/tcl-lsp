@@ -1926,16 +1926,15 @@ impl CommandSpec {
     };
 
     /// Run this command's constant folder for `args` under the optimiser's
-    /// `dialect` (`"tcl8.4"` … `"tcl9.0"`, or `None`/unversioned).  All the
-    /// dialect interpretation lives here in the registry layer: the
-    /// version-aware [`Self::const_fold_versioned`] is tried first (the dialect
-    /// is mapped to a [`TclVersion`] for it), falling back to the
-    /// version-invariant [`Self::const_fold`].  Downstream consumers just pass
-    /// the dialect they already have.
+    /// resolved Tcl `version`, or `None` when the caller has no version fact.
+    /// The version-aware [`Self::const_fold_versioned`] is tried first,
+    /// falling back to the version-invariant [`Self::const_fold`]. Dialect
+    /// names are resolved at the ingestion boundary; the registry never
+    /// reinterprets a free-form spelling.
     #[must_use]
-    pub fn run_const_fold(&self, args: &[&str], dialect: Option<&str>) -> Option<String> {
+    pub fn run_const_fold(&self, args: &[&str], version: Option<TclVersion>) -> Option<String> {
         if let Some(vf) = self.const_fold_versioned {
-            vf(args, TclVersion::from_dialect(dialect))
+            vf(args, version)
         } else {
             self.const_fold?(args)
         }
@@ -3140,14 +3139,13 @@ impl SubCommand {
         }
     }
 
-    /// Run this subcommand's constant folder for `args` under `dialect` —
-    /// version-aware [`Self::const_fold_versioned`] first (mapping the dialect
-    /// to a [`TclVersion`]), else the invariant [`Self::const_fold`].  See
-    /// [`CommandSpec::run_const_fold`].
+    /// Run this subcommand's constant folder for `args` under a resolved Tcl
+    /// `version`, trying [`Self::const_fold_versioned`] first and then the
+    /// invariant [`Self::const_fold`]. See [`CommandSpec::run_const_fold`].
     #[must_use]
-    pub fn run_const_fold(&self, args: &[&str], dialect: Option<&str>) -> Option<String> {
+    pub fn run_const_fold(&self, args: &[&str], version: Option<TclVersion>) -> Option<String> {
         if let Some(vf) = self.const_fold_versioned {
-            vf(args, TclVersion::from_dialect(dialect))
+            vf(args, version)
         } else {
             self.const_fold?(args)
         }

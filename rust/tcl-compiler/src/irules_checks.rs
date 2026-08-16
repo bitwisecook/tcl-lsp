@@ -36,6 +36,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
+use tcl_dialect::DialectSet;
 
 use tcl_lexer::Span;
 use tcl_registry::events::{
@@ -49,7 +50,6 @@ use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
-use crate::taint::is_irules_dialect;
 use crate::value_shapes::parse_command_substitution;
 
 /// Process-wide iRules command registry, used to derive the HTTP-flow command
@@ -333,10 +333,10 @@ pub(crate) fn is_unnormalised_getter(
 pub fn find_unnormalised_getter_warnings(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: DialectSet,
 ) -> Vec<IrulesCheckWarning> {
     let mut out: Vec<IrulesCheckWarning> = Vec::new();
-    if !is_irules_dialect(dialect) {
+    if !dialect.contains(DialectSet::IRULES) {
         return out;
     }
 
@@ -517,10 +517,10 @@ fn drop_flow_leaf(st: &DropFlowState, stmt: &Statement) -> DropFlowState {
 #[must_use]
 pub fn find_unguarded_drop_warnings(
     cu: &CompilationUnit,
-    dialect: Option<&str>,
+    dialect: DialectSet,
 ) -> Vec<IrulesCheckWarning> {
     let mut out: Vec<IrulesCheckWarning> = Vec::new();
-    if !is_irules_dialect(dialect) {
+    if !dialect.contains(DialectSet::IRULES) {
         return out;
     }
     let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
@@ -853,9 +853,9 @@ fn scan_side_switch_body(
 pub fn find_collect_flow_warnings(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: DialectSet,
 ) -> Vec<IrulesCheckWarning> {
-    if !is_irules_dialect(dialect) {
+    if !dialect.contains(DialectSet::IRULES) {
         return Vec::new();
     }
     let (state, events_seen) = collect_flow_state(cu, registry);
@@ -1100,10 +1100,10 @@ struct HttpFlowState {
 #[must_use]
 pub fn find_http_flow_warnings(
     cu: &CompilationUnit,
-    dialect: Option<&str>,
+    dialect: DialectSet,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !is_irules_dialect(dialect) {
+    if !dialect.contains(DialectSet::IRULES) {
         return out;
     }
     let events = EventRegistry::build();
@@ -1471,10 +1471,10 @@ where
 #[must_use]
 pub fn find_hoistable_set_warnings(
     cu: &CompilationUnit,
-    dialect: Option<&str>,
+    dialect: DialectSet,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !is_irules_dialect(dialect) {
+    if !dialect.contains(DialectSet::IRULES) {
         return out;
     }
     let events = EventRegistry::build();
@@ -1623,11 +1623,11 @@ fn is_generic_static_name(var_name: &str, compiled: &[regex::Regex]) -> bool {
 #[must_use]
 pub fn find_generic_static_name_warnings(
     cu: &CompilationUnit,
-    dialect: Option<&str>,
+    dialect: DialectSet,
     generic_patterns: Option<&[String]>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !is_irules_dialect(dialect) {
+    if !dialect.contains(DialectSet::IRULES) {
         return out;
     }
     let compiled = compile_generic_patterns(generic_patterns);
@@ -1709,7 +1709,7 @@ mod tests {
 
     fn warnings_for_irules(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_unnormalised_getter_warnings(&cu, &registry(), Some("f5-irules"))
+        find_unnormalised_getter_warnings(&cu, &registry(), DialectSet::IRULES)
     }
 
     #[test]
@@ -1767,8 +1767,12 @@ mod tests {
     #[test]
     fn irule3102_non_irules_dialect_returns_empty() {
         let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry(), false);
-        assert!(find_unnormalised_getter_warnings(&cu, &registry(), None).is_empty());
-        assert!(find_unnormalised_getter_warnings(&cu, &registry(), Some("tcl")).is_empty());
+        assert!(
+            find_unnormalised_getter_warnings(&cu, &registry(), DialectSet::empty()).is_empty()
+        );
+        assert!(
+            find_unnormalised_getter_warnings(&cu, &registry(), DialectSet::ALL_TCL).is_empty()
+        );
     }
 
     #[test]
@@ -1839,7 +1843,7 @@ mod tests {
 
     fn drop_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_unguarded_drop_warnings(&cu, Some("f5-irules"))
+        find_unguarded_drop_warnings(&cu, DialectSet::IRULES)
     }
 
     #[test]
@@ -1881,9 +1885,9 @@ mod tests {
     #[test]
     fn irule5002_only_in_irules_dialect() {
         let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { drop }", &registry(), false);
-        let none_dialect = find_unguarded_drop_warnings(&cu, None);
+        let none_dialect = find_unguarded_drop_warnings(&cu, DialectSet::empty());
         assert!(none_dialect.is_empty(), "got {none_dialect:?}");
-        let tcl_dialect = find_unguarded_drop_warnings(&cu, Some("tcl"));
+        let tcl_dialect = find_unguarded_drop_warnings(&cu, DialectSet::ALL_TCL);
         assert!(tcl_dialect.is_empty(), "got {tcl_dialect:?}");
     }
 
@@ -2058,7 +2062,7 @@ mod tests {
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let reg = registry();
         let cu = CompilationUnit::build_for(source, &reg, false);
-        find_collect_flow_warnings(&cu, &reg, Some("f5-irules"))
+        find_collect_flow_warnings(&cu, &reg, DialectSet::IRULES)
     }
 
     #[test]
@@ -2384,7 +2388,7 @@ mod tests {
     fn collect_flow_only_in_irules_dialect() {
         let reg = registry();
         let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { TCP::collect }", &reg, false);
-        let none = find_collect_flow_warnings(&cu, &reg, None);
+        let none = find_collect_flow_warnings(&cu, &reg, DialectSet::empty());
         assert!(none.is_empty(), "got {none:?}");
     }
 
@@ -2392,7 +2396,7 @@ mod tests {
 
     fn http_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_http_flow_warnings(&cu, Some("f5-irules"))
+        find_http_flow_warnings(&cu, DialectSet::IRULES)
     }
 
     #[test]
@@ -2636,7 +2640,7 @@ mod tests {
 
     fn hoist_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_hoistable_set_warnings(&cu, Some("f5-irules"))
+        find_hoistable_set_warnings(&cu, DialectSet::IRULES)
     }
 
     #[test]
@@ -2729,7 +2733,7 @@ mod tests {
             "the control event must be guarded"
         );
 
-        let ws = find_hoistable_set_warnings(&cu, Some("f5-irules"));
+        let ws = find_hoistable_set_warnings(&cu, DialectSet::IRULES);
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "a guarded event's second write must suppress the hoist warning, got {ws:?}",
@@ -2776,7 +2780,7 @@ mod tests {
             &registry(),
             false,
         );
-        let none = find_hoistable_set_warnings(&cu, None);
+        let none = find_hoistable_set_warnings(&cu, DialectSet::empty());
         assert!(none.is_empty(), "got {none:?}");
     }
 
@@ -2784,12 +2788,12 @@ mod tests {
 
     fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_generic_static_name_warnings(&cu, Some("f5-irules"), None)
+        find_generic_static_name_warnings(&cu, DialectSet::IRULES, None)
     }
 
     fn generic_warnings_with(source: &str, patterns: &[String]) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_generic_static_name_warnings(&cu, Some("f5-irules"), Some(patterns))
+        find_generic_static_name_warnings(&cu, DialectSet::IRULES, Some(patterns))
     }
 
     #[test]
@@ -2830,7 +2834,7 @@ mod tests {
             &registry(),
             false,
         );
-        assert!(find_generic_static_name_warnings(&cu, None, None).is_empty());
+        assert!(find_generic_static_name_warnings(&cu, DialectSet::empty(), None).is_empty());
     }
 
     #[test]

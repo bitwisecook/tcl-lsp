@@ -66,6 +66,7 @@ use tcl_compiler::state_ssa::adapters::{
 use tcl_compiler::state_ssa::{CfgStatePosition, StateOp, StateSite};
 use tcl_compiler::taint::find_taint_warnings_for_cu;
 use tcl_compiler::world_state_ssa::{WorldStateSsaDecline, project_transition_facts};
+use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 use tcl_registry::available_dialects;
 // See the note in `lib.rs`: the explorer resolves against the active pack set.
@@ -1093,7 +1094,7 @@ fn serialise_world_ssa(result: &ExplorerResult) -> Value {
 pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = Some(result.dialect.as_str());
+    let dialect = DialectProfile::find(&result.dialect);
     let mut all = find_redundancies_for_cu(&result.unit, registry, dialect);
     all.extend(find_partial_redundancies_for_cu(
         &result.unit,
@@ -1144,7 +1145,7 @@ fn taint_severity(code: &str) -> &'static str {
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = Some(result.dialect.as_str());
+    let dialect = DialectProfile::find(&result.dialect);
     let out: Vec<Value> = find_taint_warnings_for_cu(&result.unit, registry, dialect)
         .iter()
         .map(|w| {
@@ -1193,28 +1194,32 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
 pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let passes: Vec<Value> = optimise_by_pass(&result.unit, registry, Some(&result.dialect))
-        .iter()
-        .map(|(pass, opts)| {
-            let optimisations: Vec<Value> = opts
-                .iter()
-                .map(|o| {
-                    json!({
-                        "code": o.code.as_str(),
-                        "message": o.message,
-                        "range": range_dict(o.span, li, source),
-                        "replacement": o.replacement,
-                    })
+    let passes: Vec<Value> = optimise_by_pass(
+        &result.unit,
+        registry,
+        DialectProfile::find(&result.dialect),
+    )
+    .iter()
+    .map(|(pass, opts)| {
+        let optimisations: Vec<Value> = opts
+            .iter()
+            .map(|o| {
+                json!({
+                    "code": o.code.as_str(),
+                    "message": o.message,
+                    "range": range_dict(o.span, li, source),
+                    "replacement": o.replacement,
                 })
-                .collect();
-            json!({
-                "id": pass.as_str(),
-                "label": pass.label(),
-                "count": optimisations.len(),
-                "optimisations": optimisations,
             })
+            .collect();
+        json!({
+            "id": pass.as_str(),
+            "label": pass.label(),
+            "count": optimisations.len(),
+            "optimisations": optimisations,
         })
-        .collect();
+    })
+    .collect();
     Value::Array(passes)
 }
 
@@ -2072,13 +2077,40 @@ fn serialise_memory_ssa(memory: &MemorySsaFunction) -> Value {
 pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = Some(result.dialect.as_str());
+    let dialect = DialectProfile::find(&result.dialect);
     let cu = &result.unit;
-    let mut warnings = find_unnormalised_getter_warnings(cu, registry, dialect);
-    warnings.extend(find_unguarded_drop_warnings(cu, dialect));
-    warnings.extend(find_collect_flow_warnings(cu, registry, dialect));
-    warnings.extend(find_http_flow_warnings(cu, dialect));
-    warnings.extend(find_hoistable_set_warnings(cu, dialect));
+    let mut warnings = find_unnormalised_getter_warnings(
+        cu,
+        registry,
+        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
+            profile.availability_mask
+        }),
+    );
+    warnings.extend(find_unguarded_drop_warnings(
+        cu,
+        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
+            profile.availability_mask
+        }),
+    ));
+    warnings.extend(find_collect_flow_warnings(
+        cu,
+        registry,
+        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
+            profile.availability_mask
+        }),
+    ));
+    warnings.extend(find_http_flow_warnings(
+        cu,
+        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
+            profile.availability_mask
+        }),
+    ));
+    warnings.extend(find_hoistable_set_warnings(
+        cu,
+        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
+            profile.availability_mask
+        }),
+    ));
 
     let out: Vec<Value> = warnings
         .iter()
@@ -2628,7 +2660,7 @@ fn serialise_source_map_units(result: &ExplorerResult) -> Value {
 fn serialise_stats(result: &ExplorerResult) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = Some(result.dialect.as_str());
+    let dialect = DialectProfile::find(&result.dialect);
 
     let unreachable: usize = result
         .all_snapshots()
@@ -2741,7 +2773,7 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = Some(result.dialect.as_str());
+    let dialect = DialectProfile::find(&result.dialect);
     let mut anns: Vec<Ann> = Vec::new();
 
     // Barriers (IR walk).

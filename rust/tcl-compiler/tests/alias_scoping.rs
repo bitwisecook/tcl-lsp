@@ -139,7 +139,7 @@ fn codes(src: &str) -> Vec<String> {
         .collect();
     let registry = registry();
     let cu = CompilationUnit::build_for(src, registry, false);
-    for d in run_all_checks(&cu, registry, Some(D)) {
+    for d in run_all_checks(&cu, registry, Some(tcl_dialect::DialectProfile::by_name(D))) {
         if d.code.is_optimisation() {
             continue;
         }

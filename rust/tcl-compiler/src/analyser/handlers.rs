@@ -1027,8 +1027,9 @@ impl Analyser {
         {
             return None;
         }
-        let dialect = &self.result.dialect;
-        let dialect = (!dialect.is_empty()).then_some(dialect.as_str());
+        let version = (!self.result.dialect.is_empty())
+            .then(|| tcl_dialect::DialectProfile::by_name(&self.result.dialect).runtime_version())
+            .flatten();
         let trusts = |name: &str| trust.trusts(name);
         let lookup = |name: &str| {
             self.lookup_dominating_const_string(name, scope_path)
@@ -1036,7 +1037,7 @@ impl Analyser {
         };
         crate::const_subst::ConstSubstCtx {
             registry: &registry,
-            dialect,
+            version,
             defining_class: defining_class.as_deref(),
             trusts: &trusts,
             lookup_var: &lookup,
@@ -7418,12 +7419,16 @@ impl Analyser {
                 .iter()
                 .map(|value| value.as_deref())
                 .collect::<Option<_>>()?;
-            let dialect = (!self.result.dialect.is_empty()).then_some(self.result.dialect.as_str());
+            let version = (!self.result.dialect.is_empty())
+                .then(|| {
+                    tcl_dialect::DialectProfile::by_name(&self.result.dialect).runtime_version()
+                })
+                .flatten();
             if spec.subcommands.is_empty() {
-                return spec.run_const_fold(&values, dialect);
+                return spec.run_const_fold(&values, version);
             }
             let (sub, rest) = values.split_first()?;
-            return spec.resolve_subcommand(sub)?.run_const_fold(rest, dialect);
+            return spec.resolve_subcommand(sub)?.run_const_fold(rest, version);
         }
 
         let qname = self.resolve_static_proc_name(proc_qname, head)?;

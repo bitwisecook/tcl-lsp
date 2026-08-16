@@ -247,17 +247,40 @@ fn irules_ops() -> HashSet<&'static str> {
     .collect()
 }
 
-/// Tokenise a Tcl expression string.
+/// Tokenise a Tcl expression string from a compatibility name boundary.
+///
+/// Internal typed callers should use [`tokenise_expr_for_profile`].
 #[must_use]
 pub fn tokenise_expr(source: &str, dialect: Option<&str>) -> Vec<ExprToken> {
-    let mut lex = Inner::new(source, dialect);
+    let mut lex = Inner::new(source, tcl_dialect::DialectProfile::by_opt_name(dialect));
     lex.run()
 }
 
-/// Tokenise and report whether unknown characters were skipped.
+/// Tokenise under an already-resolved dialect profile.
+#[must_use]
+pub fn tokenise_expr_for_profile(
+    source: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> Vec<ExprToken> {
+    let mut lex = Inner::new(source, profile);
+    lex.run()
+}
+
+/// Tokenise from a compatibility name boundary and report skipped characters.
+///
+/// Internal typed callers should use [`tokenise_expr_checked_for_profile`].
 #[must_use]
 pub fn tokenise_expr_checked(source: &str, dialect: Option<&str>) -> (Vec<ExprToken>, bool) {
-    let mut lex = Inner::new(source, dialect);
+    tokenise_expr_checked_for_profile(source, tcl_dialect::DialectProfile::by_opt_name(dialect))
+}
+
+/// Tokenise under an already-resolved profile and report skipped characters.
+#[must_use]
+pub fn tokenise_expr_checked_for_profile(
+    source: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> (Vec<ExprToken>, bool) {
+    let mut lex = Inner::new(source, profile);
     let tokens = lex.run();
     (tokens, lex.unknown)
 }
@@ -296,8 +319,7 @@ struct Inner<'s> {
 }
 
 impl<'s> Inner<'s> {
-    fn new(s: &'s str, dialect: Option<&'s str>) -> Self {
-        let profile = tcl_dialect::DialectProfile::by_opt_name(dialect);
+    fn new(s: &'s str, profile: &tcl_dialect::DialectProfile) -> Self {
         Self {
             b: s.as_bytes(),
             s,

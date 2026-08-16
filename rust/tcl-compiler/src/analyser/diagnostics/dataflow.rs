@@ -2035,7 +2035,9 @@ file; this call falls through to the 'unknown' handler."
             // The document's own numeral grammar: a divisor literal means what
             // this dialect says it means (`0755` is 493 up to 8.6, 755 from
             // 9.0), and this process analyses documents of several dialects.
-            crate::intervals::numbers_for_dialect(Some(self.dialect())),
+            crate::intervals::numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(
+                self.dialect(),
+            ))),
         ) {
             let span = fu.abs_span(finding.span);
             if span.is_empty() {
@@ -2083,7 +2085,9 @@ file; this call falls through to the 'unknown' handler."
             tcl_dialect::DialectProfile::by_name(self.dialect()).character_model(),
             // The document's own numeral grammar, alongside the character model
             // — both dialect-derived facts, both threaded rather than ambient.
-            crate::intervals::numbers_for_dialect(Some(self.dialect())),
+            crate::intervals::numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(
+                self.dialect(),
+            ))),
         );
         for f in findings {
             if f.span.is_empty() {

@@ -109,7 +109,7 @@ const D: &str = "tcl8.6";
 /// The numeral grammar of [`D`], threaded into every lattice-surface call the
 /// way the analyser threads the document's dialect.
 fn numbers() -> tcl_dialect::NumberSyntax {
-    numbers_for_dialect(Some(D))
+    numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(D)))
 }
 
 // ===========================================================================
@@ -1052,7 +1052,7 @@ mod dialect_numerals {
         );
         let cu = CompilationUnit::build_for(&src, registry_for_dialect(dialect), false);
         let fu = cu.procedures.get("::f").expect("::f lowered");
-        let numbers = numbers_for_dialect(Some(dialect));
+        let numbers = numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(dialect)));
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers);
         let gi = build_guard_index(&fu.cfg, &fu.ssa);
         let pc = pred_counts(fu);
@@ -1170,7 +1170,7 @@ mod dialect_numerals {
                 &fu.cfg,
                 &fu.ssa,
                 &fu.sccp.values,
-                numbers_for_dialect(Some(dialect)),
+                numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(dialect))),
             );
             let sym = fu.ssa.var_symbol("x")?;
             iv.get(&(sym, 1)).copied()
@@ -1191,10 +1191,22 @@ mod dialect_numerals {
     /// a nameless build falls back to 9.0 (the crate-wide convention).
     #[test]
     fn numbers_for_dialect_reads_the_profile_grammar() {
-        assert_eq!(numbers_for_dialect(Some("tcl8.4")), NumberSyntax::Tcl84);
-        assert_eq!(numbers_for_dialect(Some("tcl8.5")), NumberSyntax::Tcl85);
-        assert_eq!(numbers_for_dialect(Some("tcl8.6")), NumberSyntax::Tcl85);
-        assert_eq!(numbers_for_dialect(Some("tcl9.0")), NumberSyntax::Tcl90);
+        assert_eq!(
+            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl8.4"))),
+            NumberSyntax::Tcl84
+        );
+        assert_eq!(
+            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl8.5"))),
+            NumberSyntax::Tcl85
+        );
+        assert_eq!(
+            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))),
+            NumberSyntax::Tcl85
+        );
+        assert_eq!(
+            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))),
+            NumberSyntax::Tcl90
+        );
         assert_eq!(numbers_for_dialect(None), NumberSyntax::Tcl90);
     }
 }

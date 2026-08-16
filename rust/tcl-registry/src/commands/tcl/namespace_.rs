@@ -1281,11 +1281,13 @@ mod tests {
             .find(|s| s.name == "tail")
             .expect("tail subcommand");
         assert_eq!(
-            q.run_const_fold(&["::a::b::c"], Some("tcl9.0")).as_deref(),
+            q.run_const_fold(&["::a::b::c"], Some(tcl_dialect::TclVersion::V9_0))
+                .as_deref(),
             Some("::a::b")
         );
         assert_eq!(
-            t.run_const_fold(&["::a::b::c"], Some("tcl8.6")).as_deref(),
+            t.run_const_fold(&["::a::b::c"], Some(tcl_dialect::TclVersion::V8_6))
+                .as_deref(),
             Some("c")
         );
     }

@@ -39,7 +39,7 @@ const D: &str = "tcl8.6";
 fn diags(src: &str, dialect: &str) -> Vec<(String, String)> {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     let mut v: Vec<(String, String)> = Analyser::new()
         .analyse(src, dialect)
         .diagnostics

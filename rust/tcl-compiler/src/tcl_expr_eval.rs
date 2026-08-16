@@ -160,7 +160,7 @@ pub fn eval_tcl_expr_in_dialect(node: &ExprNode, env: &Env, dialect: &str) -> Op
     eval_with_config(
         node,
         env,
-        leading_zero_is_octal(dialect),
+        leading_zero_is_octal(tcl_dialect::DialectProfile::by_name(dialect)),
         math_func_ceiling_for_dialect(dialect),
         tcl_dialect::DialectProfile::by_name(dialect).is_irules(),
     )
@@ -188,10 +188,9 @@ pub fn eval_tcl_expr_with_octal(
 }
 
 /// Like [`eval_tcl_expr_with_octal`] but for the (more common) optimiser call
-/// sites that already have both an `octal` policy *and* the dialect string
-/// itself locally in scope (`PassContext::dialect` / a `dialect: Option<&str>`
-/// parameter) — so, unlike `eval_tcl_expr_with_octal`'s plain `None`-dialect
-/// callers, these can resolve [`FoldOps::is_irules`] precisely instead of
+/// sites that already have both an `octal` policy and a resolved dialect
+/// profile in scope — so, unlike `eval_tcl_expr_with_octal`'s plain
+/// `None`-profile callers, these can resolve [`FoldOps::is_irules`] precisely instead of
 /// defaulting it to declined (issue #983/#985 residual: several of these
 /// sites were passing the string on to `leading_zero_is_octal` for the octal
 /// policy while never using it to gate the iRules word-operator fold).
@@ -200,9 +199,9 @@ pub fn eval_tcl_expr_with_octal_and_dialect(
     node: &ExprNode,
     env: &Env,
     octal: Option<bool>,
-    dialect: Option<&str>,
+    profile: Option<&tcl_dialect::DialectProfile>,
 ) -> Option<TclValue> {
-    eval_tcl_expr_with_policy(node, env, FoldPolicy::for_dialect(octal, dialect))
+    eval_tcl_expr_with_policy(node, env, FoldPolicy::for_profile(octal, profile))
 }
 
 /// The dialect-derived facts a constant fold needs: the leading-zero octal
@@ -254,16 +253,16 @@ impl FoldPolicy {
         }
     }
 
-    /// The policy for an octal rule plus the dialect string a pass already
-    /// holds (`PassContext::dialect`, a `dialect: Option<&str>` parameter).
+    /// The policy for an octal rule plus a resolved profile. Name parsing and
+    /// alias handling happen before this point, so every fact comes from one
+    /// canonical profile.
     #[must_use]
-    pub fn for_dialect(octal: Option<bool>, dialect: Option<&str>) -> Self {
+    pub fn for_profile(octal: Option<bool>, profile: Option<&tcl_dialect::DialectProfile>) -> Self {
         Self {
             octal,
-            is_irules: dialect.is_some_and(|d| tcl_dialect::DialectProfile::by_name(d).is_irules()),
-            characters: dialect
-                .and_then(|d| tcl_dialect::DialectProfile::by_name(d).character_model()),
-            numbers: dialect.map(|d| NumberSyntax::of_dialect_name(Some(d))),
+            is_irules: profile.is_some_and(tcl_dialect::DialectProfile::is_irules),
+            characters: profile.and_then(tcl_dialect::DialectProfile::character_model),
+            numbers: profile.map(|p| NumberSyntax::of_profile(Some(p))),
         }
     }
 
@@ -326,10 +325,8 @@ pub fn parse_integer_operand_with_policy(text: &str, policy: FoldPolicy) -> Opti
 /// (`f5-bigip`) or an unknown dialect string (the permissive fallback,
 /// design doc §11.1).
 #[must_use]
-pub fn leading_zero_is_octal(dialect: &str) -> Option<bool> {
-    tcl_dialect::DialectProfile::by_name(dialect)
-        .leading_zero_is_octal
-        .as_bool()
+pub fn leading_zero_is_octal(profile: &tcl_dialect::DialectProfile) -> Option<bool> {
+    profile.leading_zero_is_octal.as_bool()
 }
 
 /// The newest `expr` math-function release available in `dialect`, or `None`
@@ -1644,16 +1641,30 @@ mod tests {
             "f5-tmsh",
             "expect",
         ] {
-            assert_eq!(leading_zero_is_octal(d), Some(true), "{d}");
+            assert_eq!(
+                leading_zero_is_octal(tcl_dialect::DialectProfile::by_name(d)),
+                Some(true),
+                "{d}"
+            );
         }
         // 9.x runtimes dropped the rule (TIP 114/472) — bpf embeds Tcl 9.0
         // (D7), so `010` is not octal there either.
         for d in ["tcl9.0", "tcl9.1", "bpf"] {
-            assert_eq!(leading_zero_is_octal(d), Some(false), "{d}");
+            assert_eq!(
+                leading_zero_is_octal(tcl_dialect::DialectProfile::by_name(d)),
+                Some(false),
+                "{d}"
+            );
         }
         // No Tcl runtime / unknown dialect: abstain, never guess (§11.1).
-        assert_eq!(leading_zero_is_octal("f5-bigip"), None);
-        assert_eq!(leading_zero_is_octal("no-such-dialect"), None);
+        assert_eq!(
+            leading_zero_is_octal(tcl_dialect::DialectProfile::by_name("f5-bigip")),
+            None
+        );
+        assert_eq!(
+            leading_zero_is_octal(tcl_dialect::DialectProfile::by_name("no-such-dialect")),
+            None
+        );
     }
 
     #[test]

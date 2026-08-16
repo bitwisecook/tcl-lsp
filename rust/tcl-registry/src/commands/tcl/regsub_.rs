@@ -257,16 +257,25 @@ mod tests {
         let registry = crate::CommandRegistry::build_default();
         let spec = registry.get("regsub").unwrap();
         assert_eq!(
-            spec.run_const_fold(&["-all", "::+", "::::clay", "::"], Some("tcl9.0")),
+            spec.run_const_fold(
+                &["-all", "::+", "::::clay", "::"],
+                Some(tcl_dialect::TclVersion::V9_0)
+            ),
             Some("::clay".to_owned())
         );
         assert_eq!(
-            spec.run_const_fold(&["::+", "::clay", "::", "out"], Some("tcl9.0")),
+            spec.run_const_fold(
+                &["::+", "::clay", "::", "out"],
+                Some(tcl_dialect::TclVersion::V9_0)
+            ),
             None,
             "the variable-writing form is not a pure value fold"
         );
         assert_eq!(
-            spec.run_const_fold(&["-command", ".", "x", "callback"], Some("tcl9.0")),
+            spec.run_const_fold(
+                &["-command", ".", "x", "callback"],
+                Some(tcl_dialect::TclVersion::V9_0)
+            ),
             None,
             "analysis must never run a regsub callback"
         );

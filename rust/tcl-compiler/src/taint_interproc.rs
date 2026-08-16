@@ -334,7 +334,7 @@ fn run_propagation(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> HashMap<ValueKey, TaintLattice> {
@@ -354,7 +354,7 @@ fn return_ctx<'a>(
     fu: &'a FunctionUnit,
     registry: &'a CommandRegistry,
     interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'a str>,
+    dialect: Option<&'a tcl_dialect::DialectProfile>,
     known: &'a HashSet<String>,
     summaries: &'a HashMap<String, ProcTaintSummary>,
 ) -> TaintCtx<'a> {
@@ -436,7 +436,7 @@ pub fn infer_proc_summary(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> ProcTaintSummary {
@@ -503,7 +503,7 @@ fn resolve_call_flows(
     taints: &HashMap<ValueKey, TaintLattice>,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> Vec<(String, Vec<TaintLattice>)> {
@@ -789,7 +789,7 @@ pub fn converge_summaries_with(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     infer_fn: &mut InferProcSummaryFn<'_>,
 ) -> HashMap<String, ProcTaintSummary> {
     let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
@@ -938,7 +938,7 @@ pub fn converge_summaries_with(
 pub fn solve_interprocedural_taints(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> InterprocTaintResult {
     let interproc = cu.interproc.as_ref();
     solve_interprocedural_taints_with(
@@ -964,7 +964,7 @@ pub fn solve_interprocedural_taints(
 pub fn solve_interprocedural_taints_with(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     infer_fn: &mut InferProcSummaryFn<'_>,
 ) -> InterprocTaintResult {
     let interproc = cu.interproc.as_ref();

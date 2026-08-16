@@ -36,6 +36,7 @@ use tcl_compiler::ir::{
     CommandTokens, Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name,
 };
 use tcl_compiler::registry_invocation::effective_command_arguments;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_registry::InvocationArguments;
 use tcl_registry::dialects::DialectSet;
@@ -758,7 +759,8 @@ pub fn diagram_data(source: &str, registry: &CommandRegistry) -> Value {
 /// dialect's registry.
 #[must_use]
 pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect);
+    let profile = DialectProfile::by_name(dialect);
+    let cu = CompilationUnit::build_for_profile(source, registry, false, profile);
     let module = &cu.ir_module;
 
     // Recover the source-order dict iteration (the procedures map is a

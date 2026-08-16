@@ -4346,7 +4346,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     fu
                 },
             )
-            .with_interprocedural(&registry, Some("tcl"))
+            .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl")))
         };
 
         let cold = build_cu(&mut cache);
@@ -4441,7 +4441,7 @@ fn memoized_compilation_unit_shift_correctness() {
                 fu
             },
         )
-        .with_interprocedural(&registry, Some("tcl"));
+        .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl")));
         let mut a = Analyser::new();
         a.set_cu_override(Arc::new(cu));
         a.analyse(s, "tcl")

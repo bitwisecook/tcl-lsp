@@ -128,8 +128,10 @@ fn registry_fold(
 ) -> Option<String> {
     let spec = reg.get(head)?;
     match sub {
-        None => spec.run_const_fold(args, Some("tcl9.0")),
-        Some(s) => spec.subcommand(s)?.run_const_fold(args, Some("tcl9.0")),
+        None => spec.run_const_fold(args, Some(tcl_dialect::TclVersion::V9_0)),
+        Some(s) => spec
+            .subcommand(s)?
+            .run_const_fold(args, Some(tcl_dialect::TclVersion::V9_0)),
     }
 }
 

@@ -997,7 +997,7 @@ impl DialectProfile {
     /// is the *fold* policy.
     #[must_use]
     pub fn const_fold_version(&self) -> Option<TclVersion> {
-        TclVersion::from_dialect(Some(self.name))
+        TclVersion::from_profile(self)
     }
 
     /// The [`LibraryPin`] this profile declares for `package`, if any

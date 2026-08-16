@@ -26,7 +26,7 @@ use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
-use tcl_dialect::KNOWN_DIALECTS;
+use tcl_dialect::{DialectProfile, KNOWN_DIALECTS};
 use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
 use tcl_registry::CommandRegistry;
@@ -428,8 +428,9 @@ fn compile_wasm(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let registry = registry(&dialect);
-    let unit = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
-        source, &registry, false, &dialect,
+    let profile = DialectProfile::by_name(&dialect);
+    let unit = tcl_compiler::compilation_unit::CompilationUnit::build_for_profile(
+        source, &registry, false, profile,
     );
     let mut wasm = tcl_compiler::codegen::wasm::compile_wasm(
         &unit,

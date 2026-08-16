@@ -435,7 +435,7 @@ impl PureProcs {
 pub fn find_pure_procs(
     registry: &CommandRegistry,
     cfg_module: &CfgModule,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> PureProcs {
     let mut pure: FxHashSet<String> = cfg_module.procedures.keys().cloned().collect();
 
@@ -463,7 +463,7 @@ fn function_body_is_pure(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     pure: &FxHashSet<String>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> bool {
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
@@ -481,7 +481,7 @@ fn statement_is_pure(
     registry: &CommandRegistry,
     stmt: &Statement,
     pure: &FxHashSet<String>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> bool {
     match stmt {
         Statement::Call {
@@ -533,7 +533,7 @@ fn is_pure_with_procs_core(
     pure: &FxHashSet<String>,
     cmd: &str,
     args: &[String],
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> bool {
     let outer_pure = pure.contains(cmd)
         // Try the common `::` prefix form too — some lowerings yield
@@ -559,7 +559,7 @@ pub fn is_pure_with_procs(
     pure_procs: &PureProcs,
     cmd: &str,
     args: &[String],
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> bool {
     is_pure_with_procs_core(registry, &pure_procs.names, cmd, args, dialect)
 }
@@ -595,14 +595,14 @@ pub fn is_worth_reporting_with_procs(
 /// purposes — i.e. has no observable side effects.
 ///
 /// Bridges to [`classify_side_effects`]. An optional
-/// dialect (`Some("irules")` / `Some("tcl")`) threads through to
+/// dialect (`Some(tcl_dialect::DialectProfile::by_name("irules"))` / `Some(tcl_dialect::DialectProfile::by_name("tcl"))`) threads through to
 /// the classifier.
 #[must_use]
 pub fn is_pure_command(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> bool {
     if !classify_side_effects(registry, command, args, dialect, None).pure {
         return false;
@@ -646,7 +646,7 @@ pub fn is_pure_command_with_traces(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     traced_commands: &std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
 ) -> bool {
@@ -936,7 +936,7 @@ fn gvn_site_eligibility(
 pub fn statement_writes_state(
     registry: &CommandRegistry,
     stmt: &Statement,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> bool {
     match stmt {
         Statement::Barrier { .. } => true,
@@ -958,7 +958,7 @@ pub fn statement_writes_state(
 fn statement_writes_state_for_gvn(
     registry: &CommandRegistry,
     stmt: &Statement,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     legality: GvnLegalitySource<'_>,
 ) -> bool {
     match legality {
@@ -995,7 +995,7 @@ pub fn statement_occurrences(
     stmt_ssa: &SsaStatement,
     block_name: &str,
     statement_index: usize,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     ssa: &SsaFunction,
 ) -> Vec<ExprOccurrence> {
     statement_occurrences_for_gvn(
@@ -1016,7 +1016,7 @@ fn statement_occurrences_for_gvn(
     stmt_ssa: &SsaStatement,
     block_name: &str,
     statement_index: usize,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     ssa: &SsaFunction,
     legality: GvnLegalitySource<'_>,
 ) -> Vec<ExprOccurrence> {
@@ -1324,7 +1324,7 @@ pub fn find_redundancies(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     find_redundancies_with_semantic_facts(registry, cfg, ssa, dialect, GvnLegalitySource::Legacy)
 }
@@ -1335,7 +1335,7 @@ fn find_redundancies_with_semantic_facts(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     legality: GvnLegalitySource<'_>,
 ) -> Vec<RedundantComputation> {
     let mut table = ScopedValueTable::new();
@@ -1422,7 +1422,7 @@ fn find_redundancies_with_semantic_facts(
 pub fn find_redundancies_for_function(
     registry: &CommandRegistry,
     function: &crate::compilation_unit::FunctionUnit,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     let semantic = GvnSemanticFacts::from_function(function);
     find_redundancies_with_semantic_facts(
@@ -1540,7 +1540,7 @@ pub fn find_loop_invariants<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     executable: &std::collections::HashSet<BlockId, S>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     find_loop_invariants_with_legality(
         registry,
@@ -1567,7 +1567,7 @@ pub fn find_loop_invariants<S: std::hash::BuildHasher>(
 pub fn find_loop_invariants_for_function(
     registry: &CommandRegistry,
     function: &crate::compilation_unit::FunctionUnit,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     let semantic = GvnSemanticFacts::from_function(function);
     find_loop_invariants_with_legality(
@@ -1585,7 +1585,7 @@ fn find_loop_invariants_with_legality(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     executable: &FxHashSet<BlockId>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     legality: GvnLegalitySource<'_>,
 ) -> Vec<RedundantComputation> {
     let mut results: Vec<RedundantComputation> = Vec::new();
@@ -1717,7 +1717,7 @@ pub fn collect_function_occurrence_events<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     executable: &std::collections::HashSet<BlockId, S>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> (
     FxHashMap<BlockId, Vec<OccurrenceEvent>>,
     Vec<ExprOccurrence>,
@@ -1738,7 +1738,7 @@ fn collect_function_occurrence_events_with_legality(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     executable: &FxHashSet<BlockId>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     legality: GvnLegalitySource<'_>,
 ) -> (
     FxHashMap<BlockId, Vec<OccurrenceEvent>>,
@@ -1918,7 +1918,7 @@ pub fn find_partial_redundancies<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     executable: &std::collections::HashSet<BlockId, S>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     find_partial_redundancies_with_legality(
         registry,
@@ -1944,7 +1944,7 @@ pub fn find_partial_redundancies<S: std::hash::BuildHasher>(
 pub fn find_partial_redundancies_for_function(
     registry: &CommandRegistry,
     function: &crate::compilation_unit::FunctionUnit,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     let semantic = GvnSemanticFacts::from_function(function);
     find_partial_redundancies_with_legality(
@@ -1962,7 +1962,7 @@ fn find_partial_redundancies_with_legality(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     executable: &FxHashSet<BlockId>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     legality: GvnLegalitySource<'_>,
 ) -> Vec<RedundantComputation> {
     if !executable.contains(&ssa.entry) {
@@ -2054,7 +2054,7 @@ fn find_partial_redundancies_with_legality(
 pub fn find_redundancies_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
@@ -2070,7 +2070,7 @@ pub fn find_redundancies_for_cu(
 pub fn find_partial_redundancies_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
@@ -2088,7 +2088,7 @@ pub fn find_partial_redundancies_for_cu(
 pub fn find_loop_invariants_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
     let mut out = Vec::new();
     for fu in cu.analysable_functions() {
@@ -2114,10 +2114,20 @@ mod tests {
         let function = &cu.top_level;
 
         assert!(
-            !find_redundancies(&registry, &function.cfg, &function.ssa, Some("tcl8.6")).is_empty(),
+            !find_redundancies(
+                &registry,
+                &function.cfg,
+                &function.ssa,
+                Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))
+            )
+            .is_empty(),
             "the legacy classifier recognises the registry pure trait"
         );
-        let semantic = find_redundancies_for_function(&registry, function, Some("tcl8.6"));
+        let semantic = find_redundancies_for_function(
+            &registry,
+            function,
+            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+        );
         assert_eq!(
             semantic.len(),
             1,
@@ -2155,11 +2165,22 @@ mod tests {
         );
         let function = &cu.top_level;
         assert!(
-            !find_redundancies(&registry, &function.cfg, &function.ssa, Some("tcl8.6")).is_empty(),
+            !find_redundancies(
+                &registry,
+                &function.cfg,
+                &function.ssa,
+                Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))
+            )
+            .is_empty(),
             "the explicit legacy API still sees the nested string-classified calls"
         );
         assert!(
-            find_redundancies_for_function(&registry, function, Some("tcl8.6")).is_empty(),
+            find_redundancies_for_function(
+                &registry,
+                function,
+                Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))
+            )
+            .is_empty(),
             "opaque structured source sites have no exact invocation mapping and must abstain"
         );
     }
@@ -2183,7 +2204,12 @@ mod tests {
             ExecutableAnalysisAvailability::Available(_)
         ));
         assert_eq!(
-            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl8.6")).len(),
+            find_redundancies_for_function(
+                &registry,
+                &cu.top_level,
+                Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))
+            )
+            .len(),
             1,
             "a closed registry contract plus a complete site proof reports the replay"
         );
@@ -2201,7 +2227,12 @@ mod tests {
                 source, &registry, false, "tcl9.0",
             );
             assert_eq!(
-                find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).len(),
+                find_redundancies_for_function(
+                    &registry,
+                    &cu.top_level,
+                    Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                )
+                .len(),
                 1,
                 "closed stable registry category with a live dispatch proof reuses: {source}"
             );
@@ -2284,7 +2315,12 @@ mod tests {
             ExecutableAnalysisAvailability::Available(_)
         ));
         assert!(
-            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+            find_redundancies_for_function(
+                &registry,
+                &cu.top_level,
+                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+            )
+            .is_empty(),
             "an execution-traced command is observably invoked twice"
         );
 
@@ -2296,7 +2332,12 @@ mod tests {
             "tcl9.0",
         );
         assert_eq!(
-            find_redundancies_for_function(&registry, &untraced.top_level, Some("tcl9.0")).len(),
+            find_redundancies_for_function(
+                &registry,
+                &untraced.top_level,
+                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+            )
+            .len(),
             1,
             "the trace registration must be the only reason the report is withheld"
         );
@@ -2321,7 +2362,12 @@ mod tests {
         );
 
         assert!(
-            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+            find_redundancies_for_function(
+                &registry,
+                &cu.top_level,
+                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+            )
+            .is_empty(),
             "read-only volatile results must not become common subexpressions"
         );
     }
@@ -2337,7 +2383,12 @@ mod tests {
                 source, &registry, false, "tcl9.0",
             );
             assert!(
-                find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+                find_redundancies_for_function(
+                    &registry,
+                    &cu.top_level,
+                    Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                )
+                .is_empty(),
                 "clock result dependencies must make production GVN abstain: {source}"
             );
         }
@@ -3843,7 +3894,11 @@ mod tests {
             ),
             "executable semantic facts must be available for: {source}"
         );
-        find_redundancies_for_function(registry, &cu.top_level, Some("tcl9.0"))
+        find_redundancies_for_function(
+            registry,
+            &cu.top_level,
+            Some(tcl_dialect::DialectProfile::by_name("tcl9.0")),
+        )
     }
 
     /// How many stable-call reuse findings one top-level script produces.
@@ -4274,12 +4329,22 @@ mod tests {
         );
         let procedure = cu.procedures.get("::p").expect("the proc unit is built");
         assert!(
-            !find_redundancies(&registry, &procedure.cfg, &procedure.ssa, Some("tcl9.0"))
-                .is_empty(),
+            !find_redundancies(
+                &registry,
+                &procedure.cfg,
+                &procedure.ssa,
+                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+            )
+            .is_empty(),
             "the legacy classifier still recognises the repeated pure call"
         );
         assert!(
-            find_redundancies_for_function(&registry, procedure, Some("tcl9.0")).is_empty(),
+            find_redundancies_for_function(
+                &registry,
+                procedure,
+                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+            )
+            .is_empty(),
             "a proc body runs after arbitrary interposed history, so every site proof fails closed"
         );
     }
@@ -4298,13 +4363,18 @@ mod tests {
                 &registry,
                 &cu.top_level.cfg,
                 &cu.top_level.ssa,
-                Some("tcl9.0")
+                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
             )
             .is_empty(),
             "the explicit legacy API still sees the nested string-classified calls"
         );
         assert!(
-            find_redundancies_for_function(&registry, &cu.top_level, Some("tcl9.0")).is_empty(),
+            find_redundancies_for_function(
+                &registry,
+                &cu.top_level,
+                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+            )
+            .is_empty(),
             "structured loop bodies are unmapped executable source and must abstain"
         );
     }

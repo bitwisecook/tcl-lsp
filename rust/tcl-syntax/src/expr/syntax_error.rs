@@ -37,7 +37,7 @@
 //! cases `parseExpr-21.1` … `parseExpr-21.31`.
 
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_lexer::{ExprToken, ExprTokenType, tokenise_expr_checked};
+use tcl_lexer::{ExprToken, ExprTokenType};
 
 /// C's `limit` (`tclCompExpr.c:615`): the longest substring of the expression
 /// any part of the message quotes before eliding with `...`.
@@ -191,15 +191,24 @@ pub struct ExprSyntaxError {
 }
 
 impl ExprSyntaxError {
-    /// Diagnose why `source` does not parse as an expression under `dialect`.
+    /// Diagnose from a compatibility dialect-name boundary.
     ///
     /// Always returns an error: call it only for a source
     /// [`parse_expr`](super::parser::parse_expr) rejected, and pass the same
     /// dialect it was given so the two agree on which words are operators.
+    /// Typed callers use [`Self::diagnose_for_profile`].
     #[must_use]
     pub fn diagnose(source: &str, dialect: Option<&str>) -> Self {
-        let profile = DialectProfile::by_opt_name(dialect);
-        let (raw, has_unknown) = tokenise_expr_checked(source, Some(profile.name));
+        Self::diagnose_for_profile(source, dialect.map(DialectProfile::by_name))
+    }
+
+    /// Diagnose under an already-resolved dialect profile.
+    #[must_use]
+    pub fn diagnose_for_profile(source: &str, profile: Option<&DialectProfile>) -> Self {
+        let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
+            DialectProfile::by_name(profile.name)
+        });
+        let (raw, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
         if has_unknown && let Some(error) = Self::first_invalid_character(source, &raw) {
             return error;
         }
@@ -207,8 +216,8 @@ impl ExprSyntaxError {
         Scan::new(
             source,
             &tokens,
-            super::parser::numbers_for(dialect, profile),
-            profile.expr_grammar_base,
+            super::parser::numbers_for(profile, resolved),
+            resolved.expr_grammar_base,
         )
         .run()
     }

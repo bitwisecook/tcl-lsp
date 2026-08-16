@@ -209,8 +209,9 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // Memory-SSA is built so the `dataflow` view can surface alias sets
     // (upvar / global / variable / namespace upvar). Without it the
     // `aliases` list degrades to empty.
-    let unit = CompilationUnit::build_for_dialect(source, registry, false, dialect)
-        .with_interprocedural(registry, Some(dialect))
+    let profile = DialectProfile::by_name(dialect);
+    let unit = CompilationUnit::build_for_profile(source, registry, false, profile)
+        .with_interprocedural(registry, DialectProfile::find(dialect))
         .with_memory_ssa(registry, DialectProfile::by_name(dialect).availability_mask)
         // The ordinary compiler path builds world SSA only when interactive
         // GVN can consume it. Explorer is an explicit inspection surface, so

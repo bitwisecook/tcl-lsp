@@ -693,10 +693,10 @@ fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<BlockId> {
 /// profile, whose grammar is `Tcl90`: the same default
 /// [`crate::codegen::CodegenCtx::numbers`] takes for its hand-built contexts.
 #[must_use]
-pub fn numbers_for_dialect(dialect: Option<&str>) -> NumberSyntax {
-    tcl_dialect::DialectProfile::by_opt_name(dialect)
-        .grammar
-        .numbers
+pub fn numbers_for_dialect(dialect: Option<&tcl_dialect::DialectProfile>) -> NumberSyntax {
+    dialect.map_or(tcl_dialect::NumberSyntax::Tcl90, |profile| {
+        profile.grammar.numbers
+    })
 }
 
 /// [`compute_intervals_with`] under the Tcl 9.0 numeral grammar.
@@ -1325,7 +1325,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.sccp.values,
-            numbers_for_dialect(Some("tcl8.6")),
+            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))),
         );
         // The analysis runs and produces a (possibly empty but well-formed) map;
         // every computed interval is a valid lattice element (not the lo>hi

@@ -44,6 +44,7 @@ use std::collections::HashMap;
 use serde_json::{Value, json};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ir::{Script, Statement};
+use tcl_dialect::DialectProfile;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
 /// Cap on patterns collected per object type per rule body — a runaway-input
@@ -453,7 +454,12 @@ pub fn attach_reach(source: &str) -> AttachReach {
         return reach;
     }
     let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, "f5-irules");
+    let cu = CompilationUnit::build_for_profile(
+        source,
+        registry,
+        false,
+        DialectProfile::by_name("f5-irules"),
+    );
 
     // Each `when` handler (and any user proc) is its own frame; walk each with a
     // fresh env in source order for stable output.
@@ -486,7 +492,12 @@ pub fn proc_call_refs(source: &str) -> Vec<String> {
         return out;
     }
     let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, "f5-irules");
+    let cu = CompilationUnit::build_for_profile(
+        source,
+        registry,
+        false,
+        DialectProfile::by_name("f5-irules"),
+    );
     let mut procs: Vec<_> = cu.ir_module.procedures.values().collect();
     procs.sort_by_key(|p| p.span.start());
     for proc in procs {

@@ -53,6 +53,7 @@ use tcl_compiler::analyser::class_lattice::{
 use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::analyser::types::ClassDef;
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 
 /// Lossless-for-realistic-counts `usize`→`f64` conversion used for the
@@ -159,8 +160,8 @@ fn analyse_file(path: &Path, reg: &CommandRegistry) -> Option<Analysed> {
         // class index lives on the returned value, not on `a.result`.  The
         // deferred `var_command_sites` stay on the analyser field.
         let result = a.analyse(&src, "tcl8.6");
-        let cu =
-            CompilationUnit::build_for(&src, reg, false).with_interprocedural(reg, Some("tcl8.6"));
+        let cu = CompilationUnit::build_for(&src, reg, false)
+            .with_interprocedural(reg, Some(DialectProfile::by_name("tcl8.6")));
         let ns = NsContext::from_result(&result);
         Analysed {
             cu,

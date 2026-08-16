@@ -66,8 +66,8 @@ pub mod unused_procs;
 pub use elimination::DeadStore;
 pub use manager::{
     apply_optimisations, finalise_optimisations, find_dead_stores, optimise, optimise_by_pass,
-    optimise_raw, optimise_source_multipass, optimise_source_multipass_filtered, optimise_unit,
-    optimise_unit_raw, optimise_with_dialect,
+    optimise_raw, optimise_raw_for_profile, optimise_source_multipass,
+    optimise_source_multipass_filtered, optimise_unit, optimise_unit_raw, optimise_with_dialect,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -228,7 +228,7 @@ pub struct PassContext<'a> {
     /// context is built so gated passes (e.g. O124) can check
     /// for `"f5-irules"` without threading it through every
     /// entry point.
-    pub dialect: Option<&'a str>,
+    pub dialect: Option<&'a tcl_dialect::DialectProfile>,
     /// Accumulator for produced optimisations.
     pub optimisations: Vec<Optimisation>,
     /// Accumulator for the **O109 dead stores** the elimination pass
@@ -296,7 +296,7 @@ impl<'a> PassContext<'a> {
     pub fn with_dialect(
         source: &'a str,
         interproc: InterproceduralAnalysis,
-        dialect: Option<&'a str>,
+        dialect: Option<&'a tcl_dialect::DialectProfile>,
     ) -> Self {
         Self {
             source,

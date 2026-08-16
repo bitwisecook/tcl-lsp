@@ -286,8 +286,8 @@ pub struct BuiltinFoldInputs<'a> {
     pub registry: &'a CommandRegistry,
     /// Whole-module `rename` / `interp alias` / shadowing-`proc` trust scan.
     pub mutations: &'a crate::command_binding::ModuleCommandMutations,
-    /// Dialect name for versioned folds; `None` for plain Tcl.
-    pub dialect: Option<&'a str>,
+    /// Resolved dialect profile for versioned folds; `None` when unavailable.
+    pub dialect: Option<&'a tcl_dialect::DialectProfile>,
     /// Proven defining class of the enclosing `TclOO` instance-method frame
     /// (enables `[self class]`-style frame-fact folds); `None` elsewhere.
     pub defining_class: Option<&'a str>,
@@ -1686,7 +1686,9 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
             let lookup = |name: &str| lattice_const_text(name, uses, values, ssa);
             if let Some(folded) = (crate::const_subst::ConstSubstCtx {
                 registry: f.registry,
-                dialect: f.dialect,
+                version: f
+                    .dialect
+                    .and_then(tcl_dialect::DialectProfile::runtime_version),
                 defining_class: f.defining_class,
                 trusts: &trusts,
                 lookup_var: &lookup,
@@ -2613,7 +2615,8 @@ mod tests {
             LatticeValue::Const(ConstValue::String("abcde".into())),
         );
 
-        let irules = FoldPolicy::for_dialect(Some(true), Some("f5-irules"));
+        let irules =
+            FoldPolicy::for_profile(Some(true), Some(tcl_dialect::DialectProfile::irules()));
         assert_eq!(
             evaluate_def(&stmt_ssa, &values, &ssa, irules),
             LatticeValue::Const(ConstValue::Int(1)),
@@ -3079,20 +3082,20 @@ mod tests {
         // decline when no release is selected, leaving the width ambiguous.
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"\u{1D11E}\"]", 1);
-        let fold = |dialect| {
+        let fold = |dialect: Option<&tcl_dialect::DialectProfile>| {
             evaluate_def(
                 &stmt,
                 &HashMap::new(),
                 &ssa,
-                FoldPolicy::for_dialect(Some(false), dialect),
+                FoldPolicy::for_profile(Some(false), dialect),
             )
         };
         assert_eq!(
-            fold(Some("tcl9.0")),
+            fold(Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))),
             LatticeValue::Const(ConstValue::Int(1))
         );
         assert_eq!(
-            fold(Some("tcl8.6")),
+            fold(Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))),
             LatticeValue::Const(ConstValue::Int(2))
         );
         assert_eq!(
@@ -3110,7 +3113,7 @@ mod tests {
                 &ascii,
                 &HashMap::new(),
                 &ssa,
-                FoldPolicy::for_dialect(Some(false), None)
+                FoldPolicy::for_profile(Some(false), None)
             ),
             LatticeValue::Const(ConstValue::Int(5))
         );

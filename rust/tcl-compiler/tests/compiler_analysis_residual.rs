@@ -103,7 +103,7 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .collect();
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -124,7 +124,7 @@ fn o107_fires(src: &str, dialect: &str) -> bool {
     use tcl_compiler::optimiser::manager::optimise_with_dialect;
     use tcl_core_types::DiagCode;
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code == DiagCode::O107)
