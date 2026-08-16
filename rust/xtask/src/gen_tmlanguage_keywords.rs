@@ -264,8 +264,16 @@ fn lexical_regexes() -> LexicalRegexes {
     } else {
         r"[0-7]{1,2}".to_owned()
     };
+    // `hex_run` stops before the next digit once the accumulated prefix is
+    // above Tcl's `ParseHex` cap (0x10fff).  The generated grammars need the
+    // same boundary, not merely the same eight-digit maximum.  Since the cap
+    // is five hex digits wide, these three longer branches encode the finite
+    // states where the first over-cap digit is the sixth, seventh, or eighth;
+    // the final branch handles runs of five digits or fewer.  Branches are
+    // ordered longest-first so a still-valid prefix consumes the available
+    // next digit before the shorter fallback can win.
     let wide = if escapes.has_wide_unicode() {
-        r"|U[0-9a-fA-F]{1,8}"
+        r"|U(?:(?:000[0-9a-fA-F]{4}|0010[0-9a-fA-F]{3})[0-9a-fA-F]|(?:00[0-9a-fA-F]{4}|010[0-9a-fA-F]{3})[0-9a-fA-F]|(?:0[0-9a-fA-F]{4}|10[0-9a-fA-F]{3})[0-9a-fA-F]|[0-9a-fA-F]{1,5})"
     } else {
         ""
     };
@@ -696,13 +704,34 @@ mod tests {
         assert!(lexical.decimal.contains("_+"));
         // TIP 388's wide unicode form and its first-octal-digit cap are both
         // lexical width rules, not merely decoded-value rules.
-        assert!(lexical.escape.contains("U[0-9a-fA-F]{1,8}"));
+        assert!(
+            lexical
+                .escape
+                .contains("U(?:(?:000[0-9a-fA-F]{4}|0010[0-9a-fA-F]{3})")
+        );
         assert!(lexical.escape.contains("[0-3][0-7]{0,2}"));
         assert!(lexical.escape.contains("[4-7][0-7]?"));
         assert!(lexical.escape.contains("{}()"));
         // Namespace separator runs use the shared naming fragment, not the
         // former exactly-two-colon spelling.
         assert!(lexical.variable.contains("[:]{2,}"));
+    }
+
+    #[test]
+    fn wide_unicode_projection_stops_at_parse_hex_cap() {
+        let lexical = lexical_regexes();
+        let re = regex::Regex::new(&lexical.escape).expect("generated escape regex is valid");
+        for (source, expected) in [
+            (r"\UFFFFFFFF", r"\UFFFFF"),
+            (r"\U00110000", r"\U0011000"),
+            (r"\U0010FFFF", r"\U0010FFFF"),
+        ] {
+            assert_eq!(
+                re.find(source).map(|m| m.as_str()),
+                Some(expected),
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -784,7 +813,10 @@ mod tests {
             // punctuation is invariant under that serialisation difference.
             assert!(rendered.contains("0[dD]"), "{rel} lacks 0d");
             assert!(rendered.contains("[:]{2,}"), "{rel} lacks colon runs");
-            assert!(rendered.contains("U[0-9a-fA-F]{1,8}"), "{rel} lacks \\U");
+            assert!(
+                rendered.contains("U(?:(?:000[0-9a-fA-F]{4}|0010[0-9a-fA-F]{3})"),
+                "{rel} lacks capped \\U"
+            );
             assert!(rendered.contains("[4-7][0-7]?"), "{rel} lacks octal cap");
             assert!(
                 rendered.contains(&lexical.decimal.replace('\\', "\\\\"))
