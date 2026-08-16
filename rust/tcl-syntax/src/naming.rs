@@ -36,6 +36,20 @@ pub fn is_qualified(name: &[u8]) -> bool {
     name.windows(2).any(|w| w == b"::")
 }
 
+/// The TextMate-compatible variable-name body used by the generated editor
+/// grammars. A namespace separator is a run of *two or more* colons, matching
+/// [`qualifier_segments`] exactly; keeping the rendered fragment beside the
+/// segmentation owner prevents editor regexes from quietly reverting to an
+/// exactly-two-colon interpretation.
+///
+/// `TextMate` grammars intentionally retain the conservative ASCII identifier
+/// surface used by their historical variable rule. Tcl itself permits broader
+/// braced names, which are handled by the separate `${…}` grammar rule.
+#[must_use]
+pub fn textmate_variable_name_body() -> &'static str {
+    r"(?:[:]{2,})?(?:[A-Za-z_][A-Za-z0-9_]*[:]{2,})*[A-Za-z_][A-Za-z0-9_]*"
+}
+
 /// Split a (possibly qualified) name on `::`, dropping empty segments — so
 /// `::a::b::cmd` → `[a, b, cmd]`, `::cmd` → `[cmd]`, `cmd` → `[cmd]`, `::` → `[]`.
 /// A run of **two or more** colons is one separator (all consecutive colons are
@@ -1642,6 +1656,17 @@ mod tests {
         assert_eq!(qualifier_segments(b"a:b"), vec![&b"a:b"[..]]);
         assert!(ends_with_separator(b"a::b::"));
         assert!(!ends_with_separator(b"a::b"));
+    }
+
+    #[test]
+    fn textmate_variable_body_keeps_colon_runs_together() {
+        assert!(textmate_variable_name_body().contains("[:]{2,}"));
+        assert_eq!(qualifier_segments(b"foo:::bar"), vec![&b"foo"[..], b"bar"]);
+        assert_eq!(
+            qualifier_segments(b"::foo::::bar"),
+            vec![&b"foo"[..], b"bar"]
+        );
+        assert_eq!(qualifier_segments(b"foo:bar"), vec![&b"foo:bar"[..]]);
     }
 
     #[test]

@@ -607,22 +607,26 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
         fun getInstance(): TclLspSettings =
             ApplicationManager.getApplication().getService(TclLspSettings::class.java)
 
+        // @generated:dialect-options:begin
         val DIALECT_OPTIONS = listOf(
+            "bpf" to "BPF",
+            "cadence-eda-tcl" to "Cadence EDA Tcl",
+            "expect" to "Expect",
+            "f5-bigip" to "F5 BIG-IP",
+            "f5-iapps" to "F5 iApps",
+            "f5-irules" to "F5 iRules",
+            "f5-tmsh" to "F5 tmsh Scripts",
+            "intel-quartus-eda-tcl" to "Intel Quartus EDA Tcl",
+            "mentor-eda-tcl" to "Mentor EDA Tcl",
+            "spectcl" to "SpecTcl",
+            "synopsys-eda-tcl" to "Synopsys EDA Tcl",
             "tcl8.4" to "Tcl 8.4",
             "tcl8.5" to "Tcl 8.5",
             "tcl8.6" to "Tcl 8.6",
             "tcl9.0" to "Tcl 9.0",
             "tcl9.1" to "Tcl 9.1",
-            "f5-irules" to "F5 iRules",
-            "f5-iapps" to "F5 iApps",
-            "f5-tmsh" to "F5 tmsh Scripts",
-            "f5-bigip" to "F5 BIG-IP",
-            "synopsys-eda-tcl" to "Synopsys EDA",
-            "cadence-eda-tcl" to "Cadence EDA",
-            "xilinx-eda-tcl" to "Xilinx EDA",
-            "intel-quartus-eda-tcl" to "Intel Quartus",
-            "mentor-eda-tcl" to "Mentor EDA",
-            "expect" to "Expect",
+            "xilinx-eda-tcl" to "Xilinx EDA Tcl",
         )
+        // @generated:dialect-options:end
     }
 }
