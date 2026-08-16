@@ -166,8 +166,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     // not be author-editable, add it here and to `COMMAND_SPEC` as
     // `Surface::Excluded("why")` and skip the first two.
     let CommandSpec {
-        name: _,
-        traits: _,
+        name: _, traits: _,
         dialects: _,
         arity: _,
         arg_roles: _,
