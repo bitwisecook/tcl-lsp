@@ -1700,17 +1700,19 @@ impl Analyser {
         // contributes no symbol, binding, scope, or executable body facts.
         if self.profile.is_irules() {
             let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            let registry = self
+                .registry
+                .as_deref()
+                .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
             let valid = self.body_depth == 0
-                && self.registry.as_deref().is_some_and(|registry| {
-                    matches!(
-                        registry.irules_top_level_declaration(
-                            "proc",
-                            &words,
-                            &tcl_registry::events::EventRegistry::build(),
-                        ),
-                        Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
-                    )
-                });
+                && matches!(
+                    registry.irules_top_level_declaration(
+                        "proc",
+                        &words,
+                        &tcl_registry::events::EventRegistry::build(),
+                    ),
+                    Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+                );
             if !valid {
                 return true;
             }
@@ -10301,6 +10303,59 @@ mod tests {
         assert!(w113s[0].message.contains("'set' shadows built-in"));
         assert!(w113s[0].message.contains("(tcl8.6)"));
         assert_eq!(w113s[0].severity, crate::analyser::types::Severity::Warning);
+    }
+
+    #[test]
+    fn irules_profile_without_attached_registry_keeps_valid_proc_semantics() {
+        let mut analyser = Analyser::new();
+        analyser.profile = tcl_dialect::DialectProfile::irules();
+        assert!(analyser.registry.is_none());
+        let handled = analyser.handle_proc_command(
+            &["set".to_owned(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(handled);
+        assert!(analyser.result.all_procs.contains_key("::set"));
+        assert!(
+            analyser
+                .result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W113)
+        );
+    }
+
+    #[test]
+    fn irules_profile_without_attached_registry_rejects_malformed_proc() {
+        let mut analyser = Analyser::new();
+        analyser.profile = tcl_dialect::DialectProfile::irules();
+        assert!(analyser.registry.is_none());
+        let handled = analyser.handle_proc_command(
+            &[
+                "set".to_owned(),
+                String::new(),
+                "set leaked 1".to_owned(),
+                "extra".to_owned(),
+            ],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 26)),
+                esc_tok(span(27, 32)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(handled);
+        assert!(analyser.result.all_procs.is_empty());
+        assert!(analyser.result.global_scope.variables.is_empty());
+        assert!(analyser.result.diagnostics.is_empty());
     }
 
     #[test]

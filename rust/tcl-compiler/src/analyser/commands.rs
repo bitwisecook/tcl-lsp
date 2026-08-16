@@ -2059,17 +2059,19 @@ impl Analyser {
             return true;
         }
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let registry = self
+            .registry
+            .as_deref()
+            .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
         self.body_depth == 0
-            && self.registry.as_deref().is_some_and(|registry| {
-                matches!(
-                    registry.irules_top_level_declaration(
-                        command,
-                        &words,
-                        &tcl_registry::events::EventRegistry::build(),
-                    ),
-                    Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
-                )
-            })
+            && matches!(
+                registry.irules_top_level_declaration(
+                    command,
+                    &words,
+                    &tcl_registry::events::EventRegistry::build(),
+                ),
+                Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
+            )
     }
 
     /// Body-role indices for an *imported* command called by its unqualified
