@@ -195,7 +195,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Coverage
 .PHONY: coverage coverage-ext
 # Compile + codegen + generated assets
-.PHONY: compile codegen generate check-generated gen-editor-settings check-editor-settings copy-canonical npm-env logo
+.PHONY: compile codegen generate check-generated gen-editor-settings check-editor-settings gen-irule-test-data copy-canonical npm-env logo
 .PHONY: update-source-data check-source-data
 # Compiler explorer (WASM GUI)
 .PHONY: explorer-wasm explorer-build compiler-explorer-gui
@@ -608,10 +608,6 @@ xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-d
 xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match DialectProfile::all
 	@echo "==> Checking generated editor dialect lists (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects --check
-
-xtask-gen-irule-test-data: ## Verify generated iRule-test Tcl event and mock-stub data
-	@echo "==> Checking generated iRule-test data (cargo xtask)"
-	cd $(ROOT) && cargo xtask gen-irule-test-data --check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"
@@ -1334,11 +1330,15 @@ _TMLANGUAGE_KEYWORD_DEPS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rus
 _TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json editors/sublime-text/Tcl.sublime-syntax
 $(_TMLANGUAGE_KEYWORD_OUTPUTS): $(_TMLANGUAGE_KEYWORD_DEPS)
 
-generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) ## Regenerate editor catalogs, dialect projections, and lexical grammars
+generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
 	@echo "==> Generating editor dialect projections (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects
 	@echo "==> Generating TextMate keyword grammars (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords
+
+gen-irule-test-data: ## Generate iRule-test Tcl assets from the Rust registries
+	@echo "==> Generating iRule-test data (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-irule-test-data
 
 check-generated: ## Verify generated catalogs are up to date
 	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"
@@ -1376,7 +1376,7 @@ logo: ## Render docs/*.svg logos to the committed 8-bit PNGs (light + dark)
 
 # Unified codegen — regenerate ALL generated files from registries
 
-codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalogs + editor settings + AI prompts)
+codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalogs + editor settings + AI prompts + iRule-test data)
 
 # Compiler Explorer (WASM GUI)
 #
