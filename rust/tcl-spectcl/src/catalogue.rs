@@ -389,6 +389,10 @@ pub const TRAITS: &[Variant] = &[
     ),
     v("HAS_BOOLEAN_COND", "takes a boolean condition"),
     v("TERMINATES_BLOCK", "terminates the enclosing basic block"),
+    v(
+        "TERMINATES_PROCESS",
+        "terminates the interpreter process without Tcl unwinding",
+    ),
     v("HAS_LOOP_BODY", "takes a loop body"),
     v("NEVER_INLINE_BODY", "its body must never be inlined"),
     v(

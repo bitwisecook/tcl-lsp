@@ -1228,6 +1228,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `LANGUAGE_KEYWORD` | a language keyword rather than a plain command |
 | `HAS_BOOLEAN_COND` | takes a boolean condition |
 | `TERMINATES_BLOCK` | terminates the enclosing basic block |
+| `TERMINATES_PROCESS` | terminates the interpreter process without Tcl unwinding |
 | `HAS_LOOP_BODY` | takes a loop body |
 | `NEVER_INLINE_BODY` | its body must never be inlined |
 | `LOOP_LIST_HEADER` | a loop header with list-expression arguments |
