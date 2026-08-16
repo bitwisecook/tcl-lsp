@@ -1410,11 +1410,7 @@ impl<'r> Lowerer<'r> {
             // at least three token slices (the body needs to
             // be a real token, not synthesised whitespace).
             LoweringHookId::Proc => {
-                if args.len() == 3 && seg.arg_tokens().len() >= 3 {
-                    Some(self.lower_proc(seg, namespace))
-                } else {
-                    None
-                }
+                self.try_lower_proc_declaration(seg, namespace, resolved.canonical_command)
             }
             // `namespace eval ns body` — the subcommand match
             // is already handled by `resolve_call`, so the
@@ -1460,18 +1456,7 @@ impl<'r> Lowerer<'r> {
             // misconfiguration; the dialect needs to match the
             // source.
             LoweringHookId::When => {
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                if args.len() >= 2
-                    && seg.arg_tokens().len() >= 2
-                    && self
-                        .registry
-                        .irules_event_declaration_shape(&arg_refs)
-                        .is_some()
-                {
-                    Some(self.lower_when(seg, namespace))
-                } else {
-                    None
-                }
+                self.try_lower_when_declaration(seg, namespace, resolved.canonical_command)
             }
             // `foreachLine varName filename body` — Tcl 9.0
             // (TIP 670).  Always registered in `build_default()`
@@ -1508,6 +1493,65 @@ impl<'r> Lowerer<'r> {
             | LoweringHookId::Variable
             | LoweringHookId::Upvar => None,
         }
+    }
+
+    fn try_lower_proc_declaration(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        canonical_command: &str,
+    ) -> Option<Statement> {
+        if seg.args().len() != 3 || seg.arg_tokens().len() < 3 {
+            return None;
+        }
+        if self
+            .registry
+            .profile()
+            .is_some_and(tcl_dialect::DialectProfile::is_irules)
+        {
+            let arg_refs: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            let declaration = tcl_registry::events::IrulesDeclarationArguments::new(
+                &arg_refs,
+                seg.arg_tokens(),
+                seg.arg_single_token(),
+            )
+            .and_then(|arguments| {
+                self.registry
+                    .irules_top_level_declaration_shape(canonical_command, arguments)
+            });
+            if !matches!(
+                declaration,
+                Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+            ) {
+                return None;
+            }
+        }
+        Some(self.lower_proc(seg, namespace))
+    }
+
+    fn try_lower_when_declaration(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        canonical_command: &str,
+    ) -> Option<Statement> {
+        let arg_refs: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let arguments = tcl_registry::events::IrulesDeclarationArguments::new(
+            &arg_refs,
+            seg.arg_tokens(),
+            seg.arg_single_token(),
+        )?;
+        let tcl_registry::events::IrulesTopLevelDeclaration::Event {
+            event,
+            body_index,
+            priority,
+        } = self
+            .registry
+            .irules_top_level_declaration_shape(canonical_command, arguments)?
+        else {
+            return None;
+        };
+        Some(self.lower_when(seg, namespace, &event, body_index, priority))
     }
 
     /// Lower a single command.
@@ -1899,11 +1943,16 @@ impl<'r> Lowerer<'r> {
         Ok((materialised_body, body_is_dynamic, body_offset))
     }
 
-    /// Lower `when EVENT ?priority N? body`.
-    fn lower_when(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+    /// Lower a registry-validated iRules event declaration.
+    fn lower_when(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        event_name: &str,
+        body_idx: usize,
+        priority: Option<u16>,
+    ) -> Statement {
         let args = seg.args();
-        let event_name = &args[0];
-        let body_idx = args.len() - 1;
         let body_tok = seg.arg_tokens()[body_idx];
         // The rebase below is truthful only for a body word that is its source
         // region verbatim — see [`Self::guarded_body_text`].
@@ -1923,20 +1972,10 @@ impl<'r> Lowerer<'r> {
         self.const_map_stack.pop();
         self.proc_depth -= 1;
 
-        let mut base_priority = u32::from(self.irules_priority);
-        if args.len() >= 4
-            && args[1] == "priority"
-            && let Ok(p) = args[2].parse::<u32>()
-        {
-            base_priority = p;
-        }
+        let base_priority = u32::from(priority.unwrap_or(self.irules_priority));
 
-        let n = self
-            .when_counts
-            .get(event_name.as_str())
-            .copied()
-            .unwrap_or(0);
-        *self.when_counts.entry(event_name.clone()).or_insert(0) += 1;
+        let n = self.when_counts.get(event_name).copied().unwrap_or(0);
+        *self.when_counts.entry(event_name.to_owned()).or_insert(0) += 1;
         let qualified = if n == 0 {
             format!("::when::{event_name}")
         } else {
@@ -1946,7 +1985,7 @@ impl<'r> Lowerer<'r> {
         self.module.procedures.insert(
             qualified.clone(),
             Procedure {
-                name: event_name.clone(),
+                name: event_name.to_owned(),
                 qualified_name: qualified,
                 params: vec![],
                 span: seg.span,
@@ -4013,23 +4052,39 @@ mod tests {
     }
 
     #[test]
-    fn malformed_irules_event_declarations_do_not_enter_event_execution_state() {
+    fn irules_declaration_body_shape_gates_lowered_regions() {
         let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
         let registry = tcl_registry::registry_for_profile(profile);
         let module = lower_to_ir_with_config(
-            "when HTTP_REQUEST priority 1001 {}\nwhen NOT_A_REAL_EVENT {}",
+            "when HTTP_REQUEST priority 1001 {}\n\
+             when HTTP_REQUEST bare_body\n\
+             when CLIENT_DATA \"quoted body\"\n\
+             proc bare_proc {} bare_body\n\
+             proc quoted_proc {} \"return\"\n\
+             proc valid_proc {} { return }\n\
+             when NOT_A_REAL_EVENT {}\n\
+             when HTTP_REQUEST priority 200 {}\n\
+             when HTTP_REQUEST {}",
             registry,
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         );
 
         assert!(
-            !module.procedures.contains_key("::when::HTTP_REQUEST"),
-            "an out-of-range priority must not become an executable event procedure"
-        );
-        assert!(
             module.procedures.contains_key("::when::NOT_A_REAL_EVENT"),
             "a syntactically valid unknown event is lowered so the XC translator can report it"
         );
+        for name in ["::when::CLIENT_DATA", "::bare_proc", "::quoted_proc"] {
+            assert!(
+                !module.procedures.contains_key(name),
+                "a non-braced declaration body must not open {name}"
+            );
+        }
+        assert!(module.procedures.contains_key("::valid_proc"));
+        let request = [
+            module.procedures["::when::HTTP_REQUEST"].base_priority,
+            module.procedures["::when::HTTP_REQUEST#1"].base_priority,
+        ];
+        assert_eq!(request, [200, 500], "valid repeated handlers keep priority");
     }
 
     #[test]

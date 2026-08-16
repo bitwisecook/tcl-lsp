@@ -1937,11 +1937,8 @@ impl CommandRegistry {
     /// IRULE5007 placement checks ([`Traits::IRULES_TOP_LEVEL_ONLY`]).
     #[must_use]
     pub fn is_irules_top_level_only(&self, name: &str) -> bool {
-        self.by_name.get(name).is_some_and(|specs| {
-            specs
-                .iter()
-                .any(|s| s.traits.contains(Traits::IRULES_TOP_LEVEL_ONLY))
-        })
+        self.get(name)
+            .is_some_and(|spec| spec.traits.contains(Traits::IRULES_TOP_LEVEL_ONLY))
     }
 
     /// Apply the iRules command-placement contract to one resolved head.
@@ -1984,11 +1981,38 @@ impl CommandRegistry {
     pub fn irules_top_level_declaration(
         &self,
         name: &str,
-        args: &[&str],
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
         events: &crate::events::EventRegistry,
     ) -> Option<crate::events::IrulesTopLevelDeclaration> {
         use crate::events::IrulesTopLevelDeclaration as Declaration;
 
+        let declaration = self.irules_top_level_declaration_shape(name, arguments)?;
+        match &declaration {
+            Declaration::Event { event, .. } if !events.is_known(event) => None,
+            Declaration::Event { .. }
+            | Declaration::Procedure { .. }
+            | Declaration::Priority { .. }
+            | Declaration::Timing { .. } => Some(declaration),
+        }
+    }
+
+    /// Validate an iRules file-level declaration without requiring an event
+    /// selector to be known.
+    ///
+    /// This is the source-aware declaration owner used by lowering, symbols,
+    /// diagnostics, and inventories. It deliberately accepts an unknown event
+    /// with a valid declaration shape so diagnostics can report that selector;
+    /// executable inventories use [`Self::irules_top_level_declaration`],
+    /// which additionally requires the event registry membership.
+    #[must_use]
+    pub fn irules_top_level_declaration_shape(
+        &self,
+        name: &str,
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let args = arguments.values();
         let spec = self.get(name)?;
         let argument_count = u16::try_from(args.len()).ok()?;
         if !spec.arity.accepts(argument_count)
@@ -2004,8 +2028,11 @@ impl CommandRegistry {
         let [body_index] = bodies.as_slice() else {
             return None;
         };
+        if !arguments.is_braced_literal(*body_index) {
+            return None;
+        }
         if spec.traits.contains(crate::Traits::IS_EVENT_HANDLER) {
-            return self.irules_event_declaration(args, events);
+            return self.irules_event_declaration_shape(arguments);
         }
         if spec.traits.contains(crate::Traits::DEFINES_PROCEDURE) {
             let names = self.arg_indices_for_role(name, args, crate::ArgRole::Name);
@@ -2059,10 +2086,10 @@ impl CommandRegistry {
     #[must_use]
     pub fn irules_event_declaration(
         &self,
-        args: &[&str],
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
         events: &crate::events::EventRegistry,
     ) -> Option<crate::events::IrulesTopLevelDeclaration> {
-        let declaration = self.irules_event_declaration_shape(args)?;
+        let declaration = self.irules_event_declaration_shape(arguments)?;
         let crate::events::IrulesTopLevelDeclaration::Event { event, .. } = &declaration else {
             return None;
         };
@@ -2075,32 +2102,40 @@ impl CommandRegistry {
     #[must_use]
     pub fn irules_event_declaration_shape(
         &self,
-        args: &[&str],
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
     ) -> Option<crate::events::IrulesTopLevelDeclaration> {
         use crate::events::IrulesTopLevelDeclaration as Declaration;
-        let valid_layout = match args {
-            [_, _] => true,
+        let args = arguments.values();
+        let (body_index, priority) = match args {
+            [_, _] => (1, None),
             [_, "priority", value, _] => {
-                value.parse::<u16>().is_ok_and(|priority| priority <= 1000)
+                let priority = value
+                    .parse::<u16>()
+                    .ok()
+                    .filter(|priority| *priority <= 1000)?;
+                (3, Some(priority))
             }
             [_, "timing", value, _] => {
-                matches!(*value, "on" | "off" | "enable" | "disable")
+                matches!(*value, "on" | "off" | "enable" | "disable").then_some((3, None))?
             }
             [_, "priority", priority, "timing", timing, _] => {
-                priority
+                let priority = priority
                     .parse::<u16>()
-                    .is_ok_and(|priority| priority <= 1000)
-                    && matches!(*timing, "on" | "off" | "enable" | "disable")
+                    .ok()
+                    .filter(|priority| *priority <= 1000)?;
+                matches!(*timing, "on" | "off" | "enable" | "disable")
+                    .then_some((5, Some(priority)))?
             }
-            _ => false,
+            _ => return None,
         };
-        if !valid_layout {
+        if !arguments.is_braced_literal(body_index) {
             return None;
         }
         let event = args.first()?.to_uppercase();
         Some(Declaration::Event {
             event,
-            body_index: args.len() - 1,
+            body_index,
+            priority,
         })
     }
 
@@ -5872,20 +5907,48 @@ mod tests {
     }
 
     #[test]
-    fn irules_declaration_owner_rejects_unknown_events_and_malformed_procs() {
+    fn irules_declaration_owner_requires_braced_source_bodies() {
         use crate::events::IrulesTopLevelDeclaration as Declaration;
 
         let registry = crate::registry_for_dialect("f5-irules");
         let events = crate::events::EventRegistry::build();
+        let declaration = |name: &str, args: &[&str]| {
+            let body_index = if name == "proc" {
+                2
+            } else {
+                args.len().saturating_sub(1)
+            };
+            let tokens = args
+                .iter()
+                .enumerate()
+                .map(|(index, _)| {
+                    tcl_lexer::Token::new(
+                        if index == body_index {
+                            tcl_lexer::TokenType::Str
+                        } else {
+                            tcl_lexer::TokenType::Esc
+                        },
+                        tcl_lexer::Span::empty(0),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let single = vec![true; args.len()];
+            registry.irules_top_level_declaration(
+                name,
+                crate::events::IrulesDeclarationArguments::new(args, &tokens, &single)
+                    .expect("parallel source-word views"),
+                &events,
+            )
+        };
         assert!(matches!(
-            registry.irules_top_level_declaration("when", &["HTTP_REQUEST", "set x 1"], &events),
+            declaration("when", &["HTTP_REQUEST", "set x 1"]),
             Some(Declaration::Event { .. })
         ));
-        assert!(
-            registry
-                .irules_top_level_declaration("when", &["BOGUS_EVENT", "pool x"], &events)
-                .is_none()
-        );
+        assert!(matches!(
+            declaration("::when", &["HTTP_REQUEST", "set x 1"]),
+            Some(Declaration::Event { .. })
+        ));
+        assert!(declaration("when", &["BOGUS_EVENT", "pool x"]).is_none());
         for valid in [
             &["HTTP_REQUEST", "body"][..],
             &["HTTP_REQUEST", "priority", "100", "body"][..],
@@ -5901,11 +5964,7 @@ mod tests {
             &["HTTP_REQUEST", "priority", "0", "body"][..],
             &["HTTP_REQUEST", "priority", "1000", "body"][..],
         ] {
-            assert!(
-                registry
-                    .irules_top_level_declaration("when", valid, &events)
-                    .is_some()
-            );
+            assert!(declaration("when", valid).is_some());
         }
         for invalid in [
             &["HTTP_REQUEST"][..],
@@ -5916,41 +5975,61 @@ mod tests {
             &["HTTP_REQUEST", "timing", "maybe", "body"][..],
             &["HTTP_REQUEST", "timing", "on", "priority", "100", "body"][..],
         ] {
-            assert!(
-                registry
-                    .irules_top_level_declaration("when", invalid, &events)
-                    .is_none()
-            );
+            assert!(declaration("when", invalid).is_none());
         }
         assert!(matches!(
-            registry.irules_top_level_declaration("proc", &["p", "", "return"], &events),
+            declaration("proc", &["p", "", "return"]),
             Some(Declaration::Procedure { .. })
         ));
         for value in ["0", "500", "1000"] {
             assert_eq!(
-                registry.irules_top_level_declaration("priority", &[value], &events),
+                declaration("priority", &[value]),
                 Some(Declaration::Priority {
                     value: value.parse().unwrap()
                 })
             );
         }
         for invalid in ["-1", "1001", "bad"] {
-            assert!(
-                registry
-                    .irules_top_level_declaration("priority", &[invalid], &events)
-                    .is_none()
-            );
+            assert!(declaration("priority", &[invalid]).is_none());
         }
         assert_eq!(
-            registry.irules_top_level_declaration("timing", &["enable"], &events),
+            declaration("timing", &["enable"]),
             Some(Declaration::Timing { enabled: true })
         );
         for malformed in [&["p", ""][..], &["p", "", "return", "extra"][..]] {
-            assert!(
-                registry
-                    .irules_top_level_declaration("proc", malformed, &events)
-                    .is_none()
-            );
+            assert!(declaration("proc", malformed).is_none());
+        }
+    }
+
+    #[test]
+    fn irules_declaration_owner_rejects_bare_and_quoted_source_bodies() {
+        let registry = crate::registry_for_dialect("f5-irules");
+        for (name, args, body_index) in [
+            ("when", &["HTTP_REQUEST", "set x 1"][..], 1),
+            ("proc", &["p", "", "return"][..], 2),
+        ] {
+            let mut tokens =
+                vec![
+                    tcl_lexer::Token::new(tcl_lexer::TokenType::Esc, tcl_lexer::Span::empty(0),);
+                    args.len()
+                ];
+            let single = vec![true; args.len()];
+            for in_quote in [false, true] {
+                tokens[body_index] = tcl_lexer::Token {
+                    kind: tcl_lexer::TokenType::Esc,
+                    in_quote,
+                    ..tokens[body_index]
+                };
+                let arguments =
+                    crate::events::IrulesDeclarationArguments::new(args, &tokens, &single)
+                        .expect("parallel source-word views");
+                assert!(
+                    registry
+                        .irules_top_level_declaration_shape(name, arguments)
+                        .is_none(),
+                    "{name} must reject a non-braced body"
+                );
+            }
         }
     }
 

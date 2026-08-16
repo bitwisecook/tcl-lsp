@@ -1191,6 +1191,31 @@ impl Analyser {
         let Some(sym) = self.resolve_symbol_definer(cmd_name, scope_path) else {
             return;
         };
+        // An iRules event symbol is a declaration only when the shared
+        // source-aware owner accepts its complete top-level shape. In
+        // particular, a bare or quoted body must not turn an otherwise
+        // ordinary command into an outline event.
+        if self.profile.is_irules() && sym.kind == tcl_registry::DefinedSymbolKind::Event {
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            let valid = self.body_depth == 0
+                && self.registry.as_deref().is_some_and(|registry| {
+                    tcl_registry::events::IrulesDeclarationArguments::new(
+                        &words, arg_tokens, arg_single,
+                    )
+                    .and_then(|arguments| {
+                        registry.irules_top_level_declaration_shape(cmd_name, arguments)
+                    })
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration,
+                            tcl_registry::events::IrulesTopLevelDeclaration::Event { .. }
+                        )
+                    })
+                });
+            if !valid {
+                return;
+            }
+        }
         // A command that defines only in one form (the `testConstraint NAME
         // value` setter, not the `testConstraint NAME` getter) records a symbol
         // only when its defining argument is present.
@@ -1698,24 +1723,10 @@ impl Analyser {
         // iRules procedures are declaration-only, exact three-word forms at
         // file scope. An invalid declaration is consumed but deliberately
         // contributes no symbol, binding, scope, or executable body facts.
-        if self.profile.is_irules() {
-            let words: Vec<&str> = args.iter().map(String::as_str).collect();
-            let registry = self
-                .registry
-                .as_deref()
-                .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
-            let valid = self.body_depth == 0
-                && matches!(
-                    registry.irules_top_level_declaration(
-                        "proc",
-                        &words,
-                        &tcl_registry::events::EventRegistry::build(),
-                    ),
-                    Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
-                );
-            if !valid {
-                return true;
-            }
+        if self.profile.is_irules()
+            && !self.is_valid_irules_procedure_declaration(args, arg_tokens, arg_single)
+        {
+            return true;
         }
         if args.len() < 3 || arg_tokens.len() < 3 {
             return false;
@@ -1857,6 +1868,36 @@ impl Analyser {
         }
 
         true
+    }
+
+    fn is_valid_irules_procedure_declaration(
+        &self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> bool {
+        if self.body_depth != 0 {
+            return false;
+        }
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let registry = self
+            .registry
+            .as_deref()
+            .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
+        tcl_registry::events::IrulesDeclarationArguments::new(&words, arg_tokens, arg_single)
+            .and_then(|arguments| {
+                registry.irules_top_level_declaration(
+                    "proc",
+                    arguments,
+                    &tcl_registry::events::EventRegistry::build(),
+                )
+            })
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration,
+                    tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. }
+                )
+            })
     }
 
     /// Record one `proc` declaration into the whole-document tables —
@@ -10317,7 +10358,7 @@ mod tests {
                 str_tok(span(9, 11)),
                 str_tok(span(12, 14)),
             ],
-            &[],
+            &[true, true, true],
             &[],
         );
         assert!(handled);
@@ -10449,7 +10490,7 @@ mod tests {
                 str_tok(span(10, 12)),
                 str_tok(span(13, 15)),
             ],
-            &[],
+            &[true, true, true],
             &[],
         );
         assert!(

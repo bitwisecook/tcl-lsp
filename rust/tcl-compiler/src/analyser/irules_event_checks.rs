@@ -195,6 +195,7 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         cmd_tok: Token,
         scope_path: &[usize],
     ) {
@@ -206,9 +207,11 @@ impl Analyser {
         if let Some(ev) = event_ref {
             self.emit_irule1001_command_event_validity(cmd_name, args, cmd_tok, ev);
         }
-        self.emit_irule1002_unknown_event(cmd_name, args, arg_tokens);
-        self.emit_irule1003_deprecated_event(cmd_name, args, arg_tokens);
-        self.emit_irule1004_event_handler_missing_priority(cmd_name, args, cmd_tok);
+        self.emit_irule1002_unknown_event(cmd_name, args, arg_tokens, arg_single);
+        self.emit_irule1003_deprecated_event(cmd_name, args, arg_tokens, arg_single);
+        self.emit_irule1004_event_handler_missing_priority(
+            cmd_name, args, arg_tokens, arg_single, cmd_tok,
+        );
         self.emit_irule2003_unsafe_command(cmd_name, cmd_tok);
         self.emit_irule3102_unnormalised_getter(cmd_name, args, cmd_tok);
         self.emit_irule2101_heavy_regex(cmd_name, cmd_tok, event_ref);
@@ -480,21 +483,25 @@ impl Analyser {
         }
     }
 
-    /// Whether `cmd_name` is the dialect's event-handler command — the
-    /// registry's [`Traits::IS_EVENT_HANDLER`], never the literal `when`.
-    ///
-    /// The same fact `super::commands` already keys the `current_event` push
-    /// on: "the event handler is whatever carries `IS_EVENT_HANDLER` — `when`
-    /// today, but a dialect that adds another gets the same treatment without
-    /// an edit here" (issue #1390).  Reading it here also picks up the
-    /// `::`-qualified spelling, which the registry normalises on look-up and a
-    /// `cmd_name != "when"` gate rejected.
-    fn is_event_handler_command(&self, cmd_name: &str) -> bool {
-        self.registry.as_deref().is_some_and(|registry| {
-            registry
-                .get(cmd_name)
-                .is_some_and(|spec| spec.traits.contains(Traits::IS_EVENT_HANDLER))
-        })
+    /// Resolve one source-aware, top-level event declaration without checking
+    /// whether its event selector is known. This preserves IRULE1002's job:
+    /// it reports a valid declaration whose selector is unknown, while the
+    /// executable inventories reject that same declaration.
+    fn irules_event_declaration_shape(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> Option<tcl_registry::events::IrulesTopLevelDeclaration> {
+        if self.body_depth != 0 {
+            return None;
+        }
+        let registry = self.registry.as_deref()?;
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let arguments =
+            tcl_registry::events::IrulesDeclarationArguments::new(&words, arg_tokens, arg_single)?;
+        registry.irules_top_level_declaration_shape(cmd_name, arguments)
     }
 
     /// The document's `(event, body texts)` index for IRULE4003, built once
@@ -526,8 +533,12 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
     ) {
-        if !self.is_event_handler_command(cmd_name) {
+        if !matches!(
+            self.irules_event_declaration_shape(cmd_name, args, arg_tokens, arg_single),
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
+        ) {
             return;
         }
         let (Some(event_name), Some(tok)) = (args.first(), arg_tokens.first()) else {
@@ -637,8 +648,12 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
     ) {
-        if !self.is_event_handler_command(cmd_name) {
+        if !matches!(
+            self.irules_event_declaration_shape(cmd_name, args, arg_tokens, arg_single),
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
+        ) {
             return;
         }
         let (Some(event_name), Some(tok)) = (args.first(), arg_tokens.first()) else {
@@ -671,8 +686,16 @@ impl Analyser {
         &mut self,
         cmd_name: &str,
         args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
         cmd_tok: Token,
     ) {
+        if !matches!(
+            self.irules_event_declaration_shape(cmd_name, args, arg_tokens, arg_single),
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
+        ) {
+            return;
+        }
         let Some(policy) = self
             .registry
             .as_deref()
@@ -1170,6 +1193,20 @@ mod tests {
     #[test]
     fn irule1002_fires_for_unknown_event() {
         assert!(has("when BOGUS_EVENT { log local0. hi }", "IRULE1002"));
+    }
+
+    #[test]
+    fn irule1002_keeps_valid_unknown_events_but_ignores_non_braced_bodies() {
+        assert!(has("when BOGUS_EVENT priority 200 {}", "IRULE1002"));
+        for source in [
+            "when BOGUS_EVENT bare_body",
+            "when BOGUS_EVENT \"quoted body\"",
+        ] {
+            assert!(
+                !has(source, "IRULE1002"),
+                "a non-declaration must not report an event selector: {source}"
+            );
+        }
     }
 
     #[test]

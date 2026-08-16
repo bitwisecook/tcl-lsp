@@ -33,6 +33,13 @@ pub struct EventHandler {
     pub effective_priority: u16,
     /// Decoded single-token argument words after the command head.
     pub arguments: Vec<String>,
+    /// Representative lexer token for each argument word.
+    ///
+    /// The registry declaration owner uses these source facts to distinguish
+    /// the required braced body from bare or quoted arguments.
+    pub argument_tokens: Vec<Token>,
+    /// Whether each argument word consists of exactly one lexer token.
+    pub argument_single_tokens: Vec<bool>,
 }
 
 /// Parse complete event handlers with one lexer/naming contract.
@@ -213,6 +220,11 @@ fn parse_handler(
             .iter()
             .map(|word| sm.token_text(word[0]).to_owned())
             .collect(),
+        argument_tokens: words[1..]
+            .iter()
+            .map(|word| shift_token(word[0], base))
+            .collect(),
+        argument_single_tokens: words[1..].iter().map(|word| word.len() == 1).collect(),
     })
 }
 
@@ -226,6 +238,11 @@ fn closed_brace(source: &str, whole: Span) -> bool {
 
 fn shift(span: Span, base: u32) -> Span {
     Span::new(base + span.start(), base + span.end())
+}
+
+fn shift_token(mut token: Token, base: u32) -> Token {
+    token.span = shift(token.span, base);
+    token
 }
 
 #[cfg(test)]

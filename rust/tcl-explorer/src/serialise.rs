@@ -3643,12 +3643,20 @@ mod tests {
     }
 
     #[test]
-    fn event_order_ignores_when_text_stored_as_data() {
-        let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
+    fn event_order_ignores_non_braced_event_bodies() {
+        let src = "set payload {when CLIENT_DATA {}}\n\
+                   set q \"when SERVER_DATA {}\"\n\
+                   when CLIENT_DATA bare_body\n\
+                   when SERVER_DATA \"quoted body\"\n\
+                   when HTTP_REQUEST priority 100 {}\n\
+                   when HTTP_REQUEST {}";
         let value = serialise_result(&run_pipeline(src, "f5-irules"));
         let rows = value["eventOrder"].as_array().unwrap();
-        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["event"], "HTTP_REQUEST");
+        assert_eq!(rows[0]["base_priority"], 100);
+        assert_eq!(rows[1]["event"], "HTTP_REQUEST");
+        assert_eq!(rows[1]["base_priority"], 500);
     }
 
     #[test]

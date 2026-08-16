@@ -128,8 +128,19 @@ fn collect_top_level_regions(
             canonical.trim_start_matches("::").to_owned()
         };
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        match registry.irules_top_level_declaration(&head, &args, event_registry()) {
-            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { event, body_index }) => {
+        let Some(arguments) = tcl_registry::events::IrulesDeclarationArguments::new(
+            &args,
+            cmd.arg_tokens(),
+            cmd.arg_single_token(),
+        ) else {
+            continue;
+        };
+        match registry.irules_top_level_declaration(&head, arguments, event_registry()) {
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event {
+                event,
+                body_index,
+                ..
+            }) => {
                 if let Some(body) = cmd
                     .argv
                     .get(body_index + 1)
@@ -467,10 +478,14 @@ mod tests {
     }
 
     #[test]
-    fn unknown_events_and_malformed_procs_do_not_open_execution_regions() {
+    fn inventory_requires_braced_declaration_bodies() {
         let facts = commands(concat!(
             "when BOGUS_EVENT { pool bogus; set static::bogus 1; table incr bogus }\n",
+            "when CLIENT_DATA pool\n",
+            "when SERVER_DATA \"pool quoted_event\"\n",
             "proc missing {}\n",
+            "proc bare_proc {} pool\n",
+            "proc quoted_proc {} \"pool quoted_proc\"\n",
             "proc extra {} { pool malformed } trailing\n",
             "proc valid {} { pool valid_proc }\n",
             "when HTTP_REQUEST { call valid; pool valid_event }\n",

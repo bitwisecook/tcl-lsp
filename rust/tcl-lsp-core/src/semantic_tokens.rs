@@ -1477,6 +1477,16 @@ fn special_arg_kinds(
     deferred_role: bool,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
+    let declaration_arguments = tcl_registry::events::IrulesDeclarationArguments::new(
+        arg_texts,
+        seg.arg_tokens(),
+        seg.arg_single_token(),
+    );
+    let irules_declaration = declaration_arguments.and_then(|arguments| {
+        registry
+            .irules_top_level_declaration_shape(head, arguments)
+            .or_else(|| irules_registry().irules_top_level_declaration_shape(head, arguments))
+    });
 
     // `when EVENT` — the literal event-name argument.  Event handlers come
     // from the registry's `IS_EVENT_HANDLER` trait; the event name is the
@@ -1490,6 +1500,10 @@ fn special_arg_kinds(
         .get(head)
         .or_else(|| irules_registry().get(head))
         .is_some_and(|s| s.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER))
+        && matches!(
+            irules_declaration.as_ref(),
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
+        )
         && let (Some(tok), Some(text)) = (seg.argv.get(1), seg.texts.get(1))
         && matches!(tok.kind, TokenType::Esc)
         && is_event_name(text)
@@ -1511,6 +1525,11 @@ fn special_arg_kinds(
             .traits
             .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
         && spec.definition_body.is_none()
+        && (!dialect.intersects(DialectSet::IRULES)
+            || matches!(
+                irules_declaration.as_ref(),
+                Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+            ))
         && let Some(&name_idx) = registry
             .arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Name)
             .first()

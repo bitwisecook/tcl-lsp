@@ -2050,12 +2050,38 @@ mod tests {
     }
 
     #[test]
-    fn malformed_irules_proc_is_not_an_outline_symbol() {
+    fn irules_outline_requires_braced_declaration_bodies() {
         let symbols = document_symbols(
-            "proc malformed {} { set leaked 1 } extra\nwhen HTTP_REQUEST {}",
+            "proc bare_proc {} return\n\
+             proc quoted_proc {} \"return\"\n\
+             proc malformed {} { return } extra\n\
+             proc valid_proc {} { return }\n\
+             when CLIENT_DATA bare_body\n\
+             when SERVER_DATA \"quoted body\"\n\
+             when HTTP_REQUEST {}",
             IRULES,
         );
-        assert_eq!(names(&symbols), vec!["HTTP_REQUEST"]);
+        let all = flat(&symbols);
+        assert!(
+            all.contains(&("valid_proc".to_owned(), SymbolKind::Function)),
+            "{all:?}"
+        );
+        assert!(
+            all.contains(&("HTTP_REQUEST".to_owned(), SymbolKind::Event)),
+            "{all:?}"
+        );
+        for invalid in [
+            "bare_proc",
+            "quoted_proc",
+            "malformed",
+            "CLIENT_DATA",
+            "SERVER_DATA",
+        ] {
+            assert!(
+                !all.iter().any(|(name, _)| name == invalid),
+                "non-braced or malformed declaration leaked into outline: {all:?}"
+            );
+        }
     }
 
     #[test]

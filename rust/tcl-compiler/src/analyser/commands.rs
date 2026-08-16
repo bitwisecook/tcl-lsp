@@ -1690,7 +1690,7 @@ impl Analyser {
         self.emit_irule2001_matchclass(cmd_name, arg_tokens, cmd_tok);
         // IRULE1003 / 1004 / 2101 / 4001 / 4003 / 5001 / 6001 —
         // analyser-level iRules event-context checks (f5-irules only).
-        self.emit_irules_event_checks(cmd_name, args, arg_tokens, cmd_tok, scope_path);
+        self.emit_irules_event_checks(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
         // TK1001 / TK1002 / TK1003 — Tk-dialect widget + geometry checks
         // (tk dialect only); the TK1001 conflict is flushed post-walk.
         self.emit_tk_checks(cmd_name, args, arg_tokens, cmd_tok);
@@ -1882,14 +1882,10 @@ impl Analyser {
     }
 
     /// Generic body recursion via the command registry's
-    /// `ArgRole::Body`.  Picks up `if` / `while` / `when` / `eval`
-    /// / `uplevel` / `subst` / etc. — every available command whose registry
-    /// spec marks an argument index as `BODY`.  Sets
-    /// ``current_event`` for a top-level event handler body and bumps
-    /// ``conditional_depth`` for ``if`` / ``try``.  Emits W105
-    /// before recursing into each body so the unbraced-body
-    /// warning fires on the body argument's own range, not on
-    /// any nested re-segmentation.
+    /// `ArgRole::Body`, including `if`, `when`, `eval`, and every other
+    /// registry-owned body. Sets event / conditional context and emits W105
+    /// on the body argument before recursing, rather than on a nested
+    /// re-segmentation.
     fn dispatch_body_arguments(
         &mut self,
         cmd_name: &str,
@@ -1995,16 +1991,13 @@ impl Analyser {
         let spec_traits = registry
             .get(cmd_name)
             .map_or_else(tcl_registry::Traits::empty, |s| s.traits);
-        let is_event_handler = spec_traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER);
         // iRules event handlers are a file-level declaration surface.  A
         // handler-shaped command reached while already walking any body is
         // invalid (IRULE5006) and must not manufacture or replace event
         // context.  In particular, a nested handler inside an event retains
         // the outer event's context, while one inside a proc retains `None`.
-        let valid_irules_event =
-            self.irules_event_body_is_valid(cmd_name, is_event_handler, args, arg_tokens);
-        let enters_event_context = is_event_handler && self.body_depth == 0 && valid_irules_event;
-        let (entered_event, prev_event) = self.enter_event_context(enters_event_context, args);
+        let (valid_irules_event, entered_event, prev_event) =
+            self.enter_registry_event_context(cmd_name, spec_traits, args, arg_tokens, arg_single);
         let is_conditional = spec_traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         if is_conditional {
             self.conditional_depth += 1;
@@ -2057,12 +2050,34 @@ impl Analyser {
         (true, previous)
     }
 
+    fn enter_registry_event_context(
+        &mut self,
+        command: &str,
+        traits: tcl_registry::Traits,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> (bool, bool, Option<String>) {
+        let is_event_handler = traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER);
+        let valid = self.irules_event_body_is_valid(
+            command,
+            is_event_handler,
+            args,
+            arg_tokens,
+            arg_single,
+        );
+        let (entered, previous) =
+            self.enter_event_context(is_event_handler && self.body_depth == 0 && valid, args);
+        (valid, entered, previous)
+    }
+
     fn irules_event_body_is_valid(
         &self,
         command: &str,
         is_event_handler: bool,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
     ) -> bool {
         if !self.profile.is_irules() || !is_event_handler {
             return true;
@@ -2072,11 +2087,15 @@ impl Analyser {
             .registry
             .as_deref()
             .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
-        let declaration = registry.irules_top_level_declaration(
-            command,
-            &words,
-            &tcl_registry::events::EventRegistry::build(),
-        );
+        let declaration =
+            tcl_registry::events::IrulesDeclarationArguments::new(&words, arg_tokens, arg_single)
+                .and_then(|arguments| {
+                    registry.irules_top_level_declaration(
+                        command,
+                        arguments,
+                        &tcl_registry::events::EventRegistry::build(),
+                    )
+                });
         self.body_depth == 0
             && matches!(
                 declaration,

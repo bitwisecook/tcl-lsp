@@ -25,7 +25,7 @@
 use std::borrow::Cow;
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use tcl_lexer::LexerConfig;
+use tcl_lexer::{LexerConfig, Token, TokenType};
 
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
@@ -212,6 +212,8 @@ pub enum IrulesTopLevelDeclaration {
         event: String,
         /// Zero-based argument index of the handler body.
         body_index: usize,
+        /// Explicit handler priority, when the declaration supplied one.
+        priority: Option<u16>,
     },
     /// A procedure definition and its registry-owned name/body arguments.
     Procedure {
@@ -230,6 +232,55 @@ pub enum IrulesTopLevelDeclaration {
         /// Whether timing is enabled.
         enabled: bool,
     },
+}
+
+/// Source-structure facts for the arguments of an iRules declaration.
+///
+/// Declaration syntax is not determined by Tcl argument values alone: both
+/// `when EVENT {body}` and `proc name {args} {body}` require their body to be
+/// one braced source word.  The registry owns that requirement, while callers
+/// supply the lexer facts that distinguish a braced word from a bare, quoted,
+/// or compound one.
+#[derive(Debug, Clone, Copy)]
+pub struct IrulesDeclarationArguments<'a> {
+    values: &'a [&'a str],
+    tokens: &'a [Token],
+    single_tokens: &'a [bool],
+}
+
+impl<'a> IrulesDeclarationArguments<'a> {
+    /// Construct a source-aware declaration argument view.
+    ///
+    /// Returns `None` unless every value has exactly one representative token
+    /// and one single-token fact.
+    #[must_use]
+    pub fn new(
+        values: &'a [&'a str],
+        tokens: &'a [Token],
+        single_tokens: &'a [bool],
+    ) -> Option<Self> {
+        (values.len() == tokens.len() && values.len() == single_tokens.len()).then_some(Self {
+            values,
+            tokens,
+            single_tokens,
+        })
+    }
+
+    /// Decoded Tcl argument values, in source order.
+    #[must_use]
+    pub const fn values(self) -> &'a [&'a str] {
+        self.values
+    }
+
+    /// Whether `index` is exactly one braced literal source word.
+    #[must_use]
+    pub fn is_braced_literal(self, index: usize) -> bool {
+        self.single_tokens.get(index).copied().unwrap_or(false)
+            && self
+                .tokens
+                .get(index)
+                .is_some_and(|token| token.kind == TokenType::Str)
+    }
 }
 
 /// Stateful effect of an iRules-only top-level declaration.
@@ -1105,7 +1156,13 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
     );
     handlers.retain(|handler| {
         let args: Vec<&str> = handler.arguments.iter().map(String::as_str).collect();
-        registry.irules_event_declaration(&args, &events).is_some()
+        crate::events::IrulesDeclarationArguments::new(
+            &args,
+            &handler.argument_tokens,
+            &handler.argument_single_tokens,
+        )
+        .and_then(|arguments| registry.irules_event_declaration(arguments, &events))
+        .is_some()
     });
     apply_inherited_priorities(source, config, registry, resolver, &mut handlers);
     handlers
@@ -1191,7 +1248,13 @@ pub fn top_level_when_handler_candidates_with_registry_and_head_resolver(
     .into_iter()
     .filter(|handler| {
         let args: Vec<&str> = handler.arguments.iter().map(String::as_str).collect();
-        registry.irules_event_declaration_shape(&args).is_some()
+        crate::events::IrulesDeclarationArguments::new(
+            &args,
+            &handler.argument_tokens,
+            &handler.argument_single_tokens,
+        )
+        .and_then(|arguments| registry.irules_event_declaration_shape(arguments))
+        .is_some()
     })
     .collect()
 }

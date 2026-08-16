@@ -313,7 +313,7 @@ impl<'a> CommentLineWalker<'a> {
                 && let Some(&token) = command.arg_tokens().get(index)
                 && token.kind == tcl_lexer::TokenType::Str
             {
-                self.visit_case_list(script, token, spec, base_offset, depth);
+                self.visit_case_list(script, token, &spec, base_offset, depth);
             }
 
             for index in body_indices {
@@ -362,7 +362,7 @@ impl<'a> CommentLineWalker<'a> {
         &mut self,
         script: &'a str,
         token: tcl_lexer::Token,
-        spec: tcl_registry::CaseListSpec,
+        spec: &tcl_registry::CaseListSpec,
         base_offset: u32,
         depth: u32,
     ) {
