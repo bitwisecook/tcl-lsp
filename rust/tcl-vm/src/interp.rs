@@ -505,7 +505,12 @@ pub struct InterpState {
     /// fallback profile, which hides nothing; `set_runtime_version` pins the
     /// matching plain-Tcl profile and `set_dialect_profile` pins a vendor one.
     dialect_profile: &'static tcl_dialect::DialectProfile,
-    /// The availability registry for [`Self::dialect_profile`], resolved once
+    /// The profile used solely for builtin command-surface availability.
+    /// Normally identical to [`Self::dialect_profile`], but an embedding host
+    /// may expose a broader Tcl host surface while retaining a vendor grammar
+    /// and bytecode identity (for example, the iRules simulation harness).
+    command_surface_profile: &'static tcl_dialect::DialectProfile,
+    /// The availability registry for [`Self::command_surface_profile`], resolved once
     /// at pin time (`registry_for_profile` guards its cache with a lock, and
     /// this is consulted on every command resolution). `None` for the
     /// permissive fallback profile, which gates nothing.
@@ -1026,6 +1031,7 @@ impl Vm {
             self.module_procs.clear();
         }
         self.dialect_profile = profile;
+        self.command_surface_profile = profile;
         self.profile_registry =
             (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
         self.runtime_version = profile.vm_runtime_version;
@@ -1038,6 +1044,22 @@ impl Vm {
         // mid-execution.
         tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
         self.write_release_globals();
+    }
+
+    /// Override only the builtin command-availability surface.
+    ///
+    /// Compilation, bytecode profile validation, lexer/expr semantics, and
+    /// [`Self::dialect_profile`] remain unchanged. This is for embedding hosts
+    /// that execute a sandboxed dialect inside a broader host interpreter.
+    pub fn set_command_surface_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        self.bump_cmd_epoch();
+        self.profile_generation = self.profile_generation.wrapping_add(1);
+        self.eval_cache.clear();
+        self.eval_cache_traced.clear();
+        self.module_procs.clear();
+        self.command_surface_profile = profile;
+        self.profile_registry =
+            (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
     }
 
     /// The Tcl release this VM emulates (see
@@ -1144,7 +1166,7 @@ impl InterpState {
         };
         registry.get(name).is_none()
             || registry
-                .get_for_dialect(name, self.dialect_profile.availability_mask)
+                .get_for_dialect(name, self.command_surface_profile.availability_mask)
                 .is_some()
     }
 
@@ -1162,6 +1184,7 @@ impl InterpState {
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
             dialect_profile: tcl_dialect::DialectProfile::plain_tcl(),
+            command_surface_profile: tcl_dialect::DialectProfile::plain_tcl(),
             profile_registry: None,
             profile_generation: 0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
@@ -2287,6 +2310,7 @@ impl Vm {
         child.host = Rc::clone(&self.host);
         child.runtime_version = self.runtime_version;
         child.dialect_profile = self.dialect_profile;
+        child.command_surface_profile = self.command_surface_profile;
         child.profile_registry = self.profile_registry;
         Box::new(child)
     }
