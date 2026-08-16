@@ -524,7 +524,7 @@ fn compute_blank_lines(
 fn format_case_list_body(
     body_text: &str,
     body_source_offset: u32,
-    case_list: CaseListSpec,
+    case_list: &CaseListSpec,
     config: &FormatterConfig,
     registry: &CommandRegistry,
     identities: &tcl_compiler::head_identity::HeadIdentityMap,
@@ -1572,7 +1572,7 @@ pub(crate) fn format_body(
                         format_case_list_body(
                             &body_text,
                             body_source_offset,
-                            case_list,
+                            &case_list,
                             config,
                             registry,
                             identities,

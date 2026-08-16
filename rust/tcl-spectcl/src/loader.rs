@@ -2234,6 +2234,7 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         end_options_option: None,
         fallthrough_body: None,
         value_options_require_regex: &[],
+        special_match_options: &[],
         clause_flags: &[],
         clause_regex_flag: None,
         clause_value_flags: &[],
@@ -2261,6 +2262,9 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
             "fallthrough_body" => spec.fallthrough_body = Some(leak_str(&value)),
             "value_options_require_regex" => {
                 spec.value_options_require_regex = leak_strs(&list_words(&value));
+            }
+            "special_match_options" => {
+                spec.special_match_options = leak_strs(&list_words(&value));
             }
             "clause_flags" => spec.clause_flags = leak_strs(&list_words(&value)),
             "clause_regex_flag" => spec.clause_regex_flag = Some(leak_str(&value)),

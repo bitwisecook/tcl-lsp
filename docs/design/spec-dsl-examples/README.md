@@ -280,7 +280,7 @@ the descriptor's own field names, so nothing new has to be learnt:
 |---|---|
 | `hover` | `summary`, `synopsis`*, `description`, `source`, `example`*, `returns` |
 | `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N? ?-introduced V? ?-deprecated V? ?-retired V?`* |
-| `case_list` | `subject_args`, `two_arg_optionless_dialects`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies` |
+| `case_list` | `subject_args`, `two_arg_optionless_dialects`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `special_match_options`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies` |
 | `clause_grammar` | `head {slots}`, `repeated KEYWORD {slots}`*, `tail ?KEYWORD? {slots}` |
 | `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |

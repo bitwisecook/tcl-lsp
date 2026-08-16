@@ -324,6 +324,8 @@ pub struct CaseListSpec {
     pub fallthrough_body: Option<&'static str>,
     /// Value-taking options legal only in regular-expression mode.
     pub value_options_require_regex: &'static [&'static str],
+    /// Zero-value command options selecting a specialised comparison mode.
+    pub special_match_options: &'static [&'static str],
     /// Flags that may precede a pattern *inside* the list (Expect's `-re`,
     /// `-gl`, `-ex`, `-nocase`, `-timeout`).  Empty means no clause flags.
     pub clause_flags: &'static [&'static str],
@@ -381,6 +383,10 @@ pub enum CaseMatchMode {
     Glob,
     /// Regular-expression matching; static consumers may abstain.
     Regexp,
+    /// A registry-recognised specialised comparison option not represented by
+    /// the common string modes (for example Tcl 9.1 `switch -integer`).
+    /// Structural consumers may still traverse bodies; evaluators abstain.
+    Other,
 }
 
 /// Validated command-level layout of a case-list invocation.
@@ -423,6 +429,7 @@ impl CaseListSpec {
         end_options_option: Some("--"),
         fallthrough_body: Some("-"),
         value_options_require_regex: &["-matchvar", "-indexvar"],
+        special_match_options: &["-integer"],
         clause_flags: &[],
         clause_regex_flag: None,
         clause_value_flags: &[],
@@ -454,6 +461,7 @@ impl CaseListSpec {
         // `-brace { … }` shape. Keep these options out of a speculative
         // list-remainder grammar so every consumer abstains consistently.
         value_options_require_regex: &[],
+        special_match_options: &[],
         clause_flags: &[
             "-glob",
             "-regexp",
@@ -492,6 +500,7 @@ impl CaseListSpec {
         dialect: DialectSet,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
+        let mut saw_match_mode = false;
         let mut nocase = false;
         let mut saw_regex_value_option = false;
         let mut i = 0usize;
@@ -548,12 +557,24 @@ impl CaseListSpec {
                 let option = option?;
                 let option_name = option.name;
                 if self.exact_option == Some(option_name) {
+                    if saw_match_mode {
+                        return None;
+                    }
+                    saw_match_mode = true;
                     mode = CaseMatchMode::Exact;
                     i += 1;
                 } else if self.glob_option == Some(option_name) {
+                    if saw_match_mode {
+                        return None;
+                    }
+                    saw_match_mode = true;
                     mode = CaseMatchMode::Glob;
                     i += 1;
                 } else if self.regex_option == Some(option_name) {
+                    if saw_match_mode {
+                        return None;
+                    }
+                    saw_match_mode = true;
                     mode = CaseMatchMode::Regexp;
                     i += 1;
                 } else if self.nocase_option == Some(option_name) {
@@ -562,6 +583,15 @@ impl CaseListSpec {
                 } else {
                     let consumed = option.value_word_count(args, i);
                     if consumed == 0 {
+                        if self.special_match_options.contains(&option_name) {
+                            if saw_match_mode {
+                                return None;
+                            }
+                            saw_match_mode = true;
+                            mode = CaseMatchMode::Other;
+                            i += 1;
+                            continue;
+                        }
                         return None;
                     }
                     saw_regex_value_option |=
@@ -571,6 +601,12 @@ impl CaseListSpec {
             }
         }
         if saw_regex_value_option && mode != CaseMatchMode::Regexp {
+            return None;
+        }
+        // Descriptor-specialised match modes (currently Tcl 9.1's integer
+        // switch mode) compare values intrinsically and cannot be combined
+        // with the string-only case-folding modifier.
+        if mode == CaseMatchMode::Other && nocase {
             return None;
         }
         // Selectors are descriptor syntax, not ordinary command options.
