@@ -128,7 +128,7 @@ pub mod prelude {
     pub use crate::command_table::CommandTableEffect;
     pub use crate::completion::{
         CompletionCode, CompletionCodeDomain, CompletionDescriptor, CompletionPayloadObligation,
-        CompletionPayloadObligations,
+        CompletionPayloadObligations, CompletionValueSemantics,
     };
     pub use crate::definer::{
         DefinerFamily, DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberRetraction,
@@ -222,7 +222,7 @@ pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_table::CommandTableEffect;
 pub use completion::{
     CompletionCode, CompletionCodeDomain, CompletionDescriptor, CompletionPayloadObligation,
-    CompletionPayloadObligations,
+    CompletionPayloadObligations, CompletionValueSemantics,
 };
 pub use dialects::{
     DETECT_SCAN_BYTES, KNOWN_DIALECTS, available_dialects, detect_dialect,

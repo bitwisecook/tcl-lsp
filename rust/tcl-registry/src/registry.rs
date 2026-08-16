@@ -136,6 +136,9 @@ pub enum InvocationCompletionKnowledge {
     Exact(ExactInvocationCompletion),
     /// `return -code $value` can either propagate return or reject the code.
     DynamicReturnOrError,
+    /// A dynamic `exit` status either terminates the process or raises
+    /// catchable Tcl error; it never has a normal continuation.
+    ExitOrError,
     /// The invocation has a runtime-dependent completion.
     Dynamic,
 }
@@ -153,6 +156,32 @@ enum ExactReturnCompletion {
     Completion(crate::completion::CompletionCode),
     StaticError,
     Dynamic,
+}
+
+/// Parse `exit ?returnCode?` after its descriptor has established the exact
+/// one-word-or-omitted shape. Tcl parses the status with its normal wide
+/// integer grammar, so an invalid literal is an ordinary catchable error,
+/// not a process termination.
+enum ExactProcessExitCompletion {
+    ProcessExit,
+    StaticError,
+    Dynamic,
+}
+
+fn exact_process_exit_completion(
+    args: crate::invocation_words::InvocationArguments<'_>,
+    numbers: tcl_syntax::number::Numbers,
+) -> ExactProcessExitCompletion {
+    match args.get(0) {
+        None => ExactProcessExitCompletion::ProcessExit,
+        Some(_) => match args.literal_at(0) {
+            Some(value) if numbers.parse_wide(value).is_some() => {
+                ExactProcessExitCompletion::ProcessExit
+            }
+            Some(_) => ExactProcessExitCompletion::StaticError,
+            None => ExactProcessExitCompletion::Dynamic,
+        },
+    }
 }
 
 fn exact_return_completion(
@@ -514,7 +543,7 @@ fn push_command_prefix_options(
 /// outer grammar excludes from option scanning; a dynamic word in that suffix
 /// cannot alter the already-established layout.
 fn has_dynamic_leading_option_word(
-    options: &[crate::hover::OptionSpec],
+    options: &[&crate::hover::OptionSpec],
     args: InvocationArguments<'_>,
     spellings: &[&str],
     reserved_trailing_words: usize,
@@ -525,7 +554,7 @@ fn has_dynamic_leading_option_word(
         let Some(word) = args.literal_at(index) else {
             return true;
         };
-        let Some(option) = crate::spec::resolve_option_prefix(options, word) else {
+        let Some(option) = crate::patterns::resolve_available_option_prefix(options, word) else {
             return false;
         };
         index += 1 + option.value_word_count(spellings, index);
@@ -2176,16 +2205,34 @@ impl CommandRegistry {
                 ExactReturnCompletion::Dynamic => None,
             };
         }
+        let descriptor = resolved
+            .form
+            .and_then(|form| form.completion)
+            .or(resolved.sub.and_then(|sub| sub.completion))
+            .or(resolved.spec.completion);
+        if descriptor.is_some_and(|descriptor| {
+            descriptor.value_semantics
+                == crate::completion::CompletionValueSemantics::ProcessExitStatus
+        }) {
+            return match exact_process_exit_completion(
+                args,
+                tcl_syntax::number::Numbers::of_profile(self.profile()),
+            ) {
+                ExactProcessExitCompletion::ProcessExit => {
+                    Some(ExactInvocationCompletion::ProcessExit)
+                }
+                ExactProcessExitCompletion::StaticError => Some(ExactInvocationCompletion::Tcl(
+                    crate::completion::CompletionCode::Error,
+                )),
+                ExactProcessExitCompletion::Dynamic => None,
+            };
+        }
         let traits =
             resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits);
         if traits.contains(Traits::TERMINATES_PROCESS) {
             return Some(ExactInvocationCompletion::ProcessExit);
         }
-        let descriptor = resolved
-            .form
-            .and_then(|form| form.completion)
-            .or(resolved.sub.and_then(|sub| sub.completion))
-            .or(resolved.spec.completion)?;
+        let descriptor = descriptor?;
         let crate::completion::CompletionCodeDomain::Exact(codes) = descriptor.codes else {
             return None;
         };
@@ -2206,6 +2253,22 @@ impl CommandRegistry {
         }
         let literals = args.literal_values().unwrap_or_default();
         let resolved = self.resolve_call(name, &literals, dialect)?;
+        let descriptor = resolved
+            .form
+            .and_then(|form| form.completion)
+            .or(resolved.sub.and_then(|sub| sub.completion))
+            .or(resolved.spec.completion);
+        if descriptor.is_some_and(|descriptor| {
+            descriptor.value_semantics
+                == crate::completion::CompletionValueSemantics::ProcessExitStatus
+        }) {
+            // The exact path above already returned omitted / literal-valid
+            // process exits and literal-invalid TCL_ERROR. Anything left is
+            // source-dynamic (including `{*}` with an unknown argv length):
+            // Tcl can only either parse a status and exit or reject the
+            // invocation; it can never fall through normally.
+            return Some(InvocationCompletionKnowledge::ExitOrError);
+        }
         if resolved.lowering_hook != Some(LoweringHookId::Return) {
             return None;
         }
@@ -2579,8 +2642,18 @@ impl CommandRegistry {
             return out;
         }
 
+        // Option-selected pattern layouts are owned by the paired pattern
+        // resolver.  Reusing that answer keeps role consumers aligned with
+        // hover and semantic-token consumers, including profile-gated option
+        // abbreviations and reserved positional suffixes.
+        if role == ArgRole::Pattern && spec.pattern_arg_resolver.is_some() {
+            out.extend(
+                self.pattern_args(name, args)
+                    .into_iter()
+                    .map(|pattern| usize::from(pattern.index)),
+            );
         // Top-level positional roles.
-        if let Some(resolver) = spec.arg_role_resolver {
+        } else if let Some(resolver) = spec.arg_role_resolver {
             out.extend(
                 resolver(args)
                     .into_iter()
@@ -2675,11 +2748,45 @@ impl CommandRegistry {
     /// branches of their own.
     #[must_use]
     pub fn pattern_args(&self, name: &str, args: &[&str]) -> Vec<crate::patterns::PatternArg> {
-        let Some(spec) = self.get(name) else {
+        self.pattern_args_for_dialect(name, args, self.own_availability_mask())
+    }
+
+    /// Dialect-explicit counterpart to [`Self::pattern_args`].
+    ///
+    /// A profile-bound registry always uses its attached profile.  A
+    /// profile-less registry uses `dialect`, which is how editor consumers
+    /// carrying one shared registry keep option-selected pattern layouts in
+    /// sync with the current document's Tcl release.
+    #[must_use]
+    pub fn pattern_args_for_dialect(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: DialectSet,
+    ) -> Vec<crate::patterns::PatternArg> {
+        let effective_dialect = self
+            .profile()
+            .map_or(dialect, |profile| profile.availability_mask);
+        let spec = if effective_dialect.is_empty() {
+            self.get(name)
+        } else {
+            self.get_for_dialect(name, effective_dialect)
+        };
+        let Some(spec) = spec else {
             return Vec::new();
         };
         if let Some(resolve) = spec.pattern_arg_resolver {
-            return resolve(args);
+            let options = self.profile().map_or_else(
+                || spec.option_specs((!effective_dialect.is_empty()).then_some(effective_dialect)),
+                |profile| crate::ProfileQueries::available_option_specs(profile, spec),
+            );
+            return resolve(
+                args,
+                crate::patterns::PatternArgResolverContext {
+                    options: &options,
+                    reserved_trailing_words: spec.reserved_trailing_words,
+                },
+            );
         }
         let sub = (!spec.subcommands.is_empty())
             .then(|| args.first().and_then(|word| spec.resolve_subcommand(word)))
@@ -2710,17 +2817,40 @@ impl CommandRegistry {
         name: &str,
         args: InvocationArguments<'_>,
     ) -> Vec<crate::patterns::PatternArg> {
-        let Some(spec) = self.get(name) else {
+        self.pattern_args_words_for_dialect(name, args, self.own_availability_mask())
+    }
+
+    /// Dialect-explicit counterpart to [`Self::pattern_args_words`].
+    #[must_use]
+    pub fn pattern_args_words_for_dialect(
+        &self,
+        name: &str,
+        args: InvocationArguments<'_>,
+        dialect: DialectSet,
+    ) -> Vec<crate::patterns::PatternArg> {
+        let effective_dialect = self
+            .profile()
+            .map_or(dialect, |profile| profile.availability_mask);
+        let spec = if effective_dialect.is_empty() {
+            self.get(name)
+        } else {
+            self.get_for_dialect(name, effective_dialect)
+        };
+        let Some(spec) = spec else {
             return Vec::new();
         };
         let spellings: Vec<_> = (0..args.len())
             .map(|index| args.literal_at(index).unwrap_or_default())
             .collect();
+        let options = self.profile().map_or_else(
+            || spec.option_specs((!effective_dialect.is_empty()).then_some(effective_dialect)),
+            |profile| crate::ProfileQueries::available_option_specs(profile, spec),
+        );
         if spec.pattern_arg_resolver.is_some()
             && (!args.has_exact_argv_len()
                 || (spec.options.is_empty() && args.has_non_literal())
                 || has_dynamic_leading_option_word(
-                    spec.options,
+                    &options,
                     args,
                     &spellings,
                     spec.reserved_trailing_words,
@@ -2728,7 +2858,7 @@ impl CommandRegistry {
         {
             return Vec::new();
         }
-        self.pattern_args(name, &spellings)
+        self.pattern_args_for_dialect(name, &spellings, effective_dialect)
     }
 
     /// How a formatter should **present** argument `index` of a call to
@@ -4328,6 +4458,106 @@ mod tests {
                 )
                 .is_empty(),
                 "{dialect}: lsearch $mode {{a b}} {{a+}} remains ambiguous"
+            );
+        }
+    }
+
+    #[test]
+    fn lsearch_pattern_resolver_uses_profiled_options_and_the_reserved_suffix() {
+        use crate::patterns::{PatternArg, PatternType};
+
+        // These are oracle-shaped against Tcl's `i < objc - 2` scanner.  The
+        // first two words of the short form are list + pattern, even though
+        // both spell like lsearch switches.
+        let option_shaped_operands = ["-regexp", "-glob"];
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = crate::registry_for_dialect(dialect);
+            let patterns = registry.pattern_args("lsearch", &option_shaped_operands);
+            assert_eq!(
+                patterns,
+                vec![PatternArg {
+                    index: 1,
+                    kind: PatternType::Glob,
+                }],
+                "{dialect}: lsearch -regexp -glob keeps both mandatory operands out of option scanning"
+            );
+            assert_eq!(
+                registry.arg_indices_for_role("lsearch", &option_shaped_operands, ArgRole::Pattern),
+                patterns
+                    .iter()
+                    .map(|pattern| usize::from(pattern.index))
+                    .collect::<Vec<_>>(),
+                "{dialect}: ArgRole::Pattern must share the resolver answer"
+            );
+        }
+
+        // `-str` can name only -stride in Tcl 9.  Pre-9 metadata must not
+        // consume it as a future switch (nor let its value shift the pattern).
+        let stride_abbrev = ["-str", "2", "{a b}", "a+"];
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
+            let registry = crate::registry_for_dialect(dialect);
+            assert_eq!(
+                registry.pattern_args("lsearch", &stride_abbrev),
+                vec![PatternArg {
+                    index: 1,
+                    kind: PatternType::Glob,
+                }],
+                "{dialect}: unavailable -stride abbreviation remains positional"
+            );
+        }
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            let registry = crate::registry_for_dialect(dialect);
+            let patterns = registry.pattern_args("lsearch", &stride_abbrev);
+            assert_eq!(
+                patterns,
+                vec![PatternArg {
+                    index: 3,
+                    kind: PatternType::Glob,
+                }],
+                "{dialect}: -str is the available -stride abbreviation"
+            );
+            assert_eq!(
+                registry.arg_indices_for_role("lsearch", &stride_abbrev, ArgRole::Pattern),
+                vec![3],
+                "{dialect}: roles, hover, and tokens share the Tcl 9 layout"
+            );
+        }
+    }
+
+    #[test]
+    fn source_aware_lsearch_dynamic_prefix_and_suffix_have_distinct_obligations() {
+        use crate::invocation_words::{InvocationArguments, InvocationWord};
+        use crate::patterns::{PatternArg, PatternType};
+
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let registry = crate::registry_for_dialect(dialect);
+            let dynamic_early = [
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("{a b}"),
+                InvocationWord::Literal("a+"),
+            ];
+            assert!(
+                registry
+                    .pattern_args_words("lsearch", InvocationArguments::structured(&dynamic_early))
+                    .is_empty(),
+                "{dialect}: a dynamic word before the mandatory operands can still be a switch"
+            );
+
+            let dynamic_list_operand = [
+                InvocationWord::Literal("-regexp"),
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("a+"),
+            ];
+            assert_eq!(
+                registry.pattern_args_words(
+                    "lsearch",
+                    InvocationArguments::structured(&dynamic_list_operand),
+                ),
+                vec![PatternArg {
+                    index: 2,
+                    kind: PatternType::Regex,
+                }],
+                "{dialect}: the dynamic mandatory list is beyond the option boundary"
             );
         }
     }
@@ -6939,6 +7169,55 @@ mod tests {
             ),
             Some(ExactInvocationCompletion::Tcl(CompletionCode::Return))
         );
+    }
+
+    #[test]
+    fn exit_status_completion_follows_the_tcl86_and_tcl90_oracle() {
+        use crate::completion::CompletionCode;
+        use crate::invocation_words::{InvocationArguments, InvocationWord};
+
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let reg = crate::registry_for_dialect(dialect);
+            // tclsh8.6/9: omitted and Tcl-wide integer spellings run the
+            // process-exit path; the width parser accepts hex and signs too.
+            for args in [&[][..], &["0"][..], &["-7"][..], &["0x10"][..]] {
+                assert_eq!(
+                    reg.exact_invocation_completion("exit", args, DialectSet::empty()),
+                    Some(ExactInvocationCompletion::ProcessExit),
+                    "{dialect}: exit {args:?}"
+                );
+            }
+            // `exit nope` and excess arguments never get as far as process
+            // termination: Tcl raises an ordinary, catchable error instead.
+            for args in [&["nope"][..], &["1.5"][..], &["0", "extra"][..]] {
+                assert_eq!(
+                    reg.exact_invocation_completion("exit", args, DialectSet::empty()),
+                    Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
+                    "{dialect}: exit {args:?}"
+                );
+            }
+
+            let dynamic = [InvocationWord::Dynamic];
+            assert_eq!(
+                reg.invocation_completion_knowledge(
+                    "exit",
+                    InvocationArguments::structured(&dynamic),
+                    DialectSet::empty(),
+                ),
+                Some(InvocationCompletionKnowledge::ExitOrError),
+                "{dialect}: exit $status is only process-exit or Tcl error"
+            );
+            let expanded = [InvocationWord::Expanded];
+            assert_eq!(
+                reg.invocation_completion_knowledge(
+                    "exit",
+                    InvocationArguments::structured(&expanded),
+                    DialectSet::empty(),
+                ),
+                Some(InvocationCompletionKnowledge::ExitOrError),
+                "{dialect}: exit {{*}}$statuses has no normal completion either"
+            );
+        }
     }
 
     #[test]

@@ -63,6 +63,7 @@ enum DiagramCompletion {
     Continue,
     Dynamic,
     DynamicReturnOrError,
+    ExitOrError,
     ExactCustom(i32),
     ProcessExit,
     Terminal,
@@ -78,6 +79,7 @@ impl DiagramCompletion {
             Self::Continue => Some("continue"),
             Self::Dynamic => Some("dynamic"),
             Self::DynamicReturnOrError => Some("dynamic_return_or_error"),
+            Self::ExitOrError => Some("exit_or_error"),
             Self::ExactCustom(_) => Some("custom"),
             Self::ProcessExit => Some("process_exit"),
             Self::Terminal => Some("terminal"),
@@ -150,6 +152,7 @@ fn command_completion(
             InvocationCompletionKnowledge::DynamicReturnOrError => {
                 DiagramCompletion::DynamicReturnOrError
             }
+            InvocationCompletionKnowledge::ExitOrError => DiagramCompletion::ExitOrError,
             InvocationCompletionKnowledge::Dynamic => DiagramCompletion::Dynamic,
         };
     }
@@ -867,6 +870,33 @@ mod tests {
             data.pointer("/procedures/0/flow/2/body/0/completion"),
             Some(&Value::String("dynamic".to_owned()))
         );
+    }
+
+    #[test]
+    fn exit_statuses_project_exact_error_and_typed_dynamic_outcomes() {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let data = diagram_data_for_dialect(
+                r"
+                    proc paths {status} {
+                        try { exit nope } on error {message options} { set caught yes } finally { set cleaned yes }
+                        try { exit $status } on error {message options} { set caught_dynamic yes } finally { set cleaned_dynamic yes }
+                        set after yes
+                    }
+                ",
+                tcl_registry::registry_for_dialect(dialect),
+                dialect,
+            );
+            assert_eq!(
+                data.pointer("/procedures/0/flow/0/body/0/completion"),
+                Some(&Value::String("error".to_owned())),
+                "{dialect}: static invalid exit is a Tcl error"
+            );
+            assert_eq!(
+                data.pointer("/procedures/0/flow/1/body/0/completion"),
+                Some(&Value::String("exit_or_error".to_owned())),
+                "{dialect}: dynamic exit has no ordinary completion"
+            );
+        }
     }
 
     #[test]

@@ -640,10 +640,11 @@ fn pattern_format_hover_for_command(
         .resolve_call(head, &args, context.profile.availability_mask)?;
 
     let source_args = segmented_command_arguments(command);
-    for pattern in context
-        .registry
-        .pattern_args_words(head, InvocationArguments::structured(&source_args))
-    {
+    for pattern in context.registry.pattern_args_words_for_dialect(
+        head,
+        InvocationArguments::structured(&source_args),
+        context.profile.availability_mask,
+    ) {
         let Some(&token) = command.argv.get(usize::from(pattern.index) + 1) else {
             continue;
         };
@@ -5141,6 +5142,34 @@ mod tests {
         // `$mode` can evaluate to a value-taking lsearch option. The source
         // shape therefore cannot prove that `{a b}` is the pattern word.
         assert!(hover(src, 0, 16, &analysis, None).is_none());
+    }
+
+    #[test]
+    fn lsearch_pattern_hover_uses_the_documents_profiled_option_set() {
+        // Tcl 9 makes -str the unique -stride abbreviation. Before 9 it is
+        // not an lsearch option, so the preceding -regexp cannot claim the
+        // final word as a regex pattern. This reaches the profile-aware
+        // PatternArgResolver path, not a command-name hover branch.
+        let src = "lsearch -regexp -str 2 {a b} {a+}\n";
+        let cursor = u32::try_from(src.rfind("a+").expect("final pattern")).unwrap();
+        for (dialect, expected) in [("tcl8.6", false), ("tcl9.0", true)] {
+            let mut analyser = tcl_compiler::analyser::Analyser::new();
+            let analysis = analyser.analyse(src, dialect).clone();
+            let profile = tcl_dialect::DialectProfile::by_name(dialect);
+            let found = hover_with_profile(
+                src,
+                0,
+                cursor,
+                &analysis,
+                Some(&tcl_registry::CommandRegistry::build_default()),
+                profile,
+            );
+            assert_eq!(
+                found.is_some_and(|hover| hover.value.contains("Regex pattern")),
+                expected,
+                "{dialect}: profile-filtered lsearch options decide the pattern position"
+            );
+        }
     }
 
     // regsub substitution-spec hover

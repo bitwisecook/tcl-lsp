@@ -260,6 +260,27 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun dynamicExitRoutesOnlyItsErrorPathThroughTryFinallyAndAfter() {
+        val mermaid = assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+              {"kind":"action","label":"exit ${'$'}status","completion":"exit_or_error"}],"handlers":[
+              {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"handled status error"}]}],
+              "finally":[{"kind":"action","label":"cleanup"}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )))
+        // The typed union supplies exactly one catchable branch. Its sibling
+        // process-exit branch is deliberately not connected to finally or
+        // after, while the on-error branch remains visible through both.
+        assertEquals(1, mermaid.lines().count { it.contains("-->|on|") }, mermaid)
+        assertContains(mermaid, "n2 -->|on| n3")
+        assertContains(mermaid, "n4 --> n5")
+        kotlin.test.assertFalse(mermaid.contains("n2 --> n5"), mermaid)
+        assertContains(mermaid, "handled status error")
+        assertContains(mermaid, "finally")
+        assertContains(mermaid, "cleanup")
+        assertContains(mermaid, "after")
+    }
+
+    @Test
     fun catchAbsorbsEveryTclCompletionButNotProcessExit() {
         fun render(completion: String, code: Int? = null): String {
             val completionCode = code?.let { ",\"completion_code\":$it" } ?: ""

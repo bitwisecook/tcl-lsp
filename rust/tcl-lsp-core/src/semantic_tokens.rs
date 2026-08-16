@@ -1498,7 +1498,7 @@ fn special_arg_kinds(
         overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
     }
 
-    insert_regex_overrides(seg, registry, head, &mut overrides);
+    insert_regex_overrides(seg, registry, head, dialect, &mut overrides);
     insert_format_overrides(seg, registry, head, arg_texts, &mut overrides);
 
     // `proc NAME …` — the name argument is a function definition.  Procedure
@@ -1926,6 +1926,7 @@ fn insert_regex_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // Sub-tokenise only the *literal* fragments of the pattern word as regex:
@@ -1941,7 +1942,11 @@ fn insert_regex_overrides(
     // declared `OptionSpec` and `arg_role_resolver`.
     let source_args = segmented_command_arguments(seg);
     for found in registry
-        .pattern_args_words(head, InvocationArguments::structured(&source_args))
+        .pattern_args_words_for_dialect(
+            head,
+            InvocationArguments::structured(&source_args),
+            dialect,
+        )
         .into_iter()
         .filter(|found| found.kind == tcl_registry::patterns::PatternType::Regex)
     {
@@ -6667,6 +6672,44 @@ mod tests {
         // because lsearch also supports -regexp.
         let glob = kinds("lsearch {a b} {a+}\n", "tcl", &reg());
         assert!(!glob.contains(&(TokenKind::Regexp as u32)), "{glob:?}");
+    }
+
+    #[test]
+    fn lsearch_pattern_tokens_follow_profiled_stride_abbreviations() {
+        // `-str` is only lsearch -stride from Tcl 9.  The final `{a+}` is
+        // regex only after that profile-visible option consumes its value.
+        let source = "lsearch -regexp -str 2 {a b} {a+}\n";
+        let registry = reg();
+        let final_pattern = u32::try_from(source.rfind("a+").expect("final pattern")).unwrap();
+        let kinds_at_final_pattern = |dialect: &str| {
+            let tokens = full(source, dialect, &registry);
+            let mut line = 0u32;
+            let mut column = 0u32;
+            tokens
+                .data
+                .chunks(5)
+                .filter_map(|chunk| {
+                    if chunk[0] > 0 {
+                        line += chunk[0];
+                        column = chunk[1];
+                    } else {
+                        column += chunk[1];
+                    }
+                    (line == 0 && column <= final_pattern && final_pattern < column + chunk[2])
+                        .then_some(chunk[3])
+                })
+                .collect::<Vec<_>>()
+        };
+        let old = kinds_at_final_pattern("tcl8.6");
+        assert!(
+            !old.contains(&(TokenKind::Regexp as u32)),
+            "tcl8.6 must not consume unavailable -stride: {old:?}"
+        );
+        let new = kinds_at_final_pattern("tcl9.0");
+        assert!(
+            new.contains(&(TokenKind::Regexp as u32)),
+            "tcl9.0 must parse -str as -stride: {new:?}"
+        );
     }
 
     #[test]

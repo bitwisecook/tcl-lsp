@@ -232,11 +232,20 @@ static OPTIONS: &[OptionSpec] = &[
 /// pattern.  The option table is the grammar: `-start`/`-index`/`-stride`
 /// consume their declared values, and a unique abbreviation consumes exactly
 /// the same layout as its canonical spelling.
-fn lsearch_pattern_args(args: &[&str]) -> Vec<PatternArg> {
+fn lsearch_pattern_args(
+    args: &[&str],
+    context: crate::patterns::PatternArgResolverContext<'_>,
+) -> Vec<PatternArg> {
     let mut option_end = 0;
     let mut kind = Some(PatternType::Glob);
-    while let Some(&word) = args.get(option_end) {
-        let Some(option) = resolve_option_prefix(OPTIONS, word) else {
+    // Tcl's outer parser scans only while both mandatory operands remain.
+    // In particular, `lsearch -regexp -glob` searches list `-regexp` for
+    // glob pattern `-glob`; neither trailing word is an option candidate.
+    let option_scan_end = args.len().saturating_sub(context.reserved_trailing_words);
+    while option_end < option_scan_end {
+        let word = args[option_end];
+        let Some(option) = crate::patterns::resolve_available_option_prefix(context.options, word)
+        else {
             break;
         };
         // The matching-style options are mutually overriding: the final one
@@ -264,13 +273,6 @@ fn lsearch_pattern_args(args: &[&str]) -> Vec<PatternArg> {
         .collect()
 }
 
-fn lsearch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    lsearch_pattern_args(args)
-        .into_iter()
-        .map(|arg| (arg.index, ArgRole::Pattern))
-        .collect()
-}
-
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsearch",
@@ -287,7 +289,6 @@ pub fn spec() -> CommandSpec {
         // style per call, but the registry's `pattern_type` is a single
         // per-command fact, so it records the default.
         pattern_type: Some(PatternType::Glob),
-        arg_role_resolver: Some(lsearch_arg_roles),
         pattern_arg_resolver: Some(lsearch_pattern_args),
         options: OPTIONS,
         // `Tcl_LsearchObjCmd` scans outer options with `i < objc - 2` in

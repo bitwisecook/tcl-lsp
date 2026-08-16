@@ -155,6 +155,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
         "continue" -> DiagramCompletion.CONTINUE
         "dynamic" -> DiagramCompletion.DYNAMIC
         "dynamic_return_or_error" -> DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
+        "exit_or_error" -> DiagramCompletion.EXIT_OR_ERROR
         "custom" -> DiagramCompletion.EXACT_CUSTOM
         "process_exit" -> DiagramCompletion.PROCESS_EXIT
         "terminal" -> DiagramCompletion.TERMINAL
@@ -273,11 +274,20 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                     // `catch` converts every Tcl completion into its own
                     // normal integer result. Process exit is not a Tcl
                     // completion and cannot be caught, so it remains abrupt.
+                    // A dynamic exit status contributes both: its invalid
+                    // integer path is caught, while its valid integer path
+                    // still terminates the process.
                     val processExits = bodyExits.filter { it.completion == DiagramCompletion.PROCESS_EXIT }
+                    val exitOrErrors = bodyExits.filter { it.completion == DiagramCompletion.EXIT_OR_ERROR }
                     abrupt += processExits
+                    abrupt += exitOrErrors.map { Tail(it.id, DiagramCompletion.PROCESS_EXIT) }
                     active = bodyExits
-                        .filter { it.completion != DiagramCompletion.PROCESS_EXIT }
+                        .filter {
+                            it.completion != DiagramCompletion.PROCESS_EXIT &&
+                                it.completion != DiagramCompletion.EXIT_OR_ERROR
+                        }
                         .map { Tail(it.id) }
+                    active += exitOrErrors.map { Tail(it.id) }
                 }
                 "try" -> {
                     val attempt = node("try", "round")
@@ -316,7 +326,8 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                         if (handler.data.string("kind_handler") == "trap") {
                             return outcome == DiagramCompletion.ERROR ||
                                 outcome == DiagramCompletion.DYNAMIC ||
-                                outcome == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
+                                outcome == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR ||
+                                outcome == DiagramCompletion.EXIT_OR_ERROR
                         }
                         if (handler.data.string("kind_handler") != "on") return false
                         val code = handler.data.get("completion_code")?.takeIf { it.isJsonPrimitive }?.asInt
@@ -328,6 +339,7 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                             DiagramCompletion.CONTINUE -> code == 4
                             DiagramCompletion.DYNAMIC -> false
                             DiagramCompletion.DYNAMIC_RETURN_OR_ERROR -> code == 1 || code == 2
+                            DiagramCompletion.EXIT_OR_ERROR -> code == 1
                             DiagramCompletion.EXACT_CUSTOM -> false
                             DiagramCompletion.PROCESS_EXIT -> false
                             DiagramCompletion.TERMINAL -> false
@@ -369,7 +381,8 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                     val exits = mutableListOf<Tail>()
                     for (bodyExit in bodyExits) {
                         if (bodyExit.completion == DiagramCompletion.DYNAMIC ||
-                            bodyExit.completion == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR
+                            bodyExit.completion == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR ||
+                            bodyExit.completion == DiagramCompletion.EXIT_OR_ERROR
                         ) {
                             val possible = if (bodyExit.completion == DiagramCompletion.DYNAMIC) {
                                 // Dynamic action nodes retain their normal
@@ -391,8 +404,15 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                                     .map { PossibleCompletion.CUSTOM(it) }
                                     .toList()
                                 standard + custom + PossibleCompletion.UNKNOWN_OTHER
-                            } else {
+                            } else if (bodyExit.completion == DiagramCompletion.DYNAMIC_RETURN_OR_ERROR) {
                                 listOf(PossibleCompletion.ERROR, PossibleCompletion.RETURN)
+                            } else {
+                                // A dynamic exit status has two outcomes:
+                                // a catchable status-conversion error and an
+                                // immediate process exit.  Route only the
+                                // former through try; append the latter as a
+                                // bypass tail below.
+                                listOf(PossibleCompletion.ERROR)
                             }
                             for (outcome in possible) {
                                 var certainlyCaught = false
@@ -424,6 +444,9 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                                     }
                                 }
                                 if (!certainlyCaught) exits += Tail(bodyExit.id, completionOf(outcome))
+                            }
+                            if (bodyExit.completion == DiagramCompletion.EXIT_OR_ERROR) {
+                                exits += Tail(bodyExit.id, DiagramCompletion.PROCESS_EXIT)
                             }
                             continue
                         }
@@ -583,7 +606,7 @@ private class MermaidIds {
 }
 
 /** Completion states defined by the shared `tcl-diagram` JSON contract. */
-private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, DYNAMIC_RETURN_OR_ERROR, EXACT_CUSTOM, PROCESS_EXIT, TERMINAL }
+private enum class DiagramCompletion { NORMAL, ERROR, RETURN, BREAK, CONTINUE, DYNAMIC, DYNAMIC_RETURN_OR_ERROR, EXIT_OR_ERROR, EXACT_CUSTOM, PROCESS_EXIT, TERMINAL }
 private sealed class PossibleCompletion {
     data object NORMAL : PossibleCompletion()
     data object ERROR : PossibleCompletion()

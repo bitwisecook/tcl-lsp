@@ -24,6 +24,8 @@
 //! emit *sub-tokens* (semantic-token splitting inside the string
 //! literal) and run pattern-specific validation.
 
+use crate::hover::OptionSpec;
+
 /// Kind of pattern language an argument uses, for semantic tokens and
 /// validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -50,8 +52,60 @@ pub struct PatternArg {
     pub kind: PatternType,
 }
 
+/// Registry context supplied to a call-specific pattern resolver.
+///
+/// The caller filters [`options`](Self::options) for the document's resolved
+/// profile before invoking the resolver.  Keeping the option grammar and the
+/// reserved positional suffix together means an option-selected pattern
+/// layout cannot accidentally recognise a switch that this Tcl release does
+/// not have, nor scan a mandatory operand merely because it looks like one.
+#[derive(Debug, Clone, Copy)]
+pub struct PatternArgResolverContext<'a> {
+    /// Available option descriptors in declaration order.
+    pub options: &'a [&'static OptionSpec],
+    /// Mandatory trailing operands excluded from the leading option scan.
+    pub reserved_trailing_words: usize,
+}
+
 /// Resolve a command's call-specific pattern arguments.
-pub type PatternArgResolver = fn(&[&str]) -> Vec<PatternArg>;
+///
+/// Resolver callbacks receive the profile-filtered option metadata and the
+/// command's reserved trailing operand boundary.  The callback must use both
+/// rather than carrying a private option table or inferring the positional
+/// boundary itself.
+pub type PatternArgResolver = for<'a> fn(&[&str], PatternArgResolverContext<'a>) -> Vec<PatternArg>;
+
+/// Resolve an option word against profile-filtered descriptor references.
+///
+/// Static option tables use [`crate::spec::resolve_option_prefix`]; this
+/// counterpart preserves the same exact-or-unique-prefix rule after a
+/// profile has selected only the options this invocation can actually use.
+#[must_use]
+pub(crate) fn resolve_available_option_prefix<'a>(
+    options: &'a [&crate::hover::OptionSpec],
+    word: &str,
+) -> Option<&'a crate::hover::OptionSpec> {
+    if let Some(option) = options.iter().copied().find(|option| option.matches(word)) {
+        return Some(option);
+    }
+    if !word.starts_with('-') || word.len() < 2 {
+        return None;
+    }
+    let mut found = None;
+    for option in options.iter().copied() {
+        if std::iter::once(option.name)
+            .chain(option.aliases.iter().copied())
+            .any(|spelling| spelling.starts_with(word))
+        {
+            match found {
+                None => found = Some(option),
+                Some(previous) if std::ptr::eq(previous, option) => {}
+                Some(_) => return None,
+            }
+        }
+    }
+    found
+}
 
 impl PatternType {
     /// Stable lowercase tag (`"glob"` / `"regex"`) — used by the audit
