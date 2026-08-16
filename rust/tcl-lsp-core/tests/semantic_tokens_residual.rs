@@ -1006,6 +1006,28 @@ fn st_irules_declaration_tokens_require_source_top_level() {
 }
 
 #[test]
+fn st_irules_declaration_boundary_tracks_resolved_head_identity() {
+    // The shared top-level boundary owner resolves command identity at the
+    // source offset: redefining `when` means the later spelling is no longer
+    // an iRules event handler, even though its words retain declaration shape.
+    let r = irules_registry();
+    let src = "proc when {args} {}\nwhen HTTP_REQUEST {}\n";
+    let toks = decode_with(src, "f5-irules", &r);
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 0 && t.character == 5 && t.ttype == "function"),
+        "the redefining proc name remains a definition: {toks:?}",
+    );
+    assert_eq!(
+        toks.iter()
+            .find(|t| t.line == 1 && t.character == 5)
+            .map(|t| t.ttype.as_str()),
+        Some("string"),
+        "a rebound `when` must not receive an event override: {toks:?}",
+    );
+}
+
+#[test]
 fn st_irules_object_ref_in_multiline_body_is_object_token() {
     // `pool /Common/web_pool` inside a multi-line `when` body — the body is
     // tokenised by recursion; the object overlay marks the partitioned pool

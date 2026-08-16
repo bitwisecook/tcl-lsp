@@ -1212,6 +1212,74 @@ fn irules_registry() -> &'static CommandRegistry {
     IRULES.get_or_init(|| tcl_registry::registry_for_dialect("f5-irules"))
 }
 
+/// Return the source offsets whose commands are admitted by the shared
+/// iRules top-level declaration boundary.
+///
+/// Event handlers come from the registry/syntax owner directly.  Procedures
+/// use the same top-level segmented command stream and registry-owned
+/// declaration shape, because the syntax owner intentionally only exposes the
+/// `when`-specific boundary record.  Recursive walks must consult these facts
+/// rather than infer declaration placement from their own recursion depth:
+/// command identity mutations and the iRules lexer grammar are document facts,
+/// not properties of this token walk.
+fn irules_top_level_declaration_heads(
+    source: &str,
+    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+) -> FxHashSet<u32> {
+    let registry = irules_registry();
+    let mut heads: FxHashSet<u32> =
+        tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
+            source, registry, identities,
+        )
+        .into_iter()
+        .map(|handler| handler.span.start())
+        .collect();
+
+    // The shared syntax boundary parser intentionally models `when`'s
+    // handler-specific grammar.  Procedure declarations use the same
+    // top-level lexer stream and the registry's declaration-shape owner.
+    for seg in segment_commands_with_offset_and_config(
+        source,
+        0,
+        tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
+    ) {
+        let Some(head_token) = seg.argv.first() else {
+            continue;
+        };
+        let Some(head) = seg.texts.first() else {
+            continue;
+        };
+        let resolved = tcl_registry::events::CommandHeadResolver::resolve(
+            identities,
+            head,
+            head_token.span.start(),
+        );
+        let Some(closed) = tcl_registry::events::closed_braced_argument_words(
+            source,
+            seg.arg_tokens(),
+            seg.arg_single_token(),
+        ) else {
+            continue;
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let Some(arguments) = tcl_registry::events::IrulesDeclarationArguments::new(
+            &args,
+            seg.arg_tokens(),
+            seg.arg_single_token(),
+            &closed,
+        ) else {
+            continue;
+        };
+        if matches!(
+            registry.irules_top_level_declaration_shape(resolved.as_ref(), arguments),
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+        ) {
+            heads.insert(head_token.span.start());
+        }
+    }
+    heads
+}
+
 /// True when `s` looks like an iRules event name (`^[A-Z][A-Z0-9_]+$`).
 fn is_event_name(s: &str) -> bool {
     let bytes = s.as_bytes();
@@ -4267,6 +4335,9 @@ struct ScriptCtx<'a> {
     /// command name passed to a dispatcher highlights as a command.  Empty on
     /// the pure-segmentation path.
     extra_command: &'a FxHashMap<String, Vec<u32>>,
+    /// Source offsets admitted by the shared iRules declaration-boundary
+    /// owner. Empty outside the iRules overlay.
+    irules_top_level_declaration_heads: &'a FxHashSet<u32>,
 }
 
 /// Emit one clause-list *pattern* element.
@@ -4906,7 +4977,8 @@ fn collect_script(
             ctx.extra_var_write,
             ctx.extra_var_read,
             ctx.extra_command,
-            depth == 0,
+            ctx.irules_top_level_declaration_heads
+                .contains(&seg.argv[0].span.start()),
             deferred_role,
         );
         // A `[list HEAD …]` sitting in a deferred (script) slot *is* the
@@ -5911,6 +5983,12 @@ fn collect_entries(
     let head_identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
 
+    // The iRules declaration overlay uses the shared top-level boundary facts
+    // (including offset-resolved command identity) rather than this walk's
+    // recursive depth as its placement predicate.
+    let irules_top_level_declaration_heads =
+        irules_top_level_declaration_heads(source, &head_identities);
+
     // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
     // options through the registry (issue #748).  Empty without a
@@ -5982,6 +6060,7 @@ fn collect_entries(
         extra_var_write: &extra_var_write,
         extra_var_read: &extra_var_read,
         extra_command: &extra_command,
+        irules_top_level_declaration_heads: &irules_top_level_declaration_heads,
     };
     collect_script(ctx, source, 0, &mut entries, 0, false);
 
