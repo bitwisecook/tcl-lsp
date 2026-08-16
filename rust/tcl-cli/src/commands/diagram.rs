@@ -36,10 +36,10 @@ use crate::cli::InputArgs;
 /// `tcl diagram` — extract control-flow diagram data from the IR.
 pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&dialect);
-    let data = diagram::diagram_data_for_dialect(&source, &registry, &dialect);
+    let registry = registry_for_dialect(dialect.name);
+    let data = diagram::diagram_data_for_dialect(&source, &registry, dialect.name);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 

@@ -703,8 +703,9 @@ pub fn completions(
         // only *present* once the Tk package is loaded — the `tk` dialect (a
         // `wish` document) or a `package require Tk` in this file.  Without
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
-        let tk_loaded =
-            dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
+        let tk_loaded = tcl_dialect::DialectSet::parse(dialect)
+            .is_some_and(|set| set.contains(tcl_dialect::DialectSet::TK))
+            || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, &line_index);
         items.extend(builtin_completions(
             registry, dialect, &partial, &usage, tk_loaded, analysis, oo_frame,
@@ -2309,8 +2310,9 @@ fn fuzzy_command_fallback(
     }
     universe.extend(proc_completions(analysis, "", &usage));
     if let Some(registry) = registry {
-        let tk_loaded =
-            dialect == "tk" || analysis.package_requires.iter().any(|req| req.name == "Tk");
+        let tk_loaded = tcl_dialect::DialectSet::parse(dialect)
+            .is_some_and(|set| set.contains(tcl_dialect::DialectSet::TK))
+            || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, line_index);
         universe.extend(builtin_completions(
             registry, dialect, "", &usage, tk_loaded, analysis, oo_frame,

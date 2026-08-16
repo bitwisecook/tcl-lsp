@@ -4176,6 +4176,7 @@ dependencies = [
  "serde_json",
  "tabled",
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-pkg",

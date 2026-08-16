@@ -42,19 +42,19 @@ pub fn run_explore(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
 
     // `tcl-explorer` deliberately resolves the process's active registry so
     // its pipeline matches the LSP. Initialising the CLI registry publishes
     // the discovered project pack set (and its hook plan) on that interface.
-    let _registry = tcl_cli_support::registry_for_dialect(&dialect);
+    let _registry = tcl_cli_support::registry_for_dialect(dialect.name);
 
     if tui {
-        return run_tui(&source, &dialect);
+        return run_tui(&source, dialect.name);
     }
 
-    let result = tcl_explorer::run_pipeline(&source, &dialect);
+    let result = tcl_explorer::run_pipeline(&source, dialect.name);
     let value = tcl_explorer::serialise_result(&result);
 
     let target = OutputTarget::from_arg(input.output.as_deref());

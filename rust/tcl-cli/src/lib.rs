@@ -127,7 +127,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             right.as_deref(),
             left_source.as_deref(),
             right_source.as_deref(),
-            dialect.as_deref(),
+            tcl_cli_support::resolve_dialect(dialect.as_deref())?,
             show,
             *json,
             output.as_deref(),
@@ -137,7 +137,13 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             dialect,
             json,
             output,
-        } => commands::lookup::run_command_info(command, dialect, *json, output.as_deref()),
+        } => commands::lookup::run_command_info(
+            command,
+            tcl_cli_support::resolve_dialect(Some(dialect))?
+                .expect("a supplied command-info dialect resolves"),
+            *json,
+            output.as_deref(),
+        ),
         Command::Highlight {
             input,
             format,
@@ -192,7 +198,12 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             all_dialects,
             json: _,
             output,
-        } => commands::registry::run_registry_dump(dialect, *all_dialects, output.as_deref()),
+        } => commands::registry::run_registry_dump(
+            tcl_cli_support::resolve_dialect(Some(dialect))?
+                .expect("a supplied registry-dump dialect resolves"),
+            *all_dialects,
+            output.as_deref(),
+        ),
         Command::UnminifyError {
             symbol_map,
             error,
@@ -232,7 +243,17 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             limit,
             json,
             output,
-        } => commands::help::run_help(query, dialect, *limit, *json, output.as_deref()),
+        } => commands::help::run_help(
+            query,
+            if dialect == "all" {
+                None
+            } else {
+                tcl_cli_support::resolve_dialect(Some(dialect))?
+            },
+            *limit,
+            *json,
+            output.as_deref(),
+        ),
         Command::FindLegacy { input, json } => commands::misc::run_find_legacy(input, *json),
         Command::Minimize {
             input,

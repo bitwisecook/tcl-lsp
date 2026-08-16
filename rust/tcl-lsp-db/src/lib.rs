@@ -2467,7 +2467,13 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
-    let optimisations = solve_optimisations(db, &cu, &lattice_keys, registry, dialect_opt);
+    let optimisations = solve_optimisations(
+        db,
+        &cu,
+        &lattice_keys,
+        registry,
+        tcl_dialect::DialectProfile::find(&dialect),
+    );
     Arc::new(CheckSolve {
         taints,
         fn_checks,
@@ -2816,7 +2822,7 @@ fn solve_optimisations<'db>(
     cu: &CompilationUnit,
     lattice_keys: &HashMap<String, FnLatticeKey<'db>>,
     registry: &CommandRegistry,
-    dialect_opt: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let mutations =
         tcl_compiler::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
@@ -2824,7 +2830,8 @@ fn solve_optimisations<'db>(
         .procedures
         .keys()
         .all(|qname| lattice_keys.contains_key(qname));
-    let is_irules = tcl_compiler::taint::is_irules_dialect(dialect_opt);
+    let is_irules = dialect.is_some_and(tcl_dialect::DialectProfile::is_irules);
+    let dialect_opt = dialect.map(|profile| profile.name);
     // The **argument-sensitive** O103 fold re-runs a *pure* callee's body with the
     // call's constant arguments (`evaluate_proc_with_constants`), so it reads the
     // callee's whole `FunctionUnit` (`cu.procedures.get(callee)`), not just its
@@ -3129,9 +3136,10 @@ pub struct CompilerDiagnostics {
 fn compiler_diagnostics_from_unit(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect_opt: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     generic_patterns: Option<&[String]>,
 ) -> CompilerDiagnostics {
+    let dialect_opt = dialect.map(|profile| profile.name);
     CompilerDiagnostics {
         checks: tcl_compiler::compiler_checks::run_all_checks_with_generic_patterns(
             cu,
@@ -3216,7 +3224,12 @@ pub fn compiler_check_diagnostics_uncached(
         },
     )
     .with_interprocedural(registry, dialect_opt);
-    compiler_diagnostics_from_unit(&cu, registry, dialect_opt, generic_patterns)
+    compiler_diagnostics_from_unit(
+        &cu,
+        registry,
+        tcl_dialect::DialectProfile::find(dialect),
+        generic_patterns,
+    )
 }
 
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the

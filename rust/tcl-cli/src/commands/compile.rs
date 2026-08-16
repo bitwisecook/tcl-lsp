@@ -70,20 +70,20 @@ fn maybe_optimise(
 /// `tcl dis` — compile source and emit human-readable bytecode disassembly.
 pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
-    let registry = registry_for_dialect(&dialect);
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
+    let registry = registry_for_dialect(dialect.name);
     let source = maybe_optimise(
         &combine_sources(&documents),
         &registry,
-        &dialect,
+        dialect.name,
         optimise_on,
     );
 
     let ir = lower_to_ir_for_bytecode_with_dialect(
         &source,
         &registry,
-        tcl_lexer::LexerConfig::for_dialect(&dialect),
-        &dialect,
+        tcl_lexer::LexerConfig::for_dialect(dialect.name),
+        dialect.name,
     );
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, &registry);
@@ -99,11 +99,11 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
 /// fallback inside the generated module.
 pub fn run_compwasm(input: &InputArgs, wat_output: Option<&std::path::Path>) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
-    let registry = registry_for_dialect(&dialect);
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
+    let registry = registry_for_dialect(dialect.name);
     let source = combine_sources(&documents);
 
-    let unit = CompilationUnit::build_for_dialect(&source, &registry, false, &dialect);
+    let unit = CompilationUnit::build_for_dialect(&source, &registry, false, dialect.name);
     let mut wasm = compile_wasm(&unit, &registry, WasmCompileOptions::hosted());
     let bytes = wasm.to_bytes();
 

@@ -38,6 +38,7 @@ use std::path::PathBuf;
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{Map, Value, json};
 use tcl_cli_support::{OutputTarget, ensure_ascii, write_text_output};
+use tcl_dialect::DialectProfile;
 
 /// The KCS help database, built at compile time by `build.rs` (from
 /// `docs/kcs/features/*.md`) into `$OUT_DIR` and embedded here.
@@ -87,6 +88,16 @@ impl Feature {
         }
         let hay = self.dialect_haystack();
         terms.iter().any(|t| hay.contains(t))
+    }
+
+    fn matches_profile(&self, dialect: Option<&DialectProfile>) -> bool {
+        dialect.is_none_or(|profile| {
+            profile.help_terms.is_empty()
+                || profile
+                    .help_terms
+                    .iter()
+                    .any(|term| self.dialect_haystack().contains(term))
+        })
     }
 
     /// JSON view for embedders (the MCP `help` tool). `rank` is included only
@@ -428,7 +439,7 @@ fn render_search_results(results: &[Feature], query: &str) -> String {
 /// `tcl help` (`docs`) — search the bundled KCS help database.
 pub fn run_help(
     query: &[String],
-    dialect: &str,
+    dialect: Option<&DialectProfile>,
     limit: usize,
     json: bool,
     output: Option<&std::path::Path>,
@@ -447,7 +458,7 @@ pub fn run_help(
 fn run_help_inner(
     conn: &Connection,
     query: &[String],
-    dialect: &str,
+    dialect: Option<&DialectProfile>,
     limit: usize,
     json: bool,
     output: Option<&std::path::Path>,
@@ -458,9 +469,9 @@ fn run_help_inner(
 
     if query_str.is_empty() {
         let mut catalogue = list_features(conn)?;
-        if dialect != "all" {
+        if dialect.is_some() {
             for (_, features) in &mut catalogue {
-                features.retain(|f| f.matches_dialect(dialect));
+                features.retain(|f| f.matches_profile(dialect));
             }
             catalogue.retain(|(_, features)| !features.is_empty());
         }
@@ -472,13 +483,13 @@ fn run_help_inner(
         return Ok(u8::from(catalogue.is_empty()));
     }
 
-    let search_limit = if dialect == "all" {
+    let search_limit = if dialect.is_none() {
         limit
     } else {
         (limit * 5).max(limit)
     };
     let mut results = search_help(conn, query_str, search_limit)?;
-    results.retain(|f| f.matches_dialect(dialect));
+    results.retain(|f| f.matches_profile(dialect));
     results.truncate(limit);
 
     if json {
