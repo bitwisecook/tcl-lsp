@@ -246,6 +246,14 @@ fn expr_boundary_owner_problems(root: &Path) -> Vec<String> {
              tcl_dialect::scan_nan_payload"
         ));
     }
+    if !read_rust_source(root, NAN_PAYLOAD_CONSUMER).is_some_and(|text| {
+        production_function_contains_call(&text, "is_expr_number", "tcl_dialect::scan_expr_number(")
+    }) {
+        problems.push(format!(
+            "{NAN_PAYLOAD_CONSUMER}: expression-number value classifier does not \
+             call tcl_dialect::scan_expr_number in its production body"
+        ));
+    }
     for &(path, test_name) in EXPR_BOUNDARY_CORPUS {
         if !read_rust_source(root, path)
             .is_some_and(|text| text.contains(&format!("fn {test_name}(")))
@@ -292,6 +300,39 @@ fn declares_nan_payload_scanner(text: &str) -> bool {
         let line = line.trim_start();
         line.starts_with("fn scan_nan_payload(") || line.starts_with("pub fn scan_nan_payload(")
     })
+}
+
+/// Return whether a named production function's body contains `call`.
+///
+/// The owner-wiring gate must inspect the production call site, not merely a
+/// test fixture elsewhere in the same source file. This intentionally small
+/// brace matcher is sufficient for Rust function bodies and avoids treating a
+/// test-only mention as evidence that the production classifier still routes
+/// through the shared boundary owner.
+fn production_function_contains_call(text: &str, function: &str, call: &str) -> bool {
+    let needle = format!("fn {function}(");
+    let Some(signature) = text.find(&needle) else {
+        return false;
+    };
+    let Some(open_rel) = text[signature..].find('{') else {
+        return false;
+    };
+    let open = signature + open_rel;
+    let bytes = text.as_bytes();
+    let mut depth = 0usize;
+    for (offset, byte) in bytes[open..].iter().enumerate() {
+        match byte {
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return text[open..open + offset].contains(call);
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn read_rust_source(root: &Path, relative: &str) -> Option<String> {
@@ -527,6 +568,30 @@ mod tests {
         ));
         assert!(declares_nan_payload_scanner(
             "pub fn scan_nan_payload(source: &[u8]) {}"
+        ));
+    }
+
+    #[test]
+    fn production_call_check_ignores_test_only_mentions() {
+        let test_only = "fn is_expr_number(text: &str) -> bool {\n\
+                         is_whole_number(text)\n\
+                     }\n\
+                     #[test]\n\
+                     fn wiring() { tcl_dialect::scan_expr_number(b\"1\", 0, s, None); }\n";
+        assert!(!production_function_contains_call(
+            test_only,
+            "is_expr_number",
+            "tcl_dialect::scan_expr_number("
+        ));
+
+        let production = "fn is_expr_number(text: &str) -> bool {\n\
+                          tcl_dialect::scan_expr_number(text.as_bytes(), 0, s, None)\
+                              .is_some()\n\
+                      }\n";
+        assert!(production_function_contains_call(
+            production,
+            "is_expr_number",
+            "tcl_dialect::scan_expr_number("
         ));
     }
 }
