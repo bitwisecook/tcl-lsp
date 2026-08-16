@@ -30,12 +30,14 @@
 //! overwritten by the expansion.
 
 use tcl_compiler::ir::IfClause;
-use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
 use tcl_registry::registry::CommandRegistry;
+use tcl_syntax::number::NumberSyntax;
 
 use crate::diag::{BpfDiag, BpfError};
+use crate::lower::parse_int;
+use crate::source::lower_bpf_source;
 
 /// The deepest a `use` may nest (one template using another), a guard against
 /// mutually-recursive templates expanding forever.
@@ -100,7 +102,7 @@ fn parse_template(
         ));
     }
     let params = args[1].split_whitespace().map(str::to_owned).collect();
-    let body = lower_to_ir(&args[2], registry).top_level;
+    let body = lower_bpf_source(&args[2], registry).top_level;
     Ok(TemplateDef {
         name: args[0].clone(),
         params,
@@ -114,13 +116,18 @@ fn parse_template(
 /// # Errors
 /// Unknown template, missing/extra binding, a non-integer binding value, or
 /// recursion past [`MAX_DEPTH`].
-pub fn expand_uses(script: &Script, templates: &[TemplateDef]) -> Result<Script, BpfError> {
-    expand_script(script, templates, 0)
+pub fn expand_uses(
+    script: &Script,
+    templates: &[TemplateDef],
+    numbers: NumberSyntax,
+) -> Result<Script, BpfError> {
+    expand_script(script, templates, numbers, 0)
 }
 
 fn expand_script(
     script: &Script,
     templates: &[TemplateDef],
+    numbers: NumberSyntax,
     depth: usize,
 ) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
@@ -133,7 +140,7 @@ fn expand_script(
                 span,
                 ..
             } if canonical_command.as_deref().unwrap_or(command.as_str()) == "use" => {
-                expand_use(args, *span, templates, depth, &mut out)?;
+                expand_use(args, *span, templates, numbers, depth, &mut out)?;
             }
             Statement::If {
                 span,
@@ -147,6 +154,7 @@ fn expand_script(
                     else_body.as_ref(),
                     *else_span,
                     templates,
+                    numbers,
                     depth,
                 )?);
             }
@@ -162,6 +170,7 @@ fn expand_if(
     else_body: Option<&Script>,
     else_span: Option<Span>,
     templates: &[TemplateDef],
+    numbers: NumberSyntax,
     depth: usize,
 ) -> Result<Statement, BpfError> {
     let clauses = clauses
@@ -171,13 +180,13 @@ fn expand_if(
                 condition: c.condition.clone(),
                 condition_span: c.condition_span,
                 condition_base: c.condition_base,
-                body: expand_script(&c.body, templates, depth)?,
+                body: expand_script(&c.body, templates, numbers, depth)?,
                 body_span: c.body_span,
             })
         })
         .collect::<Result<Vec<_>, BpfError>>()?;
     let else_body = else_body
-        .map(|b| expand_script(b, templates, depth))
+        .map(|b| expand_script(b, templates, numbers, depth))
         .transpose()?;
     Ok(Statement::If {
         span,
@@ -191,6 +200,7 @@ fn expand_use(
     args: &[String],
     span: Span,
     templates: &[TemplateDef],
+    numbers: NumberSyntax,
     depth: usize,
     out: &mut Vec<Statement>,
 ) -> Result<(), BpfError> {
@@ -216,7 +226,7 @@ fn expand_use(
         )
     })?;
 
-    let pairs = parse_bindings(bindings, span)?;
+    let pairs = parse_bindings(bindings, span, numbers)?;
     // Every declared parameter must be bound; bind it via a synthetic `setint`.
     for p in &tmpl.params {
         let (_, val) = pairs.iter().find(|(k, _)| k == p).ok_or_else(|| {
@@ -238,14 +248,18 @@ fn expand_use(
     }
 
     // Splice the body, expanding any nested `use` one level deeper.
-    let expanded = expand_script(&tmpl.body, templates, depth + 1)?;
+    let expanded = expand_script(&tmpl.body, templates, numbers, depth + 1)?;
     out.extend(expanded.statements);
     Ok(())
 }
 
 /// Parse `key=value` words into `(key, value)` pairs; the value must be an
 /// integer literal (the DSL's only binding type in v1).
-fn parse_bindings(words: &[String], span: Span) -> Result<Vec<(String, i64)>, BpfError> {
+fn parse_bindings(
+    words: &[String],
+    span: Span,
+    numbers: NumberSyntax,
+) -> Result<Vec<(String, i64)>, BpfError> {
     let mut pairs = Vec::with_capacity(words.len());
     for w in words {
         let (k, v) = w.split_once('=').ok_or_else(|| {
@@ -255,7 +269,7 @@ fn parse_bindings(words: &[String], span: Span) -> Result<Vec<(String, i64)>, Bp
                 format!("`use` binding `{w}` must be key=value"),
             )
         })?;
-        let n = v.trim().parse::<i64>().map_err(|_| {
+        let n = parse_int(v, numbers).ok_or_else(|| {
             BpfError::new(
                 BpfDiag::BadTemplate,
                 span,

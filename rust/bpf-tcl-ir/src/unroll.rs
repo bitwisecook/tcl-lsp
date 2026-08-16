@@ -26,12 +26,14 @@
 //! is left in place and rejected later by the typed lowering (a v1 limitation —
 //! loops must appear at the statement level).
 
-use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
 use tcl_registry::registry::CommandRegistry;
+use tcl_syntax::number::NumberSyntax;
 
 use crate::diag::{BpfDiag, BpfError};
+use crate::lower::parse_int;
+use crate::source::lower_bpf_source;
 
 /// Maximum iterations a single `loop` may unroll to in v1.
 const MAX_UNROLL: i64 = 64;
@@ -75,7 +77,7 @@ fn expand_loop(
             "`loop` expects: loop N VAR { body }",
         ));
     }
-    let count = parse_count(&args[0]).ok_or_else(|| {
+    let count = parse_count(&args[0], registry.numbers()).ok_or_else(|| {
         BpfError::new(
             BpfDiag::BadInt,
             span,
@@ -93,7 +95,7 @@ fn expand_loop(
     let body_text = &args[2];
 
     // Lower the loop body, then recursively unroll any loops inside it.
-    let body_module = lower_to_ir(body_text, registry);
+    let body_module = lower_bpf_source(body_text, registry);
     let body = unroll_loops(&body_module.top_level, registry)?;
 
     for k in 0..count {
@@ -119,7 +121,7 @@ fn synth_setint(var: &str, k: i64, span: Span) -> Statement {
     }
 }
 
-fn parse_count(s: &str) -> Option<i64> {
-    let v: i64 = s.trim().parse().ok()?;
+fn parse_count(s: &str, numbers: NumberSyntax) -> Option<i64> {
+    let v = parse_int(s, numbers)?;
     (v >= 0).then_some(v)
 }

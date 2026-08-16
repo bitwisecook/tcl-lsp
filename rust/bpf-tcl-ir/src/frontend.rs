@@ -27,7 +27,6 @@
 
 use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::ir::CommandTokens;
-use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
 use tcl_registry::bpf_op::{BpfDeclKind, BpfOpKind};
@@ -38,8 +37,9 @@ use crate::deploy::resolve_attach;
 use crate::diag::{BpfDiag, BpfError};
 use crate::event::{event_to_prog_type, known_event_names};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
-use crate::lower::lower_function;
+use crate::lower::{lower_function, parse_int};
 use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
+use crate::source::lower_bpf_source;
 use crate::template::{TemplateDef, collect_templates, expand_uses};
 use crate::unroll::unroll_loops;
 
@@ -54,7 +54,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     // `when` spec carries no lowering hook, so `when` stays a generic call we
     // re-lower ourselves — a separate event space from F5's `::when::`.
     let registry = bpf_registry();
-    let module = lower_to_ir(source, registry);
+    let module = lower_bpf_source(source, registry);
 
     // The (optional) active profile — the top-layer config selected for the file.
     let profile = collect_profile(&module.top_level, registry)?;
@@ -127,7 +127,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     if !saw_when {
         let body = strip_decls(&module.top_level, registry);
         if !body.statements.is_empty() {
-            let used = expand_uses(&body, &templates)?;
+            let used = expand_uses(&body, &templates, registry.numbers())?;
             let unrolled = unroll_loops(&used, registry)?;
             let expanded = match profile.as_ref() {
                 Some(p) => expand_fields(&unrolled, p)?,
@@ -233,17 +233,19 @@ fn lower_when_decl(
                     "the `when` priority must be a literal (no substitutions)",
                 ));
             }
-            args[2].parse::<u32>().map_err(|_| {
-                BpfError::new(
-                    BpfDiag::BadArity,
-                    word_span(2),
-                    format!(
-                        "invalid `when` priority `{}` — must be a non-negative \
+            parse_int(&args[2], registry.numbers())
+                .and_then(|value| u32::try_from(value).ok())
+                .ok_or_else(|| {
+                    BpfError::new(
+                        BpfDiag::BadArity,
+                        word_span(2),
+                        format!(
+                            "invalid `when` priority `{}` — must be a non-negative \
                          integer literal",
-                        args[2]
-                    ),
-                )
-            })?
+                            args[2]
+                        ),
+                    )
+                })?
         }
         _ => {
             return Err(BpfError::new(
@@ -272,8 +274,9 @@ fn lower_when_decl(
         .and_then(|t| t.argv.get(body_idx).copied())
         .map_or(0, |sp| sp.start() + 1);
 
-    let body_module = lower_to_ir(body_text, registry);
-    let used = expand_uses(&body_module.top_level, templates).map_err(|e| e.offset(source_base))?;
+    let body_module = lower_bpf_source(body_text, registry);
+    let used = expand_uses(&body_module.top_level, templates, registry.numbers())
+        .map_err(|e| e.offset(source_base))?;
     let unrolled = unroll_loops(&used, registry).map_err(|e| e.offset(source_base))?;
     let expanded = match profile {
         Some(p) => expand_fields(&unrolled, p).map_err(|e| e.offset(source_base))?,
@@ -406,6 +409,7 @@ mod tests {
     use super::*;
     use crate::ir::Term;
     use tcl_dialect::{DialectSet, NumberSyntax, TclVersion};
+    use tcl_syntax::number::{runtime_syntax, set_runtime_syntax};
 
     /// Regression and mutation proof for #1466: loading the BPF command pack
     /// alone is intentionally profile-less. The front end must instead obtain
@@ -430,6 +434,86 @@ mod tests {
         let mut unstamped = CommandRegistry::build_default();
         unstamped.load_bpf();
         assert!(unstamped.profile().is_none());
+    }
+
+    /// Every BPF source numeral must read through the BPF profile, never the
+    /// ambient grammar a Tcl 8.x interpreter installed on this worker thread.
+    #[test]
+    fn bpf_source_numbers_ignore_an_ambient_tcl85_runtime() {
+        let original_syntax = runtime_syntax();
+        set_runtime_syntax(NumberSyntax::Tcl85);
+
+        let cases = [
+            ("when priority", "when XDP priority 0d10 { pass }\n"),
+            (
+                "loop count",
+                "when XDP {\n  loop 0o2 index { setint value {$index + 1} }\n  pass\n}\n",
+            ),
+            (
+                "template binding",
+                "template init {value} { setint result {$value} }\n\
+                 when XDP {\n  use init value=1_000\n  pass\n}\n",
+            ),
+            (
+                "profile field offset and width",
+                "profile custom { field first 0d0 0d8 }\nwhen XDP { pass }\n",
+            ),
+            (
+                "expression literal",
+                "when XDP {\n  setint value {0d10 + 1_000}\n  pass\n}\n",
+            ),
+        ];
+        let failures: Vec<&str> = cases
+            .into_iter()
+            .filter_map(|(surface, source)| compile_module(source).err().map(|_| surface))
+            .collect();
+
+        set_runtime_syntax(original_syntax);
+        assert!(
+            failures.is_empty(),
+            "BPF Tcl 9.0 numeral grammar was not used by: {}",
+            failures.join(", ")
+        );
+    }
+
+    /// The profile must reach structured conditions in every nested BPF source
+    /// body; otherwise `lower_to_ir` reads an ambient Tcl 8.x grammar before
+    /// the typed BPF lowerer can apply its target grammar.
+    #[test]
+    fn bpf_structured_bodies_ignore_an_ambient_tcl85_runtime() {
+        let original_syntax = runtime_syntax();
+        set_runtime_syntax(NumberSyntax::Tcl85);
+
+        let cases = [
+            (
+                "top-level structured body",
+                "if {0d10} { accept } else { drop }\n",
+            ),
+            (
+                "when body",
+                "when XDP {\n  if {0d10} { pass } else { drop }\n}\n",
+            ),
+            (
+                "template body",
+                "template branch {} { if {0d10} { pass } else { drop } }\n\
+                 when XDP {\n  use branch\n}\n",
+            ),
+            (
+                "loop body",
+                "when XDP {\n  loop 0d1 index { if {0d10} { pass } else { drop } }\n}\n",
+            ),
+        ];
+        let failures: Vec<&str> = cases
+            .into_iter()
+            .filter_map(|(surface, source)| compile_module(source).err().map(|_| surface))
+            .collect();
+
+        set_runtime_syntax(original_syntax);
+        assert!(
+            failures.is_empty(),
+            "BPF Tcl 9.0 structured lowering inherited Tcl 8.5 for: {}",
+            failures.join(", ")
+        );
     }
 
     #[test]
