@@ -1,6 +1,7 @@
 //! Registry-aware inventory of commands that can execute in an iRule.
 
 use std::collections::HashSet;
+use std::sync::OnceLock;
 
 use tcl_compiler::head_identity::{HeadIdentityMap, command_head_identities_with_config};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
@@ -50,6 +51,11 @@ enum Context {
     Procedure,
 }
 
+fn event_registry() -> &'static tcl_registry::events::EventRegistry {
+    static EVENTS: OnceLock<tcl_registry::events::EventRegistry> = OnceLock::new();
+    EVENTS.get_or_init(tcl_registry::events::EventRegistry::build)
+}
+
 #[allow(
     clippy::too_many_arguments,
     clippy::too_many_lines,
@@ -94,9 +100,20 @@ fn walk(
             }
             let next = if spec.traits.contains(Traits::IS_EVENT_HANDLER) {
                 args.first()
-                    .map(|event| Context::Event(event.to_uppercase()))
+                    .map(|event| event.to_uppercase())
+                    .filter(|event| event_registry().is_known(event))
+                    .map(Context::Event)
             } else if spec.traits.contains(Traits::DEFINES_PROCEDURE) {
-                Some(Context::Procedure)
+                u16::try_from(args.len())
+                    .ok()
+                    .filter(|count| spec.arity.accepts(*count))
+                    .and_then(|_| {
+                        registry
+                            .arg_indices_for_role(&head, &args, ArgRole::Body)
+                            .into_iter()
+                            .all(|index| cmd.argv.get(index + 1).is_some())
+                            .then_some(Context::Procedure)
+                    })
             } else {
                 None
             };
@@ -347,5 +364,28 @@ mod tests {
                     .first()
                     .is_none_or(|arg| !arg.starts_with("static::"))
         }));
+    }
+
+    #[test]
+    fn unknown_events_and_malformed_procs_do_not_open_execution_regions() {
+        let facts = commands(concat!(
+            "when BOGUS_EVENT { pool bogus; set static::bogus 1; table incr bogus }\n",
+            "proc missing {}\n",
+            "proc extra {} { pool malformed } trailing\n",
+            "proc valid {} { pool valid_proc }\n",
+            "when HTTP_REQUEST { call valid; pool valid_event }\n",
+        ));
+        let pools: Vec<_> = facts
+            .iter()
+            .filter(|fact| fact.command == "pool")
+            .map(|fact| fact.args[0].as_str())
+            .collect();
+        assert_eq!(pools, ["valid_proc", "valid_event"]);
+        assert!(facts.iter().all(|fact| fact.command != "table"));
+        assert!(
+            facts
+                .iter()
+                .all(|fact| fact.args.first().is_none_or(|arg| arg != "static::bogus"))
+        );
     }
 }

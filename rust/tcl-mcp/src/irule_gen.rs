@@ -107,13 +107,15 @@ pub fn generate_irule_test(args: &Value) -> Value {
     // Discover handlers once at the request boundary. Lower-level registry
     // code only orders these owner-derived names and never re-scans source.
     let when_blocks = tcl_irules::when_blocks(source);
+    let event_registry = EventRegistry::build();
     let mut seen_events = BTreeSet::new();
     let event_names: Vec<String> = when_blocks
         .iter()
         .map(|block| block.event.clone())
+        .filter(|event| event_registry.is_known(event))
         .filter(|event| seen_events.insert(event.clone()))
         .collect();
-    let ordered_events = EventRegistry::build().order_events(&event_names);
+    let ordered_events = event_registry.order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
     let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
     let executable = tcl_irules::irules_executable_commands(source, registry);
@@ -1170,6 +1172,29 @@ mod tests {
         assert_eq!(refs.pools, ["event_pool", "proc_pool"], "{commands:?}");
         assert_eq!(refs.datagroups, ["proc_dg"]);
         assert!(!extract_irule_commands(&commands).contains(&"when".to_owned()));
+    }
+
+    #[test]
+    fn unknown_events_and_malformed_procs_are_inert_for_generated_inventory() {
+        let src = concat!(
+            "when BOGUS_EVENT { pool bogus; set static::bogus 1; table incr bogus }\n",
+            "proc missing {}\n",
+            "proc extra {} { pool malformed } trailing\n",
+            "proc valid {} { pool valid_proc }\n",
+            "when HTTP_REQUEST { call valid; pool valid_event }\n",
+        );
+        let generated = generate_irule_test(&json!({"source": src}));
+        assert_eq!(generated["events"], json!(["HTTP_REQUEST"]));
+        assert_eq!(generated["pools"], json!(["valid_event", "valid_proc"]));
+        assert_eq!(generated["commands_used"], json!(["call", "pool"]));
+        assert_eq!(generated["multi_tmm_detected"], json!(false));
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(
+            !script.contains("::orch::configure_static bogus"),
+            "{script}"
+        );
+        assert!(!script.contains("::orch::add_pool bogus"), "{script}");
+        assert!(!script.contains("::orch::add_pool malformed"), "{script}");
     }
 
     #[test]
