@@ -509,14 +509,19 @@ fn push_command_prefix_options(
 /// scan continues. A substituted word at the next option position might
 /// itself evaluate to a value-taking option, so consumers cannot safely use a
 /// resolver-derived positional role after it. Once a literal non-option ends
-/// the scan, later dynamic operands do not affect the layout.
+/// the scan, later dynamic operands do not affect the layout. Likewise,
+/// `reserved_trailing_words` are mandatory positional operands which Tcl's
+/// outer grammar excludes from option scanning; a dynamic word in that suffix
+/// cannot alter the already-established layout.
 fn has_dynamic_leading_option_word(
     options: &[crate::hover::OptionSpec],
     args: InvocationArguments<'_>,
     spellings: &[&str],
+    reserved_trailing_words: usize,
 ) -> bool {
     let mut index = 0;
-    while index < args.len() {
+    let option_scan_end = args.len().saturating_sub(reserved_trailing_words);
+    while index < option_scan_end {
         let Some(word) = args.literal_at(index) else {
             return true;
         };
@@ -2691,12 +2696,14 @@ impl CommandRegistry {
 
     /// Source-aware counterpart to [`Self::pattern_args`].
     ///
-    /// A resolver-selected pattern position depends on literal option words.
-    /// Once source substitution reaches that option prefix, treating its
-    /// spelling as a positional operand would shift the remaining arguments
-    /// and incorrectly claim a pattern language.  Static pattern layouts do
-    /// not have that ambiguity and continue through the compatibility
-    /// resolver, whose indices are independent of argument values.
+    /// A resolver-selected pattern position depends on literal option words
+    /// and a known final argv shape. Once source substitution reaches that
+    /// option prefix, treating its spelling as a positional operand would
+    /// shift the remaining arguments and incorrectly claim a pattern
+    /// language. An expansion can likewise move the mandatory trailing
+    /// operands. Static pattern layouts do not have that ambiguity and
+    /// continue through the compatibility resolver, whose indices are
+    /// independent of argument values.
     #[must_use]
     pub fn pattern_args_words(
         &self,
@@ -2710,8 +2717,14 @@ impl CommandRegistry {
             .map(|index| args.literal_at(index).unwrap_or_default())
             .collect();
         if spec.pattern_arg_resolver.is_some()
-            && (spec.options.is_empty() && args.has_non_literal()
-                || has_dynamic_leading_option_word(spec.options, args, &spellings))
+            && (!args.has_exact_argv_len()
+                || (spec.options.is_empty() && args.has_non_literal())
+                || has_dynamic_leading_option_word(
+                    spec.options,
+                    args,
+                    &spellings,
+                    spec.reserved_trailing_words,
+                ))
         {
             return Vec::new();
         }
@@ -4262,22 +4275,61 @@ mod tests {
     }
 
     #[test]
-    fn source_aware_pattern_roles_stop_at_a_dynamic_option_prefix() {
+    fn source_aware_lsearch_pattern_layout_respects_outer_option_boundary() {
         use crate::invocation_words::{InvocationArguments, InvocationWord};
+        use crate::patterns::{PatternArg, PatternType};
 
-        let reg = CommandRegistry::build_default();
-        let args = [
-            InvocationWord::Dynamic,
-            InvocationWord::Literal("{a b c}"),
-            InvocationWord::Literal("glob*"),
-        ];
-        // `$mode` may become any lsearch option, including an option that
-        // consumes a value. Its source spelling must never be treated as the
-        // list operand and shift the remaining words into a claimed glob.
-        assert!(
-            reg.pattern_args_words("lsearch", InvocationArguments::structured(&args))
-                .is_empty()
-        );
+        // Tcl's `Tcl_LsearchObjCmd` has used `for (i = 1; i < objc - 2;
+        // i++)` since 8.4: it stops scanning exactly when list and pattern
+        // remain. Keep the source-aware resolver aligned across every
+        // supported core release, including the 9.0 -stride expansion.
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let reg = crate::registry_for_dialect(dialect);
+            let proven_outer_option = [
+                InvocationWord::Literal("-glob"),
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("ba*"),
+            ];
+            assert_eq!(
+                reg.pattern_args_words(
+                    "lsearch",
+                    InvocationArguments::structured(&proven_outer_option),
+                ),
+                vec![PatternArg {
+                    index: 2,
+                    kind: PatternType::Glob,
+                }],
+                "{dialect}: lsearch -glob $list {{ba*}} has proven operands and glob mode"
+            );
+
+            let expanded_list = [
+                InvocationWord::Literal("-glob"),
+                InvocationWord::Expanded,
+                InvocationWord::Literal("ba*"),
+            ];
+            assert!(
+                reg.pattern_args_words("lsearch", InvocationArguments::structured(&expanded_list))
+                    .is_empty(),
+                "{dialect}: lsearch -glob {{*}}$list {{ba*}} has no known argv suffix"
+            );
+
+            let ambiguous_option_prefix = [
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("{a b}"),
+                InvocationWord::Literal("a+"),
+            ];
+            // `$mode` remains inside the `i < objc - 2` option region and
+            // may become a value-taking switch, so it cannot be reclassified
+            // as the list operand to claim a glob pattern.
+            assert!(
+                reg.pattern_args_words(
+                    "lsearch",
+                    InvocationArguments::structured(&ambiguous_option_prefix),
+                )
+                .is_empty(),
+                "{dialect}: lsearch $mode {{a b}} {{a+}} remains ambiguous"
+            );
+        }
     }
 
     /// Issue #1185 — the repeated argument tails a fixed index table cannot

@@ -197,9 +197,10 @@ fn residual_hover_glob_char_class_via_string_match() {
 
 #[test]
 fn residual_hover_glob_via_lsearch_dash_glob() {
-    // tclsh-proof: `lsearch -glob {foo bar baz} ba*` -> 1 (matches `bar` at
-    // index 1), confirming `lsearch -glob` is a real glob entry point. The
-    // detector fires on the `-glob` form too.
+    // tclsh-proof: `set list {foo bar baz}; lsearch -glob $list ba*` -> 1
+    // (matches `bar` at index 1), confirming `lsearch -glob` is a real glob
+    // entry point even with a dynamic list operand. The detector fires on
+    // the `-glob` form too.
     let src = "lsearch -glob $list {ba*}\n";
     let analysis = analyse(src);
     // Cursor inside the `{ba*}` pattern.
@@ -209,6 +210,21 @@ fn residual_hover_glob_via_lsearch_dash_glob() {
         h.value.contains("any sequence"),
         "expected `*` row: {}",
         h.value,
+    );
+}
+
+#[test]
+fn residual_hover_lsearch_dynamic_mode_keeps_pattern_ambiguous() {
+    // tclsh-proof: with `set mode -start`, `lsearch $mode {a b} {a+}` errors
+    // "missing starting index": `$mode` is still in lsearch's outer option
+    // scan, not the list operand. Its runtime value could instead be -glob,
+    // -regexp, -exact, or another switch, so no pattern-language hover is
+    // sound for the source-level `{a+}` word.
+    let src = "lsearch $mode {a b} {a+}\n";
+    let analysis = analyse(src);
+    assert!(
+        hover(src, 0, 21, &analysis, None).is_none(),
+        "a dynamic lsearch option prefix must not claim a glob/regex hover"
     );
 }
 

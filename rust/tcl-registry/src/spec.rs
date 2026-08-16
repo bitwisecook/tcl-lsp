@@ -1228,10 +1228,10 @@ pub struct CommandSpec {
     /// substitution beginning with `-` — hence `switch $x $caseListVar`
     /// needs no `--` terminator. Consumed by
     /// [`crate::registry::CommandRegistry::resolve_option_terminator`]'s
-    /// `reserved_trailing_words` on [`crate::registry::ResolvedTerminator`],
-    /// which both W304 and T102's option-scan-region walk cap their scan
-    /// against. Default `0` (no reservation) keeps every existing spec
-    /// correct.
+    /// `reserved_trailing_words` on [`crate::registry::ResolvedTerminator`]
+    /// and the source-aware pattern resolver, which both cap their option
+    /// scans against it. W304 and T102 use the former path. Default `0` (no
+    /// reservation) keeps every existing spec correct.
     pub reserved_trailing_words: usize,
 
     /// Enumerable positional-argument values, keyed by 0-based

@@ -290,6 +290,11 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(lsearch_arg_roles),
         pattern_arg_resolver: Some(lsearch_pattern_args),
         options: OPTIONS,
+        // `Tcl_LsearchObjCmd` scans outer options with `i < objc - 2` in
+        // Tcl 8.4, 8.6, and 9.0's generic/tclCmdIL.c. The mandatory list and
+        // pattern operands are therefore never option candidates, even when
+        // source substitution will produce their runtime values.
+        reserved_trailing_words: 2,
         hover: Some(HoverSnippet {
             summary: "Search a list for an element matching a pattern.",
             synopsis: &["lsearch ?options? list pattern"],
