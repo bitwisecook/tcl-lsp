@@ -405,7 +405,27 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                                     handler.data.get("completion_code")?.takeIf { it.isJsonPrimitive }?.asInt == bodyExit.completionCode
                             }
                         } else emptyList()
-                        val effectiveMatches = if (exactCustomMatches.isNotEmpty()) exactCustomMatches else matches
+                        // Exact errors still carry no concrete -errorcode in
+                        // the compact diagram contract. Every non-shadowed
+                        // trap is therefore possible, but Tcl tries them in
+                        // source order and a prefix pattern claims all of a
+                        // later, more-specific one. Keep the projected list
+                        // elements as the comparison owner; raw match text
+                        // would get quoting and escapes wrong.
+                        val effectiveMatches = when {
+                            exactCustomMatches.isNotEmpty() -> exactCustomMatches
+                            bodyExit.completion == DiagramCompletion.ERROR -> {
+                                val claimedTrapPatterns = mutableListOf<List<String>?>()
+                                matches.filter { (_, handler) ->
+                                    if (handler.data.string("kind_handler") != "trap") return@filter true
+                                    val pattern = trapPattern(handler)
+                                    if (claimedTrapPatterns.any { trapSubsumes(it, pattern) }) return@filter false
+                                    claimedTrapPatterns += pattern
+                                    true
+                                }
+                            }
+                            else -> matches
+                        }
                         val errorIsCertainlyHandled = bodyExit.completion == DiagramCompletion.ERROR && matches.any {
                             (_, handler) -> handler.data.string("kind_handler") == "on" ||
                                 (handler.data.string("kind_handler") == "trap" &&

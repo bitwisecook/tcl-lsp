@@ -473,6 +473,34 @@ class TclLspActionsTest {
     }
 
     @Test
+    fun exactErrorTrapPrefixesRespectSourceOrder() {
+        fun render(first: List<String>, second: List<String>): String {
+            fun pattern(values: List<String>) =
+                values.joinToString(prefix = "[", postfix = "]") { JsonPrimitive(it).toString() }
+            return assertNotNull(renderDiagramMermaid(JsonParser.parseString(
+                """{"events":[{"name":"E","flow":[{"kind":"try","body":[
+                  {"kind":"action","label":"bad return","completion":"error"}],"handlers":[
+                  {"kind_handler":"trap","match":"first","trap_pattern":${pattern(first)},"fallthrough":false,"body":[{"kind":"action","label":"first trap"}]},
+                  {"kind_handler":"trap","match":"second","trap_pattern":${pattern(second)},"fallthrough":false,"body":[{"kind":"action","label":"second trap"}]},
+                  {"kind_handler":"on","match":"error","completion_code":1,"fallthrough":false,"body":[{"kind":"action","label":"on error"}]}
+                ]}]}],"procedures":[]}"""
+            )))
+        }
+
+        val shadowed = render(listOf("A"), listOf("A", "B"))
+        assertEquals(1, shadowed.lines().count { it.contains("-->|trap|") }, shadowed)
+        assertContains(shadowed, "first trap")
+        kotlin.test.assertFalse(shadowed.contains("second trap"), shadowed)
+        assertContains(shadowed, "on error")
+
+        val nonOverlapping = render(listOf("A", "B"), listOf("A"))
+        assertEquals(2, nonOverlapping.lines().count { it.contains("-->|trap|") }, nonOverlapping)
+        assertContains(nonOverlapping, "first trap")
+        assertContains(nonOverlapping, "second trap")
+        assertContains(nonOverlapping, "on error")
+    }
+
+    @Test
     fun normalFinallyPathContinuesAndFinallyCompletionOverridesIt() {
         fun render(finallyCompletion: String? = null): String {
             val completion = finallyCompletion?.let { ",\"completion\":\"$it\"" } ?: ""

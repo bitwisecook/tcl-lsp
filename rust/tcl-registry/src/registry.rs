@@ -134,10 +134,20 @@ pub enum ExactInvocationCompletion {
 /// itself propagates `TCL_RETURN` even when its eventual procedure result is
 /// configured as `-code error`; `-level 0` exposes that configured code to the
 /// immediately enclosing script instead.
+/// The literal-return parser distinguishes an invocation whose outcome is
+/// genuinely runtime-dependent from one Tcl will reject before it can return.
+/// The latter is still a precise `TCL_ERROR`, so an enclosing `try on error`
+/// must receive it.
+enum ExactReturnCompletion {
+    Completion(crate::completion::CompletionCode),
+    StaticError,
+    Dynamic,
+}
+
 fn exact_return_completion(
     args: &[&str],
     numbers: tcl_syntax::number::Numbers,
-) -> Option<crate::completion::CompletionCode> {
+) -> ExactReturnCompletion {
     use crate::completion::CompletionCode;
 
     let mut i = 0usize;
@@ -146,45 +156,66 @@ fn exact_return_completion(
     while let Some(word) = args.get(i).copied() {
         match word {
             "-code" => {
-                let value = *args.get(i + 1)?;
+                let Some(value) = args.get(i + 1).copied() else {
+                    return ExactReturnCompletion::StaticError;
+                };
                 code = match value {
                     "ok" | "0" => CompletionCode::Ok,
                     "error" | "1" => CompletionCode::Error,
                     "return" | "2" => CompletionCode::Return,
                     "break" | "3" => CompletionCode::Break,
                     "continue" | "4" => CompletionCode::Continue,
-                    value => CompletionCode::from_int(
-                        crate::completion::canonical_completion_code(value, numbers)?,
-                    ),
+                    value => match crate::completion::canonical_completion_code(value, numbers) {
+                        Some(value) => CompletionCode::from_int(value),
+                        None if tcl_syntax::naming::is_dynamic_word(value) => {
+                            return ExactReturnCompletion::Dynamic;
+                        }
+                        None => return ExactReturnCompletion::StaticError,
+                    },
                 };
                 i += 2;
             }
             "-level" => {
-                level = numbers.parse_wide(args.get(i + 1)?)?;
-                if level < 0 {
-                    return None;
-                }
+                let Some(value) = args.get(i + 1).copied() else {
+                    return ExactReturnCompletion::StaticError;
+                };
+                level = match numbers.parse_wide(value) {
+                    Some(value) if value >= 0 => value,
+                    None if tcl_syntax::naming::is_dynamic_word(value) => {
+                        return ExactReturnCompletion::Dynamic;
+                    }
+                    _ => return ExactReturnCompletion::StaticError,
+                };
                 i += 2;
             }
             // These options do not alter the code, but `-options` may carry
             // a code/level override so remains deliberately opaque.
             "-options" => {
-                return None;
+                return if args.get(i + 1).is_none() {
+                    ExactReturnCompletion::StaticError
+                } else {
+                    ExactReturnCompletion::Dynamic
+                };
             }
             // Return options are an extensible key/value dictionary.  An
             // unrecognised literal option cannot alter `-code`/`-level`, so
             // retain the concrete completion rather than dropping a valid
             // custom pair such as `-foo bar`.
-            _ if word.starts_with('-') => i += 2,
+            _ if word.starts_with('-') => {
+                if args.get(i + 1).is_none() {
+                    return ExactReturnCompletion::StaticError;
+                }
+                i += 2;
+            }
             _ => break,
         }
     }
     // `return` accepts one result word after its options; additional words are
     // an arity error, so no exact runtime completion is promised.
     if args.len().saturating_sub(i) > 1 {
-        return None;
+        return ExactReturnCompletion::StaticError;
     }
-    Some(if level == 0 {
+    ExactReturnCompletion::Completion(if level == 0 {
         code
     } else {
         CompletionCode::Return
@@ -2028,11 +2059,18 @@ impl CommandRegistry {
         }
         if resolved.lowering_hook == Some(LoweringHookId::Return) {
             let profile = self.profile()?;
-            return exact_return_completion(
+            return match exact_return_completion(
                 args,
                 tcl_syntax::number::Numbers::of_profile(Some(profile)),
-            )
-            .map(ExactInvocationCompletion::Tcl);
+            ) {
+                ExactReturnCompletion::Completion(code) => {
+                    Some(ExactInvocationCompletion::Tcl(code))
+                }
+                ExactReturnCompletion::StaticError => Some(ExactInvocationCompletion::Tcl(
+                    crate::completion::CompletionCode::Error,
+                )),
+                ExactReturnCompletion::Dynamic => None,
+            };
         }
         let traits =
             resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits);
@@ -6641,14 +6679,6 @@ mod tests {
             );
         }
         assert_eq!(
-            reg.exact_invocation_completion(
-                "return",
-                &["-level", "0", "-code", "-2147483649", "payload"],
-                DialectSet::empty(),
-            ),
-            None
-        );
-        assert_eq!(
             reg.exact_invocation_completion("exit", &["0"], DialectSet::empty()),
             Some(ExactInvocationCompletion::ProcessExit)
         );
@@ -6676,6 +6706,33 @@ mod tests {
             ),
             Some(ExactInvocationCompletion::Tcl(CompletionCode::Return))
         );
+    }
+
+    #[test]
+    fn exact_return_static_invalid_forms_are_catchable_errors() {
+        use crate::completion::CompletionCode;
+
+        // Oracle table: Tcl 8.6 and 9.0 both reject these literal forms at
+        // return's option/arity boundary, so a surrounding `try on error`
+        // receives TCL_ERROR rather than a dynamic completion.
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let reg = crate::registry_for_dialect(dialect);
+            for args in [
+                &["-code", "bogus", "payload"][..],
+                &["-level", "-1", "payload"][..],
+                &["-code"][..],
+                &["-level"][..],
+                &["-foo"][..],
+                &["payload", "extra"][..],
+                &["-level", "0", "-code", "-2147483649", "payload"][..],
+            ] {
+                assert_eq!(
+                    reg.exact_invocation_completion("return", args, DialectSet::empty()),
+                    Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
+                    "{dialect}: {args:?}"
+                );
+            }
+        }
     }
 
     #[test]

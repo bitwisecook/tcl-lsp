@@ -848,6 +848,31 @@ mod tests {
     }
 
     #[test]
+    fn literal_invalid_return_forms_project_as_catchable_errors() {
+        let source = r"
+            proc paths {} {
+                try { return -code bogus payload } on error {m o} {}
+                try { return -level -1 payload } on error {m o} {}
+                try { return -code } on error {m o} {}
+            }
+        ";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let data = diagram_data_for_dialect(
+                source,
+                tcl_registry::registry_for_dialect(dialect),
+                dialect,
+            );
+            for index in 0..3 {
+                assert_eq!(
+                    data.pointer(&format!("/procedures/0/flow/{index}/body/0/completion")),
+                    Some(&Value::String("error".to_owned())),
+                    "{dialect}: {data}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn numeric_return_codes_project_as_their_canonical_completions() {
         let data = diagram_data_for_dialect(
             "proc paths {} { try { return -level 0 -code 00 x } finally {} ; try { return -level 0 -code +1 x } finally {} ; try { return -level 0 -code 02 x } finally {} ; try { return -level 0 -code 0x3 x } finally {} ; try { return -level 0 -code 04 x } finally {} }",
