@@ -1651,6 +1651,28 @@ glob (`*.tcl`, `*.tk`, `*.itcl`, `*.tm`, `*.irul`, `*.irule`,
 
 ![Unified Tcl verb CLI](docs/screenshots/30-tcl-verb-cli.png)
 
+### Differential fuzzer (`tcl-fuzz`)
+
+`tcl-fuzz` compares a generated Tcl program between two engines and saves a
+seeded reproducer whenever their behaviour differs. Build it with
+`cargo build -p tcl-fuzz`. A release pin is a property of the whole pair, not
+just the subject: use a pair whose engines can both honour `--tcl-version`.
+
+```sh
+# Both native Rust engines emulate the same selected Tcl release.
+tcl-fuzz run --reference runtime-rust --subject tclvm --tcl-version 8.6
+
+# A release-aware finding is found and replayed at its recorded release.
+tcl-fuzz replay 12345 --reference runtime-rust --subject tclvm
+```
+
+Pinned findings live below a `tclX.Y` directory, so the same pair and seed at
+Tcl 8.6 and Tcl 9.0 cannot overwrite one another. `tclsh` is a fixed-release
+binary and cannot accept `--tcl-version`; select a matching build with
+`--tclsh`, and the fuzzer verifies its reported release before starting. See
+[the fuzz-finding triage guide](docs/kcs/kcs-howto-work-on-fuzz-findings.md)
+for replay and investigation details.
+
 ## Packaging & environments
 
 `tcl pkg` is a deterministic Tcl package manager using Go-style Minimum

@@ -32,9 +32,34 @@ Four arms exist, each answering a different question:
 3. **A finding is keyed by its seed.** `GenConfig` plus the seed reproduce the
    script byte-for-byte; the registry stores the JSON record and the raw
    `.tcl` beside it, de-duplicates by seed, and summarises by category.
-4. Findings directories are namespaced by engine pair, so two backend pairs
-   cannot collide on a shared seed directory.
-5. **Comparison rules** (`harness::compare_outcomes`) are fixed:
+4. **A Tcl release is a pair-wide campaign fact.** `--tcl-version` is parsed
+   through `tcl_dialect::TclVersion`, normalised to its `major.minor` line,
+   and applied to every engine that emulates a release at run time. A
+   fixed-release engine such as C `tclsh` receives no invented flag; its
+   `[info patchlevel]` probe must instead report the requested line. Any
+   engine that cannot honour the requested release stops the command before
+   the campaign starts, rather than silently running a skewed pair.
+5. **Finding identity includes the selected release.** An unpinned legacy
+   pair retains its existing path for compatibility. A pinned pair adds a
+   `tclX.Y` child below its pair directory, so the same pair and seed at Tcl
+   8.6 and Tcl 9.0 cannot de-duplicate or overwrite each other. The canonical
+   campaign release is serialised with every finding, separately from observed
+   backend patchlevels. A replay-metadata schema marker distinguishes a newly
+   recorded deliberate unpinned campaign from an ambiguous older no-release
+   record.
+6. **Replay restores or refuses the recorded configuration.** With no
+   explicit release, one release-aware record is discovered from the pair's
+   `tclX.Y` registries and replayed under that release. Multiple matching
+   releases require an explicit `--tcl-version`, which selects its exact
+   release namespace; absent selected records, inconsistent metadata, and
+   legacy no-release records lacking the schema marker are refused. A marked
+   unpinned record replays in the plain pair namespace. `summary` discovers
+   every existing pair namespace and labels each release separately; an
+   explicit release filters to its exact namespace. Replaying at a current default with
+   only a warning is not a safe reproduction. Once the release configuration
+   is restored, differing recorded versus current backend patchlevels remain a
+   warning: they are build provenance, not a substitute for the release check.
+7. **Comparison rules** (`harness::compare_outcomes`) are fixed:
    - either side unavailable → **skipped**;
    - a *reference* timeout means the script is pathological → **skipped**,
      never blamed on the subject; a *subject* timeout is a finding;
@@ -44,19 +69,19 @@ Four arms exist, each answering a different question:
    - error *text* is compared only when explicitly enabled
      (`ErrorTextMismatch`), because C Tcl's wording is a separate conformance
      question from behaviour.
-6. **A two-way native pair has no oracle.** `tcl-vm` ↔ `runtime/rust` detects
+8. **A two-way native pair has no oracle.** `tcl-vm` ↔ `runtime/rust` detects
    drift but both backends can agree on the same bug, so the three-way
    characterisation classifies every run against C Tcl 9: only `tcl-vm`
    diverges, only `runtime/rust` diverges, both agree with each other but
    differ from C (the shared-bug case a pair misses), or a genuine three-way
    disagreement.
-7. **The WASM arm isolates one variable.** Both sides evaluate the actual Tcl
+9. **The WASM arm isolates one variable.** Both sides evaluate the actual Tcl
    commands with `tcl-vm`, so command semantics are held constant and the only
    difference is whether control flow comes from the WASM emitter's structured
    codegen or from normal execution. A divergence therefore isolates a WASM
    control-flow miscompile, with no `tclsh` involved and no confounding from
    `tcl-vm` command bugs.
-8. **The eBPF arm is registry-driven.** Command spellings and the event name
+10. **The eBPF arm is registry-driven.** Command spellings and the event name
    come from the registry's typed BPF descriptors, so changing a spelling in a
    spec changes the generated program with no fuzzer edit. C Tcl is not an
    oracle for BPF-Tcl, which is its own dialect.

@@ -79,6 +79,10 @@ impl EngineVersion {
 /// Release metadata for a differential pair.
 #[derive(Debug, Clone, Default)]
 pub struct PairVersions {
+    /// The Tcl release requested for this whole campaign, when one was
+    /// selected. This is distinct from each backend's observed patchlevel:
+    /// it is the replayable configuration fact.
+    pub tcl_version: Option<TclVersion>,
     /// Presumed-correct reference release.
     pub reference: Option<EngineVersion>,
     /// Subject release under test.
@@ -127,6 +131,7 @@ mod tests {
     #[test]
     fn skew_needs_two_different_reported_patchlevels() {
         let skewed = PairVersions {
+            tcl_version: None,
             reference: Some(EngineVersion::parse("8.6.16")),
             subject: Some(EngineVersion::parse("9.0.4")),
         };
@@ -134,12 +139,14 @@ mod tests {
         assert!(skewed.skew_warning().is_some());
 
         let same_line_different_patch = PairVersions {
+            tcl_version: None,
             reference: Some(EngineVersion::parse("9.0.1")),
             subject: Some(EngineVersion::parse("9.0.4")),
         };
         assert!(same_line_different_patch.skewed());
 
         let identical = PairVersions {
+            tcl_version: None,
             reference: Some(EngineVersion::parse("9.0.4")),
             subject: Some(EngineVersion::parse("9.0.4")),
         };

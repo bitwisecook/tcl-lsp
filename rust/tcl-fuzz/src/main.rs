@@ -46,11 +46,12 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
+use tcl_dialect::TclVersion;
 
 use campaign::{Backend, Campaign, Stats};
 use characterize::Classification;
 use engine::Engine;
-use findings::{Registry, ReproducerStore};
+use findings::{Finding, Registry, ReproducerStore};
 use generator::{GenConfig, generate};
 use harness::{Outcome, compare_outcomes, run_backend, write_script};
 
@@ -101,6 +102,17 @@ struct PairArgs {
     /// The subject (implementation under test) engine.
     #[arg(long, value_enum, default_value = "tclvm")]
     subject: Engine,
+    /// Pin the Tcl release both engines emulate (`8.4`…`9.1`). The legacy
+    /// `--subject-tcl-version` spelling remains an alias, but its old
+    /// subject-only behaviour was unsound: every engine in the pair must
+    /// honour this release or the command refuses to run.
+    #[arg(
+        long,
+        value_name = "X.Y",
+        value_parser = parse_tcl_version,
+        visible_alias = "subject-tcl-version"
+    )]
+    tcl_version: Option<TclVersion>,
 }
 
 /// Everything one `run` campaign is configured by, beyond the global flags.
@@ -123,16 +135,6 @@ struct RunArgs {
     /// `harness::compare_outcomes`).
     #[arg(long)]
     compare_error_text: bool,
-    /// Pin the Tcl release the **subject** engine emulates (`8.4`…`9.1`), so
-    /// it can be matched to an older reference `tclsh`.
-    ///
-    /// `runtime-rust` and `tclvm` accept `--tcl-version`; pinning any other
-    /// subject is refused rather than silently ignored. Without this, a
-    /// campaign against e.g. `tclsh8.6` records
-    /// every deliberate 8.6-vs-9.0 semantic change as a divergence — which is
-    /// exactly how issue #1328's eight "findings" were produced.
-    #[arg(long, value_name = "X.Y")]
-    subject_tcl_version: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -143,8 +145,9 @@ enum Cmd {
     Replay {
         /// The seed to reproduce.
         seed: u64,
-        /// The engine pair — must match the pair that recorded the finding,
-        /// if replaying one from the registry.
+        /// The engine pair. When a matching release-aware finding exists,
+        /// replay restores its recorded release automatically; otherwise pass
+        /// `--tcl-version` explicitly.
         #[command(flatten)]
         pair: PairArgs,
     },
@@ -237,6 +240,7 @@ enum Cmd {
 struct ResolvedPair {
     reference: Engine,
     subject: Engine,
+    tcl_version: Option<TclVersion>,
     reference_bin: PathBuf,
     reference_args: Vec<String>,
     subject_bin: PathBuf,
@@ -265,19 +269,35 @@ impl ResolvedPair {
         };
         let (reference_bin, reference_args) = find(pair.reference)?;
         let (subject_bin, subject_args) = find(pair.subject)?;
-        Ok(Self {
+        let mut resolved = Self {
             reference: pair.reference,
             subject: pair.subject,
+            tcl_version: None,
             reference_bin,
             reference_args,
             subject_bin,
             subject_args,
-        })
+        };
+        if let Some(tcl_version) = pair.tcl_version {
+            resolved.apply_tcl_version(tcl_version);
+        }
+        Ok(resolved)
+    }
+
+    /// Apply one campaign-wide Tcl release to both engines before any process
+    /// is spawned. Fixed-release engines receive no flag; the probe below
+    /// validates that their selected binary nevertheless honours the request.
+    fn apply_tcl_version(&mut self, tcl_version: TclVersion) {
+        let reference_args = self.reference.tcl_version_args(tcl_version);
+        let subject_args = self.subject.tcl_version_args(tcl_version);
+        self.reference_args.extend(reference_args);
+        self.subject_args.extend(subject_args);
+        self.tcl_version = Some(tcl_version);
     }
 
     /// This pair's findings directory under `base` — see [`pair_findings_dir`].
     fn findings_dir(&self, base: &Path) -> PathBuf {
-        pair_findings_dir(base, self.reference, self.subject)
+        pair_findings_dir(base, self.reference, self.subject, self.tcl_version)
     }
 }
 
@@ -299,6 +319,7 @@ fn probe_pair_versions(
         })
     };
     Ok(version::PairVersions {
+        tcl_version: pair.tcl_version,
         reference: Some(probe(
             pair.reference,
             &pair.reference_bin,
@@ -306,6 +327,34 @@ fn probe_pair_versions(
         )?),
         subject: Some(probe(pair.subject, &pair.subject_bin, &pair.subject_args)?),
     })
+}
+
+/// Verify that both engines actually selected the release requested for this
+/// campaign. Accepting an argument is not sufficient: a wrapper could ignore
+/// it, and that would recreate the version-skew findings this flag prevents.
+fn verify_requested_tcl_version(versions: &version::PairVersions) -> Result<(), String> {
+    let Some(requested) = versions.tcl_version else {
+        return Ok(());
+    };
+    for (role, actual) in [
+        ("reference", versions.reference.as_ref()),
+        ("subject", versions.subject.as_ref()),
+    ] {
+        let Some(actual) = actual else {
+            return Err(format!(
+                "{role} engine did not report a Tcl release after --tcl-version {}",
+                requested.version_string(),
+            ));
+        };
+        if actual.line != Some(requested) {
+            return Err(format!(
+                "{role} engine reports Tcl {} after --tcl-version {}; it cannot honour the requested release",
+                actual.patchlevel,
+                requested.version_string(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Run one `Cmd::Run` campaign: resolve both engines, open the (pair-namespaced)
@@ -323,27 +372,7 @@ fn run_campaign(
             return std::process::ExitCode::from(2);
         }
     };
-    // Pin the subject's emulated release, when asked. Refused (not ignored)
-    // for an engine that cannot be pinned, so a campaign never silently runs
-    // version-skewed after being told not to.
-    let mut pair = pair;
-    if let Some(want) = &args.subject_tcl_version {
-        match version_flag_for(pair.subject, want) {
-            Ok(extra) => pair.subject_args.extend(extra),
-            Err(e) => {
-                eprintln!("error: {e}");
-                return std::process::ExitCode::from(2);
-            }
-        }
-    }
     let findings_dir = pair.findings_dir(&cli.findings);
-    let registry = match Registry::open(&findings_dir) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("error: opening findings dir: {e}");
-            return std::process::ExitCode::from(2);
-        }
-    };
     let scratch = std::env::temp_dir().join(format!("tcl-fuzz-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&scratch);
     let base_seed = args.seed.unwrap_or_else(time_seed);
@@ -365,6 +394,19 @@ fn run_campaign(
         Err(error) => {
             let _ = std::fs::remove_dir_all(&scratch);
             eprintln!("error: {error}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    if let Err(error) = verify_requested_tcl_version(&versions) {
+        let _ = std::fs::remove_dir_all(&scratch);
+        eprintln!("error: {error}");
+        return std::process::ExitCode::from(2);
+    }
+    let registry = match Registry::open(&findings_dir) {
+        Ok(registry) => registry,
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&scratch);
+            eprintln!("error: opening findings dir: {error}");
             return std::process::ExitCode::from(2);
         }
     };
@@ -419,9 +461,196 @@ fn run_campaign(
     }
 }
 
-/// Whether replaying under `versions` differs from the versions persisted with
-/// a finding. Kept separate so version-warning decisions stay testable without
-/// invoking either backend.
+/// A recorded finding selected for replay, plus the release its invocation
+/// must restore. `finding` is absent for an ad-hoc seed that has no record.
+#[derive(Debug)]
+struct ReplaySelection {
+    tcl_version: Option<TclVersion>,
+    finding: Option<Finding>,
+}
+
+/// Load a seed only when its registry already exists. Looking for a recorded
+/// release must never create empty namespaces for every supported release.
+fn load_existing_finding(dir: &Path, seed: u64) -> Result<Option<Finding>, String> {
+    if !dir.exists() {
+        return Ok(None);
+    }
+    Registry::open(dir)
+        .map_err(|error| format!("opening findings dir {}: {error}", dir.display()))
+        .and_then(|registry| {
+            registry
+                .load_checked(seed)
+                .map_err(|error| format!("loading finding {seed} from {}: {error}", dir.display()))
+        })
+}
+
+/// Load every release-aware record for one seed, rejecting a record whose
+/// directory and own metadata disagree.
+fn release_findings(
+    findings: &Path,
+    pair: PairArgs,
+    seed: u64,
+) -> Result<Vec<(TclVersion, Finding)>, String> {
+    let mut matches = Vec::new();
+    for (release, dir) in pair_registry_dirs(findings, pair)
+        .into_iter()
+        .filter_map(|(release, dir)| release.map(|release| (release, dir)))
+    {
+        let tcl_version = release;
+        if let Some(finding) = load_existing_finding(&dir, seed)? {
+            let Some(recorded) = finding.campaign_tcl_version()? else {
+                return Err(format!(
+                    "finding {seed} is stored under Tcl {} but records an unpinned campaign; refusing inconsistent replay metadata",
+                    tcl_version.version_string(),
+                ));
+            };
+            if recorded != tcl_version {
+                return Err(format!(
+                    "finding {seed} is stored under Tcl {} but records Tcl {}; refusing inconsistent replay metadata",
+                    tcl_version.version_string(),
+                    recorded.version_string(),
+                ));
+            }
+            matches.push((tcl_version, finding));
+        }
+    }
+    Ok(matches)
+}
+
+/// Every registry namespace belonging to a backend pair. Consumers that need
+/// to discover records (rather than create a campaign registry) share this
+/// owner so release children cannot be forgotten by one command.
+fn pair_registry_dirs(findings: &Path, pair: PairArgs) -> Vec<(Option<TclVersion>, PathBuf)> {
+    std::iter::once((
+        None,
+        pair_findings_dir(findings, pair.reference, pair.subject, None),
+    ))
+    .chain(TclVersion::ALL.into_iter().map(|tcl_version| {
+        (
+            Some(tcl_version),
+            pair_findings_dir(findings, pair.reference, pair.subject, Some(tcl_version)),
+        )
+    }))
+    .collect()
+}
+
+/// Find the persisted campaign release for `seed`, if any.
+///
+/// A seed is arbitrary only when it occurs in no registry at all. An explicit
+/// `--tcl-version` selects its exact release-aware record even when the same
+/// seed also exists in other release namespaces. It never permits an older
+/// unversioned record to be ignored.
+fn select_replay(findings: &Path, pair: PairArgs, seed: u64) -> Result<ReplaySelection, String> {
+    let legacy_dir = pair_findings_dir(findings, pair.reference, pair.subject, None);
+    let mut unpinned_legacy = None;
+    if let Some(finding) = load_existing_finding(&legacy_dir, seed)? {
+        // The pre-#1467 directory has no release component. Even a manually
+        // copied record that happens to carry one is inconsistent, so reject
+        // it rather than guessing which namespace owns the seed.
+        let campaign = finding.campaign_tcl_version()?;
+        match campaign {
+            None if pair.tcl_version.is_none() => {
+                if finding.replay_metadata_version.is_some() {
+                    unpinned_legacy = Some(finding);
+                } else {
+                    return Ok(ReplaySelection {
+                        tcl_version: None,
+                        finding: Some(finding),
+                    });
+                }
+            }
+            None => {
+                if finding.replay_metadata_version.is_some() {
+                    unpinned_legacy = Some(finding);
+                } else {
+                    return Err(format!(
+                        "finding {seed} records an unpinned campaign but replay requested Tcl {}; refusing mismatched replay",
+                        pair.tcl_version.expect("checked above").version_string(),
+                    ));
+                }
+            }
+            Some(recorded)
+                if pair
+                    .tcl_version
+                    .is_some_and(|requested| recorded != requested) =>
+            {
+                return Err(format!(
+                    "finding {seed} in the legacy unversioned registry records Tcl {} but replay requested Tcl {}; refusing mismatched replay",
+                    recorded.version_string(),
+                    pair.tcl_version.expect("checked above").version_string(),
+                ));
+            }
+            Some(_) => {}
+        }
+        if campaign.is_some() {
+            return Err(format!(
+                "finding {seed} has release metadata but is in the legacy unversioned registry; replay it from its Tcl release namespace",
+            ));
+        }
+    }
+
+    let matches = release_findings(findings, pair, seed)?;
+    if let Some(requested) = pair.tcl_version {
+        if let Some((_, finding)) = matches.iter().find(|(recorded, _)| *recorded == requested) {
+            return Ok(ReplaySelection {
+                tcl_version: Some(requested),
+                finding: Some(finding.clone()),
+            });
+        }
+        return if matches.is_empty() {
+            if unpinned_legacy.is_some() {
+                Err(format!(
+                    "finding {seed} records an unpinned campaign but replay requested Tcl {}; refusing mismatched replay",
+                    requested.version_string(),
+                ))
+            } else {
+                Ok(ReplaySelection {
+                    tcl_version: Some(requested),
+                    finding: None,
+                })
+            }
+        } else {
+            let releases = matches
+                .iter()
+                .map(|(tcl_version, _)| tcl_version.version_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(format!(
+                "finding {seed} records Tcl {releases}, but replay requested Tcl {}; refusing mismatched replay",
+                requested.version_string(),
+            ))
+        };
+    }
+
+    match (unpinned_legacy, matches.as_slice()) {
+        (Some(finding), []) => Ok(ReplaySelection {
+            tcl_version: None,
+            finding: Some(finding),
+        }),
+        (None, []) => Ok(ReplaySelection {
+            tcl_version: None,
+            finding: None,
+        }),
+        (None, [(tcl_version, finding)]) => Ok(ReplaySelection {
+            tcl_version: Some(*tcl_version),
+            finding: Some(finding.clone()),
+        }),
+        (Some(_) | None, _) => {
+            let releases = matches
+                .iter()
+                .map(|(tcl_version, _)| tcl_version.version_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(format!(
+                "finding {seed} exists in multiple Tcl configurations (unpinned, {releases}); replay with --tcl-version X.Y",
+            ))
+        }
+    }
+}
+
+/// Whether the concrete backend builds used for replay differ from those
+/// persisted with a finding. A campaign release pins language semantics, but
+/// patchlevel provenance remains useful when narrowing a regression.
 fn replay_versions_changed(
     recorded_reference: Option<&str>,
     recorded_subject: Option<&str>,
@@ -446,6 +675,17 @@ fn replay_command(
     seed: u64,
     pair_args: PairArgs,
 ) -> std::process::ExitCode {
+    let selection = match select_replay(&cli.findings, pair_args, seed) {
+        Ok(selection) => selection,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return std::process::ExitCode::from(2);
+        }
+    };
+    let pair_args = PairArgs {
+        tcl_version: selection.tcl_version,
+        ..pair_args
+    };
     let pair = match ResolvedPair::resolve(pair_args, cli) {
         Ok(pair) => pair,
         Err(error) => {
@@ -460,12 +700,18 @@ fn replay_command(
             return std::process::ExitCode::from(2);
         }
     };
-    if let Ok(registry) = Registry::open(pair.findings_dir(&cli.findings))
-        && let Some(prior) = registry.load(seed)
-    {
+    if let Err(error) = verify_requested_tcl_version(&versions) {
+        eprintln!("error: {error}");
+        return std::process::ExitCode::from(2);
+    }
+    if let Some(prior) = selection.finding {
         eprintln!(
-            "note: seed {seed} is a recorded finding ({:?})",
-            prior.category
+            "note: seed {seed} is a recorded finding ({:?}) using {}",
+            prior.category,
+            pair.tcl_version.map_or_else(
+                || "the recorded unpinned configuration".to_owned(),
+                |tcl_version| format!("Tcl {}", tcl_version.version_string()),
+            ),
         );
         if replay_versions_changed(
             prior.reference_version.as_deref(),
@@ -493,25 +739,49 @@ fn replay_command(
 
 /// Print the findings summary for one backend pair.
 fn summary_command(findings: &Path, pair: PairArgs) -> std::process::ExitCode {
-    let dir = pair_findings_dir(findings, pair.reference, pair.subject);
-    match Registry::open(&dir) {
-        Ok(registry) => {
-            let summary = registry.summary();
-            if summary.is_empty() {
-                println!("no findings in {}", dir.display());
-            } else {
-                println!("findings in {}:", dir.display());
-                for (category, count) in summary {
-                    println!("  {category:?}: {count}");
-                }
+    let selected = summary_registry_dirs(findings, pair);
+    if selected.is_empty() {
+        let dir = pair_findings_dir(findings, pair.reference, pair.subject, pair.tcl_version);
+        println!("no findings in {}", dir.display());
+        return std::process::ExitCode::SUCCESS;
+    }
+    for (release, dir) in selected {
+        let registry = match Registry::open(&dir) {
+            Ok(registry) => registry,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return std::process::ExitCode::from(2);
             }
-            std::process::ExitCode::SUCCESS
-        }
-        Err(error) => {
-            eprintln!("error: {error}");
-            std::process::ExitCode::from(2)
+        };
+        let summary = registry.summary();
+        let identity = release.map_or_else(
+            || "unpinned".to_owned(),
+            |tcl_version| format!("Tcl {}", tcl_version.version_string()),
+        );
+        if summary.is_empty() {
+            println!("no findings in {} ({identity})", dir.display());
+        } else {
+            println!("findings in {} ({identity}):", dir.display());
+            for (category, count) in summary {
+                println!("  {category:?}: {count}");
+            }
         }
     }
+    std::process::ExitCode::SUCCESS
+}
+
+/// Existing registries selected by `summary`. Without a release filter, every
+/// pair namespace is reported independently so equal seeds at different Tcl
+/// releases remain distinct findings rather than colliding in one count.
+fn summary_registry_dirs(findings: &Path, pair: PairArgs) -> Vec<(Option<TclVersion>, PathBuf)> {
+    pair_registry_dirs(findings, pair)
+        .into_iter()
+        .filter(|(release, _)| {
+            pair.tcl_version
+                .is_none_or(|requested| *release == Some(requested))
+        })
+        .filter(|(_, dir)| dir.exists())
+        .collect()
 }
 
 fn main() -> std::process::ExitCode {
@@ -1219,27 +1489,16 @@ fn render(o: &Outcome) -> String {
     }
 }
 
-/// The extra arguments that pin `engine` to Tcl release `want` (`"8.6"`).
-///
-/// `Err` carries a ready-to-print message when the release is unrecognised or
-/// the engine has no way to emulate another release. Refusing beats silently
-/// ignoring: a campaign told to match its reference must either do so or stop,
-/// never quietly run version-skewed (issue #1328).
-fn version_flag_for(engine: Engine, want: &str) -> Result<Vec<String>, String> {
-    if tcl_dialect::TclVersion::from_package_version(want).is_none() {
-        return Err(format!(
-            "unknown --subject-tcl-version {want:?} (want 8.4, 8.5, 8.6, 9.0 or 9.1)"
-        ));
-    }
-    match engine {
-        Engine::RuntimeRust | Engine::Tclvm => {
-            Ok(vec!["--tcl-version".to_owned(), want.to_owned()])
-        }
-        // `tclsh` *is* a released build — point --tclsh at a different one.
-        Engine::Tclsh => Err(format!(
-            "cannot pin `tclsh` to Tcl {want}: point --tclsh at a {want} build instead"
-        )),
-    }
+/// Parse a CLI release spelling through the dialect owner's release
+/// vocabulary. Package-style patchlevels and canonical dialect names are both
+/// useful aliases, but the resulting value is always the canonical release
+/// line used in engine arguments, metadata, and directory names.
+fn parse_tcl_version(raw: &str) -> Result<TclVersion, String> {
+    TclVersion::from_package_version(raw)
+        .or_else(|| TclVersion::from_dialect(Some(raw)))
+        .ok_or_else(|| {
+            format!("unknown Tcl release {raw:?} (want 8.4, 8.5, 8.6, 9.0, 9.1, or tclX.Y)")
+        })
 }
 
 fn print_stats(stats: &Stats) {
@@ -1282,13 +1541,23 @@ fn cli_flag_for(engine: Engine) -> &'static str {
 /// original default pair (`tclsh` reference / `tclvm` subject — keeps
 /// existing findings directories meaningful with no migration), else
 /// `base/<subject>-vs-<reference>/` so a different pair never collides with
-/// another pair's seeds.
-fn pair_findings_dir(base: &Path, reference: Engine, subject: Engine) -> PathBuf {
-    if matches!(reference, Engine::Tclsh) && matches!(subject, Engine::Tclvm) {
+/// another pair's seeds. A release-selected campaign adds `tclX.Y/` below
+/// that path, preventing the same seed from being deduplicated across Tcl
+/// language versions.
+fn pair_findings_dir(
+    base: &Path,
+    reference: Engine,
+    subject: Engine,
+    tcl_version: Option<TclVersion>,
+) -> PathBuf {
+    let pair_dir = if matches!(reference, Engine::Tclsh) && matches!(subject, Engine::Tclvm) {
         base.to_owned()
     } else {
         base.join(format!("{}-vs-{}", subject.label(), reference.label()))
-    }
+    };
+    tcl_version.map_or(pair_dir.clone(), |tcl_version| {
+        pair_dir.join(format!("tcl{}", tcl_version.version_string()))
+    })
 }
 
 /// A coarse time-based seed for ad-hoc campaigns. The nanosecond count is
@@ -1311,6 +1580,426 @@ mod tests {
         Cli::command().debug_assert();
     }
 
+    fn test_pair(reference: Engine, subject: Engine) -> ResolvedPair {
+        ResolvedPair {
+            reference,
+            subject,
+            tcl_version: None,
+            reference_bin: PathBuf::from("/reference"),
+            reference_args: reference.args(),
+            subject_bin: PathBuf::from("/subject"),
+            subject_args: subject.args(),
+        }
+    }
+
+    fn pair_args(reference: Engine, subject: Engine, tcl_version: Option<TclVersion>) -> PairArgs {
+        PairArgs {
+            reference,
+            subject,
+            tcl_version,
+        }
+    }
+
+    fn finding(seed: u64, tcl_version: TclVersion) -> Finding {
+        let outcome = Outcome::Ran {
+            stdout: "reference output\n".to_owned(),
+            stderr: String::new(),
+            errored: false,
+        };
+        Finding::new(
+            seed,
+            findings::Category::StdoutMismatch,
+            "puts replayable",
+            &findings::FindingContext {
+                reference: &outcome,
+                subject: &outcome,
+                reference_engine: Engine::RuntimeRust.label(),
+                subject_engine: Engine::Tclvm.label(),
+                versions: &version::PairVersions {
+                    tcl_version: Some(tcl_version),
+                    reference: Some(version::EngineVersion::parse(tcl_version.patchlevel())),
+                    subject: Some(version::EngineVersion::parse(tcl_version.patchlevel())),
+                },
+            },
+        )
+    }
+
+    fn replay_tmp(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "tcl-fuzz-replay-test-{}-{name}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        path
+    }
+
+    #[test]
+    fn replay_refuses_an_unreadable_existing_record() {
+        let base = replay_tmp("unreadable");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 37;
+        let dir = pair_findings_dir(&base, args.reference, args.subject, None);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(format!("finding-{seed}.json")), b"{ truncated").unwrap();
+
+        let error = select_replay(&base, args, seed).unwrap_err();
+        assert!(error.contains("loading finding 37"));
+        assert!(error.contains("finding-37.json"));
+    }
+
+    #[test]
+    fn release_flag_accepts_owner_defined_aliases_and_rejects_unknown_values() {
+        assert_eq!(parse_tcl_version("8.6"), Ok(TclVersion::V8_6));
+        assert_eq!(parse_tcl_version("8.6.16"), Ok(TclVersion::V8_6));
+        assert_eq!(parse_tcl_version("tcl8.6"), Ok(TclVersion::V8_6));
+        assert!(parse_tcl_version("8.7").is_err());
+
+        let modern = Cli::try_parse_from(["tcl-fuzz", "run", "--tcl-version", "8.6"])
+            .expect("canonical release flag parses");
+        let legacy = Cli::try_parse_from(["tcl-fuzz", "run", "--subject-tcl-version", "tcl8.6"])
+            .expect("subject-only spelling remains a compatibility alias");
+        let Cmd::Run(modern) = modern.command else {
+            panic!("expected run command");
+        };
+        let Cmd::Run(legacy) = legacy.command else {
+            panic!("expected run command");
+        };
+        assert_eq!(modern.pair.tcl_version, Some(TclVersion::V8_6));
+        assert_eq!(legacy.pair.tcl_version, Some(TclVersion::V8_6));
+        assert!(Cli::try_parse_from(["tcl-fuzz", "run", "--tcl-version", "8.7"]).is_err());
+    }
+
+    #[test]
+    fn replay_discovers_a_recorded_release_and_propagates_it_to_both_engines() {
+        let base = replay_tmp("propagation");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 19;
+        let dir = pair_findings_dir(&base, args.reference, args.subject, Some(TclVersion::V8_6));
+        Registry::open(&dir)
+            .unwrap()
+            .record(&finding(seed, TclVersion::V8_6))
+            .unwrap();
+
+        let selection = select_replay(&base, args, seed).unwrap();
+        assert_eq!(selection.tcl_version, Some(TclVersion::V8_6));
+        assert_eq!(
+            selection.finding.as_ref().map(|finding| finding.seed),
+            Some(seed)
+        );
+        let mut resolved = test_pair(args.reference, args.subject);
+        resolved.apply_tcl_version(selection.tcl_version.unwrap());
+        assert!(
+            resolved
+                .reference_args
+                .windows(2)
+                .any(|args| args == ["--tcl-version", "8.6"])
+        );
+        assert!(
+            resolved
+                .subject_args
+                .windows(2)
+                .any(|args| args == ["--tcl-version", "8.6"])
+        );
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn replay_accepts_a_markerless_pinned_finding_from_the_release_namespace() {
+        let base = replay_tmp("markerless-pinned");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 22;
+        let mut pinned = finding(seed, TclVersion::V8_6);
+        pinned.replay_metadata_version = None;
+        let dir = pair_findings_dir(&base, args.reference, args.subject, Some(TclVersion::V8_6));
+        Registry::open(&dir).unwrap().record(&pinned).unwrap();
+
+        let selection = select_replay(&base, args, seed).unwrap();
+        assert_eq!(selection.tcl_version, Some(TclVersion::V8_6));
+        assert_eq!(selection.finding.map(|finding| finding.seed), Some(seed));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn replay_refuses_legacy_findings_without_release_metadata() {
+        let base = replay_tmp("legacy");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 23;
+        let mut legacy = finding(seed, TclVersion::V9_0);
+        legacy.tcl_version = None;
+        legacy.replay_metadata_version = None;
+        let dir = pair_findings_dir(&base, args.reference, args.subject, None);
+        Registry::open(&dir).unwrap().record(&legacy).unwrap();
+
+        let error = select_replay(&base, args, seed).unwrap_err();
+        assert!(error.contains("predates replay-safe campaign metadata"));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn replay_immediately_reuses_a_new_unpinned_campaign_finding() {
+        let base = replay_tmp("new-unpinned");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 231;
+        let mut unpinned = finding(seed, TclVersion::V9_0);
+        unpinned.tcl_version = None;
+        assert_eq!(unpinned.replay_metadata_version, Some(1));
+        let dir = pair_findings_dir(&base, args.reference, args.subject, None);
+        Registry::open(&dir).unwrap().record(&unpinned).unwrap();
+
+        let selection = select_replay(&base, args, seed).unwrap();
+        assert_eq!(selection.tcl_version, None);
+        assert_eq!(selection.finding.map(|finding| finding.seed), Some(seed));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn marked_unpinned_and_pinned_records_are_ambiguous_without_a_release() {
+        let base = replay_tmp("marked-unpinned-ambiguous");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 232;
+        let mut unpinned = finding(seed, TclVersion::V9_0);
+        unpinned.tcl_version = None;
+        Registry::open(pair_findings_dir(&base, args.reference, args.subject, None))
+            .unwrap()
+            .record(&unpinned)
+            .unwrap();
+        Registry::open(pair_findings_dir(
+            &base,
+            args.reference,
+            args.subject,
+            Some(TclVersion::V8_6),
+        ))
+        .unwrap()
+        .record(&finding(seed, TclVersion::V8_6))
+        .unwrap();
+
+        let error = select_replay(&base, args, seed).unwrap_err();
+        assert!(error.contains("multiple Tcl configurations"));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn explicit_release_selects_pinned_record_over_marked_unpinned_record() {
+        let base = replay_tmp("marked-unpinned-explicit");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, Some(TclVersion::V8_6));
+        let seed = 233;
+        let mut unpinned = finding(seed, TclVersion::V9_0);
+        unpinned.tcl_version = None;
+        Registry::open(pair_findings_dir(&base, args.reference, args.subject, None))
+            .unwrap()
+            .record(&unpinned)
+            .unwrap();
+        Registry::open(pair_findings_dir(
+            &base,
+            args.reference,
+            args.subject,
+            Some(TclVersion::V8_6),
+        ))
+        .unwrap()
+        .record(&finding(seed, TclVersion::V8_6))
+        .unwrap();
+
+        let selection = select_replay(&base, args, seed).unwrap();
+        assert_eq!(selection.tcl_version, Some(TclVersion::V8_6));
+        assert_eq!(
+            selection
+                .finding
+                .and_then(|finding| finding.campaign_tcl_version().ok().flatten()),
+            Some(TclVersion::V8_6),
+        );
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn explicit_replay_refuses_a_legacy_release_less_finding() {
+        let base = replay_tmp("explicit-legacy");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, Some(TclVersion::V9_0));
+        let seed = 24;
+        let mut legacy = finding(seed, TclVersion::V9_0);
+        legacy.tcl_version = None;
+        legacy.replay_metadata_version = None;
+        let dir = pair_findings_dir(&base, args.reference, args.subject, None);
+        Registry::open(&dir).unwrap().record(&legacy).unwrap();
+
+        let error = select_replay(&base, args, seed).unwrap_err();
+        assert!(error.contains("predates replay-safe campaign metadata"));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn explicit_replay_refuses_a_finding_from_a_different_release() {
+        let base = replay_tmp("explicit-mismatch");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, Some(TclVersion::V9_0));
+        let seed = 25;
+        let dir = pair_findings_dir(&base, args.reference, args.subject, Some(TclVersion::V8_6));
+        Registry::open(&dir)
+            .unwrap()
+            .record(&finding(seed, TclVersion::V8_6))
+            .unwrap();
+
+        let error = select_replay(&base, args, seed).unwrap_err();
+        assert!(error.contains("records Tcl 8.6"));
+        assert!(error.contains("requested Tcl 9.0"));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn explicit_replay_selects_its_release_when_the_seed_exists_at_multiple_releases() {
+        let base = replay_tmp("explicit-duplicate");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, Some(TclVersion::V9_0));
+        let seed = 27;
+        for tcl_version in [TclVersion::V8_6, TclVersion::V9_0] {
+            let dir = pair_findings_dir(&base, args.reference, args.subject, Some(tcl_version));
+            Registry::open(&dir)
+                .unwrap()
+                .record(&finding(seed, tcl_version))
+                .unwrap();
+        }
+
+        let selection = select_replay(&base, args, seed).unwrap();
+        assert_eq!(selection.tcl_version, Some(TclVersion::V9_0));
+        assert_eq!(
+            selection
+                .finding
+                .as_ref()
+                .and_then(|finding| finding.campaign_tcl_version().ok().flatten()),
+            Some(TclVersion::V9_0),
+        );
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn explicit_replay_refuses_metadata_mismatched_to_its_release_namespace() {
+        let base = replay_tmp("explicit-metadata-mismatch");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, Some(TclVersion::V9_0));
+        let seed = 28;
+        let dir = pair_findings_dir(&base, args.reference, args.subject, Some(TclVersion::V9_0));
+        let mut mismatched = finding(seed, TclVersion::V8_6);
+        mismatched.replay_metadata_version = None;
+        Registry::open(&dir).unwrap().record(&mismatched).unwrap();
+
+        let error = select_replay(&base, args, seed).unwrap_err();
+        assert!(error.contains("stored under Tcl 9.0"));
+        assert!(error.contains("records Tcl 8.6"));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn replay_refuses_an_invalid_pinned_release_even_without_the_marker() {
+        let base = replay_tmp("invalid-markerless-pinned");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 281;
+        let mut invalid = finding(seed, TclVersion::V8_6);
+        invalid.tcl_version = Some("8.7".to_owned());
+        invalid.replay_metadata_version = None;
+        let dir = pair_findings_dir(&base, args.reference, args.subject, Some(TclVersion::V8_6));
+        Registry::open(&dir).unwrap().record(&invalid).unwrap();
+
+        let error = select_replay(&base, args, seed).unwrap_err();
+        assert!(error.contains("unrecognised recorded Tcl release"));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn explicit_replay_allows_an_arbitrary_seed_absent_from_every_registry() {
+        let base = replay_tmp("arbitrary-seed");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, Some(TclVersion::V9_0));
+
+        let selection = select_replay(&base, args, 26).unwrap();
+        assert_eq!(selection.tcl_version, Some(TclVersion::V9_0));
+        assert!(selection.finding.is_none());
+        assert!(
+            !base.exists(),
+            "an arbitrary replay must not create registries"
+        );
+    }
+
+    #[test]
+    fn replay_refuses_a_seed_which_exists_at_multiple_releases() {
+        let base = replay_tmp("ambiguous");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 29;
+        for tcl_version in [TclVersion::V8_6, TclVersion::V9_0] {
+            let dir = pair_findings_dir(&base, args.reference, args.subject, Some(tcl_version));
+            Registry::open(&dir)
+                .unwrap()
+                .record(&finding(seed, tcl_version))
+                .unwrap();
+        }
+
+        let error = select_replay(&base, args, seed).unwrap_err();
+        assert!(error.contains("multiple Tcl configurations"));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn default_summary_discovers_each_release_namespace_without_seed_collisions() {
+        let base = replay_tmp("summary-all");
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let shared_seed = 30;
+        for tcl_version in [TclVersion::V8_6, TclVersion::V9_0] {
+            let dir = pair_findings_dir(&base, args.reference, args.subject, Some(tcl_version));
+            Registry::open(&dir)
+                .unwrap()
+                .record(&finding(shared_seed, tcl_version))
+                .unwrap();
+        }
+        let mut unpinned = finding(31, TclVersion::V9_0);
+        unpinned.tcl_version = None;
+        let legacy_dir = pair_findings_dir(&base, args.reference, args.subject, None);
+        Registry::open(&legacy_dir)
+            .unwrap()
+            .record(&unpinned)
+            .unwrap();
+
+        let selected = summary_registry_dirs(&base, args);
+        assert_eq!(
+            selected
+                .iter()
+                .map(|(release, _)| *release)
+                .collect::<Vec<_>>(),
+            vec![None, Some(TclVersion::V8_6), Some(TclVersion::V9_0)],
+        );
+        assert_eq!(
+            selected
+                .iter()
+                .map(|(_, dir)| Registry::open(dir)
+                    .unwrap()
+                    .summary()
+                    .values()
+                    .sum::<usize>())
+                .sum::<usize>(),
+            3,
+            "same seed is kept as two findings because the release namespace is part of identity",
+        );
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn explicit_summary_selects_only_its_release_namespace() {
+        let base = replay_tmp("summary-explicit");
+        let unpinned = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        for tcl_version in [TclVersion::V8_6, TclVersion::V9_0] {
+            let dir = pair_findings_dir(
+                &base,
+                unpinned.reference,
+                unpinned.subject,
+                Some(tcl_version),
+            );
+            Registry::open(&dir)
+                .unwrap()
+                .record(&finding(32, tcl_version))
+                .unwrap();
+        }
+        let selected = summary_registry_dirs(
+            &base,
+            pair_args(Engine::RuntimeRust, Engine::Tclvm, Some(TclVersion::V9_0)),
+        );
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].0, Some(TclVersion::V9_0));
+        let _ = std::fs::remove_dir_all(base);
+    }
+
     #[test]
     fn default_pair_keeps_the_plain_findings_dir() {
         // Issue #1313: the original `tclvm` subject / `tclsh` reference pair
@@ -1318,7 +2007,7 @@ mod tests {
         // migration when other pairs are added.
         let base = Path::new("fuzz-findings");
         assert_eq!(
-            pair_findings_dir(base, Engine::Tclsh, Engine::Tclvm),
+            pair_findings_dir(base, Engine::Tclsh, Engine::Tclvm, None),
             base.to_owned()
         );
     }
@@ -1327,19 +2016,39 @@ mod tests {
     fn other_pairs_are_namespaced_so_seeds_never_collide() {
         let base = Path::new("fuzz-findings");
         assert_eq!(
-            pair_findings_dir(base, Engine::Tclsh, Engine::RuntimeRust),
+            pair_findings_dir(base, Engine::Tclsh, Engine::RuntimeRust, None),
             base.join("runtime-rust-vs-tclsh")
         );
         assert_eq!(
-            pair_findings_dir(base, Engine::RuntimeRust, Engine::Tclvm),
+            pair_findings_dir(base, Engine::RuntimeRust, Engine::Tclvm, None),
             base.join("tclvm-vs-runtime-rust")
         );
         // The same two engines swapped is a *different* registry — subject and
         // reference are not interchangeable.
         assert_ne!(
-            pair_findings_dir(base, Engine::Tclsh, Engine::RuntimeRust),
-            pair_findings_dir(base, Engine::RuntimeRust, Engine::Tclsh)
+            pair_findings_dir(base, Engine::Tclsh, Engine::RuntimeRust, None),
+            pair_findings_dir(base, Engine::RuntimeRust, Engine::Tclsh, None)
         );
+    }
+
+    #[test]
+    fn release_namespaces_keep_same_pair_seeds_separate() {
+        let base = Path::new("fuzz-findings");
+        let old = pair_findings_dir(
+            base,
+            Engine::RuntimeRust,
+            Engine::Tclvm,
+            Some(TclVersion::V8_6),
+        );
+        let new = pair_findings_dir(
+            base,
+            Engine::RuntimeRust,
+            Engine::Tclvm,
+            Some(TclVersion::V9_0),
+        );
+        assert_eq!(old, base.join("tclvm-vs-runtime-rust/tcl8.6"));
+        assert_eq!(new, base.join("tclvm-vs-runtime-rust/tcl9.0"));
+        assert_ne!(old, new, "a seed must not deduplicate across releases");
     }
 
     #[test]
@@ -1350,21 +2059,43 @@ mod tests {
     }
 
     #[test]
-    fn version_pinning_reaches_both_emulated_runtime_subjects() {
-        let want = vec!["--tcl-version".to_owned(), "8.6".to_owned()];
-        // TP: both engines own a release-selection flag, so the differential
-        // pair can match a Tcl 8.6 oracle instead of recording deliberate
-        // cross-version behaviour as a finding.
+    fn a_campaign_pin_reaches_both_sides_of_an_emulated_pair() {
+        let mut pair = test_pair(Engine::RuntimeRust, Engine::Tclvm);
+        pair.apply_tcl_version(TclVersion::V8_6);
+        assert_eq!(pair.tcl_version, Some(TclVersion::V8_6));
         assert_eq!(
-            version_flag_for(Engine::RuntimeRust, "8.6"),
-            Ok(want.clone())
+            pair.reference_args,
+            vec![
+                "--quiet".to_owned(),
+                "--tcl-version".to_owned(),
+                "8.6".to_owned(),
+            ],
+            "reference must receive the same release pin",
         );
-        assert_eq!(version_flag_for(Engine::Tclvm, "8.6"), Ok(want));
-        // TN: the C interpreter must be selected by binary, never pretended
-        // to be mutable at run time.
-        assert!(version_flag_for(Engine::Tclsh, "8.6").is_err());
-        // FN: a typo cannot silently select the subject's default release.
-        assert!(version_flag_for(Engine::Tclvm, "8.7").is_err());
+        assert_eq!(
+            pair.subject_args,
+            vec!["--tcl-version".to_owned(), "8.6".to_owned()],
+            "subject must receive the same release pin",
+        );
+    }
+
+    #[test]
+    fn a_fixed_release_engine_refuses_when_its_selected_binary_cannot_honour_the_pin() {
+        let mut pair = test_pair(Engine::Tclsh, Engine::Tclvm);
+        pair.apply_tcl_version(TclVersion::V8_6);
+        assert_eq!(pair.tcl_version, Some(TclVersion::V8_6));
+        assert!(pair.reference_args.is_empty());
+        assert_eq!(
+            pair.subject_args,
+            vec!["--tcl-version".to_owned(), "8.6".to_owned()]
+        );
+        let versions = version::PairVersions {
+            tcl_version: Some(TclVersion::V8_6),
+            reference: Some(version::EngineVersion::parse("9.0.4")),
+            subject: Some(version::EngineVersion::parse("8.6.16")),
+        };
+        let error = verify_requested_tcl_version(&versions).unwrap_err();
+        assert!(error.contains("reference engine reports Tcl 9.0.4"));
     }
 
     #[test]
@@ -1373,6 +2104,7 @@ mod tests {
         let pair = PairArgs {
             reference: Engine::Tclvm,
             subject: Engine::Tclvm,
+            tcl_version: None,
         };
         assert!(ResolvedPair::resolve(pair, &cli).is_err());
     }
@@ -1417,18 +2149,34 @@ mod tests {
     }
 
     #[test]
-    fn replay_version_warning_compares_both_recorded_backends() {
+    fn requested_release_must_be_reported_by_both_backends() {
         let versions = version::PairVersions {
-            reference: Some(version::EngineVersion::parse("9.0.3")),
+            tcl_version: Some(TclVersion::V8_6),
+            reference: Some(version::EngineVersion::parse("8.6.16")),
+            subject: Some(version::EngineVersion::parse("8.6.16")),
+        };
+        assert!(verify_requested_tcl_version(&versions).is_ok());
+        let ignored = version::PairVersions {
+            subject: Some(version::EngineVersion::parse("9.0.4")),
+            ..versions
+        };
+        assert!(verify_requested_tcl_version(&ignored).is_err());
+    }
+
+    #[test]
+    fn replay_patch_drift_warning_compares_both_recorded_backends() {
+        let versions = version::PairVersions {
+            tcl_version: Some(TclVersion::V9_0),
+            reference: Some(version::EngineVersion::parse("9.0.1")),
             subject: Some(version::EngineVersion::parse("9.0.4")),
         };
         assert!(!replay_versions_changed(
-            Some("9.0.3"),
+            Some("9.0.1"),
             Some("9.0.4"),
             &versions,
         ));
         assert!(replay_versions_changed(
-            Some("9.0.3"),
+            Some("9.0.1"),
             Some("9.0.5"),
             &versions,
         ));

@@ -29,10 +29,11 @@ right layer, and confirm it is closed?
 A divergence is evidence of a bug **only when both engines speak the same
 version of Tcl**. `lt`/`gt`/`le`/`ge`, `isfinite()`/`isinf()`/`isnan()`,
 and the namespace-scope global fallback for relative variable names all
-differ deliberately between 8.6 and 9.0. Every campaign prints both
-engines' releases before it starts and warns when they differ, and every
-finding records the reference version, the subject version, and whether
-they were skewed. Read those first.
+differ deliberately between 8.6 and 9.0. Use one `--tcl-version` for the
+whole pair; the fuzzer passes it to each emulated engine and checks that a
+fixed-release `tclsh` binary reports the requested line before it generates a
+script. Every finding records that campaign release as well as each engine's
+observed patchlevel. Read those first.
 
 ### 2. Classify by category
 
@@ -47,9 +48,24 @@ A finding's category is the verdict that produced it:
 
 ### 3. Replay the seed to get a minimal reproducer
 
-Findings are keyed by their generating seed, so they replay exactly.
-Replay prints both engines' output side by side including stderr. Cut the
-script down to the smallest expression or command that still diverges.
+Findings are keyed by their generating seed, so they replay exactly. A
+release-aware finding lives in its own `tclX.Y` registry and replay discovers
+one matching record automatically, then pins the whole pair to its recorded
+release. If the same seed exists at more than one release, replay refuses and
+asks for `--tcl-version X.Y`; that flag selects the record in the exact
+`tclX.Y` registry, while still refusing if no record exists there.
+
+New unpinned campaigns carry replay metadata too and therefore replay directly
+from the plain pair registry. An older finding with an explicit recorded
+release is still replay-safe; only an older *release-less* record missing the
+metadata is deliberately refused, because its old subject-only configuration
+cannot be reconstructed safely. Replaying it at today's default would be
+misleading.
+`summary` without a release includes the unpinned registry plus each `tclX.Y`
+registry as a separately labelled count; pass `--tcl-version X.Y` to inspect
+only one release. Replay prints both engines'
+output side by side including stderr. Cut the script down to the smallest
+expression or command that still diverges.
 
 ### 4. Verify what C Tcl actually does
 

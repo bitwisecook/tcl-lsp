@@ -65,6 +65,23 @@ impl Engine {
         }
     }
 
+    /// Arguments that select this engine's emulated Tcl release.
+    ///
+    /// A C `tclsh` binary is already one fixed release, so it deliberately
+    /// receives no runtime argument. The pair probe must subsequently verify
+    /// that the selected binary reports the requested release; an unmatched
+    /// binary is rejected before the campaign begins.
+    #[must_use]
+    pub fn tcl_version_args(self, version: tcl_dialect::TclVersion) -> Vec<String> {
+        match self {
+            Self::Tclvm | Self::RuntimeRust => vec![
+                "--tcl-version".to_owned(),
+                version.version_string().to_owned(),
+            ],
+            Self::Tclsh => Vec::new(),
+        }
+    }
+
     /// Locate this engine's binary: an explicit override (e.g. `--tclvm`,
     /// `--tclsh`, `--runtime-rust`) first, else a convention-based search.
     /// `None` means genuinely not found, and the caller refuses to start the
@@ -118,6 +135,24 @@ mod tests {
     fn tclvm_and_tclsh_carry_no_extra_args() {
         assert!(Engine::Tclvm.args().is_empty());
         assert!(Engine::Tclsh.args().is_empty());
+    }
+
+    #[test]
+    fn emulated_engines_accept_a_release_flag_but_tclsh_uses_its_selected_binary() {
+        let expected = vec!["--tcl-version".to_owned(), "8.6".to_owned()];
+        assert_eq!(
+            Engine::Tclvm.tcl_version_args(tcl_dialect::TclVersion::V8_6),
+            expected.clone(),
+        );
+        assert_eq!(
+            Engine::RuntimeRust.tcl_version_args(tcl_dialect::TclVersion::V8_6),
+            expected,
+        );
+        assert!(
+            Engine::Tclsh
+                .tcl_version_args(tcl_dialect::TclVersion::V8_6)
+                .is_empty()
+        );
     }
 
     #[test]

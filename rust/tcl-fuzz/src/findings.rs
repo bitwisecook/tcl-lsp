@@ -91,6 +91,17 @@ pub struct Finding {
     /// Stable subject backend identity.
     #[serde(default)]
     pub subject_engine: String,
+    /// The Tcl release explicitly selected for the whole campaign. Unlike the
+    /// observed patchlevels below, this is the configuration replay must
+    /// restore before it can claim to reproduce a finding.
+    #[serde(default)]
+    pub tcl_version: Option<String>,
+    /// Schema marker proving this record was written after replay gained a
+    /// campaign-level configuration. Its presence makes an explicitly
+    /// unpinned campaign (`tcl_version: null`) distinguishable from an older
+    /// record that simply lacks the field.
+    #[serde(default)]
+    pub replay_metadata_version: Option<u8>,
     /// The Tcl release the **reference** engine reported
     /// (`[info patchlevel]`), when it could be probed. A divergence is evidence
     /// of a bug only when both engines speak the same version of the language.
@@ -141,6 +152,12 @@ impl Finding {
             subject_stderr,
             reference_engine: context.reference_engine.to_owned(),
             subject_engine: context.subject_engine.to_owned(),
+            tcl_version: context
+                .versions
+                .tcl_version
+                .map(tcl_dialect::TclVersion::version_string)
+                .map(str::to_owned),
+            replay_metadata_version: Some(1),
             reference_version: context
                 .versions
                 .reference
@@ -152,6 +169,35 @@ impl Finding {
                 .as_ref()
                 .map(|version| version.patchlevel.clone()),
             version_skew: context.versions.skewed(),
+        }
+    }
+
+    /// Return this finding's configured Tcl release, if its campaign was
+    /// deliberately unpinned.
+    ///
+    /// A valid explicit release is independently replay-safe, including older
+    /// records written before the schema marker existed. A release-less record
+    /// is replayable only when the marker proves it came from a deliberate
+    /// unpinned campaign; otherwise the old subject-only path left no way to
+    /// establish its original configuration.
+    pub fn campaign_tcl_version(&self) -> Result<Option<tcl_dialect::TclVersion>, String> {
+        if let Some(raw) = self.tcl_version.as_deref() {
+            return tcl_dialect::TclVersion::from_package_version(raw)
+                .map(Some)
+                .ok_or_else(|| {
+                    format!(
+                        "finding {} has an unrecognised recorded Tcl release {raw:?}",
+                        self.seed,
+                    )
+                });
+        }
+        if self.replay_metadata_version == Some(1) {
+            Ok(None)
+        } else {
+            Err(format!(
+                "finding {} predates replay-safe campaign metadata; it cannot be replayed safely",
+                self.seed,
+            ))
         }
     }
 }
@@ -231,6 +277,14 @@ impl Registry {
         Ok(true)
     }
 
+    /// Load a previously-recorded finding by seed, if present.
+    #[cfg(test)]
+    #[must_use]
+    pub fn load(&self, seed: u64) -> Option<Finding> {
+        let text = std::fs::read_to_string(self.dir.join(format!("finding-{seed}.json"))).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+
     /// Count of recorded findings per category.
     #[must_use]
     pub fn summary(&self) -> BTreeMap<Category, usize> {
@@ -252,11 +306,21 @@ impl Registry {
         counts
     }
 
-    /// Load a previously-recorded finding by seed, if present.
-    #[must_use]
-    pub fn load(&self, seed: u64) -> Option<Finding> {
-        let text = std::fs::read_to_string(self.dir.join(format!("finding-{seed}.json"))).ok()?;
-        serde_json::from_str(&text).ok()
+    /// Load a finding while distinguishing an absent record from a damaged
+    /// record. Replay must fail closed when the JSON exists but cannot be
+    /// read or decoded.
+    pub fn load_checked(&self, seed: u64) -> std::io::Result<Option<Finding>> {
+        let path = self.dir.join(format!("finding-{seed}.json"));
+        match std::fs::read_to_string(&path) {
+            Ok(text) => serde_json::from_str(&text).map(Some).map_err(|error| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("{}: {error}", path.display()),
+                )
+            }),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
     }
 }
 
@@ -329,6 +393,7 @@ mod tests {
                 reference_engine: "tclsh",
                 subject_engine: "runtime-rust",
                 versions: &crate::version::PairVersions {
+                    tcl_version: None,
                     reference: Some(crate::version::EngineVersion::parse("8.6.16")),
                     subject: Some(crate::version::EngineVersion::parse("9.0.4")),
                 },
@@ -338,9 +403,46 @@ mod tests {
         let back = reg.load(11).unwrap();
         assert_eq!(back.reference_engine, "tclsh");
         assert_eq!(back.subject_engine, "runtime-rust");
+        assert_eq!(back.tcl_version, None);
         assert_eq!(back.reference_version.as_deref(), Some("8.6.16"));
         assert_eq!(back.subject_version.as_deref(), Some("9.0.4"));
         assert!(back.version_skew, "8.6 oracle vs 9.0 subject is skew");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_finding_persists_the_canonical_campaign_release_for_replay() {
+        let dir = tmp("campaign-release");
+        let reg = Registry::open(&dir).unwrap();
+        let outcome = Outcome::Ran {
+            stdout: "same\n".to_owned(),
+            stderr: String::new(),
+            errored: false,
+        };
+        let finding = Finding::new(
+            17,
+            Category::StdoutMismatch,
+            "puts same",
+            &FindingContext {
+                reference: &outcome,
+                subject: &outcome,
+                reference_engine: "runtime-rust",
+                subject_engine: "tclvm",
+                versions: &crate::version::PairVersions {
+                    tcl_version: Some(tcl_dialect::TclVersion::V8_6),
+                    reference: Some(crate::version::EngineVersion::parse("8.6.16")),
+                    subject: Some(crate::version::EngineVersion::parse("8.6.16")),
+                },
+            },
+        );
+        assert!(reg.record(&finding).unwrap());
+        let back = reg.load(17).unwrap();
+        assert_eq!(back.tcl_version.as_deref(), Some("8.6"));
+        assert_eq!(
+            back.campaign_tcl_version(),
+            Ok(Some(tcl_dialect::TclVersion::V8_6)),
+        );
+        assert_eq!(back.replay_metadata_version, Some(1));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
