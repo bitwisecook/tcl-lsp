@@ -54,10 +54,11 @@ const MAX_RAW_SLOTS: usize = 4096;
 
 /// Lower a single CFG function to a typed [`BpfProgram`] of the given type.
 ///
-/// `registry` must have the BPF dialect loaded (its `BpfOpSpec` descriptors
-/// drive all command dispatch). Slot allocation (liveness-based reuse + the
-/// 512-byte stack cap) runs as part of lowering, so the returned program is
-/// ready for any codegen target.
+/// `registry` must be the profile-stamped BPF registry: its `BpfOpSpec`
+/// descriptors drive command dispatch and its Tcl 9.0 embedding supplies the
+/// numeric grammar. Slot allocation (liveness-based reuse + the 512-byte stack
+/// cap) runs as part of lowering, so the returned program is ready for any
+/// codegen target.
 ///
 /// # Errors
 /// Returns a [`BpfError`] for any construct outside the typed DSL subset, a
@@ -128,8 +129,8 @@ pub fn lower_function(
 
 struct Lowerer<'f> {
     func: &'f Function,
-    /// The command registry (with the BPF dialect loaded) whose `BpfOpSpec`
-    /// descriptors drive all command dispatch.
+    /// The profile-stamped BPF command registry whose `BpfOpSpec` descriptors
+    /// drive all command dispatch.
     registry: &'f CommandRegistry,
     /// The numeric-literal grammar of the dialect being compiled for — every
     /// integer literal in the DSL is read through it.
@@ -1272,7 +1273,7 @@ mod tests {
     /// and `1_000` were all rejected as bad integers.
     #[test]
     fn integer_literals_follow_the_target_dialects_number_grammar() {
-        let numbers = tcl_dialect::DialectProfile::by_name("bpf").grammar.numbers;
+        let numbers = tcl_registry::registry_for_dialect("bpf").numbers();
         for (text, want) in [
             ("42", Some(42)),
             ("-42", Some(-42)),

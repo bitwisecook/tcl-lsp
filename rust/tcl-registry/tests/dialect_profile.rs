@@ -30,7 +30,7 @@
 //! `operators_as_commands`). These tests pin that banned surface stays banned
 //! and the retired `NON_IRULES_OPERATORS` union never creeps back as a gate.
 
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::{DialectProfile, DialectSet, NumberSyntax, TclVersion};
 use tcl_registry::traits::Traits;
 use tcl_registry::{ProfileQueries, registry_for_dialect};
 
@@ -338,6 +338,26 @@ fn additive_profiles_resolve_their_embedded_tcl_core() {
             );
         }
     }
+}
+
+/// BPF is a genuine Tcl 9.0 embedding, not merely a BPF command pack. The
+/// cache must install the pack and stamp that one profile so registry-owning
+/// consumers receive the full release/dialect fact set (issue #1466).
+#[test]
+fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
+    let registry = registry_for_dialect("bpf");
+    let profile = DialectProfile::by_name("bpf");
+
+    assert_eq!(registry.profile(), Some(profile));
+    assert_eq!(
+        profile.availability_mask,
+        DialectSet::TCL90 | DialectSet::BPF
+    );
+    assert_eq!(registry.runtime_version(), Some(TclVersion::V9_0));
+    assert_eq!(registry.numbers(), NumberSyntax::Tcl90);
+    assert_eq!(registry.octal_fold_policy(), Some(false));
+    assert!(profile.resolve_command(registry, "zipfs").is_some());
+    assert!(profile.resolve_command(registry, "setint").is_some());
 }
 
 /// Alias canonicalisation is load-bearing (§2.4): the legacy `irules`
