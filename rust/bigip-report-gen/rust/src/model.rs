@@ -589,7 +589,7 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     let command_registry = tcl_registry::registry_for_dialect("f5-irules");
     let identities =
         tcl_compiler::head_identity::command_head_identities(&body, "f5-irules", command_registry);
-    let discovered: Vec<String> =
+    let discovered: BTreeSet<String> =
         tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
             &body,
             command_registry,
@@ -598,7 +598,7 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
         .into_iter()
         .map(|handler| handler.event)
         .collect();
-    let events = event_registry().order_events(&discovered);
+    let events = event_registry().order_events(&discovered.into_iter().collect::<Vec<_>>());
     let fp = bstr(f, "full-path");
     // `.refs` is the engine's synthesised iRule reference sub-object.
     let refs: Map<String, J> = match f.get("refs") {

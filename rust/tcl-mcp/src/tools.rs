@@ -22,6 +22,8 @@
 //! [`call`] renders it into the MCP `content[].text` wire shape (a JSON string),
 //! kept stable so existing clients are unaffected.
 
+use std::collections::HashSet;
+
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
 use tcl_dialect::KNOWN_DIALECTS;
@@ -224,9 +226,11 @@ fn doc_symbol_to_json(sym: &tcl_lsp_core::document_symbols::DocumentSymbol) -> V
 /// (1-based index) — the `ordered_events` shape.
 fn event_order_list(source: &str) -> Vec<Value> {
     let events = EventRegistry::build();
+    let mut seen = HashSet::new();
     let names: Vec<String> = tcl_irules::when_blocks(source)
         .into_iter()
         .map(|block| block.event)
+        .filter(|event| seen.insert(event.clone()))
         .collect();
     events
         .order_events(&names)
@@ -1915,6 +1919,20 @@ mod source_integrity_tests {
         )
         .expect("analyze tool");
         assert!(!diagnostic_codes(&result).contains(&"W305"), "{result}");
+    }
+
+    #[test]
+    fn event_order_deduplicates_repeated_handlers() {
+        let result = event_order_list(
+            "when HTTP_REQUEST { return }\nwhen CLIENT_ACCEPTED {}\nwhen HTTP_REQUEST {}\n",
+        );
+        let names: Vec<_> = result
+            .iter()
+            .filter_map(|row| row["name"].as_str())
+            .collect();
+        assert_eq!(names, ["CLIENT_ACCEPTED", "HTTP_REQUEST"]);
+        assert_eq!(result[0]["index"], 1);
+        assert_eq!(result[1]["index"], 2);
     }
 }
 
