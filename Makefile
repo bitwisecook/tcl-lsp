@@ -1315,7 +1315,22 @@ editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
 	@echo "==> Generating Zed tree-sitter highlight queries (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-zed-queries
 
-generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm ## Regenerate editor catalog + Zed query files from the registry
+# These projections are owned by the crates their generators consume.  Keep
+# the ownership explicit so a `make generate` after a dialect, lexical grammar,
+# or command-registry change always refreshes every affected editor surface.
+_EDITOR_DIALECT_DEPS := $(shell find $(ROOT)rust/tcl-dialect/src $(ROOT)rust/xtask/src -name '*.rs')
+_EDITOR_DIALECT_OUTPUTS := editors/vscode/package.json editors/vscode/src/extension.ts editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt editors/sublime-text/plugin.py editors/sublime-text/README.md editors/sublime-text/sublime-package.json
+$(_EDITOR_DIALECT_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
+
+_TMLANGUAGE_KEYWORD_DEPS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/tcl-dialect/src $(ROOT)rust/tcl-syntax/src $(ROOT)rust/xtask/src -name '*.rs')
+_TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json editors/sublime-text/Tcl.sublime-syntax
+$(_TMLANGUAGE_KEYWORD_OUTPUTS): $(_TMLANGUAGE_KEYWORD_DEPS)
+
+generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) ## Regenerate editor catalogs, dialect projections, and lexical grammars
+	@echo "==> Generating editor dialect projections (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-dialects
+	@echo "==> Generating TextMate keyword grammars (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords
 
 check-generated: ## Verify generated catalogs are up to date
 	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"

@@ -161,7 +161,16 @@ fn render_vscode(original: &str, ds: &[EditorDialect]) -> Result<String> {
 fn render_vscode_runtime(original: &str, ds: &[EditorDialect]) -> Result<String> {
     let mut rows = String::new();
     for d in ds {
-        let _ = writeln!(rows, "  \"{}\": \"{}\",", d.name, d.label);
+        // Match Prettier's TypeScript object-key style: simple identifiers are
+        // bare, while dialect IDs containing punctuation remain quoted.
+        let key = if d.name.chars().enumerate().all(|(i, c)| {
+            c == '_' || c.is_ascii_alphanumeric() && (i > 0 || c.is_ascii_alphabetic())
+        }) {
+            d.name.to_owned()
+        } else {
+            format!("\"{}\"", d.name)
+        };
+        let _ = writeln!(rows, "  {key}: \"{}\",", d.label);
     }
     let body = format!("const DIALECT_LABELS: Record<string, string> = {{\n{rows}}};\n");
     replace_marked_block(
