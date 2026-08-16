@@ -1305,11 +1305,28 @@ impl CompilationUnit {
         defer_top_level: bool,
         dialect: &str,
     ) -> Self {
-        Self::build_for_profile(
+        let profile = tcl_dialect::DialectProfile::by_name(dialect);
+        // Most names canonicalise through the profile catalogue.  Additive
+        // set-only names (currently `tk`) intentionally resolve to the plain
+        // fallback profile, though, so retain the recognized ingress spelling
+        // long enough for `build_with` to parse its semantic dialect bit.
+        let effective_dialect =
+            if profile.is_fallback() && tcl_dialect::DialectSet::parse(dialect).is_some() {
+                dialect
+            } else {
+                profile.name
+            };
+        Self::build_with(
             source,
-            registry,
-            defer_top_level,
-            tcl_dialect::DialectProfile::by_name(dialect),
+            UnitBuildOptions {
+                registry,
+                defer_top_level,
+                config: tcl_lexer::LexerConfig::for_dialect(effective_dialect),
+                dialect: effective_dialect,
+                external_call_sites: None,
+            },
+            None,
+            None,
         )
     }
 

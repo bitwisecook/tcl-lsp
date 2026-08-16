@@ -7254,6 +7254,28 @@ mod const_cmd_subst_set_rhs {
     }
 
     #[test]
+    fn a_vendor_profile_abstains_from_version_sensitive_const_substitution() {
+        // FP guard: iRules has a real Tcl runtime version, but its profile's
+        // const-fold projection is deliberately unknown until versioned
+        // folds are verified for that shell.  The version-sensitive
+        // `format %d 010` therefore must stay unresolved rather than being
+        // folded as Tcl 8.4/9.0 semantics.
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set value [format %d 010]\n",
+            "    ${value}::setdef x y\n",
+            "}\n",
+        );
+        let r = analysis(src, "f5-irules");
+        assert_eq!(
+            resolutions_of(&r, "${value}"),
+            ["::${value}::setdef"],
+            "a version-sensitive vendor fold must abstain"
+        );
+    }
+
+    #[test]
     fn a_self_class_chain_folds_inside_an_instance_method() {
         // TP — the ticklecharts idiom one level removed: `set ns
         // [namespace qualifiers [self class]]` inside an instance method

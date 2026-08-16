@@ -1028,7 +1028,9 @@ impl Analyser {
             return None;
         }
         let version = (!self.result.dialect.is_empty())
-            .then(|| tcl_dialect::DialectProfile::by_name(&self.result.dialect).runtime_version())
+            .then(|| {
+                tcl_dialect::DialectProfile::by_name(&self.result.dialect).const_fold_version()
+            })
             .flatten();
         let trusts = |name: &str| trust.trusts(name);
         let lookup = |name: &str| {
@@ -7421,7 +7423,7 @@ impl Analyser {
                 .collect::<Option<_>>()?;
             let version = (!self.result.dialect.is_empty())
                 .then(|| {
-                    tcl_dialect::DialectProfile::by_name(&self.result.dialect).runtime_version()
+                    tcl_dialect::DialectProfile::by_name(&self.result.dialect).const_fold_version()
                 })
                 .flatten();
             if spec.subcommands.is_empty() {

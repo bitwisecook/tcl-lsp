@@ -38,6 +38,7 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{BinOp, ExprNode};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::{lower_to_ir_with_config, lower_to_ir_with_dialect};
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::registry_for_dialect;
 
 const IRULES: &str = "f5-irules";
@@ -160,6 +161,18 @@ fn build_for_dialect_folds_a_word_operator_branch() {
         blind_folded, 0,
         "a dialect-blind build has no word operator to fold"
     );
+}
+
+/// `tk` is an additive command-surface bit rather than a catalogue profile.
+/// The compatibility entry point must retain it in the unit instead of
+/// canonicalising the input to the plain fallback profile's `tcl` name.
+#[test]
+fn build_for_dialect_retains_the_tk_set_only_bit() {
+    let registry = registry_for_dialect("tk");
+    let unit = CompilationUnit::build_for_dialect("button .b\n", registry, false, "tk");
+
+    assert_eq!(unit.ir_module.dialect.as_deref(), Some("tk"));
+    assert_eq!(unit.top_level.semantic_facts.dialect(), DialectSet::TK);
 }
 
 // I230 — TP / TN / FP / FN
