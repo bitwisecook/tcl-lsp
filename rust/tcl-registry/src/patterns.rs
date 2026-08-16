@@ -24,6 +24,7 @@
 //! emit *sub-tokens* (semantic-token splitting inside the string
 //! literal) and run pattern-specific validation.
 
+use crate::abbrev::PrefixMatching;
 use crate::hover::OptionSpec;
 
 /// Kind of pattern language an argument uses, for semantic tokens and
@@ -85,17 +86,35 @@ pub(crate) fn resolve_available_option_prefix<'a>(
     options: &'a [&crate::hover::OptionSpec],
     word: &str,
 ) -> Option<&'a crate::hover::OptionSpec> {
+    resolve_available_option_prefix_with(options, word, PrefixMatching::Enabled)
+}
+
+/// [`resolve_available_option_prefix`] with the command's declared prefix
+/// policy.  A profile has already removed unavailable options from `options`,
+/// so this one walk preserves the remaining exact-or-unique abbreviation
+/// grammar without accidentally restoring an option from another release.
+#[must_use]
+pub(crate) fn resolve_available_option_prefix_with<'a>(
+    options: &'a [&crate::hover::OptionSpec],
+    word: &str,
+    prefix_matching: PrefixMatching,
+) -> Option<&'a crate::hover::OptionSpec> {
     if let Some(option) = options.iter().copied().find(|option| option.matches(word)) {
         return Some(option);
     }
-    if !word.starts_with('-') || word.len() < 2 {
+    if !prefix_matching.accepts_prefixes() || !word.starts_with('-') || word.len() < 2 {
         return None;
     }
     let mut found = None;
     for option in options.iter().copied() {
         if std::iter::once(option.name)
             .chain(option.aliases.iter().copied())
-            .any(|spelling| spelling.starts_with(word))
+            .any(|spelling| {
+                spelling.starts_with(word)
+                    && option
+                        .min_abbrev
+                        .is_none_or(|minimum| word.len() >= usize::from(minimum))
+            })
         {
             match found {
                 None => found = Some(option),

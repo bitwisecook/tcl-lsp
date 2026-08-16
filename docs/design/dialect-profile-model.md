@@ -580,12 +580,17 @@ lives with the analyser:
   (`flush_dsl_gate_diagnostics`), because the effective version depends on
   `package require` lines that may appear anywhere in the file.
 - Which argument is a format string comes from the registry
-  (`CommandRegistry::format_string_args`), never from matching a command
-  name. The `FormatType` family check is load-bearing: `clock`'s field
-  string, `binary`'s cursor spec, and `regsub`'s backreference template all
-  sit at `ArgRole::FormatString` / `ArgRole::ScanFormat` positions too, and
-  running the sprintf table over `clock format $t -format {%b}` would report
-  a Tcl 8.6 requirement for a conversion that has nothing to do with
+  (`CommandRegistry::format_string_args` for compatibility callers and
+  `format_string_args_words_for_dialect` for source-aware consumers), never
+  from matching a command name. The source-aware query receives each word's
+  literal/dynamic/expanded shape and the profiled option table: an unresolved
+  leading `$mode` must not be projected into a positional `regsub`
+  replacement or a pattern role. The same proof boundary owns regex/glob
+  pattern queries. The `FormatType` family check is load-bearing: `clock`'s
+  field string, `binary`'s cursor spec, and `regsub`'s backreference template
+  all sit at `ArgRole::FormatString` / `ArgRole::ScanFormat` positions too,
+  and running the sprintf table over `clock format $t -format {%b}` would
+  report a Tcl 8.6 requirement for a conversion that has nothing to do with
   `format`. Only `FormatType::Sprintf` words are gated.
 - A word whose token is a `Var` or `Cmd` substitution is skipped: its text is
   not the literal %-string.

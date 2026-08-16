@@ -1499,7 +1499,7 @@ fn special_arg_kinds(
     }
 
     insert_regex_overrides(seg, registry, head, dialect, &mut overrides);
-    insert_format_overrides(seg, registry, head, arg_texts, &mut overrides);
+    insert_format_overrides(seg, registry, head, dialect, &mut overrides);
 
     // `proc NAME …` — the name argument is a function definition.  Procedure
     // definers come from the registry's `DEFINES_PROCEDURE` trait; a spec
@@ -2004,8 +2004,8 @@ fn mark_regex_source_words(
 /// the `-format` option value), `binary`'s cursor spec, and `regsub`'s
 /// replacement template.
 ///
-/// Entirely registry-driven ([`CommandRegistry::format_string_args`]): the
-/// *position* comes from the [`tcl_registry::ArgRole::FormatString`] /
+/// Entirely registry-driven ([`CommandRegistry::format_string_args_words_for_dialect`]):
+/// the *position* comes from the [`tcl_registry::ArgRole::FormatString`] /
 /// `ScanFormat` roles the specs and resolvers declare, and the *family* from
 /// `format_string_type`. No command name appears here, so the explicitly
 /// global spellings (`::format`, `::clock`, …) — which the previous
@@ -2021,10 +2021,15 @@ fn insert_format_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    arg_texts: &[&str],
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    for found in registry.format_string_args(head, arg_texts) {
+    let source_args = segmented_command_arguments(seg);
+    for found in registry.format_string_args_words_for_dialect(
+        head,
+        InvocationArguments::structured(&source_args),
+        dialect,
+    ) {
         let Some(tok) = seg.argv.get(found.index + 1) else {
             continue;
         };
@@ -9287,6 +9292,65 @@ mod tests {
         assert!(
             ks.contains(&(TokenKind::Regexp as u32)),
             "expected a regexp token after -all; got {ks:?}"
+        );
+    }
+
+    /// PR #1514 P2: every resolver-owned pattern layout needs the same
+    /// source proof as lsearch. A dynamic leading word can be a value-taking
+    /// switch at runtime, so it cannot make the later literal a regexp; the
+    /// analogous regsub query must not steal the replacement as a template.
+    #[test]
+    fn dynamic_leading_options_do_not_claim_pattern_or_regsub_replacement_tokens() {
+        let registry = reg();
+        for src in [
+            "regexp $mode {a+} $value\n",
+            "regsub $mode {a+} $value {\\1}\n",
+        ] {
+            let tokens = decode_full(src, "tcl9.0", &registry);
+            assert!(
+                !tokens.iter().any(|&(_, _, _, kind, _)| {
+                    matches!(
+                        kind,
+                        value
+                            if value == TokenKind::Regexp as u32
+                                || value == TokenKind::RegexpQuantifier as u32
+                    )
+                }),
+                "{src:?}: unresolved leading option must not claim a regex word: {tokens:?}",
+            );
+        }
+
+        let tokens = decode_full("regsub $mode {a} $value {\\1}\n", "tcl9.0", &registry);
+        assert!(
+            !tokens.iter().any(|&(_, _, _, kind, _)| {
+                kind == TokenKind::Number as u32 || kind == TokenKind::Operator as u32
+            }),
+            "an unresolved regsub replacement is ordinary Tcl text: {tokens:?}",
+        );
+
+        for src in [
+            "regsub -c {a} $value {\\1}\n",
+            "regsub -command {a} $value callback\n",
+        ] {
+            let tokens = decode_full(src, "tcl9.0", &registry);
+            assert!(
+                !tokens.iter().any(|&(_, _, _, kind, _)| {
+                    kind == TokenKind::Number as u32 || kind == TokenKind::Operator as u32
+                }),
+                "{src:?}: only a valid template layout may receive regsub sub-tokens: {tokens:?}",
+            );
+        }
+
+        let tokens = decode_full(
+            "regsub -start $start {a} $value {\\1}\n",
+            "tcl9.0",
+            &registry,
+        );
+        assert!(
+            tokens
+                .iter()
+                .any(|&(_, _, _, kind, _)| kind == TokenKind::Number as u32),
+            "a known fixed-width -start option preserves the regsub replacement: {tokens:?}",
         );
     }
 

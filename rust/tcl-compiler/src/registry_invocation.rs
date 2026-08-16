@@ -185,9 +185,11 @@ pub fn effective_command_arguments(
 /// Borrow source-aware post-head words from a segmented command.
 ///
 /// The segmenter's compatibility text is still the literal value bridge for
-/// callers that do not need escape decoding.  Its lossless fragment list is
+/// callers that do not need escape decoding. Its lossless fragment list is
 /// what prevents a `$word` / `[command]` / `{*}word` from becoming a literal
-/// option or operand during a registry query.
+/// option or operand during a registry query, while retaining the distinct
+/// safe shape of `prefix-$word`: it remains dynamic as a value but cannot
+/// start a leading option.
 #[must_use]
 pub fn segmented_command_arguments(command: &SegmentedCommand) -> Vec<InvocationWord<'_>> {
     command
@@ -213,7 +215,35 @@ pub fn segmented_command_arguments(command: &SegmentedCommand) -> Vec<Invocation
                     tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
                 )
             }) {
-                InvocationWord::Dynamic
+                // A non-empty literal prefix before the first substitution
+                // proves the evaluated word cannot begin with `-`. Keep that
+                // narrower source fact so option-dependent descriptors may
+                // still locate its positional embedded language; it is never
+                // exposed as a literal value to registry hooks.
+                let literal_prefix = fragments
+                    .iter()
+                    .take_while(|fragment| {
+                        !matches!(
+                            fragment.token.kind,
+                            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+                        )
+                    })
+                    .map(|fragment| fragment.text.as_str())
+                    .collect::<String>();
+                // `word_piece` retains a quoted word's opening quote in an
+                // empty leading `Esc` fragment, and a leading backslash can
+                // decode to `-`; neither proves a non-option value. Every
+                // other direct first character is stable under Tcl word
+                // substitution.
+                let proves_non_option = literal_prefix
+                    .chars()
+                    .next()
+                    .is_some_and(|first| !matches!(first, '-' | '\\' | '"'));
+                if proves_non_option {
+                    InvocationWord::DynamicNonOption
+                } else {
+                    InvocationWord::Dynamic
+                }
             } else {
                 InvocationWord::Literal(text)
             }
@@ -272,6 +302,7 @@ mod tests {
     use tcl_registry::{StateTransition, TransitionSubject};
 
     use crate::ir::{SourceSite, WordOpacity};
+    use crate::segmenter::segment_commands;
 
     fn literal(text: &str) -> WordExpr {
         WordExpr::Literal {
@@ -303,6 +334,19 @@ mod tests {
                         if alias.local == TransitionSubject::Literal("shared".to_owned())
                 )
         ));
+    }
+
+    #[test]
+    fn segmented_arguments_preserve_a_static_non_option_template_prefix() {
+        let command = segment_commands("regexp \"abc$part.*\" $subject\n")
+            .into_iter()
+            .next()
+            .expect("one command");
+        assert_eq!(
+            segmented_command_arguments(&command),
+            vec![InvocationWord::DynamicNonOption, InvocationWord::Dynamic],
+            "the first template remains dynamic but cannot be a leading option"
+        );
     }
 
     #[test]

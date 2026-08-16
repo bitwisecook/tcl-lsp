@@ -662,7 +662,11 @@ fn pattern_format_hover_for_command(
         };
         return Some(Hover::markdown(text));
     }
-    for format in context.registry.format_string_args(head, &args) {
+    for format in context.registry.format_string_args_words_for_dialect(
+        head,
+        InvocationArguments::structured(&source_args),
+        context.profile.availability_mask,
+    ) {
         let Some(&token) = command.argv.get(format.index + 1) else {
             continue;
         };
@@ -5142,6 +5146,44 @@ mod tests {
         // `$mode` can evaluate to a value-taking lsearch option. The source
         // shape therefore cannot prove that `{a b}` is the pattern word.
         assert!(hover(src, 0, 16, &analysis, None).is_none());
+    }
+
+    /// A substituted leading word is not a positional operand until Tcl has
+    /// evaluated it.  The source-aware registry query must therefore keep
+    /// every resolver-owned pattern and regsub replacement unclaimed, not
+    /// merely the lsearch-specific descriptor that originally grew this
+    /// guard (PR #1514 P2).
+    #[test]
+    fn dynamic_leading_options_abstain_for_pattern_and_regsub_format_hovers() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        for (src, needle) in [
+            ("regexp $mode {a+} $value\n", "a+"),
+            ("glob $mode /tmp {*.tcl}\n", "*.tcl"),
+            ("regsub $mode {a} $value {\\1}\n", "\\1"),
+            ("regsub -c {a} $value {\\1}\n", "\\1"),
+            ("regsub -command {a} $value callback\n", "callback"),
+        ] {
+            let analysis = analyse(src);
+            let (line, character) = position_of(src, needle);
+            assert!(
+                !hover(src, line, character, &analysis, Some(&registry)).is_some_and(|found| {
+                    found.value.contains("Regex pattern")
+                        || found.value.contains("Glob pattern")
+                        || found.value.contains("Substitution spec")
+                }),
+                "{src:?}: an unresolved, invalid, or callback-leading layout must not claim {needle:?} as an embedded language",
+            );
+        }
+
+        let src = "regsub -start $start {a} $value {\\1}\n";
+        let analysis = analyse(src);
+        let (line, character) = position_of(src, "\\1");
+        let found = hover(src, line, character, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            found.value.contains("Substitution spec"),
+            "a declared -start value has a fixed width: {}",
+            found.value
+        );
     }
 
     #[test]

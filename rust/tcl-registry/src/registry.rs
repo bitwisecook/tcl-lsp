@@ -27,6 +27,7 @@ use std::sync::OnceLock;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::abbrev::PrefixMatching;
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
@@ -556,38 +557,57 @@ fn push_command_prefix_options(
     }
 }
 
-/// Whether a source-dynamic word appears while a command's declared leading
-/// option grammar still decides the following positional layout.
+/// Whether source words prove a command's leading option layout.
 ///
-/// Literal options consume their descriptor-declared value spans before the
-/// scan continues. A substituted word at the next option position might
-/// itself evaluate to a value-taking option, so consumers cannot safely use a
-/// resolver-derived positional role after it. Once a literal non-option ends
-/// the scan, later dynamic operands do not affect the layout. Likewise,
-/// `reserved_trailing_words` are mandatory positional operands which Tcl's
-/// outer grammar excludes from option scanning; a dynamic word in that suffix
-/// cannot alter the already-established layout.
-fn has_dynamic_leading_option_word(
+/// A literal option consumes its descriptor-declared values before scanning
+/// continues. A dynamic word while that scan is live might evaluate to a
+/// value-taking option, so every resolver-derived positional role must
+/// abstain. A literal invalid or ambiguous dash word is likewise not a
+/// positional operand: treating it as one would describe an invocation Tcl
+/// rejects. The profile-filtered descriptor table, its abbreviation policy,
+/// and the command's reserved trailing operands are inputs, so every pattern
+/// and format consumer makes this decision from the same owner data.
+fn source_option_layout_is_proven(
     options: &[&crate::hover::OptionSpec],
     args: InvocationArguments<'_>,
-    spellings: &[&str],
+    prefix_matching: PrefixMatching,
     reserved_trailing_words: usize,
 ) -> bool {
+    if !args.has_exact_argv_len() {
+        return false;
+    }
+    let spellings: Vec<_> = (0..args.len())
+        .map(|index| args.literal_at(index).unwrap_or_default())
+        .collect();
     let mut index = 0;
     let option_scan_end = args.len().saturating_sub(reserved_trailing_words);
     while index < option_scan_end {
-        let Some(word) = args.literal_at(index) else {
+        if matches!(args.get(index), Some(InvocationWord::DynamicNonOption)) {
             return true;
-        };
-        let Some(option) = crate::patterns::resolve_available_option_prefix(options, word) else {
+        }
+        let Some(word) = args.literal_at(index) else {
             return false;
         };
-        index += 1 + option.value_word_count(spellings, index);
-        if option.name == "--" {
+        let Some(option) =
+            crate::patterns::resolve_available_option_prefix_with(options, word, prefix_matching)
+        else {
+            return !word.starts_with('-');
+        };
+        // A hook-defined arity reads following values to decide how many
+        // words it consumes. A substituted value would make that boundary
+        // runtime-dependent, unlike an ordinary fixed-arity option such as
+        // `-start $index`.
+        if option.value_arity_hook().is_some()
+            && (index + 1..args.len()).any(|value| args.literal_at(value).is_none())
+        {
             return false;
         }
+        index += 1 + option.value_word_count(&spellings, index);
+        if option.name == "--" {
+            return true;
+        }
     }
-    false
+    true
 }
 
 /// The shipped specs of one command group, built once and leaked.
@@ -2708,6 +2728,87 @@ impl CommandRegistry {
         out
     }
 
+    /// Whether source words prove the option-dependent descriptor layout of
+    /// `spec` (or its selected subcommand).  This is deliberately shared by
+    /// pattern and format queries: both families otherwise risk interpreting
+    /// `$mode` as a positional word before Tcl has decided whether it is an
+    /// option.
+    fn source_descriptor_layout_is_proven(
+        &self,
+        spec: &CommandSpec,
+        sub: Option<&SubCommand>,
+        args: InvocationArguments<'_>,
+        effective_dialect: DialectSet,
+    ) -> bool {
+        if !args.has_exact_argv_len() {
+            return false;
+        }
+        // Static role positions and generic option-value roles remain stable
+        // once expansion is excluded. Only a resolver can reinterpret a
+        // source word as a positional operand, so a `clock format $time
+        // -format %Y` time value does not suppress the independently-owned
+        // `-format` value role.
+        let resolver_depends_on_options = sub.map_or(
+            spec.arg_role_resolver.is_some() || spec.pattern_arg_resolver.is_some(),
+            |sub| sub.arg_role_resolver.is_some(),
+        );
+        if !resolver_depends_on_options {
+            return true;
+        }
+        let (options, option_args, prefix_matching, reserved_trailing_words) = if let Some(sub) =
+            sub
+        {
+            let options = self.profile().map_or_else(
+                || {
+                    sub.options
+                        .iter()
+                        .filter(|option| {
+                            option.supports_dialect(
+                                (!effective_dialect.is_empty()).then_some(effective_dialect),
+                                sub.dialects.or(spec.dialects),
+                            )
+                        })
+                        .collect()
+                },
+                |profile| crate::ProfileQueries::available_sub_option_specs(profile, spec, sub),
+            );
+            (options, args.slice_from(1), sub.prefix_matching, 0)
+        } else {
+            let options = self.profile().map_or_else(
+                || spec.option_specs((!effective_dialect.is_empty()).then_some(effective_dialect)),
+                |profile| crate::ProfileQueries::available_option_specs(profile, spec),
+            );
+            (
+                options,
+                args,
+                spec.prefix_matching,
+                spec.reserved_trailing_words,
+            )
+        };
+        options.is_empty()
+            || source_option_layout_is_proven(
+                &options,
+                option_args,
+                prefix_matching,
+                reserved_trailing_words,
+            )
+    }
+
+    /// Resolve a subcommand only when its source word has a known literal
+    /// value. A dynamic selector cannot be projected into a selected
+    /// descriptor's argument layout.
+    fn source_selected_subcommand<'a>(
+        spec: &'a CommandSpec,
+        args: InvocationArguments<'_>,
+    ) -> Option<&'a SubCommand> {
+        (!spec.subcommands.is_empty())
+            .then(|| {
+                args.literal_at(0)
+                    .and_then(|word| spec.resolve_subcommand(word))
+            })
+            .flatten()
+    }
+
     /// The format-string words of **one concrete call**: which argument
     /// positions carry a conversion / field string, and which mini-language
     /// each is written in.
@@ -2762,6 +2863,71 @@ impl CommandRegistry {
             );
         }
         out.sort_by_key(|f| f.index);
+        out
+    }
+
+    /// Source-aware counterpart to [`Self::format_string_args`].
+    ///
+    /// Unlike the compatibility string query, this method retains whether
+    /// each source word is literal, dynamic, expanded, or opaque. The format
+    /// family still comes entirely from the registry, but a dynamic leading
+    /// word is never reinterpreted as a positional pattern or replacement
+    /// before the profile-filtered option grammar has resolved it. This is
+    /// the owner query for editors and other source-aware consumers.
+    #[must_use]
+    pub fn format_string_args_words(
+        &self,
+        name: &str,
+        args: InvocationArguments<'_>,
+    ) -> Vec<FormatStringArg> {
+        self.format_string_args_words_for_dialect(name, args, self.own_availability_mask())
+    }
+
+    /// Dialect-explicit counterpart to [`Self::format_string_args_words`].
+    #[must_use]
+    pub fn format_string_args_words_for_dialect(
+        &self,
+        name: &str,
+        args: InvocationArguments<'_>,
+        dialect: DialectSet,
+    ) -> Vec<FormatStringArg> {
+        let effective_dialect = self
+            .profile()
+            .map_or(dialect, |profile| profile.availability_mask);
+        let spec = if effective_dialect.is_empty() {
+            self.get(name)
+        } else {
+            self.get_for_dialect(name, effective_dialect)
+        };
+        let Some(spec) = spec else {
+            return Vec::new();
+        };
+        // A dynamic subcommand cannot select a concrete format family.
+        if !spec.subcommands.is_empty() && !args.is_empty() && args.literal_at(0).is_none() {
+            return Vec::new();
+        }
+        let sub = Self::source_selected_subcommand(spec, args);
+        let Some(kind) = sub
+            .and_then(|sub| sub.format_string_type)
+            .or(spec.format_string_type)
+        else {
+            return Vec::new();
+        };
+        if !self.source_descriptor_layout_is_proven(spec, sub, args, effective_dialect) {
+            return Vec::new();
+        }
+        let spellings: Vec<_> = (0..args.len())
+            .map(|index| args.literal_at(index).unwrap_or_default())
+            .collect();
+        let mut out = Vec::new();
+        for (role, scan) in [(ArgRole::FormatString, false), (ArgRole::ScanFormat, true)] {
+            out.extend(
+                self.arg_indices_for_role(name, &spellings, role)
+                    .into_iter()
+                    .map(|index| FormatStringArg { index, kind, scan }),
+            );
+        }
+        out.sort_by_key(|format| format.index);
         out
     }
 
@@ -2829,14 +2995,11 @@ impl CommandRegistry {
 
     /// Source-aware counterpart to [`Self::pattern_args`].
     ///
-    /// A resolver-selected pattern position depends on literal option words
-    /// and a known final argv shape. Once source substitution reaches that
-    /// option prefix, treating its spelling as a positional operand would
-    /// shift the remaining arguments and incorrectly claim a pattern
-    /// language. An expansion can likewise move the mandatory trailing
-    /// operands. Static pattern layouts do not have that ambiguity and
-    /// continue through the compatibility resolver, whose indices are
-    /// independent of argument values.
+    /// A pattern descriptor may use a dedicated pattern resolver, a dynamic
+    /// argument-role resolver, or static roles. Every option-dependent form
+    /// goes through the same source-layout proof before the compatibility
+    /// resolver sees a spelling projection, so `regexp $mode …`,
+    /// `glob $mode …`, and `string match $mode …` all abstain consistently.
     #[must_use]
     pub fn pattern_args_words(
         &self,
@@ -2865,25 +3028,16 @@ impl CommandRegistry {
         let Some(spec) = spec else {
             return Vec::new();
         };
+        if !spec.subcommands.is_empty() && !args.is_empty() && args.literal_at(0).is_none() {
+            return Vec::new();
+        }
+        let sub = Self::source_selected_subcommand(spec, args);
+        if !self.source_descriptor_layout_is_proven(spec, sub, args, effective_dialect) {
+            return Vec::new();
+        }
         let spellings: Vec<_> = (0..args.len())
             .map(|index| args.literal_at(index).unwrap_or_default())
             .collect();
-        let options = self.profile().map_or_else(
-            || spec.option_specs((!effective_dialect.is_empty()).then_some(effective_dialect)),
-            |profile| crate::ProfileQueries::available_option_specs(profile, spec),
-        );
-        if spec.pattern_arg_resolver.is_some()
-            && (!args.has_exact_argv_len()
-                || (spec.options.is_empty() && args.has_non_literal())
-                || has_dynamic_leading_option_word(
-                    &options,
-                    args,
-                    &spellings,
-                    spec.reserved_trailing_words,
-                ))
-        {
-            return Vec::new();
-        }
         self.pattern_args_for_dialect(name, &spellings, effective_dialect)
     }
 
@@ -4387,6 +4541,352 @@ mod tests {
             !found("regsub", &["-command", "--", "e", "$s", "cb"])
                 .iter()
                 .any(|(i, _, _)| *i == 3)
+        );
+    }
+
+    #[test]
+    fn source_aware_format_layouts_abstain_only_while_option_selection_is_dynamic() {
+        use crate::invocation_words::{InvocationArguments, InvocationWord};
+        use crate::patterns::FormatType;
+
+        let dynamic_prefix = [
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("{a}"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal(r"{\1}"),
+        ];
+        let fixed_start_value = [
+            InvocationWord::Literal("-start"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("{a}"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal(r"{\1}"),
+        ];
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = crate::registry_for_dialect(dialect);
+            assert!(
+                registry
+                    .format_string_args_words(
+                        "regsub",
+                        InvocationArguments::structured(&dynamic_prefix),
+                    )
+                    .is_empty(),
+                "{dialect}: $mode could shift regsub's replacement position"
+            );
+            assert_eq!(
+                registry.format_string_args_words(
+                    "regsub",
+                    InvocationArguments::structured(&fixed_start_value),
+                ),
+                vec![FormatStringArg {
+                    index: 4,
+                    kind: FormatType::Regsub,
+                    scan: false,
+                }],
+                "{dialect}: a known -start still consumes exactly its dynamic value"
+            );
+        }
+
+        let invalid_command_abbrev = [
+            InvocationWord::Literal("-c"),
+            InvocationWord::Literal("{a}"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal(r"{\1}"),
+        ];
+        let exact_command = [
+            InvocationWord::Literal("-command"),
+            InvocationWord::Literal("{a}"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("callback"),
+        ];
+        let registry = crate::registry_for_dialect("tcl9.0");
+        assert!(
+            registry
+                .format_string_args_words(
+                    "regsub",
+                    InvocationArguments::structured(&invalid_command_abbrev),
+                )
+                .is_empty(),
+            "-c is not a Tcl regsub abbreviation and cannot claim a replacement template"
+        );
+        assert!(
+            registry
+                .format_string_args_words("regsub", InvocationArguments::structured(&exact_command))
+                .is_empty(),
+            "only exact Tcl 9 -command selects a callback rather than a replacement template"
+        );
+
+        let clock = [
+            InvocationWord::Literal("format"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("-format"),
+            InvocationWord::Literal("%Y"),
+        ];
+        assert_eq!(
+            crate::registry_for_dialect("tcl9.0")
+                .format_string_args_words("clock", InvocationArguments::structured(&clock),),
+            vec![FormatStringArg {
+                index: 3,
+                kind: FormatType::Clock,
+                scan: false,
+            }],
+            "a fixed positional time value cannot hide an after-positional option value"
+        );
+    }
+
+    #[test]
+    fn source_aware_pattern_layouts_abstain_for_dynamic_leading_options() {
+        use crate::invocation_words::{InvocationArguments, InvocationWord};
+
+        let dynamic_prefix = [
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("{a+}"),
+            InvocationWord::Dynamic,
+        ];
+        for name in ["regexp", "regsub"] {
+            assert!(
+                crate::registry_for_dialect("tcl9.0")
+                    .pattern_args_words(name, InvocationArguments::structured(&dynamic_prefix))
+                    .is_empty(),
+                "{name}: $mode could be a leading option"
+            );
+        }
+        let glob_dynamic_prefix = [
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("/tmp"),
+            InvocationWord::Literal("*.tcl"),
+        ];
+        assert!(
+            crate::registry_for_dialect("tcl9.0")
+                .pattern_args_words(
+                    "glob",
+                    InvocationArguments::structured(&glob_dynamic_prefix)
+                )
+                .is_empty(),
+            "glob $mode /tmp *.tcl cannot choose a pattern tail before $mode resolves"
+        );
+        let string_dynamic_prefix = [
+            InvocationWord::Literal("match"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("a*"),
+            InvocationWord::Literal("abc"),
+        ];
+        assert!(
+            crate::registry_for_dialect("tcl9.0")
+                .pattern_args_words(
+                    "string",
+                    InvocationArguments::structured(&string_dynamic_prefix),
+                )
+                .is_empty(),
+            "string match $mode a* abc cannot treat $mode as the pattern"
+        );
+    }
+
+    #[test]
+    fn source_aware_pattern_layouts_accept_proven_options_and_terminators() {
+        use crate::invocation_words::{InvocationArguments, InvocationWord};
+        use crate::patterns::{PatternArg, PatternType};
+
+        let regexp_start = [
+            InvocationWord::Literal("-start"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("a+"),
+            InvocationWord::Dynamic,
+        ];
+        assert_eq!(
+            crate::registry_for_dialect("tcl9.0")
+                .pattern_args_words("regexp", InvocationArguments::structured(&regexp_start)),
+            vec![PatternArg {
+                index: 2,
+                kind: PatternType::Regex,
+            }],
+            "a fixed value-taking option may safely carry a dynamic value"
+        );
+        let non_option_template = [InvocationWord::DynamicNonOption, InvocationWord::Dynamic];
+        assert_eq!(
+            crate::registry_for_dialect("tcl9.0").pattern_args_words(
+                "regexp",
+                InvocationArguments::structured(&non_option_template),
+            ),
+            vec![PatternArg {
+                index: 0,
+                kind: PatternType::Regex,
+            }],
+            "a template with a direct non-dash prefix remains a positional pattern"
+        );
+        let glob_terminator = [
+            InvocationWord::Literal("--"),
+            InvocationWord::Literal("-literal"),
+        ];
+        assert_eq!(
+            crate::registry_for_dialect("tcl9.0")
+                .pattern_args_words("glob", InvocationArguments::structured(&glob_terminator)),
+            vec![PatternArg {
+                index: 1,
+                kind: PatternType::Glob,
+            }],
+            "-- freezes glob's option prefix before an option-shaped pattern"
+        );
+    }
+
+    #[test]
+    fn source_aware_pattern_layouts_respect_release_and_reserved_suffixes() {
+        use crate::invocation_words::{InvocationArguments, InvocationWord};
+        use crate::patterns::{PatternArg, PatternType};
+
+        let strict_abbreviation = [
+            InvocationWord::Literal("-sta"),
+            InvocationWord::Literal("2"),
+            InvocationWord::Literal("a+"),
+            InvocationWord::Literal("aaa"),
+        ];
+        assert!(
+            crate::registry_for_dialect("tcl9.0")
+                .pattern_args_words(
+                    "regexp",
+                    InvocationArguments::structured(&strict_abbreviation)
+                )
+                .is_empty(),
+            "regexp's strict option table rejects a non-exact abbreviation"
+        );
+        let stride_abbreviation = [
+            InvocationWord::Literal("-str"),
+            InvocationWord::Literal("2"),
+            InvocationWord::Literal("{a b}"),
+            InvocationWord::Literal("a+"),
+        ];
+        assert!(
+            crate::registry_for_dialect("tcl8.6")
+                .pattern_args_words(
+                    "lsearch",
+                    InvocationArguments::structured(&stride_abbreviation)
+                )
+                .is_empty(),
+            "a Tcl 9-only option abbreviation is invalid before Tcl 9"
+        );
+        assert_eq!(
+            crate::registry_for_dialect("tcl9.0").pattern_args_words(
+                "lsearch",
+                InvocationArguments::structured(&stride_abbreviation),
+            ),
+            vec![PatternArg {
+                index: 3,
+                kind: PatternType::Glob,
+            }],
+            "the same abbreviation follows Tcl 9's profile-filtered option table"
+        );
+        let option_shaped_suffix = [
+            InvocationWord::Literal("-regexp"),
+            InvocationWord::Literal("--"),
+        ];
+        assert_eq!(
+            crate::registry_for_dialect("tcl9.0").pattern_args_words(
+                "lsearch",
+                InvocationArguments::structured(&option_shaped_suffix),
+            ),
+            vec![PatternArg {
+                index: 1,
+                kind: PatternType::Glob,
+            }],
+            "lsearch's reserved list/pattern suffix remains positional"
+        );
+    }
+
+    /// The source proof follows descriptors installed in the registry, not a
+    /// closed list of Tcl command names. A pack or a later registry mutation
+    /// can introduce the same option-dependent pattern/replacement grammar
+    /// and all generic consumers receive the new answer unchanged.
+    #[test]
+    fn source_aware_pattern_and_format_queries_follow_mutated_descriptors() {
+        use crate::invocation_words::{InvocationArguments, InvocationWord};
+        use crate::patterns::{FormatType, PatternArg, PatternType};
+
+        const OPTIONS: &[crate::hover::OptionSpec] = &[crate::hover::OptionSpec {
+            name: "-skip",
+            value: crate::hover::OptionValue::value("count"),
+            detail: "fixture value",
+            dialects: None,
+            aliases: &[],
+            lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED,
+            min_abbrev: None,
+        }];
+        fn roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+            let first =
+                crate::spec::leading_option_word_count_with(OPTIONS, args, PrefixMatching::Strict);
+            [
+                (first, ArgRole::Pattern),
+                (first + 2, ArgRole::FormatString),
+            ]
+            .into_iter()
+            .filter_map(|(index, role)| {
+                (index < args.len())
+                    .then(|| u8::try_from(index).ok().map(|index| (index, role)))
+                    .flatten()
+            })
+            .collect()
+        }
+        const SPEC: CommandSpec = CommandSpec {
+            name: "mutated-pattern-format-owner",
+            options: OPTIONS,
+            prefix_matching: PrefixMatching::Strict,
+            arg_role_resolver: Some(roles),
+            pattern_type: Some(PatternType::Regex),
+            format_string_type: Some(FormatType::Regsub),
+            ..CommandSpec::DEFAULT
+        };
+
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(SPEC);
+        let dynamic = [
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("{a}"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal(r"{\1}"),
+        ];
+        assert!(
+            registry
+                .pattern_args_words(
+                    "mutated-pattern-format-owner",
+                    InvocationArguments::structured(&dynamic),
+                )
+                .is_empty()
+        );
+        assert!(
+            registry
+                .format_string_args_words(
+                    "mutated-pattern-format-owner",
+                    InvocationArguments::structured(&dynamic),
+                )
+                .is_empty()
+        );
+
+        let fixed = [
+            InvocationWord::Literal("-skip"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("{a}"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal(r"{\1}"),
+        ];
+        assert_eq!(
+            registry.pattern_args_words(
+                "mutated-pattern-format-owner",
+                InvocationArguments::structured(&fixed),
+            ),
+            vec![PatternArg {
+                index: 2,
+                kind: PatternType::Regex,
+            }]
+        );
+        assert_eq!(
+            registry.format_string_args_words(
+                "mutated-pattern-format-owner",
+                InvocationArguments::structured(&fixed),
+            ),
+            vec![FormatStringArg {
+                index: 4,
+                kind: FormatType::Regsub,
+                scan: false,
+            }]
         );
     }
 
