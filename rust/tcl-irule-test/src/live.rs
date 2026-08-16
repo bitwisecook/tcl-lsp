@@ -85,8 +85,7 @@ impl std::error::Error for SessionError {}
 /// runtime `eval` / command substitution: the real Rust compiler pipeline,
 /// built from the iRules profile (issue #1462) so everything the harness
 /// compiles — the framework and the iRule under test alike — parses under
-/// the TMM's genuine Tcl 8.4.6 grammar: no `{*}` expansion (a hard `extra
-/// characters after close-brace`, exactly as on a real BIG-IP), the 8.x
+/// the TMM's genuine Tcl 8.4.6 grammar: no TIP-157 `{*}` expansion, the 8.x
 /// first-close `${…}` rule, and the iRules-only `}{` ghost word separator.
 struct Svc {
     registry: &'static CommandRegistry,
@@ -189,7 +188,10 @@ impl LiveSession {
         // compat84.tcl then polyfills; the TMM sandbox itself is emulated in
         // Tcl by tmm_shim.tcl.
         let profile = DialectProfile::irules();
-        vm.set_runtime_version(profile.vm_runtime_version);
+        vm.set_dialect_profile(profile);
+        assert!(vm.set_command_surface_profile(DialectProfile::by_name(
+            profile.vm_runtime_version.dialect_name(),
+        )));
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
         let mut session = Self { vm, output };
         session.bootstrap(lib_dir)?;
@@ -731,8 +733,8 @@ mod tests {
     /// availability gate, so `compat84.tcl`'s Tcl-level polyfill *procs* are
     /// what the framework (and these probes) actually run — a user-defined
     /// proc must always win over a hidden builtin. And the compiler parses
-    /// under the TMM's 8.4.6 grammar, so `{*}` is a hard `extra characters
-    /// after close-brace` exactly as a real BIG-IP reports it.
+    /// under the TMM's 8.4.6 grammar while preserving the iRules-only
+    /// adjacent-brace word separator.
     #[test]
     fn harness_runs_the_tmm_84_surface() {
         let mut s = LiveSession::new(&lib_dir()).expect("session");
@@ -766,20 +768,16 @@ mod tests {
             other => panic!("sandbox_blocks_hidden_dict: dict must be invalid, got {other:?}"),
         }
 
-        // tmm_grammar_has_no_expansion: `{*}` is 8.5+ syntax the embedded
-        // 8.4.6 grammar does not have. The adjacent close/open braces are a
-        // hard parse error, matching Tcl 8.4 rather than TIP-157 expansion.
+        // tmm_grammar_has_no_expansion: `{*}` is not TIP-157 expansion under
+        // iRules. Its adjacent close/open braces are the dialect's ghost word
+        // separator, so this is two literal list arguments rather than one
+        // expanded argument.
         scenario(&mut s);
-        match s.eval("llength [list {*}{a b}]") {
-            Err(SessionError::Eval(message)) => assert_eq!(
-                message, "extra characters after close-brace",
-                "tmm_grammar_has_no_expansion: Tcl 8.4 must reject TIP-157 syntax"
-            ),
-            other => {
-                panic!("tmm_grammar_has_no_expansion: Tcl 8.4 syntax must fail, got {other:?}")
-            }
-        }
-
+        assert_eq!(
+            s.eval("llength [list {*}{a b}]").unwrap(),
+            "2",
+            "iRules must use its ghost separator rather than TIP-157 expansion"
+        );
         // surface_hides_86_builtins: an 8.6+-only builtin with no polyfill
         // (lmap) does not exist at 8.4 — the miss reports through the
         // sandbox's resolution chain (which has also hidden the `unknown`

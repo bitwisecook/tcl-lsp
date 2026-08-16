@@ -31,6 +31,8 @@ use std::sync::{Arc, Mutex};
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -73,6 +75,32 @@ fn compiler() -> Box<dyn CompileService<Module = tcl_bytecode::ModuleAsm>> {
     })
 }
 
+struct ProfileCompilerSvc;
+
+impl CompileService for ProfileCompilerSvc {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+        self.compile_for_profile(src, DialectProfile::plain_tcl())
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = lower_to_ir_for_bytecode_with_dialect(src, registry, config, profile.name);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
+}
+
 /// Compile and run `src` on a thread-enabled VM; return `(ok, result, stdout)`.
 fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
@@ -102,6 +130,43 @@ fn result(src: &str) -> String {
     let (ok, res, _) = run(src);
     assert!(ok, "script errored: {res}");
     res
+}
+
+fn assert_workers_inherit_a_separate_host_command_surface() {
+    let dialect = DialectProfile::by_name("f5-irules");
+    let host = DialectProfile::by_name("tcl8.4");
+    let registry = tcl_registry::registry_for_profile(dialect);
+    let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
+    let source = "set w [thread::create]; set threaded [thread::send $w {llength [info commands interp]}]; thread::release $w; set p [tpool::create -maxworkers 1]; set j [tpool::post $p {llength [info commands interp]}]; set pooled [tpool::get $p $j]; tpool::release $p; list $threaded $pooled";
+    let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, dialect.name);
+    let cfg = build_cfg_codegen(&ir, false);
+    let asm = codegen_module(&cfg, &ir, registry);
+
+    let mut vm = Vm::with_output(Box::new(std::io::sink()));
+    vm.set_compiler(Box::new(ProfileCompilerSvc));
+    vm.set_dialect_profile(dialect);
+    assert!(vm.set_command_surface_profile(host));
+    vm.enable_threads(
+        Arc::new(|| Box::new(ProfileCompilerSvc)),
+        Arc::new(Mutex::new(Box::new(std::io::sink()))),
+    );
+
+    let completion = vm.run_module(&asm);
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(&*completion.result.to_str(), "1 1");
+}
+
+/// This must hold in release too: a `debug_assert!` around the setter would
+/// make the override disappear only in an optimised worker.
+#[test]
+fn workers_inherit_a_separate_host_command_surface() {
+    assert_workers_inherit_a_separate_host_command_surface();
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn workers_inherit_a_separate_host_command_surface_in_release() {
+    assert_workers_inherit_a_separate_host_command_surface();
 }
 
 // ===========================================================================
