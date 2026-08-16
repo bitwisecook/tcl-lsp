@@ -6433,6 +6433,24 @@ mod tests {
                 "invalid integer/nocase form must expose no body: {args:?}"
             );
         }
+        for args in [
+            ["-integer", "-glob", "1", "1 {set x 1}"],
+            ["-glob", "-integer", "1", "1 {set x 1}"],
+            ["-integer", "-integer", "1", "1 {set x 1}"],
+        ] {
+            assert!(
+                tcl91
+                    .case_invocation("switch", &args, DialectSet::TCL91)
+                    .is_none(),
+                "multiple match modes must be rejected: {args:?}"
+            );
+            assert!(
+                tcl91
+                    .arg_indices_for_role("switch", &args, ArgRole::Body)
+                    .is_empty(),
+                "multiple match modes must expose no body: {args:?}"
+            );
+        }
         assert_eq!(
             tcl91.arg_indices_for_role(
                 "switch",

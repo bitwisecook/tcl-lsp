@@ -500,6 +500,7 @@ impl CaseListSpec {
         dialect: DialectSet,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
+        let mut saw_match_mode = false;
         let mut nocase = false;
         let mut saw_regex_value_option = false;
         let mut i = 0usize;
@@ -556,12 +557,24 @@ impl CaseListSpec {
                 let option = option?;
                 let option_name = option.name;
                 if self.exact_option == Some(option_name) {
+                    if saw_match_mode {
+                        return None;
+                    }
+                    saw_match_mode = true;
                     mode = CaseMatchMode::Exact;
                     i += 1;
                 } else if self.glob_option == Some(option_name) {
+                    if saw_match_mode {
+                        return None;
+                    }
+                    saw_match_mode = true;
                     mode = CaseMatchMode::Glob;
                     i += 1;
                 } else if self.regex_option == Some(option_name) {
+                    if saw_match_mode {
+                        return None;
+                    }
+                    saw_match_mode = true;
                     mode = CaseMatchMode::Regexp;
                     i += 1;
                 } else if self.nocase_option == Some(option_name) {
@@ -571,6 +584,10 @@ impl CaseListSpec {
                     let consumed = option.value_word_count(args, i);
                     if consumed == 0 {
                         if self.special_match_options.contains(&option_name) {
+                            if saw_match_mode {
+                                return None;
+                            }
+                            saw_match_mode = true;
                             mode = CaseMatchMode::Other;
                             i += 1;
                             continue;
