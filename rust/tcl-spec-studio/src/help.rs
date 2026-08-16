@@ -484,6 +484,13 @@ default priority (BIG-IP uses 500) and whether omitting an explicit \
 priority is worth reporting.",
     ),
     (
+        "irules_top_level_effect",
+        "iRules only: declares a file-level command whose effect persists for \
+later declarations. `priority N`, for example, changes the inherited \
+priority of following `when` handlers until another priority declaration \
+replaces it.",
+    ),
+    (
         "options",
         "The command's `-flag` switches, each with whether it takes a value \
 (`-nocase` takes none; `-index i` takes one), what role and type the value \

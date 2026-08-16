@@ -350,6 +350,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         "event_handler_priority",
         Surface::Key("event_handler_priority"),
     ),
+    f(
+        "irules_top_level_effect",
+        Surface::Key("irules_top_level_effect"),
+    ),
     f("options", Surface::Key("options")),
     f("option_constraints", Surface::Key("option_constraints")),
     f(

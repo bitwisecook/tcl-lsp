@@ -1460,7 +1460,14 @@ impl<'r> Lowerer<'r> {
             // misconfiguration; the dialect needs to match the
             // source.
             LoweringHookId::When => {
-                if args.len() >= 2 && seg.arg_tokens().len() >= 2 {
+                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                if args.len() >= 2
+                    && seg.arg_tokens().len() >= 2
+                    && self
+                        .registry
+                        .irules_event_declaration_shape(&arg_refs)
+                        .is_some()
+                {
                     Some(self.lower_when(seg, namespace))
                 } else {
                     None
@@ -4003,6 +4010,26 @@ mod tests {
         .map(|name| module.procedures[name].base_priority)
         .collect();
         assert_eq!(priorities, [700, 400, 200, 400]);
+    }
+
+    #[test]
+    fn malformed_irules_event_declarations_do_not_enter_event_execution_state() {
+        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let registry = tcl_registry::registry_for_profile(profile);
+        let module = lower_to_ir_with_config(
+            "when HTTP_REQUEST priority 1001 {}\nwhen NOT_A_REAL_EVENT {}",
+            registry,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+
+        assert!(
+            !module.procedures.contains_key("::when::HTTP_REQUEST"),
+            "an out-of-range priority must not become an executable event procedure"
+        );
+        assert!(
+            module.procedures.contains_key("::when::NOT_A_REAL_EVENT"),
+            "a syntactically valid unknown event is lowered so the XC translator can report it"
+        );
     }
 
     #[test]

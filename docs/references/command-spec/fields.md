@@ -731,6 +731,12 @@ iRules only: for commands whose body runs in the *other* side's context (`client
 
 iRules only: for event-handler commands like `when` — the runtime's default priority (BIG-IP uses 500) and whether omitting an explicit priority is worth reporting.
 
+### `irules_top_level_effect` — iRules top-level effect
+
+*command only* — Stateful effect of an iRules declaration, such as the priority inherited by later handlers.
+
+iRules only: declares a file-level command whose effect persists for later declarations. `priority N`, for example, changes the inherited priority of following `when` handlers until another priority declaration replaces it.
+
 ### `taint_sink_gate` — Taint-sink gate
 
 *command only* — Predicate over the call's own flags deciding whether the sink applies.

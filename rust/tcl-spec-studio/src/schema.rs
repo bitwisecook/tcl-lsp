@@ -712,6 +712,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Runtime default and implicit-priority policy for an event-handler command.",
     ),
     f(
+        "irules_top_level_effect",
+        "iRules top-level effect",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(IrulesTopLevelEffect::Priority)",
+        },
+        "Stateful effect of an iRules declaration, such as the priority inherited by later handlers.",
+    ),
+    f(
         "options",
         "Options",
         OPTS,
