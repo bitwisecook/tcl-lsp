@@ -2004,7 +2004,8 @@ impl Analyser {
         // the outer event's context, while one inside a proc retains `None`.
         // `body_depth` is the shared structural top-level fact; the registry
         // trait remains the semantic owner of which command is a handler.
-        let enters_event_context = is_event_handler && self.body_depth == 0;
+        let valid_irules_event = self.irules_event_body_is_valid(cmd_name, is_event_handler, args);
+        let enters_event_context = is_event_handler && self.body_depth == 0 && valid_irules_event;
         let prev_event = self.current_event.clone();
         if enters_event_context && !args.is_empty() {
             self.current_event = Some(args[0].clone());
@@ -2023,7 +2024,7 @@ impl Analyser {
         if is_control_flow {
             self.control_flow_body_depth += 1;
         }
-        for idx in body_indices {
+        for idx in body_indices.into_iter().filter(|_| valid_irules_event) {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
                 let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
@@ -2046,6 +2047,29 @@ impl Analyser {
         if enters_event_context {
             self.current_event = prev_event;
         }
+    }
+
+    fn irules_event_body_is_valid(
+        &self,
+        command: &str,
+        is_event_handler: bool,
+        args: &[String],
+    ) -> bool {
+        if !self.profile.is_irules() || !is_event_handler {
+            return true;
+        }
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.body_depth == 0
+            && self.registry.as_deref().is_some_and(|registry| {
+                matches!(
+                    registry.irules_top_level_declaration(
+                        command,
+                        &words,
+                        &tcl_registry::events::EventRegistry::build(),
+                    ),
+                    Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
+                )
+            })
     }
 
     /// Body-role indices for an *imported* command called by its unqualified
@@ -5847,6 +5871,20 @@ mod tests {
     fn irule5005_quiet_with_call_prefix() {
         let src = "proc helper {} { return 1 }\nwhen HTTP_REQUEST { call helper }";
         assert!(!has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn malformed_irules_proc_is_not_registered_or_walked() {
+        let mut analyser = Analyser::new();
+        let result = analyser.analyse(
+            "proc malformed {} { pool /Common/inert } extra\n\
+             when HTTP_REQUEST { call malformed }",
+            "f5-irules",
+        );
+        assert!(!result.all_procs.contains_key("::malformed"));
+        assert!(result.command_invocations.iter().all(|call| {
+            call.name != "pool" && call.resolved_qualified_name.as_deref() != Some("::pool")
+        }));
     }
 
     #[test]

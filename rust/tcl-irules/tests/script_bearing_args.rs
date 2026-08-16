@@ -102,6 +102,16 @@ fn every_body_argument_of_every_irules_command_is_walked() {
 
     let commands: Vec<String> = registry.command_names().map(str::to_owned).collect();
     for command in &commands {
+        // Declaration-only forms (`when` / `proc`) are never executable
+        // inside an event. Their bodies are admitted only by the shared
+        // top-level validity/reachability owner, not by this nested-command
+        // body sweep.
+        if registry.get(command).is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::IRULES_TOP_LEVEL_ONLY)
+        }) {
+            continue;
+        }
         // Arity is unknown, so try a few shapes and let the registry tell us
         // which argument — if any — is a body for that shape.
         for argc in 1..=5usize {

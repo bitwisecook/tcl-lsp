@@ -18,6 +18,15 @@
 
 //! `call` iRules command.
 use crate::prelude::*;
+
+fn call_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+    let index = u8::from(args.first() == Some(&"-debug"));
+    (usize::from(index) < args.len())
+        .then_some((index, ArgRole::Name))
+        .into_iter()
+        .collect()
+}
+
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "call",
@@ -53,7 +62,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
         }],
-        arg_roles: &[(0, ArgRole::Name)],
+        arg_role_resolver: Some(call_arg_roles),
         ..CommandSpec::DEFAULT
     }
 }

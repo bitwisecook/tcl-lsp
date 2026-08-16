@@ -932,9 +932,13 @@ fn collect_event_bodies(
 ) -> Vec<(String, Vec<String>)> {
     let mut out: Vec<(String, Vec<String>)> = Vec::new();
     let Some(registry) = registry else { return out };
+    let events = tcl_registry::events::EventRegistry::build();
     for handler in tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
         source, registry, resolver,
     ) {
+        if !events.is_known(&handler.event) {
+            continue;
+        }
         let Some(body) = source.get(handler.body_span.as_range()) else {
             continue;
         };
@@ -1166,6 +1170,17 @@ mod tests {
     #[test]
     fn irule1002_fires_for_unknown_event() {
         assert!(has("when BOGUS_EVENT { log local0. hi }", "IRULE1002"));
+    }
+
+    #[test]
+    fn unknown_event_body_is_inert_except_for_irule1002() {
+        let got = codes("when BOGUS_EVENT { log local0. hi; HTTP::uri }");
+        let irules: Vec<_> = got
+            .iter()
+            .map(|(code, _)| code.as_str())
+            .filter(|code| code.starts_with("IRULE"))
+            .collect();
+        assert_eq!(irules, ["IRULE1002"]);
     }
 
     #[test]
@@ -1570,9 +1585,9 @@ mod tests {
                    proc helper {} { when HTTP_REQUEST { target } }";
         assert!(has(src, "IRULE5006"), "when inside proc must be rejected");
         assert!(
-            has(src, "IRULE5005"),
-            "the invalid nested handler does not erase its enclosing proc context; \
-             direct proc dispatch still requires `call`"
+            !has(src, "IRULE5005"),
+            "an invalid nested handler is inert, so its data must not be \
+             diagnosed as an executable direct proc dispatch"
         );
     }
 

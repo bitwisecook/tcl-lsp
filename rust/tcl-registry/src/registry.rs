@@ -1976,6 +1976,51 @@ impl CommandRegistry {
         }
     }
 
+    /// Validate and classify one invocation on iRules' top-level declaration
+    /// surface. Arity, argument layout, declaration traits, and known-event
+    /// membership are decided here so compiler/tooling consumers cannot admit
+    /// different executable regions.
+    #[must_use]
+    pub fn irules_top_level_declaration(
+        &self,
+        name: &str,
+        args: &[&str],
+        events: &crate::events::EventRegistry,
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let spec = self.get(name)?;
+        let argument_count = u16::try_from(args.len()).ok()?;
+        if !spec.arity.accepts(argument_count)
+            || self.irules_command_placement(name, crate::events::IrulesExecutionContext::TopLevel)
+                != crate::events::IrulesCommandPlacement::Allowed
+        {
+            return None;
+        }
+        let bodies = self.arg_indices_for_role(name, args, crate::ArgRole::Body);
+        let [body_index] = bodies.as_slice() else {
+            return None;
+        };
+        if spec.traits.contains(crate::Traits::IS_EVENT_HANDLER) {
+            let event = args.first()?.to_uppercase();
+            return events.is_known(&event).then_some(Declaration::Event {
+                event,
+                body_index: *body_index,
+            });
+        }
+        if spec.traits.contains(crate::Traits::DEFINES_PROCEDURE) {
+            let names = self.arg_indices_for_role(name, args, crate::ArgRole::Name);
+            let [name_index] = names.as_slice() else {
+                return None;
+            };
+            return Some(Declaration::Procedure {
+                name_index: *name_index,
+                body_index: *body_index,
+            });
+        }
+        None
+    }
+
     /// Whether `name` should appear as a notable action node in a flow
     /// diagram ([`Traits::DIAGRAM_ACTION`]). Accepts both the bare
     /// (`HTTP::respond`) and the canonical (`::HTTP::respond`) spelling —
@@ -5739,6 +5784,34 @@ mod tests {
             assert_eq!(
                 registry.irules_command_placement(executable, Ctx::ProcedureBody),
                 Placement::Allowed
+            );
+        }
+    }
+
+    #[test]
+    fn irules_declaration_owner_rejects_unknown_events_and_malformed_procs() {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let registry = crate::registry_for_dialect("f5-irules");
+        let events = crate::events::EventRegistry::build();
+        assert!(matches!(
+            registry.irules_top_level_declaration("when", &["HTTP_REQUEST", "set x 1"], &events),
+            Some(Declaration::Event { .. })
+        ));
+        assert!(
+            registry
+                .irules_top_level_declaration("when", &["BOGUS_EVENT", "pool x"], &events)
+                .is_none()
+        );
+        assert!(matches!(
+            registry.irules_top_level_declaration("proc", &["p", "", "return"], &events),
+            Some(Declaration::Procedure { .. })
+        ));
+        for malformed in [&["p", ""][..], &["p", "", "return", "extra"][..]] {
+            assert!(
+                registry
+                    .irules_top_level_declaration("proc", malformed, &events)
+                    .is_none()
             );
         }
     }

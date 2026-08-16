@@ -119,11 +119,15 @@ fn build_event_handlers(
     let registry = tcl_registry::registry_for_profile(profile);
     let identities =
         tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+    let events = tcl_registry::events::EventRegistry::build();
     tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
         source,
         registry,
         &identities,
     )
+    .into_iter()
+    .filter(|handler| events.is_known(&handler.event))
+    .collect()
 }
 
 #[cfg(test)]
@@ -161,6 +165,13 @@ mod tests {
         let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
         assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
         assert_eq!(find_enclosing_when_event(src, 0, D), None);
+        assert_eq!(find_enclosing_when_event(src, 1, D), None);
+    }
+
+    #[test]
+    fn unknown_event_is_not_an_editor_execution_context() {
+        let src = "when BOGUS_EVENT {\n  pool /Common/inert\n}\nwhen HTTP_REQUEST {}";
+        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
         assert_eq!(find_enclosing_when_event(src, 1, D), None);
     }
 

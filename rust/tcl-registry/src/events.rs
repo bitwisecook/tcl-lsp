@@ -203,6 +203,25 @@ pub enum IrulesExecutionContext {
     InvalidNestedBody,
 }
 
+/// A fully valid declaration on iRules' declaration-only file surface.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IrulesTopLevelDeclaration {
+    /// A known event handler and its registry-owned body argument.
+    Event {
+        /// Canonical uppercase event name.
+        event: String,
+        /// Zero-based argument index of the handler body.
+        body_index: usize,
+    },
+    /// A procedure definition and its registry-owned name/body arguments.
+    Procedure {
+        /// Zero-based argument index of the procedure name.
+        name_index: usize,
+        /// Zero-based argument index of the procedure body.
+        body_index: usize,
+    },
+}
+
 /// Result of applying the registry-owned iRules placement contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IrulesCommandPlacement {

@@ -2037,13 +2037,25 @@ mod tests {
         let symbols = document_symbols(src, IRULES);
         assert_eq!(names(&symbols), vec!["CLIENT_ACCEPTED"]);
         let outer = &symbols[0];
-        assert_eq!(names(&outer.children), vec!["deep"]);
+        assert!(
+            outer.children.is_empty(),
+            "the invalid nested handler body is inert data"
+        );
         assert!(
             outer
                 .children
                 .iter()
                 .all(|symbol| symbol.kind != SymbolKind::Event)
         );
+    }
+
+    #[test]
+    fn malformed_irules_proc_is_not_an_outline_symbol() {
+        let symbols = document_symbols(
+            "proc malformed {} { set leaked 1 } extra\nwhen HTTP_REQUEST {}",
+            IRULES,
+        );
+        assert_eq!(names(&symbols), vec!["HTTP_REQUEST"]);
     }
 
     #[test]

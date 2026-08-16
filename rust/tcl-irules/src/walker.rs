@@ -146,6 +146,10 @@ pub fn extract_irules_object_references(
     rule_module: Option<&str>,
     registry: &CommandRegistry,
 ) -> Vec<IrulesObjectReference> {
+    let executable_spans: HashSet<(u32, u32)> = crate::irules_executable_commands(source, registry)
+        .into_iter()
+        .map(|command| (command.span.start(), command.span.end()))
+        .collect();
     let mut out = Vec::new();
     let mut scope = BindingScope::default();
     // The document's statically proven command-identity facts
@@ -164,6 +168,7 @@ pub fn extract_irules_object_references(
         rule_module,
         registry,
         identities: &identities,
+        executable_spans: &executable_spans,
     };
     walk(&ctx, source, 0, &mut scope, &mut out, 0);
     out.sort_by(|a, b| {
@@ -185,6 +190,8 @@ struct WalkCtx<'a> {
     /// resolved to the command it *is* rather than the one it is spelled as
     /// (issue #1275).
     identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    /// Exact segmented commands proven reachable from a valid known event.
+    executable_spans: &'a HashSet<(u32, u32)>,
 }
 
 /// One segmented command's *effective* head — the registry name its spelling
@@ -217,6 +224,7 @@ fn walk(
         rule_module,
         registry,
         identities,
+        executable_spans,
     } = *ctx;
     // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment (issue
     // #996). Past the cap, stop descending — the references collected up
@@ -259,22 +267,28 @@ fn walk(
             canonical
         };
 
-        // Resolve declared references *before* mutating the binding table, so a
-        // same-command `set` re-bind doesn't leak into this call's refs.
-        for (argument_index, kinds) in resolve_object_ref_args(&semantic_head, &args, rule_module) {
-            if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
-                out.push(IrulesObjectReference {
-                    name,
-                    category: category_for_kinds(&kinds),
-                    kinds,
-                    command: cmd.name().to_owned(),
-                    effective_command: semantic_head.clone(),
-                    argument_index,
-                    range,
-                });
+        let executable = executable_spans.contains(&(cmd.span.start(), cmd.span.end()));
+        if executable {
+            // Resolve declared references *before* mutating the binding table,
+            // so a same-command `set` re-bind doesn't leak into this call's
+            // refs. Inert declaration/data regions cannot seed bindings.
+            for (argument_index, kinds) in
+                resolve_object_ref_args(&semantic_head, &args, rule_module)
+            {
+                if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
+                    out.push(IrulesObjectReference {
+                        name,
+                        category: category_for_kinds(&kinds),
+                        kinds,
+                        command: cmd.name().to_owned(),
+                        effective_command: semantic_head.clone(),
+                        argument_index,
+                        range,
+                    });
+                }
             }
+            record_set_binding(full, &semantic_head, &cmd, scope);
         }
-        record_set_binding(full, &semantic_head, &cmd, scope);
 
         let body_indices = registry.arg_indices_for_role(&semantic_head, &args, ArgRole::Body);
         let mut recursed: HashSet<(u32, u32)> = HashSet::new();
@@ -579,6 +593,23 @@ mod tests {
     fn refs(source: &str) -> Vec<IrulesObjectReference> {
         let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
         extract_irules_object_references(source, None, registry)
+    }
+
+    #[test]
+    fn object_refs_follow_only_reachable_valid_execution_regions() {
+        let source = concat!(
+            "pool /Common/top\n",
+            "proc dormant {} { pool /Common/dormant }\n",
+            "proc leaf {} { pool /Common/leaf }\n",
+            "proc malformed {} { pool /Common/malformed } extra\n",
+            "when BOGUS_EVENT { pool /Common/unknown }\n",
+            "when HTTP_REQUEST { call leaf; pool /Common/live }\n",
+        );
+        let names: Vec<_> = refs(source)
+            .into_iter()
+            .map(|reference| reference.name)
+            .collect();
+        assert_eq!(names, ["/Common/leaf", "/Common/live"]);
     }
 
     #[test]

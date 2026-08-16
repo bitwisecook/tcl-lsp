@@ -1695,6 +1695,26 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
+        // iRules procedures are declaration-only, exact three-word forms at
+        // file scope. An invalid declaration is consumed but deliberately
+        // contributes no symbol, binding, scope, or executable body facts.
+        if self.profile.is_irules() {
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            let valid = self.body_depth == 0
+                && self.registry.as_deref().is_some_and(|registry| {
+                    matches!(
+                        registry.irules_top_level_declaration(
+                            "proc",
+                            &words,
+                            &tcl_registry::events::EventRegistry::build(),
+                        ),
+                        Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+                    )
+                });
+            if !valid {
+                return true;
+            }
+        }
         if args.len() < 3 || arg_tokens.len() < 3 {
             return false;
         }

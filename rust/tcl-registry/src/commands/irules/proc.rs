@@ -29,7 +29,9 @@ use crate::prelude::*;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
-        traits: Traits::DEFINES_PROCEDURE.union(Traits::NEVER_INLINE_BODY),
+        traits: Traits::DEFINES_PROCEDURE
+            .union(Traits::NEVER_INLINE_BODY)
+            .union(Traits::IRULES_TOP_LEVEL_ONLY),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::exact(3),
         arg_roles: &[

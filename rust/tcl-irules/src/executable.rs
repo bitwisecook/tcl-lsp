@@ -1,6 +1,6 @@
 //! Registry-aware inventory of commands that can execute in an iRule.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::OnceLock;
 
 use tcl_compiler::head_identity::{HeadIdentityMap, command_head_identities_with_config};
@@ -30,23 +30,130 @@ pub fn irules_executable_commands(
 ) -> Vec<IrulesExecutableCommand> {
     let config = LexerConfig::for_file_dialect("f5-irules");
     let identities = command_head_identities_with_config(source, config, registry);
-    let mut out = Vec::new();
-    walk(
+    let mut event_bodies = Vec::new();
+    let mut procedures = HashMap::<String, Token>::new();
+    collect_top_level_regions(
         source,
-        source,
-        0,
         registry,
         &identities,
-        Context::TopLevel,
-        &mut out,
-        0,
+        &mut event_bodies,
+        &mut procedures,
     );
+
+    // Events are the only execution roots in an iRule. Procedure bodies enter
+    // the inventory only through a statically resolved registry-declared
+    // user-proc invocation (`call`), recursively and cycle-safely.
+    let mut out = Vec::new();
+    let mut pending = VecDeque::new();
+    for (event, body) in event_bodies {
+        let before = out.len();
+        recurse_token(
+            source,
+            &body,
+            registry,
+            &identities,
+            Context::Event(event),
+            &mut out,
+            1,
+        );
+        enqueue_proc_calls(&out[before..], registry, &mut pending);
+    }
+    let mut reached = HashSet::new();
+    while let Some(name) = pending.pop_front() {
+        if !reached.insert(name.clone()) {
+            continue;
+        }
+        let Some(body) = procedures.get(&name) else {
+            continue;
+        };
+        let before = out.len();
+        recurse_token(
+            source,
+            body,
+            registry,
+            &identities,
+            Context::Procedure,
+            &mut out,
+            1,
+        );
+        enqueue_proc_calls(&out[before..], registry, &mut pending);
+    }
+    // A local proc spelling is not an invocation form in iRules; only a
+    // registry-declared `INVOKES_USER_PROC` edge (`call`) can dispatch it.
+    out.retain(|command| !procedures.contains_key(&command.command));
     out
+}
+
+fn enqueue_proc_calls(
+    commands: &[IrulesExecutableCommand],
+    registry: &CommandRegistry,
+    pending: &mut VecDeque<String>,
+) {
+    for command in commands {
+        let Some(spec) = registry.get(&command.command) else {
+            continue;
+        };
+        if !spec.traits.contains(Traits::INVOKES_USER_PROC) {
+            continue;
+        }
+        let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
+        for index in registry.arg_indices_for_role(&command.command, &args, ArgRole::Name) {
+            if let Some(name) = command.args.get(index)
+                && !name.contains(['$', '[', ']', ';'])
+            {
+                pending.push_back(name.clone());
+            }
+        }
+    }
+}
+
+fn collect_top_level_regions(
+    source: &str,
+    registry: &CommandRegistry,
+    identities: &HeadIdentityMap,
+    events: &mut Vec<(String, Token)>,
+    procedures: &mut HashMap<String, Token>,
+) {
+    for cmd in segment_commands_with_offset_and_config(
+        source,
+        0,
+        LexerConfig::for_file_dialect("f5-irules"),
+    ) {
+        let at = cmd.argv.first().map_or(0, |token| token.span.start());
+        let resolved = identities.head_words(cmd.name(), at).resolved;
+        let canonical = tcl_syntax::naming::canonical_written_command(resolved);
+        let head = if registry.get_exact(&canonical).is_some() {
+            canonical
+        } else {
+            canonical.trim_start_matches("::").to_owned()
+        };
+        let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
+        match registry.irules_top_level_declaration(&head, &args, event_registry()) {
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { event, body_index }) => {
+                if let Some(body) = cmd.argv.get(body_index + 1).copied() {
+                    events.push((event, body));
+                }
+            }
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure {
+                name_index,
+                body_index,
+            }) => {
+                let (Some(name), Some(body)) =
+                    (args.get(name_index), cmd.argv.get(body_index + 1).copied())
+                else {
+                    continue;
+                };
+                if !name.contains(['$', '[', ']', ';']) {
+                    procedures.insert((*name).to_owned(), body);
+                }
+            }
+            None => {}
+        }
+    }
 }
 
 #[derive(Clone)]
 enum Context {
-    TopLevel,
     Event(String),
     Procedure,
 }
@@ -89,46 +196,9 @@ fn walk(
         };
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
 
-        if matches!(context, Context::TopLevel) {
-            let Some(spec) = registry.get(&head) else {
-                continue;
-            };
-            if registry.irules_command_placement(&head, IrulesExecutionContext::TopLevel)
-                != IrulesCommandPlacement::Allowed
-            {
-                continue;
-            }
-            let next = if spec.traits.contains(Traits::IS_EVENT_HANDLER) {
-                args.first()
-                    .map(|event| event.to_uppercase())
-                    .filter(|event| event_registry().is_known(event))
-                    .map(Context::Event)
-            } else if spec.traits.contains(Traits::DEFINES_PROCEDURE) {
-                u16::try_from(args.len())
-                    .ok()
-                    .filter(|count| spec.arity.accepts(*count))
-                    .and_then(|_| {
-                        registry
-                            .arg_indices_for_role(&head, &args, ArgRole::Body)
-                            .into_iter()
-                            .all(|index| cmd.argv.get(index + 1).is_some())
-                            .then_some(Context::Procedure)
-                    })
-            } else {
-                None
-            };
-            if let Some(next) = next {
-                recurse_bodies(
-                    full, &cmd, &head, &args, registry, identities, next, out, depth,
-                );
-            }
-            continue;
-        }
-
         let nested_context = match context {
             Context::Event(_) => IrulesExecutionContext::EventBody,
             Context::Procedure => IrulesExecutionContext::ProcedureBody,
-            Context::TopLevel => unreachable!(),
         };
         if registry.irules_command_placement(&head, nested_context)
             == IrulesCommandPlacement::RequiresTopLevel
@@ -153,7 +223,7 @@ fn walk(
             variable_names,
             event: match &context {
                 Context::Event(event) => Some(event.clone()),
-                _ => None,
+                Context::Procedure => None,
             },
         });
 
@@ -179,15 +249,36 @@ fn walk(
             out,
             depth,
         );
-        let body_spans: HashSet<_> = registry
+        let mut owned_spans: HashSet<_> = registry
             .arg_indices_for_role(&head, &args, ArgRole::Body)
             .into_iter()
             .filter_map(|idx| cmd.argv.get(idx + 1))
             .map(|tok| (tok.span.start(), tok.span.end()))
             .collect();
+        for index in registry.arg_indices_for_role(&head, &args, ArgRole::Expr) {
+            let Some(token) = cmd.argv.get(index + 1) else {
+                continue;
+            };
+            recurse_token(
+                full,
+                token,
+                registry,
+                identities,
+                context.clone(),
+                out,
+                depth + 1,
+            );
+            for nested in cmd.all_tokens.iter().filter(|nested| {
+                nested.kind == TokenType::Cmd
+                    && token.span.start() <= nested.span.start()
+                    && nested.span.end() <= token.span.end()
+            }) {
+                owned_spans.insert((nested.span.start(), nested.span.end()));
+            }
+        }
         for token in &cmd.all_tokens {
             if token.kind == TokenType::Cmd
-                && !body_spans.contains(&(token.span.start(), token.span.end()))
+                && !owned_spans.contains(&(token.span.start(), token.span.end()))
             {
                 recurse_token(
                     full,
@@ -333,14 +424,14 @@ mod tests {
         let facts = commands(concat!(
             "pool invalid_top\n",
             "proc helper {} { pool from_proc }\n",
-            "when HTTP_REQUEST { switch -- x { x { pool from_event } }; when CLIENT_DATA { pool invalid_nested } }\n",
+            "when HTTP_REQUEST { call helper; switch -- x { x { pool from_event } }; when CLIENT_DATA { pool invalid_nested } }\n",
         ));
         let pools: Vec<_> = facts
             .iter()
             .filter(|fact| fact.command == "pool")
             .map(|fact| fact.args[0].as_str())
             .collect();
-        assert_eq!(pools, ["from_proc", "from_event"]);
+        assert_eq!(pools, ["from_event", "from_proc"]);
     }
 
     #[test]
@@ -380,12 +471,39 @@ mod tests {
             .filter(|fact| fact.command == "pool")
             .map(|fact| fact.args[0].as_str())
             .collect();
-        assert_eq!(pools, ["valid_proc", "valid_event"]);
+        assert_eq!(pools, ["valid_event", "valid_proc"]);
         assert!(facts.iter().all(|fact| fact.command != "table"));
         assert!(
             facts
                 .iter()
                 .all(|fact| fact.args.first().is_none_or(|arg| arg != "static::bogus"))
         );
+    }
+
+    #[test]
+    fn procedure_inventory_is_reachable_from_events_through_call_edges() {
+        let facts = commands(concat!(
+            "proc dormant {} { pool dormant }\n",
+            "proc leaf {} { pool leaf; call cycle_a }\n",
+            "proc cycle_a {} { pool cycle_a; call cycle_b }\n",
+            "proc cycle_b {} { pool cycle_b; call cycle_a }\n",
+            "when HTTP_REQUEST { call leaf; pool event }\n",
+        ));
+        let pools: Vec<_> = facts
+            .iter()
+            .filter(|fact| fact.command == "pool")
+            .map(|fact| fact.args[0].as_str())
+            .collect();
+        assert_eq!(pools, ["event", "leaf", "cycle_a", "cycle_b"]);
+    }
+
+    #[test]
+    fn direct_proc_spelling_is_not_an_execution_edge() {
+        let facts = commands(concat!(
+            "proc helper {} { pool forbidden }\n",
+            "when HTTP_REQUEST { helper }\n",
+        ));
+        assert!(facts.iter().all(|fact| fact.command != "helper"));
+        assert!(facts.iter().all(|fact| fact.command != "pool"));
     }
 }
