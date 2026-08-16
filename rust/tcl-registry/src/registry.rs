@@ -6405,6 +6405,25 @@ mod tests {
         assert_eq!(options.subject_index, Some(3));
         assert_eq!(options.mode, CaseMatchMode::Glob);
         assert!(options.nocase);
+
+        let tcl91 = crate::registry_for_dialect("tcl9.1");
+        let Some((_, integer)) = tcl91.case_invocation(
+            "switch",
+            &["-integer", "--", "1", "1 {set x 1}"],
+            DialectSet::TCL91,
+        ) else {
+            panic!("Tcl 9.1 integer switch must retain its case-list body");
+        };
+        assert_eq!(integer.mode, CaseMatchMode::Other);
+        assert_eq!(integer.clause_list_index, Some(3));
+        assert_eq!(
+            tcl91.arg_indices_for_role(
+                "switch",
+                &["-integer", "--", "1", "1 {set x 1}"],
+                ArgRole::Body,
+            ),
+            vec![3]
+        );
         assert!(
             reg.case_invocation(
                 "switch",
@@ -6780,6 +6799,7 @@ mod tests {
             end_options_option: Some("--"),
             fallthrough_body: None,
             value_options_require_regex: &[],
+            special_match_options: &[],
             clause_flags: &["-clause", "--"],
             clause_regex_flag: None,
             clause_value_flags: &[],

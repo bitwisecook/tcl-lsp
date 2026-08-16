@@ -4308,7 +4308,7 @@ impl Analyser {
                 if invocation_is_regexp || clause_regexp.get(clause_index) == Some(&true) {
                     self.record_switch_regexp_pattern(
                         cmd_name,
-                        case,
+                        &case,
                         pat_text,
                         *pat_tok,
                         (clause_index, clause_count),
@@ -4334,7 +4334,7 @@ impl Analyser {
                 {
                     self.record_switch_regexp_pattern(
                         cmd_name,
-                        case,
+                        &case,
                         &args[pattern_index],
                         pat_tok,
                         (clause_index, clause_count),
@@ -4364,7 +4364,7 @@ impl Analyser {
     fn record_switch_regexp_pattern(
         &mut self,
         command: &str,
-        case: tcl_registry::spec::CaseListSpec,
+        case: &tcl_registry::spec::CaseListSpec,
         pattern: &str,
         tok: Token,
         clause_position: (usize, usize),
@@ -7033,7 +7033,8 @@ impl Analyser {
                 tcl_registry::spec::CaseMatchMode::Glob => {
                     tcl_syntax::glob::string_case_match(pattern, &subject, invocation.nocase)
                 }
-                tcl_registry::spec::CaseMatchMode::Regexp => return None,
+                tcl_registry::spec::CaseMatchMode::Regexp
+                | tcl_registry::spec::CaseMatchMode::Other => return None,
             };
             if matched {
                 selected = Some(idx);
