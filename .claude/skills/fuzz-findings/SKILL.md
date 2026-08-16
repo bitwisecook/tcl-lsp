@@ -54,9 +54,9 @@ Global flags: `--findings DIR` (registry location), `--timeout-ms MS`
 
 | Command | Arguments | What it does |
 |---|---|---|
-| `run` | `--iterations N [--seed S] [--verbose] [--reference E] [--subject E] [--compare-error-text] [--subject-tcl-version X.Y]` | Run a campaign of N generated scripts over the `--subject`/`--reference` pair (default `tclvm` subject / `tclsh` reference); new divergences are appended to the pair's registry |
-| `summary` | `[--reference E] [--subject E]` | Print a pair's registry finding counts grouped by category (defaults to the same `tclsh`/`tclvm` pair as `run`) |
-| `replay` | `SEED [--reference E] [--subject E]` | Regenerate seed S, run both engines, and print their output side by side including stderr (triage / confirm-a-fix) |
+| `run` | `--iterations N [--seed S] [--verbose] [--reference E] [--subject E] [--compare-error-text] [--tcl-version X.Y]` | Run a campaign over the pair; one release applies to every pinnable engine and an engine that cannot honour it stops the campaign |
+| `summary` | `[--reference E] [--subject E] [--tcl-version X.Y]` | Print counts per release namespace. Without a release it includes unpinned and every `tclX.Y` registry; an explicit release selects only that registry |
+| `replay` | `SEED [--reference E] [--subject E] [--tcl-version X.Y]` | Regenerate seed S, restoring its persisted release automatically. An explicit release selects that exact registry |
 | `wasm-check` | `--iterations N [--seed S] [--verbose]` | WASM-runnability arm: compile each program to the eval-fallback WASM module and flag codegen panics / instantiation failures / traps |
 | `wasm-diff` | `--iterations N [--seed S] [--verbose]` | WASM value-differential arm: compare compiled-WASM control flow (hosted by `tcl-vm`) against direct `tcl-vm`, isolating control-flow miscompiles |
 
@@ -78,20 +78,21 @@ Every campaign now prints both engines' releases before it starts and warns
 when they differ, and every finding records `reference_version`,
 `subject_version` and `version_skew`. Check those before triaging.
 
-To run version-matched against an older reference, pin the subject:
+To run version-matched against an older reference, pin the whole pair:
 
 ```bash
-# runtime-rust emulating 8.6, against an 8.6 tclsh
-cargo run -q -p tcl-fuzz -- --tclsh /path/to/tclsh8.6 \
-  run --subject runtime-rust --reference tclsh --subject-tcl-version 8.6 \
+# runtime-rust and tclvm emulating 8.6
+cargo run -q -p tcl-fuzz -- \
+  run --subject runtime-rust --reference tclvm --tcl-version 8.6 \
   --iterations 200 --seed 90000
 ```
 
-Only `runtime-rust` can be pinned today (it takes `--tcl-version`); pinning
-`tclsh` or `tclvm` is refused with a message rather than silently ignored. With
-the subject pinned to 8.6 the two variable-resolution findings above vanish; the
-six `expr`-surface ones remain, because neither engine gates its `expr`
-operator/mathfunc surface by release yet.
+`runtime-rust` and `tclvm` receive the same `--tcl-version` argument. A fixed
+release engine such as C `tclsh` is selected by its binary instead, then its
+reported release is verified; no engine may silently ignore a pair pin. The old
+`--subject-tcl-version` spelling remains an alias, but now has pair-wide
+semantics. Pinned findings live below `tclX.Y/` and replay restores that line;
+the same seed at 8.6 and 9.0 is deliberately two separate records.
 
 `--compare-error-text` (on `run`) additionally flags an `ErrorTextMismatch`
 finding when both engines error but their stderr text differs — off by
@@ -199,6 +200,8 @@ Each finding is one JSON record (`rust/tcl-fuzz/src/findings.rs`):
   "subject_errored": false,
   "reference_stderr": "",
   "subject_stderr": "",
+  "tcl_version": "9.0",
+  "replay_metadata_version": 1,
   "reference_version": "9.0.4",
   "subject_version": "9.0.4",
   "version_skew": false
@@ -209,6 +212,14 @@ Each finding is one JSON record (`rust/tcl-fuzz/src/findings.rs`):
 probed once per campaign (`null` if the probe failed). `version_skew` is true
 when the two engines emulate different release *lines* — treat every finding in
 a skewed run as suspect until the version difference is ruled out.
+
+`replay_metadata_version: 1` proves the record was written with a complete
+campaign configuration. Thus `tcl_version: null` is a legitimate newly
+recorded unpinned campaign and replays unpinned; an older release-less record
+missing the marker is refused rather than guessed at today's default. A valid
+explicit `tcl_version` remains replay-safe even in a record written before the
+marker. `summary` labels each namespace separately so release-specific records
+never collide.
 
 `reference_stderr`/`subject_stderr` are always captured when the engine ran
 (independent of `--compare-error-text`), so a triager always has both

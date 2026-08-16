@@ -100,6 +100,13 @@ pub enum TclVersion {
 }
 
 impl TclVersion {
+    /// Every Tcl release line modelled by this enum, in release order.
+    ///
+    /// Consumers that need to enumerate supported releases (for example, to
+    /// locate release-namespaced persisted data) must use this table rather
+    /// than rebuilding the vocabulary beside their own parser.
+    pub const ALL: [Self; 5] = [Self::V8_4, Self::V8_5, Self::V8_6, Self::V9_0, Self::V9_1];
+
     /// Map an optimiser dialect string (`"tcl8.4"` … `"tcl9.1"`) to a version,
     /// or `None` for an unversioned (`"tcl"`), non-Tcl (`"f5-irules"`), or
     /// unknown dialect — in which case a versioned fold must return only the
@@ -1137,13 +1144,7 @@ mod tests {
 
     #[test]
     fn version_string_round_trips_through_from_package_version() {
-        for v in [
-            TclVersion::V8_4,
-            TclVersion::V8_5,
-            TclVersion::V8_6,
-            TclVersion::V9_0,
-            TclVersion::V9_1,
-        ] {
+        for v in TclVersion::ALL {
             assert_eq!(
                 TclVersion::from_package_version(v.version_string()),
                 Some(v)
