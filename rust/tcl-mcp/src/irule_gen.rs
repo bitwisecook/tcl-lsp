@@ -1198,6 +1198,20 @@ mod tests {
     }
 
     #[test]
+    fn generated_event_inventory_uses_exact_shared_handler_grammar() {
+        let src = concat!(
+            "when HTTP_REQUEST { pool malformed } trailing\n",
+            "when CLIENT_ACCEPTED pool\n",
+            "when CLIENT_DATA timing on { pool timed }\n",
+            "when SERVER_DATA priority 10 timing disable { pool ordered }\n",
+            "when HTTP_RESPONSE timing on priority 10 { pool wrong_order }\n",
+        );
+        let generated = generate_irule_test(&json!({"source": src}));
+        assert_eq!(generated["events"], json!(["CLIENT_DATA", "SERVER_DATA"]));
+        assert_eq!(generated["pools"], json!(["ordered", "timed"]));
+    }
+
+    #[test]
     fn scaffold_deduplicates_events_and_sets_up_registry_classified_pools() {
         let src = concat!(
             "interp alias {} members {} active_members\n",

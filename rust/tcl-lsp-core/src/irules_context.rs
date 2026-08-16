@@ -176,6 +176,18 @@ mod tests {
     }
 
     #[test]
+    fn event_inventory_shares_exact_handler_layout_validation() {
+        let src = concat!(
+            "when HTTP_REQUEST {} trailing\n",
+            "when CLIENT_ACCEPTED pool\n",
+            "when CLIENT_DATA timing on {}\n",
+            "when SERVER_DATA priority 20 timing disable {}\n",
+            "when HTTP_RESPONSE timing on priority 20 {}\n",
+        );
+        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA", "SERVER_DATA"]);
+    }
+
+    #[test]
     fn case_and_unavailable_apply_when_words_are_not_events() {
         let src = "switch -- $x { a { when CLIENT_DATA {} } }\napply {{} { when HTTP_REQUEST {} }}";
         assert!(scan_file_events(src, D).is_empty());

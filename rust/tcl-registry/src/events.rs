@@ -1075,6 +1075,7 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
         || LexerConfig::for_file_dialect("f5-irules"),
         |profile| LexerConfig::from_grammar(profile.grammar),
     );
+    let events = EventRegistry::build();
     tcl_syntax::event_handler::event_handlers_with_head_predicate(
         source,
         config,
@@ -1083,6 +1084,12 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
             is_event_handler_head(registry, effective_head.as_ref())
         },
     )
+    .into_iter()
+    .filter(|handler| {
+        let args: Vec<&str> = handler.arguments.iter().map(String::as_str).collect();
+        registry.irules_event_declaration(&args, &events).is_some()
+    })
+    .collect()
 }
 
 /// Scan distinct top-level event handlers through the shared Tcl syntax

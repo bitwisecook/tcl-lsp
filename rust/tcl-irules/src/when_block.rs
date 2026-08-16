@@ -45,16 +45,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ignores_commented_when_and_keeps_quoted_close_brace_in_tcl_body() {
+    fn ignores_commented_when_and_rejects_trailing_text_after_brace_close() {
         let source =
             "# when HTTP_REQUEST { ignored }\nwhen RULE_INIT { log local0. \"legacy } path\"\n}\n";
         let blocks = when_blocks(source);
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].event, "RULE_INIT");
-        assert_eq!(
-            &source[blocks[0].body_span.as_range()],
-            " log local0. \"legacy "
-        );
+        assert!(blocks.is_empty());
     }
 
     #[test]

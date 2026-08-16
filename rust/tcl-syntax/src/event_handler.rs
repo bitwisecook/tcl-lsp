@@ -27,6 +27,8 @@ pub struct EventHandler {
     pub body_span: Span,
     /// Explicit handler priority, when it is a valid integer.
     pub priority: Option<i64>,
+    /// Decoded single-token argument words after the command head.
+    pub arguments: Vec<String>,
 }
 
 /// Parse complete event handlers with one lexer/naming contract.
@@ -136,12 +138,41 @@ fn parse_handler(
     {
         return None;
     }
-    let body = words.get(2..)?.iter().rev().find_map(|word| {
-        let [token] = word.as_slice() else {
-            return None;
-        };
-        (token.kind == TokenType::Str).then_some(token)
-    })?;
+    let one = |index: usize| {
+        words
+            .get(index)?
+            .as_slice()
+            .first()
+            .filter(|_| words[index].len() == 1)
+    };
+    let (body_index, priority) = match words.len() {
+        3 => (2, None),
+        5 if one(2).is_some_and(|token| sm.token_text(*token) == "priority") => {
+            let value = sm.token_text(*one(3)?).parse::<i64>().ok()?;
+            (4, Some(value))
+        }
+        5 if one(2).is_some_and(|token| sm.token_text(*token) == "timing")
+            && one(3).is_some_and(|token| {
+                matches!(sm.token_text(*token), "on" | "off" | "enable" | "disable")
+            }) =>
+        {
+            (4, None)
+        }
+        7 if one(2).is_some_and(|token| sm.token_text(*token) == "priority")
+            && sm.token_text(*one(3)?).parse::<i64>().is_ok()
+            && one(4).is_some_and(|token| sm.token_text(*token) == "timing")
+            && one(5).is_some_and(|token| {
+                matches!(sm.token_text(*token), "on" | "off" | "enable" | "disable")
+            }) =>
+        {
+            (6, sm.token_text(*one(3)?).parse::<i64>().ok())
+        }
+        _ => return None,
+    };
+    let body = one(body_index)?.to_owned();
+    if body.kind != TokenType::Str {
+        return None;
+    }
     let body_whole = word_span_at(text, body.span);
     if !closed_brace(text, body_whole) {
         return None;
@@ -155,14 +186,6 @@ fn parse_handler(
         return None;
     }
     let event_whole = word_span_at(text, event_token.span);
-    let priority = words
-        .get(2)
-        .and_then(|word| word.as_slice().first().filter(|_| word.len() == 1))
-        .filter(|token| sm.token_text(**token) == "priority")
-        .and_then(|_| words.get(3))
-        .and_then(|word| word.as_slice().first().filter(|_| word.len() == 1))
-        .and_then(|token| sm.token_text(*token).parse::<i64>().ok());
-
     let span = shift(Span::new(command_start, command_end), base);
     let event_span = shift(event_whole, base);
     let body_span = shift(Span::new(body_start, body_end), base);
@@ -173,6 +196,10 @@ fn parse_handler(
         event_span,
         body_span,
         priority,
+        arguments: words[1..]
+            .iter()
+            .map(|word| sm.token_text(word[0]).to_owned())
+            .collect(),
     })
 }
 
@@ -235,5 +262,29 @@ mod tests {
         let handlers = event_handlers(source, irules());
         assert_eq!(handlers[0].priority, Some(100));
         assert_eq!(&source[handlers[0].body_span.as_range()], " pool p ");
+    }
+
+    #[test]
+    fn handler_grammar_accepts_only_complete_braced_supported_forms() {
+        for source in [
+            "when HTTP_REQUEST {}",
+            "when HTTP_REQUEST priority 100 {}",
+            "when HTTP_REQUEST timing on {}",
+            "when HTTP_REQUEST timing disable {}",
+            "when HTTP_REQUEST priority 100 timing enable {}",
+        ] {
+            assert_eq!(event_handlers(source, irules()).len(), 1, "{source}");
+        }
+        for source in [
+            "when HTTP_REQUEST",
+            "when HTTP_REQUEST set",
+            "when HTTP_REQUEST {} trailing",
+            "when HTTP_REQUEST priority {}",
+            "when HTTP_REQUEST priority nope {}",
+            "when HTTP_REQUEST timing maybe {}",
+            "when HTTP_REQUEST timing on priority 100 {}",
+        ] {
+            assert!(event_handlers(source, irules()).is_empty(), "{source}");
+        }
     }
 }

@@ -1986,8 +1986,7 @@ impl Analyser {
                 .or_default()
                 .insert(name.clone());
         }
-        // Registry facts, not command names (gap-review C3). The event
-        // handler is whatever carries `IS_EVENT_HANDLER` — `when` today, but
+        // The event handler carries `IS_EVENT_HANDLER` — `when` today, but
         // a dialect that adds another gets the same treatment without an edit
         // here; its synopsis (`when EVENT { body }`) puts the event name in
         // the first argument. `conditional_depth` rises for a command whose
@@ -2002,14 +2001,10 @@ impl Analyser {
         // invalid (IRULE5006) and must not manufacture or replace event
         // context.  In particular, a nested handler inside an event retains
         // the outer event's context, while one inside a proc retains `None`.
-        // `body_depth` is the shared structural top-level fact; the registry
-        // trait remains the semantic owner of which command is a handler.
-        let valid_irules_event = self.irules_event_body_is_valid(cmd_name, is_event_handler, args);
+        let valid_irules_event =
+            self.irules_event_body_is_valid(cmd_name, is_event_handler, args, arg_tokens);
         let enters_event_context = is_event_handler && self.body_depth == 0 && valid_irules_event;
-        let prev_event = self.current_event.clone();
-        if enters_event_context && !args.is_empty() {
-            self.current_event = Some(args[0].clone());
-        }
+        let (entered_event, prev_event) = self.enter_event_context(enters_event_context, args);
         let is_conditional = spec_traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         if is_conditional {
             self.conditional_depth += 1;
@@ -2044,9 +2039,22 @@ impl Analyser {
         if is_control_flow {
             self.control_flow_body_depth -= 1;
         }
-        if enters_event_context {
+        if entered_event {
             self.current_event = prev_event;
         }
+    }
+
+    fn enter_event_context(
+        &mut self,
+        enters_event_context: bool,
+        args: &[String],
+    ) -> (bool, Option<String>) {
+        if !enters_event_context {
+            return (false, None);
+        }
+        let previous = self.current_event.clone();
+        self.current_event = args.first().cloned();
+        (true, previous)
     }
 
     fn irules_event_body_is_valid(
@@ -2054,6 +2062,7 @@ impl Analyser {
         command: &str,
         is_event_handler: bool,
         args: &[String],
+        arg_tokens: &[Token],
     ) -> bool {
         if !self.profile.is_irules() || !is_event_handler {
             return true;
@@ -2063,14 +2072,16 @@ impl Analyser {
             .registry
             .as_deref()
             .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
+        let declaration = registry.irules_top_level_declaration(
+            command,
+            &words,
+            &tcl_registry::events::EventRegistry::build(),
+        );
         self.body_depth == 0
             && matches!(
-                registry.irules_top_level_declaration(
-                    command,
-                    &words,
-                    &tcl_registry::events::EventRegistry::build(),
-                ),
-                Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
+                declaration,
+                Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { body_index, .. })
+                    if arg_tokens.get(body_index).is_some_and(|token| token.kind == TokenType::Str)
             )
     }
 

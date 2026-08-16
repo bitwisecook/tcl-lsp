@@ -130,7 +130,12 @@ fn collect_top_level_regions(
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
         match registry.irules_top_level_declaration(&head, &args, event_registry()) {
             Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { event, body_index }) => {
-                if let Some(body) = cmd.argv.get(body_index + 1).copied() {
+                if let Some(body) = cmd
+                    .argv
+                    .get(body_index + 1)
+                    .copied()
+                    .filter(|body| body.kind == TokenType::Str)
+                {
                     events.push((event, body));
                 }
             }

@@ -2002,11 +2002,7 @@ impl CommandRegistry {
             return None;
         };
         if spec.traits.contains(crate::Traits::IS_EVENT_HANDLER) {
-            let event = args.first()?.to_uppercase();
-            return events.is_known(&event).then_some(Declaration::Event {
-                event,
-                body_index: *body_index,
-            });
+            return self.irules_event_declaration(args, events);
         }
         if spec.traits.contains(crate::Traits::DEFINES_PROCEDURE) {
             let names = self.arg_indices_for_role(name, args, crate::ArgRole::Name);
@@ -2019,6 +2015,38 @@ impl CommandRegistry {
             });
         }
         None
+    }
+
+    /// Validate the shared iRules event-handler argument grammar independent
+    /// of its resolved registry spelling.
+    #[must_use]
+    pub fn irules_event_declaration(
+        &self,
+        args: &[&str],
+        events: &crate::events::EventRegistry,
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let valid_layout = match args {
+            [_, _] => true,
+            [_, "priority", value, _] => value.parse::<i64>().is_ok(),
+            [_, "timing", value, _] => {
+                matches!(*value, "on" | "off" | "enable" | "disable")
+            }
+            [_, "priority", priority, "timing", timing, _] => {
+                priority.parse::<i64>().is_ok()
+                    && matches!(*timing, "on" | "off" | "enable" | "disable")
+            }
+            _ => false,
+        };
+        if !valid_layout {
+            return None;
+        }
+        let event = args.first()?.to_uppercase();
+        events.is_known(&event).then_some(Declaration::Event {
+            event,
+            body_index: args.len() - 1,
+        })
     }
 
     /// Whether `name` should appear as a notable action node in a flow
@@ -5803,6 +5831,38 @@ mod tests {
                 .irules_top_level_declaration("when", &["BOGUS_EVENT", "pool x"], &events)
                 .is_none()
         );
+        for valid in [
+            &["HTTP_REQUEST", "body"][..],
+            &["HTTP_REQUEST", "priority", "100", "body"][..],
+            &["HTTP_REQUEST", "timing", "on", "body"][..],
+            &[
+                "HTTP_REQUEST",
+                "priority",
+                "100",
+                "timing",
+                "disable",
+                "body",
+            ][..],
+        ] {
+            assert!(
+                registry
+                    .irules_top_level_declaration("when", valid, &events)
+                    .is_some()
+            );
+        }
+        for invalid in [
+            &["HTTP_REQUEST"][..],
+            &["HTTP_REQUEST", "body", "trailing"][..],
+            &["HTTP_REQUEST", "priority", "bad", "body"][..],
+            &["HTTP_REQUEST", "timing", "maybe", "body"][..],
+            &["HTTP_REQUEST", "timing", "on", "priority", "100", "body"][..],
+        ] {
+            assert!(
+                registry
+                    .irules_top_level_declaration("when", invalid, &events)
+                    .is_none()
+            );
+        }
         assert!(matches!(
             registry.irules_top_level_declaration("proc", &["p", "", "return"], &events),
             Some(Declaration::Procedure { .. })
