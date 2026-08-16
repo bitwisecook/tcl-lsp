@@ -1224,9 +1224,9 @@ fn irules_registry() -> &'static CommandRegistry {
 /// not properties of this token walk.
 fn irules_top_level_declaration_heads(
     source: &str,
+    registry: &CommandRegistry,
     identities: &tcl_compiler::head_identity::HeadIdentityMap,
 ) -> FxHashSet<u32> {
-    let registry = irules_registry();
     let mut heads: FxHashSet<u32> =
         tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
             source, registry, identities,
@@ -5987,7 +5987,7 @@ fn collect_entries(
     // (including offset-resolved command identity) rather than this walk's
     // recursive depth as its placement predicate.
     let irules_top_level_declaration_heads =
-        irules_top_level_declaration_heads(source, &head_identities);
+        irules_top_level_declaration_heads(source, registry, &head_identities);
 
     // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's

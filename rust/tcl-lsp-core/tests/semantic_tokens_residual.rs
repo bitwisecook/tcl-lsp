@@ -53,7 +53,7 @@ use std::collections::HashSet;
 
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::semantic_tokens::{full, legend_token_types, range};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::{ArgRole, Arity, CommandRegistry, CommandSpec, Traits, registry_for_dialect};
 
 fn reg() -> &'static CommandRegistry {
     registry_for_dialect("tcl8.6")
@@ -1002,6 +1002,32 @@ fn st_irules_declaration_tokens_require_source_top_level() {
             .iter()
             .any(|t| t.line == 5 && t.character == 14 && t.ttype == "function"),
         "a nested iRules `proc` name must not receive a definition override: {toks:?}",
+    );
+}
+
+#[test]
+fn st_irules_custom_registry_proc_is_a_declaration() {
+    // A workspace `.tclspec` pack can add an iRules procedure definer.  The
+    // declaration-boundary scan must use that active registry, rather than
+    // the process-wide built-in iRules registry, to admit the name override.
+    let mut r = irules_registry();
+    r.insert(CommandSpec {
+        name: "custom_proc",
+        traits: Traits::DEFINES_PROCEDURE | Traits::IRULES_TOP_LEVEL_ONLY,
+        arity: Arity::exact(3),
+        arg_roles: &[
+            (0, ArgRole::Name),
+            (1, ArgRole::ParamList),
+            (2, ArgRole::Body),
+        ],
+        ..CommandSpec::DEFAULT
+    });
+    let src = "custom_proc declared {} { return }\n";
+    let toks = decode_with(src, "f5-irules", &r);
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 0 && t.character == 12 && t.ttype == "function"),
+        "the custom registry definer's name must be a function definition: {toks:?}",
     );
 }
 
