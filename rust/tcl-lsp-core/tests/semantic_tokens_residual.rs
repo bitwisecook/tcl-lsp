@@ -975,6 +975,22 @@ fn st_irules_object_ref_in_multiline_body_is_object_token() {
 }
 
 #[test]
+fn st_irules_data_group_in_braced_expr_command_is_object_token() {
+    // The `class` call is embedded in an expression braced for Tcl's usual
+    // substitution discipline. The iRules execution inventory finds its
+    // expression-language `[…]` command, and the object overlay preserves the
+    // data-group name as an `object` token.
+    let r = irules_registry();
+    let src = "when HTTP_REQUEST {\n  if {[class match [HTTP::host] equals /Common/host_dg]} { set hit 1 }\n}\n";
+    let toks = decode_with(src, "f5-irules", &r);
+    assert!(
+        toks.iter()
+            .any(|t| t.ttype == "object" && t.line == 1 && t.length == 15),
+        "the braced-expression data-group must be an object token; got {toks:?}",
+    );
+}
+
+#[test]
 fn st_irules_object_ref_suppresses_overlapping_string_in_single_line_body() {
     // In a single-line body (`when HTTP_REQUEST { pool web_pool }`) the bare
     // `web_pool` would classify as a `string`; the object overlay drops that

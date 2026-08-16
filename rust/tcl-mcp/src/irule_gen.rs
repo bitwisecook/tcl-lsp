@@ -1126,6 +1126,15 @@ mod tests {
     }
 
     #[test]
+    fn generated_test_inventory_keeps_data_groups_from_braced_expressions() {
+        let src = "when HTTP_REQUEST { if {[class match [HTTP::uri] equals expr_dg]} { pool selected_pool } }";
+        let commands = executable(src);
+        let refs = extract_object_refs(src, &commands);
+        assert_eq!(refs.pools, ["selected_pool"]);
+        assert_eq!(refs.datagroups, ["expr_dg"]);
+    }
+
+    #[test]
     fn object_refs_ignore_unavailable_aliases_and_keep_qualified_commands() {
         let src = "interp alias {} choose {} pool\nrename class group\nwhen HTTP_REQUEST { choose aliased_pool; ::pool qualified_pool; group match x equals aliased_dg }";
         let commands = executable(src);

@@ -157,6 +157,24 @@ fn context_no_irules_found_exits_1() {
     assert_eq!(stderr, "error: no iRules found in input\n");
 }
 
+#[test]
+fn trace_keeps_data_group_from_braced_expression_command() {
+    let source = "when HTTP_REQUEST { if {[class match [HTTP::host] equals braced_dg]} { pool selected_pool } }";
+    let (code, output, stderr) = run(&[
+        "irule",
+        "trace",
+        "HTTP_REQUEST",
+        "--source",
+        source,
+        "--json",
+    ]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert!(
+        output.contains("\"name\": \"braced_dg\""),
+        "the trace must retain the braced-expression data-group: {output}",
+    );
+}
+
 // `--help` must work for every sub, all of which are fully implemented.
 
 #[test]

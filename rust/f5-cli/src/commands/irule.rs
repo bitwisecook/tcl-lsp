@@ -898,7 +898,17 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
 
         let mut references: Vec<TraceRef> = Vec::new();
         let mut seen: std::collections::HashSet<(&str, String)> = std::collections::HashSet::new();
-        for reference in extract_irules_object_references(&body, None, registry) {
+        // The shared extractor proves reachability from a complete `when`
+        // declaration. Keep that execution root, then select references from
+        // the event body requested by this trace; passing `body` directly
+        // would turn every command into invalid top-level iRules text.
+        for reference in extract_irules_object_references(&entry.source, None, registry)
+            .into_iter()
+            .filter(|reference| {
+                block.body_span.start() <= reference.range.start()
+                    && reference.range.end() <= block.body_span.end()
+            })
+        {
             let Some(kind) = classify_kind(&reference.kinds) else {
                 continue;
             };

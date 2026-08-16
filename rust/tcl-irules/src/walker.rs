@@ -791,6 +791,14 @@ mod tests {
         assert_eq!(names, ["/Common/live_dg"]);
     }
 
+    #[test]
+    fn braced_expr_command_substitution_keeps_its_data_group_reference() {
+        let source = "when HTTP_REQUEST {\n\
+                      if {[class match [HTTP::host] equals /Common/braced_dg]} { set seen 1 }\n\
+                      }\n";
+        assert_eq!(ref_names(source), ["/Common/braced_dg"]);
+    }
+
     /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual
     /// recursion over nested command-substitution bodies is now capped at
     /// `MAX_WALK_DEPTH` (128). 300 nested `[…]` command substitutions is
