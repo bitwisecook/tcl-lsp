@@ -764,7 +764,13 @@ fn summary_command(findings: &Path, pair: PairArgs) -> std::process::ExitCode {
                 return std::process::ExitCode::from(2);
             }
         };
-        let summary = registry.summary();
+        let summary = match registry.summary() {
+            Ok(summary) => summary,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return std::process::ExitCode::from(2);
+            }
+        };
         let identity = release.map_or_else(
             || "unpinned".to_owned(),
             |tcl_version| format!("Tcl {}", tcl_version.version_string()),
@@ -2005,6 +2011,7 @@ mod tests {
                 .map(|(_, dir)| Registry::open(dir)
                     .unwrap()
                     .summary()
+                    .unwrap()
                     .values()
                     .sum::<usize>())
                 .sum::<usize>(),

@@ -22,7 +22,7 @@
 //! JSON record plus the raw `.tcl` script under the findings directory. The
 //! registry de-duplicates by seed and summarises by category.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
@@ -334,24 +334,42 @@ impl Registry {
     }
 
     /// Count of recorded findings per category.
-    #[must_use]
-    pub fn summary(&self) -> BTreeMap<Category, usize> {
+    #[must_use = "inspect the summary result"]
+    pub fn summary(&self) -> io::Result<BTreeMap<Category, usize>> {
         let mut counts: BTreeMap<Category, usize> = BTreeMap::new();
-        let Ok(entries) = std::fs::read_dir(&self.dir) else {
-            return counts;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
-            }
-            if let Ok(text) = std::fs::read_to_string(&path)
-                && let Ok(f) = serde_json::from_str::<Finding>(&text)
-            {
-                *counts.entry(f.category).or_default() += 1;
+        let mut seeds = BTreeSet::new();
+        for entry in std::fs::read_dir(&self.dir)? {
+            let path = entry?.path();
+            if let Some(seed) = record_seed_from_path(&path) {
+                seeds.insert(seed);
             }
         }
-        counts
+
+        for seed in seeds {
+            let paths = self.paths(seed);
+            if Self::record_state(seed, &paths)? != RecordState::Complete {
+                continue;
+            }
+            let text = std::fs::read_to_string(&paths.json)?;
+            let finding = serde_json::from_str::<Finding>(&text).map_err(|error| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{}: {error}", paths.json.display()),
+                )
+            })?;
+            if finding.seed != seed {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "{} records seed {}, expected {seed}",
+                        paths.json.display(),
+                        finding.seed
+                    ),
+                ));
+            }
+            *counts.entry(finding.category).or_default() += 1;
+        }
+        Ok(counts)
     }
 
     /// Load a finding while distinguishing an absent record from a damaged
@@ -434,6 +452,20 @@ fn path_exists(path: &Path) -> io::Result<bool> {
     }
 }
 
+/// Extract a finding seed from any of the four names in a record transaction.
+/// Scanning staged names as well as final names lets `summary` reject a
+/// transaction that has no final JSON left to enumerate.
+fn record_seed_from_path(path: &Path) -> Option<u64> {
+    let name = path.file_name()?.to_str()?;
+    let stem = name.strip_prefix("finding-")?;
+    let raw = stem
+        .strip_suffix(".json.stage")
+        .or_else(|| stem.strip_suffix(".tcl.stage"))
+        .or_else(|| stem.strip_suffix(".json"))
+        .or_else(|| stem.strip_suffix(".tcl"))?;
+    raw.parse().ok()
+}
+
 fn write_new_and_sync(path: &Path, contents: &[u8]) -> io::Result<()> {
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     file.write_all(contents)?;
@@ -451,6 +483,12 @@ fn promote_no_replace(stage: &Path, final_path: &Path) -> io::Result<()> {
     io::copy(&mut staged, &mut final_file)?;
     final_file.sync_all()?;
     drop(final_file);
+    if let Some(parent) = final_path.parent() {
+        // The final directory entry must be durable before its stage name is
+        // removed.  Otherwise a crash can lose both names and make replay
+        // mistake this transaction for an absent, ad-hoc seed.
+        sync_directory(parent)?;
+    }
     std::fs::remove_file(stage)
 }
 
@@ -541,7 +579,10 @@ mod tests {
             !reg.record(&f).unwrap(),
             "second record of same seed is a no-op"
         );
-        assert_eq!(reg.summary().get(&Category::StdoutMismatch), Some(&1));
+        assert_eq!(
+            reg.summary().unwrap().get(&Category::StdoutMismatch),
+            Some(&1)
+        );
         assert_eq!(reg.load(7).unwrap().subject_stdout, "2\n");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -634,6 +675,22 @@ mod tests {
         assert!(dir.join("finding-43.tcl.stage").exists());
         assert!(dir.join("finding-43.json.stage").exists());
         assert_damaged(&registry, 43);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn summary_rejects_a_staged_companion() {
+        let dir = tmp("summary-staged-companion");
+        let registry = Registry::open(&dir).unwrap();
+        let finding = test_finding(47);
+        assert!(registry.record(&finding).unwrap());
+        std::fs::write(dir.join("finding-47.json.stage"), b"staged").unwrap();
+
+        let error = registry
+            .summary()
+            .expect_err("summary must fail closed on an interrupted transaction");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("incomplete or interrupted"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
