@@ -504,6 +504,13 @@ fn list_secrets(text: &str) -> PyResult<String> {
         .map_err(|e| QueryError::new_err(e.to_string()))
 }
 
+/// Run every model-level BIG-IP configuration diagnostic as JSON.
+#[pyfunction]
+fn config_diagnostics(text: &str) -> PyResult<String> {
+    serde_json::to_string(&bigip_report_gen_rust::collect_config_diagnostics(text))
+        .map_err(|e| QueryError::new_err(e.to_string()))
+}
+
 /// Syntax-highlight an iRule/Tcl source string to HTML.
 ///
 /// Uses the real [`tcl_lexer`] tokeniser (the same one the LSP/compiler use) with
@@ -650,6 +657,7 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sys_file_ssl_keys, m)?)?;
     m.add_function(wrap_pyfunction!(decrypt_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
+    m.add_function(wrap_pyfunction!(config_diagnostics, m)?)?;
     m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
     m.add_function(wrap_pyfunction!(render_markdown, m)?)?;
     m.add_function(wrap_pyfunction!(order_events, m)?)?;

@@ -62,8 +62,8 @@ pub use forensics::collect_forensics;
 pub use lifecycle::{K5903_URL, bigip_release_lifecycle};
 pub use markdown::render_markdown;
 pub use model::{
-    ENGINE_VERSION, GIT_DESCRIBE, GIT_HASH, collect_model, collect_model_full,
-    collect_model_with_architecture, collect_model_with_certs,
+    ENGINE_VERSION, GIT_DESCRIBE, GIT_HASH, collect_config_diagnostics, collect_model,
+    collect_model_full, collect_model_with_architecture, collect_model_with_certs,
 };
 pub use query::{ReportError, Source};
 pub use render::{RenderOptions, build_report};

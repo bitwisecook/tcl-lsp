@@ -60,6 +60,22 @@
 <div class="chip {{ tone }}{{ ' chip-link' if target }}"{% if target %} data-target="{{ target }}" role="button" tabindex="0" title="Go to {{ label }}"{% endif %}><span class="chip-val">{{ value }}</span><span class="chip-lbl">{{ label }}</span></div>
 {% endmacro %}
 
+{#: Model-level BIG-IP configuration findings, routed to their owning tab. :#}
+{% macro config_diagnostics(items) %}
+{% if items %}
+<section class="config-diags" aria-label="Configuration diagnostics">
+  <div class="config-diags-head">Configuration diagnostics <span class="n">{{ items | length }}</span></div>
+  {% for x in items %}
+  <div class="config-diag {{ x.severity }} searchable" data-search="{{ x.code }} {{ x.message }}">
+    <span class="diag-code">{{ x.code }}</span>
+    <span class="diag-message">{{ x.message }}</span>
+    <span class="diag-severity">{{ x.severity }}</span>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+{% endmacro %}
+
 {#: Render a firewall rule endpoint (source / destination) compactly. :#}
 {% macro fw_endpoint(e) %}
 {%- if not e or (not e.addresses and not e.addressLists and not e.ports and not e.portLists) -%}
@@ -234,6 +250,7 @@
 
   {#: ---------------- Virtual Servers ---------------- :#}
   <div class="panel{% if not front_matter_html %} active{% endif %}" data-panel="virtuals">
+    {{ config_diagnostics(d.virtualDiagnostics) }}
     <div class="app-bar">
       <span class="app-bar-lbl">Bundle as app:</span>
       <input class="app-name" type="text" placeholder="App name…" maxlength="60" aria-label="App name">
@@ -270,6 +287,7 @@
 
   {#: ---------------- Pools ---------------- :#}
   <div class="panel" data-panel="pools">
+    {{ config_diagnostics(d.poolDiagnostics) }}
     <div class="tablewrap">
     <table class="grid">
       <thead><tr>
@@ -346,6 +364,7 @@
 
   {#: ---------------- iRules ---------------- :#}
   <div class="panel" data-panel="rules">
+    {{ config_diagnostics(d.ruleDiagnostics) }}
     <div class="tablewrap">
     <table class="grid">
       <thead><tr><th></th><th>Name</th><th>Events</th><th>Lines</th><th>Attached To</th></tr></thead>
@@ -367,6 +386,7 @@
 
   {#: ---------------- Data Groups ---------------- :#}
   <div class="panel" data-panel="dataGroups">
+    {{ config_diagnostics(d.dataGroupDiagnostics) }}
     <div class="tablewrap">
     <table class="grid">
       <thead><tr><th></th><th>Name</th><th>Type</th><th>Records</th><th>Used By</th></tr></thead>

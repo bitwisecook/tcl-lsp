@@ -19181,7 +19181,7 @@ fn lift_xc_diagnostics(
 }
 
 /// BIG-IP config diagnostics (`BIGIP6001`–
-/// `BIGIP6011`).  BIG-IP `.conf` text is not Tcl source — it has its own
+/// `BIGIP6012`).  BIG-IP `.conf` text is not Tcl source — it has its own
 /// model-level validator
 /// ([`tcl_bigip::validator::validate_bigip_source`]).  Codes the
 /// editor disabled via `tclLsp.diagnostics.<CODE> = false` are filtered.

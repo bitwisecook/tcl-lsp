@@ -40,6 +40,9 @@ use serde::Deserialize;
 mod walker;
 pub use walker::{IrulesObjectReference, extract_irules_object_references, object_ref_spans};
 
+mod event_handlers;
+pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
+
 mod specs {
     use super::Deserialize;
 

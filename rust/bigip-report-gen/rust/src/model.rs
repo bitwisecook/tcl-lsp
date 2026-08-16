@@ -36,6 +36,78 @@ use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use crate::query::{Source, query};
 
+/// Explicit report ownership for every current model-level BIG-IP diagnostic.
+const CONFIG_DIAGNOSTIC_TABS: &[(&str, &str)] = &[
+    ("BIGIP6001", "rules"),
+    ("BIGIP6002", "rules"),
+    ("BIGIP6003", "virtuals"),
+    ("BIGIP6004", "virtuals"),
+    ("BIGIP6005", "virtuals"),
+    ("BIGIP6006", "dataGroups"),
+    ("BIGIP6007", "rules"),
+    ("BIGIP6008", "pools"),
+    ("BIGIP6009", "virtuals"),
+    ("BIGIP6010", "virtuals"),
+    ("BIGIP6011", "dataGroups"),
+    ("BIGIP6012", "virtuals"),
+];
+
+/// Report tab that owns a model-level BIG-IP configuration diagnostic. New
+/// codes remain visible in Virtual Servers until explicitly classified above.
+fn config_diagnostic_tab(code: &str) -> &'static str {
+    CONFIG_DIAGNOSTIC_TABS
+        .iter()
+        .find_map(|(known, tab)| (*known == code).then_some(*tab))
+        .unwrap_or("virtuals")
+}
+
+/// Run the shared BIG-IP config validator and expose every finding to the
+/// report. The complete list is retained as `configDiagnostics`; routed lists
+/// let the template render findings in the tab where they are actionable.
+#[must_use]
+pub fn collect_config_diagnostics(source: &str) -> J {
+    use tcl_bigip::validator::{DiagSeverity, validate_bigip_source};
+
+    let mut all = Vec::new();
+    for diagnostic in validate_bigip_source(source, "Common") {
+        let tab = config_diagnostic_tab(&diagnostic.code);
+        let item = serde_json::json!({
+            "code": diagnostic.code,
+            "message": diagnostic.message,
+            "severity": match diagnostic.severity {
+                DiagSeverity::Warning => "warning",
+                DiagSeverity::Hint => "hint",
+            },
+            "line": diagnostic.range.start.line + 1,
+            "column": diagnostic.range.start.character + 1,
+            "tab": tab,
+        });
+        all.push(item);
+    }
+    J::Array(all)
+}
+
+fn add_config_diagnostics(device: &mut Map<String, J>, source: &str) {
+    let J::Array(all) = collect_config_diagnostics(source) else {
+        unreachable!("config diagnostics are always an array")
+    };
+    let mut routed: HashMap<String, Vec<J>> = HashMap::new();
+    for item in &all {
+        let tab = item.get("tab").and_then(J::as_str).unwrap_or("virtuals");
+        routed.entry(tab.to_owned()).or_default().push(item.clone());
+    }
+
+    for (tab, key) in [
+        ("virtuals", "virtualDiagnostics"),
+        ("rules", "ruleDiagnostics"),
+        ("pools", "poolDiagnostics"),
+        ("dataGroups", "dataGroupDiagnostics"),
+    ] {
+        device.insert(key.into(), J::Array(routed.remove(tab).unwrap_or_default()));
+    }
+    device.insert("configDiagnostics".into(), J::Array(all));
+}
+
 /// The engine version string embedded in the report header.
 ///
 /// `tcl_version::VERSION`, not `CARGO_PKG_VERSION`: the workspace manifest
@@ -1500,6 +1572,7 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
                 .unwrap_or_default(),
         ),
     );
+    add_config_diagnostics(&mut device, source);
 
     for (key, container) in CONTAINERS {
         let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
@@ -1856,6 +1929,11 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
         o.values().filter_map(J::as_array).map(Vec::len).sum()
     });
     counts.insert("orphans".into(), J::from(orphan_total));
+    let diagnostic_total = device
+        .get("configDiagnostics")
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("configDiagnostics".into(), J::from(diagnostic_total));
     let apps_total = device.get("apps").and_then(J::as_array).map_or(0, Vec::len);
     counts.insert("apps".into(), J::from(apps_total));
     let cert_total = device
@@ -2090,6 +2168,64 @@ mod app_tests {
         let b = apps[1].as_object().unwrap();
         assert_eq!(bstr(b, "name"), "store"); // ".app" stripped
         assert_eq!(bstr(b, "source"), "iapp");
+    }
+}
+
+#[cfg(test)]
+mod config_diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn every_current_config_diagnostic_has_an_explicit_report_tab() {
+        let expected = [
+            ("BIGIP6001", "rules"),
+            ("BIGIP6002", "rules"),
+            ("BIGIP6003", "virtuals"),
+            ("BIGIP6004", "virtuals"),
+            ("BIGIP6005", "virtuals"),
+            ("BIGIP6006", "dataGroups"),
+            ("BIGIP6007", "rules"),
+            ("BIGIP6008", "pools"),
+            ("BIGIP6009", "virtuals"),
+            ("BIGIP6010", "virtuals"),
+            ("BIGIP6011", "dataGroups"),
+            ("BIGIP6012", "virtuals"),
+        ];
+        for (code, tab) in expected {
+            assert_eq!(config_diagnostic_tab(code), tab, "routing for {code}");
+        }
+    }
+
+    #[test]
+    fn report_model_preserves_and_routes_validator_output() {
+        let source = "ltm pool /Common/empty {\n}\n\
+                      ltm data-group internal /Common/bad {\n  type ip\n  records {\n    nope { }\n  }\n}\n\
+                      ltm rule /Common/a {\n  when HTTP_REQUEST { one }\n}\n\
+                      ltm rule /Common/b {\n  when HTTP_REQUEST { two }\n}\n\
+                      ltm virtual /Common/vs {\n  rules { /Common/a /Common/b }\n}\n";
+        let mut device = Map::new();
+        add_config_diagnostics(&mut device, source);
+
+        let codes = |key: &str| {
+            device[key]
+                .as_array()
+                .expect("diagnostic array")
+                .iter()
+                .filter_map(|item| item["code"].as_str())
+                .collect::<Vec<_>>()
+        };
+        assert!(codes("poolDiagnostics").contains(&"BIGIP6008"));
+        assert!(codes("dataGroupDiagnostics").contains(&"BIGIP6011"));
+        assert!(codes("virtualDiagnostics").contains(&"BIGIP6012"));
+        assert_eq!(
+            device["configDiagnostics"].as_array().map(Vec::len),
+            Some(
+                device["virtualDiagnostics"].as_array().unwrap().len()
+                    + device["ruleDiagnostics"].as_array().unwrap().len()
+                    + device["poolDiagnostics"].as_array().unwrap().len()
+                    + device["dataGroupDiagnostics"].as_array().unwrap().len()
+            )
+        );
     }
 }
 

@@ -137,6 +137,19 @@ tr.part-hidden{display:none !important}
 .insight.ok .dot{background:var(--green)} .insight.warn{border-color:color-mix(in srgb,var(--amber) 40%,var(--line))}
 .insight.danger .dot{background:var(--red)} .insight.danger{border-color:color-mix(in srgb,var(--red) 45%,var(--line))}
 
+/* Model-level BIG-IP configuration diagnostics shown in the tab where the
+   operator can act on them. These are distinct from the opt-in inline iRule
+   analyser overlay. */
+.config-diags{display:grid;gap:6px;margin:0 0 14px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.config-diags-head{font-weight:650;margin-bottom:2px}
+.config-diags-head .n{margin-left:5px}
+.config-diag{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:7px 9px;border-left:3px solid var(--amber);border-radius:5px;background:var(--bg)}
+.config-diag.hint{border-left-color:var(--blue)}
+.diag-code{font-family:var(--mono);font-size:12px;font-weight:700}
+.diag-message{min-width:0}
+.diag-severity{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+@media (max-width:620px){.config-diag{grid-template-columns:1fr}.diag-severity{display:none}}
+
 .tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:14px}
 .tab{padding:9px 14px;border:none;background:none;color:var(--muted);cursor:pointer;font-weight:600;
   border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:7px}

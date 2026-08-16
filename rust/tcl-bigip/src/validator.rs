@@ -39,11 +39,13 @@
 //! - **BIGIP6009** (WARNING): virtual server has a duplicate iRule attachment
 //! - **BIGIP6010** (HINT): iRule `persist` references a profile not on the virtual
 //! - **BIGIP6011** (WARNING): invalid IP address in an IP-type data-group record
+//! - **BIGIP6012** (WARNING): attached iRules handle an event at the same priority
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::LazyLock;
 
 use regex::Regex;
+use tcl_irules::extract_irules_event_handlers;
 use tcl_lexer::LineIndex;
 
 use crate::lint::{ModelView, resolve_name};
@@ -323,6 +325,51 @@ fn check_virtual_rules(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
     }
 }
 
+/// BIGIP6012: two or more iRules attached to a virtual server handle the same
+/// event at the same effective priority.
+fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
+    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    for (_path, vs) in view.virtual_servers.iter() {
+        let mut handlers: BTreeMap<(String, u16), BTreeSet<String>> = BTreeMap::new();
+        for rule_ref in vs.rules.paths() {
+            let Some(resolved) = resolve_name(&rule_ref, &view.rules, view.default_partition)
+            else {
+                continue;
+            };
+            let Some(rule) = view.rules.get(&resolved) else {
+                continue;
+            };
+            for handler in extract_irules_event_handlers(&rule.source, registry) {
+                handlers
+                    .entry((handler.event, handler.priority))
+                    .or_default()
+                    .insert(rule.name.clone());
+            }
+        }
+
+        for ((event, priority), rules) in handlers {
+            if rules.len() < 2 {
+                continue;
+            }
+            let names = rules
+                .iter()
+                .map(|name| format!("'{name}'"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push(ConfigDiagnostic {
+                code: "BIGIP6012".to_owned(),
+                message: format!(
+                    "Virtual server '{}' attaches iRules {names} which all handle event \
+                     '{event}' at priority {priority}; execution order between them is ambiguous.",
+                    vs.name
+                ),
+                severity: DiagSeverity::Warning,
+                range: object_range(vs.range),
+            });
+        }
+    }
+}
+
 /// BIGIP6005: virtual references a pool not found in config.
 fn check_virtual_pools(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
     for (_path, vs) in view.virtual_servers.iter() {
@@ -535,6 +582,7 @@ pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
 
     // Virtual-server reference checks.
     check_virtual_rules(&view, &mut out);
+    check_virtual_rule_priority_conflicts(&view, &mut out);
     check_virtual_pools(&view, &mut out);
     check_virtual_profile_requirements(&view, &mut out);
     check_virtual_persistence(&view, &mut out);
@@ -656,6 +704,48 @@ mod tests {
     fn bigip6009_fires_for_duplicate_irule_attachment() {
         let src = "ltm rule /Common/r {\n  when HTTP_REQUEST { }\n}\nltm virtual /Common/vs {\n  rules {\n    /Common/r\n    /Common/r\n  }\n}\n";
         assert!(has(src, "BIGIP6009"));
+    }
+
+    #[test]
+    fn bigip6012_fires_for_implicit_priority_conflict() {
+        let src = "ltm rule /Common/first {\n  when HTTP_REQUEST { one }\n}\n\
+                   ltm rule /Common/second {\n  when HTTP_REQUEST { two }\n}\n\
+                   ltm virtual /Common/vs {\n  rules { /Common/first /Common/second }\n}\n";
+        let diagnostics = validate_bigip_source(src, "Common");
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "BIGIP6012")
+            .expect("same implicit priority conflicts");
+        assert_eq!(diagnostic.severity, DiagSeverity::Warning);
+        assert!(diagnostic.message.contains("HTTP_REQUEST"));
+        assert!(diagnostic.message.contains("priority 500"));
+        assert!(diagnostic.message.contains("first"));
+        assert!(diagnostic.message.contains("second"));
+    }
+
+    #[test]
+    fn bigip6012_honours_top_level_priority_and_inline_override() {
+        let src = "ltm rule /Common/first {\n  priority 200\n  when HTTP_REQUEST { one }\n}\n\
+                   ltm rule /Common/second {\n  priority 100\n  when CLIENT_ACCEPTED { ignored }\n  priority 200\n  when HTTP_REQUEST { two }\n  when HTTP_RESPONSE priority 300 { three }\n}\n\
+                   ltm rule /Common/third {\n  when HTTP_RESPONSE priority 300 { four }\n}\n\
+                   ltm virtual /Common/vs {\n  rules { /Common/first /Common/second /Common/third }\n}\n";
+        let diagnostics: Vec<_> = validate_bigip_source(src, "Common")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "BIGIP6012")
+            .collect();
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics[0].message.contains("HTTP_REQUEST"));
+        assert!(diagnostics[0].message.contains("priority 200"));
+        assert!(diagnostics[1].message.contains("HTTP_RESPONSE"));
+        assert!(diagnostics[1].message.contains("priority 300"));
+    }
+
+    #[test]
+    fn bigip6012_quiet_for_different_priorities_or_events() {
+        let src = "ltm rule /Common/first {\n  when HTTP_REQUEST priority 100 { one }\n}\n\
+                   ltm rule /Common/second {\n  when HTTP_REQUEST priority 200 { two }\n  when HTTP_RESPONSE priority 100 { three }\n}\n\
+                   ltm virtual /Common/vs {\n  rules { /Common/first /Common/second }\n}\n";
+        assert!(!has(src, "BIGIP6012"));
     }
 
     #[test]
