@@ -1032,6 +1032,23 @@ fn st_irules_custom_registry_proc_is_a_declaration() {
 }
 
 #[test]
+fn st_irules_event_fallback_survives_generic_tcl_registry() {
+    // `when EVENT` has intentionally been event-coloured in generic Tcl
+    // buffers for years.  The active generic registry has no iRules `when`
+    // spec, so the declaration-boundary candidate set must retain the
+    // built-in iRules fallback as well as workspace extensions.
+    let src = "when HTTP_REQUEST {}\n";
+    let toks = decode(src, "tcl8.6");
+    assert_eq!(
+        toks.iter()
+            .find(|t| t.line == 0 && t.character == 5)
+            .map(|t| t.ttype.as_str()),
+        Some("event"),
+        "generic Tcl must retain dialect-independent event colouring: {toks:?}",
+    );
+}
+
+#[test]
 fn st_irules_declaration_boundary_tracks_resolved_head_identity() {
     // The shared top-level boundary owner resolves command identity at the
     // source offset: redefining `when` means the later spelling is no longer

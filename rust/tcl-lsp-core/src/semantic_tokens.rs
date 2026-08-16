@@ -1235,6 +1235,21 @@ fn irules_top_level_declaration_heads(
         .map(|handler| handler.span.start())
         .collect();
 
+    // Keep the dialect-independent generic-Tcl fallback for built-in iRules
+    // event handlers.  The active registry carries workspace extensions, but
+    // a generic registry does not include `when`; dropping the process-wide
+    // iRules candidates here regresses the existing `when EVENT` colouring in
+    // plain Tcl buffers.
+    heads.extend(
+        tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
+            source,
+            irules_registry(),
+            identities,
+        )
+        .into_iter()
+        .map(|handler| handler.span.start()),
+    );
+
     // The shared syntax boundary parser intentionally models `when`'s
     // handler-specific grammar.  Procedure declarations use the same
     // top-level lexer stream and the registry's declaration-shape owner.
