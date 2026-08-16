@@ -4491,18 +4491,21 @@ mod tests {
             );
         }
 
-        // `-str` can name only -stride in Tcl 9.  Pre-9 metadata must not
-        // consume it as a future switch (nor let its value shift the pattern).
+        // `-str` can name only -stride in Tcl 9.  Pre-9 interpreters reject
+        // it, so the resolver must abstain rather than treating an invalid
+        // dash-prefixed word as the list operand and inventing a pattern.
         let stride_abbrev = ["-str", "2", "{a b}", "a+"];
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
             let registry = crate::registry_for_dialect(dialect);
-            assert_eq!(
-                registry.pattern_args("lsearch", &stride_abbrev),
-                vec![PatternArg {
-                    index: 1,
-                    kind: PatternType::Glob,
-                }],
-                "{dialect}: unavailable -stride abbreviation remains positional"
+            assert!(
+                registry.pattern_args("lsearch", &stride_abbrev).is_empty(),
+                "{dialect}: unavailable -stride abbreviation invalidates the invocation"
+            );
+            assert!(
+                registry
+                    .arg_indices_for_role("lsearch", &stride_abbrev, ArgRole::Pattern)
+                    .is_empty(),
+                "{dialect}: pattern roles abstain with the invalid invocation"
             );
         }
         for dialect in ["tcl9.0", "tcl9.1"] {
@@ -4520,6 +4523,45 @@ mod tests {
                 registry.arg_indices_for_role("lsearch", &stride_abbrev, ArgRole::Pattern),
                 vec![3],
                 "{dialect}: roles, hover, and tokens share the Tcl 9 layout"
+            );
+        }
+
+        // In Tcl 9 `-st` is ambiguous between -start and -stride. Unknown
+        // words and unsupported `--` likewise cannot be reclassified as the
+        // list operand while the mandatory suffix is still reserved.
+        for args in [
+            ["-st", "2", "{a b}", "a+"].as_slice(),
+            ["-unknown", "{a b}", "a+"].as_slice(),
+            ["--", "{a b}", "a+"].as_slice(),
+        ] {
+            let registry = crate::registry_for_dialect("tcl9.0");
+            assert!(
+                registry.pattern_args("lsearch", args).is_empty(),
+                "Tcl 9 invalid option prefix {args:?} must abstain"
+            );
+            assert!(
+                registry
+                    .arg_indices_for_role("lsearch", args, ArgRole::Pattern)
+                    .is_empty(),
+                "Tcl 9 invalid option prefix {args:?} must have no pattern role"
+            );
+        }
+
+        // The final two words are always the mandatory list + pattern, even
+        // when their spelling would otherwise be an invalid option.
+        for args in [
+            ["{a b}", "-unknown"].as_slice(),
+            ["-regexp", "--"].as_slice(),
+            ["-regexp", "-st"].as_slice(),
+        ] {
+            let registry = crate::registry_for_dialect("tcl9.0");
+            assert_eq!(
+                registry.pattern_args("lsearch", args),
+                vec![PatternArg {
+                    index: 1,
+                    kind: PatternType::Glob,
+                }],
+                "Tcl 9 final operands {args:?} stay positional"
             );
         }
     }

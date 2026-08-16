@@ -6675,13 +6675,15 @@ mod tests {
     }
 
     #[test]
-    fn lsearch_pattern_tokens_follow_profiled_stride_abbreviations() {
-        // `-str` is only lsearch -stride from Tcl 9.  The final `{a+}` is
-        // regex only after that profile-visible option consumes its value.
-        let source = "lsearch -regexp -str 2 {a b} {a+}\n";
+    fn lsearch_pattern_tokens_abstain_for_invalid_profiled_option_prefixes() {
+        // A dash-prefixed word inside lsearch's outer option scan is not a
+        // positional list operand when it cannot resolve in that release.
+        // In each invalid call the old fallback would put the regex override
+        // on `{a+}`; the registry must instead abstain entirely.
         let registry = reg();
-        let final_pattern = u32::try_from(source.rfind("a+").expect("final pattern")).unwrap();
-        let kinds_at_final_pattern = |dialect: &str| {
+        let kinds_at_claimed_pattern = |source: &str, dialect: &str| {
+            let claimed_pattern =
+                u32::try_from(source.find("a+").expect("claimed pattern")).unwrap();
             let tokens = full(source, dialect, &registry);
             let mut line = 0u32;
             let mut column = 0u32;
@@ -6695,20 +6697,28 @@ mod tests {
                     } else {
                         column += chunk[1];
                     }
-                    (line == 0 && column <= final_pattern && final_pattern < column + chunk[2])
+                    (line == 0 && column <= claimed_pattern && claimed_pattern < column + chunk[2])
                         .then_some(chunk[3])
                 })
                 .collect::<Vec<_>>()
         };
-        let old = kinds_at_final_pattern("tcl8.6");
+
+        for (dialect, option) in [("tcl8.6", "-str"), ("tcl9.0", "-st"), ("tcl9.0", "--")] {
+            let source = format!("lsearch -regexp {option} {{a+}} {{a b}} x\n");
+            let kinds = kinds_at_claimed_pattern(&source, dialect);
+            assert!(
+                !kinds.contains(&(TokenKind::Regexp as u32)),
+                "{dialect} {option} is invalid inside the option scan: {kinds:?}"
+            );
+        }
+
+        // Tcl 9's unique -str abbreviation does consume its stride value,
+        // so the real final pattern remains regex-classified.
+        let source = "lsearch -regexp -str 2 {a b} {a+}\n";
+        let kinds = kinds_at_claimed_pattern(source, "tcl9.0");
         assert!(
-            !old.contains(&(TokenKind::Regexp as u32)),
-            "tcl8.6 must not consume unavailable -stride: {old:?}"
-        );
-        let new = kinds_at_final_pattern("tcl9.0");
-        assert!(
-            new.contains(&(TokenKind::Regexp as u32)),
-            "tcl9.0 must parse -str as -stride: {new:?}"
+            kinds.contains(&(TokenKind::Regexp as u32)),
+            "tcl9.0 must parse -str as -stride: {kinds:?}"
         );
     }
 

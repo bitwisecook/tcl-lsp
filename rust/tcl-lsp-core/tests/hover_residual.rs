@@ -59,8 +59,12 @@ use tcl_registry::CommandRegistry;
 // ------------------------------------------------------------------
 
 fn analyse(source: &str) -> AnalysisResult {
+    analyse_for_dialect(source, "tcl8.6")
+}
+
+fn analyse_for_dialect(source: &str, dialect: &str) -> AnalysisResult {
     let mut a = Analyser::new();
-    a.analyse(source, "tcl8.6").clone()
+    a.analyse(source, dialect).clone()
 }
 
 fn registry() -> CommandRegistry {
@@ -226,6 +230,36 @@ fn residual_hover_lsearch_dynamic_mode_keeps_pattern_ambiguous() {
         hover(src, 0, 21, &analysis, None).is_none(),
         "a dynamic lsearch option prefix must not claim a glob/regex hover"
     );
+}
+
+#[test]
+fn residual_hover_lsearch_invalid_option_prefix_abstains() {
+    // A dash-prefixed literal before lsearch's final list + pattern operands
+    // remains in Tcl's option scan. These spellings are rejected rather than
+    // becoming the list operand: -str is unavailable in Tcl 8, -st is
+    // ambiguous in Tcl 9, and lsearch does not support --.
+    for (dialect, option) in [("tcl8.6", "-str"), ("tcl9.0", "-st"), ("tcl9.0", "--")] {
+        let src = format!("lsearch -regexp {option} {{a+}} {{a b}} x\n");
+        let analysis = analyse_for_dialect(&src, dialect);
+        let plus = u32::try_from(src.find('+').expect("pattern plus") + 1)
+            .expect("source position fits LSP coordinate");
+        assert!(
+            hover(&src, 0, plus, &analysis, None).is_none(),
+            "{dialect} {option} is invalid inside lsearch's option scan and must not claim a regex hover"
+        );
+    }
+}
+
+#[test]
+fn residual_hover_lsearch_final_option_shaped_operands_stay_positional() {
+    // With exactly two arguments, both are mandatory operands. `-regexp` is
+    // the list, not a switch, so the final `{-x*}` keeps lsearch's default
+    // glob language even though the list operand looks option-shaped.
+    let src = "lsearch -regexp {-x*}\n";
+    let analysis = analyse(src);
+    let h = hover(src, 0, 20, &analysis, None).expect("positional glob hover");
+    assert!(h.value.contains("Glob pattern"), "{}", h.value);
+    assert!(h.value.contains("any sequence"), "{}", h.value);
 }
 
 // ==================================================================

@@ -246,6 +246,17 @@ fn lsearch_pattern_args(
         let word = args[option_end];
         let Some(option) = crate::patterns::resolve_available_option_prefix(context.options, word)
         else {
+            // This is still Tcl's outer option region, not a free-form
+            // positional prefix. A dash-prefixed literal that cannot resolve
+            // in this release is an invalid invocation: it may be unknown,
+            // ambiguous, `--` (which lsearch does not support), or name an
+            // option introduced by a later release. Do not invent a pattern
+            // position after an invocation the interpreter rejects. A
+            // non-option word, by contrast, is the mandatory list operand
+            // and ends the scan normally.
+            if word.starts_with('-') {
+                return Vec::new();
+            }
             break;
         };
         // The matching-style options are mutually overriding: the final one
