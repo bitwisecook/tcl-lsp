@@ -98,6 +98,7 @@
   {{ chip('Data Groups', totals.dataGroups, '', 'dataGroups') }}
   {{ chip('Orphaned Objects', totals.orphans, 'warn' if totals.orphans else 'ok') }}
   {{ chip('SSL Certificates', totals.certificates, '', 'certificates') }}
+  {{ chip('TLS Endpoints', totals.tls, '', 'tls') }}
 </section>
 
 {% if architecture and architecture.deviceCount > 1 %}
@@ -225,6 +226,7 @@
     <button class="tab" data-panel="dataGroups">Data Groups <span class="n">{{ d.counts.dataGroups }}</span></button>
     <button class="tab" data-panel="profiles">Profiles <span class="n">{{ d.counts.profiles }}</span></button>
     <button class="tab" data-panel="certificates">SSL Certificates <span class="n">{{ d.counts.certificates }}</span></button>
+    <button class="tab" data-panel="tls">TLS Assurance <span class="n">{{ d.counts.tls }}</span></button>
     <button class="tab" data-panel="security">Security{% if d.counts.security %} <span class="n">{{ d.counts.security }}</span>{% endif %}</button>
     {% if d.counts.secrets %}<button class="tab" data-panel="secrets">Secrets <span class="n">{{ d.counts.secrets }}</span></button>{% endif %}
     {% if d.counts.apmProfiles %}<button class="tab" data-panel="apm">APM <span class="n">{{ d.counts.apmProfiles }}</span></button>{% endif %}
@@ -427,6 +429,13 @@
       </tbody>
     </table>
     </div>
+    {% if d.tls.profileDefaultEvidence %}
+    <h3>Versioned security-default evidence</h3>
+    <p class="lm-field-note">Security-relevant fields are compared with the embedded defaults for this device's exact TMOS version. <b>Unknown version</b> is retained as an evidence gap; the newest defaults are never guessed.</p>
+    <div class="tablewrap"><table class="grid"><thead><tr><th>Profile</th><th>Type</th><th>Field</th><th>Configured</th><th>Factory default</th><th>State</th></tr></thead><tbody>
+    {% for e in d.tls.profileDefaultEvidence %}{% if e.securityRelevant %}<tr class="searchable" data-search="{{ e.owner }} {{ e.profileType }} {{ e.field }} {{ e.state }}"><td class="mono">{{ e.owner | leaf }}</td><td>{{ e.profileType }}</td><td class="mono small">{{ e.field }}</td><td class="mono small">{{ e.configured or '—' }}</td><td class="mono small">{{ e.defaultValue or 'unknown' }}</td><td><span class="tag {% if e.state == 'explicit' %}blue{% elif e.state == 'unknown-version' %}amber{% else %}green{% endif %}">{{ e.state }}</span></td></tr>{% endif %}{% endfor %}
+    </tbody></table></div>
+    {% endif %}
   </div>
 
   {#: ---------------- SSL Certificates ---------------- :#}
@@ -474,6 +483,7 @@
           {% if c.fingerprint %}<div><span class="cd-k">Fingerprint</span><span class="mono small">{{ c.fingerprint }}</span></div>{% endif %}
           {% if c.serialNumber %}<div><span class="cd-k">Serial</span><span class="mono small">{{ c.serialNumber }}</span></div>{% endif %}
           {% if c.chain %}<div class="cert-chain"><span class="cd-k">Chain</span>
+            {% if c.chainStatus %}<span class="tag {% if c.chainStatus == 'valid' %}green{% elif c.chainStatus in ['invalid', 'untrusted'] %}red{% else %}amber{% endif %}">{{ c.chainStatus }}</span>{% endif %}
             <ol class="chain-list">
             {% for link in c.chain %}
               {% if link.role == 'gap' %}<li class="chain-gap"><span class="tag amber">chain incomplete — issuer <span class="mono">{{ link.cn }}</span> not in config</span></li>
@@ -481,7 +491,8 @@
             {% endfor %}
             </ol>
           </div>{% endif %}
-          {% if c.hasKey %}<div><span class="cd-k">Private key</span><span class="mono small">{{ c.keyPath | leaf }}{% if c.keySecurityType %} · {{ c.keySecurityType }}{% endif %}{% if c.keyPassphrase %} · passphrase {% if c.keyPassphraseEncrypted %}<span class="tag amber">encrypted — supply the f5mku master key to reveal</span>{% else %}<code class="secret">{{ c.keyPassphrase }}</code>{% endif %}{% endif %}</span></div>{% endif %}
+          {% if c.chainFindings %}<div><span class="cd-k">Chain findings</span><span class="small">{% for f in c.chainFindings %}<span class="tag amber" title="{{ f.message }}">{{ f.kind }}</span>{% endfor %}</span></div>{% endif %}
+          <div><span class="cd-k">Private key</span>{% if c.hasKey %}<span class="mono small">{{ c.keyPath | leaf }}{% if c.keySecurityType %} · {{ c.keySecurityType }}{% endif %}{% if c.keyPassphrase %} · passphrase {% if c.keyPassphraseEncrypted %}<span class="tag amber">encrypted — supply the f5mku master key to reveal</span>{% else %}<code class="secret">{{ c.keyPassphrase }}</code>{% endif %}{% endif %}</span> · {% endif %}<span class="tag {% if c.keyMatch.status == 'match' %}green{% elif c.keyMatch.status == 'mismatch' %}red{% else %}amber{% endif %}">{{ c.keyMatch.status }}</span> <span class="small">{{ c.keyMatch.message }}</span></div>
           {% if c.usedByProfiles %}<div><span class="cd-k">Profiles</span><span class="mono small">{{ c.usedByProfiles | join(', ') }}</span></div>{% endif %}
           {% if c.sourcePath %}<div><span class="cd-k">Source</span><span class="mono small">{{ c.sourcePath }}</span></div>{% endif %}
         </div>
@@ -492,6 +503,60 @@
     </div>
     {% else %}
     <p class="hint">No <code>sys file ssl-cert</code> objects in this config. A UCS backup or a full config save (<code>tmsh save sys config</code>) includes them; a partial <code>bigip.conf</code> that only defines LTM objects may not.</p>
+    {% endif %}
+  </div>
+
+  {#: ---------------- TLS assurance ---------------- :#}
+  <div class="panel" data-panel="tls">
+    <p class="lm-field-note">Offline TLS assurance from the shared SslicTcl engine. It resolves BIG-IP profile inheritance and TMOS-version defaults, preserves every <code>cert-key-chain</code> SNI variant, verifies certificate signatures and constraints against embedded client trust programs, and gives a transparent SSL Labs-style <b>estimate</b>. This is configuration analysis, not a live handshake: grades include a confidence value and never make a network request.</p>
+    {% if d.tls.provenance %}
+    <div class="insight"><span class="dot"></span>Analysed at Unix time {{ d.tls.analysisTime }} · trust snapshot {{ d.tls.provenance.generated_at }} · schema {{ d.tls.provenance.schema }} · DER available for {{ d.tls.trustCoverage.der.complete }}/{{ d.tls.trustCoverage.der.total }} anchors. {{ d.tls.provenance.notice }}</div>
+    <div class="small">Known server-auth policy memberships: <span class="tag blue">{{ d.tls.trustCoverage.serverAuthPolicy.complete }}/{{ d.tls.trustCoverage.serverAuthPolicy.total }}</span> · Client-program anchors: {% for client, coverage in d.tls.trustCoverage.clients | items %}<span class="tag">{{ client }} {{ coverage.anchors }}{% if coverage.productRanges %} · {{ coverage.productRanges }} version ranges{% endif %}</span>{% endfor %} · Declared anchor purposes: {% for purpose, count in d.tls.trustCoverage.purposes | items %}<span class="tag blue">{{ purpose }} {{ count }}</span>{% endfor %}</div>
+    {% endif %}
+    {% if d.tls.notices %}
+    <section class="config-diags" aria-label="TLS adapter notices">
+      <div class="config-diags-head">Analysis notices <span class="n">{{ d.tls.notices | length }}</span></div>
+      {% for n in d.tls.notices %}<div class="config-diag hint searchable" data-search="{{ n.kind }} {{ n.object }} {{ n.message }}"><span class="diag-code">{{ n.kind }}</span><span class="diag-message"><span class="mono">{{ n.object | leaf }}</span> — {{ n.message }}</span><span class="diag-severity">evidence</span></div>{% endfor %}
+    </section>
+    {% endif %}
+    {% if d.tls.profiles %}
+    <h3>Effective SSL profiles</h3>
+    <div class="tablewrap"><table class="grid"><thead><tr><th>Profile</th><th>Side</th><th>Inheritance</th><th>Certificates</th><th>iRule events</th><th>Virtuals</th></tr></thead><tbody>
+    {% for p in d.tls.profiles %}<tr class="searchable" data-search="{{ p.full_path }} {{ p.side }} {{ p.events | join(' ') }}"><td class="mono strong">{{ p.full_path | leaf }}</td><td><span class="tag blue">{{ p.side }}</span></td><td class="mono small">{{ p.inheritance_chain | join(' → ') if p.inheritance_chain else 'factory' }}</td><td class="mono small">{{ p.certificate_bindings | length }}</td><td class="mono small" title="{{ p.events | join(', ') }}">{{ p.events | length }}</td><td class="mono small">{{ p.used_by_virtuals | length }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% endif %}
+    {% if d.tls.endpoints %}
+    <div class="tablewrap">
+    <table class="grid tls-grid">
+      <thead><tr><th>Virtual</th><th>Side / SNI</th><th>Profile</th><th>Protocols</th><th>Grade</th><th>Confidence</th><th>Chain</th><th>Findings</th></tr></thead>
+      <tbody>
+      {% for e in d.tls.endpoints %}
+      <tr class="searchable expandable" data-search="{{ e.virtual_server }} {{ e.profile }} {{ e.binding }} {{ e.estimate.grade }} {% for f in e.estimate.findings %}{{ f.code }} {{ f.message }} {% endfor %}">
+        <td class="mono strong">{{ e.virtual_server | leaf }}</td>
+        <td><span class="tag blue">{{ e.side }}</span>{% if e.binding %} <span class="tag">{{ e.binding }}</span>{% endif %}</td>
+        <td class="mono small">{{ e.profile | leaf }}</td>
+        <td class="mono small">{{ e.endpoint.protocols | join(', ') if e.endpoint.protocols else 'unknown' }}</td>
+        <td><span class="tag {% if e.estimate.grade in ['A+', 'A'] %}green{% elif e.estimate.grade in ['F', 'T', 'M'] %}red{% else %}amber{% endif %}">{{ e.estimate.grade }}</span></td>
+        <td class="mono small">{{ e.estimate.confidence }}%</td>
+        <td><span class="tag {% if e.estimate.chain.status == 'valid' %}green{% elif e.estimate.chain.status in ['invalid', 'untrusted'] %}red{% else %}amber{% endif %}">{{ e.estimate.chain.status }}</span></td>
+        <td class="mono small">{{ e.estimate.findings | length }}</td>
+      </tr>
+      <tr class="detail"><td></td><td colspan="7">
+        <div class="cert-detail">
+          <div><span class="cd-k">Destination</span><span class="mono">{{ e.destination or '—' }}</span></div>
+          <div><span class="cd-k">Method</span><span class="mono small">{{ e.estimate.methodology }} · score {{ e.estimate.numeric_score }} · protocol {{ e.estimate.protocol_score }} · key exchange {{ e.estimate.key_exchange_score }} · cipher {{ e.estimate.cipher_score }}</span></div>
+          <div><span class="cd-k">Private key</span><span class="tag {% if e.key_match.status == 'match' %}green{% elif e.key_match.status == 'mismatch' %}red{% else %}amber{% endif %}">{{ e.key_match.status }}</span> <span class="small">{{ e.key_match.message }}</span></div>
+          {% if e.estimate.caps %}<div><span class="cd-k">Grade caps</span><span class="small">{{ e.estimate.caps | join('; ') }}</span></div>{% endif %}
+          {% if e.estimate.findings %}<div><span class="cd-k">Findings</span><ul>{% for f in e.estimate.findings %}<li><span class="tag {% if f.severity in ['error', 'critical'] %}red{% elif f.severity == 'warning' %}amber{% else %}blue{% endif %}">{{ f.code }}</span> {{ f.message }} <span class="muted small">({{ f.source }})</span></li>{% endfor %}</ul></div>{% endif %}
+          {% if e.estimate.chain.findings %}<div><span class="cd-k">Chain evidence</span><ul>{% for f in e.estimate.chain.findings %}<li><span class="tag amber">{{ f.kind }}</span> {{ f.message }}</li>{% endfor %}</ul></div>{% endif %}
+        </div>
+      </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="hint">No virtual server with an attached client-ssl or server-ssl profile was found.</p>
     {% endif %}
   </div>
 
@@ -523,6 +588,16 @@
     </div>
     {% else %}
     <p class="hint">No security findings were produced for this source.</p>
+    {% endif %}
+    {% if d.tls.findings %}
+    <h3>TLS assurance findings</h3>
+    <p class="lm-field-note">Certificate, chain, protocol and cipher findings are also shown here so the Security tab remains a complete actionable view. Full scores and evidence are in TLS Assurance.</p>
+    <div class="tablewrap">
+    <table class="grid security-grid">
+      <thead><tr><th>Finding</th><th>Severity</th><th>Virtual</th><th>Evidence source</th></tr></thead>
+      <tbody>{% for f in d.tls.findings %}<tr class="searchable" data-search="{{ f.code }} {{ f.message }} {{ f.virtualServer }}"><td><span class="mono">{{ f.code }}</span><div class="small">{{ f.message }}</div></td><td><span class="tag {% if f.severity in ['error', 'critical'] %}red{% elif f.severity == 'warning' %}amber{% else %}blue{% endif %}">{{ f.severity }}</span></td><td class="mono small">{{ f.virtualServer | leaf }}</td><td class="mono small">{{ f.source }}</td></tr>{% endfor %}</tbody>
+    </table>
+    </div>
     {% endif %}
   </div>
 
@@ -806,6 +881,7 @@
       client-side by topology.ts from the embedded model (shared by both
       backends). :#}
   <div class="panel" data-panel="objectIndex">
+    {{ config_diagnostics(d.objectDiagnostics) }}
     <div class="objindex-bar">
       <input type="search" class="objindex-filter" placeholder="Filter objects by name or path…" aria-label="Filter object index">
     </div>
@@ -864,6 +940,10 @@
 
   {#: ---------------- Apps (user-bundled virtual servers) ---------------- :#}
   <div class="panel" data-panel="apps">
+    {{ config_diagnostics(d.appDiagnostics) }}
+    {% if d.iappDiagnosticEvidence %}
+    <p class="lm-field-note"><b>iApp diagnostic evidence:</b> {{ d.iappDiagnosticEvidence.message }}</p>
+    {% endif %}
     <div class="apps-view"></div>
   </div>
 

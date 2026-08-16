@@ -1,0 +1,2 @@
+rust/tcl-sslictcl/data/raw/** -whitespace
+rust/tcl-sslictcl/tests/fixtures/*.tsv -whitespace

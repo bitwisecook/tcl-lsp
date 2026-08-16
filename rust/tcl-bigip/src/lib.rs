@@ -51,6 +51,7 @@ pub mod refs;
 pub mod rule_extract;
 pub mod secrets;
 pub mod stats;
+pub mod tls;
 pub mod tmsh_emit;
 pub mod validator;
 pub mod value;

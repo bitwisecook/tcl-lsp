@@ -6,7 +6,7 @@
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, TokenType};
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 /// A statically-resolved iRules event handler.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,9 +57,18 @@ pub fn extract_irules_event_handlers(
             continue;
         }
 
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let body_index = registry
+            .arg_indices_for_role(cmd.name(), &arg_refs, ArgRole::Body)
+            .into_iter()
+            .next()
+            .unwrap_or(args.len());
         let explicit = args
+            .get(1..body_index)
+            .unwrap_or(&[])
             .iter()
             .position(|arg| arg == policy.keyword)
+            .map(|relative_index| relative_index + 1)
             .map(|keyword_index| literal_u16_arg(&cmd, keyword_index + 1));
         let priority = match explicit {
             Some(priority) => priority,
@@ -143,6 +152,17 @@ mod tests {
                     priority: 500
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn body_literal_named_priority_is_not_an_inline_option() {
+        assert_eq!(
+            extract("when HTTP_REQUEST priority"),
+            vec![IrulesEventHandler {
+                event: "HTTP_REQUEST".into(),
+                priority: 500,
+            }]
         );
     }
 

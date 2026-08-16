@@ -48,6 +48,9 @@ pub struct BigipGenericObject {
     pub identifier: String,
     /// Raw header text.
     pub header: String,
+    /// Raw stanza body. This is retained for registry-driven validation of
+    /// references on object kinds that do not yet have a bespoke model.
+    pub body: String,
     /// Source span, when captured.
     pub range: Option<Range>,
 }

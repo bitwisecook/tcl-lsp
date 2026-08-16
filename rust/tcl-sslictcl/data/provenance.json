@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "trust-stores-observatory/apple",
+      "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/apple.yaml",
+      "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "MIT"
+    },
+    {
+      "id": "trust-stores-observatory/android-aosp",
+      "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/google_aosp.yaml",
+      "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "MIT"
+    },
+    {
+      "id": "trust-stores-observatory/microsoft-windows",
+      "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/microsoft_windows.yaml",
+      "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "MIT"
+    },
+    {
+      "id": "trust-stores-observatory/mozilla-nss",
+      "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/mozilla_nss.yaml",
+      "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "MIT"
+    },
+    {
+      "id": "trust-stores-observatory/openjdk",
+      "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/openjdk.yaml",
+      "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "MIT"
+    },
+    {
+      "id": "trust-stores-observatory/oracle-java",
+      "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/oracle_java.yaml",
+      "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "MIT"
+    },
+    {
+      "id": "trust-stores-observatory/pem-bundle",
+      "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/docs/trust_stores_as_pem.tar.gz",
+      "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "MIT"
+    },
+    {
+      "id": "chromium/chrome-root-store-certs",
+      "url": "https://chromium.googlesource.com/chromium/src/+/4366388b6743538e4ec9ac211acbe2b9cb4d6ca8/net/data/ssl/chrome_root_store/root_store.certs",
+      "revision": "4366388b6743538e4ec9ac211acbe2b9cb4d6ca8",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "id": "chromium/chrome-root-store-textproto",
+      "url": "https://chromium.googlesource.com/chromium/src/+/4366388b6743538e4ec9ac211acbe2b9cb4d6ca8/net/data/ssl/chrome_root_store/root_store.textproto",
+      "revision": "4366388b6743538e4ec9ac211acbe2b9cb4d6ca8",
+      "retrieved_at": "2026-08-16T12:38:20Z",
+      "license": "BSD-3-Clause"
+    }
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-sslictcl/data/generated/chrome-root-store.json",
+      "kind": "generated",
+      "sha256": "45873ce3e555336691098845e76369923b86e6ca852f766447ded215adb60016"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/generated/trust-material-exceptions.json",
+      "kind": "generated",
+      "sha256": "115e7039f2c863cdeb9f9339affdf3bc13d4800cd14b15b1da8a4d0ca92f66f2"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/generated/trust-seed.json",
+      "kind": "generated",
+      "sha256": "0d6e9e8527e3d1fd54243d92117b70853e24413c8c388d82d70ba2d8c3d67b4a"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/chrome_root_store/revision.txt",
+      "kind": "raw",
+      "sha256": "01c4475ead62c57f171a2b3a78aab217be2e80632261894725f27fabdd82e036"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/chrome_root_store/root_store.certs",
+      "kind": "raw",
+      "sha256": "3e97988887277a93e34ec48ac0a59e5b2a2a770dd859db0c19a9843255d2154a"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/chrome_root_store/root_store.textproto",
+      "kind": "raw",
+      "sha256": "15e35e8e342585094f01f46062f4b9e3e2233f8b3d245fb6010f77c80dffff8a"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/licenses/chromium-LICENSE",
+      "kind": "raw",
+      "sha256": "368cca1106be99d39ecd32a38d8305585d802a475effb66380b91ffc9bcf709b"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/licenses/trust-stores-observatory-LICENSE",
+      "kind": "raw",
+      "sha256": "ae058ee25922c30ebf0d0d67dd3ab36edf1fc4eb1f06f75e9cc194883d92fced"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/observatory-revision.txt",
+      "kind": "raw",
+      "sha256": "5a15f3077ef29aef8bcd7014a4206fecb0c4fd8841e85e12f4e852605bc018ab"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/pem/apple.pem",
+      "kind": "raw",
+      "sha256": "36bd756d1bce5a732a8bc3943c8026a9f42660ddeee7f980b52a5d9a3fdb149a"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/pem/chrome.pem",
+      "kind": "raw",
+      "sha256": "3e97988887277a93e34ec48ac0a59e5b2a2a770dd859db0c19a9843255d2154a"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/pem/google_aosp.pem",
+      "kind": "raw",
+      "sha256": "b9fdffe5bfa400cc4eeff1c0da4b6460c8db67965880b787e9c24a7d87b4ec60"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/pem/microsoft_windows.pem",
+      "kind": "raw",
+      "sha256": "f374d022898783c2356713ad05d76a0894413c91d16de38f8f80cb464f78d1ef"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/pem/mozilla_nss.pem",
+      "kind": "raw",
+      "sha256": "380b0df9d446015fe584f380005fb36fb89e0e9d086181fc48b30c96dc43493e"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/pem/openjdk.pem",
+      "kind": "raw",
+      "sha256": "f84740da38e3597c63b8f37a79615b05c3d2412e0122b1bda82e736efe0706af"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/pem/oracle_java.pem",
+      "kind": "raw",
+      "sha256": "4fa27189d15ebebaafe694357bfbdb5b8bd8c94c3b0f3b28449e61cfc079673a"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/trust_stores/apple.yaml",
+      "kind": "raw",
+      "sha256": "16daaa9955919af9e3071d68b455ddda2ca1bb55ce85e0c608ef0d0b7b75c659"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/trust_stores/google_aosp.yaml",
+      "kind": "raw",
+      "sha256": "853fedda99627015cf617b015cc78efd0782f64161934986f18403784d2aaa37"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/trust_stores/microsoft_windows.yaml",
+      "kind": "raw",
+      "sha256": "5beab9079fdd164cac98de1c7902bdec54a6374ab950e8d72877d13cd7dc7c52"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/trust_stores/mozilla_nss.yaml",
+      "kind": "raw",
+      "sha256": "2be76e4a8d01733e4f3684159f6e07e3b1e5d6185ea4f22298374ce334bb1c1e"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/trust_stores/openjdk.yaml",
+      "kind": "raw",
+      "sha256": "555babe92bf37762d3cd4cea6f0995a98b8a0dc154a70f23eea62cce0d393ee1"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/trust_stores/oracle_java.yaml",
+      "kind": "raw",
+      "sha256": "909b0a05e03c778ea6a0739f0db37367e57019cdd6b59d2aad4b9e81b6253ddc"
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/raw/trust_stores_as_pem.tar.gz",
+      "kind": "raw",
+      "sha256": "7026c6994e3b27ad21294261d6227b20209dd18d7267682b6498db5ecef4f7b2"
+    }
+  ]
+}

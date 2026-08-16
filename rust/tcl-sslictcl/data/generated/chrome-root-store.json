@@ -1,0 +1,750 @@
+{
+  "schema": 1,
+  "client": "chrome",
+  "version": "37",
+  "revision": "4366388b6743538e4ec9ac211acbe2b9cb4d6ca8",
+  "anchors": [
+    {
+      "fingerprint_sha256": "55926084ec963a64b96e2abe01ce0ba86a64fbfebcc7aab5afc155b37fd76066",
+      "crs_root_id": 3,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "18ce6cfe7bf14e60b2e347b8dfe868cb31d02ebb3ada271569f50343b46db3a4",
+      "crs_root_id": 4,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "1ba5b2aa8c65401a82960118f80bec4f62304d83cec4713a19c39c011ea46db4",
+      "crs_root_id": 5,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "8ecde6884f3d87b1125ba31ac3fcb13d7016de7f57cc904fe1cb97c6ae98196e",
+      "crs_root_id": 6,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "e35d28419ed02025cfa69038cd623962458da5c695fbdea3c22b0bfb25897092",
+      "crs_root_id": 7,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "5c58468d55f58e497e743982d2b50010b6d165374acf83a7d4a32db768c4408e",
+      "crs_root_id": 8,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "57de0583efd2b26e0361da99da9df4648def7ee8441c3b728afa9bcde0f9b26a",
+      "crs_root_id": 10,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "9a114025197c5bb95d94e63d55cd43790847b646b23cdf11ada4a00eff15fb48",
+      "crs_root_id": 11,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1761955199
+    },
+    {
+      "fingerprint_sha256": "edf7ebbca27a2a384d387b7d4010c666e2edb4843e4c29b4ae1d5b9332e6b24d",
+      "crs_root_id": 12,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1761955199
+    },
+    {
+      "fingerprint_sha256": "657cfe2fa73faa38462571f332a2363a46fce7020951710702cdfbb6eeda3305",
+      "crs_root_id": 13,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "5cc3d78e4e1d5e45547a04e6873e64f90cf9536d1ccc2ef800f355c4c5fd70fd",
+      "crs_root_id": 14,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "c0a6f4dc63a24bfdcf54ef2a6a082a0a72de35803e2ff5ff527ae5d87206dfd5",
+      "crs_root_id": 15,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1754006399
+    },
+    {
+      "fingerprint_sha256": "49e7a442acf0ea6287050054b52564b650e4f49e42e348d6aa38e039e957b1c1",
+      "crs_root_id": 16,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1780012799
+    },
+    {
+      "fingerprint_sha256": "eec5496b988ce98625b934092eec2908bed0b0f316c2d4730c84eaf1f3d34881",
+      "crs_root_id": 17,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1780012799
+    },
+    {
+      "fingerprint_sha256": "91e2f5788d5810eba7ba58737de1548a8ecacd014598bc0b143e041b17052552",
+      "crs_root_id": 18,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1780012799
+    },
+    {
+      "fingerprint_sha256": "fd73dad31c644ff1b43bef0ccdda96710b9cd9875eca7e31707af3e96d522bbd",
+      "crs_root_id": 19,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1780012799
+    },
+    {
+      "fingerprint_sha256": "d48d3d23eedb50a459e55197601c27774b9d7b18c94d5a059511a10250b93168",
+      "crs_root_id": 20,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1781481599
+    },
+    {
+      "fingerprint_sha256": "31ad6648f8104138c738f39ea4320133393e3a18cc02296ef97c2ac9ef6731d0",
+      "crs_root_id": 21,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "cb3ccbb76031e5e0138f8dd39a23f9de47ffc35e43c1144cea27d46a5ab1cb5f",
+      "crs_root_id": 25,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "e23d4a036d7b70e9f595b1422079d2b91edfbb1fb651a0633eaa8a9dc5f80703",
+      "crs_root_id": 26,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "40f6af0346a99aa1cd1d555a4e9cce62c7f9634603ee406615833dc8c8d00367",
+      "crs_root_id": 27,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
+      "crs_root_id": 28,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "bfff8fd04433487d6a8aa60c1a29767a9fc2bbb05e420f713a13b992891d3893",
+      "crs_root_id": 29,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "179fbc148a3dd00fd24ea13458cc43bfa7f59c8182d783a513f6ebec100c8924",
+      "crs_root_id": 30,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "2cabeafe37d06ca22aba7391c0033d25982952c453647349763a3ab5ad6ccf69",
+      "crs_root_id": 31,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "cbb522d7b7f127ad6a0113865bdf1cd4102e7d0759af635a7cf4720dc963c53b",
+      "crs_root_id": 32,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "2ce1cb0bf9d2f9e102993fbe215152c3b2dd0cabde1c68e5319b839154dbb7f5",
+      "crs_root_id": 33,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "45140b3247eb9cc8c5b4f0d7b53091f73292089e6e5a63e2749dd3aca9198eda",
+      "crs_root_id": 34,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "34d8a73ee208d9bcdb0d956520934b4e40e69482596e8b6f73c8426b010a6f48",
+      "crs_root_id": 35,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "d947432abde7b7fa90fc2e6b59101b1280e0e1c7e4e40fa3c6887fff57a7f4cf",
+      "crs_root_id": 36,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "349dfa4058c5e263123b398ae795573c4e1313c83fe68f93556cd5e8031b3c7d",
+      "crs_root_id": 37,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "b085d70b964f191a73e4af0d54ae7a0e07aafdaf9b71dd0862138ab7325a24a2",
+      "crs_root_id": 38,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "8d25cd97229dbf70356bda4eb3cc734031e24cf00fafcfd32dc76eb5841c7ea8",
+      "crs_root_id": 39,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "5a2fc03f0c83b090bbfa40604b0988446c7636183df9846e17101a447fb8efd6",
+      "crs_root_id": 40,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "9a6ec012e1a7da9dbe34194d478ad7c0db1822fb071df12981496ed104384113",
+      "crs_root_id": 41,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "ebc5570c29018c4d67b1aa127baf12f703b4611ebc17b7dab5573894179b93fa",
+      "crs_root_id": 42,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "46edc3689046d53a453fb3104ab80dcaec658b2660ea1629dd7e867990648716",
+      "crs_root_id": 43,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "5d56499be4d2e08bcfcad08a3e38723d50503bde706948e42f55603019e528ae",
+      "crs_root_id": 44,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6",
+      "crs_root_id": 45,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "2530cc8e98321502bad96f9b1fba1b099e2d299e0f4548bb914f363bc0d4531f",
+      "crs_root_id": 46,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1776211199
+    },
+    {
+      "fingerprint_sha256": "a1339d33281a0b56e557d3d32b1ce7f9367eb094bd5fa72a7e5004c8ded7cafe",
+      "crs_root_id": 47,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "3c5f81fea5fab82c64bfa2eaecafcde8e077fc8620a7cae537163df36edbf378",
+      "crs_root_id": 48,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "beb00b30839b9bc32c32e4447905950641f26421b15ed089198b518ae2ea1b99",
+      "crs_root_id": 49,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "358df39d764af9e1b766e9c972df352ee15cfac227af6ad1d70e8e4a6edcba02",
+      "crs_root_id": 50,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "c741f70f4b2a8d88bf2e71c14122ef53ef10eba0cfa5e64cfa20f418853073e0",
+      "crs_root_id": 51,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "6c61dac3a2def031506be036d2a6fe401994fbd13df9c8d466599274c446ec98",
+      "crs_root_id": 52,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1754006399
+    },
+    {
+      "fingerprint_sha256": "6b9c08e86eb0f767cfad65cd98b62149e5494a67f5845e7bd1ed019f27b86bd6",
+      "crs_root_id": 53,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "8560f91c3624daba9570b5fea0dbe36ff11a8323be9486854fb3f34a5571198d",
+      "crs_root_id": 54,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "88ef81de202eb018452e43f864725cea5fbd1fc2d9d205730709c5d8b8690f46",
+      "crs_root_id": 55,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "8fe4fb0af93a4d0d67db0bebb23e37c71bf325dcbcdd240ea04daf58b47e1840",
+      "crs_root_id": 56,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "513b2cecb810d4cde5dd85391adfc6c2dd60d87bb736d2b521484aa47a0ebef6",
+      "crs_root_id": 57,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "1793927a0614549789adce2f8f34f7f0b66d0f3ae3a3b84d21ec15dbba4fadc7",
+      "crs_root_id": 59,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "4ff460d54b9c86dabfbcfc5712e0400d2bed3fbc4d4fbdaa86e06adcd2a9ad7a",
+      "crs_root_id": 60,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "52f0e1c4e58ec629291b60317f074671b85d7ea80d5b07273463534b32b40234",
+      "crs_root_id": 61,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2",
+      "crs_root_id": 62,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "9bea11c976fe014764c1be56a6f914b5a560317abd9988393382e5161aa0493c",
+      "crs_root_id": 63,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "d43af9b35473755c9684fc06d7d8cb70ee5c28e773fb294eb41ee71722924d24",
+      "crs_root_id": 64,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "22a2c1f7bded704cc1e701b5f408c310880fe956b5de2a4a44f99c873a25a7c8",
+      "crs_root_id": 65,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1781481599
+    },
+    {
+      "fingerprint_sha256": "2e7bf16cc22485a7bbe2aa8696750761b0ae39be3b2fe9d0cc6d4ef73491425c",
+      "crs_root_id": 66,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1781481599
+    },
+    {
+      "fingerprint_sha256": "3417bb06cc6007da1b961c920b8ab4ce3fad820e4aa30b9acbc4a74ebdcebc65",
+      "crs_root_id": 67,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1781481599
+    },
+    {
+      "fingerprint_sha256": "85666a562ee0be5ce925c1d8890a6f76a87ec16d4d7d5f29ea7419cf20123b69",
+      "crs_root_id": 68,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1781481599
+    },
+    {
+      "fingerprint_sha256": "59769007f7685d0fcd50872f9f95d5755a5b2b457d81f3692b610a98672f0e1b",
+      "crs_root_id": 69,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1789430399
+    },
+    {
+      "fingerprint_sha256": "6b328085625318aa50d173c98d8bda09d57e27413d114cf787a0f5d06c030cf6",
+      "crs_root_id": 70,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "fe7696573855773e37a95e7ad4d9cc96c30157c15d31765ba9b15704e1ae78fd",
+      "crs_root_id": 71,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "e59aaa816009c22bff5b25bad37df306f049797c1f81d85ab089e657bd8f0044",
+      "crs_root_id": 72,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1820966399
+    },
+    {
+      "fingerprint_sha256": "08170d1aa36453901a2f959245e347db0c8d37abaabc56b81aa100dc958970db",
+      "crs_root_id": 73,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1819670399
+    },
+    {
+      "fingerprint_sha256": "cbb9c44d84b8043e1050ea31a69f514955d7bfd2e2c6b49301019ad61d9f5058",
+      "crs_root_id": 74,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "4fa3126d8d3a11d1c4855a4f807cbad6cf919d3a5a88b03bea2c6372d93c40c9",
+      "crs_root_id": 75,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "3f99cc474acfce4dfed58794665e478d1547739f2e780f1bb4ca9b133097d401",
+      "crs_root_id": 76,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "d95d0e8eda79525bf9beb11b14d2100d3294985f0c62d9fabd9cd999eccb7b1d",
+      "crs_root_id": 77,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "f015ce3cc239bfef064be9f1d2c417e1a0264a0a94be1f0c8d121864eb6949cc",
+      "crs_root_id": 78,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1754006399
+    },
+    {
+      "fingerprint_sha256": "69729b8e15a86efc177a57afb7171dfc64add28c2fca8cf1507e34453ccb1470",
+      "crs_root_id": 79,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "88f438dcf8ffd1fa8f429115ffe5f82ae1e06e0c70c375faad717b34a49e7265",
+      "crs_root_id": 80,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "242b69742fcb1e5b2abf98898b94572187544e5b4d9911786573621f6a74b82c",
+      "crs_root_id": 81,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "018e13f0772532cf809bd1b17281867283fc48c6e13be9c69812854a490c1b05",
+      "crs_root_id": 82,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "371a00dc0533b3721a7eeb40e8419e70799d2b0a0f2c1d80693165f7cec4ad75",
+      "crs_root_id": 83,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "b4585f22e4ac756a4e8612a1361c5d9d031a93fd84febb778fa3068b0fc42dc2",
+      "crs_root_id": 84,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "77b82cd8644c4305f7acc5cb156b45675004033d51c60c6202a8e0c33467d3a0",
+      "crs_root_id": 85,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "554153b13d2cf9ddb753bfbe1a4e0ae08d0aa4187058fe60a2b862b2e4b87bcb",
+      "crs_root_id": 86,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "fb8fec759169b9106b1e511644c618c51304373f6c0643088d8beffd1b997599",
+      "crs_root_id": 87,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "e74fbda55bd564c473a36b441aa799c8a68e077440e8288b9fa1e50e4bbaca11",
+      "crs_root_id": 88,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "2e44102ab58cb85419451c8e19d9acf3662cafbc614b6a53960a30f7d0e2eb41",
+      "crs_root_id": 89,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "30fbba2c32238e2a98547af97931e550428b9b3f1c8eeb6633dcfa86c5b27dd3",
+      "crs_root_id": 90,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "8a71de6559336f426c26e53880d00d88a18da4c6a91f0dcb6194e206c5c96387",
+      "crs_root_id": 91,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "b2fae53e14ccd7ab9212064701ae279c1d8988facb775fa8a008914e663988a8",
+      "crs_root_id": 92,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "81a9088ea59fb364c548a6f85559099b6f0405efbf18e5324ec9f457ba00112f",
+      "crs_root_id": 93,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "c90f26f0fb1b4018b22227519b5ca2b53e2ca5b3be5cf18efe1bef47380c5383",
+      "crs_root_id": 94,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "7bb647a62aeeac88bf257aa522d01ffea395e0ab45c73f93f65654ec38f25a06",
+      "crs_root_id": 95,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "c32ffd9f46f936d16c3673990959434b9ad60aafbb9e7cf33654f144cc1ba143",
+      "crs_root_id": 96,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "8faf7d2e2cb4709bb8e0b33666bf75a5dd45b5de480f8ea8d4bfe6bebc17f2ed",
+      "crs_root_id": 97,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "3f63bb2814be174ec8b6439cf08d6d56f0b7c405883a5648a334424d6b3ec558",
+      "crs_root_id": 98,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "c0076b9ef0531fb1a656d67c4ebe97cd5dbaa41ef44598acc2489878c92d8711",
+      "crs_root_id": 99,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "06c08d7dafd876971eb1124fe67f847ec0c7a158d3ea53cbe940e2ea9791f4c3",
+      "crs_root_id": 100,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "193144f431e0fddb740717d4de926a571133884b4360d30e272913cbe660ce41",
+      "crs_root_id": 101,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1813017599
+    },
+    {
+      "fingerprint_sha256": "0552e6f83fdf65e8fa9670e666df28a4e21340b510cbe52566f97c4fb94b2bd1",
+      "crs_root_id": 102,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1820966399
+    },
+    {
+      "fingerprint_sha256": "8e8221b2e7d4007836a1672f0dcc299c33bc07d316f132fa1a206d587150f1ce",
+      "crs_root_id": 103,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1819670399
+    },
+    {
+      "fingerprint_sha256": "578af4ded0853f4e5998db4aeaf9cbea8d945f60b620a38d1a3c13b2bc7ba8e1",
+      "crs_root_id": 104,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1819670399
+    },
+    {
+      "fingerprint_sha256": "efc65cadbb59adb6efe84da22311b35624b71b3b1ea0da8b6655174ec8978646",
+      "crs_root_id": 105,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": 1819670399
+    },
+    {
+      "fingerprint_sha256": "b49141502d00663d740f2e7ec340c52800962666121a36d09cf7dd2b90384fb4",
+      "crs_root_id": 106,
+      "ev_policy_oids": [],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "eec997c0c30f216f7e3b8b307d2bae42412d753fc8219dafd1520b2572850f49",
+      "crs_root_id": 108,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "9ae36232a5189ffddb353dfd26520c015395d22777dac59db57b98c089a651e6",
+      "crs_root_id": 109,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": null
+    },
+    {
+      "fingerprint_sha256": "552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988",
+      "crs_root_id": 22,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1782863999
+    },
+    {
+      "fingerprint_sha256": "7d05ebb682339f8c9451ee094eebfefa7953a114edb2f44949452fab7d2fc185",
+      "crs_root_id": 23,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1789430399
+    },
+    {
+      "fingerprint_sha256": "7e37cb8b4c47090cab36551ba6f45db840680fba166a952db100717f43053fc2",
+      "crs_root_id": 24,
+      "ev_policy_oids": [
+        "2.23.140.1.1"
+      ],
+      "sct_not_after_sec": 1789430399
+    }
+  ]
+}

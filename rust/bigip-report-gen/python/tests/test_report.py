@@ -168,3 +168,30 @@ def test_json_model_serialisable():
 
     m = collect_model(f5report.load_paths([UCS1]))
     json.dumps(m)  # must not raise
+
+
+def test_iapp_diagnostics_are_global_and_routed_to_apps():
+    sources = [
+        (
+            "memory://iapp/presentation.apl",
+            '#include "missing.inc"\nsection basic {\n  string addr\n  string port\n}\n',
+        ),
+        (
+            "memory://iapp/implementation.impl",
+            "set ok $::basic__addr\nset missing $::basic__missing\n",
+        ),
+    ]
+    model = collect_model(sources, title="iApp")
+    presentation = next(
+        d for d in model["devices"] if d["uri"] == "memory://iapp/presentation.apl"
+    )
+    implementation = next(
+        d for d in model["devices"] if d["uri"] == "memory://iapp/implementation.impl"
+    )
+    assert {d["code"] for d in presentation["configDiagnostics"]} >= {
+        "IAPP7002",
+        "IAPP7003",
+    }
+    assert {d["code"] for d in implementation["configDiagnostics"]} >= {"IAPP7001"}
+    assert all(d["tab"] == "apps" for d in presentation["appDiagnostics"])
+    assert presentation["iappDiagnosticEvidence"]["state"] == "complete"

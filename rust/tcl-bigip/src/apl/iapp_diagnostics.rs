@@ -33,6 +33,8 @@
 
 use std::collections::HashSet;
 
+use tcl_core_types::DiagCode;
+
 use super::iapp_vars::IappVarRef;
 use super::model::AplModel;
 use crate::range::{Position, Range};
@@ -43,6 +45,10 @@ use crate::validator::{ConfigDiagnostic, ConfigDiagnosticSubject, DiagSeverity};
 /// the iApp template format). All other dialects are unrelated, so the
 /// IAPP diagnostics must not fire there.
 pub const IAPP_DIALECTS: [&str; 3] = ["f5-iapps", "f5-tmsh", "f5-bigip"];
+
+/// iApp diagnostics emitted by this module, in stable publication order.
+pub const IAPP_DIAGNOSTIC_CODES: &[DiagCode] =
+    &[DiagCode::Iapp7001, DiagCode::Iapp7002, DiagCode::Iapp7003];
 
 /// Whether `dialect` is one where iApp checks apply.
 #[must_use]
@@ -79,7 +85,7 @@ pub fn validate_iapp_presentation(
                 offset: 0,
             };
             out.push(ConfigDiagnostic {
-                code: "IAPP7003".to_owned(),
+                code: DiagCode::Iapp7003.as_str().to_owned(),
                 message: format!("#include file not found: \"{}\"", inc.path),
                 severity: DiagSeverity::Warning,
                 subject: ConfigDiagnosticSubject::IApp,
@@ -104,7 +110,7 @@ pub fn validate_iapp_presentation(
                 continue;
             }
             out.push(ConfigDiagnostic {
-                code: "IAPP7002".to_owned(),
+                code: DiagCode::Iapp7002.as_str().to_owned(),
                 message: format!(
                     "Presentation field '{qname}' is never referenced in the implementation \
                      (expected $::{})",
@@ -143,7 +149,7 @@ pub fn validate_iapp_implementation(
     for r in impl_var_refs {
         if !known.contains(r.apl_name.as_str()) {
             out.push(ConfigDiagnostic {
-                code: "IAPP7001".to_owned(),
+                code: DiagCode::Iapp7001.as_str().to_owned(),
                 message: format!(
                     "Variable ${} references presentation field '{}' which is not defined \
                      in the presentation",
@@ -169,6 +175,27 @@ mod tests {
 
     fn codes(diags: &[ConfigDiagnostic]) -> Vec<&str> {
         diags.iter().map(|d| d.code.as_str()).collect()
+    }
+
+    #[test]
+    fn published_metadata_describes_every_iapp_producer() {
+        let expected = [
+            (
+                DiagCode::Iapp7001,
+                "implementation references a presentation field",
+            ),
+            (DiagCode::Iapp7002, "presentation field is never referenced"),
+            (DiagCode::Iapp7003, "`#include` file could not be resolved"),
+        ];
+        assert_eq!(IAPP_DIAGNOSTIC_CODES, expected.map(|(code, _)| code));
+        for (code, expected_phrase) in expected {
+            assert!(
+                code.description().contains(expected_phrase),
+                "{} metadata no longer describes its producer: {}",
+                code,
+                code.description()
+            );
+        }
     }
 
     #[test]

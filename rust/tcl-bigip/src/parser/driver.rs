@@ -141,6 +141,7 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
                 object_type: object_type.clone(),
                 identifier: identifier.clone(),
                 header: block.header.clone(),
+                body: block.body.clone(),
                 range: Some(range),
             },
         ));

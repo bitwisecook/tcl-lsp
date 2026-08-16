@@ -187,7 +187,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle tcltest-sweep tcltest-sweep-check
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data tcltest-sweep tcltest-sweep-check
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
@@ -196,6 +196,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: coverage coverage-ext
 # Compile + codegen + generated assets
 .PHONY: compile codegen generate check-generated gen-editor-settings check-editor-settings copy-canonical npm-env logo
+.PHONY: update-source-data check-source-data
 # Compiler explorer (WASM GUI)
 .PHONY: explorer-wasm explorer-build compiler-explorer-gui
 # Skills bundle + smoke tests
@@ -602,7 +603,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-number-drift xtask-command-backing xtask-option-registry-drift ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-number-drift xtask-command-backing xtask-option-registry-drift xtask-sslictcl-data ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"
@@ -671,6 +672,16 @@ xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from bu
 xtask-option-registry-drift: ## Verify every option the dialect audit probes is declared in the registry (audit<->registry drift gate)
 	@echo "==> Checking the dialect audit matches the registry option surface (cargo xtask)"
 	cd $(ROOT) && cargo xtask audit-option-dialects --check
+
+xtask-sslictcl-data: check-source-data ## Verify the embedded SslicTcl source-data bundle (offline)
+
+update-source-data: ## Refresh embedded SslicTcl source data (explicit network-capable operation)
+	@echo "==> Updating embedded SslicTcl source data"
+	cd $(ROOT) && cargo xtask sslictcl-data update
+
+check-source-data: ## Verify embedded SslicTcl data, provenance, hashes, and generated output (offline)
+	@echo "==> Checking embedded SslicTcl source data (offline)"
+	cd $(ROOT) && cargo xtask sslictcl-data check $(if $(SOURCE_DATA_MAX_AGE_DAYS),--max-age-days $(SOURCE_DATA_MAX_AGE_DAYS))
 
 xtask-registry-oracle: ## Audit the iRules registry against a local BIG-IP extract (IRULES_ORACLE_ROOT=/path/to/bigip-extract)
 	@test -n "$(IRULES_ORACLE_ROOT)" || (echo "Set IRULES_ORACLE_ROOT=/path/to/bigip-extract"; exit 2)
@@ -1782,6 +1793,12 @@ publish-verify: ## Sanity-check publishing readiness (credentials, tool versions
 
 publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "Release + publish flow."
+	@echo ""
+	@echo "  Source data (required before release; explicit network refresh):"
+	@echo "    make update-source-data"
+	@echo "    make check-source-data SOURCE_DATA_MAX_AGE_DAYS=180"
+	@echo "    # If an upstream is unavailable, document the reason and set"
+	@echo "    # SSLICTCL_SOURCE_DATA_WAIVER for release preflight."
 	@echo ""
 	@echo "  Channels (the tag decides — scripts/release/prerelease.sh):"
 	@echo "    stable / default   v1.x, v2.2.0 (even 2.x minor)  cut from main"

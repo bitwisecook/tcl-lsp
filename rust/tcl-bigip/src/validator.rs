@@ -48,10 +48,15 @@ use regex::Regex;
 use tcl_core_types::DiagCode;
 use tcl_irules::extract_irules_event_handlers;
 use tcl_lexer::LineIndex;
+use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 
+use crate::canonical::Canon;
 use crate::lint::{ModelView, resolve_name};
 use crate::model::ProfileType;
 use crate::parser::driver::BigipConfig;
+use crate::parser::helpers::{
+    parse_keyed_block_entries, parse_list_block, parse_properties_with_spans,
+};
 use crate::range::Range;
 
 /// BIG-IP model diagnostics emitted by this validator.
@@ -68,6 +73,10 @@ pub const BIGIP_DIAGNOSTIC_CODES: &[DiagCode] = &[
     DiagCode::Bigip6010,
     DiagCode::Bigip6011,
     DiagCode::Bigip6012,
+    DiagCode::Bigip6013,
+    DiagCode::Bigip6014,
+    DiagCode::Bigip6038,
+    DiagCode::Bigip6039,
 ];
 
 /// Severity of a config diagnostic.
@@ -93,6 +102,36 @@ pub enum ConfigDiagnosticSubject {
     DataGroup,
     /// An iApp presentation or implementation.
     IApp,
+    /// A registry-declared object whose dedicated report tab is the object
+    /// index (rather than an LTM-specific view).
+    Object,
+}
+
+impl ConfigDiagnosticSubject {
+    /// Every subject that can own an F5 configuration diagnostic. Report
+    /// builders iterate this catalogue when preparing per-tab finding lists,
+    /// so adding a subject cannot silently drop its diagnostics.
+    pub const ALL: &'static [Self] = &[
+        Self::IRule,
+        Self::VirtualServer,
+        Self::Pool,
+        Self::DataGroup,
+        Self::IApp,
+        Self::Object,
+    ];
+
+    /// The report tab where findings for this subject are actionable.
+    #[must_use]
+    pub const fn report_tab(self) -> &'static str {
+        match self {
+            Self::IRule => "rules",
+            Self::VirtualServer => "virtuals",
+            Self::Pool => "pools",
+            Self::DataGroup => "dataGroups",
+            Self::IApp => "apps",
+            Self::Object => "objectIndex",
+        }
+    }
 }
 
 /// One ranged BIG-IP config diagnostic — the validator analogue of an LSP
@@ -112,6 +151,39 @@ pub struct ConfigDiagnostic {
     /// it is the object's own range, or the zero range when the model carries
     /// none.
     pub range: Range,
+}
+
+/// How a profile field relates to the versioned BIG-IP default evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileDefaultState {
+    /// The field is explicitly set to a value different from the known default.
+    Explicit,
+    /// The field is omitted and inherits through `defaults-from`.
+    Inherited,
+    /// The field is omitted without a parent, or explicitly repeats the factory default.
+    Factory,
+    /// The TMOS version is absent, malformed, or has no matching embedded default.
+    UnknownVersion,
+}
+
+/// One version-aware profile/default comparison. Consumers can render this as
+/// evidence even when there is no defect: customisation is not a vulnerability.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfileDefaultEvidence {
+    /// Full path of the profile or persistence object.
+    pub owner: String,
+    /// Registry profile family (`HTTP`, `CLIENTSSL`, `TCP`, …).
+    pub profile_type: String,
+    /// tmsh field name.
+    pub field: String,
+    /// Explicit value present in the configuration, when any.
+    pub configured: Option<String>,
+    /// Resolved factory default, only when a TMOS version is known.
+    pub default_value: Option<String>,
+    /// Whether the value is explicit, inherited, factory-equivalent, or unknown.
+    pub state: ProfileDefaultState,
+    /// Whether this field can change transport, TLS, HTTP, or persistence security posture.
+    pub security_relevant: bool,
 }
 
 // iRule source-scanning regexes
@@ -479,6 +551,110 @@ fn check_virtual_profile_requirements(view: &ModelView<'_>, out: &mut Vec<Config
     }
 }
 
+/// Convert the typed BIG-IP model spelling to the profile registry's canonical
+/// stack vocabulary. The model deliberately preserves the tmsh-ish
+/// `CLIENT_SSL` / `SERVER_SSL` names; the event/profile graph owns the compact
+/// `CLIENTSSL` / `SERVERSSL` names.
+fn registry_profile_name(profile: ProfileType) -> &'static str {
+    match profile {
+        ProfileType::ClientSsl => "CLIENTSSL",
+        ProfileType::ServerSsl => "SERVERSSL",
+        ProfileType::OneConnect => "ONECONNECT",
+        ProfileType::Websocket => "WS",
+        ProfileType::Persistence => "PERSIST",
+        ProfileType::Other => "OTHER",
+        _ => profile.py_name(),
+    }
+}
+
+/// BIGIP6038: every attached iRule handler must be reachable through the
+/// registry's full event-to-profile graph. This subsumes the old HTTP/SSL-only
+/// namespace heuristic without hardcoding an event or command family.
+fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
+    let event_registry = tcl_registry::events::EventRegistry::build();
+    let profiles = tcl_registry::profiles::ProfileRegistry::build();
+    let command_registry = tcl_registry::registry_for_dialect("f5-irules");
+    for (_path, vs) in view.virtual_servers.iter() {
+        let profile_types = profile_types_for_virtual(view, vs);
+        let mut active: Vec<&str> = profile_types
+            .iter()
+            .map(|profile| registry_profile_name(*profile))
+            .filter(|name| *name != "OTHER")
+            .collect();
+        // TCP is the transport default on a standard LTM virtual. It is
+        // inherited rather than explicitly listed in many SCFs and must not
+        // make every TCP-gated event look unreachable.
+        if !active.contains(&"TCP") && !vs.ip_protocol.eq_ignore_ascii_case("udp") {
+            active.push("TCP");
+        }
+
+        // Profile conflicts are graph data on ProfileSpec, not a handwritten
+        // pair table. Report each unordered pair once.
+        let mut conflict_pairs = BTreeSet::new();
+        for profile in &active {
+            let Some(spec) = profiles.get_profile(profile) else {
+                continue;
+            };
+            for conflict in spec.conflicts {
+                if active.iter().any(|present| present == conflict) {
+                    let pair = if *profile < *conflict {
+                        (*profile, *conflict)
+                    } else {
+                        (*conflict, *profile)
+                    };
+                    conflict_pairs.insert(pair);
+                }
+            }
+        }
+        for (left, right) in conflict_pairs {
+            out.push(ConfigDiagnostic {
+                code: DiagCode::Bigip6039.as_str().to_owned(),
+                message: format!(
+                    "Virtual server '{}' attaches incompatible profile types {left} and {right}.",
+                    vs.name
+                ),
+                severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::VirtualServer,
+                range: object_range(vs.range),
+            });
+        }
+
+        for rule_ref in vs.rules.paths() {
+            let Some(resolved) = resolve_name(&rule_ref, &view.rules, view.default_partition)
+            else {
+                continue;
+            };
+            let Some(rule) = view.rules.get(&resolved) else {
+                continue;
+            };
+            for handler in extract_irules_event_handlers(&rule.source, command_registry) {
+                let Some(props) = event_registry.get_props(&handler.event) else {
+                    // Unknown/dynamic event names are evidence limitations,
+                    // not a profile false positive.
+                    continue;
+                };
+                if !profiles.stack_satisfies(props.implied_profiles, &active) {
+                    let requirements = props.implied_profiles.join(" or ");
+                    out.push(ConfigDiagnostic {
+                        code: DiagCode::Bigip6038.as_str().to_owned(),
+                        message: format!(
+                            "Virtual server '{}' cannot reach iRule '{}' handler '{}' at effective priority {}: the event requires profile {requirements}, but active profiles are {}.",
+                            vs.name,
+                            rule.name,
+                            handler.event,
+                            handler.priority,
+                            active.join(", ")
+                        ),
+                        severity: DiagSeverity::Warning,
+                        subject: ConfigDiagnosticSubject::VirtualServer,
+                        range: object_range(vs.range),
+                    });
+                }
+            }
+        }
+    }
+}
+
 /// BIGIP6010: an iRule `persist` references a persistence profile that is
 /// not attached to the virtual server.
 fn check_virtual_persistence(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
@@ -611,6 +787,270 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
     }
 }
 
+// Registry-object checks
+
+/// True when an object-reference spelling is static enough to validate. Tcl
+/// substitutions and glob expressions deliberately remain unknown: reporting
+/// them as dangling would turn a runtime choice into a false positive.
+fn is_static_reference(value: &str) -> bool {
+    let value = clean_name(value).trim();
+    !value.is_empty()
+        && !value.starts_with('$')
+        && !value.starts_with('[')
+        && !value.contains('$')
+        && !value.contains('[')
+        && !value.contains('*')
+        && !matches!(
+            value.to_ascii_lowercase().as_str(),
+            "none" | "default" | "enabled" | "disabled"
+        )
+}
+
+/// Values which can occur in a registry-declared reference property. A keyed
+/// block's keys are references (profile attachments, pool members, and the
+/// like); a list contributes each literal item; the scalar fallback keeps
+/// ordinary `pool /Common/p` properties covered.
+fn reference_values(raw: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    values.extend(
+        parse_keyed_block_entries(raw)
+            .into_iter()
+            .map(|(key, _)| key),
+    );
+    if values.is_empty() {
+        values.extend(parse_list_block(raw));
+    }
+    if values.is_empty() {
+        values.push(raw.trim().to_owned());
+    }
+    values
+        .into_iter()
+        .filter(|value| is_static_reference(value))
+        .collect()
+}
+
+fn reference_candidates(reference: &str, owner: &str, default_partition: &str) -> Vec<String> {
+    let mut reference = clean_name(reference).trim().to_owned();
+    // Node and virtual-address references often include `:port`, while their
+    // declaration keys do not. Keeping this here makes the generic registry
+    // path agree with the graph resolver.
+    let path_length = if reference.matches(':').count() == 1 {
+        reference
+            .rsplit_once(':')
+            .filter(|(_, port)| port.bytes().all(|byte| byte.is_ascii_digit()))
+            .map(|(path, _)| path.len())
+    } else {
+        None
+    };
+    if let Some(path_length) = path_length {
+        reference.truncate(path_length);
+    }
+    if reference.starts_with('/') {
+        return vec![reference];
+    }
+    let partition = owner
+        .strip_prefix('/')
+        .and_then(|path| path.split('/').next())
+        .filter(|partition| !partition.is_empty())
+        .unwrap_or(default_partition.trim_matches('/'));
+    let mut candidates = vec![format!("/{partition}/{reference}")];
+    if partition != "Common" {
+        candidates.push(format!("/Common/{reference}"));
+    }
+    candidates
+}
+
+/// BIGIP6013: validate every static registry-declared outbound edge that is
+/// not already owned by a specialised BIGIP6001–6012 check. This intentionally
+/// consumes `REFERENCE_EDGES` rather than a hand-maintained object-name table.
+fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnostic>) {
+    let registry = tcl_registry::bigip::BigipRegistry::build();
+    let objects: Vec<(&crate::model::BigipGenericObject, &'static str)> = config
+        .generic_objects
+        .iter()
+        .filter_map(|(_, object)| {
+            registry
+                .kind_for_header(&object.module, &object.object_type)
+                .map(|kind| (object, kind))
+        })
+        .collect();
+
+    for (object, from_kind) in &objects {
+        for (property, parsed) in parse_properties_with_spans(&object.body) {
+            // BIGIP6003 and BIGIP6005 already own these two virtual-server
+            // links. All other registry edges, including monitors, members,
+            // profile attachments, policies and tenant-local objects, converge
+            // on this generic validator.
+            if *from_kind == "ltm_virtual" && matches!(property.as_str(), "rules" | "pool") {
+                continue;
+            }
+            for edge in tcl_registry::bigip::reference_edges_from(from_kind)
+                .filter(|edge| edge.section.is_none() && edge.property == property)
+            {
+                for value in reference_values(&parsed.value) {
+                    let candidates =
+                        reference_candidates(&value, &object.identifier, &config.default_partition);
+                    let resolved = objects.iter().any(|(target, target_kind)| {
+                        edge.to_kinds.contains(target_kind)
+                            && candidates
+                                .iter()
+                                .any(|candidate| candidate == &target.identifier)
+                    });
+                    if !resolved {
+                        out.push(ConfigDiagnostic {
+                            code: DiagCode::Bigip6013.as_str().to_owned(),
+                            message: format!(
+                                "{} '{}' has registry-declared reference '{}' in property '{}' which could not be resolved; define a compatible target or use a static full path.",
+                                object.object_type, object.identifier, value, property
+                            ),
+                            severity: DiagSeverity::Warning,
+                            subject: ConfigDiagnosticSubject::Object,
+                            range: object_range(object.range),
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// BIGIP6014: duplicate declarations are ambiguous even when the source
+/// parser's last-write-wins model can continue. The registry kind prevents two
+/// unrelated object families that happen to share a path from being conflated.
+fn check_duplicate_registry_objects(config: &BigipConfig, out: &mut Vec<ConfigDiagnostic>) {
+    let registry = tcl_registry::bigip::BigipRegistry::build();
+    let mut seen: HashSet<(&str, &str)> = HashSet::new();
+    for (_, object) in &config.generic_objects {
+        let Some(kind) = registry.kind_for_header(&object.module, &object.object_type) else {
+            continue;
+        };
+        if !object.identifier.is_empty() && !seen.insert((kind, &object.identifier)) {
+            out.push(ConfigDiagnostic {
+                code: DiagCode::Bigip6014.as_str().to_owned(),
+                message: format!(
+                    "Duplicate {} declaration for '{}'; retain one authoritative object definition.",
+                    object.object_type, object.identifier
+                ),
+                severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::Object,
+                range: object_range(object.range),
+            });
+        }
+    }
+}
+
+fn profile_default_security_field(profile: &str, field: &str) -> bool {
+    matches!(
+        (profile, field),
+        (
+            "HTTP",
+            "insert-xforwarded-for" | "request-chunking" | "response-chunking",
+        ) | ("TCP", "nagle" | "reset-on-timeout")
+            | (
+                "CLIENTSSL" | "SERVERSSL",
+                "ciphers"
+                    | "cipher-group"
+                    | "secure-renegotiation"
+                    | "renegotiation"
+                    | "peer-cert-mode"
+                    | "sni-require"
+                    | "ca-file"
+                    | "crl-file"
+            )
+            | (
+                "PERSIST",
+                "cookie-encryption" | "httponly" | "secure" | "timeout"
+            )
+    )
+}
+
+/// Compare each explicitly-modelled HTTP, TCP and SSL profile field with the
+/// embedded default table for `version`. With no version this deliberately
+/// emits `UnknownVersion` evidence instead of applying the newest snapshot.
+///
+/// The report and LSP can use this structured evidence to distinguish an
+/// inherited value from an explicit security-relevant deviation without ever
+/// describing normal customisation as a vulnerability. Persistence is
+/// represented separately by its own tmsh family and currently has no
+/// versioned default snapshot, so its evidence remains explicitly unknown.
+#[must_use]
+pub fn collect_profile_default_evidence(
+    config: &BigipConfig,
+    version: Option<BigipVersion>,
+) -> Vec<ProfileDefaultEvidence> {
+    let view = ModelView::build(config);
+    let mut evidence = Vec::new();
+    for (_path, profile) in view.profiles.iter() {
+        let profile_type = registry_profile_name(profile.profile_type);
+        if profile_type == "OTHER" {
+            continue;
+        }
+        let fields = profile.canon_fields();
+        let Some(fields) = fields.as_object() else {
+            continue;
+        };
+        let defaults = profile_field_defaults(profile_type, version);
+        let default_fields: Vec<(String, Option<String>)> = match defaults.as_slice() {
+            [_first, ..] => defaults
+                .into_iter()
+                .map(|(field, value)| (field.to_owned(), version.map(|_| value.to_owned())))
+                .collect(),
+            _ => match profile_type {
+                // Requested first-class families with no known versioned row
+                // still produce an explicit evidence limitation.
+                "HTTP" | "TCP" | "CLIENTSSL" | "SERVERSSL" => {
+                    vec![("defaults-from".to_owned(), None)]
+                }
+                _ => Vec::new(),
+            },
+        };
+        for (field, default_value) in default_fields {
+            let configured = fields
+                .get(&field.replace('-', "_"))
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned);
+            let state = match (&configured, &default_value, version) {
+                (_, None, _) | (_, _, None) => ProfileDefaultState::UnknownVersion,
+                (Some(value), Some(default), _) if value == default => ProfileDefaultState::Factory,
+                (Some(_), Some(_), _) => ProfileDefaultState::Explicit,
+                (None, Some(_), _) if !profile.defaults_from.is_empty() => {
+                    ProfileDefaultState::Inherited
+                }
+                (None, Some(_), _) => ProfileDefaultState::Factory,
+            };
+            evidence.push(ProfileDefaultEvidence {
+                owner: profile.full_path.clone(),
+                profile_type: profile_type.to_owned(),
+                security_relevant: profile_default_security_field(profile_type, &field),
+                field,
+                configured,
+                default_value,
+                state,
+            });
+        }
+    }
+    for (_path, persistence) in view.persistence.iter() {
+        for (field, value) in [
+            ("cookie-encryption", &persistence.cookie_encryption),
+            ("httponly", &persistence.httponly),
+            ("secure", &persistence.secure),
+            ("timeout", &persistence.timeout),
+        ] {
+            evidence.push(ProfileDefaultEvidence {
+                owner: persistence.full_path.clone(),
+                profile_type: "PERSIST".to_owned(),
+                field: field.to_owned(),
+                configured: (!value.is_empty()).then(|| value.clone()),
+                default_value: None,
+                state: ProfileDefaultState::UnknownVersion,
+                security_relevant: profile_default_security_field("PERSIST", field),
+            });
+        }
+    }
+    evidence
+}
+
 // Public API
 
 /// Run all BIG-IP cross-reference validations over a parsed config,
@@ -633,12 +1073,15 @@ pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
     check_virtual_rule_priority_conflicts(&view, &mut out);
     check_virtual_pools(&view, &mut out);
     check_virtual_profile_requirements(&view, &mut out);
+    check_virtual_event_profile_graph(&view, &mut out);
     check_virtual_persistence(&view, &mut out);
 
     // Config-wide checks.
     check_unused_data_groups(&view, &mut out);
     check_empty_pools(&view, &mut out);
     check_ip_data_group_records(&view, &mut out);
+    check_registry_references(config, &mut out);
+    check_duplicate_registry_objects(config, &mut out);
 
     out
 }
@@ -653,6 +1096,60 @@ pub fn validate_bigip_source(source: &str, default_partition: &str) -> Vec<Confi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn published_metadata_describes_each_bigip_validator_rule() {
+        let expected = [
+            (DiagCode::Bigip6001, "data group not found"),
+            (DiagCode::Bigip6002, "pool not found"),
+            (DiagCode::Bigip6003, "iRule that is not defined"),
+            (DiagCode::Bigip6004, "HTTP:: or SSL:: commands"),
+            (DiagCode::Bigip6005, "pool that is not defined"),
+            (DiagCode::Bigip6006, "not referenced by any iRule"),
+            (DiagCode::Bigip6007, "SNAT pool not found"),
+            (DiagCode::Bigip6008, "no members defined"),
+            (DiagCode::Bigip6009, "duplicate iRule attachment"),
+            (DiagCode::Bigip6010, "persistence profile"),
+            (DiagCode::Bigip6011, "invalid IP address or network record"),
+            (
+                DiagCode::Bigip6012,
+                "same event at the same effective priority",
+            ),
+            (DiagCode::Bigip6013, "reference could not be resolved"),
+            (DiagCode::Bigip6014, "duplicates another object"),
+            (DiagCode::Bigip6038, "event requires a profile"),
+            (DiagCode::Bigip6039, "incompatible profile types"),
+        ];
+        assert_eq!(BIGIP_DIAGNOSTIC_CODES, expected.map(|(code, _)| code));
+        for (code, expected_phrase) in expected {
+            assert!(
+                code.description().contains(expected_phrase),
+                "{} metadata no longer describes its producer: {}",
+                code,
+                code.description()
+            );
+        }
+    }
+
+    #[test]
+    fn every_diagnostic_subject_has_one_report_tab() {
+        let tabs: std::collections::BTreeSet<_> = ConfigDiagnosticSubject::ALL
+            .iter()
+            .map(|subject| subject.report_tab())
+            .collect();
+        assert_eq!(
+            tabs,
+            [
+                "apps",
+                "dataGroups",
+                "objectIndex",
+                "pools",
+                "rules",
+                "virtuals"
+            ]
+            .into()
+        );
+    }
 
     fn codes(source: &str) -> Vec<String> {
         validate_bigip_source(source, "Common")
@@ -746,6 +1243,101 @@ mod tests {
     fn bigip6003_quiet_when_irule_is_defined() {
         let src = "ltm rule /Common/r {\n  when HTTP_REQUEST { }\n}\nltm virtual /Common/vs {\n  rules {\n    /Common/r\n  }\n}\n";
         assert!(!has(src, "BIGIP6003"));
+    }
+
+    #[test]
+    fn bigip6013_uses_registry_edges_and_keeps_dynamic_references_unknown() {
+        let missing = "ltm virtual /Tenant/vs {\n  fallback-persistence /Tenant/missing\n}\n";
+        let finding = validate_bigip_source(missing, "Tenant")
+            .into_iter()
+            .find(|diagnostic| diagnostic.code == "BIGIP6013")
+            .expect("registry-declared fallback-persistence edge is validated");
+        assert_eq!(finding.subject, ConfigDiagnosticSubject::Object);
+        assert!(finding.message.contains("fallback-persistence"));
+
+        let dynamic = "ltm virtual /Tenant/vs {\n  fallback-persistence $profile_name\n}\n";
+        assert!(!has(dynamic, "BIGIP6013"));
+    }
+
+    #[test]
+    fn bigip6013_resolves_tenant_and_common_targets_without_a_handwritten_table() {
+        let source = "ltm persistence cookie /Common/common_persist { }\n\
+                      ltm persistence cookie /Tenant/local_persist { }\n\
+                      ltm virtual /Tenant/vs {\n\
+                        fallback-persistence local_persist\n\
+                      }\n";
+        assert!(!has(source, "BIGIP6013"));
+        let common = source.replace("local_persist", "common_persist");
+        assert!(!has(&common, "BIGIP6013"));
+    }
+
+    #[test]
+    fn bigip6014_reports_only_same_kind_and_path_duplicates() {
+        let source = "ltm pool /Tenant/p { }\nltm pool /Tenant/p { }\n\
+                      ltm rule /Tenant/p { when RULE_INIT { } }\n";
+        let diagnostics: Vec<_> = validate_bigip_source(source, "Tenant")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "BIGIP6014")
+            .collect();
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].subject, ConfigDiagnosticSubject::Object);
+    }
+
+    #[test]
+    fn bigip6038_uses_the_event_profile_graph_for_all_registered_events() {
+        let source = "ltm rule /Common/http_rule {\n\
+                        when HTTP_REQUEST { return }\n\
+                      }\n\
+                      ltm virtual /Common/vs {\n\
+                        rules { /Common/http_rule }\n\
+                        profiles { /Common/tcp { } }\n\
+                      }\n";
+        let finding = validate_bigip_source(source, "Common")
+            .into_iter()
+            .find(|diagnostic| diagnostic.code == "BIGIP6038")
+            .expect("HTTP_REQUEST is unreachable without HTTP");
+        assert!(finding.message.contains("HTTP_REQUEST"));
+        assert!(finding.message.contains("priority 500"));
+
+        let with_http = format!(
+            "ltm profile http /Common/http_profile {{ }}\n{}",
+            source.replace(
+                "profiles { /Common/tcp { } }",
+                "profiles { /Common/tcp { } /Common/http_profile { } }",
+            )
+        );
+        assert!(!has(&with_http, "BIGIP6038"));
+    }
+
+    #[test]
+    fn versioned_profile_default_evidence_never_guesses_an_unknown_tmos_release() {
+        let source = "ltm profile client-ssl /Common/client {\n  ciphers WEAK\n}\n\
+                      ltm persistence cookie /Common/persist {\n  secure disabled\n}\n";
+        let config = crate::parser::driver::parse_bigip_conf(source, "Common");
+        let unknown = collect_profile_default_evidence(&config, None);
+        assert!(
+            unknown.iter().any(|evidence| {
+                evidence.owner == "/Common/client"
+                    && evidence.field == "ciphers"
+                    && evidence.state == ProfileDefaultState::UnknownVersion
+            }),
+            "{unknown:#?}"
+        );
+        assert!(unknown.iter().any(|evidence| {
+            evidence.owner == "/Common/persist"
+                && evidence.field == "secure"
+                && evidence.state == ProfileDefaultState::UnknownVersion
+                && evidence.security_relevant
+        }));
+
+        let known = collect_profile_default_evidence(&config, Some(BigipVersion::new(17, 1, 0, 0)));
+        assert!(known.iter().any(|evidence| {
+            evidence.owner == "/Common/client"
+                && evidence.field == "ciphers"
+                && evidence.state == ProfileDefaultState::Explicit
+                && evidence.default_value.is_some()
+                && evidence.security_relevant
+        }));
     }
 
     #[test]
@@ -850,7 +1442,27 @@ mod tests {
 
     #[test]
     fn bigip_diagnostic_catalogue_is_complete_and_user_configurable() {
-        let expected: Vec<String> = (6001..=6012).map(|n| format!("BIGIP{n}")).collect();
+        let expected = [
+            "BIGIP6001",
+            "BIGIP6002",
+            "BIGIP6003",
+            "BIGIP6004",
+            "BIGIP6005",
+            "BIGIP6006",
+            "BIGIP6007",
+            "BIGIP6008",
+            "BIGIP6009",
+            "BIGIP6010",
+            "BIGIP6011",
+            "BIGIP6012",
+            "BIGIP6013",
+            "BIGIP6014",
+            "BIGIP6038",
+            "BIGIP6039",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
         let actual: Vec<_> = BIGIP_DIAGNOSTIC_CODES
             .iter()
             .map(|code| code.as_str().to_owned())

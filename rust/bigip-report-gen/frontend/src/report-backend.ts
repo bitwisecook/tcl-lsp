@@ -144,8 +144,10 @@ export class WasmBackend implements ReportBackend {
     let items = await this.extractAll(files, opts.passphrase);
     const secretTotal = items.reduce((a, s) => a + this.wasm.secret_count(s.scf), 0);
 
-    // Certs + forensics come straight from each archive's filestore (unaffected
-    // by the f5mku secret decryption below); best-effort per source.
+    // Certificate/key material + forensics come straight from each archive's
+    // filestore (unaffected by the f5mku secret decryption below); best-effort
+    // per source. Private-key bytes are consumed only by the Rust SPKI matcher
+    // and never become part of the report model.
     const certFiles: Record<string, unknown> = {};
     const forensicFiles: Record<string, unknown> = {};
     for (const it of items) {
