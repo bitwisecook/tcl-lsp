@@ -1294,7 +1294,7 @@ pub struct Procedure {
     pub body_source: Option<String>,
     /// Whether defined inside `namespace eval`.
     pub namespace_scoped: bool,
-    /// BIG-IP handler priority (0..2^32-1, default 500).
+    /// BIG-IP handler priority (`0..=1000`, default 500).
     pub base_priority: u32,
 }
 

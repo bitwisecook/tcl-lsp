@@ -220,6 +220,25 @@ pub enum IrulesTopLevelDeclaration {
         /// Zero-based argument index of the procedure body.
         body_index: usize,
     },
+    /// Change the inherited priority for subsequent event declarations.
+    Priority {
+        /// Valid BIG-IP priority (`0..=1000`).
+        value: u16,
+    },
+    /// Toggle timing statistics for subsequent event declarations.
+    Timing {
+        /// Whether timing is enabled.
+        enabled: bool,
+    },
+}
+
+/// Stateful effect of an iRules-only top-level declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesTopLevelEffect {
+    /// `priority N` changes the inherited priority of following handlers.
+    Priority,
+    /// `timing on|off|enable|disable` changes timing collection.
+    Timing,
 }
 
 /// Result of applying the registry-owned iRules placement contract.
@@ -1076,20 +1095,76 @@ pub fn top_level_when_handlers_with_registry_and_head_resolver(
         |profile| LexerConfig::from_grammar(profile.grammar),
     );
     let events = EventRegistry::build();
-    tcl_syntax::event_handler::event_handlers_with_head_predicate(
+    let mut handlers = tcl_syntax::event_handler::event_handlers_with_head_predicate(
         source,
         config,
         |written, offset| {
             let effective_head = resolver.resolve(written, offset);
             is_event_handler_head(registry, effective_head.as_ref())
         },
-    )
-    .into_iter()
-    .filter(|handler| {
+    );
+    handlers.retain(|handler| {
         let args: Vec<&str> = handler.arguments.iter().map(String::as_str).collect();
         registry.irules_event_declaration(&args, &events).is_some()
-    })
-    .collect()
+    });
+    apply_inherited_priorities(source, config, registry, resolver, &mut handlers);
+    handlers
+}
+
+fn apply_inherited_priorities(
+    source: &str,
+    config: LexerConfig,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn CommandHeadResolver,
+    handlers: &mut [tcl_syntax::event_handler::EventHandler],
+) {
+    use tcl_lexer::{SourceMap, word_span_at};
+
+    let sm = SourceMap::new(source);
+    let mut inherited = BIGIP_EVENT_HANDLER_PRIORITY.default_priority;
+    let mut next_handler = 0usize;
+    for command in tcl_syntax::event_handler::script_commands(source, config) {
+        let Some([head]) = command.words.first().map(Vec::as_slice) else {
+            continue;
+        };
+        let offset = word_span_at(source, head.span).start();
+        while handlers
+            .get(next_handler)
+            .is_some_and(|handler| handler.span.start() < offset)
+        {
+            next_handler += 1;
+        }
+        if let Some(handler) = handlers
+            .get_mut(next_handler)
+            .filter(|handler| handler.span.start() == offset)
+        {
+            handler.effective_priority = handler
+                .priority
+                .and_then(|value| u16::try_from(value).ok())
+                .unwrap_or(inherited);
+            next_handler += 1;
+            continue;
+        }
+        let effective = resolver.resolve(sm.token_text(*head), offset);
+        let name = effective.as_ref();
+        let Some(args) = command
+            .words
+            .iter()
+            .skip(1)
+            .map(|word| match word.as_slice() {
+                [token] => Some(sm.token_text(*token)),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            continue;
+        };
+        if let Some(IrulesTopLevelDeclaration::Priority { value }) =
+            registry.irules_top_level_effect(name, &args)
+        {
+            inherited = value;
+        }
+    }
 }
 
 /// Parse syntactically valid top-level event declarations without filtering

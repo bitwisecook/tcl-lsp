@@ -1997,6 +1997,9 @@ impl CommandRegistry {
         {
             return None;
         }
+        if let Some(effect) = self.irules_top_level_effect(name, args) {
+            return Some(effect);
+        }
         let bodies = self.arg_indices_for_role(name, args, crate::ArgRole::Body);
         let [body_index] = bodies.as_slice() else {
             return None;
@@ -2015,6 +2018,40 @@ impl CommandRegistry {
             });
         }
         None
+    }
+
+    /// Parse a stateful iRules file-level declaration through its spec-owned
+    /// effect descriptor.
+    #[must_use]
+    pub fn irules_top_level_effect(
+        &self,
+        name: &str,
+        args: &[&str],
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let spec = self.get(name)?;
+        let argument_count = u16::try_from(args.len()).ok()?;
+        if !spec.arity.accepts(argument_count) {
+            return None;
+        }
+        match spec.irules_top_level_effect {
+            Some(crate::events::IrulesTopLevelEffect::Priority) => {
+                let [value] = args else { return None };
+                let value = value.parse::<u16>().ok()?;
+                (value <= 1000).then_some(Declaration::Priority { value })
+            }
+            Some(crate::events::IrulesTopLevelEffect::Timing) => {
+                let [value] = args else { return None };
+                let enabled = match *value {
+                    "on" | "enable" => true,
+                    "off" | "disable" => false,
+                    _ => return None,
+                };
+                Some(Declaration::Timing { enabled })
+            }
+            None => None,
+        }
     }
 
     /// Validate the shared iRules event-handler argument grammar independent
@@ -2043,12 +2080,16 @@ impl CommandRegistry {
         use crate::events::IrulesTopLevelDeclaration as Declaration;
         let valid_layout = match args {
             [_, _] => true,
-            [_, "priority", value, _] => value.parse::<i64>().is_ok(),
+            [_, "priority", value, _] => {
+                value.parse::<u16>().is_ok_and(|priority| priority <= 1000)
+            }
             [_, "timing", value, _] => {
                 matches!(*value, "on" | "off" | "enable" | "disable")
             }
             [_, "priority", priority, "timing", timing, _] => {
-                priority.parse::<i64>().is_ok()
+                priority
+                    .parse::<u16>()
+                    .is_ok_and(|priority| priority <= 1000)
                     && matches!(*timing, "on" | "off" | "enable" | "disable")
             }
             _ => false,
@@ -5857,6 +5898,8 @@ mod tests {
                 "disable",
                 "body",
             ][..],
+            &["HTTP_REQUEST", "priority", "0", "body"][..],
+            &["HTTP_REQUEST", "priority", "1000", "body"][..],
         ] {
             assert!(
                 registry
@@ -5868,6 +5911,8 @@ mod tests {
             &["HTTP_REQUEST"][..],
             &["HTTP_REQUEST", "body", "trailing"][..],
             &["HTTP_REQUEST", "priority", "bad", "body"][..],
+            &["HTTP_REQUEST", "priority", "-1", "body"][..],
+            &["HTTP_REQUEST", "priority", "1001", "body"][..],
             &["HTTP_REQUEST", "timing", "maybe", "body"][..],
             &["HTTP_REQUEST", "timing", "on", "priority", "100", "body"][..],
         ] {
@@ -5881,6 +5926,25 @@ mod tests {
             registry.irules_top_level_declaration("proc", &["p", "", "return"], &events),
             Some(Declaration::Procedure { .. })
         ));
+        for value in ["0", "500", "1000"] {
+            assert_eq!(
+                registry.irules_top_level_declaration("priority", &[value], &events),
+                Some(Declaration::Priority {
+                    value: value.parse().unwrap()
+                })
+            );
+        }
+        for invalid in ["-1", "1001", "bad"] {
+            assert!(
+                registry
+                    .irules_top_level_declaration("priority", &[invalid], &events)
+                    .is_none()
+            );
+        }
+        assert_eq!(
+            registry.irules_top_level_declaration("timing", &["enable"], &events),
+            Some(Declaration::Timing { enabled: true })
+        );
         for malformed in [&["p", ""][..], &["p", "", "return", "extra"][..]] {
             assert!(
                 registry

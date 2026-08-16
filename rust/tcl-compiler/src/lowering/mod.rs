@@ -747,6 +747,8 @@ pub struct Lowerer<'r> {
     class_instance_vars: HashMap<String, HashSet<String>>,
     /// Event handler occurrence counts (for `when` numbering).
     when_counts: HashMap<String, u32>,
+    /// Priority inherited by subsequent top-level iRules event declarations.
+    irules_priority: u16,
     /// Monotonic counter for synthetic *body unit* names (`apply` lambdas and
     /// `namespace eval` bodies), so each registers under a unique qualified
     /// name in [`Module::body_units`]. Deterministic in source order, so the
@@ -877,6 +879,7 @@ impl<'r> Lowerer<'r> {
             aliases: CommandAliasMap::new(),
             class_instance_vars: HashMap::new(),
             when_counts: HashMap::new(),
+            irules_priority: 500,
             body_unit_count: 0,
             in_namespace_eval: false,
             registry,
@@ -1509,6 +1512,20 @@ impl<'r> Lowerer<'r> {
         let cmd_name = seg.name();
         let args = seg.args();
 
+        if self.proc_depth == 0 && self.nest_depth == 1 && !self.in_namespace_eval {
+            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            if let Some(resolved) = self.registry.resolve_invocation(
+                cmd_name,
+                &arg_refs,
+                self.registry.own_availability_mask(),
+            ) && let Some(tcl_registry::events::IrulesTopLevelDeclaration::Priority { value }) =
+                self.registry
+                    .irules_top_level_effect(resolved.canonical_command, &arg_refs)
+            {
+                self.irules_priority = value;
+            }
+        }
+
         // Detect `interp alias {} name {} target ?args?` and static
         // `rename oldName newName` — both feed the same alias table, since
         // calling through a renamed name and calling through an `interp
@@ -1899,7 +1916,7 @@ impl<'r> Lowerer<'r> {
         self.const_map_stack.pop();
         self.proc_depth -= 1;
 
-        let mut base_priority: u32 = 500;
+        let mut base_priority = u32::from(self.irules_priority);
         if args.len() >= 4
             && args[1] == "priority"
             && let Ok(p) = args[2].parse::<u32>()
@@ -3959,6 +3976,33 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn irules_event_priorities_follow_file_state_and_keep_repeated_handlers() {
+        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let registry = tcl_registry::registry_for_profile(profile);
+        let module = lower_to_ir_with_config(
+            "priority 700\n\
+             when HTTP_REQUEST {}\n\
+             priority 400\n\
+             when HTTP_REQUEST {}\n\
+             when HTTP_REQUEST priority 200 {}\n\
+             when HTTP_REQUEST {}",
+            registry,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+
+        let priorities: Vec<_> = [
+            "::when::HTTP_REQUEST",
+            "::when::HTTP_REQUEST#1",
+            "::when::HTTP_REQUEST#2",
+            "::when::HTTP_REQUEST#3",
+        ]
+        .into_iter()
+        .map(|name| module.procedures[name].base_priority)
+        .collect();
+        assert_eq!(priorities, [700, 400, 200, 400]);
     }
 
     #[test]

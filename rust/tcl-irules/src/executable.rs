@@ -152,7 +152,11 @@ fn collect_top_level_regions(
                     procedures.insert((*name).to_owned(), body);
                 }
             }
-            None => {}
+            Some(
+                tcl_registry::events::IrulesTopLevelDeclaration::Priority { .. }
+                | tcl_registry::events::IrulesTopLevelDeclaration::Timing { .. },
+            )
+            | None => {}
         }
     }
 }

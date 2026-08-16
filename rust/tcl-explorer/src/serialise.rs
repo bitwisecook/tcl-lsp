@@ -2475,7 +2475,7 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
     {
         let event = handler.event;
         let span = handler.event_span;
-        let priority = handler.priority.unwrap_or(500);
+        let priority = i64::from(handler.effective_priority);
         per_event.entry(event).or_default().push(Handler {
             priority,
             idx: matched,
@@ -3609,6 +3609,27 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["priority_offset"], 0);
         assert_eq!(rows[1]["priority_offset"], 1);
+    }
+
+    #[test]
+    fn event_order_applies_outer_priority_until_it_changes() {
+        let src = "priority 700\n\
+                   when HTTP_REQUEST { log local0. first }\n\
+                   priority 400\n\
+                   when CLIENT_ACCEPTED { log local0. second }\n\
+                   when HTTP_REQUEST { log local0. third }\n\
+                   when HTTP_REQUEST priority 200 { log local0. inline }";
+        let value = serialise_result(&run_pipeline(src, "f5-irules"));
+        let rows = value["eventOrder"].as_array().unwrap();
+        assert_eq!(rows.len(), 4, "repeated events remain distinct");
+        let request: Vec<_> = rows
+            .iter()
+            .filter(|row| row["event"] == "HTTP_REQUEST")
+            .map(|row| row["base_priority"].as_i64().unwrap())
+            .collect();
+        assert_eq!(request, [200, 400, 700]);
+        assert_eq!(rows[0]["event"], "CLIENT_ACCEPTED");
+        assert_eq!(rows[0]["base_priority"], 400);
     }
 
     #[test]

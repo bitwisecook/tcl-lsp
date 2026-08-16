@@ -23,7 +23,8 @@ pub const fn spec() -> CommandSpec {
         name: "timing",
         traits: Traits::IRULES_TOP_LEVEL_ONLY,
         dialects: Some(DialectSet::IRULES),
-        arity: Arity::at_least(0),
+        arity: Arity::exact(1),
+        irules_top_level_effect: Some(IrulesTopLevelEffect::Timing),
         hover: Some(HoverSnippet {
             summary: "Enables or disables iRule timing statistics.",
             synopsis: &["timing TIMING"],

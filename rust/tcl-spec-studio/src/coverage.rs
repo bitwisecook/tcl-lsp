@@ -219,6 +219,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         data_collection: _,
         side_switch_target: _,
         event_handler_priority: _,
+        irules_top_level_effect: _,
         options: _,
         option_constraints: _,
         reserved_trailing_words: _,

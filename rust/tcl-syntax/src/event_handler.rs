@@ -27,6 +27,10 @@ pub struct EventHandler {
     pub body_span: Span,
     /// Explicit handler priority, when it is a valid integer.
     pub priority: Option<i64>,
+    /// Effective priority after applying any preceding file-level `priority`
+    /// declaration. Syntax-only parsing defaults this to 500; the registry
+    /// wrapper applies resolved declaration state.
+    pub effective_priority: u16,
     /// Decoded single-token argument words after the command head.
     pub arguments: Vec<String>,
 }
@@ -149,6 +153,9 @@ fn parse_handler(
         3 => (2, None),
         5 if one(2).is_some_and(|token| sm.token_text(*token) == "priority") => {
             let value = sm.token_text(*one(3)?).parse::<i64>().ok()?;
+            if !(0..=1000).contains(&value) {
+                return None;
+            }
             (4, Some(value))
         }
         5 if one(2).is_some_and(|token| sm.token_text(*token) == "timing")
@@ -159,7 +166,10 @@ fn parse_handler(
             (4, None)
         }
         7 if one(2).is_some_and(|token| sm.token_text(*token) == "priority")
-            && sm.token_text(*one(3)?).parse::<i64>().is_ok()
+            && sm
+                .token_text(*one(3)?)
+                .parse::<i64>()
+                .is_ok_and(|priority| (0..=1000).contains(&priority))
             && one(4).is_some_and(|token| sm.token_text(*token) == "timing")
             && one(5).is_some_and(|token| {
                 matches!(sm.token_text(*token), "on" | "off" | "enable" | "disable")
@@ -196,6 +206,9 @@ fn parse_handler(
         event_span,
         body_span,
         priority,
+        effective_priority: priority
+            .and_then(|value| u16::try_from(value).ok())
+            .unwrap_or(500),
         arguments: words[1..]
             .iter()
             .map(|word| sm.token_text(word[0]).to_owned())
@@ -272,6 +285,8 @@ mod tests {
             "when HTTP_REQUEST timing on {}",
             "when HTTP_REQUEST timing disable {}",
             "when HTTP_REQUEST priority 100 timing enable {}",
+            "when HTTP_REQUEST priority 0 {}",
+            "when HTTP_REQUEST priority 1000 {}",
         ] {
             assert_eq!(event_handlers(source, irules()).len(), 1, "{source}");
         }
@@ -281,6 +296,8 @@ mod tests {
             "when HTTP_REQUEST {} trailing",
             "when HTTP_REQUEST priority {}",
             "when HTTP_REQUEST priority nope {}",
+            "when HTTP_REQUEST priority -1 {}",
+            "when HTTP_REQUEST priority 1001 {}",
             "when HTTP_REQUEST timing maybe {}",
             "when HTTP_REQUEST timing on priority 100 {}",
         ] {

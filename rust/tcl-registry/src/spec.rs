@@ -1245,6 +1245,9 @@ pub struct CommandSpec {
     /// diagnostic, so consumers do not assume an explicit priority is needed.
     pub event_handler_priority: Option<crate::events::EventHandlerPriority>,
 
+    /// Stateful iRules file-level effect owned by this declaration command.
+    pub irules_top_level_effect: Option<crate::events::IrulesTopLevelEffect>,
+
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
@@ -1790,6 +1793,7 @@ impl CommandSpec {
         data_collection: None,
         side_switch_target: None,
         event_handler_priority: None,
+        irules_top_level_effect: None,
         options: &[],
         option_constraints: &[],
         reserved_trailing_words: 0,
