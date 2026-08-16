@@ -25,11 +25,13 @@
 //! release, and — worse — wrong *silently*, because most numerals read the same
 //! either way.
 //!
-//! The workspace therefore has exactly one numeral parser,
-//! [`tcl_syntax::number`], parameterised by `NumberSyntax`. Everything else
-//! asks it. This lint exists because that rule was broken six separate times
-//! before it was enforced, each independently and each with the same shape —
-//! strip a two-character radix prefix by hand, then call `from_str_radix`:
+//! The workspace therefore has exactly one numeral **value parser**,
+//! [`tcl_syntax::number`], parameterised by `NumberSyntax`, and one expression
+//! **lexeme-boundary scanner**, [`tcl_dialect::scan_expr_number`]. Everything
+//! else asks one of those owners. This lint exists because the value-parser
+//! rule was broken six separate times, each independently and each with the
+//! same shape — strip a two-character radix prefix by hand, then call
+//! `from_str_radix`:
 //!
 //! - `bpf-tcl-ir`'s eBPF lowering — rejected valid 9.x numerals
 //! - `tcl-compiler`'s interval analysis — read `0755` as 755 for an 8.6 target
@@ -49,6 +51,16 @@
 //! recognition — nor a `from_str_radix` whose radix comes from somewhere real
 //! (a `scan` conversion character, a `format` spec), nor prefix literals
 //! appearing as test data. That keeps the signal about the one drift class.
+//!
+//! It also verifies the expression lexer and expression-number classifier both
+//! route through the lower `tcl-dialect` boundary owner, rejects another source
+//! declaring the owner's entry-point names, and requires the owner/consumer
+//! regression corpus for `1_eq`, radix-operator junctions, and NaN payloads.
+//! This is structural wiring evidence, not a proof that arbitrary Rust text
+//! cannot reproduce the semantics; review and the mutation-sensitive tests
+//! remain the semantic backstop. The same check pins `scan_nan_payload`, because
+//! its whitespace and thirteen-digit ceiling must agree between lexing and
+//! `tcl_syntax::number`.
 //!
 //! # Known blind spot
 //!
@@ -74,11 +86,58 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-/// Files allowed to recognise a Tcl radix prefix: the one numeral parser, and
-/// this lint's own docs and fixtures, which spell the pattern out.
+/// Files allowed to recognise a Tcl radix prefix: the value parser, the lower
+/// expression-boundary scanner, and this lint's own docs and fixtures.
 const SANCTIONED_FILES: &[&str] = &[
+    "rust/tcl-dialect/src/expr_number.rs",
     "rust/tcl-syntax/src/number.rs",
     "rust/xtask/src/number_drift.rs",
+];
+
+/// The lower owner of `ParseLexeme`'s expression-number boundary half.
+const EXPR_BOUNDARY_OWNER: &str = "rust/tcl-dialect/src/expr_number.rs";
+
+/// Higher layers that must call the boundary owner rather than scan again.
+const EXPR_BOUNDARY_CONSUMERS: &[&str] = &[
+    "rust/tcl-lexer/src/expr_lexer.rs",
+    "rust/tcl-syntax/src/number.rs",
+];
+
+/// The NaN payload sub-owner is shared by the lower scanner and value parser.
+const NAN_PAYLOAD_CONSUMER: &str = "rust/tcl-syntax/src/number.rs";
+
+/// Named regression rows that make the lower-owner wiring evidence semantic.
+/// The gate deliberately checks their presence rather than pretending a text
+/// scan proves semantic uniqueness; the Rust tests execute the actual rows.
+const EXPR_BOUNDARY_CORPUS: &[(&str, &str)] = &[
+    (
+        EXPR_BOUNDARY_OWNER,
+        "number_bareword_junctions_match_tcl_parselexeme",
+    ),
+    (
+        EXPR_BOUNDARY_OWNER,
+        "tcl84_getlexeme_keeps_integer_prefixes_separate",
+    ),
+    (
+        EXPR_BOUNDARY_OWNER,
+        "explicit_radix_numerals_split_only_before_available_word_operators",
+    ),
+    (
+        EXPR_BOUNDARY_OWNER,
+        "special_floats_follow_numeric_junction_rules",
+    ),
+    (
+        "rust/tcl-lexer/src/expr_lexer.rs",
+        "explicit_radix_numbers_stop_before_word_operators",
+    ),
+    (
+        "rust/tcl-lexer/src/expr_lexer.rs",
+        "completed_nan_payload_is_a_number_before_following_bareword",
+    ),
+    (
+        NAN_PAYLOAD_CONSUMER,
+        "expression_number_validation_shares_the_boundary_owner",
+    ),
 ];
 
 /// The radix-prefix spellings a Tcl numeral can carry, in both cases.
@@ -123,10 +182,16 @@ pub fn run(_check: bool) -> ExitCode {
         }
     }
 
+    for problem in expr_boundary_owner_problems(&root) {
+        hits += 1;
+        let _ = writeln!(report, "  {problem}");
+    }
+
     if hits == 0 {
         println!(
             "number-drift: OK (no hand-rolled Tcl radix-prefix recognition \
-             outside tcl_syntax::number)"
+             outside tcl_syntax::number; expr lexeme boundaries use \
+             tcl_dialect::scan_expr_number)"
         );
         return ExitCode::SUCCESS;
     }
@@ -134,12 +199,103 @@ pub fn run(_check: bool) -> ExitCode {
         "number-drift: {hits} site(s) recognising a Tcl radix prefix by hand. \
          Tcl's numeral grammar is release-dependent (`0b`/`0o` are 8.5+, `0d` \
          and `_` are 9.0+, leading-zero octal ends at 9.0), so a hand-rolled \
-         parser is silently wrong for some release. Route it through \
-         `tcl_syntax::number` with the target's `NumberSyntax` — or, if the \
+         parser is silently wrong for some release. Route value parsing through \
+         `tcl_syntax::number` with the target's `NumberSyntax`, and expression \
+         lexeme boundaries through `tcl_dialect::scan_expr_number` — or, if the \
          text is not Tcl script (a hex colour, a packet field, a hex-encoded \
          byte string), mark it `// number-drift-ok: <reason>`:\n{report}"
     );
     ExitCode::FAILURE
+}
+
+/// Check the dependency-safe split between value parsing and expression lexing.
+fn expr_boundary_owner_problems(root: &Path) -> Vec<String> {
+    let mut problems = Vec::new();
+    let owner_text = read_rust_source(root, EXPR_BOUNDARY_OWNER);
+    if !owner_text.as_ref().is_some_and(|text| {
+        text.lines()
+            .any(|line| line.trim_start().starts_with("pub fn scan_expr_number("))
+    }) {
+        problems.push(format!(
+            "{EXPR_BOUNDARY_OWNER}: missing public expression-number boundary owner"
+        ));
+    }
+    for consumer in EXPR_BOUNDARY_CONSUMERS {
+        if !read_rust_source(root, consumer)
+            .is_some_and(|text| text.contains("tcl_dialect::scan_expr_number("))
+        {
+            problems.push(format!(
+                "{consumer}: expression-number consumer does not call \
+                 tcl_dialect::scan_expr_number"
+            ));
+        }
+    }
+    if !owner_text.as_ref().is_some_and(|text| {
+        text.lines()
+            .any(|line| line.trim_start().starts_with("pub fn scan_nan_payload("))
+    }) {
+        problems.push(format!(
+            "{EXPR_BOUNDARY_OWNER}: missing public NaN payload boundary owner"
+        ));
+    }
+    if !read_rust_source(root, NAN_PAYLOAD_CONSUMER)
+        .is_some_and(|text| text.contains("tcl_dialect::scan_nan_payload("))
+    {
+        problems.push(format!(
+            "{NAN_PAYLOAD_CONSUMER}: NaN value parser does not call \
+             tcl_dialect::scan_nan_payload"
+        ));
+    }
+    for &(path, test_name) in EXPR_BOUNDARY_CORPUS {
+        if !read_rust_source(root, path)
+            .is_some_and(|text| text.contains(&format!("fn {test_name}(")))
+        {
+            problems.push(format!(
+                "{path}: missing expression-number regression row `{test_name}`"
+            ));
+        }
+    }
+
+    let mut files = Vec::new();
+    collect_rs_files(&root.join("rust"), &mut files);
+    collect_rs_files(&root.join("runtime/rust/src"), &mut files);
+    for path in files {
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel == EXPR_BOUNDARY_OWNER || rel.contains("/tests/") || rel.ends_with("/tests.rs") {
+            continue;
+        }
+        if read_rust_source(root, &rel).is_some_and(|text| {
+            declares_expr_boundary_scanner(&text) || declares_nan_payload_scanner(&text)
+        }) {
+            problems.push(format!(
+                "{rel}: duplicate expression-number or NaN-payload boundary scanner; \
+                 use tcl_dialect's shared owner"
+            ));
+        }
+    }
+    problems
+}
+
+fn declares_expr_boundary_scanner(text: &str) -> bool {
+    text.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("fn scan_expr_number(") || line.starts_with("pub fn scan_expr_number(")
+    })
+}
+
+fn declares_nan_payload_scanner(text: &str) -> bool {
+    text.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("fn scan_nan_payload(") || line.starts_with("pub fn scan_nan_payload(")
+    })
+}
+
+fn read_rust_source(root: &Path, relative: &str) -> Option<String> {
+    std::fs::read_to_string(root.join(relative)).ok()
 }
 
 /// Recursively collect `.rs` files under `dir` (skipping `target/`).
@@ -347,5 +503,30 @@ mod tests {
     fn closure_params_after_a_prefix_literal_do_not_match() {
         let src = "let n = pick(\"0x\") | mask(y);\n";
         assert!(scan(src).is_empty());
+    }
+
+    #[test]
+    fn expression_boundary_owner_is_unique_and_consumed() {
+        assert!(expr_boundary_owner_problems(&crate::util::repo_root()).is_empty());
+    }
+
+    #[test]
+    fn scanner_declaration_check_ignores_a_string_mention() {
+        assert!(!declares_expr_boundary_scanner(
+            "let name = \"fn scan_expr_number(\";"
+        ));
+        assert!(declares_expr_boundary_scanner(
+            "pub fn scan_expr_number(source: &[u8]) {}"
+        ));
+    }
+
+    #[test]
+    fn nan_payload_declaration_check_ignores_a_string_mention() {
+        assert!(!declares_nan_payload_scanner(
+            "let name = \"fn scan_nan_payload(\";"
+        ));
+        assert!(declares_nan_payload_scanner(
+            "pub fn scan_nan_payload(source: &[u8]) {}"
+        ));
     }
 }

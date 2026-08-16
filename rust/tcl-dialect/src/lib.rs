@@ -43,12 +43,18 @@
 #![deny(missing_docs)]
 
 mod dialect_set;
+mod expr_number;
 mod grammar;
 mod library;
 mod profile;
 mod version;
 
 pub use dialect_set::{DialectSet, KNOWN_DIALECTS, available_dialects};
+pub use expr_number::{
+    ExprNumberLexeme, NanPayloadLexeme, expr_binary_word_operator_at,
+    expr_word_operator_boundary_ok, expr_word_operator_right_boundary_ok, is_expr_bareword_byte,
+    scan_expr_number, scan_nan_payload,
+};
 pub use grammar::{
     BracedVarStyle, EXPR_WORD_OPERATORS, EscapeSyntax, ExprCommentStyle, LexerGrammar,
     NumberSyntax, expr_word_operator_since, is_expr_word_operator,

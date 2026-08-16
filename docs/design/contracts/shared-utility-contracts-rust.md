@@ -37,7 +37,7 @@ entry point, or gate moves without this contract being updated.
 | dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs` | `split_list`; `ValueOps::dict_pairs` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_case_match` | invariant | none |
 | switch body grammar | `rust/tcl-syntax/src/switch_body.rs` | `tokenise_switch_body`; `parse_braced_pairs` | invariant | none |
-| numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `NumberSyntax` | `NumberSyntax` per release | `xtask-number-drift` |
+| numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/expr_number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `is_expr_number`; `scan_expr_number`; `scan_nan_payload`; `NumberSyntax` | `NumberSyntax` and expression-word grammar per release | `xtask-number-drift` |
 | backslash escapes | `rust/tcl-lexer/src/substitution.rs`; `rust/tcl-syntax/src/backslash.rs`; `rust/tcl-dialect/src/grammar.rs` | `backslash_subst`; `backslash_subst_in`; `decode_bytes_in`; `EscapeSyntax` | `LexerGrammar::escapes` per release | none |
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at` | `${...}` close rule per release; tmsh brace mode per dialect | none |
@@ -61,8 +61,8 @@ entry point, or gate moves without this contract being updated.
 - `number` — the `TclParseNumber` port (9.0-first: `0d` radix prefix,
   `_` digit separators, bare leading `0` is decimal), with
   `parse`/`parse_whole`/`parse_whole_with` (`ParseFlags` mirrors
-  `TCL_PARSE_INTEGER_ONLY` etc.) and `format_double`
-  (`Tcl_PrintDouble`).
+  `TCL_PARSE_INTEGER_ONLY` etc.), `is_expr_number` (which delegates its
+  boundary question below), and `format_double` (`Tcl_PrintDouble`).
 - `glob` — `string match` globbing (`string_match`,
   `string_case_match`).
 - `switch_body` — the one `switch` pattern/body-pair tokeniser (brace
@@ -83,6 +83,17 @@ entry point, or gate moves without this contract being updated.
   (`ExprOps`, `mathfunc`).
 - `backslash` — the byte-slice convenience over the lexer's decoder
   (see next); deliberately no second decode implementation.
+
+### `tcl-dialect` — foundational expression grammar
+
+- `tcl_dialect::scan_expr_number` — the lower `ParseLexeme` numeric-boundary
+  owner. The lexer consumes its `ExprNumberLexeme`; `tcl-syntax` uses the same
+  boundary before it classifies a token's value. It lives below both crates so
+  neither can reintroduce a second `1_eq` / fractional-`_` scanner.
+- `tcl_dialect::scan_nan_payload` — the 8.5+ `TclParseNumber` NaN payload
+  state machine: ASCII whitespace is allowed around/between one through thirteen
+  hexadecimal digits; a fourteenth digit invalidates the parenthesised form.
+  The scanner and value parser share it.
 
 ### `tcl-lexer` — source-text decoding
 

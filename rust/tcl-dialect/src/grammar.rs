@@ -430,6 +430,22 @@ impl NumberSyntax {
         matches!(self, Self::Tcl90)
     }
 
+    /// The radix selected by an explicit numeral-prefix marker in this release.
+    ///
+    /// This is the grammar owner for the release availability of `0x`, `0b`,
+    /// `0o`, and `0d`. Both the value parser and expression-boundary scanner
+    /// must ask it instead of maintaining independent prefix tables.
+    #[must_use]
+    pub fn explicit_radix(self, marker: u8) -> Option<u8> {
+        match marker {
+            b'x' | b'X' => Some(16),
+            b'b' | b'B' if self.has_binary_octal_prefix() => Some(2),
+            b'o' | b'O' if self.has_binary_octal_prefix() => Some(8),
+            b'd' | b'D' if self.has_decimal_prefix() => Some(10),
+            _ => None,
+        }
+    }
+
     /// Whether `_` may separate digits (`1__000`, `0xff__ff`) — 9.0 onward.
     #[must_use]
     pub fn allows_digit_separators(self) -> bool {
@@ -455,7 +471,7 @@ impl Default for LexerGrammar {
 
 #[cfg(test)]
 mod tests {
-    use super::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar};
+    use super::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar, NumberSyntax};
 
     #[test]
     fn nesting_rule_is_tcl9_only() {
@@ -480,6 +496,16 @@ mod tests {
         assert!(g.script_skips_leading_bom);
         assert_eq!(g.expr_comments, ExprCommentStyle::Hash);
         assert_eq!(g.escapes, EscapeSyntax::Tcl90);
+    }
+
+    #[test]
+    fn explicit_radix_prefixes_follow_the_number_syntax() {
+        assert_eq!(NumberSyntax::Tcl84.explicit_radix(b'x'), Some(16));
+        assert_eq!(NumberSyntax::Tcl84.explicit_radix(b'b'), None);
+        assert_eq!(NumberSyntax::Tcl85.explicit_radix(b'b'), Some(2));
+        assert_eq!(NumberSyntax::Tcl85.explicit_radix(b'o'), Some(8));
+        assert_eq!(NumberSyntax::Tcl85.explicit_radix(b'd'), None);
+        assert_eq!(NumberSyntax::Tcl90.explicit_radix(b'd'), Some(10));
     }
 
     #[test]

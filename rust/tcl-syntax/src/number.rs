@@ -533,6 +533,25 @@ pub fn is_whole_number(text: &str, syntax: NumberSyntax) -> bool {
     parse_whole_with(text, ParseFlags::for_syntax(syntax)).is_some()
 }
 
+/// Whether `text` is one complete expression-number lexeme under this release.
+///
+/// This is the expression-specific companion to [`is_whole_number`]. It first
+/// asks the lower shared boundary owner (`tcl_dialect::scan_expr_number`) to
+/// prove that the token ends where C `ParseLexeme` ends, then uses this module's
+/// value parser to classify it. The split is intentional: the dialect crate
+/// owns byte boundaries below both the lexer and syntax parser, while this
+/// module remains the sole `TclParseNumber` value implementation.
+#[must_use]
+pub fn is_expr_number(
+    text: &str,
+    syntax: NumberSyntax,
+    expr_grammar_base: Option<tcl_dialect::TclVersion>,
+) -> bool {
+    tcl_dialect::scan_expr_number(text.as_bytes(), 0, syntax, expr_grammar_base)
+        .is_some_and(|lexeme| lexeme.end() == text.len())
+        && is_whole_number(text, syntax)
+}
+
 /// Parse a number at the start of `s` (after optional leading whitespace),
 /// returning the classified value and where it ended. Returns `None` if no valid
 /// number begins there. This is the partial form (the lexer/`scan` entry); use
@@ -558,29 +577,33 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
 
     // Inf / NaN (alphabetic forms).
     if i < len && matches!(b[i], b'i' | b'I' | b'n' | b'N') {
-        return parse_inf_nan(b, i, negative);
+        return parse_inf_nan(b, i, negative, flags.syntax);
     }
 
-    // Radix prefix, each requiring a following digit, and each gated on the
-    // release that introduced it: `0x` is universal, `0b`/`0o` arrived in 8.5,
-    // `0d` in 9.0. An unavailable prefix simply is not a prefix — `0o17` under
-    // 8.4 parses as the single digit `0` with `o17` left over, which is what
-    // makes it a bareword in an expression.
+    // Radix prefix, each requiring a following digit. `NumberSyntax` owns the
+    // release table (`0x` universally, `0b`/`0o` from 8.5, `0d` from 9.0), so
+    // this value parser and the lower expression-boundary scanner cannot drift.
+    // An unavailable prefix simply is not a prefix — `0o17` under 8.4 parses
+    // as the single digit `0` with `o17` left over, which makes it a bareword
+    // in an expression.
     let mut radix = Radix::Dec;
     let mut int_only_prefix = flags.integer_only;
     if i + 1 < len && b[i] == b'0' {
-        let (r, only) = match b[i + 1] {
-            b'x' | b'X' => (Some(Radix::Hex), true),
-            b'o' | b'O' if flags.syntax.has_binary_octal_prefix() => (Some(Radix::Oct), true),
-            b'b' | b'B' if flags.syntax.has_binary_octal_prefix() => (Some(Radix::Bin), true),
-            b'd' | b'D' if flags.syntax.has_decimal_prefix() => (Some(Radix::Dec), true),
-            _ => (None, false),
-        };
+        let r = flags
+            .syntax
+            .explicit_radix(b[i + 1])
+            .map(|base| match base {
+                2 => Radix::Bin,
+                8 => Radix::Oct,
+                10 => Radix::Dec,
+                16 => Radix::Hex,
+                _ => unreachable!("NumberSyntax only exposes Tcl's four explicit radices"),
+            });
         if let Some(r) = r {
             // Commit to the prefix only if a valid digit follows it.
             if i + 2 < len && digit_val(b[i + 2], r as u32).is_some() {
                 radix = r;
-                int_only_prefix = only; // `0x`/`0o`/`0b`/`0d` are integer forms
+                int_only_prefix = true; // `0x`/`0o`/`0b`/`0d` are integer forms
                 i += 2;
             }
         }
@@ -832,7 +855,7 @@ fn parse_decimal_float(
 }
 
 /// Parse the alphabetic `Inf`/`Infinity`/`NaN`/`NaN(hex)` forms (case-insensitive).
-fn parse_inf_nan(b: &[u8], start: usize, negative: bool) -> Option<Parsed> {
+fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -> Option<Parsed> {
     let len = b.len();
     // Case-insensitive prefix match; returns the end offset if matched.
     let matches_ci = |word: &[u8], at: usize| -> bool {
@@ -858,25 +881,16 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool) -> Option<Parsed> {
     if matches_ci(b"nan", start) {
         let mut end = start + 3;
         let mut payload = None;
-        // Optional `(hexdigits)` payload.
-        if end < len && b[end] == b'(' {
-            let p0 = end + 1;
-            let mut p = p0;
-            let mut acc: u64 = 0;
-            while p < len && p - p0 < 16 {
-                match digit_val(b[p], 16) {
-                    Some(d) => {
-                        acc = (acc << 4) | u64::from(d);
-                        p += 1;
-                    }
-                    None => break,
-                }
-            }
-            if p > p0 && p < len && b[p] == b')' {
-                payload = Some(acc);
-                end = p + 1;
-            }
-            // A malformed payload leaves `end` at the bare "NaN".
+        // 8.5+ shares the lower C `TclParseNumber` payload state machine with
+        // the expression lexer: one through thirteen hex digits, ASCII
+        // whitespace ignored, and a fourteenth digit invalidates the whole
+        // parenthesised form. Tcl 8.4 delegates special floats to `strtod`,
+        // whose `GetLexeme` path has no parenthesised payload grammar.
+        if syntax != NumberSyntax::Tcl84
+            && let Some(lexeme) = tcl_dialect::scan_nan_payload(b, end)
+        {
+            payload = Some(lexeme.value());
+            end = lexeme.end();
         }
         return Some(Parsed {
             number: Number::Nan { negative, payload },
@@ -1000,6 +1014,14 @@ mod tests {
                 payload: Some(0x1ff)
             })
         );
+        assert_eq!(
+            n("NaN( 1 2 3 )"),
+            Some(Number::Nan {
+                negative: false,
+                payload: Some(0x123)
+            })
+        );
+        assert_eq!(n("NaN(123456789abcde)"), None);
     }
 
     #[test]
@@ -1163,9 +1185,10 @@ mod tests {
 #[cfg(test)]
 mod dialect_tests {
     use super::{
-        Number, NumberSyntax, Numbers, ParseFlags, parse, parse_whole_with, runtime_syntax,
-        set_runtime_syntax,
+        Number, NumberSyntax, Numbers, ParseFlags, is_expr_number, parse, parse_whole_with,
+        runtime_syntax, set_runtime_syntax,
     };
+    use tcl_dialect::TclVersion;
 
     fn whole(s: &str, syntax: NumberSyntax) -> Option<Number> {
         parse_whole_with(s, ParseFlags::for_syntax(syntax))
@@ -1304,6 +1327,84 @@ mod dialect_tests {
             ..ParseFlags::default()
         };
         assert_eq!(parse_whole_with("1__000", no_sep), None);
+    }
+
+    /// Expression classification consumes the lower shared boundary scanner
+    /// before it asks this module's value parser. These paired rows fail if the
+    /// lexer and syntax parser ever start using different junction rules.
+    #[test]
+    fn expression_number_validation_shares_the_boundary_owner() {
+        assert!(is_expr_number(
+            "1.0_2",
+            NumberSyntax::Tcl90,
+            Some(TclVersion::V9_0)
+        ));
+        assert!(!is_expr_number(
+            "1.0_2",
+            NumberSyntax::Tcl85,
+            Some(TclVersion::V8_6)
+        ));
+        assert!(!is_expr_number(
+            "1_eq",
+            NumberSyntax::Tcl90,
+            Some(TclVersion::V9_0)
+        ));
+        // The value parser consumes the hexadecimal prefix, while the shared
+        // lower boundary scanner restarts at `ne`/`in`/`ge` rather than using
+        // the preceding alpha hex digit as a suffix boundary.
+        for (source, syntax, base, end) in [
+            ("0xfne 1", NumberSyntax::Tcl85, Some(TclVersion::V8_6), 3),
+            (
+                "0xffin {255}",
+                NumberSyntax::Tcl85,
+                Some(TclVersion::V8_6),
+                4,
+            ),
+            ("0xfge 15", NumberSyntax::Tcl90, Some(TclVersion::V9_0), 3),
+        ] {
+            assert_eq!(
+                tcl_dialect::scan_expr_number(source.as_bytes(), 0, syntax, base,)
+                    .unwrap()
+                    .end(),
+                end,
+                "{source}"
+            );
+            assert_eq!(
+                parse(source, ParseFlags::for_syntax(syntax)).unwrap().end,
+                end,
+                "{source}"
+            );
+        }
+        assert!(is_expr_number(
+            "NaN(1)",
+            NumberSyntax::Tcl85,
+            Some(TclVersion::V8_6)
+        ));
+        assert!(is_expr_number(
+            "NaN( 1 2 3 )",
+            NumberSyntax::Tcl90,
+            Some(TclVersion::V9_0)
+        ));
+        assert!(!is_expr_number(
+            "NaN(123456789abcde)",
+            NumberSyntax::Tcl90,
+            Some(TclVersion::V9_0)
+        ));
+        assert!(!is_expr_number(
+            "NaN(1)x",
+            NumberSyntax::Tcl90,
+            Some(TclVersion::V9_0)
+        ));
+        assert!(!is_expr_number(
+            "NaN(1)",
+            NumberSyntax::Tcl84,
+            Some(TclVersion::V8_4)
+        ));
+        assert!(!is_expr_number(
+            "Infinityeq",
+            NumberSyntax::Tcl90,
+            Some(TclVersion::V9_0)
+        ));
     }
 
     /// The three ways a consumer can stand in relation to the release, and what
