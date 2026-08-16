@@ -363,6 +363,8 @@ declare_traits! {
     IsSideSwitch => IS_SIDE_SWITCH;
     /// Must appear at iRules top level (`proc`, `when`, `timing`).
     IrulesTopLevelOnly => IRULES_TOP_LEVEL_ONLY;
+    /// Sets the default priority inherited by subsequent iRules event handlers.
+    SetsEventPriority => SETS_EVENT_PRIORITY;
     /// `TclOO` metaclass (`oo::class`, `oo::abstract`).
     IsOoMetaclass => IS_OO_METACLASS;
     /// Registry command whose subcommand table is the universal method

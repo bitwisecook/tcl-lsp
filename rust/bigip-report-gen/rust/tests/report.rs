@@ -364,6 +364,28 @@ fn build_report_html_self_contained() {
 }
 
 #[test]
+fn configuration_diagnostics_render_in_their_object_tabs() {
+    let source = "ltm pool /Common/empty {\n}\n\
+                  ltm rule /Common/a {\n  when HTTP_REQUEST { one }\n}\n\
+                  ltm rule /Common/b {\n  when HTTP_REQUEST { two }\n}\n\
+                  ltm virtual /Common/vs {\n  rules { /Common/a /Common/b }\n}\n";
+    let sources = vec![("test://diagnostics.conf".to_owned(), source.to_owned())];
+    let html = build_report(&sources, &RenderOptions::default()).expect("render diagnostics");
+
+    assert!(html.contains("Configuration diagnostics"));
+    assert!(html.contains("BIGIP6008"), "pool diagnostic rendered");
+    assert!(html.contains("BIGIP6012"), "virtual diagnostic rendered");
+    let virtual_panel = html
+        .split_once("<div class=\"panel active\" data-panel=\"virtuals\">")
+        .expect("virtual panel")
+        .1
+        .split_once("<div class=\"panel\" data-panel=\"pools\">")
+        .expect("pools panel")
+        .0;
+    assert!(virtual_panel.contains("BIGIP6012"));
+}
+
+#[test]
 fn footer_shows_version_and_git_hash() {
     let sources = vec![load("lab-device-01.ucs")];
     let opts = RenderOptions {

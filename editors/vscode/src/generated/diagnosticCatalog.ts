@@ -849,6 +849,80 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
       "Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
     defaultEnabled: true,
   },
+  {
+    code: "BIGIP6001",
+    section: "bigip",
+    description: "iRule references a data group not found in the configuration.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6002",
+    section: "bigip",
+    description: "iRule references a pool not found in the configuration.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6003",
+    section: "bigip",
+    description: "iRule contains a dynamic pool reference that cannot be validated statically.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6004",
+    section: "bigip",
+    description: "Virtual server references an object not found in the configuration.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6005",
+    section: "bigip",
+    description: "Pool has no members.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6006",
+    section: "bigip",
+    description: "Data group has duplicate keys.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6007",
+    section: "bigip",
+    description: "iRule references a virtual server not found in the configuration.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6008",
+    section: "bigip",
+    description: "iApp presentation and implementation variables do not agree.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6009",
+    section: "bigip",
+    description:
+      "iRule contains a dynamic virtual-server reference that cannot be validated statically.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6010",
+    section: "bigip",
+    description:
+      "Virtual server has a missing or invalid source-address-translation pool reference.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6011",
+    section: "bigip",
+    description: "Virtual server references a persistence profile not found in the configuration.",
+    defaultEnabled: true,
+  },
+  {
+    code: "BIGIP6012",
+    section: "bigip",
+    description: "Attached iRules handle the same event at the same effective priority.",
+    defaultEnabled: true,
+  },
 ];
 
 export const OPTIMISATIONS: OptimisationDef[] = [
@@ -1024,6 +1098,7 @@ export const SECTION_TITLES: Record<string, string> = {
   shimmer: "Diagnostics — Shimmer",
   taint: "Diagnostics — Taint",
   irules: "Diagnostics — iRules",
+  bigip: "Diagnostics — BIG-IP Configuration",
   tclpkg: "Diagnostics — Package Manager",
 };
 
@@ -1036,5 +1111,6 @@ export const SECTION_ORDER: string[] = [
   "shimmer",
   "taint",
   "irules",
+  "bigip",
   "tclpkg",
 ];

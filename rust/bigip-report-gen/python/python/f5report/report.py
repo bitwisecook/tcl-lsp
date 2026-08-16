@@ -708,6 +708,23 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     # was decrypted with the f5mku master key upstream in collect_model.
     device["secrets"] = json.loads(_engine.list_secrets(source))
 
+    # Model-level BIG-IP configuration diagnostics. The Rust validator is the
+    # single source of truth; keep the full list and route views to the same
+    # object tabs as the native/wasm report backends.
+    device["configDiagnostics"] = json.loads(_engine.config_diagnostics(source))
+    routed = {
+        "virtuals": "virtualDiagnostics",
+        "rules": "ruleDiagnostics",
+        "pools": "poolDiagnostics",
+        "dataGroups": "dataGroupDiagnostics",
+    }
+    for tab, key in routed.items():
+        device[key] = [
+            diagnostic
+            for diagnostic in device["configDiagnostics"]
+            if diagnostic.get("tab") == tab
+        ]
+
     # Tag every displayed object with its partition (from the full path) and
     # collect the device's partition set, so the report can filter to a
     # partition while always keeping shared /Common objects visible.
@@ -743,6 +760,7 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     device["counts"]["apps"] = len(device["apps"])
     device["counts"]["certificates"] = len(device["certificates"])
     device["counts"]["secrets"] = len(device["secrets"])
+    device["counts"]["configDiagnostics"] = len(device["configDiagnostics"])
     # The Forensics tab is driven by the UCS file inventory, which is extracted
     # at the Rust/WASM entry point; the Python library path does not pull UCS
     # members, so it reports zero forensic files (the tab stays hidden).

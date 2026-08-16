@@ -32,6 +32,7 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-irules = { path = "../tcl-irules" }
+tcl-core-types = { path = "../tcl-core-types" }
 tcl-syntax = { path = "../tcl-syntax" }
 serde_json = "1"
 regex = "1"

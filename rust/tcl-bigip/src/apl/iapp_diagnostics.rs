@@ -36,7 +36,7 @@ use std::collections::HashSet;
 use super::iapp_vars::IappVarRef;
 use super::model::AplModel;
 use crate::range::{Position, Range};
-use crate::validator::{ConfigDiagnostic, DiagSeverity};
+use crate::validator::{ConfigDiagnostic, ConfigDiagnosticSubject, DiagSeverity};
 
 /// Dialects in which iApp presentation/implementation cross-validation
 /// makes sense (iApps live under `f5-iapps`; `f5-tmsh` / `f5-bigip` share
@@ -82,6 +82,7 @@ pub fn validate_iapp_presentation(
                 code: "IAPP7003".to_owned(),
                 message: format!("#include file not found: \"{}\"", inc.path),
                 severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::IApp,
                 range: Range {
                     start: pos,
                     end: pos,
@@ -110,6 +111,7 @@ pub fn validate_iapp_presentation(
                     field.qualified_name.replace('.', "__")
                 ),
                 severity: DiagSeverity::Hint,
+                subject: ConfigDiagnosticSubject::IApp,
                 range: field.range,
             });
         }
@@ -148,6 +150,7 @@ pub fn validate_iapp_implementation(
                     r.tcl_name, r.apl_name
                 ),
                 severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::IApp,
                 range: r.range,
             });
         }

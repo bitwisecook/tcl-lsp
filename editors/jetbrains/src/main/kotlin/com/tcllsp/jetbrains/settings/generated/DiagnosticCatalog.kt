@@ -164,6 +164,18 @@ object DiagnosticCatalog {
         DiagnosticDef("IRULE4003", "irules_variable", "IRULE4003: Variable scoping concern across events", true),
         DiagnosticDef("IRULE4004", "irules_variable", "IRULE4004: Constant set in per-request event could be hoisted t...", true),
         DiagnosticDef("IRULE4005", "irules_variable", "IRULE4005: Potential race", true),
+        DiagnosticDef("BIGIP6001", "bigip", "BIGIP6001: iRule references a data group not found in the confi...", true),
+        DiagnosticDef("BIGIP6002", "bigip", "BIGIP6002: iRule references a pool not found in the configuration", true),
+        DiagnosticDef("BIGIP6003", "bigip", "BIGIP6003: iRule contains a dynamic pool reference that cannot ...", true),
+        DiagnosticDef("BIGIP6004", "bigip", "BIGIP6004: Virtual server references an object not found in the...", true),
+        DiagnosticDef("BIGIP6005", "bigip", "BIGIP6005: Pool has no members", true),
+        DiagnosticDef("BIGIP6006", "bigip", "BIGIP6006: Data group has duplicate keys", true),
+        DiagnosticDef("BIGIP6007", "bigip", "BIGIP6007: iRule references a virtual server not found in the c...", true),
+        DiagnosticDef("BIGIP6008", "bigip", "BIGIP6008: iApp presentation and implementation variables do no...", true),
+        DiagnosticDef("BIGIP6009", "bigip", "BIGIP6009: iRule contains a dynamic virtual-server reference th...", true),
+        DiagnosticDef("BIGIP6010", "bigip", "BIGIP6010: Virtual server has a missing or invalid source-addre...", true),
+        DiagnosticDef("BIGIP6011", "bigip", "BIGIP6011: Virtual server references a persistence profile not ...", true),
+        DiagnosticDef("BIGIP6012", "bigip", "BIGIP6012: Attached iRules handle the same event at the same ef...", true),
     )
 
     val optimisations: List<OptimisationDef> = listOf(
@@ -209,6 +221,7 @@ object DiagnosticCatalog {
         "shimmer" to "Diagnostics — Shimmer",
         "taint" to "Diagnostics — Taint",
         "irules" to "Diagnostics — iRules",
+        "bigip" to "Diagnostics — BIG-IP Configuration",
         "tclpkg" to "Diagnostics — Package Manager",
     )
 
@@ -221,6 +234,7 @@ object DiagnosticCatalog {
         "shimmer",
         "taint",
         "irules",
+        "bigip",
         "tclpkg",
     )
 }

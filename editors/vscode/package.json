@@ -7567,8 +7567,350 @@
         }
       },
       {
+        "title": "Diagnostics — BIG-IP Configuration",
+        "order": 18,
+        "properties": {
+          "tclLsp.diagnostics.BIGIP6001": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6001:** iRule references a data group not found in the configuration.",
+            "order": 0
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6001": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6001:** iRule references a data group not found in the configuration.",
+            "order": 0
+          },
+          "tclLsp.diagnostics.BIGIP6002": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6002:** iRule references a pool not found in the configuration.",
+            "order": 1
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6002": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6002:** iRule references a pool not found in the configuration.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.BIGIP6003": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6003:** iRule contains a dynamic pool reference that cannot be validated statically.",
+            "order": 2
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6003": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6003:** iRule contains a dynamic pool reference that cannot be validated statically.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.BIGIP6004": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6004:** Virtual server references an object not found in the configuration.",
+            "order": 3
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6004": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6004:** Virtual server references an object not found in the configuration.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.BIGIP6005": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6005:** Pool has no members.",
+            "order": 4
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6005": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6005:** Pool has no members.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.BIGIP6006": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6006:** Data group has duplicate keys.",
+            "order": 5
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6006": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6006:** Data group has duplicate keys.",
+            "order": 5
+          },
+          "tclLsp.diagnostics.BIGIP6007": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6007:** iRule references a virtual server not found in the configuration.",
+            "order": 6
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6007": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6007:** iRule references a virtual server not found in the configuration.",
+            "order": 6
+          },
+          "tclLsp.diagnostics.BIGIP6008": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6008:** iApp presentation and implementation variables do not agree.",
+            "order": 7
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6008": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6008:** iApp presentation and implementation variables do not agree.",
+            "order": 7
+          },
+          "tclLsp.diagnostics.BIGIP6009": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6009:** iRule contains a dynamic virtual-server reference that cannot be validated statically.",
+            "order": 8
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6009": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6009:** iRule contains a dynamic virtual-server reference that cannot be validated statically.",
+            "order": 8
+          },
+          "tclLsp.diagnostics.BIGIP6010": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6010:** Virtual server has a missing or invalid source-address-translation pool reference.",
+            "order": 9
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6010": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6010:** Virtual server has a missing or invalid source-address-translation pool reference.",
+            "order": 9
+          },
+          "tclLsp.diagnostics.BIGIP6011": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6011:** Virtual server references a persistence profile not found in the configuration.",
+            "order": 10
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6011": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6011:** Virtual server references a persistence profile not found in the configuration.",
+            "order": 10
+          },
+          "tclLsp.diagnostics.BIGIP6012": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6012:** Attached iRules handle the same event at the same effective priority.",
+            "order": 11
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6012": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6012:** Attached iRules handle the same event at the same effective priority.",
+            "order": 11
+          }
+        }
+      },
+      {
         "title": "Optimiser",
-        "order": 16,
+        "order": 19,
         "properties": {
           "tclLsp.optimiser.enabled": {
             "scope": "resource",

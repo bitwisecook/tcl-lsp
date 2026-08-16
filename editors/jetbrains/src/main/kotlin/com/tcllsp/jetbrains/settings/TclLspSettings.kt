@@ -232,6 +232,18 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIRULE4003: Boolean = true
     var diagnosticIRULE4004: Boolean = true
     var diagnosticIRULE4005: Boolean = true
+    var diagnosticBIGIP6001: Boolean = true
+    var diagnosticBIGIP6002: Boolean = true
+    var diagnosticBIGIP6003: Boolean = true
+    var diagnosticBIGIP6004: Boolean = true
+    var diagnosticBIGIP6005: Boolean = true
+    var diagnosticBIGIP6006: Boolean = true
+    var diagnosticBIGIP6007: Boolean = true
+    var diagnosticBIGIP6008: Boolean = true
+    var diagnosticBIGIP6009: Boolean = true
+    var diagnosticBIGIP6010: Boolean = true
+    var diagnosticBIGIP6011: Boolean = true
+    var diagnosticBIGIP6012: Boolean = true
     // @generated:diagnostic-vars:end
 
     // Style
@@ -504,6 +516,18 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IRULE4003" to diagnosticIRULE4003,
                 "IRULE4004" to diagnosticIRULE4004,
                 "IRULE4005" to diagnosticIRULE4005,
+                "BIGIP6001" to diagnosticBIGIP6001,
+                "BIGIP6002" to diagnosticBIGIP6002,
+                "BIGIP6003" to diagnosticBIGIP6003,
+                "BIGIP6004" to diagnosticBIGIP6004,
+                "BIGIP6005" to diagnosticBIGIP6005,
+                "BIGIP6006" to diagnosticBIGIP6006,
+                "BIGIP6007" to diagnosticBIGIP6007,
+                "BIGIP6008" to diagnosticBIGIP6008,
+                "BIGIP6009" to diagnosticBIGIP6009,
+                "BIGIP6010" to diagnosticBIGIP6010,
+                "BIGIP6011" to diagnosticBIGIP6011,
+                "BIGIP6012" to diagnosticBIGIP6012,
                 // @generated:diagnostic-map:end
             ).let { map ->
                 val patterns = diagnosticsGenericVariablePatterns

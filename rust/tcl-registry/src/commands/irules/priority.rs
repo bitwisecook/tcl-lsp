@@ -21,7 +21,7 @@ use crate::prelude::*;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "priority",
-        traits: Traits::IRULES_TOP_LEVEL_ONLY,
+        traits: Traits::IRULES_TOP_LEVEL_ONLY.union(Traits::SETS_EVENT_PRIORITY),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {

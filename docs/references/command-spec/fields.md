@@ -1254,6 +1254,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `PASSWORD_OPTION` | takes a password-bearing option |
 | `IS_SIDE_SWITCH` | switches the iRules connection side |
 | `IRULES_TOP_LEVEL_ONLY` | iRules: valid only at the top level |
+| `SETS_EVENT_PRIORITY` | sets the inherited iRules event priority |
 | `IS_OO_METACLASS` | a TclOO metaclass factory |
 | `OBJECT_COMMAND_SURFACE` | a TclOO object-command method surface |
 | `CONFIGURES_BY_PROPERTY` | answers `configure`/`cget` from declared properties |

@@ -77,7 +77,7 @@ fn section_to_category(section: &str) -> &'static str {
         "security" | "irules_security" => "security",
         "shimmer" => "performance",
         "taint" => "taint",
-        "irules" => "irules",
+        "irules" | "bigip" => "irules",
         "irules_variable" => "thread_safety",
         // warning / variable / hint / tclpkg / tk → style (tk is overridden below).
         _ => "style",
@@ -253,7 +253,7 @@ fn ai_context() -> AiContext {
             ("security", section_list(&["security"])),
             ("shimmer", section_list(&["shimmer"])),
             ("taint", section_list(&["taint"])),
-            ("irules", section_list(&["irules"])),
+            ("irules", section_list(&["irules", "bigip"])),
             ("irules_security", section_list(&["irules_security"])),
             ("irules_variable", section_list(&["irules_variable"])),
             ("optimisations", optimisations_list()),

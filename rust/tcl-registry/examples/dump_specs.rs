@@ -139,6 +139,7 @@ const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("terminates_block", Traits::TERMINATES_BLOCK),
     ("is_oo_metaclass", Traits::IS_OO_METACLASS),
     ("irules_top_level_only", Traits::IRULES_TOP_LEVEL_ONLY),
+    ("sets_event_priority", Traits::SETS_EVENT_PRIORITY),
     ("is_unescape_command", Traits::IS_UNESCAPE),
     ("reads_variable_before_write", Traits::READS_BEFORE_WRITE),
     ("has_boolean_condition", Traits::HAS_BOOLEAN_COND),
