@@ -125,7 +125,7 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
                 if let Some((spec, case_index)) = case_list
                     && case_index == index
                 {
-                    if self.case_list_regions(token, spec, depth, next_grammar) {
+                    if self.case_list_regions(token, &spec, depth, next_grammar) {
                         return true;
                     }
                 } else if let Some((body_start, body_end)) = braced_body_region(self.source, token)
@@ -158,7 +158,7 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
     fn case_list_regions(
         &mut self,
         token: Token,
-        spec: tcl_registry::CaseListSpec,
+        spec: &tcl_registry::CaseListSpec,
         depth: u32,
         grammar: Option<&'static DefinitionBodyGrammar>,
     ) -> bool {
