@@ -6416,6 +6416,23 @@ mod tests {
         };
         assert_eq!(integer.mode, CaseMatchMode::Other);
         assert_eq!(integer.clause_list_index, Some(3));
+        for args in [
+            ["-integer", "-nocase", "1", "1 {set x 1}"],
+            ["-nocase", "-integer", "1", "1 {set x 1}"],
+        ] {
+            assert!(
+                tcl91
+                    .case_invocation("switch", &args, DialectSet::TCL91)
+                    .is_none(),
+                "integer and nocase must be incompatible: {args:?}"
+            );
+            assert!(
+                tcl91
+                    .arg_indices_for_role("switch", &args, ArgRole::Body)
+                    .is_empty(),
+                "invalid integer/nocase form must expose no body: {args:?}"
+            );
+        }
         assert_eq!(
             tcl91.arg_indices_for_role(
                 "switch",

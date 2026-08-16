@@ -586,6 +586,12 @@ impl CaseListSpec {
         if saw_regex_value_option && mode != CaseMatchMode::Regexp {
             return None;
         }
+        // Descriptor-specialised match modes (currently Tcl 9.1's integer
+        // switch mode) compare values intrinsically and cannot be combined
+        // with the string-only case-folding modifier.
+        if mode == CaseMatchMode::Other && nocase {
+            return None;
+        }
         // Selectors are descriptor syntax, not ordinary command options.
         // They are considered only while the outer scan is active: after an
         // outer `--`, an option-shaped word is positional data instead.
