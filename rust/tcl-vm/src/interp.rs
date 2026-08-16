@@ -1062,6 +1062,12 @@ impl Vm {
             (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
     }
 
+    /// The profile currently governing builtin command availability.
+    #[must_use]
+    pub fn command_surface_profile(&self) -> &'static tcl_dialect::DialectProfile {
+        self.command_surface_profile
+    }
+
     /// The Tcl release this VM emulates (see
     /// [`Self::set_runtime_version`]).
     #[must_use]
