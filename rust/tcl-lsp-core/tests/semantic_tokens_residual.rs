@@ -959,6 +959,53 @@ fn st_irules_declaration_body_shape_gates_event_and_proc_definition_tokens() {
 }
 
 #[test]
+fn st_irules_declaration_tokens_require_source_top_level() {
+    // The registry owns valid declaration shape, but only commands at the
+    // iRules file boundary are declarations. A `when` or `proc` nested in a
+    // body / command substitution may look shape-valid to the registry while
+    // being placement-invalid in an iRule.
+    let r = irules_registry();
+    let src = concat!(
+        "when HTTP_REQUEST {}\n",
+        "proc top_level {} {}\n",
+        "when HTTP_REQUEST { when CLIENT_DATA {} }\n",
+        "proc outer {} { when CLIENT_DATA {} }\n",
+        "set ignored [when HTTP_RESPONSE {}]\n",
+        "if {1} { proc inner {} {} }\n",
+    );
+    let toks = decode_with(src, "f5-irules", &r);
+
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 0 && t.character == 5 && t.ttype == "event"),
+        "a valid top-level handler must remain an event: {toks:?}",
+    );
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 1 && t.character == 5 && t.ttype == "function"),
+        "a valid top-level proc name must remain a definition: {toks:?}",
+    );
+
+    for (line, character) in [(2, 25), (3, 21), (4, 18)] {
+        let kind = toks
+            .iter()
+            .find(|t| t.line == line && t.character == character)
+            .map(|t| t.ttype.as_str());
+        assert_eq!(
+            kind,
+            Some("string"),
+            "nested `when` at {line}:{character} must not receive an event override: {toks:?}",
+        );
+    }
+    assert!(
+        !toks
+            .iter()
+            .any(|t| t.line == 5 && t.character == 14 && t.ttype == "function"),
+        "a nested iRules `proc` name must not receive a definition override: {toks:?}",
+    );
+}
+
+#[test]
 fn st_irules_object_ref_in_multiline_body_is_object_token() {
     // `pool /Common/web_pool` inside a multi-line `when` body — the body is
     // tokenised by recursion; the object overlay marks the partitioned pool

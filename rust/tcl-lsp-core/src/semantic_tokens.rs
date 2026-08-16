@@ -1460,6 +1460,11 @@ fn push_regsub_subtokens(
 /// excluded) borrowed as `&[&str]`.  The caller builds it once and shares it
 /// with the registry-role and OO-body override passes, so the hot path makes
 /// only a single bridging allocation per command.
+///
+/// `at_top_level` is traversal context rather than command knowledge. The
+/// registry remains the owner of whether a command has a valid iRules
+/// declaration *shape*; this walk owns the separate fact that the command is
+/// actually on the iRules file-level declaration boundary.
 #[allow(clippy::too_many_arguments)] // one override builder threading the whole per-command context
 fn special_arg_kinds(
     source: &str,
@@ -1476,6 +1481,7 @@ fn special_arg_kinds(
     extra_var_write: &FxHashMap<String, Vec<u32>>,
     extra_var_read: &FxHashMap<String, Vec<u32>>,
     extra_command: &FxHashMap<String, Vec<u32>>,
+    at_top_level: bool,
     deferred_role: bool,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
@@ -1492,11 +1498,17 @@ fn special_arg_kinds(
             closed,
         )
     });
-    let irules_declaration = declaration_arguments.and_then(|arguments| {
-        registry
-            .irules_top_level_declaration_shape(head, arguments)
-            .or_else(|| irules_registry().irules_top_level_declaration_shape(head, arguments))
-    });
+    let irules_declaration = at_top_level
+        .then(|| {
+            declaration_arguments.and_then(|arguments| {
+                registry
+                    .irules_top_level_declaration_shape(head, arguments)
+                    .or_else(|| {
+                        irules_registry().irules_top_level_declaration_shape(head, arguments)
+                    })
+            })
+        })
+        .flatten();
 
     // `when EVENT` — the literal event-name argument.  Event handlers come
     // from the registry's `IS_EVENT_HANDLER` trait; the event name is the
@@ -4894,6 +4906,7 @@ fn collect_script(
             ctx.extra_var_write,
             ctx.extra_var_read,
             ctx.extra_command,
+            depth == 0,
             deferred_role,
         );
         // A `[list HEAD …]` sitting in a deferred (script) slot *is* the
@@ -5044,6 +5057,10 @@ fn merge_list_quoted_command_overrides(
         ctx.extra_var_write,
         ctx.extra_var_read,
         ctx.extra_command,
+        // A command merely built by `[list ...]` is not a source-level iRules
+        // declaration, even when the surrounding `list` command is at the
+        // file boundary.
+        false,
         // The built command is the invocation itself; nothing further defers
         // it, so its own arguments are decided fresh at the next `[…]` hop.
         false,
