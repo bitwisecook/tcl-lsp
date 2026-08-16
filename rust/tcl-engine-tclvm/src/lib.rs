@@ -50,7 +50,11 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode;
+use tcl_compiler::lowering::{
+    first_fatal_parse_error_with_config, lower_to_ir_for_bytecode,
+    lower_to_ir_for_bytecode_with_dialect, lower_to_ir_traced_with_dialect,
+};
+use tcl_dialect::DialectProfile;
 use tcl_engine_api::{Budget, BudgetKind, CompileUnit, Engine, EngineError, HostCommand, Value};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Vm};
@@ -72,6 +76,36 @@ impl CompileService for VmCompiler {
         let ir = lower_to_ir_for_bytecode(source, &self.registry);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
+    }
+
+    fn compile_for_profile(
+        &self,
+        source: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(message) = first_fatal_parse_error_with_config(source, config) {
+            return Err(CompileError(message));
+        }
+        let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, profile.name);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
+
+    fn compile_traced_for_profile(
+        &self,
+        source: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(message) = first_fatal_parse_error_with_config(source, config) {
+            return Err(CompileError(message));
+        }
+        let ir = lower_to_ir_traced_with_dialect(source, registry, config, profile.name);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
     }
 }
 

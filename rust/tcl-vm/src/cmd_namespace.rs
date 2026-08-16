@@ -181,13 +181,15 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         "origin" => {
             // `namespace origin command` → the original command's fully-qualified
-            // name (following imports). We do not track import provenance, so the
-            // resolved qualified name is returned; an unknown command errors.
+            // name (following imports).  Visibility is checked before exposing
+            // the provenance: an import of a builtin absent from this emulated
+            // release is no more observable than a missing command.
             let name = first(rest);
-            if vm.lookup_command(&name).is_some() {
-                ok(Value::string(display_ns(&vm.qualify_name(&name))))
-            } else {
-                err(format!("invalid command name \"{name}\""))
+            match vm.resolve_command_fqn(vm.current_ns(), &name) {
+                Some(key) if vm.lookup_command(&name).is_some() => {
+                    ok(Value::string(display_ns(&vm.command_origin_key(&key))))
+                }
+                _ => err(format!("invalid command name \"{name}\"")),
             }
         }
         "export" => {

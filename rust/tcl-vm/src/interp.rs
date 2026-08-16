@@ -29,7 +29,8 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{self, Write};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_core_types::RecursionLimit;
@@ -297,7 +298,7 @@ impl InterpSlot {
 /// b`, an `a`-side alias into `b` is gone from `info commands`).
 struct AliasBackref {
     source: InterpId,
-    key: String,
+    key: CommandSidecarKey,
     target: InterpId,
 }
 
@@ -374,6 +375,10 @@ fn elem_ref(name: &str) -> Option<(&str, &str)> {
 /// already executing deeper on the stack is legal: its persistent state stays
 /// addressable in the arena throughout (the fix for issue #946 faults 1–2).
 pub struct Vm {
+    /// Process-unique identity for embedder artefacts. A reusable compiled
+    /// handle belongs to the VM that compiled it; generations alone are not a
+    /// cross-VM identity domain.
+    pub(crate) owner_nonce: u64,
     /// The currently-executing interpreter's state ([`Deref`] target).
     state: Box<InterpState>,
     /// Which interp `state` belongs to.
@@ -394,6 +399,75 @@ pub struct Vm {
     /// sweep time (a stale entry — alias since removed or source dead — is
     /// skipped).
     alias_backrefs: Vec<AliasBackref>,
+}
+
+/// Identity domain for metadata that follows a command binding.  Tcl permits
+/// a hidden token and a visible command to have the same spelling at the same
+/// time; consequently a bare `String` is not a command identity.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum CommandSidecarKey {
+    Visible(String),
+    Hidden(String),
+}
+
+/// Relocation-aware identity held by an in-flight command operation.
+///
+/// Hide, expose, and rename move a command's sidecar domain while its body may
+/// still be running. Every active consumer shares this cell, so a relocation
+/// updates coroutine parking/retirement and execution-trace leave delivery as
+/// one operation.
+#[derive(Clone, Debug)]
+pub(crate) struct CommandSidecarHandle(Rc<RefCell<Option<CommandSidecarKey>>>);
+
+impl CommandSidecarHandle {
+    /// The binding this operation still belongs to.  A deletion detaches an
+    /// in-flight handle before Tcl can create another binding at the same
+    /// spelling, so it can never be retargeted to that later lifecycle.
+    pub(crate) fn key(&self) -> Option<CommandSidecarKey> {
+        self.0.borrow().clone()
+    }
+
+    /// Whether this in-flight operation still belongs to a command binding.
+    /// Deletion clears the cell before Tcl callbacks run; trace iteration must
+    /// re-check this after every re-entrant callback rather than continuing a
+    /// cloned pre-mutation trace list.
+    pub(crate) fn is_attached(&self) -> bool {
+        self.0.borrow().is_some()
+    }
+}
+
+impl CommandSidecarKey {
+    pub(crate) fn visible(name: impl Into<String>) -> Self {
+        Self::Visible(name.into())
+    }
+
+    pub(crate) fn hidden(name: impl Into<String>) -> Self {
+        Self::Hidden(name.into())
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        match self {
+            Self::Visible(name) | Self::Hidden(name) => name,
+        }
+    }
+}
+
+/// Metadata and any release-hidden destination displaced while a command is
+/// temporarily installed under a new name.  A rename can still be refused
+/// after installation when it would make an alias loop, so this keeps the
+/// command-table mutation reversible as one semantic operation.
+pub(crate) struct CommandRenameTransaction {
+    old_key: String,
+    new_key: String,
+    source_import_origin: Option<CommandSidecarKey>,
+    source_builtin_identity: Option<String>,
+    cross_alias_target: Option<InterpId>,
+}
+
+impl CommandRenameTransaction {
+    pub(crate) fn old_key(&self) -> &str {
+        &self.old_key
+    }
 }
 
 impl std::ops::Deref for Vm {
@@ -436,6 +510,11 @@ pub struct InterpState {
     /// this is consulted on every command resolution). `None` for the
     /// permissive fallback profile, which gates nothing.
     profile_registry: Option<&'static tcl_registry::CommandRegistry>,
+    /// Monotonic invalidation generation for bytecode that depends on the
+    /// selected profile's grammar or command surface. It is deliberately
+    /// independent of `cmd_epoch`: command resolution can be recomputed from
+    /// names, whereas specialised bytecode must be recompiled from source.
+    profile_generation: u64,
     /// Call-frame stack; `frames[0]` is the global scope.
     frames: Vec<CallFrame>,
     /// Command table (builtins + user procs), keyed by canonical name — a
@@ -467,7 +546,13 @@ pub struct InterpState {
     /// `Tcl_ForgetImport`, which matches on `deleteProc == DeleteImportedCmd`),
     /// leaving a real command of the same name intact. Cleared whenever the key
     /// is re-registered (a redefine) or taken (a `rename`).
-    imported_commands: HashMap<String, String>,
+    imported_commands: HashMap<String, CommandSidecarKey>,
+    /// Stable registry identity for a builtin that has moved away from its
+    /// registered spelling (via import, rename, or hide/expose).  This is
+    /// deliberately distinct from the mutable `namespace origin` provenance:
+    /// `rename lassign escaped` remains the `lassign` builtin for release
+    /// availability purposes.
+    builtin_identities: HashMap<String, String>,
     /// Namespace-name ⇆ opaque `NsId` arena for the Family-B `Frames`/`Namespaces`
     /// contract. The VM resolves namespaces by their canonical `String` name; this
     /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
@@ -506,15 +591,18 @@ pub struct InterpState {
     /// `trace add command` registrations (`rename`/`delete` ops), keyed by the
     /// command's table key.  Entries follow the command through `rename` and
     /// are dropped when it is deleted or overwritten (M16.3).
-    pub(crate) cmd_traces: HashMap<String, Vec<Rc<CmdTraceEntry>>>,
+    pub(crate) cmd_traces: HashMap<CommandSidecarKey, Vec<Rc<CmdTraceEntry>>>,
     /// `trace add execution` registrations (`enter`/`leave`/`enterstep`/
     /// `leavestep` ops), keyed like [`Self::cmd_traces`] and moved on rename.
-    pub(crate) exec_traces: HashMap<String, Vec<Rc<CmdTraceEntry>>>,
+    pub(crate) exec_traces: HashMap<CommandSidecarKey, Vec<Rc<CmdTraceEntry>>>,
+    /// Weak registry of in-flight sidecar identities. Relocation updates live
+    /// handles without retaining completed invocations.
+    active_sidecar_handles: Vec<Weak<RefCell<Option<CommandSidecarKey>>>>,
     /// Step-trace scopes currently active: one entry per `enterstep`/
     /// `leavestep`-bearing trace of each traced proc whose body is running.
     /// Every command dispatched while non-empty fires these (C's step
     /// semantics); the traced proc's frame pops its own pushes on completion.
-    pub(crate) exec_step_scopes: Vec<Rc<CmdTraceEntry>>,
+    pub(crate) exec_step_scopes: Vec<crate::exec::ExecStepScope>,
     /// Bumped on every `trace add|remove execution … enterstep|leavestep …`
     /// (and command rename, which moves such a trace's registration) — the
     /// analogue of C's `compileEpoch` bump on `DONT_COMPILE_CMDS_INLINE`
@@ -586,7 +674,7 @@ pub struct InterpState {
     pending_exit: Option<i32>,
     /// Cache of compiled scripts for the runtime-`eval` / command-substitution
     /// path (`eval_source`), keyed by source text. Compilation is a pure
-    /// function of the source and the (fixed) command registry, so a script
+    /// function of the source and the currently selected profile, so a script
     /// re-evaluated every loop iteration — a `switch`/`if`/`while` body, a
     /// `[subst]`ed command, a tcltest `-body` — compiles once instead of each
     /// time. This is the dominant cost in the tcltest workload.
@@ -601,7 +689,8 @@ pub struct InterpState {
     /// each call site — makes every one of them trace-visible with one change
     /// (issue #946 fault 3). Kept as a wholly separate map (not a mode-keyed
     /// entry in `eval_cache`) so the two compiled forms of the same source
-    /// never collide or get served to the wrong mode.
+    /// never collide or get served to the wrong mode. Both maps are cleared
+    /// when the profile changes.
     eval_cache_traced: HashMap<String, Rc<ModuleAsm>>,
     /// The accumulating `errorInfo` source trace (C's `iPtr->errorInfo`): the
     /// error message followed by `while executing` / `invoked from within`
@@ -623,6 +712,10 @@ pub struct InterpState {
     /// error messages — e.g. `::tcl::mathop::!` reached via `namespace path` says
     /// `wrong # args: should be "! boolean"`, not the resolved full name.
     invoked_name: Option<String>,
+    /// Hidden-domain command currently entering a native handler. Consumed by
+    /// lifecycle-aware handlers (currently coroutine resume) so an equal
+    /// visible spelling cannot select the wrong sidecar state.
+    pub(crate) invoked_sidecar: Option<CommandSidecarKey>,
     /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
     /// special-case those names.
@@ -685,6 +778,11 @@ pub struct InterpState {
     /// Commands hidden by `interp create -safe` / `interp hide`, keyed by name —
     /// invocable via `interp invokehidden`, restorable with `interp expose`.
     hidden_commands: HashMap<String, Command>,
+    /// Import provenance and stable builtin identities carried while a command
+    /// lives in the hidden table.  Hiding is a temporary relocation, not a
+    /// metadata-dropping deletion: expose must restore both under its new key.
+    hidden_imported_commands: HashMap<String, CommandSidecarKey>,
+    hidden_builtin_identities: HashMap<String, String>,
     /// Monotonic counter minting auto-generated child names (`interp0`, …).
     interp_counter: u64,
     /// `interp debug -frame` — a one-way switch (once on, stays on).
@@ -916,6 +1014,17 @@ impl Vm {
         // gate change resolution outcomes, so the command-resolution memo
         // (M16.4) must not survive a version flip.
         self.bump_cmd_epoch();
+        if !std::ptr::eq(self.dialect_profile, profile) {
+            self.profile_generation = self.profile_generation.wrapping_add(1);
+            // Dynamic modules and their precompiled-proc sidecars may contain
+            // profile-sensitive lowerings. ProcDef retains source and is
+            // rebuilt lazily; these cache-only forms do not, so discard them.
+            // Active frames carry this generation and fail closed at the
+            // trampoline seam if a native callback changes profile mid-run.
+            self.eval_cache.clear();
+            self.eval_cache_traced.clear();
+            self.module_procs.clear();
+        }
         self.dialect_profile = profile;
         self.profile_registry =
             (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
@@ -945,6 +1054,12 @@ impl Vm {
         self.dialect_profile
     }
 
+    /// Generation of the dialect profile used to compile dynamic bytecode.
+    #[must_use]
+    pub(crate) fn profile_generation(&self) -> u64 {
+        self.profile_generation
+    }
+
     /// The backslash-escape grammar this VM decodes under — the pinned
     /// profile's, so a VM emulating 8.5 reads `\x4142` as `B` and one
     /// emulating 9.0 reads it as `A42` (issue #1479).
@@ -955,7 +1070,9 @@ impl Vm {
 
     /// A VM writing to an already-shared output sink.
     fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
+        static NEXT_VM_OWNER: AtomicU64 = AtomicU64::new(1);
         let mut vm = Self {
+            owner_nonce: NEXT_VM_OWNER.fetch_add(1, Ordering::Relaxed),
             state: Box::new(InterpState::fresh(out)),
             cur: ROOT_INTERP,
             interps: vec![InterpSlot {
@@ -974,6 +1091,63 @@ impl Vm {
 }
 
 impl InterpState {
+    /// Release/dialect visibility belongs to the interpreter state because
+    /// command candidate traversal happens here, including for parked child
+    /// interpreters.  Filtering after resolution is too late: an unavailable
+    /// namespace-local builtin must not shadow a later path/global candidate.
+    /// The registry owns the versioned filters; procedures and aliases are
+    /// invariant, while registered builtin/native handlers retain a stable
+    /// identity through import, rename, hide, and expose.
+    fn builtin_command_visible_for_surface(&self, name: &str, command: &Command) -> bool {
+        self.builtin_command_visible_for_identity(name, command, None)
+    }
+
+    fn builtin_command_visible_for_identity(
+        &self,
+        name: &str,
+        command: &Command,
+        identity: Option<&str>,
+    ) -> bool {
+        if !matches!(command, Command::Builtin(_) | Command::Native(_)) {
+            return true;
+        }
+        let origin = identity
+            .map(str::to_owned)
+            .or_else(|| self.builtin_identities.get(name).cloned())
+            .unwrap_or_else(|| {
+                let mut current = CommandSidecarKey::visible(name);
+                for _ in 0..=self.imported_commands.len() + self.hidden_imported_commands.len() {
+                    let next = match &current {
+                        CommandSidecarKey::Visible(visible) => self.imported_commands.get(visible),
+                        CommandSidecarKey::Hidden(hidden) => {
+                            self.hidden_imported_commands.get(hidden)
+                        }
+                    };
+                    let Some(next) = next else {
+                        break;
+                    };
+                    current = next.clone();
+                }
+                current.name().to_owned()
+            });
+        if !tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
+            .permits_builtin_math_function_command(&origin)
+        {
+            return false;
+        }
+        matches!(command, Command::Native(_)) || self.profile_admits_registry_builtin(&origin)
+    }
+
+    fn profile_admits_registry_builtin(&self, name: &str) -> bool {
+        let Some(registry) = self.profile_registry else {
+            return true;
+        };
+        registry.get(name).is_none()
+            || registry
+                .get_for_dialect(name, self.dialect_profile.availability_mask)
+                .is_some()
+    }
+
     /// A fresh interpreter state writing `puts` output to `out` — no commands
     /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
     /// up with `register_builtins`).
@@ -989,6 +1163,7 @@ impl InterpState {
             runtime_version: tcl_dialect::TclVersion::V9_0,
             dialect_profile: tcl_dialect::DialectProfile::plain_tcl(),
             profile_registry: None,
+            profile_generation: 0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
             fixed_math_builtins: HashMap::new(),
@@ -997,6 +1172,7 @@ impl InterpState {
             namespaces: std::collections::HashSet::new(),
             ns_exports: HashMap::new(),
             imported_commands: HashMap::new(),
+            builtin_identities: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             ns_paths: HashMap::new(),
@@ -1007,6 +1183,7 @@ impl InterpState {
             var_traces: HashMap::new(),
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
+            active_sidecar_handles: Vec::new(),
             exec_step_scopes: Vec::new(),
             trace_deopt_epoch: std::cell::Cell::new(0),
             trace_in_progress: std::cell::Cell::new(false),
@@ -1028,6 +1205,7 @@ impl InterpState {
             error_logged: false,
             error_line: 1,
             invoked_name: None,
+            invoked_sidecar: None,
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
@@ -1039,6 +1217,8 @@ impl InterpState {
             is_safe: false,
             recursion_limit: RECURSION_LIMIT,
             hidden_commands: HashMap::new(),
+            hidden_imported_commands: HashMap::new(),
+            hidden_builtin_identities: HashMap::new(),
             interp_counter: 0,
             debug_frame: false,
             bgerror_handler: Value::string("::tcl::Bgerror"),
@@ -1075,15 +1255,6 @@ impl Vm {
             Some(&self.state)
         } else {
             self.interps.get(id.0)?.parked.as_deref()
-        }
-    }
-
-    /// Mutable access to another interpreter's state (or the current one's).
-    pub(crate) fn st_of_mut(&mut self, id: InterpId) -> Option<&mut InterpState> {
-        if id == self.cur {
-            Some(&mut self.state)
-        } else {
-            self.interps.get_mut(id.0)?.parked.as_deref_mut()
         }
     }
 
@@ -1161,23 +1332,57 @@ impl Vm {
         for c in child_ids {
             self.retire_interp(c);
         }
-        let targeting: Vec<(InterpId, String)> = self
+        let targeting: Vec<(InterpId, CommandSidecarKey)> = self
             .alias_backrefs
             .iter()
             .filter(|b| b.target == id && b.source != id)
             .map(|b| (b.source, b.key.clone()))
             .collect();
         for (src, key) in targeting {
-            let still_aliased = self.st_of(src).is_some_and(|st| {
-                matches!(st.commands.get(&key),
-                    Some(Command::CrossAlias { target, .. }) if *target == id)
-            });
-            if still_aliased {
+            let visible = matches!(&key, CommandSidecarKey::Visible(name) if self.st_of(src).is_some_and(|st| matches!(st.commands.get(name), Some(Command::CrossAlias { target, .. }) if *target == id)));
+            let hidden = matches!(&key, CommandSidecarKey::Hidden(name) if self.st_of(src).is_some_and(|st| matches!(st.hidden_commands.get(name), Some(Command::CrossAlias { target, .. }) if *target == id)));
+            if visible {
                 self.in_interp(src, |vm| {
-                    vm.remove_command_exact(&key);
-                    vm.on_command_removed(&key);
+                    vm.remove_command_exact(key.name());
+                    vm.on_command_removed_for(&key);
                 });
             }
+            if hidden {
+                self.in_interp(src, |vm| {
+                    vm.hidden_commands.remove(key.name());
+                    vm.hidden_imported_commands.remove(key.name());
+                    vm.hidden_builtin_identities.remove(key.name());
+                    vm.on_command_removed_for(&key);
+                    vm.drop_alias_backref_key(&key);
+                });
+            }
+        }
+        // Hidden aliases are not dispatchable, so a stale/missing backref must
+        // not keep one alive after its target dies.  Sweep the hidden tables as
+        // a defensive counterpart to C's target-side alias list.
+        let hidden_targeting: Vec<(InterpId, String)> = self
+            .interps
+            .iter()
+            .enumerate()
+            .filter_map(|(index, slot)| slot.parked.as_ref().map(|st| (InterpId(index), st)))
+            .flat_map(|(source, st)| {
+                st.hidden_commands
+                    .iter()
+                    .filter(move |(_, command)| {
+                        matches!(command, Command::CrossAlias { target, .. } if *target == id)
+                    })
+                    .map(move |(key, _)| (source, key.clone()))
+            })
+            .collect();
+        for (source, key) in hidden_targeting {
+            self.in_interp(source, |vm| {
+                vm.hidden_commands.remove(&key);
+                vm.hidden_imported_commands.remove(&key);
+                vm.hidden_builtin_identities.remove(&key);
+                let sidecar = CommandSidecarKey::hidden(&key);
+                vm.on_command_removed_for(&sidecar);
+                vm.drop_alias_backref_key(&sidecar);
+            });
         }
         self.alias_backrefs.retain(|b| b.target != id);
         let slot = &mut self.interps[id.0];
@@ -1232,12 +1437,16 @@ impl Vm {
 
     /// Record a just-registered cross-interp alias for the target-death sweep.
     pub(crate) fn note_alias_backref(&mut self, key: &str, target: InterpId) {
+        self.note_alias_backref_key(CommandSidecarKey::visible(key), target);
+    }
+
+    fn note_alias_backref_key(&mut self, key: CommandSidecarKey, target: InterpId) {
         let source = self.cur;
         self.alias_backrefs
-            .retain(|b| !(b.source == source && b.key == key));
+            .retain(|b| !(b.source == source && b.key.eq(&key)));
         self.alias_backrefs.push(AliasBackref {
             source,
-            key: key.to_string(),
+            key,
             target,
         });
     }
@@ -1250,12 +1459,25 @@ impl Vm {
         new_key: &str,
         target: InterpId,
     ) {
+        self.retarget_alias_backref_key(
+            &CommandSidecarKey::visible(old_key),
+            CommandSidecarKey::visible(new_key),
+            target,
+        );
+    }
+
+    fn retarget_alias_backref_key(
+        &mut self,
+        old_key: &CommandSidecarKey,
+        new_key: CommandSidecarKey,
+        target: InterpId,
+    ) {
         let source = self.cur;
         self.alias_backrefs
-            .retain(|b| !(b.source == source && (b.key == old_key || b.key == new_key)));
+            .retain(|b| !(b.source == source && (b.key.eq(old_key) || b.key == new_key)));
         self.alias_backrefs.push(AliasBackref {
             source,
-            key: new_key.to_string(),
+            key: new_key,
             target,
         });
     }
@@ -1263,9 +1485,13 @@ impl Vm {
     /// Drop any cross-interp alias backref for `key` in the current interp (the
     /// alias was deleted or overwritten with a non-alias).
     pub(crate) fn drop_alias_backref(&mut self, key: &str) {
+        self.drop_alias_backref_key(&CommandSidecarKey::visible(key));
+    }
+
+    fn drop_alias_backref_key(&mut self, key: &CommandSidecarKey) {
         let source = self.cur;
         self.alias_backrefs
-            .retain(|b| !(b.source == source && b.key == key));
+            .retain(|b| !(b.source == source && b.key.eq(key)));
     }
 
     /// Reseed the `rand()` generator (`srand(n)`): mask to 31 bits, and nudge a
@@ -1680,11 +1906,14 @@ impl Vm {
         // Overwriting an existing command deletes it (C `Tcl_CreateObjCommand`
         // does the same), so its `delete` command traces fire and every trace
         // on it is dropped — tclsh-pinned: redefining a traced proc fires the
-        // delete trace.  (Gated on the trace table so the startup builtin
-        // sweep pays nothing.)
-        if !(self.cmd_traces.is_empty() && self.exec_traces.is_empty())
-            && self.commands.contains_key(name)
-        {
+        // delete trace.  This also detaches any in-flight sidecar handle, so
+        // overwriting a binding cannot let it follow the replacement.
+        if self.commands.contains_key(name) {
+            let was_coroutine = crate::cmd_coro::is_coroutine(self, name);
+            self.detach_active_sidecars(&CommandSidecarKey::visible(name));
+            if was_coroutine {
+                crate::cmd_coro::on_command_deleted(self, name);
+            }
             self.on_command_removed(name);
         }
         // Overwriting a cross-interp alias drops its target-death backref (the
@@ -1696,6 +1925,7 @@ impl Vm {
         }
         self.bump_cmd_epoch();
         self.imported_commands.remove(name);
+        self.builtin_identities.remove(name);
         self.commands.insert(name.to_owned(), cmd);
     }
 
@@ -1709,8 +1939,14 @@ impl Vm {
     /// [`Self::registered_command_names`] needs.
     pub(crate) fn remove_registered_command(&mut self, name: &str) {
         if self.commands.remove(name).is_some() {
+            let was_coroutine = crate::cmd_coro::is_coroutine(self, name);
+            self.detach_active_sidecars(&CommandSidecarKey::visible(name));
+            if was_coroutine {
+                crate::cmd_coro::on_command_deleted(self, name);
+            }
             self.bump_cmd_epoch();
             self.imported_commands.remove(name);
+            self.builtin_identities.remove(name);
         }
     }
 
@@ -1722,17 +1958,149 @@ impl Vm {
     /// command).
     pub(crate) fn take_command(&mut self, name: &str) -> Option<Command> {
         let key = self.resolve_command_fqn(self.current_ns(), name)?;
+        // A command that is present in the engine table may still be absent
+        // from the emulated release's surface.  Treat it exactly like a
+        // missing command here: otherwise `rename` (and `interp hide`, which
+        // uses the same removal seam) can move a hidden builtin to a registry-
+        // unknown name and make it callable again (#1463).
+        if self
+            .commands
+            .get(&key)
+            .is_some_and(|command| !self.builtin_command_visible_for_surface(&key, command))
+        {
+            return None;
+        }
+        self.take_command_unchecked_key(&key)
+    }
+
+    /// Prepare a rename without touching the command table.  Alias-loop
+    /// validation runs against the returned logical command, so a rejected
+    /// rename cannot fire callbacks or disturb traces, guards, or caches.
+    pub(crate) fn prepare_command_rename(
+        &self,
+        name: &str,
+    ) -> Option<(Command, CommandRenameTransaction)> {
+        let old_key = self.resolve_command_fqn(self.current_ns(), name)?;
+        let command = self.commands.get(&old_key)?;
+        if !self.builtin_command_visible_for_surface(&old_key, command) {
+            return None;
+        }
+        let source_import_origin = self.imported_commands.get(&old_key).cloned();
+        let source_builtin_identity = self.builtin_identity_for_key(&old_key);
+        let cross_alias_target = match command {
+            Command::CrossAlias { target, .. } => Some(*target),
+            _ => None,
+        };
+        Some((
+            (*command).clone(),
+            CommandRenameTransaction {
+                old_key,
+                new_key: String::new(),
+                source_import_origin,
+                source_builtin_identity,
+                cross_alias_target,
+            },
+        ))
+    }
+
+    /// Install the new half of a rename and record every changed semantic map.
+    pub(crate) fn install_renamed_command(
+        &mut self,
+        transaction: &mut CommandRenameTransaction,
+        new_key: &str,
+        command: Command,
+    ) {
+        new_key.clone_into(&mut transaction.new_key);
+        // Keep the successful rename's established source-removal then
+        // destination-registration order.  The caller has already completed
+        // every rejection path, so this is now allowed to fire destination
+        // delete traces and invalidate command/trace guard state.
+        self.take_command_unchecked_key(&transaction.old_key)
+            .expect("the prepared rename source remains registered");
+        self.register_command(new_key, command);
+        if let Some(origin) = &transaction.source_import_origin {
+            self.restore_import_origin(new_key, origin.clone());
+        }
+        if let Some(identity) = &transaction.source_builtin_identity {
+            self.restore_builtin_identity(new_key, identity.clone());
+        }
+        self.retarget_imports(&transaction.old_key, new_key);
+    }
+
+    /// Remove the source for an already validated `rename old {}`.  Deletion
+    /// deliberately does not retarget imports; C leaves them dangling.
+    pub(crate) fn delete_prepared_renamed_command(
+        &mut self,
+        transaction: &CommandRenameTransaction,
+    ) {
+        self.take_command_unchecked_key(&transaction.old_key)
+            .expect("the prepared delete source remains registered");
+        self.detach_active_sidecars(&CommandSidecarKey::visible(&transaction.old_key));
+    }
+
+    /// Commit a rename after all semantic validation has succeeded.
+    pub(crate) fn commit_renamed_command(&mut self, transaction: &CommandRenameTransaction) {
+        if let Some(target) = transaction.cross_alias_target {
+            self.retarget_alias_backref(&transaction.old_key, &transaction.new_key, target);
+        }
+    }
+
+    /// Resolve and remove a command without consulting the emulated command
+    /// surface.  This is for VM-owned teardown only (temporary `apply`
+    /// procedures, coroutine state, and `TclOO` objects); those paths are
+    /// deleting an implementation that is already unreachable, not exposing
+    /// a command to Tcl code.  User-facing removal must use [`Self::take_command`].
+    pub(crate) fn take_command_unchecked(&mut self, name: &str) -> Option<Command> {
+        let key = self.resolve_command_fqn_raw(self.current_ns(), name)?;
+        let command = self.take_command_unchecked_key(&key)?;
+        let was_coroutine = crate::cmd_coro::is_coroutine(self, &key);
+        self.detach_active_sidecars(&CommandSidecarKey::visible(&key));
+        if was_coroutine {
+            crate::cmd_coro::on_command_deleted(self, &key);
+        }
+        Some(command)
+    }
+
+    /// Retire a VM-owned command whether its lifecycle key is currently
+    /// visible or hidden. Completion is a real command deletion, so delete
+    /// traces fire exactly once before all trace/deopt sidecars are dropped.
+    pub(crate) fn retire_command_lifecycle_key(
+        &mut self,
+        key: &CommandSidecarKey,
+    ) -> Option<Command> {
+        let command = match key {
+            CommandSidecarKey::Visible(name) => self.take_command_unchecked_key(name)?,
+            CommandSidecarKey::Hidden(name) => {
+                let command = self.hidden_commands.remove(name)?;
+                self.bump_cmd_epoch();
+                self.hidden_imported_commands.remove(name);
+                self.hidden_builtin_identities.remove(name);
+                command
+            }
+        };
+        self.drop_alias_backref_key(key);
+        self.on_command_removed_for(key);
+        Some(command)
+    }
+
+    /// Remove a command by its already-resolved table key.
+    fn take_command_unchecked_key(&mut self, key: &str) -> Option<Command> {
         self.bump_cmd_epoch();
-        self.imported_commands.remove(&key);
-        self.commands.remove(&key)
+        self.imported_commands.remove(key);
+        self.builtin_identities.remove(key);
+        self.commands.remove(key)
     }
 
     /// Remove a command by its exact table key (no name resolution) — the
-    /// rollback path for a refused alias creation / rename.
+    /// rollback path for a refused alias creation.
     pub(crate) fn remove_command_exact(&mut self, key: &str) -> Option<Command> {
-        self.bump_cmd_epoch();
-        self.imported_commands.remove(key);
-        self.commands.remove(key)
+        let command = self.take_command_unchecked_key(key)?;
+        let was_coroutine = crate::cmd_coro::is_coroutine(self, key);
+        self.detach_active_sidecars(&CommandSidecarKey::visible(key));
+        if was_coroutine {
+            crate::cmd_coro::on_command_deleted(self, key);
+        }
+        Some(command)
     }
 
     /// `interp alias srcPath srcCmd targetPath target…` — route the alias by
@@ -1800,16 +2168,18 @@ impl Vm {
     /// address the target by its stable [`InterpId`], so the walk follows the
     /// alias graph across the whole tree.  Terminates because every *existing*
     /// alias already passed this check (no pre-existing loops to spin in).
-    fn alias_chain_loops(&self, defining_interp: InterpId, defining_key: &str) -> bool {
+    fn alias_chain_loops_from(
+        &self,
+        defining_interp: InterpId,
+        defining_key: &str,
+        first: &Command,
+    ) -> bool {
+        let mut command = first;
         let mut interp = defining_interp;
-        let mut key = defining_key.to_string();
         loop {
-            let Some(st) = self.st_of(interp) else {
-                return false;
-            };
-            let (target_interp, target_words) = match st.commands.get(&key) {
-                Some(Command::Alias(w)) => (interp, Rc::clone(w)),
-                Some(Command::CrossAlias { target, words }) => (*target, Rc::clone(words)),
+            let (target_interp, target_words) = match command {
+                Command::Alias(words) => (interp, Rc::clone(words)),
+                Command::CrossAlias { target, words } => (*target, Rc::clone(words)),
                 _ => return false,
             };
             let Some(target_name) = target_words.first().map(|v| v.to_str().to_string()) else {
@@ -1818,61 +2188,47 @@ impl Vm {
             let Some(target_st) = self.st_of(target_interp) else {
                 return false;
             };
-            let Some(next) = target_st.resolve_command_fqn("", &target_name) else {
+            // The just-renamed alias is not installed yet.  Let its candidate
+            // key shadow an existing hidden builtin (or an absent name) for
+            // this logical validation only; mutating the command table first
+            // would fire irreversible delete traces on that builtin.
+            let next = if target_interp == defining_interp
+                && canonical_cmd_key(&target_name) == defining_key
+            {
+                defining_key.to_owned()
+            } else if let Some(next) = target_st.resolve_command_fqn("", &target_name) {
+                next
+            } else {
                 return false;
             };
             if target_interp == defining_interp && next == defining_key {
                 return true;
             }
+            let Some(next_st) = self.st_of(target_interp) else {
+                return false;
+            };
+            let Some(next_command) = next_st.commands.get(&next) else {
+                return false;
+            };
             interp = target_interp;
-            key = next;
+            command = next_command;
         }
     }
 
-    /// [`Self::alias_chain_loops`] for a same-interp key — the `rename` gate's
-    /// entry (a `rename` never crosses interps, so it starts in the current one).
-    pub(crate) fn alias_chain_loops_here(&self, key: &str) -> bool {
-        self.alias_chain_loops(self.cur, key)
-    }
-
-    /// Whether this registered builtin is visible on the selected command
-    /// surface. The registry owns the only versioned command filters; ordinary
-    /// procedures, aliases, and extensions are never hidden here.
-    ///
-    /// Two registry-backed cases, both scoped to engine-registered handlers:
-    ///
-    /// - the math-function surface (`::tcl::mathfunc::*` vs the 8.4 fixed
-    ///   table), for `Builtin` and embedder `Native` handlers alike;
-    /// - release availability (issue #1463): a `Builtin` whose registry spec
-    ///   the [`Self::dialect_profile`] availability mask does not admit
-    ///   (`lassign` at 8.4, `lpop` before 9.0) resolves like C Tcl — to
-    ///   `invalid command name`. Only registry-known builtins are gated:
-    ///   user procs, aliases, embedder `Native` replacements, and names the
-    ///   registry does not know remain callable.
-    fn builtin_command_visible_for_surface(&self, name: &str, command: &Command) -> bool {
-        if !matches!(command, Command::Builtin(_) | Command::Native(_)) {
-            return true;
-        }
-        if !tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version)
-            .permits_builtin_math_function_command(name)
-        {
+    fn alias_chain_loops(&self, defining_interp: InterpId, defining_key: &str) -> bool {
+        let Some(st) = self.st_of(defining_interp) else {
             return false;
-        }
-        matches!(command, Command::Native(_)) || self.profile_admits_registry_builtin(name)
+        };
+        let Some(first) = st.commands.get(defining_key) else {
+            return false;
+        };
+        self.alias_chain_loops_from(defining_interp, defining_key, first)
     }
 
-    /// The availability half of [`Self::builtin_command_visible_for_surface`]:
-    /// whether the pinned [`Self::dialect_profile`] admits registry builtin
-    /// `name`. Names the registry does not know are always admitted — they
-    /// may be engine extensions the registry has no spec for.
-    fn profile_admits_registry_builtin(&self, name: &str) -> bool {
-        let Some(registry) = self.profile_registry else {
-            return true; // the permissive fallback profile gates nothing
-        };
-        registry.get(name).is_none()
-            || registry
-                .get_for_dialect(name, self.dialect_profile.availability_mask)
-                .is_some()
+    /// Check whether a not-yet-installed same-interpreter alias would loop if
+    /// it were renamed to `key`.
+    pub(crate) fn alias_chain_loops_for_rename(&self, key: &str, alias: &Command) -> bool {
+        self.alias_chain_loops_from(self.cur, key, alias)
     }
 
     /// The names `info functions` exposes on the selected Tcl release.
@@ -1969,6 +2325,23 @@ impl Vm {
     /// The [`InterpId`] of a direct child by name, or `None`.
     pub(crate) fn child_id(&self, name: &str) -> Option<InterpId> {
         self.children.get(name).copied()
+    }
+
+    /// Select the dialect profile of a direct child interpreter. This is the
+    /// host-side counterpart to configuring a standalone [`Vm`]: child state
+    /// is parked in the interpreter arena, so route through `in_interp` rather
+    /// than mutating a copied state and thereby skipping its bytecode-cache
+    /// invalidation owner.
+    pub fn set_child_dialect_profile(
+        &mut self,
+        name: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        let Some(id) = self.child_id(name) else {
+            return false;
+        };
+        self.in_interp(id, |child| child.set_dialect_profile(profile));
+        true
     }
 
     /// Whether a child interpreter `name` exists (and is not being torn down).
@@ -2342,25 +2715,31 @@ impl Vm {
         cmd: &str,
         args: &[Value],
     ) -> Option<Completion<Value>> {
+        if name.is_empty() {
+            return Some(self.invoke_own_hidden(cmd, args));
+        }
         let id = self.child_id(name).filter(|&id| self.interp_alive(id))?;
-        Some(self.in_interp(id, |vm| {
-            let Some(hidden) = vm.hidden_commands.get(cmd).cloned() else {
-                return err(format!("invalid hidden command name \"{cmd}\""));
-            };
-            vm.bump_cmd_epoch();
-            let saved = vm.commands.insert(cmd.to_string(), hidden);
-            let r = vm.invoke_command(cmd, args);
-            vm.bump_cmd_epoch();
-            match saved {
-                Some(prev) => {
-                    vm.commands.insert(cmd.to_string(), prev);
-                }
-                None => {
-                    vm.commands.remove(cmd);
-                }
-            }
-            r
-        }))
+        Some(self.in_interp(id, |vm| vm.invoke_own_hidden(cmd, args)))
+    }
+
+    /// Invoke one of this interpreter's hidden commands without making its
+    /// temporary visibility observable after dispatch.  The command's stable
+    /// identity and import provenance must accompany the transient visible
+    /// entry: command-surface checks and `namespace origin` consult those
+    /// tables while a command is running.
+    fn invoke_own_hidden(&mut self, cmd: &str, args: &[Value]) -> Completion<Value> {
+        let Some(hidden) = self.hidden_commands.get(cmd).cloned() else {
+            return err(format!("invalid hidden command name \"{cmd}\""));
+        };
+        let identity = self.hidden_builtin_identities.get(cmd).map(String::as_str);
+        if !self.builtin_command_visible_for_identity(cmd, &hidden, identity) {
+            return err(format!("invalid command name \"{cmd}\""));
+        }
+        self.invoke_resolved_command(cmd, CommandSidecarKey::hidden(cmd), hidden, args)
+    }
+
+    pub(crate) fn take_invoked_sidecar(&mut self) -> Option<CommandSidecarKey> {
+        self.invoked_sidecar.take()
     }
 
     /// `interp marktrusted path` — clear a child's safe flag (exposing every
@@ -2369,28 +2748,137 @@ impl Vm {
         let Some(id) = self.child_id(name) else {
             return;
         };
-        if let Some(child) = self.st_of_mut(id) {
-            child.bump_cmd_epoch();
-            for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
-                child.commands.insert(cmd_name, cmd);
-            }
-            child.is_safe = false;
-        }
+        self.mark_interp_trusted(id);
     }
 
-    /// `interp hide {} cmd` — move one of *this* interp's commands into its
-    /// hidden table.
-    pub(crate) fn hide_own_command(&mut self, cmd: &str, command: Command) {
-        self.hidden_commands.insert(cmd.to_string(), command);
+    fn mark_interp_trusted(&mut self, id: InterpId) {
+        let names: Vec<String> = self
+            .st_of(id)
+            .map(|state| state.hidden_commands.keys().cloned().collect())
+            .unwrap_or_default();
+        self.in_interp(id, |vm| {
+            vm.bump_cmd_epoch();
+            for name in names {
+                if !vm.commands.contains_key(&name) {
+                    vm.expose_own_command(&name, &name)
+                        .expect("a non-colliding hidden command exposes");
+                }
+            }
+            vm.is_safe = false;
+        });
+    }
+
+    /// Stable registry identity for a visible builtin, if any.  A direct
+    /// registered builtin derives it from its key; a moved builtin carries it
+    /// in [`Self::builtin_identities`].
+    fn builtin_identity_for_key(&self, key: &str) -> Option<String> {
+        matches!(
+            self.commands.get(key),
+            Some(Command::Builtin(_) | Command::Native(_))
+        )
+        .then(|| {
+            self.builtin_identities
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| self.command_origin_key(key))
+        })
+    }
+
+    /// `interp hide {} cmd` — move one visible command plus all of its
+    /// metadata into the hidden table.  This is the only public hide seam;
+    /// every caller therefore observes the same release-visibility check.
+    pub(crate) fn hide_command(&mut self, cmd: &str, token: &str) -> Result<(), String> {
+        if self.hidden_commands.contains_key(token) {
+            return Err(format!("hidden command named \"{token}\" already exists"));
+        }
+        let Some(source) = self.resolve_command_fqn(self.current_ns(), cmd) else {
+            return Ok(());
+        };
+        let import_origin = self.imported_commands.get(&source).cloned();
+        let builtin_identity = self.builtin_identity_for_key(&source);
+        let Some(command) = self.take_command(cmd) else {
+            return Ok(());
+        };
+        let cross_target = match &command {
+            Command::CrossAlias { target, .. } => Some(*target),
+            _ => None,
+        };
+        self.hidden_commands.insert(token.to_owned(), command);
+        crate::cmd_coro::on_command_hidden(self, &source, token);
+        self.move_command_traces(
+            &CommandSidecarKey::visible(&source),
+            CommandSidecarKey::hidden(token),
+        );
+        if let Some(origin) = import_origin {
+            self.hidden_imported_commands
+                .insert(token.to_owned(), origin);
+        }
+        if let Some(identity) = builtin_identity {
+            self.hidden_builtin_identities
+                .insert(token.to_owned(), identity);
+        }
+        // Hiding does not change the Tcl-visible origin. Retarget the internal
+        // reference into the hidden domain so the lineage remains traversable
+        // without colliding with an equal visible token.
+        self.retarget_imports_key(
+            &CommandSidecarKey::visible(&source),
+            &CommandSidecarKey::hidden(token),
+        );
+        if let Some(target) = cross_target {
+            self.retarget_alias_backref_key(
+                &CommandSidecarKey::visible(&source),
+                CommandSidecarKey::hidden(token),
+                target,
+            );
+        }
+        Ok(())
     }
 
     /// `interp expose {} hidden ?token?` — restore one of *this* interp's
     /// hidden commands, optionally under a new name (`token`).
-    pub(crate) fn expose_own_command(&mut self, cmd: &str, token: &str) {
-        if let Some(c) = self.hidden_commands.remove(cmd) {
-            self.bump_cmd_epoch();
-            self.commands.insert(token.to_string(), c);
+    pub(crate) fn expose_own_command(&mut self, cmd: &str, token: &str) -> Result<(), String> {
+        // `interp expose` always installs the destination in the global
+        // namespace.  A contextual lookup here would incorrectly see (and
+        // reject because of) a same-spelled local command in the caller's
+        // namespace, instead of checking the exact global table owner.
+        let destination = canonical_cmd_key(token);
+        if self.visible_command_exists_exact(&destination) {
+            return Err(format!("exposed command \"{token}\" already exists"));
         }
+        if let Some(c) = self.hidden_commands.remove(cmd) {
+            let cross_target = match &c {
+                Command::CrossAlias { target, .. } => Some(*target),
+                _ => None,
+            };
+            self.register_command(&destination, c);
+            crate::cmd_coro::on_command_exposed(self, cmd, destination.as_ref());
+            self.move_command_traces(
+                &CommandSidecarKey::hidden(cmd),
+                CommandSidecarKey::visible(destination.as_ref()),
+            );
+            if let Some(origin) = self.hidden_imported_commands.remove(cmd) {
+                self.imported_commands
+                    .insert(destination.to_string(), origin);
+            }
+            if let Some(identity) = self.hidden_builtin_identities.remove(cmd) {
+                self.builtin_identities
+                    .insert(destination.to_string(), identity);
+            }
+            // Reconnect internal references to the visible domain; their
+            // Tcl-visible ultimate source lineage remains unchanged.
+            self.retarget_imports_key(
+                &CommandSidecarKey::hidden(cmd),
+                &CommandSidecarKey::visible(destination.as_ref()),
+            );
+            if let Some(target) = cross_target {
+                self.retarget_alias_backref_key(
+                    &CommandSidecarKey::hidden(cmd),
+                    CommandSidecarKey::visible(destination.as_ref()),
+                    target,
+                );
+            }
+        }
+        Ok(())
     }
 
     /// Sorted hidden-command names of *this* interp (`interp hidden {}`).
@@ -2403,22 +2891,26 @@ impl Vm {
     /// `interp hide|expose path cmd ?token?` on a child. When hiding, the
     /// command `cmd` is filed under `token`; when exposing, the hidden `cmd` is
     /// restored as the command `token`.
-    pub(crate) fn child_hide(&mut self, name: &str, cmd: &str, token: &str, hide: bool) -> bool {
+    pub(crate) fn child_hide(
+        &mut self,
+        name: &str,
+        cmd: &str,
+        token: &str,
+        hide: bool,
+    ) -> Result<bool, String> {
         let Some(id) = self.child_id(name) else {
-            return false;
+            return Ok(false);
         };
-        let Some(child) = self.st_of_mut(id) else {
-            return false;
-        };
-        child.bump_cmd_epoch();
-        if hide {
-            if let Some(c) = child.commands.remove(cmd) {
-                child.hidden_commands.insert(token.to_string(), c);
+        // Enter the child so public hide uses the same visibility-aware
+        // removal seam as `rename` and same-interpreter `interp hide`.
+        self.in_interp(id, |vm| {
+            if hide {
+                vm.hide_command(cmd, token)
+            } else {
+                vm.expose_own_command(cmd, token)
             }
-        } else if let Some(c) = child.hidden_commands.remove(cmd) {
-            child.commands.insert(token.to_string(), c);
-        }
-        true
+        })?;
+        Ok(true)
     }
 
     /// Make this interp safe (`interp create -safe`): hide the commands that
@@ -2464,8 +2956,19 @@ impl Vm {
         ];
         self.bump_cmd_epoch();
         for &c in UNSAFE {
+            let import_origin = self.imported_commands.get(c).cloned();
+            let builtin_identity = self.builtin_identity_for_key(c);
             if let Some(cmd) = self.commands.remove(c) {
+                self.imported_commands.remove(c);
+                self.builtin_identities.remove(c);
                 self.hidden_commands.insert(c.to_string(), cmd);
+                if let Some(origin) = import_origin {
+                    self.hidden_imported_commands.insert(c.to_string(), origin);
+                }
+                if let Some(identity) = builtin_identity {
+                    self.hidden_builtin_identities
+                        .insert(c.to_string(), identity);
+                }
             }
         }
         for &k in UNSAFE_PLATFORM {
@@ -2513,8 +3016,20 @@ impl Vm {
         argv: &[Value],
     ) -> Completion<Value> {
         if target_interp == self.cur {
-            let script = crate::exec::alias_invoke_script(argv);
             self.push_ns(String::new());
+            // Alias words are recompiled as a script so aliases to control
+            // commands retain Tcl's syntax.  Validate the fixed head through
+            // normal resolution first, though: otherwise a compiler-special
+            // form (for example `lassign`) can run after its target was
+            // renamed away or gated out by the selected release.
+            if let Some((head, tail)) = argv.split_first()
+                && self.lookup_command(&head.to_str()).is_none()
+            {
+                let completion = self.invoke_command(&head.to_str(), tail);
+                self.pop_ns();
+                return completion;
+            }
+            let script = crate::exec::alias_invoke_script(argv);
             let evaled = self.eval_source(&script);
             self.pop_ns();
             return match evaled {
@@ -2528,6 +3043,13 @@ impl Vm {
         let script = crate::exec::alias_invoke_script(argv);
         self.in_interp(target_interp, |vm| {
             vm.push_ns(String::new());
+            if let Some((head, tail)) = argv.split_first()
+                && vm.lookup_command(&head.to_str()).is_none()
+            {
+                let completion = vm.invoke_command(&head.to_str(), tail);
+                vm.pop_ns();
+                return completion;
+            }
             let evaled = vm.eval_source(&script);
             vm.pop_ns();
             match evaled {
@@ -2713,20 +3235,16 @@ impl Vm {
                     ));
                 }
                 let c = rest[0].to_str();
-                self.child_hide_by_id(id, &c, &c, hide);
-                ok(Value::empty())
+                match self.child_hide_by_id(id, &c, &c, hide) {
+                    Ok(()) => ok(Value::empty()),
+                    Err(message) => err(message),
+                }
             }
             "marktrusted" => {
                 if self.is_safe() {
                     return err("permission denied: safe interpreter cannot mark trusted");
                 }
-                if let Some(child) = self.st_of_mut(id) {
-                    child.bump_cmd_epoch();
-                    for (cmd_name, cmd) in std::mem::take(&mut child.hidden_commands) {
-                        child.commands.insert(cmd_name, cmd);
-                    }
-                    child.is_safe = false;
-                }
+                self.mark_interp_trusted(id);
                 ok(Value::empty())
             }
             "invokehidden" if !rest.is_empty() => self.dispatch_child_invokehidden(name, id, rest),
@@ -2821,19 +3339,24 @@ impl Vm {
 
     /// [`Self::child_hide`] addressing the child by id (the `$child hide/expose`
     /// form, whose id is already resolved).
-    fn child_hide_by_id(&mut self, id: InterpId, cmd: &str, token: &str, hide: bool) -> bool {
-        let Some(child) = self.st_of_mut(id) else {
-            return false;
-        };
-        child.bump_cmd_epoch();
-        if hide {
-            if let Some(c) = child.commands.remove(cmd) {
-                child.hidden_commands.insert(token.to_string(), c);
-            }
-        } else if let Some(c) = child.hidden_commands.remove(cmd) {
-            child.commands.insert(token.to_string(), c);
+    fn child_hide_by_id(
+        &mut self,
+        id: InterpId,
+        cmd: &str,
+        token: &str,
+        hide: bool,
+    ) -> Result<(), String> {
+        if !self.interp_alive(id) {
+            return Err("interpreter no longer exists".to_string());
         }
-        true
+        // This is the `$child hide` spelling of the same public operation.
+        self.in_interp(id, |vm| {
+            if hide {
+                vm.hide_command(cmd, token)
+            } else {
+                vm.expose_own_command(cmd, token)
+            }
+        })
     }
 
     /// [`Self::invoke_hidden_in_child`] addressing the child by id.
@@ -2846,24 +3369,7 @@ impl Vm {
         if !self.interp_alive(id) {
             return None;
         }
-        Some(self.in_interp(id, |vm| {
-            let Some(hidden) = vm.hidden_commands.get(cmd).cloned() else {
-                return err(format!("invalid hidden command name \"{cmd}\""));
-            };
-            vm.bump_cmd_epoch();
-            let saved = vm.commands.insert(cmd.to_string(), hidden);
-            let r = vm.invoke_command(cmd, args);
-            vm.bump_cmd_epoch();
-            match saved {
-                Some(prev) => {
-                    vm.commands.insert(cmd.to_string(), prev);
-                }
-                None => {
-                    vm.commands.remove(cmd);
-                }
-            }
-            r
-        }))
+        Some(self.in_interp(id, |vm| vm.invoke_own_hidden(cmd, args)))
     }
 
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
@@ -2873,6 +3379,15 @@ impl Vm {
             return None;
         }
         Some(command)
+    }
+
+    /// Whether the exact visible command-table owner exists on the active
+    /// release surface.  Unlike [`Self::lookup_command`], this never applies
+    /// current-namespace or namespace-path resolution.
+    fn visible_command_exists_exact(&self, key: &str) -> bool {
+        self.commands
+            .get(key)
+            .is_some_and(|command| self.builtin_command_visible_for_surface(key, command))
     }
 
     /// Get the current namespace's command resolution path (`namespace path`)
@@ -3049,7 +3564,7 @@ impl InterpState {
                 return hit.clone();
             }
         }
-        let res = self.resolve_command_fqn_uncached(cxt, name);
+        let res = self.resolve_command_fqn_uncached(cxt, name, true);
         let mut cache = self.cmd_resolve_cache.borrow_mut();
         if cache.0 != epoch {
             cache.0 = epoch;
@@ -3064,8 +3579,23 @@ impl InterpState {
         res
     }
 
+    /// Resolve a registered command for VM/embedder teardown without applying
+    /// the emulated release's public command-surface filter.
+    ///
+    /// This deliberately bypasses only availability filtering. Namespace,
+    /// namespace-path, and global candidate ordering remain the active Tcl
+    /// release's resolution rules. Never use this for Tcl-visible dispatch.
+    fn resolve_command_fqn_raw(&self, cxt: &str, name: &str) -> Option<String> {
+        self.resolve_command_fqn_uncached(cxt, name, false)
+    }
+
     /// The uncached resolution rule — see [`Self::resolve_command_fqn`].
-    fn resolve_command_fqn_uncached(&self, cxt: &str, name: &str) -> Option<String> {
+    fn resolve_command_fqn_uncached(
+        &self,
+        cxt: &str,
+        name: &str,
+        filter_public_surface: bool,
+    ) -> Option<String> {
         // Collapse separator runs up front — C treats any colon run as one
         // separator, so `foo:::bar` dispatches `foo::bar` and `quux:::` the
         // `{}` command `quux::` (tclsh8.6-verified). The key form keeps the
@@ -3104,7 +3634,10 @@ impl InterpState {
                 .map_or_else(|| c.to_string(), String::from)
         };
         tcl_syntax::naming::resolve_command_with(cxt, &rooted, &name, |candidate| {
-            self.commands.contains_key(&unroot(candidate))
+            let key = unroot(candidate);
+            self.commands.get(&key).is_some_and(|command| {
+                !filter_public_surface || self.builtin_command_visible_for_surface(&key, command)
+            })
         })
         .map(|winner| unroot(&winner))
     }
@@ -3261,7 +3794,7 @@ impl Vm {
         };
         // Candidate commands: those in the source namespace whose tail matches
         // the import glob and an export pattern.
-        let mut to_import: Vec<(String, Command)> = Vec::new();
+        let mut to_import: Vec<(String, Command, Option<String>)> = Vec::new();
         for (cmd_name, cmd) in &self.commands {
             let Some(tail) = cmd_name.strip_prefix(&prefix) else {
                 continue;
@@ -3273,18 +3806,33 @@ impl Vm {
                 && exports
                     .iter()
                     .any(|p| tcl_syntax::glob::string_match(p, tail))
+                // C imports only a command visible in the current release.
+                // Skipping a hidden source avoids manufacturing a local clone
+                // at 8.4 and keeps import chains' provenance meaningful.
+                && self.builtin_command_visible_for_surface(cmd_name, cmd)
             {
-                to_import.push((tail.to_string(), cmd.clone()));
+                let builtin_identity = matches!(cmd, Command::Builtin(_) | Command::Native(_))
+                    .then(|| {
+                        self.builtin_identities
+                            .get(cmd_name)
+                            .cloned()
+                            .unwrap_or_else(|| cmd_name.clone())
+                    });
+                to_import.push((tail.to_string(), cmd.clone(), builtin_identity));
             }
         }
         let mut imported = Vec::new();
-        for (tail, cmd) in to_import {
+        for (tail, cmd, builtin_identity) in to_import {
             let alias = self.qualify_name(&tail);
             let origin = format!("{prefix}{tail}");
             self.register_command(&alias, cmd);
             // `register_command` cleared any stale provenance; now stamp this key
             // as an import so `namespace forget` can target it.
-            self.imported_commands.insert(alias, origin);
+            self.imported_commands
+                .insert(alias.clone(), CommandSidecarKey::visible(origin));
+            if let Some(identity) = builtin_identity {
+                self.builtin_identities.insert(alias, identity);
+            }
             imported.push(tail);
         }
         imported
@@ -3296,16 +3844,56 @@ impl Vm {
     /// when it names no import. Keys are canonical (unrooted), as
     /// `imported_commands` stores them.
     pub(crate) fn command_origin_key(&self, key: &str) -> String {
-        let mut cur = key.to_owned();
+        let mut cur = CommandSidecarKey::visible(key);
         // Bounded walk: a chain cannot be longer than the import table, so a
         // (malformed) cycle terminates instead of spinning.
-        for _ in 0..self.imported_commands.len() {
-            match self.imported_commands.get(&cur) {
+        for _ in 0..self.imported_commands.len() + self.hidden_imported_commands.len() {
+            let next = match &cur {
+                CommandSidecarKey::Visible(visible) => self.imported_commands.get(visible),
+                CommandSidecarKey::Hidden(hidden) => self.hidden_imported_commands.get(hidden),
+            };
+            match next {
                 Some(next) => cur = next.clone(),
                 None => break,
             }
         }
-        cur
+        cur.name().to_owned()
+    }
+
+    /// Retarget imports when their source command is renamed.  The command
+    /// table stores an import as a cloned dispatcher, whereas C stores the
+    /// source command token; rewrite the provenance explicitly so dispatch,
+    /// visibility, and `namespace origin` continue to identify the final
+    /// builtin under its new name.  A deletion deliberately does not take this
+    /// path: C leaves the imported command dangling in that case.
+    pub(crate) fn retarget_imports(&mut self, old_key: &str, new_key: &str) {
+        self.retarget_imports_key(
+            &CommandSidecarKey::visible(old_key),
+            &CommandSidecarKey::visible(new_key),
+        );
+    }
+
+    fn retarget_imports_key(&mut self, old_key: &CommandSidecarKey, new_key: &CommandSidecarKey) {
+        for source in self.imported_commands.values_mut() {
+            if source == old_key {
+                source.clone_from(new_key);
+            }
+        }
+        for source in self.hidden_imported_commands.values_mut() {
+            if source == old_key {
+                source.clone_from(new_key);
+            }
+        }
+    }
+
+    /// Restore a renamed imported command's own origin record.
+    pub(crate) fn restore_import_origin(&mut self, key: &str, origin: CommandSidecarKey) {
+        self.imported_commands.insert(key.to_owned(), origin);
+    }
+
+    /// Restore a renamed builtin's stable registry identity.
+    pub(crate) fn restore_builtin_identity(&mut self, key: &str, identity: String) {
+        self.builtin_identities.insert(key.to_owned(), identity);
     }
 
     /// `namespace forget pattern` — remove previously imported commands matching
@@ -3344,9 +3932,13 @@ impl Vm {
             }
             self.imported_commands
                 .iter()
-                .filter(|(key, origin)| {
+                .filter(|(key, _)| {
                     split_key(key).0 == cur && {
-                        let (o_ns, o_tail) = split_key(origin);
+                        // C's TclGetOriginalCommand follows an import chain;
+                        // qualified forget matches that ultimate source, not
+                        // merely the immediately imported alias.
+                        let origin = self.command_origin_key(key);
+                        let (o_ns, o_tail) = split_key(&origin);
                         o_ns == src_ns && tcl_syntax::glob::string_match(simple, o_tail)
                     }
                 })
@@ -3367,7 +3959,10 @@ impl Vm {
         self.bump_cmd_epoch();
         for key in victims {
             self.imported_commands.remove(&key);
-            self.commands.remove(&key);
+            self.builtin_identities.remove(&key);
+            if self.commands.remove(&key).is_some() {
+                self.detach_active_sidecars(&CommandSidecarKey::visible(key));
+            }
         }
         Ok(())
     }
@@ -3389,9 +3984,24 @@ impl Vm {
         // Commands and namespace variables are keyed by their fully-qualified
         // (unrooted) name, so a member of the namespace or a descendant begins
         // with `canonical::`.
+        let removed_commands: Vec<String> = self
+            .commands
+            .keys()
+            .filter(|key| key.starts_with(&prefix))
+            .cloned()
+            .collect();
         self.bump_cmd_epoch();
         self.commands.retain(|k, _| !k.starts_with(&prefix));
+        for key in removed_commands {
+            let was_coroutine = crate::cmd_coro::is_coroutine(self, &key);
+            self.detach_active_sidecars(&CommandSidecarKey::visible(&key));
+            if was_coroutine {
+                crate::cmd_coro::on_command_deleted(self, &key);
+            }
+        }
         self.imported_commands
+            .retain(|k, _| !k.starts_with(&prefix));
+        self.builtin_identities
             .retain(|k, _| !k.starts_with(&prefix));
         if let Some(g) = self.frames.first_mut() {
             g.locals.retain(|k, _| !k.starts_with(&prefix));
@@ -3554,7 +4164,7 @@ impl Vm {
             &mut self.cmd_traces
         };
         table
-            .entry(key)
+            .entry(CommandSidecarKey::visible(key))
             .or_default()
             .push(Rc::new(CmdTraceEntry::new(ops, callback)));
         self.invalidate_guard_domain(GuardDomain::CommandTrace);
@@ -3586,6 +4196,7 @@ impl Vm {
         } else {
             &mut self.cmd_traces
         };
+        let key = CommandSidecarKey::visible(key);
         let mut removed = false;
         if let Some(list) = table.get_mut(&key) {
             if let Some(index) = list
@@ -3621,7 +4232,7 @@ impl Vm {
         };
         let Some(list) = self
             .resolve_command_fqn(self.current_ns(), name)
-            .and_then(|key| table.get(&key))
+            .and_then(|key| table.get(&CommandSidecarKey::visible(key)))
         else {
             return Value::empty();
         };
@@ -3677,7 +4288,7 @@ impl Vm {
     /// `::victim ::victim2 rename`; a delete passes `{}` for the new name).
     /// Callback errors are ignored (C: "Any errors in these traces are
     /// ignored").
-    pub(crate) fn fire_command_traces(&mut self, key: &str, new_display: &str, op: &str) {
+    fn fire_command_traces_for(&mut self, key: &CommandSidecarKey, new_display: &str, op: &str) {
         // C's `INTERP_TRACE_IN_PROGRESS`: a rename/delete triggered by a
         // trace callback's own body does not itself fire further traces.
         if self.cmd_traces.is_empty() || self.trace_in_progress.get() {
@@ -3686,7 +4297,7 @@ impl Vm {
         let Some(entries) = self.cmd_traces.get(key).cloned() else {
             return;
         };
-        let old_display = format!("::{key}");
+        let old_display = format!("::{}", key.name());
         for entry in entries {
             if entry.ops.iter().any(|o| o == op) {
                 let _ = self.run_cmd_trace_callback(
@@ -3705,9 +4316,18 @@ impl Vm {
     /// `delete` traces (tclsh-pinned: redefining a traced proc fires them
     /// too) and drop every trace registered on it.
     pub(crate) fn on_command_removed(&mut self, key: &str) {
+        self.on_command_removed_for(&CommandSidecarKey::visible(key));
+    }
+
+    fn on_command_removed_for(&mut self, key: &CommandSidecarKey) {
+        // A key is a location, not an eternal command identity.  Do this
+        // before delete callbacks: they may create, hide, expose, or rename a
+        // replacement binding with the same key while this operation is still
+        // in flight.  That replacement must not inherit the old handle.
+        self.detach_active_sidecars(key);
         let mut removed_trace = false;
         if !self.cmd_traces.is_empty() {
-            self.fire_command_traces(key, "", "delete");
+            self.fire_command_traces_for(key, "", "delete");
             removed_trace |= self.cmd_traces.remove(key).is_some();
         }
         if !self.exec_traces.is_empty()
@@ -3729,23 +4349,85 @@ impl Vm {
     /// traces with both fully-qualified names, then move every trace with it
     /// (tclsh-pinned: an execution trace keeps firing under the new name).
     pub(crate) fn on_command_renamed_traces(&mut self, old_key: &str, new_key: &str) {
+        let old_key = CommandSidecarKey::visible(old_key);
+        let new_key = CommandSidecarKey::visible(new_key);
+        self.relocate_active_sidecars(&old_key, &new_key);
         let mut moved_trace = false;
         if !self.cmd_traces.is_empty() {
-            self.fire_command_traces(old_key, &format!("::{new_key}"), "rename");
-            if let Some(entries) = self.cmd_traces.remove(old_key) {
-                self.cmd_traces.insert(new_key.to_owned(), entries);
+            self.fire_command_traces_for(&old_key, &format!("::{}", new_key.name()), "rename");
+            if let Some(entries) = self.cmd_traces.remove(&old_key) {
+                self.cmd_traces.insert(new_key.clone(), entries);
                 moved_trace = true;
             }
         }
         if !self.exec_traces.is_empty()
-            && let Some(entries) = self.exec_traces.remove(old_key)
+            && let Some(entries) = self.exec_traces.remove(&old_key)
         {
-            self.exec_traces.insert(new_key.to_owned(), entries);
+            self.exec_traces.insert(new_key, entries);
             moved_trace = true;
         }
         if moved_trace {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
+    }
+
+    /// Move trace registrations with a command through the hidden table.  A
+    /// hide/expose is not a Tcl rename, so no callback is fired.
+    fn move_command_traces(&mut self, old_key: &CommandSidecarKey, new_key: CommandSidecarKey) {
+        self.relocate_active_sidecars(old_key, &new_key);
+        let mut moved = false;
+        if let Some(entries) = self.cmd_traces.remove(old_key) {
+            self.cmd_traces.insert(new_key.clone(), entries);
+            moved = true;
+        }
+        if let Some(entries) = self.exec_traces.remove(old_key) {
+            self.exec_traces.insert(new_key, entries);
+            moved = true;
+        }
+        if moved {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
+        }
+    }
+
+    /// Create an active identity that follows this command through every
+    /// visible/hidden/renamed sidecar relocation.
+    pub(crate) fn active_sidecar(&mut self, key: CommandSidecarKey) -> CommandSidecarHandle {
+        self.active_sidecar_handles
+            .retain(|handle| handle.strong_count() != 0);
+        let cell = Rc::new(RefCell::new(Some(key)));
+        self.active_sidecar_handles.push(Rc::downgrade(&cell));
+        CommandSidecarHandle(cell)
+    }
+
+    fn relocate_active_sidecars(
+        &mut self,
+        old_key: &CommandSidecarKey,
+        new_key: &CommandSidecarKey,
+    ) {
+        self.active_sidecar_handles.retain(|weak| {
+            let Some(handle) = weak.upgrade() else {
+                return false;
+            };
+            if handle.borrow().as_ref() == Some(old_key) {
+                *handle.borrow_mut() = Some(new_key.clone());
+            }
+            true
+        });
+    }
+
+    /// Disconnect all active users of a deleted command binding.  Retaining
+    /// the weak cells is harmless; they are pruned when the in-flight calls
+    /// complete, while their `None` identity prevents later relocation.
+    pub(crate) fn detach_active_sidecars(&mut self, key: &CommandSidecarKey) {
+        self.active_sidecar_handles.retain(|weak| {
+            let Some(handle) = weak.upgrade() else {
+                return false;
+            };
+            if handle.borrow().as_ref() == Some(key) {
+                *handle.borrow_mut() = None;
+            }
+            true
+        });
     }
 
     /// The traces on `name` as `(ops, command)` pairs (newest first), for
@@ -3862,9 +4544,30 @@ impl Vm {
     /// top-level compilation runs correctly as a proc body. Any procs the body
     /// itself defines are merged into the registry.
     pub(crate) fn compile_dynamic_body(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
-        let module = self.compiler.as_ref()?.compile(src).ok()?;
+        let module = self
+            .compiler
+            .as_ref()?
+            .compile_for_profile(src, self.dialect_profile)
+            .ok()?;
+        self.validate_module_profile(&module).ok()?;
         self.merge_procs(&module.procedures);
         Some(Rc::new(module.top_level))
+    }
+
+    /// Enforce the bytecode artifact's exact profile at every consumption
+    /// boundary.  The permissive fallback profile is still a real compile
+    /// target: bytecode lowered with its all-Tcl registry can contain an
+    /// intrinsic unavailable in a named release, so it is only executable by
+    /// a fallback-profile VM.
+    pub(crate) fn validate_module_profile(&self, module: &ModuleAsm) -> Result<(), TclError> {
+        if std::ptr::eq(module.profile, self.dialect_profile) {
+            Ok(())
+        } else {
+            Err(TclError::new(format!(
+                "bytecode compiled for dialect profile {} cannot run under {}",
+                module.profile.name, self.dialect_profile.name
+            )))
+        }
     }
 
     /// Merge a module's pre-compiled proc bodies into the registry.
@@ -3876,8 +4579,8 @@ impl Vm {
         }
     }
 
-    /// Ensure `proc`'s compiled body matches the interp's current
-    /// trace-deopt epoch, recompiling `body_src` — trace-visible
+    /// Ensure `proc`'s compiled body matches the interp's current trace-deopt
+    /// and dialect-profile generations, recompiling `body_src` — trace-visible
     /// ([`CompileService::compile_traced`]) or fast
     /// ([`CompileService::compile`]), per [`Self::step_trace_active`] —
     /// when it doesn't. This is the general recompile-on-demand mechanism
@@ -3890,7 +4593,8 @@ impl Vm {
     /// running rather than failing the call over a trace-visibility nicety).
     pub(crate) fn ensure_proc_traced(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
         let want_epoch = self.trace_deopt_epoch();
-        if proc.compiled_epoch == want_epoch {
+        let want_profile = self.profile_generation;
+        if proc.compiled_epoch == want_epoch && proc.compiled_profile_generation == want_profile {
             return proc;
         }
         let Some(svc) = self.compiler.clone() else {
@@ -3898,32 +4602,62 @@ impl Vm {
         };
         let src = proc.body_src.to_str();
         let recompiled = if self.step_trace_active() {
-            svc.compile_traced(&src)
+            svc.compile_traced_for_profile(&src, self.dialect_profile)
         } else {
-            svc.compile(&src)
+            svc.compile_for_profile(&src, self.dialect_profile)
         };
         let Ok(module) = recompiled else {
             return proc;
         };
+        if self.validate_module_profile(&module).is_err() {
+            return proc;
+        }
         self.merge_procs(&module.procedures);
         let mut fresh = (*proc).clone();
         fresh.body = Rc::new(module.top_level);
         fresh.compiled_epoch = want_epoch;
+        fresh.compiled_profile_generation = want_profile;
         Rc::new(fresh)
     }
 
-    /// [`Self::ensure_proc_traced`], memoised: a proc looked up from the
-    /// `commands` table (an ordinary named call, as opposed to an ephemeral
-    /// `apply`/TclOO-method `ProcDef`) has its recompiled body reinstalled
-    /// under its own key, so later calls while the same trace-deopt epoch
-    /// holds reuse the compiled body instead of recompiling on every call.
-    pub(crate) fn ensure_proc_ready(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
-        if proc.compiled_epoch == self.trace_deopt_epoch() {
+    /// Refresh a stored procedure and memoise it in the command domain from
+    /// which this invocation was resolved. Hidden and visible commands may
+    /// share the same spelling, so publishing by `ProcDef::name` would leak a
+    /// hidden proc back into the visible table (and overwrite a replacement).
+    pub(crate) fn ensure_proc_ready_in(
+        &mut self,
+        proc: Rc<ProcDef>,
+        sidecar: Option<&CommandSidecarKey>,
+        sidecar_handle: Option<&CommandSidecarHandle>,
+    ) -> Rc<ProcDef> {
+        if proc.compiled_epoch == self.trace_deopt_epoch()
+            && proc.compiled_profile_generation == self.profile_generation
+        {
             return proc;
         }
-        let key = proc.name.clone();
         let fresh = self.ensure_proc_traced(proc);
-        self.commands.insert(key, Command::Proc(Rc::clone(&fresh)));
+        // A traced invocation's handle follows the command through hide/expose
+        // and becomes detached when a callback deletes it.  Never fall back to
+        // the pre-callback key in that case: doing so would resurrect the stale
+        // proc or overwrite a replacement installed by the callback.
+        let memo_sidecar = match sidecar_handle {
+            Some(handle) => handle.key(),
+            None => sidecar.cloned(),
+        };
+        match memo_sidecar.as_ref() {
+            Some(CommandSidecarKey::Hidden(token)) => {
+                self.hidden_commands
+                    .insert(token.clone(), Command::Proc(Rc::clone(&fresh)));
+            }
+            Some(CommandSidecarKey::Visible(name)) => {
+                self.commands
+                    .insert(name.clone(), Command::Proc(Rc::clone(&fresh)));
+            }
+            None => {
+                self.commands
+                    .insert(fresh.name.clone(), Command::Proc(Rc::clone(&fresh)));
+            }
+        }
         fresh
     }
 
@@ -5224,11 +5958,12 @@ impl Vm {
             ));
         };
         let compiled = if traced {
-            c.compile_traced(src)
+            c.compile_traced_for_profile(src, self.dialect_profile)
         } else {
-            c.compile(src)
+            c.compile_for_profile(src, self.dialect_profile)
         };
         let m = Rc::new(compiled.map_err(|e| TclError::new(e.0))?);
+        self.validate_module_profile(&m)?;
         let cache = if traced {
             &mut self.eval_cache_traced
         } else {
@@ -5261,6 +5996,7 @@ impl Vm {
     /// counterpart of the nested drive `eval_source` performs.
     pub(crate) fn compile_source_cached(&mut self, src: &str) -> Result<Rc<FunctionAsm>, TclError> {
         let module = self.compile_cached(src)?;
+        self.validate_module_profile(&module)?;
         self.merge_procs(&module.procedures);
         Ok(Rc::new(module.top_level.clone()))
     }
@@ -5591,9 +6327,319 @@ fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
 #[cfg(test)]
 mod family_b_tests {
     use super::*;
-    use tcl_runtime_api::GLOBAL_FRAME;
+    use crate::command::NativeCommand;
+    use tcl_compiler::cfg_builder::build_cfg_codegen;
+    use tcl_compiler::codegen::codegen_module;
+    use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
+    use tcl_dialect::DialectProfile;
+    use tcl_runtime_api::{CompileError, GLOBAL_FRAME};
 
     const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
+
+    struct TestCompiler;
+
+    impl CompileService for TestCompiler {
+        type Module = ModuleAsm;
+
+        fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+            self.compile_for_profile(src, DialectProfile::plain_tcl())
+        }
+
+        fn compile_for_profile(
+            &self,
+            src: &str,
+            profile: &'static DialectProfile,
+        ) -> Result<Self::Module, CompileError> {
+            let registry = tcl_registry::registry_for_profile(profile);
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let ir = lower_to_ir(src, registry, config, profile.name);
+            let cfg = build_cfg_codegen(&ir, false);
+            Ok(codegen_module(&cfg, &ir, registry))
+        }
+    }
+
+    #[test]
+    fn invokehidden_rechecks_a_hidden_builtin_against_the_child_profile() {
+        let mut vm = Vm::new();
+        let child_name = vm.create_child(Some("child".to_string()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        vm.in_interp(child, |child_vm| {
+            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+            child_vm.hide_command("lassign", "held").unwrap();
+            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+        });
+        let named = vm.invoke_hidden_in_child("child", "held", &[]).unwrap();
+        assert_eq!(named.code, Code::Error);
+        let by_id = vm.invoke_hidden_by_id(child, "held", &[]).unwrap();
+        assert_eq!(by_id.code, Code::Error);
+        assert!(
+            vm.st_of(child)
+                .unwrap()
+                .hidden_commands
+                .contains_key("held")
+        );
+        assert!(!vm.st_of(child).unwrap().commands.contains_key("held"));
+    }
+
+    #[test]
+    fn root_invokehidden_rechecks_identity_and_restores_hidden_state_after_error() {
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.hide_command("lassign", "held").unwrap();
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+
+        let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
+        assert_eq!(result.code, Code::Error);
+        assert!(vm.hidden_commands.contains_key("held"));
+        assert!(!vm.commands.contains_key("held"));
+        assert!(!vm.builtin_identities.contains_key("held"));
+        assert!(!vm.imported_commands.contains_key("held"));
+    }
+
+    fn eval_value(vm: &mut Vm, script: &str) -> String {
+        let completion = vm.eval_source(script).expect("script compiles");
+        assert_eq!(completion.code, Code::Ok, "{script}: {completion:?}");
+        completion.result.to_str().to_string()
+    }
+
+    fn prepare_stale_hidden_proc(vm: &mut Vm) {
+        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
+        vm.hide_command("p", "held").unwrap();
+        assert_eq!(eval_value(vm, "proc p {} { return replacement }"), "");
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+    }
+
+    fn prepare_trace_deleted_hidden_proc(vm: &mut Vm) {
+        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
+        assert_eq!(
+            eval_value(
+                vm,
+                "proc replace args { rename p {}; interp expose {} held p; rename p {}; proc p {} { return replacement } }"
+            ),
+            ""
+        );
+        assert_eq!(eval_value(vm, "trace add execution p enter replace"), "");
+        vm.hide_command("p", "held").unwrap();
+        assert_eq!(eval_value(vm, "proc p {} { return initial }"), "");
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+    }
+
+    #[test]
+    fn refreshed_hidden_proc_stays_hidden_and_preserves_visible_replacement() {
+        let mut vm = Vm::new();
+        prepare_stale_hidden_proc(&mut vm);
+        let hidden = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
+        assert_eq!(hidden.code, Code::Ok);
+        assert_eq!(hidden.result.to_str().as_ref(), "hidden");
+        assert_eq!(eval_value(&mut vm, "p"), "replacement");
+        assert!(matches!(
+            vm.hidden_commands.get("held"),
+            Some(Command::Proc(proc))
+                if proc.compiled_profile_generation == vm.profile_generation
+        ));
+
+        let child_name = vm.create_child(Some("child".to_owned()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        vm.in_interp(child, prepare_stale_hidden_proc);
+
+        let named = vm.invoke_hidden_in_child("child", "held", &[]).unwrap();
+        assert_eq!(named.code, Code::Ok);
+        assert_eq!(named.result.to_str().as_ref(), "hidden");
+        assert_eq!(
+            vm.in_interp(child, |child| eval_value(child, "p")),
+            "replacement"
+        );
+
+        vm.in_interp(child, |child| {
+            child.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        });
+        let by_id = vm.invoke_hidden_by_id(child, "held", &[]).unwrap();
+        assert_eq!(by_id.code, Code::Ok);
+        assert_eq!(by_id.result.to_str().as_ref(), "hidden");
+        assert_eq!(
+            vm.in_interp(child, |child| eval_value(child, "p")),
+            "replacement"
+        );
+        let state = vm.st_of(child).unwrap();
+        assert!(matches!(
+            state.hidden_commands.get("held"),
+            Some(Command::Proc(proc))
+                if proc.compiled_profile_generation == state.profile_generation
+        ));
+    }
+
+    #[test]
+    fn trace_deleted_hidden_refresh_never_resurrects_or_overwrites_replacement() {
+        let mut vm = Vm::new();
+        prepare_trace_deleted_hidden_proc(&mut vm);
+        let root = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
+        assert_eq!(root.code, Code::Error);
+        assert_eq!(
+            root.result.to_str().as_ref(),
+            "attempt to invoke a deleted command"
+        );
+        assert_eq!(eval_value(&mut vm, "p"), "replacement");
+        assert!(!vm.hidden_commands.contains_key("held"));
+
+        for by_id in [false, true] {
+            let child_name = vm.create_child(None, false);
+            let child = vm.child_id(&child_name).unwrap();
+            vm.in_interp(child, prepare_trace_deleted_hidden_proc);
+            let result = if by_id {
+                vm.invoke_hidden_by_id(child, "held", &[]).unwrap()
+            } else {
+                vm.invoke_hidden_in_child(&child_name, "held", &[]).unwrap()
+            };
+            assert_eq!(result.code, Code::Error);
+            assert_eq!(
+                result.result.to_str().as_ref(),
+                "attempt to invoke a deleted command"
+            );
+            assert_eq!(
+                vm.in_interp(child, |child| eval_value(child, "p")),
+                "replacement"
+            );
+            assert!(
+                !vm.st_of(child)
+                    .unwrap()
+                    .hidden_commands
+                    .contains_key("held")
+            );
+        }
+    }
+
+    #[test]
+    fn relocated_hidden_refresh_persists_at_the_live_visible_key() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        assert_eq!(eval_value(&mut vm, "proc p {} { return hidden }"), "");
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "proc expose args { rename p {}; interp expose {} held p; trace remove execution p enter expose }"
+            ),
+            ""
+        );
+        assert_eq!(
+            eval_value(&mut vm, "trace add execution p enter expose"),
+            ""
+        );
+        vm.hide_command("p", "held").unwrap();
+        assert_eq!(eval_value(&mut vm, "proc p {} { return replacement }"), "");
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+
+        let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
+        assert_eq!(result.code, Code::Ok);
+        assert_eq!(result.result.to_str().as_ref(), "hidden");
+        assert!(!vm.hidden_commands.contains_key("held"));
+        assert_eq!(eval_value(&mut vm, "p"), "hidden");
+    }
+
+    #[test]
+    fn imported_proc_profile_refresh_updates_the_resolved_import_not_its_source_name() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "namespace eval src {proc p {} {return original}; namespace export p}; \\
+                 namespace eval dst {namespace import ::src::p}; \\
+                 rename ::src::p ::src::q; proc ::src::p {} {return replacement}",
+            ),
+            ""
+        );
+
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        assert_eq!(eval_value(&mut vm, "::dst::p"), "original");
+        assert_eq!(eval_value(&mut vm, "::src::p"), "replacement");
+        assert_eq!(eval_value(&mut vm, "::src::q"), "original");
+        assert!(matches!(
+            vm.commands.get("dst::p"),
+            Some(Command::Proc(proc))
+                if proc.compiled_profile_generation == vm.profile_generation
+        ));
+    }
+
+    struct TestNative;
+
+    impl NativeCommand for TestNative {
+        fn invoke(&self, _vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+            ok(Value::empty())
+        }
+    }
+
+    struct OriginNative(Rc<RefCell<Option<String>>>);
+
+    impl NativeCommand for OriginNative {
+        fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+            *self.0.borrow_mut() = Some(vm.command_origin_key("held"));
+            ok(Value::empty())
+        }
+    }
+
+    #[test]
+    fn invokehidden_rechecks_a_hidden_native_identity_for_both_child_paths() {
+        let mut vm = Vm::new();
+        let child_name = vm.create_child(Some("child".to_string()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        vm.in_interp(child, |child_vm| {
+            child_vm.set_dialect_profile(DialectProfile::by_name("tcl9.0"));
+            child_vm.register_native_command("tcl::mathfunc::isfinite", Rc::new(TestNative));
+            child_vm
+                .hide_command("tcl::mathfunc::isfinite", "held")
+                .unwrap();
+            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        });
+
+        assert_eq!(
+            vm.invoke_hidden_in_child("child", "held", &[])
+                .unwrap()
+                .code,
+            Code::Error
+        );
+        assert_eq!(
+            vm.invoke_hidden_by_id(child, "held", &[]).unwrap().code,
+            Code::Error
+        );
+        let state = vm.st_of(child).unwrap();
+        assert!(state.hidden_commands.contains_key("held"));
+        assert!(!state.commands.contains_key("held"));
+        assert!(!state.builtin_identities.contains_key("held"));
+    }
+
+    #[test]
+    fn invokehidden_temporarily_restores_imported_command_provenance() {
+        let observed = Rc::new(RefCell::new(None));
+        let mut vm = Vm::new();
+        vm.register_native_command("src::probe", Rc::new(OriginNative(Rc::clone(&observed))));
+        vm.declare_namespace_exports("src", &["*"]);
+        assert_eq!(vm.import_commands("::src::*"), vec!["probe"]);
+        vm.hide_command("probe", "held").unwrap();
+
+        assert!(
+            vm.invoke_hidden_in_child("", "held", &[])
+                .unwrap()
+                .code
+                .is_ok()
+        );
+        // Direct hidden dispatch must not publish hidden provenance under the
+        // token: normal command lookup from the body sees only visible state.
+        assert_eq!(observed.borrow().as_deref(), Some("held"));
+        assert_eq!(
+            vm.hidden_imported_commands
+                .get("held")
+                .map(CommandSidecarKey::name),
+            Some("src::probe")
+        );
+        assert!(!vm.imported_commands.contains_key("held"));
+        assert!(!vm.commands.contains_key("held"));
+    }
 
     fn guarded_builtin(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         ok(Value::empty())

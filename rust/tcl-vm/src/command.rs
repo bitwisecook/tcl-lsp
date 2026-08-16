@@ -91,6 +91,10 @@ pub struct ProcDef {
     /// fast, matching whether a step trace is currently active — when they
     /// differ (issue #946 fault 3). See [`crate::interp::Vm::ensure_proc_traced`].
     pub compiled_epoch: u64,
+    /// The VM dialect-profile generation under which `body` was compiled.
+    /// Profile mutation recompiles stored bodies from [`Self::body_src`] before
+    /// specialised bytecode can run under the new command surface.
+    pub compiled_profile_generation: u64,
 }
 
 /// A registered command.
@@ -412,6 +416,7 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
         compiled_epoch: 0,
+        compiled_profile_generation: vm.profile_generation(),
     });
     Ok(name)
 }
@@ -447,7 +452,7 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::empty())
         }
         Err(e) => {
-            vm.take_command(&name);
+            vm.take_command_unchecked(&name);
             err(e.message)
         }
     }
@@ -468,12 +473,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "can't rename to \"{new_name}\": command already exists"
         ));
     }
-    // The exact key `take_command` resolves to — captured up front so a
-    // refused alias-loop rename can restore the command where it came from.
-    let old_key = vm
-        .resolve_command_fqn(vm.current_ns(), &old_name)
-        .unwrap_or_default();
-    let Some(cmd) = vm.take_command(&old_name) else {
+    let Some((cmd, mut rename)) = vm.prepare_command_rename(&old_name) else {
         // Renaming to the empty name is a delete; C words the miss accordingly.
         let verb = if new_name.is_empty() {
             "delete"
@@ -484,14 +484,18 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "can't {verb} \"{old_name}\": command doesn't exist"
         ));
     };
+    let old_key = rename.old_key().to_owned();
     // A coroutine's state travels with its command: a delete (`rename $coro {}`)
     // drops it (no `finally` runs — the frozen continuation is inert data,
     // matching C Tcl); a rename re-keys it so it keeps working under the new name.
-    let old_fqn = vm.qualify_name(&old_name);
-    let is_coro = crate::cmd_coro::is_coroutine(vm, &old_fqn);
+    // The prepared transaction holds the exact key resolved by Tcl's full
+    // command lookup rule (including `namespace path`), rather than the
+    // spelling rooted at the caller's current namespace.
+    let is_coro = crate::cmd_coro::is_coroutine(vm, &old_key);
     if new_name.is_empty() {
+        vm.delete_prepared_renamed_command(&rename);
         if is_coro {
-            crate::cmd_coro::on_command_deleted(vm, &old_fqn);
+            crate::cmd_coro::on_command_deleted(vm, &old_key);
         }
         // `rename x {}` is a delete: fire the command's `delete` traces
         // (`callback ::old {} delete`, tclsh-pinned) and drop its traces.
@@ -507,7 +511,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             vm.qualify_name(&new_name)
         };
         if is_coro {
-            crate::cmd_coro::on_command_renamed(vm, &old_fqn, &key);
+            crate::cmd_coro::on_command_renamed(vm, &old_key, &key);
         }
         // A proc executes in the namespace it currently lives in, so renaming
         // it across namespaces re-homes its body (C `TclRenameCommand` updates
@@ -532,39 +536,21 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             other => other,
         };
         let is_alias = matches!(&cmd, Command::Alias(_) | Command::CrossAlias { .. });
-        let cross_target = match &cmd {
-            Command::CrossAlias { target, .. } => Some(*target),
-            _ => None,
-        };
-        vm.register_command(&key, cmd);
         // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
         // a name its own target chain resolves back to is refused, with the
-        // command restored under its old name (tclsh-pinned: `interp alias {}
-        // a {} b; rename a b` errors, `a` survives, `b` stays free).
-        if is_alias && vm.alias_chain_loops_here(&key) {
-            let restored = vm
-                .remove_command_exact(&key)
-                .expect("the alias was just registered under this key");
-            vm.register_command(&old_key, restored);
-            // `register_command` just dropped the backref sitting at `old_key`
-            // (stale since `take_command` doesn't touch the backref table) —
-            // put it back now the alias is confirmed to still live there.
-            if let Some(target) = cross_target {
-                vm.note_alias_backref(&old_key, target);
-            }
+        // command left untouched (tclsh-pinned: `interp alias {} a {} b;
+        // rename a b` errors, `a` survives, `b` stays free).  This logical
+        // check must precede registration: a hidden destination can carry
+        // delete callbacks and trace/deoptimisation state that cannot be
+        // rolled back after `register_command` observes an overwrite.
+        if is_alias && vm.alias_chain_loops_for_rename(&key, &cmd) {
             let tail = crate::interp::key_holder_and_tail_unrooted(&key).1;
             return err(format!(
                 "cannot define or rename alias \"{tail}\": would create a loop"
             ));
         }
-        // A renamed cross-interp alias keeps its target-death backref current
-        // (the source-side sweep keys on the command's table key). Retargeted
-        // only now — any earlier and `register_command`'s own overwrite
-        // cleanup (which unconditionally drops a backref at the key it just
-        // wrote) would immediately undo it.
-        if let Some(target) = cross_target {
-            vm.retarget_alias_backref(&old_key, &key, target);
-        }
+        vm.install_renamed_command(&mut rename, &key, cmd);
+        vm.commit_renamed_command(&rename);
         // The rename happened: fire the command's `rename` traces
         // (`callback ::old ::new rename`, both fully qualified — tclsh-
         // pinned) and move every trace to the new key so it keeps firing
@@ -833,18 +819,21 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
         }
     }
     if path.is_empty() {
-        if hide {
-            if let Some(command) = vm.take_command(&cmd) {
-                vm.hide_own_command(&token, command);
-            }
+        let result = if hide {
+            vm.hide_command(&cmd, &token)
         } else {
-            vm.expose_own_command(&cmd, &token);
+            vm.expose_own_command(&cmd, &token)
+        };
+        match result {
+            Ok(()) => ok(Value::empty()),
+            Err(message) => err(message),
         }
-        ok(Value::empty())
-    } else if vm.child_hide(&path, &cmd, &token, hide) {
-        ok(Value::empty())
     } else {
-        err(format!("could not find interpreter \"{path}\""))
+        match vm.child_hide(&path, &cmd, &token, hide) {
+            Ok(true) => ok(Value::empty()),
+            Ok(false) => err(format!("could not find interpreter \"{path}\"")),
+            Err(message) => err(message),
+        }
     }
 }
 
@@ -1243,6 +1232,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body_src: body_text.clone(),
         usage_name: None,
         compiled_epoch: 0,
+        compiled_profile_generation: vm.profile_generation(),
     });
     ok(Value::empty())
 }

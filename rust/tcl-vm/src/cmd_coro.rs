@@ -45,14 +45,14 @@ use tcl_runtime_api::Completion;
 
 use crate::command::Command;
 use crate::exec::{Frame, RunExit, YieldReq};
-use crate::interp::{ParkedFlow, Vm, err, ok};
+use crate::interp::{CommandSidecarHandle, CommandSidecarKey, ParkedFlow, Vm, err, ok};
 use crate::value::Value;
 
 /// The coroutine subsystem held by the [`Vm`].
 #[derive(Default)]
 pub(crate) struct CoroSystem {
     /// Live coroutines, keyed by fully-qualified name.
-    live: HashMap<String, CoroState>,
+    live: HashMap<CommandSidecarKey, CoroState>,
     /// Active drivers (innermost last) — one entry per in-flight `resume`. Drives
     /// `[info coroutine]` and the yield-boundary check.
     stack: Vec<CoroHandle>,
@@ -104,7 +104,7 @@ enum SuspendKind {
 /// A driver frame for an in-flight `resume`: which coroutine, and the
 /// `activation_depth` its `drive` started at (for the yield-boundary check).
 struct CoroHandle {
-    name: String,
+    key: CommandSidecarHandle,
     base_depth: usize,
 }
 
@@ -124,7 +124,12 @@ pub(crate) fn current_coroutine(vm: &Vm) -> Value {
         // A coroutine that deleted its own command (`rename [info coroutine] {}`)
         // is no longer live even though its driver is still on the stack; C Tcl
         // then reports `[info coroutine]` as empty (coroutine-3.5).
-        Some(h) if is_coroutine(vm, &h.name) => Value::string(format!("::{}", h.name)),
+        Some(h) => match h.key.key() {
+            Some(key) if vm.coro.live.contains_key(&key) => {
+                Value::string(format!("::{}", key.name()))
+            }
+            _ => Value::empty(),
+        },
         _ => Value::empty(),
     }
 }
@@ -132,7 +137,7 @@ pub(crate) fn current_coroutine(vm: &Vm) -> Value {
 /// Whether `fqn` (canonical) names a live coroutine — used by `rename`/deletion
 /// to tear one down.
 pub(crate) fn is_coroutine(vm: &Vm, fqn: &str) -> bool {
-    vm.coro.live.contains_key(fqn)
+    vm.coro.live.contains_key(&CommandSidecarKey::visible(fqn))
 }
 
 /// Drop a coroutine's state on command deletion (`rename $coro {}`). The
@@ -141,7 +146,7 @@ pub(crate) fn is_coroutine(vm: &Vm, fqn: &str) -> bool {
 /// `apply` coroutine's bound lambda proc is removed here (its lifetime is the
 /// coroutine's).
 pub(crate) fn on_command_deleted(vm: &mut Vm, fqn: &str) {
-    let Some(mut state) = vm.coro.live.remove(fqn) else {
+    let Some(mut state) = vm.coro.live.remove(&CommandSidecarKey::visible(fqn)) else {
         return;
     };
     // A suspended coroutine's locals are about to disappear with its frozen
@@ -152,14 +157,30 @@ pub(crate) fn on_command_deleted(vm: &mut Vm, fqn: &str) {
         vm.fire_parked_unset_traces(&mut state.parked);
     }
     if let Some(p) = state.temp_proc {
-        vm.take_command(&p);
+        vm.take_command_unchecked(&p);
     }
 }
 
 /// Move a coroutine's state to a new key on `rename $coro $new`.
 pub(crate) fn on_command_renamed(vm: &mut Vm, old_fqn: &str, new_fqn: &str) {
-    if let Some(state) = vm.coro.live.remove(old_fqn) {
-        vm.coro.live.insert(new_fqn.to_string(), state);
+    if let Some(state) = vm.coro.live.remove(&CommandSidecarKey::visible(old_fqn)) {
+        vm.coro
+            .live
+            .insert(CommandSidecarKey::visible(new_fqn), state);
+    }
+}
+
+pub(crate) fn on_command_hidden(vm: &mut Vm, old_fqn: &str, token: &str) {
+    if let Some(state) = vm.coro.live.remove(&CommandSidecarKey::visible(old_fqn)) {
+        vm.coro.live.insert(CommandSidecarKey::hidden(token), state);
+    }
+}
+
+pub(crate) fn on_command_exposed(vm: &mut Vm, token: &str, new_fqn: &str) {
+    if let Some(state) = vm.coro.live.remove(&CommandSidecarKey::hidden(token)) {
+        vm.coro
+            .live
+            .insert(CommandSidecarKey::visible(new_fqn), state);
     }
 }
 
@@ -178,6 +199,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // first so it does not leak; the command entry itself is overwritten by
     // `register_command` below.
     if is_coroutine(vm, &fqn) {
+        vm.detach_active_sidecars(&CommandSidecarKey::visible(&fqn));
         on_command_deleted(vm, &fqn);
     }
     // `coroutine NAME apply {lambda} arg…` — bind the lambda to an internal proc
@@ -222,14 +244,15 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let body_src = Value::list(words).to_str();
     let Some(body) = vm.compile_dynamic_body(&body_src) else {
         if let Some(p) = &temp_proc {
-            vm.take_command(p);
+            vm.take_command_unchecked(p);
         }
         return err(format!("coroutine \"{name}\": could not compile body"));
     };
+    let profile_generation = vm.profile_generation();
     vm.coro.live.insert(
-        fqn.clone(),
+        CommandSidecarKey::visible(&fqn),
         CoroState {
-            acts: vec![Frame::new(body, false)],
+            acts: vec![Frame::new(body, false, profile_generation)],
             parked: ParkedFlow::default(),
             status: CoroStatus::Fresh,
             last_suspend: SuspendKind::Yield,
@@ -238,7 +261,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
     );
     vm.register_command(&fqn, Command::Builtin(coro_resume));
-    resume(vm, &fqn, &[], &name)
+    resume(vm, &CommandSidecarKey::visible(&fqn), &[], &name)
 }
 
 /// The builtin the coroutine command name resolves to: `$coro ?value ...?`
@@ -250,8 +273,10 @@ fn coro_resume(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(invoked) = vm.invoked_name().map(str::to_owned) else {
         return err("invalid command name");
     };
-    let fqn = vm.qualify_name(&invoked);
-    resume(vm, &fqn, args, &invoked)
+    let key = vm
+        .take_invoked_sidecar()
+        .unwrap_or_else(|| CommandSidecarKey::visible(vm.qualify_name(&invoked)));
+    resume(vm, &key, args, &invoked)
 }
 
 /// Resume the coroutine `fqn`, delivering `args` as the result of the parked
@@ -260,13 +285,18 @@ fn coro_resume(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// empty on the first run; `display_name` names the resume command for the
 /// arity error. Returns the yielded value, or — on completion — the body's
 /// result with its code.
-fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Completion<Value> {
+fn resume(
+    vm: &mut Vm,
+    key: &CommandSidecarKey,
+    args: &[Value],
+    display_name: &str,
+) -> Completion<Value> {
     // Validate the resume arity against how the coroutine last suspended, before
     // the borrow choreography, so an error leaves the coroutine untouched.
-    match vm.coro.live.get(fqn) {
-        None => return err(format!("invalid command name \"{fqn}\"")),
+    match vm.coro.live.get(key) {
+        None => return err(format!("invalid command name \"{}\"", key.name())),
         Some(s) if s.status == CoroStatus::Running => {
-            return err(format!("coroutine \"{fqn}\" is already running"));
+            return err(format!("coroutine \"{}\" is already running", key.name()));
         }
         Some(s)
             if s.status == CoroStatus::Suspended
@@ -281,7 +311,7 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
     // out (a `Running` sentinel stays in the map) so no `coro.live` borrow is
     // held across the `&mut self` drive.
     let (mut acts, mut parked, was_fresh, injections, kind) = {
-        let state = vm.coro.live.get_mut(fqn).expect("presence checked above");
+        let state = vm.coro.live.get_mut(key).expect("presence checked above");
         let was_fresh = state.status == CoroStatus::Fresh;
         state.status = CoroStatus::Running;
         (
@@ -299,8 +329,9 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
     // interp state (reached through `Deref`), so read the depth into a local
     // before the push to avoid overlapping the whole-`Vm` deref borrow.
     let base_depth = vm.activation_depth + 1;
+    let active_key = vm.active_sidecar(key.clone());
     vm.coro.stack.push(CoroHandle {
-        name: fqn.to_string(),
+        key: active_key.clone(),
         base_depth,
     });
     // Deliver the resume value where the parked `yield`'s result belongs. A Fresh
@@ -326,7 +357,9 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
                 // is restored, and the error propagates.
                 vm.coro.stack.pop();
                 vm.swap_flow(&mut parked);
-                teardown_coro(vm, fqn);
+                if let Some(key) = active_key.key() {
+                    teardown_coro(vm, &key);
+                }
                 return r;
             }
         }
@@ -337,6 +370,7 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
     vm.coro.stack.pop();
     // Swap the resumer's flow back in; `parked` again holds the coroutine's flow.
     vm.swap_flow(&mut parked);
+    let key = active_key.key();
 
     match exit {
         RunExit::Yielded(req) => {
@@ -345,7 +379,9 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
                 YieldReq::YieldTo(_) => SuspendKind::YieldTo,
             };
             // Park the coroutine (its frozen stack + flow) for the next resume.
-            if let Some(state) = vm.coro.live.get_mut(fqn) {
+            if let Some(key) = key
+                && let Some(state) = vm.coro.live.get_mut(&key)
+            {
                 state.acts = acts;
                 state.parked = parked;
                 state.status = CoroStatus::Suspended;
@@ -364,7 +400,9 @@ fn resume(vm: &mut Vm, fqn: &str, args: &[Value], display_name: &str) -> Complet
         RunExit::Done(c) => {
             // The body finished: remove the command + state (unless `exit` is
             // propagating, in which case leave teardown to the unwinding caller).
-            teardown_coro(vm, fqn);
+            if let Some(key) = key {
+                teardown_coro(vm, &key);
+            }
             c
         }
     }
@@ -406,14 +444,14 @@ fn run_injections(
 /// Drop a finished or unwound coroutine: remove its command and, for an `apply`
 /// coroutine, its bound lambda proc — unless `exit` is propagating, when the
 /// unwinding caller tears everything down instead.
-fn teardown_coro(vm: &mut Vm, fqn: &str) {
+fn teardown_coro(vm: &mut Vm, key: &CommandSidecarKey) {
     if !vm.exit_pending() {
-        vm.take_command(fqn);
+        vm.retire_command_lifecycle_key(key);
     }
-    if let Some(state) = vm.coro.live.remove(fqn)
+    if let Some(state) = vm.coro.live.remove(key)
         && let Some(p) = state.temp_proc
     {
-        vm.take_command(&p);
+        vm.take_command_unchecked(&p);
     }
 }
 
@@ -482,7 +520,7 @@ fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let fqn = vm.qualify_name(&name.to_str());
     // Take the coroutine's parked flow out; it must be suspended.
     let mut parked = {
-        let Some(state) = vm.coro.live.get_mut(&fqn) else {
+        let Some(state) = vm.coro.live.get_mut(&CommandSidecarKey::visible(&fqn)) else {
             return err("can only inject a probe command into a coroutine");
         };
         if state.status != CoroStatus::Suspended {
@@ -495,14 +533,17 @@ fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // and its locals resolve), then restore the caller's flow.
     vm.swap_flow(&mut parked);
     let base_depth = vm.activation_depth + 1;
+    let active_key = vm.active_sidecar(CommandSidecarKey::visible(&fqn));
     vm.coro.stack.push(CoroHandle {
-        name: fqn.clone(),
+        key: active_key.clone(),
         base_depth,
     });
     let result = vm.invoke_command(&cmd.to_str(), rest);
     vm.coro.stack.pop();
     vm.swap_flow(&mut parked);
-    if let Some(state) = vm.coro.live.get_mut(&fqn) {
+    if let Some(key) = active_key.key()
+        && let Some(state) = vm.coro.live.get_mut(&key)
+    {
         state.parked = parked;
         state.status = CoroStatus::Suspended;
     }
@@ -519,7 +560,7 @@ fn cmd_coroinject(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"");
     };
     let fqn = vm.qualify_name(&name.to_str());
-    match vm.coro.live.get_mut(&fqn) {
+    match vm.coro.live.get_mut(&CommandSidecarKey::visible(&fqn)) {
         Some(state) if state.status == CoroStatus::Suspended => {
             state.injections.push(args[1..].to_vec());
             ok(Value::empty())
@@ -536,7 +577,7 @@ fn cmd_corotype(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"::tcl::unsupported::corotype coroName\"");
     };
     let fqn = vm.qualify_name(&name.to_str());
-    match vm.coro.live.get(&fqn) {
+    match vm.coro.live.get(&CommandSidecarKey::visible(&fqn)) {
         None => err("can only get coroutine type of a coroutine"),
         Some(s) if s.status == CoroStatus::Running => ok(Value::string("active")),
         Some(s) => ok(Value::string(match s.last_suspend {

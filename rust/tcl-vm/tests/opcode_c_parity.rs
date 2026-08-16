@@ -1120,6 +1120,7 @@ fn vm_with_seeded_proc(body: Asm) -> Vm {
     let mut procedures = HashMap::new();
     procedures.insert("p".to_string(), body.build());
     let module = ModuleAsm {
+        profile: tcl_dialect::DialectProfile::plain_tcl(),
         top_level: Asm::new().build(),
         procedures,
     };

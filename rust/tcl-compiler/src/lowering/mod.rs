@@ -3609,8 +3609,23 @@ pub fn lower_to_ir_traced_with_config(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Module {
+    lower_to_ir_traced_with_dialect(source, registry, config, "")
+}
+
+/// Like [`lower_to_ir_traced_with_config`] but also records the exact dialect
+/// selected by the host.  Runtime compile services for a named profile must
+/// use this entry point so the resulting bytecode artifact retains the
+/// profile identity that its lexer, registry, and expression grammar used.
+#[must_use]
+pub fn lower_to_ir_traced_with_dialect(
+    source: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: &str,
+) -> Module {
     lower_with(
         Lowerer::with_config(registry, config)
+            .with_dialect(dialect)
             .for_bytecode_backend()
             .trace_visible(),
         source,

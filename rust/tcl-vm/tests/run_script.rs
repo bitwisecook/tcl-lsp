@@ -1216,6 +1216,7 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         error_regions: Vec::new(),
     };
     let module = ModuleAsm {
+        profile: tcl_dialect::DialectProfile::plain_tcl(),
         top_level: top,
         procedures: std::collections::HashMap::new(),
     };

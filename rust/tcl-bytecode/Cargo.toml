@@ -44,6 +44,7 @@ authors.workspace = true
 description = "Tcl 9 bytecode artifact types (opcodes, instructions, FunctionAsm/ModuleAsm, layout, disassembly)"
 
 [dependencies]
+tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 

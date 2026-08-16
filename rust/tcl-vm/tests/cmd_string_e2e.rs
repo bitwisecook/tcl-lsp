@@ -35,6 +35,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -56,6 +57,27 @@ impl CompileService for CompilerSvc {
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+            src,
+            registry,
+            config,
+            profile.name,
+        );
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
 }
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
@@ -74,17 +96,18 @@ impl Write for Capture {
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let profile = DialectProfile::by_name(version.dialect_name());
+    let service = CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    };
+    let asm = service
+        .compile_for_profile(src, profile)
+        .expect("test script compiles for its selected profile");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_runtime_version(version);
-    vm.set_compiler(Box::new(CompilerSvc {
-        registry: CommandRegistry::build_default(),
-    }));
+    vm.set_compiler(Box::new(service));
     let completion = vm.run_module(&asm);
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");

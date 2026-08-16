@@ -1374,6 +1374,10 @@ pub struct ErrorRegion {
 /// Assembly for an entire module.
 #[derive(Debug, Clone)]
 pub struct ModuleAsm {
+    /// Exact interned dialect profile selected during lowering/codegen.  A VM
+    /// must reject an AOT module compiled for another profile rather than
+    /// treating its specialised opcodes as belonging to its current surface.
+    pub profile: &'static tcl_dialect::DialectProfile,
     /// Top-level script assembly.
     pub top_level: FunctionAsm,
     /// Procedure assemblies keyed by qualified name.

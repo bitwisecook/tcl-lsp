@@ -62,6 +62,10 @@ struct Method {
     has_args: bool,
     body: Rc<FunctionAsm>,
     body_src: Value,
+    /// Dialect-profile generation under which `body` was compiled. The
+    /// transient `ProcDef` built for an invocation carries this through the
+    /// shared profile/trace freshness owner.
+    compiled_profile_generation: u64,
     /// `None` for an ordinary method; `Some(prefix)` for a `forward` (invoking
     /// the method evaluates `prefix args…`).
     forward: Option<Vec<Value>>,
@@ -1346,7 +1350,7 @@ fn run_step(
     result
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // A method activation genuinely carries this context and persistence seam.
 fn run_step_inner(
     vm: &mut Vm,
     obj_key: &str,
@@ -1444,13 +1448,34 @@ fn run_step_inner(
         body_src: m.body_src.clone(),
         usage_name: Some(usage_prefix.clone()),
         compiled_epoch: 0,
+        compiled_profile_generation: m.compiled_profile_generation,
     };
-    // A method body is rebuilt fresh from `m.body_src` every call (never
-    // cached back onto the class), so it always picks up the interp's
-    // current trace-deopt mode — no separate epoch bookkeeping needed for
-    // methods; `ensure_proc_traced` only recompiles when it's actually
-    // needed (step_trace_active).
+    // Refresh through the shared proc owner, then persist the replacement on
+    // its defining facet.  Recompiling on every method call after a profile
+    // switch is both wasteful and makes the class cache lie about its body.
     let proc = vm.ensure_proc_traced(Rc::new(proc));
+    if !Rc::ptr_eq(&proc.body, &m.body)
+        || proc.compiled_profile_generation != m.compiled_profile_generation
+    {
+        let mut refreshed = m.clone();
+        refreshed.body = Rc::clone(&proc.body);
+        refreshed.compiled_profile_generation = proc.compiled_profile_generation;
+        if method.is_empty() {
+            if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
+                class.constructor = Some(refreshed);
+            }
+        } else if method == "<destructor>" {
+            if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
+                class.destructor = Some(refreshed);
+            }
+        } else if step.is_object {
+            if let Some(object) = vm.oo.objects.get_mut(&step.provider) {
+                object.methods.insert(method.clone(), refreshed);
+            }
+        } else if let Some(class) = vm.oo.classes.get_mut(&step.provider) {
+            class.methods.insert(method.clone(), refreshed);
+        }
+    }
     let frame = OoFrame {
         object: obj_key.to_string(),
         chain: chain.to_vec(),
@@ -1731,7 +1756,7 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
 
 /// Remove an object's command and records (no destructor run).
 fn teardown(vm: &mut Vm, obj_key: &str) {
-    vm.take_command(obj_key);
+    vm.take_command_unchecked(obj_key);
     vm.oo.objects.remove(obj_key);
     vm.oo.classes.remove(obj_key);
 }
@@ -1896,6 +1921,7 @@ fn build_method(
         has_args,
         body: compiled,
         body_src: body.clone(),
+        compiled_profile_generation: vm.profile_generation(),
         forward: None,
         exported,
     })
@@ -2065,6 +2091,7 @@ fn def_forward(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Com
         has_args: true,
         body: empty_body(vm),
         body_src: Value::empty(),
+        compiled_profile_generation: vm.profile_generation(),
         forward: Some(prefix.to_vec()),
         exported,
     };

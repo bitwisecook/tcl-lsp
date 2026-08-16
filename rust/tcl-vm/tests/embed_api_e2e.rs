@@ -31,6 +31,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Value, Vm};
 
@@ -50,6 +51,27 @@ impl CompileService for CompilerSvc {
         let ir = lower_to_ir(src, &self.registry);
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::registry_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+            src,
+            registry,
+            config,
+            profile.name,
+        );
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
     }
 }
 
@@ -99,6 +121,44 @@ fn a_compiled_handle_runs_repeatedly_without_recompiling() {
 }
 
 #[test]
+fn raw_function_execution_is_fallback_only_and_cannot_bypass_module_profile() {
+    let service = CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    };
+    let v85 = DialectProfile::by_name("tcl8.5");
+    let named = service
+        .compile_for_profile("lassign {a b} x; set x", v85)
+        .expect("named-profile module compiles");
+
+    let mut v84_vm = vm();
+    v84_vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    let rejected = v84_vm.run_function(&named.top_level);
+    assert_eq!(rejected.code, Code::Error);
+    assert_eq!(
+        rejected.result.to_str().as_ref(),
+        "profile-less bytecode cannot run under dialect profile tcl8.4"
+    );
+
+    // The low-level opcode/embedder contract remains available deliberately
+    // on the permissive fallback VM, where no named-profile claim is made.
+    let fallback = service
+        .compile("set fallback_ok yes; set fallback_ok")
+        .expect("fallback module compiles");
+    let mut fallback_vm = vm();
+    let completion = fallback_vm.run_function(&fallback.top_level);
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(completion.result.to_str().as_ref(), "yes");
+
+    // The supported named-profile AOT entry remains the profile-bearing
+    // module API, including same-profile execution.
+    let mut v85_vm = vm();
+    v85_vm.set_dialect_profile(v85);
+    let completion = v85_vm.run_module(&named);
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(completion.result.to_str().as_ref(), "a");
+}
+
+#[test]
 fn an_embedder_command_carries_its_own_state() {
     let mut vm = vm();
     let recorder = Rc::new(Recorder {
@@ -116,6 +176,54 @@ fn an_embedder_command_carries_its_own_state() {
             vec!["role".to_string(), "0".to_string(), "varwrite".to_string()],
             vec!["role".to_string(), "1".to_string(), "body".to_string()],
         ],
+    );
+}
+
+#[test]
+fn native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles() {
+    let mut vm = vm();
+    let recorder = Rc::new(Recorder {
+        calls: RefCell::new(Vec::new()),
+    });
+    vm.register_native_command("tcl::mathfunc::isfinite", recorder);
+    vm.set_dialect_profile(DialectProfile::by_name("tcl9.0"));
+    assert!(
+        vm.eval_source("rename ::tcl::mathfunc::isfinite finite")
+            .unwrap()
+            .code
+            .is_ok()
+    );
+    assert!(vm.invoke_command("finite", &[]).code.is_ok());
+    assert!(
+        vm.eval_source("interp hide {} finite held; interp expose {} held finite2")
+            .unwrap()
+            .code
+            .is_ok()
+    );
+    assert!(vm.invoke_command("finite2", &[]).code.is_ok());
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+    assert!(!vm.invoke_command("finite2", &[]).code.is_ok());
+}
+
+#[test]
+fn embedder_can_remove_a_builtin_hidden_by_the_current_release() {
+    let mut vm = vm();
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    assert!(
+        !vm.invoke_command("lassign", &[]).code.is_ok(),
+        "lassign is outside Tcl 8.4's public surface"
+    );
+
+    assert!(
+        vm.remove_command("lassign"),
+        "embedder teardown must see the raw registered command"
+    );
+    assert!(!vm.command_names().iter().any(|name| name == "lassign"));
+
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    assert!(
+        !vm.invoke_command("lassign", &[]).code.is_ok(),
+        "changing release must not revive a command removed by the embedder"
     );
 }
 

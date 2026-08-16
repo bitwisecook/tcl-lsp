@@ -38,7 +38,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_traced_with_config;
+use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
 use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Vm};
@@ -117,15 +117,29 @@ impl CompileService for Svc {
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
     }
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        Self::for_profile(profile).compile(src)
+    }
     fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         if let Some(msg) =
             tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
         {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir_traced_with_config(src, self.registry, self.config);
+        let ir = lower_to_ir_traced_with_dialect(src, self.registry, self.config, self.dialect);
         let cfg = build_cfg(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
+    }
+    fn compile_traced_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        Self::for_profile(profile).compile_traced(src)
     }
 }
 
@@ -753,22 +767,18 @@ mod tests {
         }
 
         // tmm_grammar_has_no_expansion: `{*}` is 8.5+ syntax the embedded
-        // 8.4.6 does not have. Under the iRules grammar `{*}{a b}` is not an
-        // expansion (and, unlike plain tclsh8.4, not an error either): the
-        // TMM's `}{` ghost word separator splits it into the two literal
-        // words `*` and `a b`. TIP-157 expansion would instead yield the
-        // elements `a` and `b` — pin the first element to tell them apart.
+        // 8.4.6 grammar does not have. The adjacent close/open braces are a
+        // hard parse error, matching Tcl 8.4 rather than TIP-157 expansion.
         scenario(&mut s);
-        assert_eq!(
-            s.eval("llength [list {*}{a b}]").unwrap(),
-            "2",
-            "tmm_grammar_has_no_expansion: `}}{{` splits into two words"
-        );
-        assert_eq!(
-            s.eval("lindex [list {*}{a b}] 0").unwrap(),
-            "*",
-            "tmm_grammar_has_no_expansion: the first word is the literal `*`, not an expanded `a`"
-        );
+        match s.eval("llength [list {*}{a b}]") {
+            Err(SessionError::Eval(message)) => assert_eq!(
+                message, "extra characters after close-brace",
+                "tmm_grammar_has_no_expansion: Tcl 8.4 must reject TIP-157 syntax"
+            ),
+            other => {
+                panic!("tmm_grammar_has_no_expansion: Tcl 8.4 syntax must fail, got {other:?}")
+            }
+        }
 
         // surface_hides_86_builtins: an 8.6+-only builtin with no polyfill
         // (lmap) does not exist at 8.4 — the miss reports through the

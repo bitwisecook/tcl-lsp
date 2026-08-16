@@ -175,6 +175,7 @@ pub fn codegen_module(
         );
     }
     ModuleAsm {
+        profile: tcl_dialect::DialectProfile::by_opt_name(dialect),
         top_level: top,
         procedures: procs,
     }
