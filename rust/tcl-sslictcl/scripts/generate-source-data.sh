@@ -30,7 +30,7 @@ sha256_digest() {
 }
 
 base64_file() {
-    base64 "$1" | tr -d '\n'
+    base64 < "$1" | tr -d '\n'
 }
 
 date_to_epoch() {

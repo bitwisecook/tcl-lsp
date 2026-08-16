@@ -392,7 +392,7 @@ mod tests {
             fs::read_to_string(root.join("rust/tcl-sslictcl/scripts/generate-source-data.sh"))
                 .expect("read generator script");
         assert!(generator.contains("shasum -a 256"));
-        assert!(generator.contains("base64 \"$1\" | tr -d '\\n'"));
+        assert!(generator.contains("base64 < \"$1\" | tr -d '\\n'"));
         assert!(generator.contains("date -u -j -f"));
 
         let updater =
