@@ -35,12 +35,12 @@ use tcl_compiler::ir::{
 };
 use tcl_compiler::registry_invocation::effective_command_arguments;
 use tcl_registry::CommandRegistry;
+use tcl_registry::InvocationArguments;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::registry::{
     ExactInvocationCompletion, InvocationCompletion, InvocationCompletionKnowledge,
 };
-use tcl_registry::InvocationArguments;
 
 const MAX_DEPTH: usize = 8;
 const MAX_EVENTS: usize = 12;
@@ -101,7 +101,9 @@ fn command_completion(
     let effective = tokens.map(|tokens| {
         effective_command_arguments(
             tokens,
-            tcl_dialect::EscapeSyntax::of_dialect_name(registry.profile().map(|profile| profile.name)),
+            tcl_dialect::EscapeSyntax::of_dialect_name(
+                registry.profile().map(|profile| profile.name),
+            ),
         )
     });
     let knowledge = if let Some(effective) = effective.as_ref() {
