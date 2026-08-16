@@ -418,8 +418,29 @@ fn factory_profile(
     let side = factory_profile_side(path)?;
     add_unknown_version_notice(path, version, notices);
     let fields = factory_default_fields(side, version);
-    let certificate_bindings =
-        resolve_bindings(path, &fields, None, pem_by_object, key_by_object, notices);
+    let factory_references = [
+        field_value(&fields, "cert"),
+        field_value(&fields, "key"),
+        field_value(&fields, "chain"),
+    ];
+    let factory_certificates = pem_by_object
+        .iter()
+        .filter(|(reference, _)| factory_references.contains(reference))
+        .map(|(reference, certificates)| (reference.clone(), certificates.clone()))
+        .collect();
+    let factory_keys = key_by_object
+        .iter()
+        .filter(|(reference, _)| factory_references.contains(reference))
+        .map(|(reference, key)| (reference.clone(), key.clone()))
+        .collect();
+    let certificate_bindings = resolve_bindings(
+        path,
+        &fields,
+        None,
+        &factory_certificates,
+        &factory_keys,
+        notices,
+    );
     add_unexpanded_cipher_notice(path, &fields, notices);
     Some(EffectiveTlsProfile {
         full_path: path.to_owned(),
