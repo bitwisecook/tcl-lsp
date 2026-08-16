@@ -295,7 +295,7 @@ fn run_worker(shared: &Arc<Shared>, id: u64, inbox: Receiver<Job>, script: &str)
     // the runtime must agree or numerals mean different things either side of
     // `thread::send`.
     vm.set_dialect_profile(shared.dialect_profile);
-    vm.set_command_surface_profile(shared.command_surface_profile);
+    debug_assert!(vm.set_command_surface_profile(shared.command_surface_profile));
     let _ = vm.write_array_raw("tcl_platform", "threaded", Value::string("1"));
     vm.thread = ThreadSystem {
         shared: Some(Arc::clone(shared)),
@@ -831,7 +831,7 @@ fn run_pool_worker(shared: &Arc<Shared>, queue: &Arc<PoolQueue>, initcmd: Option
     // the runtime must agree or numerals mean different things either side of
     // `thread::send`.
     vm.set_dialect_profile(shared.dialect_profile);
-    vm.set_command_surface_profile(shared.command_surface_profile);
+    debug_assert!(vm.set_command_surface_profile(shared.command_surface_profile));
     let _ = vm.write_array_raw("tcl_platform", "threaded", Value::string("1"));
     let id = shared.next_id.fetch_add(1, Ordering::SeqCst);
     vm.thread = ThreadSystem {

@@ -146,7 +146,7 @@ fn workers_inherit_a_separate_host_command_surface() {
     let mut vm = Vm::with_output(Box::new(std::io::sink()));
     vm.set_compiler(Box::new(ProfileCompilerSvc));
     vm.set_dialect_profile(dialect);
-    vm.set_command_surface_profile(host);
+    assert!(vm.set_command_surface_profile(host));
     vm.enable_threads(
         Arc::new(|| Box::new(ProfileCompilerSvc)),
         Arc::new(Mutex::new(Box::new(std::io::sink()))),

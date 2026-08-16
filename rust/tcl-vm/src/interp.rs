@@ -1051,7 +1051,18 @@ impl Vm {
     /// Compilation, bytecode profile validation, lexer/expr semantics, and
     /// [`Self::dialect_profile`] remain unchanged. This is for embedding hosts
     /// that execute a sandboxed dialect inside a broader host interpreter.
-    pub fn set_command_surface_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+    /// The override is rejected when its Tcl runtime base is older than the
+    /// compilation dialect's base: otherwise release-specific bytecode could
+    /// execute a command that ordinary lookup hides. Returns whether the
+    /// requested surface was installed.
+    #[must_use]
+    pub fn set_command_surface_profile(
+        &mut self,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        if profile.vm_runtime_version < self.dialect_profile.vm_runtime_version {
+            return false;
+        }
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
         self.eval_cache.clear();
@@ -1060,6 +1071,7 @@ impl Vm {
         self.command_surface_profile = profile;
         self.profile_registry =
             (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
+        true
     }
 
     /// The profile currently governing builtin command availability.

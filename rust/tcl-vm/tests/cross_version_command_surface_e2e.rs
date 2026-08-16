@@ -173,6 +173,25 @@ fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
     );
 }
 
+#[test]
+fn command_surface_override_cannot_hide_compiled_release_commands() {
+    let v90 = DialectProfile::by_name("tcl9.0");
+    let v84 = DialectProfile::by_name("tcl8.4");
+    let registry = tcl_registry::registry_for_profile(v90);
+    let config = tcl_lexer::LexerConfig::from_grammar(v90.grammar);
+    let ir = lower_to_ir("lassign {a b} x; set x", registry, config, v90.name);
+    let cfg = build_cfg_codegen(&ir, false);
+    let module = codegen_module(&cfg, &ir, registry);
+
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(v90);
+    assert!(!vm.set_command_surface_profile(v84));
+    assert!(std::ptr::eq(vm.command_surface_profile(), v90));
+    let completion = vm.run_module(&module);
+    assert!(completion.code.is_ok(), "{}", completion.result.to_str());
+    assert_eq!(&*completion.result.to_str(), "a");
+}
+
 /// Run `src` on a VM pinned to `profile`, compiling for that profile exactly
 /// as `tclvm --tcl-version` does. Returns the `puts` output; a compile
 /// rejection or an uncaught runtime error becomes the error's message, so a

@@ -189,9 +189,9 @@ impl LiveSession {
         // Tcl by tmm_shim.tcl.
         let profile = DialectProfile::irules();
         vm.set_dialect_profile(profile);
-        vm.set_command_surface_profile(DialectProfile::by_name(
+        assert!(vm.set_command_surface_profile(DialectProfile::by_name(
             profile.vm_runtime_version.dialect_name(),
-        ));
+        )));
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
         let mut session = Self { vm, output };
         session.bootstrap(lib_dir)?;
