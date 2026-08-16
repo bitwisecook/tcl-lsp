@@ -18,21 +18,23 @@
 
 //! KCS / design-docs link + index-coverage check.
 //!
-//! Validates four things, producing the expected stdout and exit
+//! Validates five things, producing the expected stdout and exit
 //! codes:
 //!
-//! 1. every local markdown link in `docs/` (+ `CONTRIBUTING.md` /
-//!    `AGENTS.md`) resolves;
+//! 1. every local markdown link and its Markdown heading fragment in
+//!    `docs/` (+ `CONTRIBUTING.md` / `AGENTS.md`) resolves;
 //! 2. every design doc under `docs/design/` is linked from the design
 //!    index (or a parent `README.md` that is itself indexed);
 //! 3. every top-level KCS note under `docs/kcs/` is linked from the KCS
 //!    index (and the `features/` subindex);
 //! 4. every `kcs-*.md` note carries a `> **Audience:**` header (warning
 //!    only — does not fail the build).
+//! 5. every tagged diagnostic KCS page uses only the controlled Applies-to
+//!    vocabulary.
 //!
 //! Exit 1 if any of checks 1–3 fail; otherwise exit 0.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -40,6 +42,32 @@ use anyhow::{Context, Result};
 use regex::Regex;
 
 use crate::util::repo_root;
+
+/// Applies-to tags accepted on diagnostic KCS pages. Keep this in lockstep
+/// with the tables in `docs/kcs/STYLE.md` and the short vocabulary in
+/// `AGENTS.md`. Diagnostic pages are deliberately checked here rather than
+/// relying on the CLI help builder, which only indexes feature pages and
+/// historically accepted arbitrary tokens.
+const DIAGNOSTIC_KCS_TAGS: &[&str] = &[
+    "all-editors",
+    "analyser",
+    "cfg",
+    "command-walk",
+    "const-fold",
+    "dataflow",
+    "dce",
+    "diagnostic",
+    "lexing",
+    "liveness",
+    "mcp",
+    "naming",
+    "sccp",
+    "shimmer",
+    "taint",
+    "tcl-lsp-cli",
+    "tcloo",
+    "tclpkg",
+];
 
 /// Run the docs link/index check.
 pub fn run() -> Result<ExitCode> {
@@ -52,6 +80,7 @@ pub fn run() -> Result<ExitCode> {
     problems.extend(check_local_markdown_links(&root, &docs, &link_re)?);
     problems.extend(check_design_index_coverage(&docs, &link_re)?);
     problems.extend(check_kcs_index_coverage(&docs, &link_re)?);
+    problems.extend(check_diagnostic_kcs_tags(&root, &docs)?);
     let warnings = check_kcs_audience_headers(&root, &docs, &audience_re)?;
 
     if !problems.is_empty() {
@@ -141,21 +170,187 @@ fn check_local_markdown_links(root: &Path, docs: &Path, link_re: &Regex) -> Resu
         let text = strip_fenced_code(&read(file)?);
         for caps in link_re.captures_iter(&text) {
             let link = &caps[1];
-            if link.starts_with("http://")
-                || link.starts_with("https://")
-                || link.starts_with('#')
-                || link.starts_with("mailto:")
-            {
+            if is_external_link(link) {
                 continue;
             }
-            let target = parent.join(link_before_anchor(link));
+            let (link_path, fragment) = split_link_fragment(link);
+            let target = if link_path.is_empty() {
+                file.clone()
+            } else {
+                parent.join(link_path)
+            };
             if !target.exists() {
                 let rel = rel_to(root, file);
                 problems.push(format!("broken link in {rel}: {link}"));
+                continue;
+            }
+            if let Some(fragment) = fragment.filter(|fragment| !is_template_placeholder(fragment))
+                && target
+                    .extension()
+                    .is_some_and(|extension| extension == "md")
+            {
+                let headings = heading_slugs(&read(&target)?);
+                if !headings.contains(fragment) {
+                    let rel = rel_to(root, file);
+                    problems.push(format!("broken fragment in {rel}: {link}"));
+                }
             }
         }
     }
     Ok(problems)
+}
+
+/// Whether a link points outside the local Markdown tree.
+fn is_external_link(link: &str) -> bool {
+    link.starts_with("http://")
+        || link.starts_with("https://")
+        || link.starts_with("mailto:")
+        || link.starts_with("//")
+}
+
+/// Split a Markdown destination into the path and an optional heading
+/// fragment. An empty path denotes an intra-file link.
+fn split_link_fragment(link: &str) -> (&str, Option<&str>) {
+    match link.split_once('#') {
+        Some((path, fragment)) => (path, Some(fragment)),
+        None => (link, None),
+    }
+}
+
+/// Unfilled KCS templates intentionally point at a placeholder heading. They
+/// are instructions to an author, not a broken link in published docs.
+fn is_template_placeholder(fragment: &str) -> bool {
+    fragment.contains('<') && fragment.contains('>')
+}
+
+/// Return the GitHub-style heading slugs in `text`, excluding fenced code.
+///
+/// GitHub's heading ids lowercase the visible inline-Markdown text, discard
+/// punctuation other than spaces, hyphens, and underscores, turn spaces into
+/// hyphens, and suffix duplicates with `-1`, `-2`, and so on.
+fn heading_slugs(text: &str) -> BTreeSet<String> {
+    let text = strip_fenced_code(text);
+    let mut used = BTreeSet::new();
+    let mut duplicates = BTreeMap::<String, u32>::new();
+
+    for line in text.lines() {
+        let Some(heading) = atx_heading_text(line) else {
+            continue;
+        };
+        let (heading, explicit_id) = split_explicit_heading_id(heading);
+        if let Some(explicit_id) = explicit_id {
+            used.insert(explicit_id.to_owned());
+        }
+        let base = github_heading_slug(heading);
+        if base.is_empty() {
+            continue;
+        }
+        let count = duplicates.entry(base.clone()).or_insert(0);
+        let slug = if *count == 0 {
+            base
+        } else {
+            format!("{base}-{count}")
+        };
+        *count += 1;
+        used.insert(slug);
+    }
+    used
+}
+
+/// Split the Pandoc-style `{#id}` syntax used by a few generated reference
+/// pages. The target is an explicit author-provided anchor rather than a
+/// GitHub-generated slug, so it is admitted alongside the normal heading id.
+fn split_explicit_heading_id(heading: &str) -> (&str, Option<&str>) {
+    let Some((visible, id)) = heading.rsplit_once(" {#") else {
+        return (heading, None);
+    };
+    let Some(id) = id.strip_suffix('}') else {
+        return (heading, None);
+    };
+    if id.is_empty() {
+        (heading, None)
+    } else {
+        (visible, Some(id))
+    }
+}
+
+/// Extract the visible text of an ATX heading. Setext headings are not used
+/// in the repository, while GitHub-generated KCS/design anchors are all ATX.
+fn atx_heading_text(line: &str) -> Option<&str> {
+    let line = line.trim_start();
+    let hashes = line.chars().take_while(|ch| *ch == '#').count();
+    if !(1..=6).contains(&hashes) || !line[hashes..].starts_with(char::is_whitespace) {
+        return None;
+    }
+    Some(line[hashes..].trim().trim_end_matches('#').trim_end())
+}
+
+/// Convert visible heading Markdown to the GitHub heading-id shape used by
+/// this repository. Inline links contribute their label, while ordinary
+/// formatting markers disappear as punctuation during slugging.
+fn github_heading_slug(heading: &str) -> String {
+    let visible = strip_inline_markdown(heading);
+    visible
+        .chars()
+        .filter_map(|ch| {
+            if ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '_') {
+                Some(ch.to_ascii_lowercase())
+            } else if ch.is_whitespace() {
+                Some(' ')
+            } else {
+                None
+            }
+        })
+        .collect::<String>()
+        .replace(' ', "-")
+}
+
+/// Remove the destination from inline links/images, preserving their visible
+/// label. The small scanner intentionally handles nested brackets, which is
+/// enough for headings without imposing a second Markdown parser dependency.
+fn strip_inline_markdown(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut index = 0;
+    while index < chars.len() {
+        let is_image = chars[index] == '!' && chars.get(index + 1) == Some(&'[');
+        let starts_link = chars[index] == '[' || is_image;
+        let open = index + usize::from(is_image);
+        if starts_link && chars.get(open) == Some(&'[') {
+            let mut depth = 1;
+            let mut close = open + 1;
+            while close < chars.len() && depth > 0 {
+                match chars[close] {
+                    '[' => depth += 1,
+                    ']' => depth -= 1,
+                    _ => {}
+                }
+                close += 1;
+            }
+            if depth == 0 {
+                out.push_str(&strip_inline_markdown(
+                    &chars[open + 1..close - 1].iter().collect::<String>(),
+                ));
+                if chars.get(close) == Some(&'(') {
+                    let mut parens = 1;
+                    close += 1;
+                    while close < chars.len() && parens > 0 {
+                        match chars[close] {
+                            '(' => parens += 1,
+                            ')' => parens -= 1,
+                            _ => {}
+                        }
+                        close += 1;
+                    }
+                }
+                index = close;
+                continue;
+            }
+        }
+        out.push(chars[index]);
+        index += 1;
+    }
+    out
 }
 
 /// Check 2 — every design doc is reachable from the design index.
@@ -240,7 +435,71 @@ fn check_kcs_index_coverage(docs: &Path, link_re: &Regex) -> Result<Vec<String>>
     Ok(problems)
 }
 
-/// Check 4 (warning only) — every `kcs-*.md` note has an Audience header.
+/// Check 4 — tagged diagnostic KCS pages use controlled tags. This prevents a
+/// misspelt tag, or the obsolete `lowering` tag copied onto a command-walk
+/// diagnostic, from silently becoming another help-index facet.
+fn check_diagnostic_kcs_tags(root: &Path, docs: &Path) -> Result<Vec<String>> {
+    let codes_dir = docs.join("kcs/codes");
+    if !codes_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut notes = list_md_depth1(&codes_dir)?;
+    notes.retain(|note| file_name(note).starts_with("kcs-diagnostic-"));
+    notes.sort();
+
+    let mut problems = Vec::new();
+    for note in notes {
+        let rel = rel_to(root, &note);
+        let Some(tags) = applies_to_tags(&read(&note)?) else {
+            // The ordinary KCS style check predates this tag gate and has
+            // existing pages without an Applies-to heading. Do not turn this
+            // targeted vocabulary guard into an unrelated documentation
+            // migration; whenever a page does declare tags, they are strict.
+            continue;
+        };
+        for tag in &tags {
+            if !DIAGNOSTIC_KCS_TAGS.contains(&tag.as_str()) {
+                problems.push(format!("unknown diagnostic KCS tag `{tag}` in {rel}"));
+            }
+        }
+    }
+    Ok(problems)
+}
+
+/// Parse the one-line comma-separated Applies-to list from a KCS note.
+fn applies_to_tags(text: &str) -> Option<Vec<String>> {
+    let mut lines = text.lines();
+    while let Some(line) = lines.next() {
+        if line.trim() != "## Applies to" {
+            continue;
+        }
+        let value = lines.find(|line| !line.trim().is_empty())?;
+        if value.starts_with('#') {
+            return None;
+        }
+        return Some(
+            value
+                .split(',')
+                .filter_map(|tag| {
+                    let tag = normalise_tag(tag);
+                    (!tag.is_empty()).then_some(tag)
+                })
+                .collect(),
+        );
+    }
+    None
+}
+
+/// The normalisation used by the CLI help index.
+fn normalise_tag(raw: &str) -> String {
+    raw.to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+/// Check 5 (warning only) — every `kcs-*.md` note has an Audience header.
 fn check_kcs_audience_headers(
     root: &Path,
     docs: &Path,
@@ -376,5 +635,43 @@ mod tests {
         let re = Regex::new(r"(?m)^>\s*\*\*Audience:\*\*").unwrap();
         assert!(re.is_match("# Title\n\n> **Audience:** engineers\n"));
         assert!(!re.is_match("# Title\n\nno audience line\n"));
+    }
+
+    #[test]
+    fn heading_slugs_follow_github_rules_and_deduplicate() {
+        let headings = heading_slugs(
+            "## [Command *walk*](command.md) — `args` & `CommandSpec`!\n\
+             ## Repeat\n\
+             ## Repeat\n\
+             ## Grammar {#grammar}\n",
+        );
+        assert!(headings.contains("command-walk--args--commandspec"));
+        assert!(headings.contains("repeat"));
+        assert!(headings.contains("repeat-1"));
+        assert!(headings.contains("grammar"));
+        assert!(!headings.contains("command-walk-args-commandspec"));
+        assert_eq!(
+            github_heading_slug("Example 6: `if {1} { ... } else { ... }` (constant condition)"),
+            "example-6-if-1----else----constant-condition"
+        );
+    }
+
+    #[test]
+    fn fragments_cover_intra_file_and_ignore_fences_and_templates() {
+        let headings = heading_slugs("# Current section\n```md\n# Hidden section\n```\n");
+        let (path, fragment) = split_link_fragment("#current-section");
+        assert!(path.is_empty());
+        assert!(headings.contains(fragment.unwrap()));
+        assert!(!headings.contains("hidden-section"));
+        assert!(is_template_placeholder("<pass-anchor>"));
+        assert!(!is_template_placeholder("current-section"));
+    }
+
+    #[test]
+    fn diagnostic_tags_are_normalised_and_closed() {
+        assert_eq!(normalise_tag("Command walk"), "command-walk");
+        assert!(DIAGNOSTIC_KCS_TAGS.contains(&"command-walk"));
+        assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"command-wlak"));
+        assert!(!DIAGNOSTIC_KCS_TAGS.contains(&"lowering"));
     }
 }

@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, lowering
+all-editors, diagnostic, command-walk
 
 ## Profiles
 
@@ -53,5 +53,5 @@ Add `# noqa: W136` on the line **above** the offending command.
 - [W135 — command needs newer package version](kcs-diagnostic-w135-command-needs-newer-package.md)
 - [W004 — option not available in dialect](kcs-diagnostic-w004-dialect-invalid-option.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [lowering](../../GLOSSARY.md#lowering)
+- [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `W004`, `W135`

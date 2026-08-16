@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, lowering
+all-editors, diagnostic, command-walk
 
 ## Profiles
 
@@ -78,5 +78,5 @@ whole project with `disabled = IRULE5003` under `[diagnostics]` in
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [lowering](../../GLOSSARY.md#lowering)
+- [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `W240`, `W241`, `W242`

@@ -18,7 +18,7 @@ where it is *proved* unobservable (§7), never by default.
 
 Corollary for codegen: the AOT emit path's default is **not** "skip the
 bookkeeping"; it is "emit the bookkeeping, then elide it only behind a proof".
-The proof obligations are enumerated in [§7](#7-the-end-of-project-elision-pass).
+The proof obligations are enumerated in [§7](#7-the-elision-pass).
 
 ## The hard core — Tcl's dynamic scoping vs tighter languages
 

@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, lowering
+all-editors, diagnostic, command-walk
 
 ## Profiles
 
@@ -61,5 +61,5 @@ Add `# noqa: E001` on the line **above** the offending command.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [lowering](../../GLOSSARY.md#lowering)
+- [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `E002`, `E003`

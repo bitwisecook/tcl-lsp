@@ -256,14 +256,13 @@ list**, not bullet points. Each item is a tag. The build and query
 scripts normalise each tag by lowercasing it and replacing internal
 spaces with a hyphen, so `VS Code` and `vs-code` are the same tag.
 
-The tables below are the canonical tag vocabulary. The build side keeps
-no closed list: `parse_applies_to` in `rust/tcl-cli/build.rs` normalises
-whatever tokens it finds and stores them in the help database's
-`feature_tags` table, so an unrecognised tag is indexed rather than
-rejected. The one exception is `LSP_EDITOR_TAGS` in the same file, which
-is the set `all-editors` expands to. Keeping the vocabulary honest is
-therefore a review job, not a compile error — treat these tables as the
-list of tags a reader can filter by.
+The tables below are the canonical tag vocabulary. `cargo xtask
+kcs-index-links` checks every tagged per-code diagnostic page against the
+controlled vocabulary, so a typo or obsolete stage tag fails the
+documentation gate. The CLI
+help builder normalises feature-note tags, and `LSP_EDITOR_TAGS` in
+`rust/tcl-cli/build.rs` is the set `all-editors` expands to. Treat these
+tables as the list of tags a reader can filter by.
 
 #### Editor tags (driven by the LSP server)
 
@@ -334,6 +333,7 @@ entry for the pass, which in turn links to the compiler design doc.
 | Tag | What it means |
 |---|---|
 | `lexing` | Lexer and command segmenter (token stream, ranges) |
+| `command-walk` | Registry-driven analyser walk over a segmented command (`args`, `arg_tokens`, and `CommandSpec` metadata) |
 | `lowering` | IR lowering — source tokens to typed IR statements |
 | `cfg` | Control-flow graph construction (basic blocks) |
 | `ssa` | SSA construction (phi placement, version numbering) |
@@ -411,7 +411,11 @@ it in the same change that introduces it. The steps are:
    compiler-pass table, which follows pipeline order.
 2. **Update the vocabulary summary** in `AGENTS.md` (rule 12) so
    agents and reviewers see the full list at a glance.
-3. **If the tag names a new LSP editor**, add it to `LSP_EDITOR_TAGS`
+3. **Update the diagnostic KCS tag gate** in
+   `rust/xtask/src/kcs_index_links.rs` when the tag can appear on a
+   per-code diagnostic page. Keep a diagnostic-stage tag tied to its
+   emission owner, not a broad "analyser" label.
+4. **If the tag names a new LSP editor**, add it to `LSP_EDITOR_TAGS`
    in `rust/tcl-cli/build.rs` as well, so `all-editors` expands to it
    and the help database groups the note correctly. No other tag
    needs a code change.

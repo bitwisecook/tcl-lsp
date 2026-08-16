@@ -620,15 +620,15 @@ type:
     `claude-skill`, `copilot-chat`), content kinds (`diagnostic`,
     `optimisation`, `warning`, `refactoring`, `analyser`,
     `transform`), and compiler passes (`lexing`, `lowering`, `cfg`,
-    `ssa`, `sccp`, `liveness`, `type-infer`, `gvn`, `cse`, `dce`,
+    `command-walk`, `ssa`, `sccp`, `liveness`, `type-infer`, `gvn`, `cse`, `dce`,
     `licm`, `instcombine`, `ipa`, `memssa`, `dataflow`, `taint`,
     `shimmer`, `tail-call`, `code-sinking`, `unused-procs`,
     `side-effects`, `exec-intent`, `rendered-props`, `const-fold`,
     `strength-reduce`, `pattern`, `codegen`). The tables in
     [`docs/kcs/STYLE.md`](docs/kcs/STYLE.md) (rule 11) are the canonical
-    vocabulary: `rust/tcl-cli/build.rs` indexes whatever tokens the
-    `## Applies to` line carries rather than validating them, so an
-    unrecognised tag is silently indexed, not rejected. Per-code
+    vocabulary. `cargo xtask kcs-index-links` rejects unknown tags and
+    invalid diagnostic-stage tags on per-code diagnostic pages before they
+    can drift into the published documentation. Per-code
     pages and compiler-internals feature pages must carry the
     compiler-pass tag of the pass that produces the code or the
     facts they consume.
