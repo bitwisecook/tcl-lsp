@@ -233,6 +233,13 @@ fn exact_return_completion(
             _ => break,
         }
     }
+    // A non-literal word followed by another word may evaluate to an
+    // extensible return option (for example `$option` -> `-code`). It is not
+    // sound to classify the same source shape as the literal two-result-word
+    // arity error.
+    if args.get(i).is_some() && args.literal_at(i).is_none() && args.get(i + 1).is_some() {
+        return ExactReturnCompletion::Dynamic;
+    }
     // `return` accepts one result word after its options; additional words are
     // an arity error, so no exact runtime completion is promised.
     if args
@@ -6861,6 +6868,15 @@ mod tests {
                     None,
                 );
             }
+            let dynamic_option = [InvocationWord::Dynamic, InvocationWord::Literal("error")];
+            assert_eq!(
+                reg.invocation_completion_knowledge(
+                    "return",
+                    InvocationArguments::structured(&dynamic_option),
+                    DialectSet::empty(),
+                ),
+                Some(InvocationCompletionKnowledge::Dynamic),
+            );
         }
     }
 

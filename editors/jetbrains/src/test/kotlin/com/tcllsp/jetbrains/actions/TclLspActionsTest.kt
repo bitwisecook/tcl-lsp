@@ -555,4 +555,16 @@ class TclLspActionsTest {
             assertContains(mermaid, "n3 --> n4")
         }
     }
+
+    @Test
+    fun loopsConsumeBreakAndContinueCompletions() {
+        val payload = JsonParser.parseString(
+            """{"events":[{"name":"E","flow":[{"kind":"loop","label":"while ready","exit":"false","body":[{"kind":"switch","label":"mode","arms":[{"pattern":"skip","body":[{"kind":"action","label":"continue","completion":"continue"}]},{"pattern":"stop","body":[{"kind":"action","label":"break","completion":"break"}]}]}]},{"kind":"action","label":"after"}]}],"procedures":[]}"""
+        )
+        val mermaid = assertNotNull(renderDiagramMermaid(payload))
+        assertContains(mermaid, "-->|continue|")
+        assertContains(mermaid, "-->|break|")
+        assertContains(mermaid, "loop exit")
+        assertContains(mermaid, "after")
+    }
 }

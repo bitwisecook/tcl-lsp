@@ -235,9 +235,15 @@ internal fun renderDiagramMermaid(data: JsonElement): String? {
                     val loop = node(item.string("label") ?: item.string("kind") ?: "block", "round")
                     connect(active, loop)
                     val bodyTails = walk(item.array("body") ?: JsonArray(), listOf(Tail(loop)))
-                    bodyTails.filter { it.completion == DiagramCompletion.NORMAL }.forEach { connect(it.id, loop, "repeat") }
-                    abrupt += bodyTails.filter { it.completion != DiagramCompletion.NORMAL }
                     val exit = node("loop exit", "round")
+                    bodyTails.filter { it.completion == DiagramCompletion.NORMAL }.forEach { connect(it.id, loop, "repeat") }
+                    bodyTails.filter { it.completion == DiagramCompletion.CONTINUE }.forEach { connect(it.id, loop, "continue") }
+                    bodyTails.filter { it.completion == DiagramCompletion.BREAK }.forEach { connect(it.id, exit, "break") }
+                    abrupt += bodyTails.filter {
+                        it.completion != DiagramCompletion.NORMAL &&
+                            it.completion != DiagramCompletion.CONTINUE &&
+                            it.completion != DiagramCompletion.BREAK
+                    }
                     connect(loop, exit, item.string("exit") ?: "exit")
                     active = listOf(Tail(exit))
                 }
