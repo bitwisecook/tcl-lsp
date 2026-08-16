@@ -877,6 +877,7 @@ dependencies = [
  "regex",
  "serde_json",
  "sha2",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
@@ -926,6 +927,7 @@ dependencies = [
 name = "tcl-bytecode"
 version = "0.1.0"
 dependencies = [
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-syntax",
 ]
@@ -934,6 +936,7 @@ dependencies = [
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
+ "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
  "tcl-syntax",
@@ -950,6 +953,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "tcl-bytecode",
+ "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
@@ -1044,6 +1048,7 @@ name = "tcl-runtime-api"
 version = "0.1.0"
 dependencies = [
  "tcl-core-types",
+ "tcl-dialect",
 ]
 
 [[package]]

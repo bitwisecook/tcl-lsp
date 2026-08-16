@@ -323,6 +323,7 @@ dependencies = [
  "tcl-f5mku",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-sslictcl",
  "tcl-version",
 ]
 
@@ -1652,8 +1653,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -4071,6 +4074,7 @@ dependencies = [
  "indexmap",
  "ipnet",
  "regex",
+ "serde",
  "serde_json",
  "sha2 0.11.0",
  "tcl-core-types",
@@ -4078,6 +4082,7 @@ dependencies = [
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-sslictcl",
  "tcl-syntax",
  "thiserror 2.0.20",
 ]
@@ -4548,6 +4553,24 @@ dependencies = [
  "tcl-syntax",
  "tcl-userdirs",
  "xxhash-rust",
+]
+
+[[package]]
+name = "tcl-sslictcl"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "getrandom 0.2.17",
+ "getrandom 0.4.3",
+ "p256",
+ "p384",
+ "rsa",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tcl-compiler",
+ "tcl-lexer",
+ "x509-parser",
 ]
 
 [[package]]
@@ -5823,6 +5846,7 @@ dependencies = [
  "lazy_static",
  "nom",
  "oid-registry",
+ "ring",
  "rusticata-macros",
  "thiserror 2.0.20",
  "time",
@@ -5843,10 +5867,12 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "regex",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tcl-cli-support",
  "tcl-compiler",
  "tcl-core-types",

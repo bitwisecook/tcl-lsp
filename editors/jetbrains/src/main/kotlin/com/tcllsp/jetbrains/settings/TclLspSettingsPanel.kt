@@ -244,16 +244,23 @@ class TclLspSettingsPanel {
     // Diagnostics — BIG-IP Configuration
     private val diagBIGIP6001 = JBCheckBox("BIGIP6001: iRule references a data group not found in the confi...")
     private val diagBIGIP6002 = JBCheckBox("BIGIP6002: iRule references a pool not found in the configuration")
-    private val diagBIGIP6003 = JBCheckBox("BIGIP6003: iRule contains a dynamic pool reference that cannot ...")
-    private val diagBIGIP6004 = JBCheckBox("BIGIP6004: Virtual server references an object not found in the...")
-    private val diagBIGIP6005 = JBCheckBox("BIGIP6005: Pool has no members")
-    private val diagBIGIP6006 = JBCheckBox("BIGIP6006: Data group has duplicate keys")
-    private val diagBIGIP6007 = JBCheckBox("BIGIP6007: iRule references a virtual server not found in the c...")
-    private val diagBIGIP6008 = JBCheckBox("BIGIP6008: iApp presentation and implementation variables do no...")
-    private val diagBIGIP6009 = JBCheckBox("BIGIP6009: iRule contains a dynamic virtual-server reference th...")
-    private val diagBIGIP6010 = JBCheckBox("BIGIP6010: Virtual server has a missing or invalid source-addre...")
-    private val diagBIGIP6011 = JBCheckBox("BIGIP6011: Virtual server references a persistence profile not ...")
+    private val diagBIGIP6003 = JBCheckBox("BIGIP6003: Virtual server references an iRule that is not defin...")
+    private val diagBIGIP6004 = JBCheckBox("BIGIP6004: An attached iRule uses HTTP:: or SSL:: commands with...")
+    private val diagBIGIP6005 = JBCheckBox("BIGIP6005: Virtual server references a pool that is not defined...")
+    private val diagBIGIP6006 = JBCheckBox("BIGIP6006: Data group is defined but not referenced by any iRul...")
+    private val diagBIGIP6007 = JBCheckBox("BIGIP6007: iRule references an SNAT pool not found in the confi...")
+    private val diagBIGIP6008 = JBCheckBox("BIGIP6008: Pool has no members defined")
+    private val diagBIGIP6009 = JBCheckBox("BIGIP6009: Virtual server has a duplicate iRule attachment")
+    private val diagBIGIP6010 = JBCheckBox("BIGIP6010: An attached iRule uses a persistence profile that is...")
+    private val diagBIGIP6011 = JBCheckBox("BIGIP6011: IP-type data group contains an invalid IP address or...")
     private val diagBIGIP6012 = JBCheckBox("BIGIP6012: Attached iRules handle the same event at the same ef...")
+    private val diagBIGIP6013 = JBCheckBox("BIGIP6013: A registry-declared BIG-IP object reference could no...")
+    private val diagBIGIP6014 = JBCheckBox("BIGIP6014: A BIG-IP object declaration duplicates another objec...")
+    private val diagBIGIP6038 = JBCheckBox("BIGIP6038: An iRule event requires a profile that is not active...")
+    private val diagBIGIP6039 = JBCheckBox("BIGIP6039: A virtual server attaches incompatible profile types")
+    private val diagIAPP7001 = JBCheckBox("IAPP7001: iApp implementation references a presentation field ...")
+    private val diagIAPP7002 = JBCheckBox("IAPP7002: iApp presentation field is never referenced by the i...")
+    private val diagIAPP7003 = JBCheckBox("IAPP7003: iApp presentation #include file could not be resolved")
     // @generated:diag-checkboxes:end
 
     // XC Diagnostics
@@ -458,6 +465,8 @@ class TclLspSettingsPanel {
         listOf(
             diagBIGIP6001, diagBIGIP6002, diagBIGIP6003, diagBIGIP6004, diagBIGIP6005, diagBIGIP6006,
             diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
+            diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
+            diagIAPP7003,
         ).forEach { diagPanel.add(it) }
         builder.addComponent(diagPanel)
         // @generated:diag-ui:end
@@ -717,6 +726,13 @@ class TclLspSettingsPanel {
             diagBIGIP6010.isSelected != s.diagnosticBIGIP6010 ||
             diagBIGIP6011.isSelected != s.diagnosticBIGIP6011 ||
             diagBIGIP6012.isSelected != s.diagnosticBIGIP6012 ||
+            diagBIGIP6013.isSelected != s.diagnosticBIGIP6013 ||
+            diagBIGIP6014.isSelected != s.diagnosticBIGIP6014 ||
+            diagBIGIP6038.isSelected != s.diagnosticBIGIP6038 ||
+            diagBIGIP6039.isSelected != s.diagnosticBIGIP6039 ||
+            diagIAPP7001.isSelected != s.diagnosticIAPP7001 ||
+            diagIAPP7002.isSelected != s.diagnosticIAPP7002 ||
+            diagIAPP7003.isSelected != s.diagnosticIAPP7003 ||
             // @generated:diag-dirty:end
             // XC Diagnostics
             xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
@@ -975,6 +991,13 @@ class TclLspSettingsPanel {
         s.diagnosticBIGIP6010 = diagBIGIP6010.isSelected
         s.diagnosticBIGIP6011 = diagBIGIP6011.isSelected
         s.diagnosticBIGIP6012 = diagBIGIP6012.isSelected
+        s.diagnosticBIGIP6013 = diagBIGIP6013.isSelected
+        s.diagnosticBIGIP6014 = diagBIGIP6014.isSelected
+        s.diagnosticBIGIP6038 = diagBIGIP6038.isSelected
+        s.diagnosticBIGIP6039 = diagBIGIP6039.isSelected
+        s.diagnosticIAPP7001 = diagIAPP7001.isSelected
+        s.diagnosticIAPP7002 = diagIAPP7002.isSelected
+        s.diagnosticIAPP7003 = diagIAPP7003.isSelected
         // @generated:diag-apply:end
         s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
@@ -1250,6 +1273,13 @@ class TclLspSettingsPanel {
         diagBIGIP6010.isSelected = s.diagnosticBIGIP6010
         diagBIGIP6011.isSelected = s.diagnosticBIGIP6011
         diagBIGIP6012.isSelected = s.diagnosticBIGIP6012
+        diagBIGIP6013.isSelected = s.diagnosticBIGIP6013
+        diagBIGIP6014.isSelected = s.diagnosticBIGIP6014
+        diagBIGIP6038.isSelected = s.diagnosticBIGIP6038
+        diagBIGIP6039.isSelected = s.diagnosticBIGIP6039
+        diagIAPP7001.isSelected = s.diagnosticIAPP7001
+        diagIAPP7002.isSelected = s.diagnosticIAPP7002
+        diagIAPP7003.isSelected = s.diagnosticIAPP7003
         // @generated:diag-reset:end
         xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 

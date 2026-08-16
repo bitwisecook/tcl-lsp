@@ -398,7 +398,8 @@ fn sys_file_ssl_certs_x509(
             out.push(serde_json::Value::Object(fields));
         }
     }
-    serde_json::to_string(&serde_json::Value::Array(out)).map_err(|e| QueryError::new_err(e.to_string()))
+    serde_json::to_string(&serde_json::Value::Array(out))
+        .map_err(|e| QueryError::new_err(e.to_string()))
 }
 
 /// Convert an engine [`Value`] to a `serde_json::Value` via the canonical
@@ -509,6 +510,27 @@ fn list_secrets(text: &str) -> PyResult<String> {
 fn config_diagnostics(text: &str) -> PyResult<String> {
     serde_json::to_string(&bigip_report_gen_rust::collect_config_diagnostics(text))
         .map_err(|e| QueryError::new_err(e.to_string()))
+}
+
+/// Run every report-relevant F5 diagnostic for one source, including the iApp
+/// presentation/implementation checks when the supplied source set contains a
+/// conventional pair in one directory.
+#[pyfunction]
+fn report_diagnostics(uri: &str, text: &str, sources: Vec<(String, String)>) -> PyResult<String> {
+    serde_json::to_string(&bigip_report_gen_rust::collect_report_diagnostics(
+        uri, text, &sources,
+    ))
+    .map_err(|e| QueryError::new_err(e.to_string()))
+}
+
+/// Describe whether the full iApp presentation/implementation evidence was
+/// available for a source. This keeps a partial report from looking clean.
+#[pyfunction]
+fn iapp_diagnostic_evidence(uri: &str, sources: Vec<(String, String)>) -> PyResult<String> {
+    serde_json::to_string(&bigip_report_gen_rust::collect_iapp_diagnostic_evidence(
+        uri, &sources,
+    ))
+    .map_err(|e| QueryError::new_err(e.to_string()))
 }
 
 /// Syntax-highlight an iRule/Tcl source string to HTML.
@@ -658,6 +680,8 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decrypt_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(list_secrets, m)?)?;
     m.add_function(wrap_pyfunction!(config_diagnostics, m)?)?;
+    m.add_function(wrap_pyfunction!(report_diagnostics, m)?)?;
+    m.add_function(wrap_pyfunction!(iapp_diagnostic_evidence, m)?)?;
     m.add_function(wrap_pyfunction!(highlight_tcl, m)?)?;
     m.add_function(wrap_pyfunction!(render_markdown, m)?)?;
     m.add_function(wrap_pyfunction!(order_events, m)?)?;

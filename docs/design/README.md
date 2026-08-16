@@ -72,6 +72,9 @@ rule itself, its single Rust home, and its conformance gates live in
 
 ## F5 BIG-IP CLI
 
+- [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) —
+  the embedded SslicTcl source-data layout, provenance/hash schema, offline
+  drift gate, explicit refresh command, and release freshness contract.
 - [f5-cli-architecture.md](f5-cli-architecture.md) — verb registry,
   reference graph, IP-redaction model, tmsh emitter, file layout, and
   the recipe for adding a new verb.

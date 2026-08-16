@@ -41,6 +41,7 @@ tcl-bigip-query = { path = "../../tcl-bigip-query", default-features = false, fe
 # module, so the certificate inventory reads `sys file ssl-cert` objects from
 # the parsed model directly (the same parser the engine uses).
 tcl-bigip = { path = "../../tcl-bigip" }
+tcl-sslictcl = { path = "../../tcl-sslictcl" }
 # The real Tcl tokeniser + its HTML highlighter, for the iRule source view.
 tcl-lexer = { path = "../../tcl-lexer", features = ["html"] }
 # IR-based control-flow diagram → Mermaid, for the iRule flowchart.

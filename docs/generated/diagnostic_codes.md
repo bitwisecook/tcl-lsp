@@ -156,16 +156,23 @@
 | IRULE4005 | irules_variable | Potential race — `static::` variable written outside `RULE_INIT` and read in another event. | ✓ |
 | BIGIP6001 | bigip | iRule references a data group not found in the configuration. | ✓ |
 | BIGIP6002 | bigip | iRule references a pool not found in the configuration. | ✓ |
-| BIGIP6003 | bigip | iRule contains a dynamic pool reference that cannot be validated statically. | ✓ |
-| BIGIP6004 | bigip | Virtual server references an object not found in the configuration. | ✓ |
-| BIGIP6005 | bigip | Pool has no members. | ✓ |
-| BIGIP6006 | bigip | Data group has duplicate keys. | ✓ |
-| BIGIP6007 | bigip | iRule references a virtual server not found in the configuration. | ✓ |
-| BIGIP6008 | bigip | iApp presentation and implementation variables do not agree. | ✓ |
-| BIGIP6009 | bigip | iRule contains a dynamic virtual-server reference that cannot be validated statically. | ✓ |
-| BIGIP6010 | bigip | Virtual server has a missing or invalid source-address-translation pool reference. | ✓ |
-| BIGIP6011 | bigip | Virtual server references a persistence profile not found in the configuration. | ✓ |
+| BIGIP6003 | bigip | Virtual server references an iRule that is not defined in the configuration. | ✓ |
+| BIGIP6004 | bigip | An attached iRule uses HTTP:: or SSL:: commands without the matching virtual-server profile. | ✓ |
+| BIGIP6005 | bigip | Virtual server references a pool that is not defined in the configuration. | ✓ |
+| BIGIP6006 | bigip | Data group is defined but not referenced by any iRule in the configuration. | ✓ |
+| BIGIP6007 | bigip | iRule references an SNAT pool not found in the configuration. | ✓ |
+| BIGIP6008 | bigip | Pool has no members defined. | ✓ |
+| BIGIP6009 | bigip | Virtual server has a duplicate iRule attachment. | ✓ |
+| BIGIP6010 | bigip | An attached iRule uses a persistence profile that is not attached to the virtual server. | ✓ |
+| BIGIP6011 | bigip | IP-type data group contains an invalid IP address or network record. | ✓ |
 | BIGIP6012 | bigip | Attached iRules handle the same event at the same effective priority. | ✓ |
+| BIGIP6013 | bigip | A registry-declared BIG-IP object reference could not be resolved. | ✓ |
+| BIGIP6014 | bigip | A BIG-IP object declaration duplicates another object of the same kind and path. | ✓ |
+| BIGIP6038 | bigip | An iRule event requires a profile that is not active on its virtual server. | ✓ |
+| BIGIP6039 | bigip | A virtual server attaches incompatible profile types. | ✓ |
+| IAPP7001 | bigip | iApp implementation references a presentation field that is not defined. | ✓ |
+| IAPP7002 | bigip | iApp presentation field is never referenced by the implementation. | ✓ |
+| IAPP7003 | bigip | iApp presentation `#include` file could not be resolved. | ✓ |
 | W130 | tclpkg | tclpkg.tcl requires package but it is not in tclpkg.lock — run 'tcl pkg install'. | ✓ |
 | W131 | tclpkg | tclpkg.lock is out of sync with tclpkg.tcl — run 'tcl pkg install'. | ✓ |
 | W132 | tclpkg | tclpkg.lock integrity mismatch — CAS hash differs from lockfile. | ✓ |

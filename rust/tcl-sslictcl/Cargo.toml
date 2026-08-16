@@ -1,0 +1,35 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "tcl-sslictcl"
+publish.workspace = true
+description = "SslicTcl: declarative offline TLS configuration, certificate, trust, and assessment model"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-lexer = { path = "../tcl-lexer" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+base64 = "0.23"
+sha2 = "0.11"
+x509-parser = { version = "0.18", features = ["verify"] }
+rsa = "0.10.0-rc.18"
+p256 = "0.14"
+p384 = "0.14"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+# Enable the entropy backends required by transitive crypto crates when the
+# workspace's browser-facing WASM packages are checked.
+getrandom-02 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom-04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+
+[lints]
+workspace = true

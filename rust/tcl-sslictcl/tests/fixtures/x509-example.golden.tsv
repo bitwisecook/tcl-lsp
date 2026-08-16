@@ -1,0 +1,14 @@
+fingerprint_sha256	051b08743fe24044500609876dc3f008773fd0b91edadd94a63db5482d1fd8fe
+spki_sha256	f6c36f02dccef179b3501f7db7ed3db0efb0a73f2e3a8ab6cb3a72db8f36d361
+subject	C=US, O=Example Corp, CN=example.test
+issuer	C=US, O=Example Corp, CN=example.test
+serial	2EEBD6256C81BFEF9C2B015A434A3C8540C0E15E
+not_before	1781548136
+not_after	2096908136
+public_key_algorithm	1.2.840.113549.1.1.1
+public_key_bits	2048
+signature_algorithm	1.2.840.113549.1.1.11
+subject_key_id	9eeb868d1806791fb0440597c83b93aaa14cc672
+is_ca	true
+dns_names	example.test,www.example.test
+ip_addresses	10.0.0.1

@@ -45,6 +45,8 @@ tcl-cli-support = { path = "../tcl-cli-support" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.11"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [lints]
 workspace = true

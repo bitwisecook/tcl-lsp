@@ -62,6 +62,7 @@ members = [
     "rust/tcl-runtime-api",
     "rust/tcl-registry",
     "rust/tcl-spectcl",
+    "rust/tcl-sslictcl",
     "rust/tcl-regex",
     "rust/tcl-compiler",
     "rust/tcl-diagram",
@@ -175,6 +176,11 @@ authors = ["tcl-lsp contributors"]
 # tcl-registry, and tcl-lsp-core to avoid the default SipHash cost. See
 # PR #693 / AQ §D1 (O10).
 rustc-hash = "2"
+
+# Serialization shared by data-driven subsystems.  Individual crates select
+# only the features they need.
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
 
 # xxHash (XXH3) — the "xxhash-class" non-cryptographic digest the SpecTcl
 # compiled-pack cache keys on (docs/design/spec-packs.md). Zero dependencies,

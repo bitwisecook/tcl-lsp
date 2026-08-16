@@ -74,6 +74,7 @@ RELEASE_PATHS=(
     scripts/perf/results
     scripts/perf/graphs
     scripts/perf/MANIFEST.toml
+    rust/tcl-sslictcl/data
 )
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -205,6 +206,13 @@ $(printf '%s\n' "$dirty" | sed 's/^/         /')
     fi
 
     echo "    channel:  pre-release (GitHub --prerelease, VS Code --pre-release, JetBrains eap)"
+
+    if [ -n "${SSLICTCL_SOURCE_DATA_WAIVER:-}" ]; then
+        echo "    SslicTcl source data: freshness waived — $SSLICTCL_SOURCE_DATA_WAIVER"
+    else
+        step "Checking embedded SslicTcl source data"
+        make --no-print-directory check-source-data SOURCE_DATA_MAX_AGE_DAYS=180
+    fi
 }
 
 # --------------------------------------------------------------------------

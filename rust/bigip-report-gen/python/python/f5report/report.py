@@ -555,11 +555,11 @@ def _build_apps(device: dict[str, Any]) -> list[dict[str, Any]]:
     return apps
 
 
-def _collect_device(uri: str, source: str) -> dict[str, Any]:
-    sources: Sources = [(uri, source)]
+def _collect_device(uri: str, source: str, sources: Sources) -> dict[str, Any]:
+    source_only: Sources = [(uri, source)]
 
     # One reference-graph walk per referable container, up front.
-    refmaps = {name: _refmap(sources, _CONTAINERS[name]) for name in _REFERABLE}
+    refmaps = {name: _refmap(source_only, _CONTAINERS[name]) for name in _REFERABLE}
 
     tmsh = _TMSH_RE.search(source)
     tmsh_version = tmsh.group(1) if tmsh else ""
@@ -571,7 +571,7 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
     }
 
     for key, container in _CONTAINERS.items():
-        rows = _fields(_engine.query(f"{container}[]", sources))
+        rows = _fields(_engine.query(f"{container}[]", source_only))
         shaper = _SHAPERS.get(key)
         used_by = refmaps.get(key, {})
         if shaper:
@@ -702,21 +702,25 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
 
     # SSL certificate inventory & expiry (read from the parsed `sys file
     # ssl-cert` stanzas, cross-referenced against the SSL profiles / virtuals).
-    device["certificates"] = _certs.collect_certs(sources, device)
+    device["certificates"] = _certs.collect_certs(source_only, device)
 
     # Secret inventory (Secrets tab). Values are clear text only when the config
     # was decrypted with the f5mku master key upstream in collect_model.
     device["secrets"] = json.loads(_engine.list_secrets(source))
 
-    # Model-level BIG-IP configuration diagnostics. The Rust validator is the
-    # single source of truth; keep the full list and route views to the same
-    # object tabs as the native/wasm report backends.
-    device["configDiagnostics"] = json.loads(_engine.config_diagnostics(source))
+    # Model-level BIG-IP and iApp diagnostics. The Rust validator is the
+    # single source of truth; the complete source set supplies cross-file iApp
+    # evidence, and each finding is routed to the same tab as native/wasm.
+    device["configDiagnostics"] = json.loads(
+        _engine.report_diagnostics(uri, source, sources)
+    )
     routed = {
         "virtuals": "virtualDiagnostics",
         "rules": "ruleDiagnostics",
         "pools": "poolDiagnostics",
         "dataGroups": "dataGroupDiagnostics",
+        "apps": "appDiagnostics",
+        "objectIndex": "objectDiagnostics",
     }
     for tab, key in routed.items():
         device[key] = [
@@ -724,6 +728,9 @@ def _collect_device(uri: str, source: str) -> dict[str, Any]:
             for diagnostic in device["configDiagnostics"]
             if diagnostic.get("tab") == tab
         ]
+    device["iappDiagnosticEvidence"] = json.loads(
+        _engine.iapp_diagnostic_evidence(uri, sources)
+    )
 
     # Tag every displayed object with its partition (from the full path) and
     # collect the device's partition set, so the report can filter to a
@@ -798,7 +805,7 @@ def collect_model(
         sources = [
             (uri, _engine.decrypt_secrets(src, master_key)) for uri, src in sources
         ]
-    devices = [_collect_device(uri, src) for uri, src in sources]
+    devices = [_collect_device(uri, src, sources) for uri, src in sources]
 
     totals: dict[str, int] = {}
     for d in devices:

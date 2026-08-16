@@ -642,6 +642,25 @@ fn cert_fields_and_chain_parsed_from_ucs_filestore() {
     let roles: Vec<&str> = chain.iter().map(|l| l["role"].as_str().unwrap()).collect();
     assert_eq!(roles, ["leaf", "intermediate", "root"]);
     assert_eq!(chain.last().unwrap()["selfSigned"], J::Bool(true));
+    assert_eq!(
+        leaf["chainStatus"], "invalid",
+        "the supplied signatures form a complete path, but the fixture leaf expired on 2026-08-13"
+    );
+    assert!(leaf["chainFindings"].as_array().is_some_and(|findings| {
+        findings
+            .iter()
+            .any(|finding| finding["kind"] == "trust-unknown")
+    }));
+    assert!(
+        leaf["chainFindings"].as_array().is_some_and(|findings| {
+            findings.iter().any(|finding| finding["kind"] == "expired")
+        })
+    );
+    assert!(
+        m["devices"][0]["tls"]["trustDerCoverage"]["complete"]
+            .as_u64()
+            .is_some_and(|complete| complete > 100)
+    );
 }
 
 // Two devices whose filestores use the SAME `cache-path` for DIFFERENT certs

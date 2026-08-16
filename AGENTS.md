@@ -237,6 +237,8 @@ The project uses GNU Make. Key targets:
 | `make compile`     | Compile the TypeScript extension         |
 | `make build-editor-vsix`        | Build the .vsix VS Code extension (bundles the native `tcl-lsp-server` binaries) |
 | `make codegen`     | Regenerate all generated files (editor catalogs + settings + AI prompts) via `cargo xtask` |
+| make update-source-data | Explicitly refresh the embedded SslicTcl trust-store/TLS source bundle (network-capable; run only when intentionally updating provenance) |
+| make check-source-data | Offline verification of the embedded SslicTcl source bundle, provenance, hashes, licences, and deterministic generated output |
 | `make publish-flow` | Print the release + marketplace publish cheat-sheet |
 | `make release-prepare V=X.Y.Z` | 2.1.x pre-release: preflight, benchmark the release, regenerate the release-notes graphs, write the perf notes section, verify, commit |
 | `make release-verify V=X.Y.Z` | Check `scripts/perf/{results,graphs}` and `RELEASE_NOTES.md` agree for X.Y.Z |
@@ -350,6 +352,28 @@ URLs are the easiest thing in a release to leave pointing at the previous
 version. `verify` (re-render the graphs, diff against the committed ones)
 gates the tag, and the `graphs-current` job in `perf.yml` runs the same
 check on every push.
+
+## Embedded SslicTcl source data
+
+The report builder embeds all SslicTcl trust-store and TLS source data. The
+refresh covers Trust Stores Observatory root programs plus the pinned Chromium
+Chrome Root Store (including its textproto constraints). Normal builds,
+reports, CI, and report viewing never fetch it. To intentionally refresh
+upstream material, run:
+
+~~~text
+make update-source-data
+make check-source-data
+~~~
+
+The refresh is the only network-capable operation and records source URLs,
+revisions, retrieval dates, licences, and SHA-256 file hashes in the
+rust/tcl-sslictcl/data/provenance.json manifest. make rust-check includes the
+offline check. Before a release, refresh the data and verify it with
+make check-source-data SOURCE_DATA_MAX_AGE_DAYS=180; a blocked upstream may
+only be waived with SSLICTCL_SOURCE_DATA_WAIVER and a documented reason in
+the release preparation notes. See
+docs/design/contracts/sslictcl-source-data.md.
 
 ## WASM command parity
 

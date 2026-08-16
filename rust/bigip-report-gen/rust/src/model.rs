@@ -36,40 +36,147 @@ use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use crate::query::{Source, query};
 
+/// Whether `uri` names an iApp presentation source. The LSP recognises the
+/// same conventional names; reports use the URI because a UCS/SCF source has
+/// no separate language-id field.
+fn is_iapp_presentation_uri(uri: &str) -> bool {
+    let basename = uri.rsplit('/').next().unwrap_or(uri);
+    basename.eq_ignore_ascii_case("presentation")
+        || basename
+            .rsplit_once('.')
+            .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("apl"))
+}
+
+/// Whether `uri` names an iApp implementation that can be paired with a
+/// presentation in the same directory.
+fn is_iapp_implementation_uri(uri: &str) -> bool {
+    let basename = uri.rsplit('/').next().unwrap_or(uri);
+    basename.eq_ignore_ascii_case("implementation")
+        || basename.rsplit_once('.').is_some_and(|(_, ext)| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "iapp" | "iappimpl" | "impl"
+            )
+        })
+}
+
+fn uri_directory(uri: &str) -> &str {
+    uri.rsplit_once('/').map_or("", |(dir, _)| dir)
+}
+
+fn iapp_peer<'a>(uri: &str, sources: &'a [Source], presentation: bool) -> Option<&'a str> {
+    sources
+        .iter()
+        .find(|(candidate_uri, _)| {
+            uri_directory(candidate_uri) == uri_directory(uri)
+                && if presentation {
+                    is_iapp_implementation_uri(candidate_uri)
+                } else {
+                    is_iapp_presentation_uri(candidate_uri)
+                }
+        })
+        .map(|(_, source)| source.as_str())
+}
+
+/// Evidence describing whether a report had the complete iApp pair needed for
+/// cross-file validation. It is deliberately data, rather than a silent
+/// absence of IAPP7001/7002, so a reviewer can distinguish "clean" from
+/// "could not inspect".
+#[must_use]
+pub fn collect_iapp_diagnostic_evidence(uri: &str, sources: &[Source]) -> J {
+    let presentation = is_iapp_presentation_uri(uri);
+    let implementation = is_iapp_implementation_uri(uri);
+    let peer = if presentation || implementation {
+        iapp_peer(uri, sources, presentation)
+    } else {
+        None
+    };
+    match (presentation, implementation, peer.is_some()) {
+        (true, false, true) => serde_json::json!({
+            "state": "complete",
+            "message": "Presentation and implementation were supplied; cross-file iApp checks are complete.",
+        }),
+        (true, false, false) => serde_json::json!({
+            "state": "presentation_only",
+            "message": "Only the iApp presentation was supplied; implementation-reference checks (IAPP7001 and IAPP7002) could not be evaluated.",
+        }),
+        (false, true, true) => serde_json::json!({
+            "state": "complete",
+            "message": "Implementation and presentation were supplied; cross-file iApp checks are complete.",
+        }),
+        (false, true, false) => serde_json::json!({
+            "state": "implementation_only",
+            "message": "Only the iApp implementation was supplied; presentation-field checks (IAPP7001) could not be evaluated.",
+        }),
+        _ => J::Null,
+    }
+}
+
+fn f5_diagnostic_json(diagnostic: &tcl_bigip::validator::ConfigDiagnostic) -> J {
+    use tcl_bigip::validator::DiagSeverity;
+
+    serde_json::json!({
+        "code": diagnostic.code,
+        "message": diagnostic.message,
+        "severity": match diagnostic.severity {
+            DiagSeverity::Warning => "warning",
+            DiagSeverity::Hint => "hint",
+        },
+        "line": diagnostic.range.start.line + 1,
+        "column": diagnostic.range.start.character + 1,
+        "tab": diagnostic.subject.report_tab(),
+    })
+}
+
 /// Run the shared BIG-IP config validator and expose every finding to the
 /// report. The complete list is retained as `configDiagnostics`; routed lists
 /// let the template render findings in the tab where they are actionable.
 #[must_use]
 pub fn collect_config_diagnostics(source: &str) -> J {
-    use tcl_bigip::validator::{ConfigDiagnosticSubject, DiagSeverity, validate_bigip_source};
-
-    let mut all = Vec::new();
-    for diagnostic in validate_bigip_source(source, "Common") {
-        let tab = match diagnostic.subject {
-            ConfigDiagnosticSubject::IRule => "rules",
-            ConfigDiagnosticSubject::VirtualServer => "virtuals",
-            ConfigDiagnosticSubject::Pool => "pools",
-            ConfigDiagnosticSubject::DataGroup => "dataGroups",
-            ConfigDiagnosticSubject::IApp => continue,
-        };
-        let item = serde_json::json!({
-            "code": diagnostic.code,
-            "message": diagnostic.message,
-            "severity": match diagnostic.severity {
-                DiagSeverity::Warning => "warning",
-                DiagSeverity::Hint => "hint",
-            },
-            "line": diagnostic.range.start.line + 1,
-            "column": diagnostic.range.start.character + 1,
-            "tab": tab,
-        });
-        all.push(item);
-    }
-    J::Array(all)
+    J::Array(
+        tcl_bigip::validator::validate_bigip_source(source, "Common")
+            .iter()
+            .map(f5_diagnostic_json)
+            .collect(),
+    )
 }
 
-fn add_config_diagnostics(device: &mut Map<String, J>, source: &str) {
-    let J::Array(all) = collect_config_diagnostics(source) else {
+/// Collect model and iApp diagnostics for one report source. The conventional
+/// iApp presentation/implementation filenames let a multi-file report perform
+/// every IAPP7001–7003 check offline; partial input remains explicit through
+/// [`collect_iapp_diagnostic_evidence`].
+#[must_use]
+pub fn collect_report_diagnostics(uri: &str, source: &str, sources: &[Source]) -> J {
+    let mut diagnostics = tcl_bigip::validator::validate_bigip_source(source, "Common");
+    if is_iapp_presentation_uri(uri) {
+        let model = tcl_bigip::apl::parse_apl(source);
+        let refs = iapp_peer(uri, sources, true).map(tcl_bigip::apl::extract_iapp_var_refs);
+        diagnostics.extend(tcl_bigip::apl::validate_iapp_presentation(
+            &model,
+            refs.as_deref(),
+            "f5-iapps",
+        ));
+    } else if is_iapp_implementation_uri(uri)
+        && let Some(presentation) = iapp_peer(uri, sources, false)
+    {
+        let model = tcl_bigip::apl::parse_apl(presentation);
+        let refs = tcl_bigip::apl::extract_iapp_var_refs(source);
+        diagnostics.extend(tcl_bigip::apl::validate_iapp_implementation(
+            &refs,
+            Some(&model),
+            "f5-iapps",
+        ));
+    }
+    J::Array(diagnostics.iter().map(f5_diagnostic_json).collect())
+}
+
+fn add_config_diagnostics(
+    device: &mut Map<String, J>,
+    uri: &str,
+    source: &str,
+    sources: &[Source],
+) {
+    let J::Array(all) = collect_report_diagnostics(uri, source, sources) else {
         unreachable!("config diagnostics are always an array")
     };
     let mut routed: HashMap<String, Vec<J>> = HashMap::new();
@@ -78,15 +185,24 @@ fn add_config_diagnostics(device: &mut Map<String, J>, source: &str) {
         routed.entry(tab.to_owned()).or_default().push(item.clone());
     }
 
-    for (tab, key) in [
-        ("virtuals", "virtualDiagnostics"),
-        ("rules", "ruleDiagnostics"),
-        ("pools", "poolDiagnostics"),
-        ("dataGroups", "dataGroupDiagnostics"),
-    ] {
+    for subject in tcl_bigip::validator::ConfigDiagnosticSubject::ALL {
+        let tab = subject.report_tab();
+        let key = match tab {
+            "virtuals" => "virtualDiagnostics",
+            "rules" => "ruleDiagnostics",
+            "pools" => "poolDiagnostics",
+            "dataGroups" => "dataGroupDiagnostics",
+            "apps" => "appDiagnostics",
+            "objectIndex" => "objectDiagnostics",
+            _ => unreachable!("every configuration diagnostic subject has a report tab"),
+        };
         device.insert(key.into(), J::Array(routed.remove(tab).unwrap_or_default()));
     }
     device.insert("configDiagnostics".into(), J::Array(all));
+    device.insert(
+        "iappDiagnosticEvidence".into(),
+        collect_iapp_diagnostic_evidence(uri, sources),
+    );
 }
 
 /// The engine version string embedded in the report header.
@@ -1531,7 +1647,14 @@ fn order_virtual_profiles(device: &mut Map<String, J>) {
     }
 }
 
-fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, files: &[J]) -> J {
+fn collect_device(
+    uri: &str,
+    source: &str,
+    all_sources: &[Source],
+    cert_pems: &HashMap<String, String>,
+    files: &[J],
+    analysis_time: i64,
+) -> J {
     let sources: Vec<Source> = vec![(uri.to_string(), source.to_string())];
 
     // One reference-graph walk per referable container, up front.
@@ -1562,7 +1685,7 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
                 .unwrap_or_default(),
         ),
     );
-    add_config_diagnostics(&mut device, source);
+    add_config_diagnostics(&mut device, uri, source, all_sources);
 
     for (key, container) in CONTAINERS {
         let rows = fields_of(query(&format!("{container}[]"), &sources).unwrap_or_default());
@@ -1822,8 +1945,17 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
     device.insert("configText".into(), J::String(source.into()));
 
     // Certificate inventory (SSL cert expiry & inventory tab).
-    let certs = crate::certs::collect_certs(&sources, &device, cert_pems);
+    let certs = crate::certs::collect_certs(&sources, &device, cert_pems, analysis_time);
     device.insert("certificates".into(), certs);
+
+    // Full offline TLS assurance: effective profile inheritance/defaults,
+    // multi-certificate SNI variants, verified chains, client trust and a
+    // transparent SSL Labs-style estimate. Only compact results and source
+    // provenance enter the HTML; the generated report remains self-contained.
+    device.insert(
+        "tls".into(),
+        crate::tls::collect_tls(source, bigip_version, cert_pems, analysis_time),
+    );
 
     // Secret inventory (Secrets tab). Values are clear text only when the
     // config was decrypted with the f5mku master key upstream.
@@ -1931,6 +2063,12 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
         .and_then(J::as_array)
         .map_or(0, Vec::len);
     counts.insert("certificates".into(), J::from(cert_total));
+    let tls_total = device
+        .get("tls")
+        .and_then(|tls| tls.get("endpoints"))
+        .and_then(J::as_array)
+        .map_or(0, Vec::len);
+    counts.insert("tls".into(), J::from(tls_total));
     let secret_total = device
         .get("secrets")
         .and_then(J::as_array)
@@ -1944,7 +2082,25 @@ fn collect_device(uri: &str, source: &str, cert_pems: &HashMap<String, String>, 
         .and_then(|s| s.get("actionable"))
         .and_then(J::as_u64)
         .unwrap_or(0);
-    counts.insert("security".into(), J::from(security_actionable));
+    let tls_actionable = device
+        .get("tls")
+        .and_then(|tls| tls.get("findings"))
+        .and_then(J::as_array)
+        .map_or(0, |findings| {
+            findings
+                .iter()
+                .filter(|finding| {
+                    matches!(
+                        finding.get("severity").and_then(J::as_str),
+                        Some("warning" | "error" | "critical")
+                    )
+                })
+                .count() as u64
+        });
+    counts.insert(
+        "security".into(),
+        J::from(security_actionable + tls_actionable),
+    );
     let apm_total = device
         .get("apmProfiles")
         .and_then(J::as_array)
@@ -1995,10 +2151,12 @@ pub fn collect_model(sources: &[Source], title: &str) -> J {
 
 /// [`collect_model`] with certificate PEMs recovered from the UCS filestore.
 ///
-/// `cert_pems` is keyed **by source URI** and then by a `sys file ssl-cert`
-/// `cache-path` (as it appears in the stanza) → the PEM text of that member,
-/// read out of the archive by the caller (the CLI / wasm entry points, which
-/// have the raw UCS bytes). Scoping by source URI keeps a filestore
+/// `cert_pems` is keyed **by source URI** and then by a `sys file ssl-cert` or
+/// `sys file ssl-key` `cache-path` (as it appears in the stanza) → the PEM text
+/// of that member, read out of the archive by the caller (the CLI / wasm entry
+/// points, which have the raw UCS bytes). Private-key material is reduced to
+/// SPKI match evidence and is never copied into the returned model. Scoping by
+/// source URI keeps a filestore
 /// `cache-path` shared across two UCS files in one report from resolving to the
 /// wrong device's certificate. The certs tab parses these to fill
 /// metadata-free stanzas and reconstruct the trust chain; an empty map falls
@@ -2051,6 +2209,11 @@ pub fn collect_model_full(
     files: &HashMap<String, Vec<J>>,
     manifest: Option<&str>,
 ) -> J {
+    let analysis_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|duration| i64::try_from(duration.as_secs()).ok())
+        .unwrap_or(0);
     let empty_pems = HashMap::new();
     let empty_files: Vec<J> = Vec::new();
     let devices: Vec<J> = sources
@@ -2059,8 +2222,10 @@ pub fn collect_model_full(
             collect_device(
                 uri,
                 src,
+                sources,
                 cert_pems.get(uri).unwrap_or(&empty_pems),
                 files.get(uri).map_or(&empty_files, |v| v.as_slice()),
+                analysis_time,
             )
         })
         .collect();
@@ -2209,7 +2374,8 @@ mod config_diagnostic_tests {
                       ltm rule /Common/b {\n  when HTTP_REQUEST { two }\n}\n\
                       ltm virtual /Common/vs {\n  rules { /Common/a /Common/b }\n}\n";
         let mut device = Map::new();
-        add_config_diagnostics(&mut device, source);
+        let sources = vec![("memory://config.bigip.conf".to_owned(), source.to_owned())];
+        add_config_diagnostics(&mut device, "memory://config.bigip.conf", source, &sources);
 
         let codes = |key: &str| {
             device[key]
@@ -2229,7 +2395,84 @@ mod config_diagnostic_tests {
                     + device["ruleDiagnostics"].as_array().unwrap().len()
                     + device["poolDiagnostics"].as_array().unwrap().len()
                     + device["dataGroupDiagnostics"].as_array().unwrap().len()
+                    + device["appDiagnostics"].as_array().unwrap().len()
+                    + device["objectDiagnostics"].as_array().unwrap().len()
             )
+        );
+    }
+
+    #[test]
+    fn registry_diagnostics_route_to_the_object_index() {
+        let source = "ltm virtual /Common/vs { fallback-persistence /Common/missing }\n";
+        let mut device = Map::new();
+        let sources = vec![("memory://config.bigip.conf".to_owned(), source.to_owned())];
+        add_config_diagnostics(&mut device, "memory://config.bigip.conf", source, &sources);
+        assert!(
+            device["objectDiagnostics"]
+                .as_array()
+                .expect("object diagnostics")
+                .iter()
+                .any(|diagnostic| diagnostic["code"] == "BIGIP6013")
+        );
+    }
+
+    #[test]
+    fn iapp_diagnostics_are_global_routed_to_apps_and_mark_partial_evidence() {
+        let presentation =
+            "#include \"missing.inc\"\nsection basic {\n  string addr\n  string port\n}\n";
+        let implementation = "set ok $::basic__addr\nset missing $::basic__missing\n";
+        let sources = vec![
+            (
+                "memory://iapp/presentation.apl".to_owned(),
+                presentation.to_owned(),
+            ),
+            (
+                "memory://iapp/implementation".to_owned(),
+                implementation.to_owned(),
+            ),
+        ];
+
+        let model = collect_model(&sources, "iApp diagnostics");
+        let devices = model["devices"].as_array().expect("devices");
+        let presentation_device = devices
+            .iter()
+            .find(|device| device["uri"] == "memory://iapp/presentation.apl")
+            .expect("presentation device");
+        let implementation_device = devices
+            .iter()
+            .find(|device| device["uri"] == "memory://iapp/implementation")
+            .expect("implementation device");
+        let codes = |device: &J| {
+            device["configDiagnostics"]
+                .as_array()
+                .expect("global diagnostics")
+                .iter()
+                .filter_map(|item| item["code"].as_str().map(str::to_owned))
+                .collect::<Vec<_>>()
+        };
+        assert!(codes(presentation_device).contains(&"IAPP7002".to_owned()));
+        assert!(codes(presentation_device).contains(&"IAPP7003".to_owned()));
+        assert!(codes(implementation_device).contains(&"IAPP7001".to_owned()));
+        assert!(
+            presentation_device["appDiagnostics"]
+                .as_array()
+                .expect("apps diagnostics")
+                .iter()
+                .all(|item| item["tab"] == "apps")
+        );
+        assert_eq!(
+            presentation_device["iappDiagnosticEvidence"]["state"],
+            "complete"
+        );
+
+        let partial_sources = vec![(
+            "memory://iapp/presentation.apl".to_owned(),
+            presentation.to_owned(),
+        )];
+        let partial = collect_model(&partial_sources, "partial iApp diagnostics");
+        assert_eq!(
+            partial["devices"][0]["iappDiagnosticEvidence"]["state"],
+            "presentation_only"
         );
     }
 }

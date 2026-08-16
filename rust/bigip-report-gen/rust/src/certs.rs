@@ -48,6 +48,10 @@ use serde_json::{Map, Value as J};
 use tcl_bigip::canonical::Canon;
 use tcl_bigip::model::ModelObject;
 use tcl_bigip::parser::driver::parse_bigip_conf;
+use tcl_sslictcl::{
+    Certificate, ChainEvaluation, ChainStatus, KeyMatch, embedded_dataset, evaluate_chain,
+    evaluate_private_key_match,
+};
 
 use crate::jutil::{bstr, sarr};
 use crate::query::Source;
@@ -55,6 +59,18 @@ use crate::query::Source;
 /// A canonical field (snake-cased) as a `&str`.
 fn cf<'a>(m: &'a Map<String, J>, key: &str) -> &'a str {
     m.get(key).and_then(J::as_str).unwrap_or("")
+}
+
+fn supplied_material<'a>(
+    fields: &Map<String, J>,
+    material: &'a HashMap<String, String>,
+) -> Option<&'a str> {
+    ["cache_path", "source_path", "full_path", "name"]
+        .into_iter()
+        .map(|field| cf(fields, field))
+        .filter(|value| !value.is_empty())
+        .map(|value| value.strip_prefix("file://").unwrap_or(value))
+        .find_map(|key| material.get(key).map(String::as_str))
 }
 
 /// Whether `s` is still an `f5mku` `$M$…` ciphertext (not yet decrypted).
@@ -164,43 +180,53 @@ struct Node {
     self_signed: bool,
 }
 
-fn node_of(x: &Map<String, J>) -> Node {
-    let subject = cf(x, "subject").to_string();
-    let issuer = cf(x, "issuer").to_string();
-    let self_signed = !subject.is_empty() && subject == issuer;
-    Node {
-        cn: cn(&subject),
-        issuer_cn: cn(&issuer),
-        not_after: cf(x, "not_after").to_string(),
-        self_signed,
-        subject,
-        issuer,
-    }
-}
-
-/// Walk issuer → subject from `leaf` to a self-signed root (or a gap).
-fn resolve_chain(leaf: &Map<String, J>, pool: &HashMap<String, Node>) -> J {
-    let start = node_of(leaf);
-    if start.subject.is_empty() {
-        return J::Array(vec![]);
-    }
-    let mut chain: Vec<Node> = Vec::new();
-    let mut seen: BTreeSet<String> = BTreeSet::new();
-    let mut cur = Some(start);
-    while let Some(node) = cur {
-        if seen.contains(&node.subject) {
-            break;
+/// Render the path chosen by the shared cryptographic chain evaluator into the
+/// established certificate-tab link schema.
+fn resolve_chain(leaf: &Certificate, pool: &[Certificate], unix_time: i64) -> (J, ChainEvaluation) {
+    let mut candidates = vec![leaf.clone()];
+    candidates.extend(
+        pool.iter()
+            .filter(|certificate| certificate.fingerprint_sha256 != leaf.fingerprint_sha256)
+            .cloned(),
+    );
+    if let Ok(anchors) = embedded_dataset().trust.anchor_certificates() {
+        for anchor in anchors {
+            if !candidates
+                .iter()
+                .any(|certificate| certificate.fingerprint_sha256 == anchor.fingerprint_sha256)
+            {
+                candidates.push(anchor);
+            }
         }
-        seen.insert(node.subject.clone());
-        let stop = node.self_signed;
-        let next_issuer = node.issuer.clone();
-        chain.push(node);
-        if stop {
-            break;
-        }
-        cur = pool.get(&next_issuer).cloned();
     }
-    let complete = chain.last().is_some_and(|n| n.self_signed);
+    let evaluation = evaluate_chain(&candidates, &embedded_dataset().trust, None, unix_time);
+    let by_fingerprint: HashMap<&str, Node> = candidates
+        .iter()
+        .map(|certificate| {
+            (
+                certificate.fingerprint_sha256.as_str(),
+                Node {
+                    subject: certificate.subject.clone(),
+                    issuer: certificate.issuer.clone(),
+                    cn: certificate
+                        .common_names
+                        .first()
+                        .cloned()
+                        .unwrap_or_default(),
+                    issuer_cn: cn(&certificate.issuer),
+                    not_after: chrono::DateTime::from_timestamp(certificate.not_after, 0)
+                        .map(|date| date.to_rfc3339())
+                        .unwrap_or_default(),
+                    self_signed: certificate.is_self_issued(),
+                },
+            )
+        })
+        .collect();
+    let chain: Vec<Node> = evaluation
+        .path
+        .iter()
+        .filter_map(|fingerprint| by_fingerprint.get(fingerprint.as_str()).cloned())
+        .collect();
     let mut out: Vec<J> = Vec::new();
     for (i, link) in chain.iter().enumerate() {
         let role = if i == 0 {
@@ -233,8 +259,10 @@ fn resolve_chain(leaf: &Map<String, J>, pool: &HashMap<String, Node>) -> J {
         m.insert("selfSigned".into(), J::Bool(link.self_signed));
         out.push(J::Object(m));
     }
-    // A trailing non-self-signed link means we couldn't reach the root.
-    if let (false, Some(last)) = (complete, chain.last()) {
+    // An incomplete verified path gets the same explicit gap row the existing
+    // UI understands. Invalid/untrusted paths retain their actual terminus and
+    // surface the verdict separately.
+    if let (ChainStatus::Incomplete, Some(last)) = (evaluation.status, chain.last()) {
         let mut m = Map::new();
         m.insert("role".into(), J::String("gap".into()));
         m.insert(
@@ -251,7 +279,7 @@ fn resolve_chain(leaf: &Map<String, J>, pool: &HashMap<String, Node>) -> J {
         m.insert("selfSigned".into(), J::Bool(false));
         out.push(J::Object(m));
     }
-    J::Array(out)
+    (J::Array(out), evaluation)
 }
 
 /// One parsed cert, before cross-referencing.
@@ -260,12 +288,15 @@ struct RawCert {
     full_path: String,
     /// x509 dicts parsed from the filestore PEM (leaf first), if available.
     x509: Vec<Map<String, J>>,
+    /// Shared, owned X.509 projection of the same PEM blocks.
+    certificates: Vec<Certificate>,
 }
 
 pub(crate) fn collect_certs(
     sources: &[Source],
     device: &Map<String, J>,
     cert_pems: &HashMap<String, String>,
+    analysis_time: i64,
 ) -> J {
     // profile full-path -> [virtual names] using it, for the reverse map.
     let mut profile_to_virtuals: HashMap<String, Vec<String>> = HashMap::new();
@@ -311,14 +342,16 @@ pub(crate) fn collect_certs(
                                 cp.to_string()
                             }
                         };
-                        let x509 = cert_pems
-                            .get(&member)
-                            .map(|pem| x509_dicts(pem))
+                        let pem = cert_pems.get(&member);
+                        let x509 = pem.map(|pem| x509_dicts(pem)).unwrap_or_default();
+                        let certificates = pem
+                            .and_then(|pem| tcl_sslictcl::parse_certificates(pem.as_bytes()).ok())
                             .unwrap_or_default();
                         raw_certs.push(RawCert {
                             fields,
                             full_path,
                             x509,
+                            certificates,
                         });
                     }
                 }
@@ -338,17 +371,12 @@ pub(crate) fn collect_certs(
         }
     }
 
-    // Trust-graph pool: subject DN -> node, over every leaf + embedded cert.
-    let mut pool: HashMap<String, Node> = HashMap::new();
-    for rc in &raw_certs {
-        for x in &rc.x509 {
-            let n = node_of(x);
-            if !n.subject.is_empty() {
-                pool.entry(n.subject.clone()).or_insert(n);
-            }
-        }
-    }
-
+    // Unordered issuer pool. The shared evaluator uses issuer/subject, AKI/SKI,
+    // signatures, constraints and the embedded trust store to select a path.
+    let pool: Vec<Certificate> = raw_certs
+        .iter()
+        .flat_map(|certificate| certificate.certificates.iter().cloned())
+        .collect();
     let mut certs = Vec::new();
     for rc in &raw_certs {
         let f = &rc.fields;
@@ -393,7 +421,14 @@ pub(crate) fn collect_certs(
         if let Some(stem) = full_path.strip_suffix(".crt") {
             key_candidates.push(format!("{stem}.key"));
         }
-        let key_fields = key_candidates.iter().find_map(|kp| keys.get(kp));
+        let key_fields = key_candidates.iter().find_map(|candidate| {
+            keys.get(candidate).or_else(|| {
+                let leaf = candidate.rsplit('/').next().unwrap_or(candidate);
+                keys.iter()
+                    .find(|(path, _)| path.rsplit('/').next().unwrap_or(path.as_str()) == leaf)
+                    .map(|(_, fields)| fields)
+            })
+        });
 
         // File-first, config-fallback for every field the real cert carries.
         let x_get = |k: &str| leaf.map_or("", |m| cf(m, k));
@@ -486,7 +521,13 @@ pub(crate) fn collect_certs(
                 String::new()
             }
         };
-        let chain = leaf.map_or(J::Array(vec![]), |m| resolve_chain(m, &pool));
+        let (chain, chain_evaluation) = rc.certificates.first().map_or_else(
+            || (J::Array(vec![]), None),
+            |certificate| {
+                let (chain, evaluation) = resolve_chain(certificate, &pool, analysis_time);
+                (chain, Some(evaluation))
+            },
+        );
 
         let (key_path, key_sec, key_pass) = key_fields.map_or(("", "", ""), |kf| {
             (
@@ -495,6 +536,14 @@ pub(crate) fn collect_certs(
                 cf(kf, "passphrase"),
             )
         });
+        let key_match = match (rc.certificates.first(), key_fields) {
+            (Some(certificate), Some(fields)) => supplied_material(fields, cert_pems).map_or_else(
+                || KeyMatch::unknown("private-key material was not supplied"),
+                |key| evaluate_private_key_match(certificate, key.as_bytes()),
+            ),
+            (None, _) => KeyMatch::unknown("certificate material was not supplied"),
+            (_, None) => KeyMatch::unknown("no corresponding sys file ssl-key object was found"),
+        };
 
         let mut cert = Map::new();
         cert.insert("name".into(), J::String(name));
@@ -519,6 +568,20 @@ pub(crate) fn collect_certs(
         cert.insert("sourcePath".into(), J::String(cf(f, "source_path").into()));
         cert.insert("fromCertFile".into(), J::Bool(leaf.is_some()));
         cert.insert("chain".into(), chain);
+        if let Some(evaluation) = chain_evaluation {
+            cert.insert(
+                "chainStatus".into(),
+                serde_json::to_value(evaluation.status).unwrap_or(J::Null),
+            );
+            cert.insert(
+                "chainTrust".into(),
+                serde_json::to_value(evaluation.trust).unwrap_or(J::Null),
+            );
+            cert.insert(
+                "chainFindings".into(),
+                serde_json::to_value(evaluation.findings).unwrap_or(J::Null),
+            );
+        }
 
         cert.insert("keyPath".into(), J::String(key_path.into()));
         cert.insert("keySecurityType".into(), J::String(key_sec.into()));
@@ -528,6 +591,10 @@ pub(crate) fn collect_certs(
             J::Bool(is_encrypted(key_pass)),
         );
         cert.insert("hasKey".into(), J::Bool(key_fields.is_some()));
+        cert.insert(
+            "keyMatch".into(),
+            serde_json::to_value(key_match).unwrap_or(J::Null),
+        );
         cert.insert(
             "usedByProfiles".into(),
             J::Array(used_profiles.into_iter().map(J::String).collect()),

@@ -33,7 +33,7 @@ engine as a **library** (PyO3), while this crate is the same generator
 | Function | What |
 |----------|------|
 | `extract_source(name, bytes, passphrase)` | one uploaded file → SCF text (UCS decrypt/extract; `$M$` decryption is the separate `decrypt_secrets`). |
-| `extract_cert_files(name, bytes, passphrase, scf)` | filestore SSL-cert PEMs → JSON `{cache_path: pem}`. |
+| `extract_cert_files(name, bytes, passphrase, scf)` | filestore SSL-cert and SSL-key PEMs → JSON `{cache_path: pem}`; keys are used only for an in-memory SPKI match and are never embedded. |
 | `extract_files(name, bytes, passphrase)` | UCS member inventory → JSON `[{path, size, sha256, isText, content?}]` (Forensics tab). |
 | `secret_count(scf)` | number of `$M$…` encrypted secrets. |
 | `decrypt_secrets(scf, master_key)` | decrypt `$M$…` secrets with the base64 `f5mku -K` key. |

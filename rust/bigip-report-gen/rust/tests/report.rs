@@ -364,6 +364,86 @@ fn build_report_html_self_contained() {
 }
 
 #[test]
+fn tls_assurance_is_multi_sni_versioned_and_self_contained() {
+    let source = r"#TMSH-VERSION: 17.1
+ltm profile client-ssl /Common/base {
+    defaults-from /Common/clientssl
+    ciphers HIGH:!RSA
+    options { no-tlsv1 no-tlsv1.1 }
+}
+ltm profile client-ssl /Common/sni {
+    defaults-from /Common/base
+    cert-key-chain {
+        rsa { cert /Common/rsa.crt key /Common/rsa.key }
+        ecdsa { cert /Common/ecdsa.crt key /Common/ecdsa.key }
+    }
+}
+ltm virtual /Common/https {
+    destination /Common/192.0.2.1:443
+    profiles { /Common/sni { context clientside } }
+}
+";
+    let sources = vec![("mem://tls.conf".to_owned(), source.to_owned())];
+    let model = collect_model(&sources, "TLS assurance");
+    let tls = &model["devices"][0]["tls"];
+    assert_eq!(tls["endpoints"].as_array().map(Vec::len), Some(2));
+    assert!(
+        tls["endpoints"][0]["endpoint"]["protocols"]
+            .as_array()
+            .is_some_and(|protocols| protocols.iter().any(|value| value == "tls1.2"))
+    );
+    assert_eq!(tls["endpoints"][0]["estimate"]["grade"], "T");
+    assert_eq!(tls["endpoints"][0]["key_match"]["status"], "unknown");
+    assert!(
+        tls["endpoints"][0]["estimate"]["methodology"]
+            .as_str()
+            .is_some_and(|method| method.starts_with("sslictcl-"))
+    );
+    assert!(
+        tls["provenance"]["sources"]
+            .as_array()
+            .is_some_and(|sources| !sources.is_empty())
+    );
+    assert!(
+        tls["trustDerCoverage"]["total"]
+            .as_u64()
+            .is_some_and(|total| total > 100)
+    );
+    assert!(
+        tls["trustCoverage"]["serverAuthPolicy"]["total"]
+            .as_u64()
+            .is_some_and(|total| total > 100)
+    );
+    assert!(
+        tls["profileDefaultEvidence"]
+            .as_array()
+            .is_some_and(|evidence| evidence.iter().any(|item| item["state"] == "explicit"))
+    );
+
+    let html = build_report(
+        &sources,
+        &RenderOptions {
+            title: "TLS assurance".to_owned(),
+            generated_at: "2026-08-16 00:00:00 UTC".to_owned(),
+            embed_console: false,
+            ..RenderOptions::default()
+        },
+    )
+    .expect("TLS report renders");
+    assert_eq!(
+        html.matches("data-panel=\"tls\"").count(),
+        2,
+        "one tab and one panel"
+    );
+    assert!(html.contains("TLS Assurance"));
+    assert!(html.contains("Versioned security-default evidence"));
+    assert!(html.contains("sslictcl-offline-estimate-v1"));
+    assert!(html.contains("connect-src 'none'"));
+    assert!(!html.contains("src=\"http"));
+    assert!(!html.contains("<link "));
+}
+
+#[test]
 fn configuration_diagnostics_render_in_their_object_tabs() {
     let source = "ltm pool /Common/empty {\n}\n\
                   ltm rule /Common/a {\n  when HTTP_REQUEST { one }\n}\n\
@@ -383,6 +463,42 @@ fn configuration_diagnostics_render_in_their_object_tabs() {
         .expect("pools panel")
         .0;
     assert!(virtual_panel.contains("BIGIP6012"));
+}
+
+#[test]
+fn iapp_diagnostics_render_globally_and_in_the_apps_view() {
+    let sources = vec![
+        (
+            "test://iapp/presentation.apl".to_owned(),
+            "#include \"missing.inc\"\nsection basic {\n  string addr\n  string port\n}\n"
+                .to_owned(),
+        ),
+        (
+            "test://iapp/implementation.impl".to_owned(),
+            "set ok $::basic__addr\nset missing $::basic__missing\n".to_owned(),
+        ),
+    ];
+    let html = build_report(&sources, &RenderOptions::default()).expect("render iApp diagnostics");
+
+    for code in ["IAPP7001", "IAPP7002", "IAPP7003"] {
+        assert!(html.contains(code), "{code} rendered globally");
+    }
+    let apps_panels: Vec<_> = html
+        .split("<div class=\"panel\" data-panel=\"apps\">")
+        .skip(1)
+        .map(|panel| {
+            panel
+                .split_once("<div class=\"panel\" data-panel=\"f5sites\">")
+                .expect("F5 Sites panel")
+                .0
+        })
+        .collect();
+    assert!(apps_panels.iter().any(|panel| panel.contains("IAPP7001")));
+    assert!(
+        apps_panels
+            .iter()
+            .all(|panel| panel.contains("iApp diagnostic evidence"))
+    );
 }
 
 #[test]

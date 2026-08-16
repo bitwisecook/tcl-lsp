@@ -32,12 +32,12 @@
 
 use wasm_bindgen::prelude::*;
 
-use tcl_bigip_io::{
-    is_pgp_bytes, is_ucs_bytes, resolve_passphrase, ucs_archive_to_scf, PassphraseOptions,
-};
 use bigip_report_gen_rust::{
-    build_report, count_encrypted_secrets, decrypt_secrets as report_decrypt_secrets, RenderOptions,
-    Source,
+    RenderOptions, Source, build_report, count_encrypted_secrets,
+    decrypt_secrets as report_decrypt_secrets,
+};
+use tcl_bigip_io::{
+    PassphraseOptions, is_pgp_bytes, is_ucs_bytes, resolve_passphrase, ucs_archive_to_scf,
 };
 
 /// Turn one uploaded file into SCF text.
@@ -73,16 +73,19 @@ pub fn extract_source(name: &str, bytes: &[u8], passphrase: &str) -> Result<Stri
     }
 }
 
-/// Recover the certificate PEMs from a UCS filestore, keyed by `cache-path`.
+/// Recover certificate and private-key PEMs from a UCS filestore, keyed by
+/// `cache-path`.
 ///
 /// A modern `sys file ssl-cert` stanza is metadata-free — subject / issuer /
 /// validity / SANs live only in the PEM in `/config/filestore/...`, not the
 /// config — so the certs tab needs the actual bytes. Given the same archive
 /// `bytes` that [`extract_source`] flattened and its resulting `scf`, this parses
-/// every `sys file ssl-cert` cache-path and reads that member out of the
-/// archive, returning a JSON object `{cache_path: pem}`. A non-UCS input (a
-/// bare `bigip.conf`) has no filestore and returns `{}`. Feed the merged map of
-/// all files into [`generate_report`].
+/// every `sys file ssl-cert` and `sys file ssl-key` cache-path and reads those
+/// members out of the archive, returning a JSON object `{cache_path: pem}`.
+/// Private key bytes are used only for an in-memory SPKI match and are never
+/// embedded in the report model or HTML. A non-UCS input (a bare
+/// `bigip.conf`) has no filestore and returns `{}`. Feed the merged map of all
+/// files into [`generate_report`].
 #[wasm_bindgen]
 pub fn extract_cert_files(
     name: &str,
@@ -114,21 +117,24 @@ pub fn extract_cert_files(
     let config = parse_bigip_conf(scf, "Common");
     let mut map: BTreeMap<String, String> = BTreeMap::new();
     for placed in &config.objects {
-        if let ModelObject::SysFileSslCert(c) = &placed.object {
-            let member = if !c.cache_path.is_empty() {
-                c.cache_path.clone()
-            } else {
-                c.source_path
-                    .strip_prefix("file://")
-                    .unwrap_or(&c.source_path)
-                    .to_string()
-            };
-            if member.is_empty() || map.contains_key(&member) {
-                continue;
-            }
-            if let Ok(pem) = read_ucs_member(bytes, &member, &provider, name) {
-                map.insert(member, String::from_utf8_lossy(&pem).into_owned());
-            }
+        let (cache_path, source_path) = match &placed.object {
+            ModelObject::SysFileSslCert(file) => (&file.cache_path, &file.source_path),
+            ModelObject::SysFileSslKey(file) => (&file.cache_path, &file.source_path),
+            _ => continue,
+        };
+        let member = if cache_path.is_empty() {
+            source_path
+                .strip_prefix("file://")
+                .unwrap_or(source_path)
+                .to_owned()
+        } else {
+            cache_path.clone()
+        };
+        if member.is_empty() || map.contains_key(&member) {
+            continue;
+        }
+        if let Ok(pem) = read_ucs_member(bytes, &member, &provider, name) {
+            map.insert(member, String::from_utf8_lossy(&pem).into_owned());
         }
     }
     serde_json::to_string(&map).map_err(|e| JsError::new(&e.to_string()))
@@ -148,7 +154,7 @@ pub fn extract_cert_files(
 /// into [`generate_report`]. Nothing leaves the page.
 #[wasm_bindgen]
 pub fn extract_files(name: &str, bytes: &[u8], passphrase: &str) -> Result<String, JsError> {
-    use tcl_bigip_io::{list_ucs_members, read_ucs_member, MemberScope};
+    use tcl_bigip_io::{MemberScope, list_ucs_members, read_ucs_member};
 
     /// Cap on embedded content per file (256 KiB): forensic config/auth files
     /// are small, but a runaway log-config include shouldn't bloat the page.
@@ -217,8 +223,9 @@ pub fn decrypt_secrets(scf: &str, master_key: &str) -> Result<String, JsError> {
 ///
 /// * `sources_json` — an ordered JSON array of `[uri, scf_text]` pairs (each
 ///   `uri` a display name, each `scf_text` the output of [`extract_source`]).
-/// * `cert_files_json` — a JSON object `{cache_path: pem}` merged from every
-///   file's [`extract_cert_files`], nested **by source URI** —
+/// * `cert_files_json` — a JSON object `{cache_path: pem}` containing
+///   certificate and private-key material from every file's
+///   [`extract_cert_files`], nested **by source URI** —
 ///   `{uri: {cache_path: pem}}` — so the certs tab can parse the real
 ///   certificates (issue date, SANs, trust chain) and a filestore `cache-path`
 ///   shared across two devices doesn't collide. `"{}"` for none.
@@ -315,7 +322,11 @@ pub fn generate_report(
 pub fn build_architecture(devices_json: &str, manifest: &str) -> Result<String, JsError> {
     let devices: Vec<serde_json::Value> = serde_json::from_str(devices_json)
         .map_err(|e| JsError::new(&format!("invalid devices JSON: {e}")))?;
-    let m = if manifest.trim().is_empty() { None } else { Some(manifest) };
+    let m = if manifest.trim().is_empty() {
+        None
+    } else {
+        Some(manifest)
+    };
     let arch = bigip_report_gen_rust::build_architecture(&devices, m);
     serde_json::to_string(&arch).map_err(|e| JsError::new(&e.to_string()))
 }
@@ -331,4 +342,23 @@ pub fn manual(_topic: &str) -> String {
 #[wasm_bindgen]
 pub fn engine_version() -> String {
     bigip_report_gen_rust::ENGINE_VERSION.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::generate_report;
+
+    #[test]
+    fn wasm_report_keeps_iapp_diagnostics_in_the_embedded_apps_view() {
+        let sources = r##"[
+          ["memory://iapp/presentation.apl", "#include \"missing.inc\"\nsection basic {\n  string addr\n  string port\n}\n"],
+          ["memory://iapp/implementation.impl", "set ok $::basic__addr\nset missing $::basic__missing\n"]
+        ]"##;
+        let html = generate_report(sources, "", "", "iApp", "", false, "", "", "")
+            .expect("render iApp report");
+        for code in ["IAPP7001", "IAPP7002", "IAPP7003"] {
+            assert!(html.contains(code), "{code} is retained by the wasm report");
+        }
+        assert!(html.contains("iApp diagnostic evidence"));
+    }
 }

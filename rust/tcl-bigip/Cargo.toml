@@ -34,6 +34,8 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-irules = { path = "../tcl-irules" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-syntax = { path = "../tcl-syntax" }
+tcl-sslictcl = { path = "../tcl-sslictcl" }
+serde = { workspace = true }
 serde_json = "1"
 regex = "1"
 ipnet = "2"

@@ -71,6 +71,7 @@ mod number_drift;
 mod owner_resolution;
 mod registry_oracle;
 mod resolution_drift;
+mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
 mod util;
@@ -229,6 +230,15 @@ enum Command {
     #[command(name = "owner-resolution")]
     OwnerResolution,
 
+    /// Update or verify the embedded `SslicTcl` source-data bundle.
+    SslictclData {
+        /// Operation to perform: update (network-capable) or check (offline).
+        operation: String,
+        /// Fail when the newest source retrieval is older than this many days.
+        #[arg(long)]
+        max_age_days: Option<u64>,
+    },
+
     /// Compare the iRules registry with a local BIG-IP schema/man-page
     /// extract; exact source omissions fail, newer registry entries are
     /// reported separately.
@@ -308,6 +318,10 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::OwnerResolution => owner_resolution::run(),
+        Command::SslictclData {
+            operation,
+            max_age_days,
+        } => sslictcl_data::run(&operation, max_age_days),
         Command::RegistryOracle {
             irules_root,
             output,

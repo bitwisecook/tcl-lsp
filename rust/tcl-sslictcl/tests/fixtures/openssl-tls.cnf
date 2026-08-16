@@ -1,0 +1,17 @@
+openssl_conf = openssl_init
+.include /etc/ssl/local-overrides.cnf
+
+[system_default_sect]
+MinProtocol = TLSv1
+MinProtocol = TLSv1.2
+MaxProtocol = TLSv1.3
+CipherString = ECDHE-RSA-AES256-GCM-SHA384:\
+    !aNULL:@SECLEVEL=2
+Ciphersuites = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+Groups = X25519:P-256
+SignatureAlgorithms = rsa_pss_rsae_sha256:ecdsa_secp256r1_sha256
+Certificate = /etc/ssl/certs/example-chain.pem
+FutureOption = retained-value
+
+[unrelated]
+ProviderSetting = keep-me

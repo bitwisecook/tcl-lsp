@@ -7623,7 +7623,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6003:** iRule contains a dynamic pool reference that cannot be validated statically.",
+            "markdownDescription": "**BIGIP6003:** Virtual server references an iRule that is not defined in the configuration.",
             "order": 2
           },
           "tclLsp.diagnosticSeverity.BIGIP6003": {
@@ -7644,14 +7644,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6003:** iRule contains a dynamic pool reference that cannot be validated statically.",
+            "markdownDescription": "Display severity for **BIGIP6003:** Virtual server references an iRule that is not defined in the configuration.",
             "order": 2
           },
           "tclLsp.diagnostics.BIGIP6004": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6004:** Virtual server references an object not found in the configuration.",
+            "markdownDescription": "**BIGIP6004:** An attached iRule uses HTTP:: or SSL:: commands without the matching virtual-server profile.",
             "order": 3
           },
           "tclLsp.diagnosticSeverity.BIGIP6004": {
@@ -7672,14 +7672,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6004:** Virtual server references an object not found in the configuration.",
+            "markdownDescription": "Display severity for **BIGIP6004:** An attached iRule uses HTTP:: or SSL:: commands without the matching virtual-server profile.",
             "order": 3
           },
           "tclLsp.diagnostics.BIGIP6005": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6005:** Pool has no members.",
+            "markdownDescription": "**BIGIP6005:** Virtual server references a pool that is not defined in the configuration.",
             "order": 4
           },
           "tclLsp.diagnosticSeverity.BIGIP6005": {
@@ -7700,14 +7700,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6005:** Pool has no members.",
+            "markdownDescription": "Display severity for **BIGIP6005:** Virtual server references a pool that is not defined in the configuration.",
             "order": 4
           },
           "tclLsp.diagnostics.BIGIP6006": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6006:** Data group has duplicate keys.",
+            "markdownDescription": "**BIGIP6006:** Data group is defined but not referenced by any iRule in the configuration.",
             "order": 5
           },
           "tclLsp.diagnosticSeverity.BIGIP6006": {
@@ -7728,14 +7728,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6006:** Data group has duplicate keys.",
+            "markdownDescription": "Display severity for **BIGIP6006:** Data group is defined but not referenced by any iRule in the configuration.",
             "order": 5
           },
           "tclLsp.diagnostics.BIGIP6007": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6007:** iRule references a virtual server not found in the configuration.",
+            "markdownDescription": "**BIGIP6007:** iRule references an SNAT pool not found in the configuration.",
             "order": 6
           },
           "tclLsp.diagnosticSeverity.BIGIP6007": {
@@ -7756,14 +7756,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6007:** iRule references a virtual server not found in the configuration.",
+            "markdownDescription": "Display severity for **BIGIP6007:** iRule references an SNAT pool not found in the configuration.",
             "order": 6
           },
           "tclLsp.diagnostics.BIGIP6008": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6008:** iApp presentation and implementation variables do not agree.",
+            "markdownDescription": "**BIGIP6008:** Pool has no members defined.",
             "order": 7
           },
           "tclLsp.diagnosticSeverity.BIGIP6008": {
@@ -7784,14 +7784,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6008:** iApp presentation and implementation variables do not agree.",
+            "markdownDescription": "Display severity for **BIGIP6008:** Pool has no members defined.",
             "order": 7
           },
           "tclLsp.diagnostics.BIGIP6009": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6009:** iRule contains a dynamic virtual-server reference that cannot be validated statically.",
+            "markdownDescription": "**BIGIP6009:** Virtual server has a duplicate iRule attachment.",
             "order": 8
           },
           "tclLsp.diagnosticSeverity.BIGIP6009": {
@@ -7812,14 +7812,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6009:** iRule contains a dynamic virtual-server reference that cannot be validated statically.",
+            "markdownDescription": "Display severity for **BIGIP6009:** Virtual server has a duplicate iRule attachment.",
             "order": 8
           },
           "tclLsp.diagnostics.BIGIP6010": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6010:** Virtual server has a missing or invalid source-address-translation pool reference.",
+            "markdownDescription": "**BIGIP6010:** An attached iRule uses a persistence profile that is not attached to the virtual server.",
             "order": 9
           },
           "tclLsp.diagnosticSeverity.BIGIP6010": {
@@ -7840,14 +7840,14 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6010:** Virtual server has a missing or invalid source-address-translation pool reference.",
+            "markdownDescription": "Display severity for **BIGIP6010:** An attached iRule uses a persistence profile that is not attached to the virtual server.",
             "order": 9
           },
           "tclLsp.diagnostics.BIGIP6011": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**BIGIP6011:** Virtual server references a persistence profile not found in the configuration.",
+            "markdownDescription": "**BIGIP6011:** IP-type data group contains an invalid IP address or network record.",
             "order": 10
           },
           "tclLsp.diagnosticSeverity.BIGIP6011": {
@@ -7868,7 +7868,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **BIGIP6011:** Virtual server references a persistence profile not found in the configuration.",
+            "markdownDescription": "Display severity for **BIGIP6011:** IP-type data group contains an invalid IP address or network record.",
             "order": 10
           },
           "tclLsp.diagnostics.BIGIP6012": {
@@ -7898,6 +7898,202 @@
             ],
             "markdownDescription": "Display severity for **BIGIP6012:** Attached iRules handle the same event at the same effective priority.",
             "order": 11
+          },
+          "tclLsp.diagnostics.BIGIP6013": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6013:** A registry-declared BIG-IP object reference could not be resolved.",
+            "order": 12
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6013": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6013:** A registry-declared BIG-IP object reference could not be resolved.",
+            "order": 12
+          },
+          "tclLsp.diagnostics.BIGIP6014": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6014:** A BIG-IP object declaration duplicates another object of the same kind and path.",
+            "order": 13
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6014": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6014:** A BIG-IP object declaration duplicates another object of the same kind and path.",
+            "order": 13
+          },
+          "tclLsp.diagnostics.BIGIP6038": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6038:** An iRule event requires a profile that is not active on its virtual server.",
+            "order": 14
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6038": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6038:** An iRule event requires a profile that is not active on its virtual server.",
+            "order": 14
+          },
+          "tclLsp.diagnostics.BIGIP6039": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6039:** A virtual server attaches incompatible profile types.",
+            "order": 15
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6039": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6039:** A virtual server attaches incompatible profile types.",
+            "order": 15
+          },
+          "tclLsp.diagnostics.IAPP7001": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IAPP7001:** iApp implementation references a presentation field that is not defined.",
+            "order": 16
+          },
+          "tclLsp.diagnosticSeverity.IAPP7001": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **IAPP7001:** iApp implementation references a presentation field that is not defined.",
+            "order": 16
+          },
+          "tclLsp.diagnostics.IAPP7002": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IAPP7002:** iApp presentation field is never referenced by the implementation.",
+            "order": 17
+          },
+          "tclLsp.diagnosticSeverity.IAPP7002": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **IAPP7002:** iApp presentation field is never referenced by the implementation.",
+            "order": 17
+          },
+          "tclLsp.diagnostics.IAPP7003": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IAPP7003:** iApp presentation `#include` file could not be resolved.",
+            "order": 18
+          },
+          "tclLsp.diagnosticSeverity.IAPP7003": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **IAPP7003:** iApp presentation `#include` file could not be resolved.",
+            "order": 18
           }
         }
       },
