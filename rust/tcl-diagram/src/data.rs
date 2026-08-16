@@ -30,6 +30,8 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value, json};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
+use tcl_compiler::head_identity::{HeadIdentity, HeadIdentityMap, command_head_identities};
+use tcl_compiler::interprocedural::{namespace_parts_from_proc, resolve_internal_call};
 use tcl_compiler::ir::{
     CommandTokens, Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name,
 };
@@ -45,6 +47,18 @@ use tcl_registry::registry::{
 const MAX_DEPTH: usize = 8;
 const MAX_EVENTS: usize = 12;
 const MAX_ARG_LEN: usize = 60;
+
+/// The semantic context shared by every recursive diagram projection walk.
+///
+/// Procedure declarations are indexed by their qualified identity, and calls
+/// are resolved through the compiler's shared Tcl namespace resolver. Command
+/// table mutations stay source-position-sensitive through `identities`, so a
+/// rebinding cannot accidentally be serialised using a stale registry command.
+struct DiagramContext<'a> {
+    procedure_names: &'a HashSet<String>,
+    identities: &'a HeadIdentityMap,
+    registry: &'a CommandRegistry,
+}
 
 /// A statically-known Tcl completion carried by the diagram JSON contract.
 ///
@@ -288,14 +302,75 @@ fn with_completion(mut node: Value, completion: DiagramCompletion) -> Value {
     node
 }
 
+/// The registry command a source head denotes at one exact source position.
+///
+/// The lowerer carries a canonical command for its alias table, but registry
+/// consumers must also honour an offset-aware `rename`, `interp alias`, or
+/// user-procedure rebind. A proven source identity takes precedence; otherwise
+/// keep the lowerer's canonical alias target for user-defined aliases. Its
+/// final lookup still uses the caller namespace, just like a procedure call.
+fn registry_command(
+    command: &str,
+    canonical_command: Option<&str>,
+    caller_qname: &str,
+    at: u32,
+    context: &DiagramContext<'_>,
+) -> Option<String> {
+    let command = match context.identities.resolve(command, at) {
+        HeadIdentity::Command(resolved) if resolved != command => resolved,
+        HeadIdentity::Rebound => return None,
+        HeadIdentity::Command(_) => canonical_command.unwrap_or(command),
+    };
+    let ns_parts = namespace_parts_from_proc(caller_qname);
+    let namespace = if ns_parts.is_empty() {
+        "::".to_owned()
+    } else {
+        format!("::{}", ns_parts.join("::"))
+    };
+    tcl_compiler::naming::resolve_command_with::<&str, _>(&namespace, &[], command, |qname| {
+        context
+            .registry
+            .get(qname.strip_prefix("::").unwrap_or(qname))
+            .is_some()
+    })
+    .map(|qname| qname.trim_start_matches("::").to_owned())
+}
+
+/// Whether `command` is a call to a user procedure in `caller_qname`'s
+/// namespace at this call site.
+///
+/// The compiler owns Tcl command-name lookup, including rooted names and the
+/// caller-namespace/global candidate sequence. A proven source binding to a
+/// registry command is intentionally not reinterpreted as a same-spelled
+/// procedure: `rename error saved` must keep `saved` as the original command
+/// even if a later `proc error` exists.
+fn is_procedure_call(
+    command: &str,
+    canonical_command: Option<&str>,
+    caller_qname: &str,
+    at: u32,
+    context: &DiagramContext<'_>,
+) -> bool {
+    if matches!(context.identities.resolve(command, at), HeadIdentity::Command(resolved) if resolved != command)
+    {
+        return false;
+    }
+    resolve_internal_call(
+        canonical_command.unwrap_or(command),
+        caller_qname,
+        context.procedure_names,
+    )
+    .is_some()
+}
+
 /// Build the `switch` flow-node dict from its subject, arms and default body.
 fn walk_switch(
     subject: &str,
     arms: &[SwitchArm],
     default_body: Option<&Script>,
-    proc_names: &HashSet<&str>,
+    caller_qname: &str,
+    context: &DiagramContext<'_>,
     depth: usize,
-    registry: &CommandRegistry,
 ) -> Value {
     let mut serialised_arms: Vec<Value> = Vec::new();
     let mut fallthrough_patterns: Vec<String> = Vec::new();
@@ -307,7 +382,7 @@ fn walk_switch(
         let mut patterns = std::mem::take(&mut fallthrough_patterns);
         patterns.push(arm.pattern.clone());
         let body = arm.body.as_ref().map_or_else(Vec::new, |b| {
-            walk_script(b, proc_names, depth + 1, registry)
+            walk_script(b, caller_qname, context, depth + 1)
         });
         let pattern = if patterns.len() > 1 {
             patterns.join(" | ")
@@ -317,7 +392,7 @@ fn walk_switch(
         serialised_arms.push(json!({ "pattern": pattern, "body": body }));
     }
     if let Some(body) = default_body {
-        let body = walk_script(body, proc_names, depth + 1, registry);
+        let body = walk_script(body, caller_qname, context, depth + 1);
         serialised_arms.push(json!({ "pattern": "default", "body": body }));
     }
     json!({
@@ -332,11 +407,11 @@ fn walk_try(
     body: &Script,
     handlers: &[TryHandler],
     finally_body: Option<&Script>,
-    proc_names: &HashSet<&str>,
+    caller_qname: &str,
+    context: &DiagramContext<'_>,
     depth: usize,
-    registry: &CommandRegistry,
 ) -> Value {
-    let child = walk_script(body, proc_names, depth + 1, registry);
+    let child = walk_script(body, caller_qname, context, depth + 1);
     let mut result = Map::new();
     result.insert("kind".to_owned(), json!("try"));
     result.insert("body".to_owned(), json!(child));
@@ -347,10 +422,10 @@ fn walk_try(
                 json!({
                     "kind_handler": h.kind,
                     "match": h.match_arg,
-                    "completion_code": handler_completion_code(h, registry),
+                    "completion_code": handler_completion_code(h, context.registry),
                     "trap_pattern": h.trap_pattern,
                     "fallthrough": h.fallthrough,
-                    "body": walk_script(&h.body, proc_names, depth + 1, registry),
+                    "body": walk_script(&h.body, caller_qname, context, depth + 1),
                 })
             })
             .collect();
@@ -359,7 +434,7 @@ fn walk_try(
     if let Some(finally_body) = finally_body {
         result.insert(
             "finally".to_owned(),
-            json!(walk_script(finally_body, proc_names, depth + 1, registry)),
+            json!(walk_script(finally_body, caller_qname, context, depth + 1)),
         );
     }
     Value::Object(result)
@@ -391,20 +466,20 @@ fn handler_completion_code(handler: &TryHandler, registry: &CommandRegistry) -> 
 fn walk_if(
     clauses: &[tcl_compiler::ir::IfClause],
     else_body: Option<&Script>,
-    proc_names: &HashSet<&str>,
+    caller_qname: &str,
+    context: &DiagramContext<'_>,
     depth: usize,
-    registry: &CommandRegistry,
 ) -> Value {
     let mut branches: Vec<Value> = Vec::new();
     for clause in clauses {
-        let body = walk_script(&clause.body, proc_names, depth + 1, registry);
+        let body = walk_script(&clause.body, caller_qname, context, depth + 1);
         branches.push(json!({
             "condition": condition_text(&clause.condition),
             "body": body,
         }));
     }
     if let Some(else_body) = else_body {
-        let body = walk_script(else_body, proc_names, depth + 1, registry);
+        let body = walk_script(else_body, caller_qname, context, depth + 1);
         branches.push(json!({ "condition": "else", "body": body }));
     }
     json!({ "kind": "if", "branches": branches })
@@ -416,15 +491,14 @@ fn walk_call(
     canonical_command: Option<&str>,
     args: &[String],
     tokens: Option<&CommandTokens>,
-    proc_names: &HashSet<&str>,
-    registry: &CommandRegistry,
+    caller_qname: &str,
+    at: u32,
+    context: &DiagramContext<'_>,
 ) -> Option<Value> {
-    // Matching is on `Statement::Call.canonical_command` (the stamped
-    // namespace-qualified form). The lowerer only stamps it for
-    // alias / namespace resolution, leaving plain calls `None`; for
-    // those the source spelling *is* the canonical (modulo a leading
-    // `::`, which `is_diagram_action` / the registry strip), so fall
-    // back to it to reproduce the resolution.
+    // The lowerer records the target of a statically-known alias. Plain calls
+    // deliberately retain their source spelling; `resolve_internal_call`
+    // below gives those Tcl's caller-namespace lookup rather than treating
+    // equal short tails as interchangeable identities.
     let canonical = canonical_command.unwrap_or(command);
     let display = command;
     // Skip the top-level `when` calls — their bodies are in procedures.
@@ -432,19 +506,28 @@ fn walk_call(
         return None;
     }
     // Procedure calls.
-    if proc_names.contains(display) || proc_names.contains(canonical) {
+    if is_procedure_call(command, canonical_command, caller_qname, at, context) {
         return Some(json!({
             "kind": "proc_call",
             "label": format!("call {display}"),
             "command": display,
         }));
     }
-    let completion = command_completion(canonical, args, tokens, registry);
+    let registry_command = registry_command(command, canonical_command, caller_qname, at, context);
+    let completion = registry_command
+        .as_deref()
+        .map_or(DiagramCompletion::Normal, |command| {
+            command_completion(command, args, tokens, context.registry)
+        });
     // Keep an exact non-normal completion visible even when it is not a
     // diagram action (for example `error` / `throw`), so a surrounding try
     // can route it through `finally`.  Ordinary unknown calls remain omitted
     // unless the registry marks them as a diagram action.
-    if registry.is_diagram_action(canonical) || completion != DiagramCompletion::Normal {
+    if registry_command
+        .as_deref()
+        .is_some_and(|command| context.registry.is_diagram_action(command))
+        || completion != DiagramCompletion::Normal
+    {
         return Some(with_completion(action_node(display, args), completion));
     }
     None
@@ -455,31 +538,41 @@ fn loop_node(
     label: &str,
     exit: &str,
     body: &Script,
-    proc_names: &HashSet<&str>,
+    caller_qname: &str,
+    context: &DiagramContext<'_>,
     depth: usize,
-    registry: &CommandRegistry,
 ) -> Value {
-    let child = walk_script(body, proc_names, depth + 1, registry);
+    let child = walk_script(body, caller_qname, context, depth + 1);
     json!({ "kind": "loop", "label": label, "exit": exit, "body": child })
 }
 
 /// Project the compiler's structured loop variants into one loop flow node.
 fn walk_loop_statement(
     stmt: &Statement,
-    proc_names: &HashSet<&str>,
+    caller_qname: &str,
+    context: &DiagramContext<'_>,
     depth: usize,
-    registry: &CommandRegistry,
 ) -> Option<Value> {
     match stmt {
-        Statement::For { body, .. } => {
-            Some(loop_node("for", "false", body, proc_names, depth, registry))
-        }
+        Statement::For { body, .. } => Some(loop_node(
+            "for",
+            "false",
+            body,
+            caller_qname,
+            context,
+            depth,
+        )),
         Statement::While {
             condition, body, ..
         } => {
             let label = format!("while {}", condition_text(condition));
             Some(loop_node(
-                &label, "false", body, proc_names, depth, registry,
+                &label,
+                "false",
+                body,
+                caller_qname,
+                context,
+                depth,
             ))
         }
         Statement::Foreach {
@@ -495,9 +588,9 @@ fn walk_loop_statement(
                 &label,
                 "exhausted",
                 body,
-                proc_names,
+                caller_qname,
+                context,
                 depth,
-                registry,
             ))
         }
         _ => None,
@@ -526,9 +619,9 @@ fn return_node(value: Option<&String>) -> Value {
 /// One arm per IR statement kind, so the length tracks the statement set.
 fn walk_statement(
     stmt: &Statement,
-    proc_names: &HashSet<&str>,
+    caller_qname: &str,
+    context: &DiagramContext<'_>,
     depth: usize,
-    registry: &CommandRegistry,
 ) -> Option<Value> {
     if depth > MAX_DEPTH {
         return Some(json!({ "kind": "truncated", "label": "... (nested logic)" }));
@@ -544,9 +637,9 @@ fn walk_statement(
             subject,
             arms,
             default_body.as_ref(),
-            proc_names,
+            caller_qname,
+            context,
             depth,
-            registry,
         )),
 
         Statement::If {
@@ -554,16 +647,17 @@ fn walk_statement(
         } => Some(walk_if(
             clauses,
             else_body.as_ref(),
-            proc_names,
+            caller_qname,
+            context,
             depth,
-            registry,
         )),
 
         Statement::For { .. } | Statement::While { .. } | Statement::Foreach { .. } => {
-            walk_loop_statement(stmt, proc_names, depth, registry)
+            walk_loop_statement(stmt, caller_qname, context, depth)
         }
 
         Statement::Call {
+            span,
             command,
             canonical_command,
             args,
@@ -574,20 +668,35 @@ fn walk_statement(
             canonical_command.as_deref(),
             args,
             tokens.as_ref(),
-            proc_names,
-            registry,
+            caller_qname,
+            span.start(),
+            context,
         ),
 
         Statement::Barrier {
+            span,
             command,
             canonical_command,
             args,
             tokens,
             ..
         } => {
-            let canonical = canonical_command.as_deref().unwrap_or(command.as_str());
-            let completion = command_completion(canonical, args, tokens.as_ref(), registry);
-            (registry.is_diagram_action(canonical) || completion != DiagramCompletion::Normal)
+            let registry_command = registry_command(
+                command,
+                canonical_command.as_deref(),
+                caller_qname,
+                span.start(),
+                context,
+            );
+            let completion = registry_command
+                .as_deref()
+                .map_or(DiagramCompletion::Normal, |command| {
+                    command_completion(command, args, tokens.as_ref(), context.registry)
+                });
+            (registry_command
+                .as_deref()
+                .is_some_and(|command| context.registry.is_diagram_action(command))
+                || completion != DiagramCompletion::Normal)
                 .then(|| with_completion(action_node(command, args), completion))
         }
 
@@ -600,7 +709,7 @@ fn walk_statement(
         Statement::AssignExpr { name, expr, .. } => assign_node(name, &render_expr(expr)),
 
         Statement::Catch { body, .. } => {
-            let child = walk_script(body, proc_names, depth + 1, registry);
+            let child = walk_script(body, caller_qname, context, depth + 1);
             Some(json!({ "kind": "catch", "body": child }))
         }
 
@@ -613,9 +722,9 @@ fn walk_statement(
             body,
             handlers,
             finally_body.as_ref(),
-            proc_names,
+            caller_qname,
+            context,
             depth,
-            registry,
         )),
 
         _ => None,
@@ -625,14 +734,14 @@ fn walk_statement(
 /// Walk all statements in a script, dropping the skipped (`None`) nodes.
 fn walk_script(
     script: &Script,
-    proc_names: &HashSet<&str>,
+    caller_qname: &str,
+    context: &DiagramContext<'_>,
     depth: usize,
-    registry: &CommandRegistry,
 ) -> Vec<Value> {
     script
         .statements
         .iter()
-        .filter_map(|stmt| walk_statement(stmt, proc_names, depth, registry))
+        .filter_map(|stmt| walk_statement(stmt, caller_qname, context, depth))
         .collect()
 }
 
@@ -668,11 +777,19 @@ pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialec
         .filter(|(key, _)| !key.starts_with("::when::"))
         .collect();
 
-    // User-defined procedure names for call detection.
-    let proc_names: HashSet<&str> = regular_procs
+    // User-defined procedure names for call detection. Keep qualified
+    // identities: Tcl's caller-namespace lookup selects the one that exists,
+    // and two namespaces may deliberately share a short procedure name.
+    let procedure_names: HashSet<String> = regular_procs
         .iter()
-        .map(|(_, proc)| proc.name.as_str())
+        .map(|(_, proc)| proc.qualified_name.clone())
         .collect();
+    let identities = command_head_identities(source, dialect, registry);
+    let context = DiagramContext {
+        procedure_names: &procedure_names,
+        identities: &identities,
+        registry,
+    };
 
     let event_registry = EventRegistry::build();
 
@@ -698,7 +815,7 @@ pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialec
     'outer: for event_name in ordered {
         if let Some(handlers) = handlers_by_event.get(&event_name) {
             for proc in handlers {
-                let flow = walk_script(&proc.body, &proc_names, 0, registry);
+                let flow = walk_script(&proc.body, &proc.qualified_name, &context, 0);
                 let priority = if proc.base_priority == 500 {
                     Value::Null
                 } else {
@@ -720,7 +837,7 @@ pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialec
     let procedures: Vec<Value> = regular_procs
         .iter()
         .map(|(_, proc)| {
-            let flow = walk_script(&proc.body, &proc_names, 0, registry);
+            let flow = walk_script(&proc.body, &proc.qualified_name, &context, 0);
             json!({ "name": proc.name, "params": proc.params, "flow": flow })
         })
         .collect();
@@ -1201,6 +1318,102 @@ mod tests {
                 "{dialect}"
             );
         }
+    }
+
+    #[test]
+    fn procedure_calls_resolve_qualified_names_in_the_callers_namespace() {
+        let data = diagram_data_for_dialect(
+            r"
+                namespace eval ::alpha {
+                    proc helper {} {}
+                    proc caller {} {
+                        helper
+                        ::alpha::helper
+                    }
+                }
+                namespace eval ::beta {
+                    proc helper {} {}
+                    proc caller {} {
+                        helper
+                        alpha::helper
+                        ::alpha::helper
+                    }
+                }
+                namespace eval ::unrelated {
+                    proc caller {} { helper }
+                }
+            ",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+
+        let procedures = data["procedures"].as_array().expect("procedures");
+        assert_eq!(procedures.len(), 5, "{data}");
+        assert_eq!(procedures[1]["name"], "caller");
+        assert_eq!(procedures[3]["name"], "caller");
+        assert_eq!(procedures[4]["name"], "caller");
+
+        for index in [0, 1] {
+            assert_eq!(procedures[1]["flow"][index]["kind"], "proc_call");
+        }
+        // A relative qualified command first probes `::beta::alpha::helper`,
+        // then correctly falls back to `::alpha::helper`; rooted spelling is
+        // a direct lookup of that same declaration.
+        for index in [0, 1, 2] {
+            assert_eq!(procedures[3]["flow"][index]["kind"], "proc_call");
+        }
+        assert!(
+            procedures[4]["flow"].as_array().is_some_and(Vec::is_empty),
+            "a same-tailed procedure in another namespace must not match: {data}"
+        );
+    }
+
+    #[test]
+    fn registry_actions_resolve_relative_names_in_the_callers_namespace() {
+        let data = diagram_data_for_dialect(
+            "proc ::HTTP::caller {} { respond 200 content ok }",
+            tcl_registry::registry_for_dialect("f5-irules"),
+            "f5-irules",
+        );
+        let flow = data
+            .pointer("/procedures/0/flow")
+            .and_then(Value::as_array)
+            .expect("caller flow");
+        assert_eq!(flow.len(), 1, "{data}");
+        assert_eq!(flow[0]["kind"], "action");
+        assert_eq!(flow[0]["command"], "respond");
+    }
+
+    #[test]
+    fn procedure_aliases_and_rebound_registry_heads_stay_source_sensitive() {
+        let data = diagram_data_for_dialect(
+            r"
+                proc ::library::helper {} {}
+                interp alias {} invoke {} ::library::helper
+                rename error saved_error
+                proc error {args} {}
+                proc caller {} {
+                    invoke
+                    error user
+                    saved_error original
+                }
+            ",
+            tcl_registry::registry_for_dialect("tcl8.6"),
+            "tcl8.6",
+        );
+
+        let flow = data
+            .pointer("/procedures/2/flow")
+            .and_then(Value::as_array)
+            .expect("caller flow");
+        assert_eq!(flow.len(), 3, "{data}");
+        assert_eq!(flow[0]["kind"], "proc_call");
+        assert_eq!(flow[0]["command"], "invoke");
+        assert_eq!(flow[1]["kind"], "proc_call");
+        assert_eq!(flow[1]["command"], "error");
+        assert_eq!(flow[2]["kind"], "action");
+        assert_eq!(flow[2]["command"], "saved_error");
+        assert_eq!(flow[2]["completion"], "error");
     }
 
     #[test]
