@@ -8,6 +8,9 @@ Marketplace **pre-release** channel, the JetBrains Marketplace **eap** channel,
 or the assets on this GitHub release. The stable **1.x** line remains the
 default.
 
+The `v2.1.19` tag dereferences to commit
+`54229c4f6cfd38bcb8efece7f797cbd8aca332bc`.
+
 ## Compiler and runtime
 
 - The compiler now has one registry-owned semantic invocation contract for
