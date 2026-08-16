@@ -171,9 +171,9 @@ def build_section(version: str, versions: Sequence[str]) -> str:
         )
 
     lines += _para(
-        f"**`{version}` is this release**: it is the bright blue line — and the "
-        "rightmost bar in each group — in every graph below. Earlier releases are "
-        "drawn in grey and fade with age."
+        f"**`{version}` is this release**: it is the rightmost point or bar in each "
+        "graph below. The series are distinguished by the categorical colours and "
+        "dash patterns shown in each graph's legend."
     )
 
     hosts = _hosts(versions)

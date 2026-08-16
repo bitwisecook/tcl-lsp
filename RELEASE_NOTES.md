@@ -66,9 +66,9 @@ whole series, so the lines are comparable with each other.
 
 There is no `v2.1.2` point: that version was never released.
 
-**`2.1.19` is this release**: it is the bright blue line — and the rightmost
-bar in each group — in every graph below. Earlier releases are drawn in grey
-and fade with age.
+**`2.1.19` is this release**: it is the rightmost point or bar in each graph
+below. The series are distinguished by the categorical colours and dash
+patterns shown in each graph's legend.
 
 The series spans more than one measurement host — Apple M1 Max (darwin-arm64);
 AMD EPYC 9V74 80-Core Processor (linux-x86_64); AMD EPYC 7763 64-Core
