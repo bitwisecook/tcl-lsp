@@ -570,8 +570,9 @@ pub fn minify_tcl_aggressive_with(
     let original_length = source.len();
 
     // Phase 1: apply the optimiser's semantic-preserving rewrites.
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
     let optimisations =
-        tcl_compiler::optimiser::optimise_with_dialect(source, registry, Some(dialect));
+        tcl_compiler::optimiser::optimise_with_dialect(source, registry, Some(profile));
     let opt_count = optimisations.iter().filter(|o| !o.hint_only).count();
     let opt_edits: Vec<Edit> = optimisations
         .iter()

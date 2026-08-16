@@ -98,14 +98,15 @@ fn irules_checks(
     source: &str,
     registry: &tcl_registry::CommandRegistry,
 ) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
+    let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
     let cu = CompilationUnit::build_for_with_config(
         source,
         registry,
         false,
         LexerConfig::for_dialect("f5-irules"),
     )
-    .with_interprocedural(registry, Some("f5-irules"));
-    run_all_checks(&cu, registry, Some("f5-irules"))
+    .with_interprocedural(registry, Some(profile));
+    run_all_checks(&cu, registry, Some(profile))
 }
 
 /// A single-position (empty) `LspRange` at `(line, character)`.

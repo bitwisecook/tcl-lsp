@@ -10684,7 +10684,7 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
-            let dialect_opt = Some(dialect.as_str());
+            let dialect_opt = tcl_dialect::DialectProfile::find(&dialect);
             let (source, opts) = if profile == "full" {
                 tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
             } else {

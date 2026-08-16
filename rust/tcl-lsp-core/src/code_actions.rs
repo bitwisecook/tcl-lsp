@@ -2930,14 +2930,15 @@ mod tests {
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.load_irules();
         let src = "when CLIENT_ACCEPTED { drop }\n";
+        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
         let cu = CompilationUnit::build_for_with_config(
             src,
             &registry,
             false,
             LexerConfig::for_dialect("f5-irules"),
         )
-        .with_interprocedural(&registry, Some("f5-irules"));
-        let checks = run_all_checks(&cu, &registry, Some("f5-irules"));
+        .with_interprocedural(&registry, Some(profile));
+        let checks = run_all_checks(&cu, &registry, Some(profile));
         assert!(
             checks
                 .iter()
@@ -2987,14 +2988,15 @@ mod tests {
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.load_irules();
         let src = "when CLIENT_ACCEPTED { drop }\n";
+        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
         let cu = CompilationUnit::build_for_with_config(
             src,
             &registry,
             false,
             LexerConfig::for_dialect("f5-irules"),
         )
-        .with_interprocedural(&registry, Some("f5-irules"));
-        let checks = run_all_checks(&cu, &registry, Some("f5-irules"));
+        .with_interprocedural(&registry, Some(profile));
+        let checks = run_all_checks(&cu, &registry, Some(profile));
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("IRULE5002".to_string());

@@ -449,8 +449,9 @@ pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Va
     // Build the full compilation unit (via `ensure_compilation_unit`) so the
     // interprocedural pass sees the same lowered IR — raw `lower_to_ir` alone
     // does not surface nested `[cmd …]` call sites to the call scanner.
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
-        .with_interprocedural(registry, Some(dialect));
+    let profile = DialectProfile::by_name(dialect);
+    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
+        .with_interprocedural(registry, Some(profile));
     let ir_module = &cu.ir_module;
     let interproc = cu
         .interproc
@@ -575,6 +576,7 @@ struct TaintWarnCtx<'a> {
 /// yields a `variable` + `sink_command` (the path-concat warning is a
 /// `TaintWarning` with `sink_command="set"`; the Rust `PathConcatWarning`
 /// carries no command field, so we supply the same constant).
+#[allow(clippy::too_many_lines)] // fixed diagnostic-family ordering mirrors compiler_checks.
 fn collect_taint_warnings(
     fu: &FunctionUnit,
     taints: &std::collections::HashMap<
@@ -591,6 +593,7 @@ fn collect_taint_warnings(
         module_traces,
         line_index,
     } = ctx;
+    let profile = DialectProfile::by_name(dialect);
     let mut push = |code: &str, span: Span, message: &str, variable: &str, sink: &str| {
         out.push(json!({
             "code": code,
@@ -624,7 +627,7 @@ fn collect_taint_warnings(
         taints,
         &fu.sccp.executable_blocks,
         registry,
-        Some(dialect),
+        Some(profile),
         &shadowed,
     ) {
         push(
@@ -639,14 +642,14 @@ fn collect_taint_warnings(
     // 2 + 3. Setter-constraint + uri-split are iRules-only. The helpers
     // gate internally too; skipping the walk under a non-iRules dialect
     // matches `compiler_checks` and avoids needless work.
-    if is_irules_dialect(Some(dialect)) {
+    if is_irules_dialect(Some(profile)) {
         for w in find_setter_constraint_warnings(
             registry,
             &fu.cfg,
             &fu.ssa,
             taints,
             &fu.sccp.executable_blocks,
-            Some(dialect),
+            Some(profile),
         ) {
             push(
                 w.code.as_str(),
@@ -662,7 +665,7 @@ fn collect_taint_warnings(
             Some(&fu.sccp.values),
             &fu.sccp.executable_blocks,
             registry,
-            Some(dialect),
+            Some(profile),
         ) {
             push(
                 w.code.as_str(),
@@ -761,8 +764,9 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
 /// Build the dataflow / taint graph payload.
 #[must_use]
 pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
-        .with_interprocedural(registry, Some(dialect));
+    let profile = DialectProfile::by_name(dialect);
+    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
+        .with_interprocedural(registry, Some(profile));
     let line_index = LineIndex::new(source);
 
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
@@ -774,7 +778,7 @@ pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -
     // `find_taint_warnings`. The `tainted_variables` listing below keeps the
     // per-unit `fu.taints` lattice.
     let solved =
-        tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(dialect));
+        tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(profile));
 
     // Taint warnings: top level first, then each procedure.
     let shadow_proc_qnames: std::collections::HashSet<&str> =
@@ -936,8 +940,9 @@ pub fn def_use_graph(source: &str, registry: &CommandRegistry, dialect: &str) ->
         }
     }
 
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
-        .with_interprocedural(registry, Some(dialect));
+    let profile = DialectProfile::by_name(dialect);
+    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
+        .with_interprocedural(registry, Some(profile));
 
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
     proc_names.sort();
@@ -1005,9 +1010,10 @@ fn memory_function_json(
 /// `variable`) with the reason and locations, plus memory-op counts.
 #[must_use]
 pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect)
-        .with_interprocedural(registry, Some(dialect))
-        .with_memory_ssa(registry, DialectProfile::by_name(dialect).availability_mask);
+    let profile = DialectProfile::by_name(dialect);
+    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
+        .with_interprocedural(registry, Some(profile))
+        .with_memory_ssa(registry, profile.availability_mask);
 
     let mut functions: Vec<Value> = vec![memory_function_json(
         "::top",

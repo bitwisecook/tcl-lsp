@@ -154,7 +154,7 @@ pub fn run_opt(
     let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
         &source,
         &registry,
-        Some(dialect.name),
+        Some(dialect),
         profile.max_iterations(),
         &disabled,
     );

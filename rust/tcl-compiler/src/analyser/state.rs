@@ -1643,8 +1643,10 @@ impl Analyser {
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, dialect);
-        self.tk_dialect = dialect == "tk";
+        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
+        self.tk_accumulation_enabled =
+            super::tk_checks::tk_checks_could_apply(source, availability);
+        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
@@ -2045,8 +2047,10 @@ impl Analyser {
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, dialect);
-        self.tk_dialect = dialect == "tk";
+        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
+        self.tk_accumulation_enabled =
+            super::tk_checks::tk_checks_could_apply(source, availability);
+        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
         self.unresolved_commands_emitted = false;
 
         let file_codes = super::utils::parse_file_suppression(source);
@@ -2137,8 +2141,10 @@ impl Analyser {
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, dialect);
-        self.tk_dialect = dialect == "tk";
+        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
+        self.tk_accumulation_enabled =
+            super::tk_checks::tk_checks_could_apply(source, availability);
+        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
         self.unresolved_commands_emitted = false;
 
         let file_codes = super::utils::parse_file_suppression(source);

@@ -904,13 +904,16 @@ pub fn scan_sidecar_stubs(
 /// isolated proc bodies, so their presence selects the full analyser until
 /// those signatures are part of every per-body memo key.
 #[must_use]
-pub fn has_sidecar_stubs(file_path: Option<&str>, dialect: &str) -> bool {
+pub fn has_sidecar_stubs(file_path: Option<&str>, profile: &tcl_dialect::DialectProfile) -> bool {
     let Some(file_path) = file_path else {
         return false;
     };
     let mut dir = std::path::Path::new(file_path).parent();
     while let Some(current) = dir {
-        if current.join(format!("{dialect}.tcl.stubs")).is_file() {
+        if current
+            .join(format!("{}.tcl.stubs", profile.name))
+            .is_file()
+        {
             return true;
         }
         dir = current.parent();

@@ -482,7 +482,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     let dialect = profile.name;
     let registry = registry_for_dialect(dialect);
     let line_index = LineIndex::new(&doc.input.source);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let dialect_opt = Some(profile);
 
     let mut push = |code: DiagCode, span: tcl_lexer::Span, message: String| {
         if !wanted.contains(&code) {

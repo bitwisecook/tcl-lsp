@@ -296,7 +296,7 @@ fn collect_rows(
         ))
     };
     let cu = checks_cu.as_ref();
-    let dialect_opt = Some(dialect.name);
+    let dialect_opt = Some(dialect);
     for d in run_all_checks(cu, &registry, dialect_opt) {
         if d.code.is_optimisation() || disabled.contains(d.code.as_str()) {
             continue;

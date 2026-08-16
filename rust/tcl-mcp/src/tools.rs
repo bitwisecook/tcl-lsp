@@ -383,7 +383,7 @@ fn optimize(args: &Value) -> Value {
     let (optimised, opts, iterations) = optimise_source_multipass_filtered(
         source,
         &registry(&dialect),
-        Some(dialect.as_str()),
+        Some(tcl_dialect::DialectProfile::by_name(&dialect)),
         profile.max_iterations(),
         &disabled,
     );
