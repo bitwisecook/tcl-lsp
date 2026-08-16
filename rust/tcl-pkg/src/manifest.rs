@@ -421,7 +421,12 @@ fn parse_script(src: &str) -> Result<Vec<Vec<String>>, String> {
     for token in tokens {
         match token.kind {
             TokenType::Comment => {}
-            TokenType::Sep | TokenType::Expand => {
+            TokenType::Expand => {
+                return Err(
+                    "manifest expansion prefix `{*}` is not permitted in safe mode".to_string(),
+                );
+            }
+            TokenType::Sep => {
                 finish_word(src, &mut word, token.span.start() as usize, &mut words)?;
             }
             TokenType::Eol | TokenType::Eof => {
@@ -668,5 +673,20 @@ description "$value [dangerous command]"
         )
         .unwrap();
         assert_eq!(ast.description, "$value [dangerous command]");
+    }
+
+    #[test]
+    fn expansion_prefix_is_rejected_in_safe_manifest_words() {
+        let err = load(
+            r"package a
+version 1.0.0
+description {*}$value
+",
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("expansion prefix `{*}` is not permitted")
+        );
     }
 }
