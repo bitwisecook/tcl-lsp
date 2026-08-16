@@ -562,8 +562,18 @@ fn format_case_list_body(
     let mut lines: Vec<String> = Vec::new();
     let mut prefix = Vec::new();
     for element in elements {
-        let raw_end = element.end + usize::from(element.braced);
-        let Some(raw) = body_text.get(element.start..raw_end) else {
+        // `case_list::Element` includes braces in `start`, but (like Tcl's
+        // list parser) reports the interior range for a quoted element.  A
+        // formatter must reconstruct the original list *word*, not merely
+        // its value: dropping quotes can split one pattern into several
+        // elements and change the clause pairing.
+        let quoted = !element.braced
+            && element.start > 0
+            && body_text.as_bytes().get(element.start - 1) == Some(&b'"')
+            && body_text.as_bytes().get(element.end) == Some(&b'"');
+        let raw_start = element.start - usize::from(quoted);
+        let raw_end = element.end + usize::from(element.braced || quoted);
+        let Some(raw) = body_text.get(raw_start..raw_end) else {
             return body_text.to_owned();
         };
         if action_starts.contains(&element.start) {
@@ -2206,13 +2216,15 @@ mod tests {
 
     #[test]
     fn expect_case_list_formatter_preserves_descriptor_fields_and_formats_only_actions() {
-        let source = "expect {\n-regexp {a; b} {puts canonical}\n-re {c; d} {puts abbreviated}\n-timeout 5 timeout {puts timed}\n-i $spawn_id eof {puts eof}\n-- {-literal} {puts literal}\nfull_buffer\n}\n";
+        let source = "expect {\n-regexp {a; b} {puts canonical}\n-re {c; d} {puts abbreviated}\n-glob \"hello world\" {puts quoted}\n-exact \"escaped\\ pattern\" {puts escaped}\n-timeout 5 timeout {puts timed}\n-i $spawn_id eof {puts eof}\n-- {-literal} {puts literal}\nfull_buffer\n}\n";
         let once = fmt_dialect(source, "expect");
         assert_eq!(fmt_dialect(&once, "expect"), once, "{once}");
 
         for literal in [
             "-regexp {a; b} {",
             "-re {c; d} {",
+            "-glob \"hello world\" {",
+            "-exact \"escaped\\ pattern\" {",
             "-timeout 5 timeout {",
             "-i $spawn_id eof {",
             "-- {-literal} {",
@@ -2225,6 +2237,8 @@ mod tests {
         for action in [
             "puts canonical",
             "puts abbreviated",
+            "puts quoted",
+            "puts escaped",
             "puts timed",
             "puts eof",
             "puts literal",
