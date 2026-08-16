@@ -153,14 +153,14 @@ fn event_rooted_closure(
     // the inventory only through a statically resolved registry-declared
     // user-proc invocation (`call`), recursively and cycle-safely.
     let mut out = Vec::new();
-    let mut pending = VecDeque::new();
+    let mut pending = VecDeque::<(String, String)>::new();
     for (event, body) in event_bodies {
         let before = out.len();
         recurse_token(source, &body, ctx, Context::Event(event), &mut out, 1);
         enqueue_proc_calls(&out[before..], ctx.registry, &mut pending);
     }
     let mut reached = HashSet::new();
-    while let Some(name) = pending.pop_front() {
+    while let Some((name, event)) = pending.pop_front() {
         if !reached.insert(name.clone()) {
             continue;
         }
@@ -168,7 +168,11 @@ fn event_rooted_closure(
             continue;
         };
         let before = out.len();
-        recurse_token(source, body, ctx, Context::Procedure, &mut out, 1);
+        // A procedure executes on behalf of the event that reached it. Keep
+        // that provenance on every command in the closure so consumers that
+        // classify event-sensitive state do not mistake a called helper for
+        // dormant code.
+        recurse_token(source, body, ctx, Context::Procedure(event), &mut out, 1);
         enqueue_proc_calls(&out[before..], ctx.registry, &mut pending);
     }
     // A local proc spelling is not an invocation form in iRules; only a
@@ -189,7 +193,7 @@ fn procedure_key(name: &str) -> String {
 fn enqueue_proc_calls(
     commands: &[IrulesExecutableCommand],
     registry: &CommandRegistry,
-    pending: &mut VecDeque<String>,
+    pending: &mut VecDeque<(String, String)>,
 ) {
     for command in commands {
         let Some(spec) = registry.get(&command.command) else {
@@ -202,8 +206,9 @@ fn enqueue_proc_calls(
         for index in registry.arg_indices_for_role(&command.command, &args, ArgRole::Name) {
             if let Some(name) = command.args.get(index)
                 && !name.contains(['$', '[', ']', ';'])
+                && let Some(event) = command.event.as_ref()
             {
-                pending.push_back(procedure_key(name));
+                pending.push_back((procedure_key(name), event.clone()));
             }
         }
     }
@@ -283,7 +288,7 @@ fn collect_top_level_regions(
 #[derive(Clone)]
 enum Context {
     Event(String),
-    Procedure,
+    Procedure(String),
 }
 
 fn event_registry() -> &'static tcl_registry::events::EventRegistry {
@@ -324,7 +329,7 @@ fn walk(
 
         let nested_context = match context {
             Context::Event(_) => IrulesExecutionContext::EventBody,
-            Context::Procedure => IrulesExecutionContext::ProcedureBody,
+            Context::Procedure(_) => IrulesExecutionContext::ProcedureBody,
         };
         if registry.irules_command_placement(&head, nested_context)
             == IrulesCommandPlacement::RequiresTopLevel
@@ -403,8 +408,7 @@ fn walk(
             args: cmd.args().to_vec(),
             variable_names,
             event: match &context {
-                Context::Event(event) => Some(event.clone()),
-                Context::Procedure => None,
+                Context::Event(event) | Context::Procedure(event) => Some(event.clone()),
             },
         });
 

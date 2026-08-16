@@ -1261,6 +1261,23 @@ mod tests {
     }
 
     #[test]
+    fn called_helper_static_write_preserves_hot_event_for_multi_tmm() {
+        let generated = generate_irule_test(&json!({
+            "source": concat!(
+                "proc helper {} { set static::flag 1 }\n",
+                "when HTTP_REQUEST { call helper }\n",
+            ),
+        }));
+        assert_eq!(generated["multi_tmm_detected"], json!(true));
+        assert!(
+            generated["test_script"]
+                .as_str()
+                .is_some_and(|script| script.contains("fakeCMP distributes clients across TMMs")),
+            "a hot event's called helper write needs the multi-TMM scaffold"
+        );
+    }
+
+    #[test]
     fn generator_builds_one_request_closure_for_every_execution_sensitive_output() {
         let src = concat!(
             "proc ::rooted_helper {} { pool helper_pool; call chain_helper }\n",
