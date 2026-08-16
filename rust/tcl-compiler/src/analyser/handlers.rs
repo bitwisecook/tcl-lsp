@@ -1172,9 +1172,58 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) {
+        // A registry symbol definer that is top-level-only in iRules does not
+        // become a definition merely because its invalid nested spelling was
+        // parsed. In particular, nested event-handler syntax must not leak
+        // into document/workspace symbol inventories. Keep this driven by the
+        // placement trait shared with IRULE5006, never by a command name.
+        if self.profile.is_irules()
+            && self.body_depth > 0
+            && self.registry.as_deref().is_some_and(|registry| {
+                registry.get(cmd_name).is_some_and(|spec| {
+                    spec.traits
+                        .contains(tcl_registry::Traits::IRULES_TOP_LEVEL_ONLY)
+                })
+            })
+        {
+            return;
+        }
         let Some(sym) = self.resolve_symbol_definer(cmd_name, scope_path) else {
             return;
         };
+        // An iRules event symbol is a declaration only when the shared
+        // source-aware owner accepts its complete top-level shape. In
+        // particular, a bare or quoted body must not turn an otherwise
+        // ordinary command into an outline event.
+        if self.profile.is_irules() && sym.kind == tcl_registry::DefinedSymbolKind::Event {
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            let valid = self.body_depth == 0
+                && self.registry.as_deref().is_some_and(|registry| {
+                    tcl_registry::events::closed_braced_argument_words(
+                        &self.source,
+                        arg_tokens,
+                        arg_single,
+                    )
+                    .as_deref()
+                    .and_then(|closed| {
+                        tcl_registry::events::IrulesDeclarationArguments::new(
+                            &words, arg_tokens, arg_single, closed,
+                        )
+                    })
+                    .and_then(|arguments| {
+                        registry.irules_top_level_declaration_shape(cmd_name, arguments)
+                    })
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration,
+                            tcl_registry::events::IrulesTopLevelDeclaration::Event { .. }
+                        )
+                    })
+                });
+            if !valid {
+                return;
+            }
+        }
         // A command that defines only in one form (the `testConstraint NAME
         // value` setter, not the `testConstraint NAME` getter) records a symbol
         // only when its defining argument is present.
@@ -1679,6 +1728,14 @@ impl Analyser {
         arg_single: &[bool],
         scope_path: &[usize],
     ) -> bool {
+        // iRules procedures are declaration-only, exact three-word forms at
+        // file scope. An invalid declaration is consumed but deliberately
+        // contributes no symbol, binding, scope, or executable body facts.
+        if self.profile.is_irules()
+            && !self.is_valid_irules_procedure_declaration(args, arg_tokens, arg_single)
+        {
+            return true;
+        }
         if args.len() < 3 || arg_tokens.len() < 3 {
             return false;
         }
@@ -1819,6 +1876,47 @@ impl Analyser {
         }
 
         true
+    }
+
+    fn is_valid_irules_procedure_declaration(
+        &self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> bool {
+        if self.body_depth != 0 {
+            return false;
+        }
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let registry = self
+            .registry
+            .as_deref()
+            .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
+        let closed = tcl_registry::events::closed_braced_argument_words(
+            &self.source,
+            arg_tokens,
+            arg_single,
+        );
+        closed
+            .as_deref()
+            .and_then(|closed| {
+                tcl_registry::events::IrulesDeclarationArguments::new(
+                    &words, arg_tokens, arg_single, closed,
+                )
+            })
+            .and_then(|arguments| {
+                registry.irules_top_level_declaration(
+                    "proc",
+                    arguments,
+                    &tcl_registry::events::EventRegistry::build(),
+                )
+            })
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration,
+                    tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. }
+                )
+            })
     }
 
     /// Record one `proc` declaration into the whole-document tables —
@@ -10268,6 +10366,60 @@ mod tests {
     }
 
     #[test]
+    fn irules_profile_without_attached_registry_keeps_valid_proc_semantics() {
+        let mut analyser = Analyser::new();
+        analyser.profile = tcl_dialect::DialectProfile::irules();
+        analyser.source = "proc set {} {}".to_owned();
+        assert!(analyser.registry.is_none());
+        let handled = analyser.handle_proc_command(
+            &["set".to_owned(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[true, true, true],
+            &[],
+        );
+        assert!(handled);
+        assert!(analyser.result.all_procs.contains_key("::set"));
+        assert!(
+            analyser
+                .result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W113)
+        );
+    }
+
+    #[test]
+    fn irules_profile_without_attached_registry_rejects_malformed_proc() {
+        let mut analyser = Analyser::new();
+        analyser.profile = tcl_dialect::DialectProfile::irules();
+        assert!(analyser.registry.is_none());
+        let handled = analyser.handle_proc_command(
+            &[
+                "set".to_owned(),
+                String::new(),
+                "set leaked 1".to_owned(),
+                "extra".to_owned(),
+            ],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 26)),
+                esc_tok(span(27, 32)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(handled);
+        assert!(analyser.result.all_procs.is_empty());
+        assert!(analyser.result.global_scope.variables.is_empty());
+        assert!(analyser.result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn handle_proc_no_w113_for_non_builtin_name() {
         // ``foo`` is not a built-in — no W113.
         let mut a = Analyser::new();
@@ -10351,6 +10503,7 @@ mod tests {
         // namespace, not a core-global shadow.)
         let mut a = Analyser::new();
         a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        a.source = "proc pool {} {}".to_owned();
         a.handle_proc_command(
             &["pool".to_string(), String::new(), String::new()],
             &[
@@ -10358,7 +10511,7 @@ mod tests {
                 str_tok(span(10, 12)),
                 str_tok(span(13, 15)),
             ],
-            &[],
+            &[true, true, true],
             &[],
         );
         assert!(

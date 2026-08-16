@@ -449,36 +449,10 @@ fn order_events_for_file(
     source: &str,
     events: &tcl_registry::events::EventRegistry,
 ) -> Vec<String> {
-    // Match `\bwhen\s+([A-Z_][A-Z0-9_]*)` — the event-opener regex.
-    let mut found: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    let bytes = source.as_bytes();
-    let mut i = 0;
-    while let Some(rel) = source[i..].find("when") {
-        let start = i + rel;
-        // `\b` before "when": preceding char must not be a word char.
-        let prev_ok = start == 0 || !is_word_byte(bytes[start - 1]);
-        let after = start + 4;
-        if prev_ok && after < bytes.len() && bytes[after].is_ascii_whitespace() {
-            // skip whitespace
-            let mut j = after;
-            while j < bytes.len() && bytes[j].is_ascii_whitespace() {
-                j += 1;
-            }
-            // first char [A-Z_]
-            if j < bytes.len() && (bytes[j] == b'_' || bytes[j].is_ascii_uppercase()) {
-                let name_start = j;
-                while j < bytes.len()
-                    && (bytes[j] == b'_'
-                        || bytes[j].is_ascii_uppercase()
-                        || bytes[j].is_ascii_digit())
-                {
-                    j += 1;
-                }
-                found.insert(source[name_start..j].to_owned());
-            }
-        }
-        i = start + 4;
-    }
+    let found: std::collections::BTreeSet<String> = tcl_irules::when_blocks(source)
+        .into_iter()
+        .map(|block| block.event)
+        .collect();
 
     // order_events: known events by master-order index, unknown sorted after.
     let order: Vec<&str> = events.master_order().iter().map(|o| o.event).collect();
@@ -494,10 +468,6 @@ fn order_events_for_file(
     known.sort();
     unknown.sort();
     known.into_iter().map(|(_, e)| e).chain(unknown).collect()
-}
-
-fn is_word_byte(b: u8) -> bool {
-    b == b'_' || b.is_ascii_alphanumeric()
 }
 
 /// Multiplicity category for a single event.
@@ -858,57 +828,6 @@ fn run_irule_context(
 
 // trace
 
-/// Return the body text inside the `{...}` starting at byte `open_brace`.
-/// Brace-depth scan that skips `"…"` strings (honouring `\` escapes). Operates
-/// on bytes — `{` / `}` / `"` / `\` are all ASCII, so UTF-8 multibyte
-/// sequences are passed through untouched and the returned slice lands on char
-/// boundaries.
-fn slice_balanced_braces(source: &str, open_brace: usize) -> String {
-    let bytes = source.as_bytes();
-    if bytes.get(open_brace) != Some(&b'{') {
-        return String::new();
-    }
-    let mut depth = 1usize;
-    let mut i = open_brace + 1;
-    let start = i;
-    while i < bytes.len() && depth > 0 {
-        match bytes[i] {
-            b'{' => depth += 1,
-            b'}' => depth -= 1,
-            b'"' => {
-                i += 1;
-                while i < bytes.len() && bytes[i] != b'"' {
-                    if bytes[i] == b'\\' {
-                        i += 1;
-                    }
-                    i += 1;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    source[start..i.saturating_sub(1)].to_owned()
-}
-
-/// First token of each non-blank, non-comment line in `body`: the leading
-/// whitespace-delimited word, right-trimmed of `{`, `}`, `;`.
-fn extract_commands(body: &str) -> Vec<String> {
-    let mut cmds: Vec<String> = Vec::new();
-    for raw in body.lines() {
-        let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let head = line.split_whitespace().next().unwrap_or("");
-        let head = head.trim_end_matches(['{', '}', ';']);
-        if !head.is_empty() {
-            cmds.push(head.to_owned());
-        }
-    }
-    cmds
-}
-
 /// One resolved object reference in a trace.
 struct TraceRef {
     kind: &'static str,
@@ -931,7 +850,9 @@ struct Trace {
 /// block, else `1`.
 fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
     use tcl_bigip::irule_context::{classify_kind, resolve_reference};
-    use tcl_irules::extract_irules_object_references;
+    use tcl_irules::{
+        extract_irules_object_references_in_closure, irules_event_executable_closure,
+    };
 
     let loaded = resolve_irule_inputs(input)?;
 
@@ -944,18 +865,19 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
 
     let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
-    // Match `\bwhen\s+<EVENT>\s*\{`, case-insensitive.
-    let block_re = regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
-        .map_err(|_| 2u8)?;
-
     let mut traces: Vec<Trace> = Vec::new();
     for entry in &loaded.inputs {
-        let Some(m) = block_re.find(&entry.source) else {
+        if !tcl_irules::when_blocks(&entry.source)
+            .into_iter()
+            .any(|block| block.event.eq_ignore_ascii_case(event))
+        {
             continue;
-        };
-        let open_brace = m.end() - 1; // the `{` the regex ended on
-        let body = slice_balanced_braces(&entry.source, open_brace);
-        let commands = extract_commands(&body);
+        }
+        let executable = irules_event_executable_closure(&entry.source, event, registry);
+        let commands = executable
+            .iter()
+            .map(|command| command.command.clone())
+            .collect();
         let rule_label = entry
             .rule_full_path
             .clone()
@@ -963,7 +885,12 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
 
         let mut references: Vec<TraceRef> = Vec::new();
         let mut seen: std::collections::HashSet<(&str, String)> = std::collections::HashSet::new();
-        for reference in extract_irules_object_references(&body, None, registry) {
+        // The closure is the execution owner for both the command inventory
+        // and object references.  No physical-body range check can express a
+        // reached helper procedure (or distinguish a dormant one) correctly.
+        for reference in
+            extract_irules_object_references_in_closure(&entry.source, None, registry, &executable)
+        {
             let Some(kind) = classify_kind(&reference.kinds) else {
                 continue;
             };

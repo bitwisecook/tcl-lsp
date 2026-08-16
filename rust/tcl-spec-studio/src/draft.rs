@@ -1343,6 +1343,13 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             spec.event_handler_priority.is_some(),
         ),
     );
+    d.insert(
+        "irules_top_level_effect".into(),
+        lost.expr(
+            "irules_top_level_effect",
+            spec.irules_top_level_effect.is_some(),
+        ),
+    );
     d.insert("options".into(), option_rows(spec.options, lost));
     let option_constraints = if spec.option_constraints.is_empty() {
         Value::Null
@@ -1714,6 +1721,7 @@ mod tests {
             data_collection: Some(tcl_registry::events::HTTP_COLLECT),
             side_switch_target: Some(tcl_registry::side_effects::SideSwitchTarget::Client),
             event_handler_priority: Some(tcl_registry::events::BIGIP_EVENT_HANDLER_PRIORITY),
+            irules_top_level_effect: Some(tcl_registry::events::IrulesTopLevelEffect::Priority),
             ..CommandSpec::DEFAULT
         };
         let draft = from_command_spec(&spec);
@@ -1722,6 +1730,7 @@ mod tests {
             "data_collection",
             "side_switch_target",
             "event_handler_priority",
+            "irules_top_level_effect",
         ] {
             assert_eq!(draft[key], Value::Null, "{key} must request its Rust path");
         }
@@ -1731,7 +1740,8 @@ mod tests {
                 "event_requirement_forms",
                 "data_collection",
                 "side_switch_target",
-                "event_handler_priority"
+                "event_handler_priority",
+                "irules_top_level_effect"
             ])
         );
     }

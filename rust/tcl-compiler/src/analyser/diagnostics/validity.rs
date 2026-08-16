@@ -3178,7 +3178,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
 
         // W117 — stub expr function/operator shadows a built-in.
         if !self.result.stub_expr_defs.is_empty() {
-            let irules = self.dialect() == "f5-irules";
+            let irules = self.profile.is_irules();
             let hits: Vec<(String, String, tcl_lexer::Span)> = self
                 .result
                 .stub_expr_defs
@@ -3226,7 +3226,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         cmd_name: &str,
         cmd_tok: tcl_lexer::Token,
     ) {
-        if self.dialect() != "f5-irules" {
+        if !self.profile.is_irules() {
             return;
         }
         let Some(spec) = self.registry.as_deref().and_then(|r| r.get(cmd_name)) else {
@@ -3422,7 +3422,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         arg_tokens: &[tcl_lexer::Token],
         cmd_tok: tcl_lexer::Token,
     ) {
-        if self.dialect() != "f5-irules" || cmd_name != "matchclass" {
+        if !self.profile.is_irules() || cmd_name != "matchclass" {
             return;
         }
         // Auto-fix `matchclass` → `class match`, a 1:1 rename (same argument

@@ -25,8 +25,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_lexer::{SourceMap, Span, Token};
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_lexer::{SourceMap, Span, Token, TokenType};
+use tcl_registry::definer::DefinitionBodyGrammar;
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::ir::Statement;
 
@@ -101,22 +102,41 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
 ///
 /// Bare ``# noqa`` (no ``: CODE`` list) is recorded with the `"*"`
 /// sentinel that the suppression filter treats as "every code".
+#[cfg(test)]
 #[must_use]
 pub fn parse_noqa_line_suppressions(
     source: &str,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
+    parse_noqa_line_suppressions_for_dialect(source, "tcl9.0")
+}
+
+/// Dialect-aware [`parse_noqa_line_suppressions`].
+#[must_use]
+pub fn parse_noqa_line_suppressions_for_dialect(
+    source: &str,
+    dialect: &str,
+) -> std::collections::HashMap<i32, HashSet<String>> {
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    parse_noqa_line_suppressions_with_registry(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_registry::cache::registry_for_profile(profile),
+    )
+}
+
+fn parse_noqa_line_suppressions_with_registry(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+) -> std::collections::HashMap<i32, HashSet<String>> {
     let mut result: std::collections::HashMap<i32, HashSet<String>> =
         std::collections::HashMap::new();
-    for (idx, line) in source.split('\n').enumerate() {
-        let stripped = line.trim();
-        if !stripped.starts_with('#') {
-            continue;
-        }
-        let lower = stripped.to_ascii_lowercase();
+    for fact in script_comment_facts(source, config, registry) {
+        let lower = fact.text.to_ascii_lowercase();
         let Some(noqa_pos) = lower.find("noqa") else {
             continue;
         };
-        let rest = stripped[noqa_pos + 4..].trim();
+        let rest = fact.text[noqa_pos + 4..].trim();
         let codes: HashSet<String> = if let Some(after_colon) = rest.strip_prefix(':') {
             let parsed: HashSet<String> = after_colon
                 .split([',', ' ', '\t', '\r', '\n'])
@@ -132,10 +152,357 @@ pub fn parse_noqa_line_suppressions(
         } else {
             std::iter::once("*".to_string()).collect()
         };
-        let next_line = i32::try_from(idx).unwrap_or(i32::MAX).saturating_add(1);
+        let next_line = i32::try_from(fact.line)
+            .unwrap_or(i32::MAX)
+            .saturating_add(1);
         result.entry(next_line).or_default().extend(codes);
     }
     result
+}
+
+/// One lexer-confirmed command-position comment in a registry-reachable script.
+///
+/// `span` is an absolute byte range in the whole document and includes the
+/// leading `#`.  A fact only represents a physical comment line (the first
+/// non-horizontal-whitespace token is `#`), never a `;#` tail comment.  The
+/// caller can therefore inspect the exact comment slice without re-reading
+/// source text before the marker.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ScriptCommentFact {
+    /// Absolute lexer-confirmed comment-token span, including `#`.
+    pub span: Span,
+    /// Zero-based physical line on which the `#` begins.
+    pub line: usize,
+    /// Exact lexer-confirmed comment text, including `#` and any continued
+    /// physical lines. Consumers must inspect this instead of rescanning the
+    /// source line that happens to contain the comment.
+    pub text: String,
+}
+
+/// Lexer-confirmed physical comments in the document's top-level script or a
+/// registry-declared script body. Braced data arguments are never recursively
+/// tokenised as scripts. Callers must pass the document's resolved lexer
+/// configuration and registry; there is deliberately no implicit Tcl profile.
+#[must_use]
+pub fn script_comment_facts(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<ScriptCommentFact> {
+    CommentLineWalker::new(source, config, registry).collect()
+}
+
+/// Lexer-fact walk over every registry-declared script shape.  This is shared
+/// by `# noqa`, W115, and code actions so neither feature can accidentally
+/// invent a separate idea of where executable comment lines may occur.
+struct CommentLineWalker<'a> {
+    whole: &'a str,
+    config: tcl_lexer::LexerConfig,
+    registry: &'a CommandRegistry,
+    identities: crate::head_identity::HeadIdentityMap,
+    line_index: tcl_lexer::LineIndex,
+    availability: tcl_dialect::DialectSet,
+    visited: HashSet<(u32, u32)>,
+    facts: Vec<ScriptCommentFact>,
+}
+
+impl<'a> CommentLineWalker<'a> {
+    fn new(whole: &'a str, config: tcl_lexer::LexerConfig, registry: &'a CommandRegistry) -> Self {
+        Self {
+            whole,
+            config,
+            registry,
+            identities: crate::head_identity::command_head_identities_with_config(
+                whole, config, registry,
+            ),
+            line_index: tcl_lexer::LineIndex::new(whole),
+            availability: registry
+                .profile()
+                .map_or_else(tcl_dialect::DialectSet::empty, |p| p.availability_mask),
+            visited: HashSet::new(),
+            facts: Vec::new(),
+        }
+    }
+
+    fn collect(mut self) -> Vec<ScriptCommentFact> {
+        self.visit(self.whole, 0, 0, None);
+        self.facts.sort_unstable_by_key(|fact| fact.span.start());
+        self.facts.dedup_by_key(|fact| fact.span);
+        self.facts
+    }
+
+    fn visit(
+        &mut self,
+        script: &'a str,
+        base_offset: u32,
+        depth: u32,
+        definition_grammar: Option<&'static DefinitionBodyGrammar>,
+    ) {
+        if depth > 64
+            || !self
+                .visited
+                .insert((base_offset, u32::try_from(script.len()).unwrap_or(u32::MAX)))
+        {
+            return;
+        }
+        if let Ok(tokens) =
+            tcl_lexer::Lexer::with_config(script, self.config.at_depth(depth)).tokenise_all()
+        {
+            for token in tokens
+                .into_iter()
+                .filter(|token| token.kind == TokenType::Comment)
+            {
+                let start = usize::try_from(token.span.start()).unwrap_or(script.len());
+                let line_start = script[..start].rfind('\n').map_or(0, |offset| offset + 1);
+                if !script[line_start..start]
+                    .bytes()
+                    .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | 0x0b | 0x0c))
+                {
+                    continue;
+                }
+                let span = Span::new(
+                    base_offset.saturating_add(token.span.start()),
+                    base_offset.saturating_add(token.span.end()),
+                );
+                self.facts.push(ScriptCommentFact {
+                    span,
+                    line: usize::try_from(self.line_index.line_at(span.start()))
+                        .unwrap_or(usize::MAX),
+                    text: script
+                        .get(token.span.start() as usize..token.span.end() as usize)
+                        .unwrap_or_default()
+                        .to_owned(),
+                });
+            }
+        }
+        for command in crate::segmenter::segment_commands_with_offset_and_config(
+            script,
+            0,
+            self.config.at_depth(depth),
+        ) {
+            let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+            let written = command.name();
+            let at = base_offset
+                .saturating_add(command.argv.first().map_or(0, |token| token.span.start()));
+            let name = registry_head(
+                self.identities.head_words(written, at).resolved,
+                self.registry,
+            );
+            let member = definition_grammar.and_then(|grammar| grammar.member(&name));
+            let body_indices = member.map_or_else(
+                || {
+                    self.registry
+                        .arg_indices_for_role(&name, &args, ArgRole::Body)
+                },
+                |_| {
+                    definition_grammar
+                        .expect("member has grammar")
+                        .member_body_indices_in(&name, &args, self.availability)
+                },
+            );
+            let next_grammar =
+                next_definition_grammar(self.registry, &name, &args, definition_grammar, member);
+            let case_list = self
+                .registry
+                .case_invocation(&name, &args, self.availability)
+                .and_then(|(spec, invocation)| {
+                    invocation.clause_list_index.map(|index| (spec, index))
+                });
+
+            if let Some((spec, index)) = case_list
+                && let Some(&token) = command.arg_tokens().get(index)
+                && token.kind == tcl_lexer::TokenType::Str
+            {
+                self.visit_case_list(script, token, &spec, base_offset, depth);
+            }
+
+            for index in body_indices {
+                let Some(&token) = command.arg_tokens().get(index) else {
+                    continue;
+                };
+                if token.kind != tcl_lexer::TokenType::Str {
+                    continue;
+                }
+                if case_list.is_some_and(|(_, case_index)| case_index == index) {
+                    continue;
+                }
+                self.visit_braced_word(script, token, base_offset, depth, next_grammar);
+            }
+            self.visit_lambda_literals(script, &command, &name, &args, base_offset, depth);
+            self.visit_command_substitutions(script, &command, base_offset, depth);
+        }
+    }
+
+    fn visit_braced_word(
+        &mut self,
+        script: &'a str,
+        token: tcl_lexer::Token,
+        base_offset: u32,
+        depth: u32,
+        grammar: Option<&'static DefinitionBodyGrammar>,
+    ) {
+        let whole_word = tcl_lexer::word_span_at(script, token.span);
+        let start = usize::try_from(whole_word.start()).unwrap_or(script.len());
+        let end = usize::try_from(whole_word.end()).unwrap_or(script.len());
+        if end <= start + 1 || script.as_bytes().get(start) != Some(&b'{') {
+            return;
+        }
+        let Some(body) = script.get(start + 1..end - 1) else {
+            return;
+        };
+        self.visit(
+            body,
+            base_offset.saturating_add(u32::try_from(start + 1).unwrap_or(u32::MAX)),
+            depth.saturating_add(1),
+            grammar,
+        );
+    }
+
+    fn visit_case_list(
+        &mut self,
+        script: &'a str,
+        token: tcl_lexer::Token,
+        spec: &tcl_registry::CaseListSpec,
+        base_offset: u32,
+        depth: u32,
+    ) {
+        let content_start = token.span.start() as usize + token.content_offset as usize;
+        let content_end = token.span.end() as usize;
+        let Some(list) = script.get(content_start..content_end) else {
+            return;
+        };
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: spec.clause_flags,
+            clause_value_flags: spec.clause_value_flags,
+        };
+        for clause in tcl_syntax::case_list::split_case_list(list, &shape) {
+            let Some(body) = clause.body.filter(|body| body.braced) else {
+                continue;
+            };
+            let range = body.content_range();
+            let start = content_start + range.start;
+            let end = content_start + range.end;
+            let Some(arm) = script.get(start..end) else {
+                continue;
+            };
+            self.visit(
+                arm,
+                base_offset.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
+                depth.saturating_add(1),
+                None,
+            );
+        }
+    }
+
+    fn visit_lambda_literals(
+        &mut self,
+        script: &'a str,
+        command: &crate::segmenter::SegmentedCommand,
+        name: &str,
+        args: &[&str],
+        base_offset: u32,
+        depth: u32,
+    ) {
+        for index in self
+            .registry
+            .arg_indices_for_role(name, args, ArgRole::LambdaLiteral)
+        {
+            let Some(&token) = command.arg_tokens().get(index) else {
+                continue;
+            };
+            let Some(body) = crate::lambda_literal::split_lambda_literal(script, token)
+                .and_then(|literal| literal.braced_body())
+            else {
+                continue;
+            };
+            let start = body.start() as usize;
+            let end = body.end() as usize;
+            let Some(lambda) = script.get(start..end) else {
+                continue;
+            };
+            self.visit(
+                lambda,
+                base_offset.saturating_add(body.start()),
+                depth.saturating_add(1),
+                None,
+            );
+        }
+    }
+
+    /// Descend command-substitution tokens exactly as the CST segmented them.
+    /// A braced word has no command-substitution token, so inert data remains
+    /// opaque; bare and quoted words retain every executable bracketed span
+    /// without a second source scan.
+    fn visit_command_substitutions(
+        &mut self,
+        script: &'a str,
+        command: &crate::segmenter::SegmentedCommand,
+        base_offset: u32,
+        depth: u32,
+    ) {
+        for &token in &command.all_tokens {
+            if token.kind != tcl_lexer::TokenType::Cmd {
+                continue;
+            }
+            let start = token.span.start() as usize + token.content_offset as usize;
+            let end = token.span.end() as usize;
+            let Some(inner) = script.get(start..end) else {
+                continue;
+            };
+            self.visit(
+                inner,
+                base_offset.saturating_add(
+                    token
+                        .span
+                        .start()
+                        .saturating_add(u32::from(token.content_offset)),
+                ),
+                depth.saturating_add(1),
+                None,
+            );
+        }
+    }
+}
+
+/// Convert a proven command identity into the registry's canonical global
+/// spelling.  A leading namespace root is Tcl syntax, not part of a core
+/// command's registry key; qualified names that the registry owns remain
+/// intact. Rebound identities are already the empty string and fail closed.
+fn registry_head(head: &str, registry: &CommandRegistry) -> String {
+    let canonical = tcl_syntax::naming::canonical_written_command(head);
+    if registry.get_exact(&canonical).is_some() {
+        return canonical;
+    }
+    if let Some(rooted) = canonical.strip_prefix("::")
+        && registry.get_exact(rooted).is_some()
+    {
+        return rooted.to_owned();
+    }
+    canonical
+}
+
+fn next_definition_grammar(
+    registry: &CommandRegistry,
+    name: &str,
+    args: &[&str],
+    current: Option<&'static DefinitionBodyGrammar>,
+    member: Option<&'static tcl_registry::definer::MemberSpec>,
+) -> Option<&'static DefinitionBodyGrammar> {
+    if let Some(grammar) = registry.get(name).and_then(|spec| spec.definition_body) {
+        return Some(grammar);
+    }
+    let Some(member) = member else {
+        return current;
+    };
+    if member.wrapper_block_body
+        && args
+            .first()
+            .is_some_and(|inner| current.is_some_and(|grammar| grammar.member(inner).is_none()))
+    {
+        current
+    } else {
+        None
+    }
 }
 
 /// Scan `source` for inline ``# tcl-lsp: stub <name> ...``
@@ -1406,6 +1773,148 @@ mod tests {
         assert!(!map.contains_key(&1));
         // ``# noqa`` on line 1 → suppresses line 2.
         assert!(map.get(&2).expect("line 2 entry").contains("*"));
+    }
+
+    #[test]
+    fn comment_facts_are_exact_slices_and_never_promote_pre_comment_noqa() {
+        let src = "set marker \"noqa\"; # ordinary comment\n# café noqa: W305\nputs \"\u{202e}\"\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let facts = script_comment_facts(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert_eq!(
+            facts.len(),
+            1,
+            "tail comments are not physical facts: {facts:?}"
+        );
+        assert_eq!(facts[0].line, 1);
+        assert_eq!(facts[0].text, "# café noqa: W305");
+        assert_eq!(
+            src.get(facts[0].span.start() as usize..facts[0].span.end() as usize),
+            Some(facts[0].text.as_str()),
+            "fact span must identify precisely the lexer-confirmed slice"
+        );
+        let suppressions = parse_noqa_line_suppressions(src);
+        assert!(
+            suppressions
+                .get(&2)
+                .is_some_and(|codes| codes.contains("W305"))
+        );
+        assert!(
+            !suppressions.contains_key(&1),
+            "string data must not become noqa"
+        );
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_ignores_braced_data() {
+        let src = "proc example {} {\n    set help {\nline one\n# noqa\n    }\n    puts $undefined_var\n}\n";
+        let map = parse_noqa_line_suppressions(src);
+        assert!(
+            map.is_empty(),
+            "braced data must not become a directive: {map:?}"
+        );
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_reaches_case_list_arms() {
+        let src = "switch $kind {\n    alpha {\n        # noqa: W305\n        puts \"\u{202e}\"\n    }\n}\n";
+        let map = parse_noqa_line_suppressions(src);
+        let codes = map.get(&3).expect("switch arm target line");
+        assert!(codes.contains("W305"), "{map:?}");
+    }
+
+    #[test]
+    fn script_comment_facts_reaches_expect_clause_flags_and_lambda_bodies() {
+        let src = "expect {\n    -re {ready} {\n        # expect arm\n        # continuation \\\n        hidden\n    }\n}\napply {{} {\n    # lambda body\n    puts ok\n}}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("expect");
+        let comments = script_comment_facts(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("expect"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            comments.iter().any(|fact| fact.line == 2),
+            "Expect comment missing: {comments:?}"
+        );
+        assert!(
+            comments.iter().any(|fact| fact.line == 3),
+            "continued comment missing: {comments:?}"
+        );
+        assert!(
+            comments.iter().any(|fact| fact.line == 8),
+            "lambda comment missing: {comments:?}"
+        );
+    }
+
+    #[test]
+    fn script_comment_facts_reaches_definition_member_bodies() {
+        let src = "oo::class create Example {\n    method run {} {\n        # member body\n        puts ok\n    }\n}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let comments = script_comment_facts(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            comments.iter().any(|fact| fact.line == 2),
+            "definition-member comment missing: {comments:?}"
+        );
+    }
+
+    #[test]
+    fn script_comment_facts_reaches_nested_command_substitution_case_arms() {
+        let src = "set result [switch $kind {\n    alpha {\n        # nested comment \\\n        hidden\n    }\n}]\nset data {[switch $kind { beta { # inert } }]}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let comments = script_comment_facts(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            comments.iter().any(|fact| fact.line == 2),
+            "nested comment missing: {comments:?}"
+        );
+        assert_eq!(
+            comments.len(),
+            1,
+            "braced data must stay inert: {comments:?}"
+        );
+    }
+
+    #[test]
+    fn script_comment_facts_uses_proven_alias_identity_for_body_roles() {
+        let src = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let comments = script_comment_facts(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            comments.iter().any(|fact| fact.line == 2),
+            "alias body comment missing: {comments:?}"
+        );
+    }
+
+    #[test]
+    fn alias_to_user_proc_named_method_keeps_final_braced_data_inert() {
+        // Tclsh executes the user proc through the alias; `# inert data` is
+        // an argument, not a script comment. A member-keyword spelling is not
+        // enough to prove the alias owns definition-member semantics.
+        let src = "proc method {name parameters body} {\n    return \"$name:$parameters:$body\"\n}\ninterp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        # inert data\n        puts must-not-run\n    }\n}\n";
+        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let comments = script_comment_facts(
+            src,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            tcl_registry::cache::registry_for_profile(profile),
+        );
+        assert!(
+            !comments.iter().any(|fact| fact.line == 6),
+            "the user proc's braced data must not yield a script-comment fact: {comments:?}"
+        );
     }
 
     #[test]

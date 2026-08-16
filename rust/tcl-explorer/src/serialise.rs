@@ -52,7 +52,7 @@ use tcl_compiler::mixed_region_plan::{
     GuardedCandidateDecision, GuardedCandidateDecline, RegionPlan,
 };
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
-use tcl_compiler::segmenter::{segment_commands, segment_commands_with_offset_and_config};
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_compiler::semantic_analysis::{
     ExecutableAnalysisAvailability, MixedRegionPlanAvailability,
 };
@@ -2446,7 +2446,7 @@ pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
 /// for ordinary Tcl (no `when` blocks), so it is strictly gateable against the
 /// Tcl corpus; the `when`-handler behaviour is pinned by a Rust unit test.
 #[must_use]
-pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
+pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str) -> Value {
     use std::collections::HashMap;
 
     use tcl_registry::events::EventRegistry;
@@ -2461,37 +2461,26 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
     }
 
     let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
-    let mut matched = 0usize;
-    for seg in segment_commands(source) {
-        if seg.texts.first().map(String::as_str) != Some("when") || seg.argv.len() < 3 {
-            continue;
-        }
-        // The body (last word) must be a braced block (`Str`): the guard
-        // requires `body.kind == TokenType::Str`.
-        let Some(body) = seg.argv.last() else {
-            continue;
-        };
-        if body.kind != TokenType::Str {
-            continue;
-        }
-        let event = seg.texts[1].clone();
-        let span = seg.argv[1].span;
-        // `when EVENT priority N { body }` — base priority defaults to 500.
-        // `when EVENT priority N { body }`; a missing/non-integer priority
-        // keeps the 500 default.
-        let mut priority = 500;
-        if seg.texts.len() >= 5
-            && seg.texts[2] == "priority"
-            && let Ok(parsed) = seg.texts[3].parse::<i64>()
-        {
-            priority = parsed;
-        }
+    let command_registry = registry_for_dialect(dialect);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, &command_registry);
+    for (matched, handler) in
+        tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            &command_registry,
+            &identities,
+        )
+        .into_iter()
+        .enumerate()
+    {
+        let event = handler.event;
+        let span = handler.event_span;
+        let priority = i64::from(handler.effective_priority);
         per_event.entry(event).or_default().push(Handler {
             priority,
             idx: matched,
             span,
         });
-        matched += 1;
     }
 
     // Each event's handlers fire lowest-priority first, file order breaking ties.
@@ -3055,7 +3044,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     );
     out.insert(
         "eventOrder".to_owned(),
-        serialise_event_order(&result.source, &li),
+        serialise_event_order(&result.source, &li, &result.dialect),
     );
     out.insert(
         "asm".to_owned(),
@@ -3620,6 +3609,54 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["priority_offset"], 0);
         assert_eq!(rows[1]["priority_offset"], 1);
+    }
+
+    #[test]
+    fn event_order_applies_outer_priority_until_it_changes() {
+        let src = "priority 700\n\
+                   when HTTP_REQUEST { log local0. first }\n\
+                   priority 400\n\
+                   when CLIENT_ACCEPTED { log local0. second }\n\
+                   when HTTP_REQUEST { log local0. third }\n\
+                   when HTTP_REQUEST priority 200 { log local0. inline }";
+        let value = serialise_result(&run_pipeline(src, "f5-irules"));
+        let rows = value["eventOrder"].as_array().unwrap();
+        assert_eq!(rows.len(), 4, "repeated events remain distinct");
+        let request: Vec<_> = rows
+            .iter()
+            .filter(|row| row["event"] == "HTTP_REQUEST")
+            .map(|row| row["base_priority"].as_i64().unwrap())
+            .collect();
+        assert_eq!(request, [200, 400, 700]);
+        assert_eq!(rows[0]["event"], "CLIENT_ACCEPTED");
+        assert_eq!(rows[0]["base_priority"], 400);
+    }
+
+    #[test]
+    fn event_order_uses_rooted_normalised_top_level_handlers_only() {
+        let src = "::when http_request { if {1} { :::when client_data {} } }";
+        let result = run_pipeline(src, "f5-irules");
+        let value = serialise_result(&result);
+        let rows = value["eventOrder"].as_array().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["event"], "HTTP_REQUEST");
+    }
+
+    #[test]
+    fn event_order_ignores_non_braced_event_bodies() {
+        let src = "set payload {when CLIENT_DATA {}}\n\
+                   set q \"when SERVER_DATA {}\"\n\
+                   when CLIENT_DATA bare_body\n\
+                   when SERVER_DATA \"quoted body\"\n\
+                   when HTTP_REQUEST priority 100 {}\n\
+                   when HTTP_REQUEST {}";
+        let value = serialise_result(&run_pipeline(src, "f5-irules"));
+        let rows = value["eventOrder"].as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["event"], "HTTP_REQUEST");
+        assert_eq!(rows[0]["base_priority"], 100);
+        assert_eq!(rows[1]["event"], "HTTP_REQUEST");
+        assert_eq!(rows[1]["base_priority"], 500);
     }
 
     #[test]

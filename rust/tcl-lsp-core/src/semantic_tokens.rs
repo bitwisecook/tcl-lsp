@@ -1462,6 +1462,7 @@ fn push_regsub_subtokens(
 /// only a single bridging allocation per command.
 #[allow(clippy::too_many_arguments)] // one override builder threading the whole per-command context
 fn special_arg_kinds(
+    source: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
@@ -1478,6 +1479,24 @@ fn special_arg_kinds(
     deferred_role: bool,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
+    let closed = tcl_registry::events::closed_braced_argument_words(
+        source,
+        seg.arg_tokens(),
+        seg.arg_single_token(),
+    );
+    let declaration_arguments = closed.as_deref().and_then(|closed| {
+        tcl_registry::events::IrulesDeclarationArguments::new(
+            arg_texts,
+            seg.arg_tokens(),
+            seg.arg_single_token(),
+            closed,
+        )
+    });
+    let irules_declaration = declaration_arguments.and_then(|arguments| {
+        registry
+            .irules_top_level_declaration_shape(head, arguments)
+            .or_else(|| irules_registry().irules_top_level_declaration_shape(head, arguments))
+    });
 
     // `when EVENT` — the literal event-name argument.  Event handlers come
     // from the registry's `IS_EVENT_HANDLER` trait; the event name is the
@@ -1491,6 +1510,10 @@ fn special_arg_kinds(
         .get(head)
         .or_else(|| irules_registry().get(head))
         .is_some_and(|s| s.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER))
+        && matches!(
+            irules_declaration.as_ref(),
+            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
+        )
         && let (Some(tok), Some(text)) = (seg.argv.get(1), seg.texts.get(1))
         && matches!(tok.kind, TokenType::Esc)
         && is_event_name(text)
@@ -1512,6 +1535,11 @@ fn special_arg_kinds(
             .traits
             .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
         && spec.definition_body.is_none()
+        && (!dialect.intersects(DialectSet::IRULES)
+            || matches!(
+                irules_declaration.as_ref(),
+                Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+            ))
         && let Some(&name_idx) = registry
             .arg_indices_for_role(head, arg_texts, tcl_registry::ArgRole::Name)
             .first()
@@ -4302,6 +4330,7 @@ fn collect_case_list(
     // `content_offset` strips the opener) so the downstream helpers work
     // unchanged.
     let as_token = |e: tcl_syntax::case_list::Element| {
+        let range = e.token_range();
         let (kind, content_offset) = if e.braced {
             (TokenType::Str, 1u8)
         } else if inner.as_bytes().get(e.start) == Some(&b'"') {
@@ -4312,8 +4341,8 @@ fn collect_case_list(
         Token::with_content_offset(
             kind,
             tcl_lexer::Span::new(
-                u32::try_from(cstart + e.start).unwrap_or(0),
-                u32::try_from(cstart + e.end).unwrap_or(0),
+                u32::try_from(cstart + range.start).unwrap_or(0),
+                u32::try_from(cstart + range.end).unwrap_or(0),
             ),
             content_offset,
         )
@@ -4851,6 +4880,7 @@ fn collect_script(
         let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
 
         let mut overrides = special_arg_kinds(
+            full_source,
             &seg,
             registry,
             resolved_head,
@@ -4997,6 +5027,7 @@ fn merge_list_quoted_command_overrides(
     let built_args: Vec<&str> = built.texts[1..].iter().map(String::as_str).collect();
     let built_head = built.texts[0].as_str();
     let overlay = special_arg_kinds(
+        ctx.full_source,
         &built,
         registry,
         built_head,
@@ -5819,6 +5850,7 @@ fn collect_entries(
 ) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
 
     // Extra variable-name argument positions the static registry doesn't model,
     // split by direction (written → `Variable` declaration, read → plain
@@ -5919,9 +5951,7 @@ fn collect_entries(
     let ctx = ScriptCtx {
         full_source: source,
         dialect,
-        numbers: tcl_dialect::DialectProfile::by_name(dialect)
-            .grammar
-            .numbers,
+        numbers: profile.grammar.numbers,
         registry,
         line_index: &line_index,
         oo_grammar: None,
@@ -5949,7 +5979,7 @@ fn collect_entries(
     // single-line body's enclosing `string` token) so the token stream
     // never carries overlaps.  Multi-line bodies aren't tokenised by the
     // main walk, so refs inside them surface cleanly.
-    if dialect == "f5-irules" {
+    if profile.is_irules() {
         for span in crate::irules_object_refs::object_ref_spans(source, registry) {
             push_object_token(source, &line_index, span, &mut entries);
         }
@@ -9370,16 +9400,38 @@ mod tests {
     }
 
     #[test]
+    fn malformed_when_body_does_not_classify_an_event_declaration() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        for source in [
+            "when HTTP_REQUEST bare_body\n",
+            "when HTTP_REQUEST \"quoted body\"\n",
+            "when HTTP_REQUEST { unterminated",
+        ] {
+            let ks = kinds(source, "f5-irules", &registry);
+            assert!(
+                !ks.contains(&(TokenKind::Event as u32)),
+                "malformed declaration colored HTTP_REQUEST as an event: {source:?}; {ks:?}"
+            );
+        }
+    }
+
+    #[test]
     fn bigip_object_ref_token_in_irules_body() {
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         // `pool web_pool` inside a multi-line `when` body → `object`.
-        let ks = kinds(
-            "when HTTP_REQUEST {\n  pool web_pool\n}\n",
-            "f5-irules",
-            &registry,
-        );
-        assert!(ks.contains(&(TokenKind::Object as u32)), "{ks:?}");
+        for dialect in ["f5-irules", "irules", "tcl-irule"] {
+            let ks = kinds(
+                "when HTTP_REQUEST {\n  pool web_pool\n}\n",
+                dialect,
+                &registry,
+            );
+            assert!(
+                ks.contains(&(TokenKind::Object as u32)),
+                "{dialect}: {ks:?}"
+            );
+        }
     }
 
     #[test]

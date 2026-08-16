@@ -42,6 +42,8 @@ mod graph_export;
 mod graph_nodes;
 #[path = "integration/graph_pilot.rs"]
 mod graph_pilot;
+#[path = "integration/irule_context.rs"]
+mod irule_context;
 #[path = "integration/link_extract.rs"]
 mod link_extract;
 #[path = "integration/resolve_kind.rs"]

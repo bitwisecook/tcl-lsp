@@ -241,6 +241,30 @@ fn w115_no_conversion_on_plain_comment() {
 }
 
 #[test]
+fn w115_no_conversion_when_trailing_space_breaks_backslash() {
+    let src = "# note \\ \nputs next\n";
+    let analysis = analyse(src);
+    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+    assert!(find(&actions, "per-line comments").is_none(), "{actions:?}");
+}
+
+#[test]
+fn w115_no_conversion_for_braced_or_quoted_pseudo_comments() {
+    for (source, request) in [
+        ("set payload {# pseudo \\\nputs live}\n", cursor(0, 14)),
+        ("set payload \"# pseudo \\\nputs live\"\n", cursor(0, 14)),
+    ] {
+        let analysis = analyse(source);
+        let actions = code_actions(source, request, Some(&analysis), &analysis.diagnostics);
+        assert!(
+            find(&actions, "per-line comments").is_none(),
+            "pseudo-comment must not expose W115 conversion: {:?}",
+            titles(&actions),
+        );
+    }
+}
+
+#[test]
 fn w115_no_conversion_on_continued_code_line() {
     // A backslash-continued *code* line (not a comment) must NOT be rewritten
     // as commented text — the gate requires the run to start with `#`. This is
@@ -939,6 +963,34 @@ fn context_collect_bootstrap_for_irule1006_converts_utf16_columns() {
         "registry-derived payload bootstrap: {boot:?}"
     );
     assert!(edits_well_formed(boot) && edits_in_bounds(boot, src));
+}
+
+#[test]
+fn context_collect_bootstrap_never_anchors_at_invalid_nested_handler() {
+    let src = concat!(
+        "::when HTTP_REQUEST {\n",
+        "    if {1} {\n",
+        "        :::when client_data {\n",
+        "            TCP::payload\n",
+        "        }\n",
+        "    }\n",
+        "}\n",
+    );
+    let diags = vec![ContextDiagnostic {
+        code: "IRULE1005".to_string(),
+        message: "CLIENT_DATA fires without a prior TCP::collect".to_string(),
+        range: selection(2, 16, 27),
+    }];
+
+    let actions = context_diagnostic_actions(src, &diags);
+    assert!(
+        !actions.is_empty()
+            && actions
+                .iter()
+                .all(|action| action.edits[0].range.start_line == 0),
+        "an invalid nested when is not an event boundary; any bootstrap must be \
+         a new top-level handler: {actions:?}"
+    );
 }
 
 #[test]

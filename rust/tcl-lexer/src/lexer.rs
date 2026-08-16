@@ -394,6 +394,13 @@ impl<'src> Lexer<'src> {
         Self::with_source_map(SourceMap::new(source), LexerConfig::default())
     }
 
+    /// Build a lexer over a whole source buffer with an explicit dialect
+    /// configuration.
+    #[must_use]
+    pub fn with_config(source: &'src str, config: LexerConfig) -> Self {
+        Self::with_source_map(SourceMap::new(source), config)
+    }
+
     /// Build a lexer with a pre-built `SourceMap` and custom config.
     ///
     /// The caller is responsible for ensuring the `SourceMap` was

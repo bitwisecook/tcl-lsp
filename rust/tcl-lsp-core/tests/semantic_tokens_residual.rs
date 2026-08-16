@@ -922,6 +922,43 @@ fn st_quoted_structural_keyword_arg_trims_delimiters() {
 // ===========================================================================
 
 #[test]
+fn st_irules_declaration_body_shape_gates_event_and_proc_definition_tokens() {
+    let r = irules_registry();
+    let src = concat!(
+        "when HTTP_REQUEST bare_body\n",
+        "when CLIENT_DATA \"quoted body\"\n",
+        "when HTTP_RESPONSE {}\n",
+        "proc bare_proc {} return\n",
+        "proc quoted_proc {} \"return\"\n",
+        "proc valid_proc {} { return }\n",
+    );
+    let toks = decode_with(src, "f5-irules", &r);
+    for line in [0, 1] {
+        assert!(
+            !toks.iter().any(|t| t.line == line && t.ttype == "event"),
+            "non-braced event body must not colour its selector as an event: {toks:?}"
+        );
+    }
+    assert!(
+        toks.iter().any(|t| t.line == 2 && t.ttype == "event"),
+        "the braced event declaration must remain highlighted: {toks:?}"
+    );
+    for line in [3, 4] {
+        assert!(
+            !toks
+                .iter()
+                .any(|t| t.line == line && t.character == 5 && t.ttype == "function"),
+            "non-braced proc body must not colour its name as a definition: {toks:?}"
+        );
+    }
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 5 && t.character == 5 && t.ttype == "function"),
+        "the braced proc declaration must remain highlighted: {toks:?}"
+    );
+}
+
+#[test]
 fn st_irules_object_ref_in_multiline_body_is_object_token() {
     // `pool /Common/web_pool` inside a multi-line `when` body — the body is
     // tokenised by recursion; the object overlay marks the partitioned pool
@@ -935,6 +972,22 @@ fn st_irules_object_ref_in_multiline_body_is_object_token() {
     );
     // The event name is still an `event` token.
     assert!(toks.iter().any(|t| t.ttype == "event"), "{toks:?}");
+}
+
+#[test]
+fn st_irules_data_group_in_braced_expr_command_is_object_token() {
+    // The `class` call is embedded in an expression braced for Tcl's usual
+    // substitution discipline. The iRules execution inventory finds its
+    // expression-language `[…]` command, and the object overlay preserves the
+    // data-group name as an `object` token.
+    let r = irules_registry();
+    let src = "when HTTP_REQUEST {\n  if {[class match [HTTP::host] equals /Common/host_dg]} { set hit 1 }\n}\n";
+    let toks = decode_with(src, "f5-irules", &r);
+    assert!(
+        toks.iter()
+            .any(|t| t.ttype == "object" && t.line == 1 && t.length == 15),
+        "the braced-expression data-group must be an object token; got {toks:?}",
+    );
 }
 
 #[test]
@@ -962,8 +1015,8 @@ fn st_irules_object_ref_suppresses_overlapping_string_in_single_line_body() {
 
 #[test]
 fn st_irules_object_overlay_absent_in_plain_tcl() {
-    // The object overlay is gated on `dialect == "f5-irules"`; under plain
-    // `tcl8.6` the same source yields no `object` token.
+    // The object overlay is gated by the canonical iRules profile; under
+    // plain `tcl8.6` the same source yields no `object` token.
     let src = "when HTTP_REQUEST {\n  pool web_pool\n}\n";
     assert!(
         !type_set(src, "tcl8.6").contains("object"),

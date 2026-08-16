@@ -296,36 +296,38 @@ pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> 
 /// comments.
 #[must_use]
 pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
+    check_comment_continuation_for_dialect(source, "tcl9.0")
+}
+
+/// Dialect-aware W115 detector. Comment position is a lexer/registry fact,
+/// not a textual `#` prefix, so quoted and braced data never become comments.
+#[must_use]
+pub fn check_comment_continuation_for_dialect(source: &str, dialect: &str) -> Vec<StyleDiagnostic> {
     let lines: Vec<&str> = source.split('\n').collect();
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let comments = tcl_compiler::analyser::utils::script_comment_facts(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_registry::cache::registry_for_profile(profile),
+    );
     let mut out = Vec::new();
 
     let mut i = 0usize;
     while i < lines.len() {
-        let line = lines[i];
-        let stripped = line.trim_start();
-        if !(stripped.starts_with('#') && line.trim_end_matches('\r').ends_with('\\')) {
+        let Some(run_end) = comment_continuation_run_with_facts(&lines, &comments, i) else {
             i += 1;
             continue;
-        }
+        };
+        let line = lines[i];
+        let stripped = line.trim_start();
 
         // Found a comment with backslash continuation.  `indent`
         // is the leading-whitespace prefix; because `stripped`
         // drops a leading run, the byte arithmetic is exact.
         let indent = &line[..line.len() - stripped.len()];
         let block_start = i;
-        let mut block_lines: Vec<&str> = vec![line];
-
-        // Gather continuation lines.
-        let mut j = i + 1;
-        while j < lines.len() {
-            block_lines.push(lines[j]);
-            if lines[j].trim_end_matches('\r').ends_with('\\') {
-                j += 1;
-            } else {
-                break;
-            }
-        }
-        let block_end = j.min(lines.len() - 1);
+        let block_lines = &lines[i..run_end];
+        let block_end = run_end - 1;
 
         // Build the replacement text: per-line comments.
         let mut fixed: Vec<String> = Vec::with_capacity(block_lines.len());
@@ -376,9 +378,49 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
             }),
         });
 
-        i = block_end + 1;
+        i = run_end;
     }
     out
+}
+
+/// Return the exclusive physical-line end of a backslash-continued Tcl
+/// comment beginning at `start_line`.
+///
+/// A continuation marker is exact: a carriage return before the newline is
+/// ignored, but ordinary trailing whitespace remains significant. Both W115
+/// and its rewrite action consume this detector.
+#[must_use]
+pub fn comment_continuation_run(lines: &[&str], start_line: usize) -> Option<usize> {
+    let first = *lines.get(start_line)?;
+    first
+        .trim_start()
+        .trim_end_matches('\r')
+        .ends_with('\\')
+        .then_some(())?;
+    let mut end = start_line + 1;
+    while end < lines.len() && lines[end - 1].trim_end_matches('\r').ends_with('\\') {
+        end += 1;
+    }
+    Some(end.min(lines.len()))
+}
+
+/// W115 run detector using lexer-confirmed physical comment lines.
+#[must_use]
+pub fn comment_continuation_run_with_facts(
+    lines: &[&str],
+    comment_facts: &[tcl_compiler::analyser::utils::ScriptCommentFact],
+    start_line: usize,
+) -> Option<usize> {
+    let comment = comment_facts.iter().find(|fact| fact.line == start_line)?;
+    let first_comment_line = comment.text.split('\n').next().unwrap_or_default();
+    if !first_comment_line.trim_end_matches('\r').ends_with('\\') {
+        return None;
+    }
+    let mut end = start_line + 1;
+    while end < lines.len() && lines[end - 1].trim_end_matches('\r').ends_with('\\') {
+        end += 1;
+    }
+    Some(end.min(lines.len()))
 }
 
 /// Run every source-text check and return the merged, suppression-filtered
@@ -406,6 +448,7 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
     disabled: &HashSet<String, SD>,
     suppressed: &HashMap<i32, HashSet<String, I>, H>,
     decode: Option<&crate::source_decode::DecodeReport>,
+    dialect: &str,
 ) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
 
@@ -442,7 +485,10 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
         push_line_suppressed(check_trailing_whitespace(&lines_source), &mut out);
     }
     if enabled("W115") {
-        push_line_suppressed(check_comment_continuation(&lines_source), &mut out);
+        push_line_suppressed(
+            check_comment_continuation_for_dialect(&lines_source, dialect),
+            &mut out,
+        );
     }
     if enabled("W118") {
         out.extend(check_line_endings(source, line_ending));
@@ -571,7 +617,15 @@ mod tests {
         // trailing whitespace on the second one is a line-1 diagnostic — not
         // a column deep inside a single 30-character line.
         let src = "set a 1\rset b 2   \rset c 3\r";
-        let diags = style_diagnostics(src, 120, "\n", &no_disable(), &no_suppress(), None);
+        let diags = style_diagnostics(
+            src,
+            120,
+            "\n",
+            &no_disable(),
+            &no_suppress(),
+            None,
+            "tcl9.0",
+        );
         let w112: Vec<_> = diags.iter().filter(|d| d.code == "W112").collect();
         assert_eq!(w112.len(), 1, "{diags:?}");
         assert_eq!(w112[0].range.start_line, 1);
@@ -603,6 +657,41 @@ mod tests {
     }
 
     #[test]
+    fn w115_uses_lexer_comment_positions_not_braced_or_quoted_data() {
+        let braced = "set payload {# hidden \\\nputs live}\n";
+        let quoted = "set payload \"# hidden \\\nputs live\"\n";
+        let tail = "set marker \"noqa\"; # ordinary comment \\\nputs live\n";
+        assert!(check_comment_continuation_for_dialect(braced, "tcl9.0").is_empty());
+        assert!(check_comment_continuation_for_dialect(quoted, "tcl9.0").is_empty());
+        assert!(check_comment_continuation_for_dialect(tail, "tcl9.0").is_empty());
+    }
+
+    #[test]
+    fn w115_reaches_a_proven_alias_proc_body() {
+        let src = "interp alias {} define {} proc\ndefine f {} {\n    # swallowed \\\n    puts hidden\n}\n";
+        let diags = check_comment_continuation_for_dialect(src, "tcl9.0");
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(diags[0].range.start_line, 2);
+        assert!(
+            diags[0]
+                .fix
+                .as_ref()
+                .is_some_and(|fix| fix.new_text.contains("# puts hidden"))
+        );
+    }
+
+    #[test]
+    fn w115_reaches_a_switch_case_list_arm_in_a_command_substitution() {
+        let src = "set result [switch $kind {\n    alpha {\n        # swallowed \\\n        puts hidden\n    }\n}]\n";
+        let diags = check_comment_continuation_for_dialect(src, "tcl9.0");
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(diags[0].code, "W115");
+        assert_eq!(diags[0].range.start_line, 2);
+        let fix = diags[0].fix.as_ref().expect("W115 has an action vector");
+        assert!(fix.new_text.contains("# puts hidden"), "{fix:?}");
+    }
+
+    #[test]
     fn w115_preserves_indent_and_existing_hash() {
         let src = "    # head \\\n    # already\nbody";
         let diags = check_comment_continuation(src);
@@ -619,6 +708,11 @@ mod tests {
     }
 
     #[test]
+    fn w115_trailing_space_breaks_the_continuation() {
+        assert!(check_comment_continuation("# note \\ \nputs next\n").is_empty());
+    }
+
+    #[test]
     fn orchestrator_respects_disabled_set() {
         let mut disabled = HashSet::new();
         disabled.insert("W112".to_string());
@@ -630,6 +724,7 @@ mod tests {
             &disabled,
             &no_suppress(),
             None,
+            "tcl9.0",
         );
         assert!(diags.iter().all(|d| d.code != "W112"));
     }
@@ -648,6 +743,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
+            "tcl9.0",
         );
         assert!(diags.is_empty());
     }
@@ -667,6 +763,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
+            "tcl9.0",
         );
         assert!(diags.iter().all(|d| d.code != "W112"));
     }
@@ -684,6 +781,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
+            "tcl9.0",
         );
         assert!(diags.iter().any(|d| d.code == "W118"));
     }

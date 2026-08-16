@@ -70,10 +70,10 @@ mod tests {
 
     #[test]
     fn data_group_ref_inside_if_condition() {
-        // `class match` inside an `if` *condition* (an EXPR-role word) lives in
-        // a braced expression; the EXPR recursion must still find `dg`.
+        // A real command substitution in an `if` EXPR-role word is live and
+        // must retain the data-group reference.
         let got = spans(
-            "when HTTP_REQUEST {\n  if {[class match [HTTP::host] equals dg]} {\n    pool p\n  }\n}\n",
+            "when HTTP_REQUEST {\n  if [class match [HTTP::host] equals dg] {\n    pool p\n  }\n}\n",
         );
         let names: Vec<&str> = got.iter().map(|(_, n)| *n).collect();
         assert!(names.contains(&"dg"), "{names:?}");
@@ -85,5 +85,26 @@ mod tests {
         // `pool $p` — the name is an unbound variable, not a literal.
         let got = spans("when HTTP_REQUEST {\n  pool $p\n}\n");
         assert!(got.is_empty(), "{got:?}");
+    }
+
+    #[test]
+    fn semantic_object_spans_follow_reached_helpers_and_complete_quoted_exprs() {
+        let source = concat!(
+            "proc helper {} { pool helper_pool }\n",
+            "proc dormant {} { pool dormant_pool }\n",
+            "when HTTP_REQUEST {\n",
+            "  call helper\n",
+            "  dormant\n",
+            "  if {\"[class match [HTTP::host] equals quoted_dg]\"} {}\n",
+            "  if {[class match [HTTP::uri] equals malformed_dg} {}\n",
+            "}\n",
+        );
+        let names: Vec<_> = spans(source).into_iter().map(|(_, name)| name).collect();
+        assert!(names.contains(&"helper_pool"), "{names:?}");
+        assert!(names.contains(&"quoted_dg"), "{names:?}");
+        assert!(
+            !names.contains(&"dormant_pool") && !names.contains(&"malformed_dg"),
+            "only reached code and complete expression substitutions are highlighted: {names:?}"
+        );
     }
 }

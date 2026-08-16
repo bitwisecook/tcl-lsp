@@ -220,6 +220,11 @@ pub const GAPS: &[Gap] = &[
         kind: GapKind::DraftOpaque,
     },
     Gap {
+        key: "irules_top_level_effect",
+        spelling: "irules_top_level_effect Priority|Timing",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
         key: "result_stability",
         spelling: "result_stability Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}",
         kind: GapKind::DraftOpaque,
@@ -2006,6 +2011,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     gap_todo(out, ctx, draft, "data_collection");
     gap_todo(out, ctx, draft, "side_switch_target");
     gap_todo(out, ctx, draft, "event_handler_priority");
+    gap_todo(out, ctx, draft, "irules_top_level_effect");
 
     // --- translation -------------------------------------------------------
     out.gap();

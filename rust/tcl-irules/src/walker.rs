@@ -25,7 +25,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_compiler::lambda_literal::{LambdaLiteralElements, split_lambda_literal};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::LexerConfig;
 use tcl_lexer::{Span, Token, TokenType};
@@ -34,8 +33,33 @@ use tcl_registry::arg_role::ArgRole;
 
 use crate::resolve_object_ref_args;
 
+fn category_for_kinds(kinds: &[&str]) -> IrulesObjectReferenceCategory {
+    let tables = crate::tables();
+    if kinds.iter().any(|kind| {
+        tables
+            .ltm_pool_kinds
+            .iter()
+            .any(|candidate| candidate == kind)
+            || tables
+                .gtm_pool_kinds
+                .iter()
+                .any(|candidate| candidate == kind)
+    }) {
+        IrulesObjectReferenceCategory::Pool
+    } else if kinds.iter().any(|kind| {
+        tables
+            .data_group_kinds
+            .iter()
+            .any(|candidate| candidate == kind)
+    }) {
+        IrulesObjectReferenceCategory::DataGroup
+    } else {
+        IrulesObjectReferenceCategory::Other
+    }
+}
+
 /// Depth cap for [`walk`]'s (and [`recurse_token`]'s) recursion over nested
-/// bodies / `apply` lambdas / `[…]` command substitutions — issue #996.
+/// bodies / `[…]` command substitutions — issue #996.
 ///
 /// This crate is reachable from a WASM host with no stack-size guarantee
 /// (via `bigip-query-wasm`, transitively through `tcl-bigip`), so, like
@@ -44,6 +68,14 @@ use crate::resolve_object_ref_args;
 /// ambient stack, not just a generously-sized one — same value and
 /// reasoning; see those constants' doc comments.
 const MAX_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
+
+/// Consumer-safe semantic category for an iRules object reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesObjectReferenceCategory {
+    Pool,
+    DataGroup,
+    Other,
+}
 
 /// One iRules object reference resolved from a literal command argument
 /// (mirrors `IrulesObjectReference`).
@@ -55,6 +87,12 @@ pub struct IrulesObjectReference {
     pub kinds: Vec<&'static str>,
     /// The iRule command the reference came from (e.g. `"pool"`).
     pub command: String,
+    /// Registry-resolved command identity used for semantic classification.
+    /// Unlike `command`, this follows proven aliases, renames, and qualified
+    /// spellings.
+    pub effective_command: String,
+    /// Typed semantic category, derived by the registry-backed walker.
+    pub category: IrulesObjectReferenceCategory,
     /// 0-based argument index (after the command name).
     pub argument_index: usize,
     /// Byte span of the reference token in the source.
@@ -108,6 +146,42 @@ pub fn extract_irules_object_references(
     rule_module: Option<&str>,
     registry: &CommandRegistry,
 ) -> Vec<IrulesObjectReference> {
+    let executable = crate::irules_executable_commands(source, registry);
+    extract_irules_object_references_in_closure(source, rule_module, registry, &executable)
+}
+
+/// Extract object references in the executable closure of one iRules event.
+///
+/// Every valid matching handler is a root.  Only procedure bodies reached by
+/// registry-declared user-procedure invocation edges participate; unrelated
+/// event handlers, dormant procedures, direct procedure-looking calls, and
+/// lambda literals do not.
+#[must_use]
+pub fn extract_irules_event_object_references(
+    source: &str,
+    event: &str,
+    rule_module: Option<&str>,
+    registry: &CommandRegistry,
+) -> Vec<IrulesObjectReference> {
+    let executable = crate::irules_event_executable_closure(source, event, registry);
+    extract_irules_object_references_in_closure(source, rule_module, registry, &executable)
+}
+
+/// Extract object references selected by an already-computed executable
+/// closure.  This is useful to consumers that need the same closure for a
+/// command inventory and its object references, without reinterpreting source
+/// ranges as event-body membership.
+#[must_use]
+pub fn extract_irules_object_references_in_closure(
+    source: &str,
+    rule_module: Option<&str>,
+    registry: &CommandRegistry,
+    executable: &[crate::IrulesExecutableCommand],
+) -> Vec<IrulesObjectReference> {
+    let executable_spans: HashSet<(u32, u32)> = executable
+        .iter()
+        .map(|command| (command.span.start(), command.span.end()))
+        .collect();
     let mut out = Vec::new();
     let mut scope = BindingScope::default();
     // The document's statically proven command-identity facts
@@ -126,6 +200,7 @@ pub fn extract_irules_object_references(
         rule_module,
         registry,
         identities: &identities,
+        executable_spans: &executable_spans,
     };
     walk(&ctx, source, 0, &mut scope, &mut out, 0);
     out.sort_by(|a, b| {
@@ -147,6 +222,8 @@ struct WalkCtx<'a> {
     /// resolved to the command it *is* rather than the one it is spelled as
     /// (issue #1275).
     identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    /// Exact segmented commands proven reachable from a valid known event.
+    executable_spans: &'a HashSet<(u32, u32)>,
 }
 
 /// One segmented command's *effective* head — the registry name its spelling
@@ -165,6 +242,7 @@ fn resolve_head<'a>(
 /// collect references, recursing into body / expr / command-substitution
 /// arguments with child scopes. Token spans are absolute into `ctx.full`.
 /// `depth` is this call's nesting level — see [`MAX_WALK_DEPTH`].
+#[allow(clippy::too_many_lines)] // recursive registry-body walk is intentionally local
 fn walk(
     ctx: &WalkCtx<'_>,
     slice: &str,
@@ -178,6 +256,7 @@ fn walk(
         rule_module,
         registry,
         identities,
+        executable_spans,
     } = *ctx;
     // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment (issue
     // #996). Past the cap, stop descending — the references collected up
@@ -200,23 +279,50 @@ fn walk(
         // object-reference argument, while a `pool` whose binding was provably
         // taken over by a user `proc` finds none.
         let head = resolve_head(identities, &cmd);
-
-        // Resolve declared references *before* mutating the binding table, so a
-        // same-command `set` re-bind doesn't leak into this call's refs.
-        for (argument_index, kinds) in resolve_object_ref_args(head, &args, rule_module) {
-            if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
-                out.push(IrulesObjectReference {
-                    name,
-                    kinds,
-                    command: cmd.name().to_owned(),
-                    argument_index,
-                    range,
-                });
+        // Registry command specs are canonical unqualified iRules names;
+        // Tcl's leading `::` is an absolute-namespace marker, not a distinct
+        // command identity.
+        // Only canonicalise the iRules global commands this walker owns.
+        // `::tcl::dict::*` is a distinct qualified core command whose BODY
+        // declarations must remain visible to the registry.
+        let canonical = tcl_syntax::naming::canonical_written_command(head);
+        let semantic_head = if registry.get_exact(&canonical).is_some() {
+            canonical
+        } else if canonical.starts_with("::") {
+            let rooted_name = canonical.trim_start_matches("::");
+            if registry.get_exact(rooted_name).is_some() {
+                rooted_name.to_owned()
+            } else {
+                canonical
             }
-        }
-        record_set_binding(full, head, &cmd, scope);
+        } else {
+            canonical
+        };
 
-        let body_indices = registry.arg_indices_for_role(head, &args, ArgRole::Body);
+        let executable = executable_spans.contains(&(cmd.span.start(), cmd.span.end()));
+        if executable {
+            // Resolve declared references *before* mutating the binding table,
+            // so a same-command `set` re-bind doesn't leak into this call's
+            // refs. Inert declaration/data regions cannot seed bindings.
+            for (argument_index, kinds) in
+                resolve_object_ref_args(&semantic_head, &args, rule_module)
+            {
+                if let Some((name, range)) = resolve_arg_value(full, &cmd, argument_index, scope) {
+                    out.push(IrulesObjectReference {
+                        name,
+                        category: category_for_kinds(&kinds),
+                        kinds,
+                        command: cmd.name().to_owned(),
+                        effective_command: semantic_head.clone(),
+                        argument_index,
+                        range,
+                    });
+                }
+            }
+            record_set_binding(full, &semantic_head, &cmd, scope);
+        }
+
+        let body_indices = registry.arg_indices_for_role(&semantic_head, &args, ArgRole::Body);
         let mut recursed: HashSet<(u32, u32)> = HashSet::new();
         for body_idx in body_indices {
             let word_index = body_idx + 1;
@@ -224,10 +330,17 @@ fn walk(
                 && matches!(tok.kind, TokenType::Str | TokenType::Cmd)
                 && !inner_is_empty(full, tok)
             {
-                let mut child = scope.child();
-                recurse_token(ctx, tok, &mut child, out, depth + 1);
-                if matches!(tok.kind, TokenType::Cmd) {
+                if tok.kind == TokenType::Cmd {
+                    // A command substitution supplying a body runs now, in
+                    // the caller's frame; only the script value it returns is
+                    // later evaluated as the body.  Running the substitution
+                    // in a child scope loses Tcl-visible writes such as
+                    // `catch [set p new]`.
+                    recurse_token(ctx, tok, scope, out, depth + 1);
                     recursed.insert((tok.span.start(), tok.span.end()));
+                } else {
+                    let mut child = scope.child();
+                    recurse_token(ctx, tok, &mut child, out, depth + 1);
                 }
             }
         }
@@ -235,44 +348,24 @@ fn walk(
         // EXPR-role words (`if`/`while`/`expr` conditions) are braced/quoted
         // words whose `[…]` substitutions aren't separate `Cmd` tokens; recurse
         // into the expression text so refs nested in a condition are found.
-        let expr_indices = registry.arg_indices_for_role(head, &args, ArgRole::Expr);
+        let expr_indices = registry.arg_indices_for_role(&semantic_head, &args, ArgRole::Expr);
         for expr_idx in expr_indices {
             let word_index = expr_idx + 1;
             if let Some(tok) = cmd.argv.get(word_index)
                 && matches!(tok.kind, TokenType::Str | TokenType::Esc)
                 && !inner_is_empty(full, tok)
             {
-                let mut child = scope.child();
-                recurse_token(ctx, tok, &mut child, out, depth + 1);
-            }
-        }
-
-        // `apply {argList body ?ns?} …` (and any future command sharing the
-        // shape) — recurse into the real body *element*, not the whole
-        // lambda literal (issue #954): re-segmenting the whole `{argList}
-        // {body}` blob as a script previously misread the parameter word as
-        // a command name, so an object referenced only inside an apply
-        // lambda body embedded in an iRule event handler was invisible to
-        // this walker — and thus, per `bigip-cleanup`, looked unreferenced.
-        //
-        // Unlike an `if`/`foreach`/`switch` body (which shares the enclosing
-        // frame — `scope.child()` is correct there), an `apply` body runs in
-        // a *fresh* call frame: it does not inherit the caller's `set`-bound
-        // constants, only whatever its own actual arguments bind to its own
-        // params (`lambda_frame_scope` builds exactly that).
-        for lambda_idx in registry.arg_indices_for_role(head, &args, ArgRole::LambdaLiteral) {
-            let word_index = lambda_idx + 1;
-            if let Some(tok) = cmd.argv.get(word_index)
-                && matches!(tok.kind, TokenType::Str)
-                && let Some(elems) = split_lambda_literal(full, *tok)
-                && let Some(body_span) = elems.body
-            {
-                let (bstart, bend) = (body_span.start() as usize, body_span.end() as usize);
-                if let Some(inner) = full.get(bstart..bend)
-                    && !inner.trim().is_empty()
-                {
-                    let mut child = lambda_frame_scope(full, &cmd, lambda_idx, elems, scope);
-                    walk(ctx, inner, body_span.start(), &mut child, out, depth + 1);
+                // Expr command substitutions are evaluated once, before the
+                // command runs, and in the caller's live frame.  Record any
+                // same-span lexer tokens so the generic substitution pass
+                // below cannot visit them a second time.
+                recurse_token(ctx, tok, scope, out, depth + 1);
+                for nested in cmd.all_tokens.iter().filter(|nested| {
+                    nested.kind == TokenType::Cmd
+                        && tok.span.start() <= nested.span.start()
+                        && nested.span.end() <= tok.span.end()
+                }) {
+                    recursed.insert((nested.span.start(), nested.span.end()));
                 }
             }
         }
@@ -286,7 +379,7 @@ fn walk(
         // pool looked unreferenced, which is what `bigip-cleanup` decides
         // deletions from.  The clause-list shape is registry data
         // (`CommandSpec::case_list`), the same entry the token walker reads.
-        if let Some((tok, spec)) = case_list_word(&cmd, head, &args, registry)
+        if let Some((tok, spec)) = case_list_word(&cmd, &semantic_head, &args, registry)
             && !inner_is_empty(full, &tok)
         {
             for body in case_list_body_tokens(full, &tok, &spec) {
@@ -305,45 +398,12 @@ fn walk(
                 continue;
             }
             recursed.insert(key);
-            let mut child = scope.child();
-            recurse_token(ctx, tok, &mut child, out, depth + 1);
+            // Tcl evaluates substitutions left-to-right in the caller's
+            // frame. A set inside a command substitution therefore changes
+            // the value a following command (or sibling substitution) sees.
+            recurse_token(ctx, tok, scope, out, depth + 1);
         }
     }
-}
-
-/// Build the fresh binding scope an `apply` lambda body runs in: empty
-/// (unlike `scope.child()`'s full clone, this inherits none of the
-/// enclosing frame's `set`-bound constants), with the lambda's own params
-/// bound to whatever their corresponding actual argument resolves to.
-///
-/// Inheriting the full scope would let an unrelated enclosing binding that
-/// happens to share a lambda-local variable's name (or, in the case of a
-/// zero-param lambda, *any* enclosing binding at all) misattribute an
-/// object reference to the wrong constant — a lambda body does not close
-/// over the caller's locals. `lambda_idx` is the lambda-literal argument's
-/// own 0-based (head-excluded) index in `cmd`, so its actual arguments run
-/// from `lambda_idx + 1`; each is resolved via the same literal /
-/// `$var`-propagation [`resolve_arg_value`] already uses for ordinary
-/// references, against the *enclosing* `scope`.
-fn lambda_frame_scope(
-    full: &str,
-    cmd: &SegmentedCommand,
-    lambda_idx: usize,
-    elems: LambdaLiteralElements,
-    scope: &BindingScope,
-) -> BindingScope {
-    let mut child = BindingScope::default();
-    let Some(params_text) = full.get(elems.params.start() as usize..elems.params.end() as usize)
-    else {
-        return child;
-    };
-    let lambda_params = tcl_compiler::signature_scan::params::parse_param_list(params_text);
-    for (k, param) in lambda_params.iter().enumerate() {
-        if let Some((value, _span)) = resolve_arg_value(full, cmd, lambda_idx + 1 + k, scope) {
-            child.set_const(&param.name, value);
-        }
-    }
-    child
 }
 
 /// The clause-list word of `cmd` (`switch … {pat body …}`), per the registry's
@@ -386,11 +446,12 @@ fn case_list_body_tokens(full: &str, tok: &Token, spec: &tcl_registry::CaseListS
         // Only a braced body is a script.
         .filter(|b| b.braced)
         .map(|b| {
+            let range = b.token_range();
             Token::with_content_offset(
                 TokenType::Str,
                 tcl_lexer::Span::new(
-                    u32::try_from(cstart + b.start).unwrap_or(0),
-                    u32::try_from(cstart + b.end).unwrap_or(0),
+                    u32::try_from(cstart + range.start).unwrap_or(0),
+                    u32::try_from(cstart + range.end).unwrap_or(0),
                 ),
                 1,
             )
@@ -568,10 +629,27 @@ mod tests {
     }
 
     #[test]
+    fn object_refs_follow_only_reachable_valid_execution_regions() {
+        let source = concat!(
+            "pool /Common/top\n",
+            "proc dormant {} { pool /Common/dormant }\n",
+            "proc leaf {} { pool /Common/leaf }\n",
+            "proc malformed {} { pool /Common/malformed } extra\n",
+            "when BOGUS_EVENT { pool /Common/unknown }\n",
+            "when HTTP_REQUEST { call leaf; pool /Common/live }\n",
+        );
+        let names: Vec<_> = refs(source)
+            .into_iter()
+            .map(|reference| reference.name)
+            .collect();
+        assert_eq!(names, ["/Common/leaf", "/Common/live"]);
+    }
+
+    #[test]
     fn extracts_pool_snatpool_and_datagroup_refs() {
         let source = "\n\
             when HTTP_REQUEST {\n\
-            \x20   if {[class match -- [HTTP::host] equals /Common/host_dg]} {\n\
+            \x20   if [class match -- [HTTP::host] equals /Common/host_dg] {\n\
             \x20       snatpool /Common/sp1\n\
             \x20       pool /Common/web_pool\n\
             \x20   }\n\
@@ -605,30 +683,53 @@ mod tests {
     }
 
     #[test]
-    fn object_refs_follow_an_aliased_command() {
-        assert_eq!(
-            ref_names(&pool_rule("interp alias {} p {} pool\n", "p")),
-            vec!["/Common/web_pool".to_owned()],
-        );
-        // The `::`-qualified spelling of the alias classifies alike.
-        assert_eq!(
-            ref_names(&pool_rule("interp alias {} p {} pool\n", "::p")),
-            vec!["/Common/web_pool".to_owned()],
-        );
-        // Guard: an unbound `p` names no BIG-IP object.
+    fn unavailable_irules_alias_does_not_create_object_ref_command() {
+        // F5 K36322151 disables `interp`, so this cannot create `p`.
+        assert!(ref_names(&pool_rule("interp alias {} p {} pool\n", "p")).is_empty());
         assert!(ref_names(&pool_rule("set y 1\n", "p")).is_empty());
+        assert_eq!(
+            ref_names(&pool_rule("interp alias {} p {} pool\n", "pool")),
+            vec!["/Common/web_pool".to_owned()],
+            "a failed alias cannot take the real pool command away"
+        );
     }
 
     #[test]
-    fn object_refs_follow_a_renamed_command() {
-        assert_eq!(
-            ref_names(&pool_rule("rename pool p\n", "p")),
-            vec!["/Common/web_pool".to_owned()],
+    fn categories_follow_registry_returned_object_kinds() {
+        let source = concat!(
+            "when HTTP_REQUEST {\n",
+            " set n [::active_members /Common/active]\n",
+            " LB::reselect pool /Common/fallback\n",
+            " set h [HSL::open -proto UDP -pool /Common/logging]\n",
+            " class match x equals /Common/hosts\n",
+            "}\n",
         );
-        // The old spelling is gone from the rename onwards.
-        assert!(
-            ref_names(&pool_rule("rename pool p\n", "pool")).is_empty(),
-            "a renamed-away `pool` must not keep the object-reference grammar"
+        let refs = refs(source);
+        for name in ["/Common/active", "/Common/fallback", "/Common/logging"] {
+            let reference = refs
+                .iter()
+                .find(|reference| reference.name == name)
+                .unwrap();
+            assert_eq!(
+                reference.category,
+                IrulesObjectReferenceCategory::Pool,
+                "{reference:?}"
+            );
+        }
+        let datagroup = refs
+            .iter()
+            .find(|reference| reference.name == "/Common/hosts")
+            .unwrap();
+        assert_eq!(datagroup.category, IrulesObjectReferenceCategory::DataGroup);
+    }
+
+    #[test]
+    fn unavailable_irules_rename_does_not_change_object_ref_command() {
+        assert!(ref_names(&pool_rule("rename pool p\n", "p")).is_empty());
+        assert_eq!(
+            ref_names(&pool_rule("rename pool p\n", "pool")),
+            vec!["/Common/web_pool".to_owned()],
+            "F5 K36322151 disables `rename`, so pool remains available"
         );
     }
 
@@ -658,23 +759,77 @@ mod tests {
         );
     }
 
-    /// The `set`-constant propagation reads the resolved head too, so a pool
-    /// name bound through an aliased `set` still resolves.
+    /// An unavailable `interp alias` cannot make `assign` a `set` command.
     #[test]
-    fn constant_propagation_follows_an_aliased_set() {
+    fn unavailable_irules_alias_does_not_change_constant_propagation() {
         let source = "interp alias {} assign {} set\n\
                       when HTTP_REQUEST {\n\
                       assign p /Common/web_pool\n\
                       pool $p\n\
                       }\n";
-        assert_eq!(ref_names(source), vec!["/Common/web_pool".to_owned()]);
-        // Guard: without the alias, `assign` binds nothing and `$p` is unknown.
-        let source = "set y 1\n\
-                      when HTTP_REQUEST {\n\
-                      assign p /Common/web_pool\n\
+        assert!(ref_names(source).is_empty());
+    }
+
+    #[test]
+    fn command_substitution_set_effects_stay_in_the_live_scope() {
+        let source = "when HTTP_REQUEST {\n\
+                      set p /Common/old\n\
+                      puts [set p /Common/new]\n\
                       pool $p\n\
                       }\n";
-        assert!(ref_names(source).is_empty());
+        assert_eq!(ref_names(source), vec!["/Common/new".to_owned()]);
+    }
+
+    #[test]
+    fn ordered_sibling_command_substitutions_share_effects() {
+        let source = "when HTTP_REQUEST {\n\
+                      set p /Common/old\n\
+                      puts [set p /Common/first] [set p /Common/second]\n\
+                      pool $p\n\
+                      }\n";
+        assert_eq!(ref_names(source), vec!["/Common/second".to_owned()]);
+    }
+
+    #[test]
+    fn body_role_command_substitution_runs_once_in_the_live_scope() {
+        let source = "when HTTP_REQUEST {\n\
+                      set p /Common/old\n\
+                      catch [set p /Common/new]\n\
+                      pool $p\n\
+                      }\n";
+        assert_eq!(ref_names(source), vec!["/Common/new".to_owned()]);
+    }
+
+    #[test]
+    fn expr_role_substitutions_run_live_without_duplicate_references() {
+        let source = "when HTTP_REQUEST {\n\
+                      set p /Common/old\n\
+                      if [string length [set p /Common/new]] { set seen 1 }\n\
+                      if [string length [active_members /Common/expr_pool]] { set seen 1 }\n\
+                      pool $p\n\
+                      }\n";
+        assert_eq!(
+            ref_names(source),
+            vec!["/Common/expr_pool".to_owned(), "/Common/new".to_owned()]
+        );
+    }
+
+    #[test]
+    fn braced_expr_text_does_not_invent_object_references() {
+        let source = "when HTTP_REQUEST {\n\
+                      if {class match [HTTP::host] equals /Common/inert_dg} { set seen 1 }\n\
+                      if [class match [HTTP::host] equals /Common/live_dg] { set seen 1 }\n\
+                      }\n";
+        let names = ref_names(source);
+        assert_eq!(names, ["/Common/live_dg"]);
+    }
+
+    #[test]
+    fn braced_expr_command_substitution_keeps_its_data_group_reference() {
+        let source = "when HTTP_REQUEST {\n\
+                      if {[class match [HTTP::host] equals /Common/braced_dg]} { set seen 1 }\n\
+                      }\n";
+        assert_eq!(ref_names(source), ["/Common/braced_dg"]);
     }
 
     /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual

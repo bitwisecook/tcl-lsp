@@ -578,7 +578,8 @@ fn format_case_list_body(
         };
         if action_starts.contains(&element.start) {
             if element.braced {
-                let Some(content) = body_text.get(element.start + 1..element.end) else {
+                let content_range = element.content_range();
+                let Some(content) = body_text.get(content_range.clone()) else {
                     return body_text.to_owned();
                 };
                 if content == case_list.fallthrough_body.unwrap_or("\0") {
@@ -586,7 +587,7 @@ fn format_case_list_body(
                     lines.push(format!("{indent}{}", prefix.join(" ")));
                 } else {
                     let action_source_offset = body_source_offset
-                        .saturating_add(u32::try_from(element.start + 1).unwrap_or(u32::MAX));
+                        .saturating_add(u32::try_from(content_range.start).unwrap_or(u32::MAX));
                     let formatted = format_body(
                         content,
                         action_source_offset,

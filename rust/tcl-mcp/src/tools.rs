@@ -22,6 +22,8 @@
 //! [`call`] renders it into the MCP `content[].text` wire shape (a JSON string),
 //! kept stable so existing clients are unaffected.
 
+use std::collections::HashSet;
+
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
 use tcl_dialect::KNOWN_DIALECTS;
@@ -224,8 +226,14 @@ fn doc_symbol_to_json(sym: &tcl_lsp_core::document_symbols::DocumentSymbol) -> V
 /// (1-based index) — the `ordered_events` shape.
 fn event_order_list(source: &str) -> Vec<Value> {
     let events = EventRegistry::build();
+    let mut seen = HashSet::new();
+    let names: Vec<String> = tcl_irules::when_blocks(source)
+        .into_iter()
+        .map(|block| block.event)
+        .filter(|event| seen.insert(event.clone()))
+        .collect();
     events
-        .order_events_for_file(source)
+        .order_events(&names)
         .into_iter()
         .enumerate()
         .map(|(i, name)| {
@@ -236,30 +244,14 @@ fn event_order_list(source: &str) -> Vec<Value> {
 }
 
 /// iRule `when EVENT` handlers as `{name, line}` (0-based line), first
-/// appearance only — mirrors the `_detect_events` regex
-/// `^\s*when\s+([A-Z][A-Z0-9_]{2,})\b`.
+/// appearance only, using the shared top-level event-handler owner.
 fn detect_events(source: &str) -> Vec<Value> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    for (line_no, line) in source.lines().enumerate() {
-        let Some(rest) = line.trim_start().strip_prefix("when") else {
-            continue;
-        };
-        // `when` must be followed by at least one whitespace character.
-        let after = rest.trim_start();
-        if after.len() == rest.len() {
-            continue;
-        }
-        // Capture the maximal `[A-Z0-9_]` run; `\b` then holds automatically.
-        let name: String = after
-            .chars()
-            .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_')
-            .collect();
-        if name.len() < 3 || !name.starts_with(|c: char| c.is_ascii_uppercase()) {
-            continue;
-        }
-        if seen.insert(name.clone()) {
-            out.push(json!({ "name": name, "line": line_no }));
+    let lines = tcl_lexer::LineIndex::new(source);
+    for block in tcl_irules::when_blocks(source) {
+        if seen.insert(block.event.clone()) {
+            out.push(json!({ "name": block.event, "line": lines.line_at(block.span.start()) }));
         }
     }
     out
@@ -1927,6 +1919,20 @@ mod source_integrity_tests {
         )
         .expect("analyze tool");
         assert!(!diagnostic_codes(&result).contains(&"W305"), "{result}");
+    }
+
+    #[test]
+    fn event_order_deduplicates_repeated_handlers() {
+        let result = event_order_list(
+            "when HTTP_REQUEST { return }\nwhen CLIENT_ACCEPTED {}\nwhen HTTP_REQUEST {}\n",
+        );
+        let names: Vec<_> = result
+            .iter()
+            .filter_map(|row| row["name"].as_str())
+            .collect();
+        assert_eq!(names, ["CLIENT_ACCEPTED", "HTTP_REQUEST"]);
+        assert_eq!(result[0]["index"], 1);
+        assert_eq!(result[1]["index"], 2);
     }
 }
 

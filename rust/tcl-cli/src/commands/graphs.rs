@@ -71,56 +71,31 @@ fn line_of(line_index: &LineIndex, offset: u32) -> u32 {
     line_index.position_at(offset).line + 1
 }
 
-/// Detect `when EVENT` iRules entries via the regex
-/// `\bwhen\s+([A-Z_][A-Z0-9_]*)`, deduplicated, in first-seen order.
+/// Detect event entries through the shared iRules handler owner, deduplicated
+/// in first-seen order.
 ///
 /// Runs unconditionally (every dialect),
 /// each entry at depth 0 with its 1-based line.
-fn detect_event_entries(source: &str, line_index: &LineIndex) -> Vec<SymbolEntry> {
-    fn is_word(b: u8) -> bool {
-        b.is_ascii_alphanumeric() || b == b'_'
-    }
-    fn is_upper_start(b: u8) -> bool {
-        b.is_ascii_uppercase() || b == b'_'
-    }
-    fn is_upper_rest(b: u8) -> bool {
-        b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
-    }
-
-    let bytes = source.as_bytes();
+fn detect_event_entries(source: &str, line_index: &LineIndex, dialect: &str) -> Vec<SymbolEntry> {
+    let registry = registry_for_dialect(dialect);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, &registry);
     let mut entries = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    let mut i = 0usize;
-    while i + 4 <= bytes.len() {
-        // `\bwhen`: the four chars "when" with a word boundary before.
-        if &bytes[i..i + 4] == b"when" && (i == 0 || !is_word(bytes[i - 1])) {
-            let mut j = i + 4;
-            // `\s+`
-            let ws_start = j;
-            while j < bytes.len() && bytes[j].is_ascii_whitespace() {
-                j += 1;
-            }
-            if j > ws_start && j < bytes.len() && is_upper_start(bytes[j]) {
-                let name_start = j;
-                j += 1;
-                while j < bytes.len() && is_upper_rest(bytes[j]) {
-                    j += 1;
-                }
-                let name = &source[name_start..j];
-                if seen.insert(name.to_string()) {
-                    entries.push(SymbolEntry {
-                        kind: "event",
-                        name: name.to_string(),
-                        line: Some(line_of(line_index, u32::try_from(i).unwrap_or(u32::MAX))),
-                        depth: 0,
-                        params: None,
-                    });
-                }
-                i = j;
-                continue;
-            }
+    for handler in tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
+        source,
+        &registry,
+        &identities,
+    ) {
+        if seen.insert(handler.event.clone()) {
+            entries.push(SymbolEntry {
+                kind: "event",
+                name: handler.event,
+                line: Some(line_of(line_index, handler.span.start())),
+                depth: 0,
+                params: None,
+            });
         }
-        i += 1;
     }
     entries
 }
@@ -196,7 +171,7 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
         .analyse(&source, &dialect);
     let line_index = LineIndex::new(&source);
 
-    let mut entries = detect_event_entries(&source, &line_index);
+    let mut entries = detect_event_entries(&source, &line_index, &dialect);
     collect_scope_entries(&result.global_scope, 0, &line_index, &mut entries);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
@@ -472,4 +447,35 @@ pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     }
     write_text_output(&target, &lines.join("\n"))?;
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn event_symbols_use_top_level_rooted_normalised_owner() {
+        let source = "::when http_request {\n  if {1} { :::when client_data {} }\n}";
+        let entries = detect_event_entries(source, &LineIndex::new(source), "f5-irules");
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| (entry.name.as_str(), entry.line))
+                .collect::<Vec<_>>(),
+            [("HTTP_REQUEST", Some(1))]
+        );
+    }
+
+    #[test]
+    fn event_symbols_ignore_inert_braced_and_quoted_when_text() {
+        let source = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
+        let entries = detect_event_entries(source, &LineIndex::new(source), "f5-irules");
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            ["HTTP_REQUEST"]
+        );
+    }
 }

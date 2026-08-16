@@ -29,6 +29,8 @@ use std::collections::HashSet;
 
 use tcl_core_types::RecursionLimit;
 
+use crate::{close_quote_offset, command_substitution_end};
+
 /// Cap on `$name(…)` array-index nesting depth for `Inner::scan_array_index`
 /// — mirrors the main lexer's `MAX_ARRAY_INDEX_DEPTH` (`crate::lexer`) and
 /// exists for the same reason: unbounded self-recursion on
@@ -574,6 +576,11 @@ impl<'s> Inner<'s> {
             }
             if self.i < self.b.len() {
                 self.i += 1;
+            } else {
+                // Preserve a recovery token for editor callers, but a
+                // variable whose `${…}` closer is absent cannot participate in
+                // an executable expression.
+                self.unknown = true;
             }
         } else {
             // A bare `$name` consumes alphanumerics / `_`, and `:` only as part
@@ -593,7 +600,11 @@ impl<'s> Inner<'s> {
             }
             if self.i < self.b.len() && self.b[self.i] == b'(' {
                 self.i += 1;
-                self.scan_array_index(0);
+                if !self.scan_array_index(0) {
+                    // As with an unterminated command or quote, let recovery
+                    // retain the token while making `parse_expr` fail closed.
+                    self.unknown = true;
+                }
             }
         }
         self.tok(ExprTokenType::Variable, start)
@@ -615,33 +626,22 @@ impl<'s> Inner<'s> {
     /// ordinary character rather than recursed into, so pathologically
     /// deep `$a($b($c(...)))` input degrades gracefully rather than
     /// overflowing the native stack.
-    fn scan_array_index(&mut self, depth: u32) {
+    fn scan_array_index(&mut self, depth: u32) -> bool {
         let past_cap = MAX_EXPR_ARRAY_INDEX_DEPTH.exceeded(depth);
         while self.i < self.b.len() {
             match self.b[self.i] {
                 b')' => {
                     self.i += 1;
-                    return;
+                    return true;
                 }
                 b'\\' => self.i = (self.i + 2).min(self.b.len()),
-                b'[' => {
-                    self.i += 1;
-                    let mut depth: u32 = 1;
-                    while self.i < self.b.len() && depth > 0 {
-                        match self.b[self.i] {
-                            b'\\' => self.i = (self.i + 2).min(self.b.len()),
-                            b'[' => {
-                                depth += 1;
-                                self.i += 1;
-                            }
-                            b']' => {
-                                depth -= 1;
-                                self.i += 1;
-                            }
-                            _ => self.i += 1,
-                        }
-                    }
-                }
+                b'[' => match command_substitution_end(self.s, self.i) {
+                    Some(end) => self.i = end,
+                    // A `]` in a nested braced/quoted script word cannot
+                    // close the substitution. Delegate that grammar to the
+                    // shared range owner rather than approximating it here.
+                    None => return false,
+                },
                 b'$' if !past_cap => {
                     self.i += 1;
                     if self.i < self.b.len() && self.b[self.i] == b'{' {
@@ -668,51 +668,41 @@ impl<'s> Inner<'s> {
                         }
                         if self.i < self.b.len() && self.b[self.i] == b'(' {
                             self.i += 1;
-                            self.scan_array_index(depth + 1); // nested index
+                            if !self.scan_array_index(depth + 1) {
+                                return false;
+                            }
                         }
                     }
                 }
                 _ => self.i += 1,
             }
         }
+        false
     }
 
     fn command(&mut self) -> ExprToken {
         let start = self.i;
-        self.i += 1;
-        let mut lvl = 1u32;
-        while self.i < self.b.len() && lvl > 0 {
-            match self.b[self.i] {
-                b'[' => lvl += 1,
-                b']' => lvl -= 1,
-                // Skip the escaped byte, but only when one exists: a trailing
-                // `\` at end-of-input must not combine with the unconditional
-                // `self.i += 1` below to push `i` to `len + 1`, which then
-                // panics the out-of-bounds `self.s[start..self.i]` slice in
-                // `tok`.
-                b'\\' if self.i + 1 < self.b.len() => {
-                    self.i += 1;
-                }
-                _ => {}
-            }
-            self.i += 1;
+        if let Some(end) = command_substitution_end(self.s, start) {
+            self.i = end;
+        } else {
+            // Keep a recovery token for callers that need the incomplete
+            // source slice, but make `tokenise_expr_checked`/`parse_expr`
+            // reject it. A missing `]` cannot execute a command.
+            self.i = self.b.len();
+            self.unknown = true;
         }
         self.tok(ExprTokenType::Command, start)
     }
 
     fn quoted(&mut self) -> ExprToken {
         let start = self.i;
-        self.i += 1;
-        while self.i < self.b.len() && self.b[self.i] != b'"' {
-            // Skip the escaped byte only when it exists (a trailing `\` must not
-            // push `i` past the end and panic `tok`'s slice).
-            if self.b[self.i] == b'\\' && self.i + 1 < self.b.len() {
-                self.i += 1;
-            }
-            self.i += 1;
-        }
-        if self.i < self.b.len() {
-            self.i += 1;
+        if let Some(close) = close_quote_offset(self.s, start) {
+            self.i = close + 1;
+        } else {
+            // As with an unterminated command substitution, retain the
+            // recovery token but reject the expression as non-executable.
+            self.i = self.b.len();
+            self.unknown = true;
         }
         self.tok(ExprTokenType::String, start)
     }
@@ -939,6 +929,39 @@ mod tests {
     }
 
     #[test]
+    fn command_and_quote_tokens_use_the_shared_tcl_range_grammar() {
+        let source = "[set x 1; # ] remains a script comment\nHTTP::host]";
+        let (tokens, unknown) = tokenise_expr_checked(source, Some("tcl9.0"));
+        assert!(!unknown, "a complete script substitution is executable");
+        assert_eq!(
+            tokens
+                .iter()
+                .find(|token| token.kind == ExprTokenType::Command)
+                .map(|token| token.text.as_str()),
+            Some(source)
+        );
+
+        let quoted = r#""a[format "%s" b]c""#;
+        let (tokens, unknown) = tokenise_expr_checked(quoted, Some("tcl9.0"));
+        assert!(!unknown, "a quote may contain a quoted nested script word");
+        assert_eq!(
+            tokens
+                .iter()
+                .find(|token| token.kind == ExprTokenType::String)
+                .map(|token| token.text.as_str()),
+            Some(quoted)
+        );
+    }
+
+    #[test]
+    fn unterminated_command_and_quote_are_checked_lex_errors() {
+        for source in [r"[a ", r#""a\"#] {
+            let (_tokens, unknown) = tokenise_expr_checked(source, None);
+            assert!(unknown, "unterminated expression token: {source:?}");
+        }
+    }
+
+    #[test]
     fn backslash_newline_is_whitespace_continuation() {
         // GAP-B7: `1 \<LF>    + 2` — the backslash-newline is a Tcl 9
         // line continuation and must lex as whitespace, not an Unknown
@@ -1138,6 +1161,17 @@ mod tests {
     fn checked_no_unknown() {
         let (_, u) = tokenise_expr_checked("1 + 2", None);
         assert!(!u);
+    }
+
+    #[test]
+    fn checked_rejects_unclosed_variable_delimiters() {
+        for source in ["${name", "$array(key", "$array([command)"] {
+            let (_, unknown) = tokenise_expr_checked(source, Some("f5-irules"));
+            assert!(
+                unknown,
+                "unterminated variable syntax stayed executable: {source:?}"
+            );
+        }
     }
 
     #[test]

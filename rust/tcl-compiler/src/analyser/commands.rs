@@ -1030,7 +1030,14 @@ impl Analyser {
         arg_tokens_in: &[Token],
         scope_path: &[usize],
     ) {
-        if cmd_name != "call" || self.dialect() != "f5-irules" {
+        if !self.profile.is_irules()
+            || !self.registry.as_deref().is_some_and(|registry| {
+                registry.get(cmd_name).is_some_and(|spec| {
+                    spec.traits
+                        .contains(tcl_registry::Traits::INVOKES_USER_PROC)
+                })
+            })
+        {
             return;
         }
         let (Some(target_name), Some(target_tok)) = (args.first(), arg_tokens_in.get(1).copied())
@@ -1095,7 +1102,17 @@ impl Analyser {
         // lightweight named definition to the outline.  Void handler — it only
         // records the symbol; the body still recurses via the generic
         // `ArgRole::Body` walk below.
-        self.handle_defines_symbol(cmd_name, args, arg_tokens, arg_single, scope_path);
+        // Definition and body descriptors are registry semantics, so read the
+        // document's offset-keyed identity before asking either one.  This is
+        // what lets an iRules event handler reached through a proven alias or
+        // rename contribute the same outline/context as `when`, while a
+        // spelling a user `proc` took over cannot inherit `when`'s body.
+        let descriptor_name = self
+            .head_identities
+            .head_words(cmd_name, cmd_tok.span.start())
+            .resolved
+            .to_owned();
+        self.handle_defines_symbol(&descriptor_name, args, arg_tokens, arg_single, scope_path);
         // The tcllib `<NS>::import <alias>` wrapper idiom — recognised by
         // the call's own `::import` tail, not a registry name.
         self.handle_tcllib_import_wrapper(cmd_name, cmd_tok, args, scope_path);
@@ -1112,7 +1129,7 @@ impl Analyser {
         // For `when EVENT { body }` the iRules dialect spec
         // marks arg 1 as BODY; set `current_event` for the body
         // walk so race-detection diagnostics see the event name.
-        self.dispatch_body_arguments(cmd_name, args, arg_tokens, arg_single, scope_path);
+        self.dispatch_body_arguments(&descriptor_name, args, arg_tokens, arg_single, scope_path);
     }
 
     /// Resolve the [`AnalyserHookId`] for a command head, mirroring the
@@ -1462,11 +1479,13 @@ impl Analyser {
             });
         }
 
-        if resolves_to_proc
-            && cmd_name != "call"
-            && self.current_event.is_some()
-            && self.dialect() == "f5-irules"
-        {
+        let irules_proc_dispatch_context = self.profile.is_irules()
+            && matches!(
+                self.irules_execution_context(scope_path),
+                tcl_registry::events::IrulesExecutionContext::EventBody
+                    | tcl_registry::events::IrulesExecutionContext::ProcedureBody
+            );
+        if resolves_to_proc && irules_proc_dispatch_context {
             let suffix = if args.is_empty() {
                 String::new()
             } else {
@@ -1671,7 +1690,7 @@ impl Analyser {
         self.emit_irule2001_matchclass(cmd_name, arg_tokens, cmd_tok);
         // IRULE1003 / 1004 / 2101 / 4001 / 4003 / 5001 / 6001 —
         // analyser-level iRules event-context checks (f5-irules only).
-        self.emit_irules_event_checks(cmd_name, args, arg_tokens, cmd_tok);
+        self.emit_irules_event_checks(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
         // TK1001 / TK1002 / TK1003 — Tk-dialect widget + geometry checks
         // (tk dialect only); the TK1001 conflict is flushed post-walk.
         self.emit_tk_checks(cmd_name, args, arg_tokens, cmd_tok);
@@ -1863,14 +1882,10 @@ impl Analyser {
     }
 
     /// Generic body recursion via the command registry's
-    /// `ArgRole::Body`.  Picks up `if` / `while` / `when` / `eval`
-    /// / `uplevel` / `subst` / etc. — every command whose registry
-    /// spec marks an argument index as `BODY`.  Sets
-    /// ``current_event`` for ``when EVENT { body }`` and bumps
-    /// ``conditional_depth`` for ``if`` / ``try``.  Emits W105
-    /// before recursing into each body so the unbraced-body
-    /// warning fires on the body argument's own range, not on
-    /// any nested re-segmentation.
+    /// `ArgRole::Body`, including `if`, `when`, `eval`, and every other
+    /// registry-owned body. Sets event / conditional context and emits W105
+    /// on the body argument before recursing, rather than on a nested
+    /// re-segmentation.
     fn dispatch_body_arguments(
         &mut self,
         cmd_name: &str,
@@ -1967,8 +1982,7 @@ impl Analyser {
                 .or_default()
                 .insert(name.clone());
         }
-        // Registry facts, not command names (gap-review C3). The event
-        // handler is whatever carries `IS_EVENT_HANDLER` — `when` today, but
+        // The event handler carries `IS_EVENT_HANDLER` — `when` today, but
         // a dialect that adds another gets the same treatment without an edit
         // here; its synopsis (`when EVENT { body }`) puts the event name in
         // the first argument. `conditional_depth` rises for a command whose
@@ -1977,11 +1991,13 @@ impl Analyser {
         let spec_traits = registry
             .get(cmd_name)
             .map_or_else(tcl_registry::Traits::empty, |s| s.traits);
-        let is_event_handler = spec_traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER);
-        let prev_event = self.current_event.clone();
-        if is_event_handler && !args.is_empty() {
-            self.current_event = Some(args[0].clone());
-        }
+        // iRules event handlers are a file-level declaration surface.  A
+        // handler-shaped command reached while already walking any body is
+        // invalid (IRULE5006) and must not manufacture or replace event
+        // context.  In particular, a nested handler inside an event retains
+        // the outer event's context, while one inside a proc retains `None`.
+        let (valid_irules_event, entered_event, prev_event) =
+            self.enter_registry_event_context(cmd_name, spec_traits, args, arg_tokens, arg_single);
         let is_conditional = spec_traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         if is_conditional {
             self.conditional_depth += 1;
@@ -1996,7 +2012,7 @@ impl Analyser {
         if is_control_flow {
             self.control_flow_body_depth += 1;
         }
-        for idx in body_indices {
+        for idx in body_indices.into_iter().filter(|_| valid_irules_event) {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
                 let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
@@ -2016,9 +2032,86 @@ impl Analyser {
         if is_control_flow {
             self.control_flow_body_depth -= 1;
         }
-        if is_event_handler {
+        if entered_event {
             self.current_event = prev_event;
         }
+    }
+
+    fn enter_event_context(
+        &mut self,
+        enters_event_context: bool,
+        args: &[String],
+    ) -> (bool, Option<String>) {
+        if !enters_event_context {
+            return (false, None);
+        }
+        let previous = self.current_event.clone();
+        self.current_event = args.first().cloned();
+        (true, previous)
+    }
+
+    fn enter_registry_event_context(
+        &mut self,
+        command: &str,
+        traits: tcl_registry::Traits,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> (bool, bool, Option<String>) {
+        let is_event_handler = traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER);
+        let valid = self.irules_event_body_is_valid(
+            command,
+            is_event_handler,
+            args,
+            arg_tokens,
+            arg_single,
+        );
+        let (entered, previous) =
+            self.enter_event_context(is_event_handler && self.body_depth == 0 && valid, args);
+        (valid, entered, previous)
+    }
+
+    fn irules_event_body_is_valid(
+        &self,
+        command: &str,
+        is_event_handler: bool,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> bool {
+        if !self.profile.is_irules() || !is_event_handler {
+            return true;
+        }
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let registry = self
+            .registry
+            .as_deref()
+            .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
+        let closed = tcl_registry::events::closed_braced_argument_words(
+            &self.source,
+            arg_tokens,
+            arg_single,
+        );
+        let declaration = closed
+            .as_deref()
+            .and_then(|closed| {
+                tcl_registry::events::IrulesDeclarationArguments::new(
+                    &words, arg_tokens, arg_single, closed,
+                )
+            })
+            .and_then(|arguments| {
+                registry.irules_top_level_declaration(
+                    command,
+                    arguments,
+                    &tcl_registry::events::EventRegistry::build(),
+                )
+            });
+        self.body_depth == 0
+            && matches!(
+                declaration,
+                Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { body_index, .. })
+                    if arg_tokens.get(body_index).is_some_and(|token| token.kind == TokenType::Str)
+            )
     }
 
     /// Body-role indices for an *imported* command called by its unqualified
@@ -5823,10 +5916,44 @@ mod tests {
     }
 
     #[test]
-    fn irule5005_quiet_outside_event_context() {
-        // Top-level direct call, no `when` block — not an iRules-event call.
-        let src = "proc helper {} { return 1 }\nhelper";
+    fn malformed_irules_proc_is_not_registered_or_walked() {
+        let mut analyser = Analyser::new();
+        let result = analyser.analyse(
+            "proc malformed {} { pool /Common/inert } extra\n\
+             when HTTP_REQUEST { call malformed }",
+            "f5-irules",
+        );
+        assert!(!result.all_procs.contains_key("::malformed"));
+        assert!(result.command_invocations.iter().all(|call| {
+            call.name != "pool" && call.resolved_qualified_name.as_deref() != Some("::pool")
+        }));
+    }
+
+    #[test]
+    fn irule5005_fires_for_direct_proc_call_from_proc() {
+        let src = "proc helper {} { return 1 }\nproc caller {} { helper }\nwhen RULE_INIT { call caller }";
+        assert!(has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_fires_for_direct_proc_call_in_proc_command_substitution() {
+        let src = "proc helper {} { return 1 }\nproc caller {} { set x [helper] }\nwhen RULE_INIT { call caller }";
+        assert!(has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5005_quiet_for_call_prefix_from_proc() {
+        let src = "proc helper {} { return 1 }\nproc caller {} { call helper }\nwhen RULE_INIT { call caller }";
         assert!(!has_code(src, "f5-irules", "IRULE5005"));
+    }
+
+    #[test]
+    fn irule5007_rejects_direct_or_call_prefixed_proc_at_top_level() {
+        for invocation in ["helper", "call helper"] {
+            let src = format!("proc helper {{}} {{ return 1 }}\n{invocation}");
+            assert!(has_code(&src, "f5-irules", "IRULE5007"));
+            assert!(!has_code(&src, "f5-irules", "IRULE5005"));
+        }
     }
 
     #[test]

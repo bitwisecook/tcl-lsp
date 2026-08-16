@@ -29,7 +29,7 @@
 
 use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::definition::LspRange;
-use tcl_lsp_core::selection_range::{SelectionRange, selection_range};
+use tcl_lsp_core::selection_range::{SelectionRange, selection_range, selection_range_for_dialect};
 
 /// The chain ordered innermost → outermost by following `parent_index`.
 fn chain(source: &str, line: u32, character: u32) -> Vec<LspRange> {
@@ -155,6 +155,82 @@ fn no_duplicate_adjacent_ranges() {
             "adjacent chain ranges must differ"
         );
     }
+}
+
+#[test]
+fn registry_recursive_command_spans_cover_case_lambda_and_definition_members() {
+    // Each expected range is the innermost command, not its enclosing list or
+    // definition script. The traversal receives only registry roles and the
+    // resolved DialectProfile; no command name selects a descent path.
+    let cases = [
+        (
+            "switch $kind {\n    ok { puts switch-hit }\n}\n",
+            1,
+            17,
+            9,
+            24,
+            "tcl9.0",
+        ),
+        (
+            "set result [if {1} { puts command-hit }]\n",
+            0,
+            29,
+            21,
+            37,
+            "tcl9.0",
+        ),
+        (
+            "apply {{value} {\n    puts $value\n}} item\n",
+            1,
+            10,
+            4,
+            15,
+            "tcl9.0",
+        ),
+        (
+            "oo::class create C {\n    method run {} {\n        puts member-hit\n    }\n}\n",
+            2,
+            15,
+            8,
+            23,
+            "tcl9.0",
+        ),
+    ];
+    for (source, line, character, start, end, dialect) in cases {
+        let links = selection_range_for_dialect(source, line, character, None, dialect);
+        assert!(
+            links.iter().any(|link| {
+                link.range.start_line == line
+                    && link.range.start_character == start
+                    && link.range.end_line == line
+                    && link.range.end_character == end
+            }),
+            "{dialect}: missing exact nested command span in {links:?}"
+        );
+        for pair in links.windows(2) {
+            assert!(contains(pair[1].range, pair[0].range), "{links:?}");
+            assert_ne!(pair[0].range, pair[1].range, "{links:?}");
+        }
+    }
+}
+
+#[test]
+fn alias_to_user_proc_named_method_does_not_recurse_into_data() {
+    // Tclsh 9.0.4: this runs the user `method` proc and prints neither the
+    // comment nor `puts must-not-run`; `define_method` is an alias, not an OO
+    // member declaration. A registry member spelling alone cannot prove the
+    // target owns the surrounding definition body.
+    let source = "proc method {name parameters body} {\n    return \"$name:$parameters:$body\"\n}\ninterp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        # inert data\n        puts must-not-run\n    }\n}\n";
+    let links = selection_range_for_dialect(source, 7, 15, None, "tcl9.0");
+    assert!(
+        !links.iter().any(|link| {
+            link.range.start_line == 7
+                && link.range.start_character == 8
+                && link.range.end_line == 7
+                && link.range.end_character == 25
+        }),
+        "an alias to a user proc must not make its final braced argument executable: {links:?}"
+    );
 }
 
 #[test]

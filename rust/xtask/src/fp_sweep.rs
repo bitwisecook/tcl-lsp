@@ -554,6 +554,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         &no_disabled,
         &no_suppressed,
         Some(&doc.input.decode),
+        &dialect,
     ) {
         let Ok(code) = DiagCode::from_str(d.code) else {
             continue;

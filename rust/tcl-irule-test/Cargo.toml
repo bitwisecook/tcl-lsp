@@ -48,6 +48,7 @@ tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-syntax = { path = "../tcl-syntax" }
+tcl-irules = { path = "../tcl-irules" }
 
 [lints]
 workspace = true

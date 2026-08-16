@@ -131,4 +131,19 @@ mod tests {
             .expect("orchestrator bundled");
         assert!(orch.contains("_fakecmp_addr_parts"));
     }
+
+    /// The simulator is a deliberate non-Rust loader carve-out. Keep its
+    /// header recogniser narrow and explicitly tied to the canonical Rust
+    /// boundary owner; this fails when either side is silently changed.
+    #[test]
+    fn itest_core_when_loader_contract() {
+        let core = BUNDLE
+            .iter()
+            .find(|(n, _)| *n == "itest_core.tcl")
+            .map(|(_, s)| *s)
+            .expect("itest core bundled");
+        assert!(core.contains("Rust consumers must use `tcl-irules::when_blocks`"));
+        assert!(core.contains("when\\s+([A-Z_][A-Z0-9_]*)"));
+        assert!(core.contains("Find the body (brace-balanced)"));
+    }
 }

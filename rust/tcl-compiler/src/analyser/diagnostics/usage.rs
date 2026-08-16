@@ -479,7 +479,9 @@ Use braces: {{ \u{2026} }}"
         // dialects, confusables otherwise).
         let mode = match self.non_ascii_mode {
             NonAsciiMode::Default => {
-                if matches!(self.dialect(), "f5-irules" | "f5-iapps") {
+                if self.profile.is_irules()
+                    || self.profile.vendor_bit == Some(tcl_dialect::DialectSet::IAPPS)
+                {
                     NonAsciiMode::Strict
                 } else {
                     NonAsciiMode::Confusables

@@ -34,7 +34,7 @@ when HTTP_REQUEST {
 }
 ```
 
-The analyser reports **`IRULE5005`** because `helper` is invoked directly instead of via `call`.
+The analyser reports **`IRULE5005`** because `helper` is invoked directly instead of via `call`. The same rule applies when one iRules proc invokes another proc.
 
 ## Fix
 
@@ -42,6 +42,12 @@ Use `call` to invoke the proc:
 
 ```tcl
 when HTTP_REQUEST { call helper }
+```
+
+Inside another proc, use the same form:
+
+```tcl
+proc caller {} { call helper }
 ```
 
 ## How to suppress

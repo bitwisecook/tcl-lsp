@@ -38,18 +38,18 @@
 //!   namespace scope body spans on the analyser side; today
 //!   they only live in the scope tree, which the selection-
 //!   range provider doesn't walk.
-//! * Multi-line command segments — a single-line `;`-aware
-//!   scan is used, so continuation lines and embedded `[…]` /
-//!   `{…}` tokens aren't handled.
+//! * Partial commands use the segmenter's recovery span; an unfinished edit
+//!   may therefore have a wider command link until its closer is written.
 //! * Containment-invariant validation against VS Code's
 //!   requirement that each parent strictly contains its
 //!   child; the chain is built so parents always contain
 //!   children by construction.
 
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span};
 
-use crate::definition::{LspRange, byte_offset_at, utf16_col_to_char_col, utf16_len};
+use crate::definition::{LspRange, byte_offset_at, utf16_len};
 use crate::hover::find_word_span_at_position;
 
 /// One link in the selection-range chain.
@@ -77,9 +77,7 @@ pub struct SelectionRange {
 /// Chain order (each link strictly contains the next):
 ///
 /// 1. Word at cursor — when the cursor sits on an identifier.
-/// 2. Command segment on the same line — when distinct from
-///    the line range (i.e. the line has `;` separators or
-///    leading / trailing whitespace).
+/// 2. Segmented command — when distinct from the enclosing line.
 /// 3. Enclosing line.
 /// 4. Enclosing proc / class bodies — one link per containing
 ///    body, innermost first.  Only present when `analysis`
@@ -91,6 +89,21 @@ pub fn selection_range(
     line: u32,
     character: u32,
     analysis: Option<&AnalysisResult>,
+) -> Vec<SelectionRange> {
+    selection_range_for_dialect(source, line, character, analysis, "tcl9.0")
+}
+
+/// Compute the selection-range chain using the document's resolved dialect.
+///
+/// The command link is a segmented CST command span, not a source scan for
+/// semicolons, so literal separators inside Tcl words cannot truncate it.
+#[must_use]
+pub fn selection_range_for_dialect(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: Option<&AnalysisResult>,
+    dialect: &str,
 ) -> Vec<SelectionRange> {
     let mut ranges: Vec<LspRange> = Vec::new();
 
@@ -113,22 +126,27 @@ pub fn selection_range(
         }
     });
 
-    // Command-segment link — sits between the word and the
-    // line.  Emit it only when it doesn't coincide with the
+    // Command-segment link normally sits between the word and the
+    // line.  A multiline command instead becomes the direct parent;
+    // a physical line cannot contain it.
     // line range (otherwise the chain would have two
     // identical-shape links, which the LSP client treats as
     // a no-op grow).
-    if let Some(line_text) = source.split('\n').nth(line as usize)
-        && let Some((seg_start, seg_end)) = command_segment_on_line(line_text, character)
-    {
-        let seg_range = LspRange {
-            start_line: line,
-            start_character: seg_start,
-            end_line: line,
-            end_character: seg_end,
-        };
+    let line_index = LineIndex::new(source);
+    let cursor_offset = byte_offset_at(&line_index, source, line, character);
+    let mut command_is_multiline = false;
+    if let Some(span) = command_span_at(
+        source,
+        cursor_offset,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        dialect,
+    ) {
+        let seg_range = span_to_range(source, &line_index, span);
+        command_is_multiline = seg_range.start_line != seg_range.end_line;
         let coincident_with_line = line_range.as_ref().is_some_and(|lr| {
-            lr.start_character == seg_range.start_character
+            lr.start_line == seg_range.start_line
+                && lr.end_line == seg_range.end_line
+                && lr.start_character == seg_range.start_character
                 && lr.end_character == seg_range.end_character
         });
         if !coincident_with_line {
@@ -136,7 +154,9 @@ pub fn selection_range(
         }
     }
 
-    if let Some(lr) = line_range {
+    // A physical line cannot contain a multiline command.  Omitting it keeps
+    // every LSP parent link a true containing range.
+    if !command_is_multiline && let Some(lr) = line_range {
         ranges.push(lr);
     }
 
@@ -144,8 +164,6 @@ pub fn selection_range(
     // span contains the cursor's byte offset.  Order is
     // innermost first so the chain stays outward-growing.
     if let Some(analysis) = analysis {
-        let line_index = LineIndex::new(source);
-        let cursor_offset = byte_offset_at(&line_index, source, line, character);
         for span in enclosing_body_spans(analysis, cursor_offset) {
             ranges.push(span_to_range(source, &line_index, span));
         }
@@ -190,6 +208,10 @@ pub fn selection_range(
             r.end_character = parent_end.1;
         }
     }
+
+    // Clamping can collapse a command/body link onto its parent. LSP ranges
+    // must grow strictly at every parent edge, so discard equal neighbours.
+    ranges.dedup();
 
     // Wire `parent_index` so each link points to its outward
     // neighbour.  The outermost link has `None`.
@@ -261,51 +283,253 @@ fn span_to_range(source: &str, line_index: &LineIndex, span: Span) -> LspRange {
     }
 }
 
-/// Command-segment boundaries on a single line.  Walks left
-/// from `character` to find the most recent `;` separator (or
-/// the start of the line) and right to find the next `;` (or
-/// the end of the line).  Strips leading and trailing
-/// whitespace from the resulting span.  Returns `None` when
-/// the segment is empty.
-///
-/// **Single-line only.**  Continuation lines, embedded `[…]`
-/// / `{…}` token nesting, and full segmenter semantics are not
-/// handled.  For the common single-line editor
-/// cases this is sufficient.
-fn command_segment_on_line(line_text: &str, character: u32) -> Option<(u32, u32)> {
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+/// The segmented command span containing `cursor_offset`.
+#[allow(clippy::too_many_lines)] // registry bodies and generic substitutions share one recursive walk
+fn command_span_at(
+    source: &str,
+    cursor_offset: u32,
+    config: tcl_lexer::LexerConfig,
+    dialect: &str,
+) -> Option<Span> {
+    #[allow(clippy::too_many_arguments)] // immutable traversal context plus changing slice/base/depth/result
+    fn visit(
+        script: &str,
+        base: u32,
+        cursor: u32,
+        profile: &'static tcl_dialect::DialectProfile,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+        identities: &tcl_compiler::head_identity::HeadIdentityMap,
+        depth: u32,
+        definition_grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
+        best: &mut Option<Span>,
+    ) {
+        if depth > 64 {
+            return;
+        }
+        for command in segment_commands_with_offset_and_config(script, 0, config.at_depth(depth)) {
+            let span = Span::new(
+                base.saturating_add(command.span.start()),
+                base.saturating_add(command.span.end()),
+            );
+            if !(span.start() <= cursor && cursor < span.end()) {
+                continue;
+            }
+            if best.is_none_or(|old| (span.end() - span.start()) < (old.end() - old.start())) {
+                *best = Some(span);
+            }
+            let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+            let head_offset =
+                base.saturating_add(command.argv.first().map_or(0, |token| token.span.start()));
+            let resolved = identities.head_words(command.name(), head_offset).resolved;
+            let canonical = tcl_syntax::naming::canonical_written_command(resolved);
+            let semantic_head = if registry.get_exact(&canonical).is_some() {
+                canonical
+            } else if canonical.starts_with("::") {
+                let rooted_name = canonical.trim_start_matches("::");
+                if registry.get(rooted_name).is_some() {
+                    rooted_name.to_owned()
+                } else {
+                    canonical
+                }
+            } else {
+                canonical
+            };
+            let head = tcl_compiler::head_identity::HeadWords {
+                written: command.name(),
+                resolved: &semantic_head,
+            };
+            let availability = profile.availability_mask;
+            let body_indices = definition_grammar
+                .filter(|grammar| grammar.is_member(head.written))
+                .map_or_else(
+                    || {
+                        registry.arg_indices_for_role(
+                            &semantic_head,
+                            &args,
+                            tcl_registry::ArgRole::Body,
+                        )
+                    },
+                    |grammar| grammar.member_body_indices_in(head.written, &args, availability),
+                );
+            let next_grammar =
+                crate::oo_body::next_definition_grammar(head, &args, definition_grammar, registry);
+            let case_list = registry
+                .case_invocation(&semantic_head, &args, availability)
+                .and_then(|(case, invocation)| {
+                    invocation.clause_list_index.map(|index| (case, index))
+                });
+            let mut recursed = std::collections::HashSet::new();
+            for index in body_indices {
+                let Some(token) = command.arg_tokens().get(index) else {
+                    continue;
+                };
+                if token.kind != tcl_lexer::TokenType::Str {
+                    continue;
+                }
+                let word = tcl_lexer::word_span_at(script, token.span);
+                let (Ok(start), Ok(end)) =
+                    (usize::try_from(word.start()), usize::try_from(word.end()))
+                else {
+                    continue;
+                };
+                if end <= start + 1 || script.as_bytes().get(start) != Some(&b'{') {
+                    continue;
+                }
+                let Some(body) = script.get(start + 1..end - 1) else {
+                    continue;
+                };
+                // Case-list bodies are data containing separately-braced arm
+                // scripts. Descend into those arms below, never as one script.
+                if case_list.is_some_and(|(_, case_index)| case_index == index) {
+                    continue;
+                }
+                visit(
+                    body,
+                    base.saturating_add(u32::try_from(start + 1).unwrap_or(u32::MAX)),
+                    cursor,
+                    profile,
+                    config,
+                    registry,
+                    identities,
+                    depth + 1,
+                    next_grammar,
+                    best,
+                );
+                recursed.insert((token.span.start(), token.span.end()));
+            }
 
-    let mut start: usize = 0;
-    for i in (0..col).rev() {
-        if chars[i] == ';' {
-            start = i + 1;
-            break;
+            if let Some((case, index)) = case_list
+                && let Some(token) = command.arg_tokens().get(index)
+                && token.kind == tcl_lexer::TokenType::Str
+            {
+                let whole = tcl_lexer::word_span_at(script, token.span);
+                let start = usize::try_from(whole.start()).unwrap_or(script.len());
+                let end = usize::try_from(whole.end()).unwrap_or(script.len());
+                if end > start + 1
+                    && script.as_bytes().get(start) == Some(&b'{')
+                    && let Some(list) = script.get(start + 1..end - 1)
+                {
+                    let shape = tcl_syntax::case_list::CaseListShape {
+                        clause_flags: case.clause_flags,
+                        clause_value_flags: case.clause_value_flags,
+                    };
+                    for clause in tcl_syntax::case_list::split_case_list(list, &shape) {
+                        let Some(body) = clause.body.filter(|body| body.braced) else {
+                            continue;
+                        };
+                        let body_range = body.content_range();
+                        let arm_start = start + 1 + body_range.start;
+                        let arm_end = start + 1 + body_range.end;
+                        let Some(arm) = script.get(arm_start..arm_end) else {
+                            continue;
+                        };
+                        visit(
+                            arm,
+                            base.saturating_add(u32::try_from(arm_start).unwrap_or(u32::MAX)),
+                            cursor,
+                            profile,
+                            config,
+                            registry,
+                            identities,
+                            depth + 1,
+                            None,
+                            best,
+                        );
+                    }
+                }
+            }
+
+            for index in registry.arg_indices_for_role(
+                &semantic_head,
+                &args,
+                tcl_registry::ArgRole::LambdaLiteral,
+            ) {
+                let Some(token) = command.arg_tokens().get(index) else {
+                    continue;
+                };
+                let Some(body) = tcl_compiler::lambda_literal::split_lambda_literal(script, *token)
+                    .and_then(|literal| literal.braced_body())
+                else {
+                    continue;
+                };
+                let start = usize::try_from(body.start()).unwrap_or(script.len());
+                let end = usize::try_from(body.end()).unwrap_or(script.len());
+                let Some(lambda) = script.get(start..end) else {
+                    continue;
+                };
+                visit(
+                    lambda,
+                    base.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
+                    cursor,
+                    profile,
+                    config,
+                    registry,
+                    identities,
+                    depth + 1,
+                    None,
+                    best,
+                );
+            }
+
+            // Command substitutions execute Tcl scripts regardless of the
+            // surrounding command's registry roles. Descend every substitution
+            // that contains the cursor, including nested/multiline forms. A
+            // span already visited through a registry Body role is skipped so
+            // the same command cannot contribute duplicate selection links.
+            for token in command.all_tokens.iter().filter(|token| {
+                token.kind == tcl_lexer::TokenType::Cmd
+                    && !recursed.contains(&(token.span.start(), token.span.end()))
+            }) {
+                let absolute_start = base.saturating_add(token.span.start());
+                let absolute_end = base.saturating_add(token.span.end());
+                if !(absolute_start <= cursor && cursor < absolute_end) {
+                    continue;
+                }
+                let start = token
+                    .span
+                    .start()
+                    .saturating_add(u32::from(token.content_offset));
+                let end = token.span.end();
+                let (Ok(start), Ok(end)) = (usize::try_from(start), usize::try_from(end)) else {
+                    continue;
+                };
+                let Some(inner) = script.get(start..end) else {
+                    continue;
+                };
+                visit(
+                    inner,
+                    base.saturating_add(u32::try_from(start).unwrap_or(u32::MAX)),
+                    cursor,
+                    profile,
+                    config,
+                    registry,
+                    identities,
+                    depth + 1,
+                    None,
+                    best,
+                );
+            }
         }
     }
-    let mut end: usize = chars.len();
-    for (offset, c) in chars.iter().enumerate().skip(col) {
-        if *c == ';' {
-            end = offset;
-            break;
-        }
-    }
-
-    while start < end && chars[start].is_whitespace() {
-        start += 1;
-    }
-    while end > start && chars[end - 1].is_whitespace() {
-        end -= 1;
-    }
-
-    if start >= end {
-        return None;
-    }
-    let prefix: String = chars[..start].iter().collect();
-    let segment: String = chars[start..end].iter().collect();
-    let start_u32 = utf16_len(&prefix);
-    let end_u32 = start_u32.saturating_add(utf16_len(&segment));
-    Some((start_u32, end_u32))
+    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let registry = tcl_registry::cache::registry_for_profile(profile);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+    let mut best = None;
+    visit(
+        source,
+        0,
+        cursor_offset,
+        profile,
+        config,
+        registry,
+        &identities,
+        0,
+        None,
+        &mut best,
+    );
+    best
 }
 
 #[cfg(test)]
@@ -440,18 +664,34 @@ mod tests {
     }
 
     #[test]
-    fn command_segment_helper_finds_segment_between_semicolons() {
+    fn command_segment_uses_segmenter_between_semicolons() {
         let line = "a 1; b 2; c 3";
-        // Cursor in the middle segment (`b 2`).
-        let (start, end) = command_segment_on_line(line, 6).expect("segment");
-        assert_eq!(&line[start as usize..end as usize], "b 2");
+        let spans = selection_range(line, 0, 6, None);
+        assert!(
+            spans.iter().any(|range| {
+                range.range.start_character == 5 && range.range.end_character == 8
+            })
+        );
     }
 
     #[test]
-    fn command_segment_helper_trims_whitespace() {
+    fn command_segment_trims_whitespace() {
         let line = "  set x 1  ";
-        let (start, end) = command_segment_on_line(line, 5).expect("segment");
-        assert_eq!(&line[start as usize..end as usize], "set x 1");
+        let spans = selection_range(line, 0, 5, None);
+        assert!(
+            spans.iter().any(|range| {
+                range.range.start_character == 2 && range.range.end_character == 9
+            })
+        );
+    }
+
+    #[test]
+    fn command_segment_does_not_split_literal_semicolon_in_braces() {
+        let src = "foo {a; b} c";
+        let spans = selection_range(src, 0, 6, None);
+        assert!(spans.iter().any(|range| {
+            range.range.start_character == 0 && range.range.end_character == utf16_len(src)
+        }));
     }
 
     // enclosing-body links
@@ -499,8 +739,10 @@ mod tests {
         let src = "proc greet {} {\n    set x 1\n}\n";
         let analysis = analyse(src);
         let ranges = selection_range(src, 1, 8, Some(&analysis));
-        // At least: word + line + body + doc.
-        assert!(ranges.len() >= 4, "{ranges:?}");
+        // Strict containment removes a line/command link when clamping makes
+        // it equal to the proc body: word + body + document is the minimal
+        // valid chain here.
+        assert!(ranges.len() >= 3, "{ranges:?}");
         // Find the body link — its start_line should be 0
         // (the opening `{` line) and end_line >= 2.
         let body_link = ranges
@@ -557,5 +799,104 @@ mod tests {
                 "expected innermost-first body ordering, got {bodies:?}",
             );
         }
+    }
+
+    #[test]
+    fn continuation_and_multiline_bracket_cursor_keep_command_parent_nested() {
+        let src = "set result [format %s \\\n    [string toupper value]]\n";
+        // Cursor on the second physical line, inside the nested bracket word.
+        // The generic substitution traversal selects that innermost command,
+        // not the outer multiline `set` command.
+        let ranges = selection_range(src, 1, 19, None);
+        assert!(ranges.len() >= 3, "{ranges:?}");
+        let command = &ranges[1].range;
+        assert_eq!((command.start_line, command.end_line), (1, 1), "{ranges:?}");
+        // The immediate parent is the innermost command, followed by its
+        // physical line; every parent remains a true containment range.
+        for link in &ranges {
+            if let Some(parent) = link.parent_index {
+                let parent = &ranges[parent].range;
+                assert!(
+                    (parent.start_line, parent.start_character)
+                        <= (link.range.start_line, link.range.start_character)
+                        && (link.range.end_line, link.range.end_character)
+                            <= (parent.end_line, parent.end_character),
+                    "non-nested selection chain: {ranges:?}"
+                );
+            }
+        }
+        assert!(ranges.windows(2).all(|pair| pair[0].range != pair[1].range));
+    }
+
+    #[test]
+    fn nested_proc_command_is_innermost_with_and_without_analysis() {
+        let src = "proc p {} {\n :::if {1} {\n  set value [string toupper \\\n    local]\n }\n}\n";
+        let cursor = u32::try_from(src.find("local").unwrap()).unwrap();
+        let source_len = u32::try_from(src.len()).unwrap();
+        let analysed = analyse(src);
+        for analysis in [None, Some(&analysed)] {
+            let span = command_span_at(
+                src,
+                cursor,
+                tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+                "tcl9.0",
+            )
+            .expect("inner command");
+            assert!(span.start() > 0 && span.end() - span.start() < source_len);
+            let ranges = selection_range(src, 3, 5, analysis);
+            assert!(
+                ranges.windows(2).all(|pair| {
+                    (pair[1].range.start_line, pair[1].range.start_character)
+                        < (pair[0].range.start_line, pair[0].range.start_character)
+                        || (pair[0].range.end_line, pair[0].range.end_character)
+                            < (pair[1].range.end_line, pair[1].range.end_character)
+                }),
+                "{ranges:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn command_substitutions_choose_the_innermost_multiline_command_once() {
+        let src = "set result [list [string toupper \\\n    local]]\n";
+        let cursor = u32::try_from(src.find("local").unwrap()).unwrap();
+        let span = command_span_at(
+            src,
+            cursor,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            "tcl9.0",
+        )
+        .expect("nested command substitution");
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "string toupper \\\n    local"
+        );
+
+        let ranges = selection_range(src, 1, 5, None);
+        assert!(ranges.windows(2).all(|pair| pair[0].range != pair[1].range));
+    }
+
+    #[test]
+    fn aliased_registry_body_and_nested_substitution_choose_inner_command() {
+        let src = concat!(
+            "interp alias {} branch {} if\n",
+            "branch {1} {\n",
+            " set result [list [string toupper local]]\n",
+            "}\n",
+        );
+        let cursor = u32::try_from(src.find("local").unwrap()).unwrap();
+        let span = command_span_at(
+            src,
+            cursor,
+            tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
+            "tcl9.0",
+        )
+        .expect("inner command through aliased Body role");
+        assert_eq!(
+            &src[span.start() as usize..span.end() as usize],
+            "string toupper local"
+        );
+        let ranges = selection_range(src, 2, 39, None);
+        assert!(ranges.windows(2).all(|pair| pair[0].range != pair[1].range));
     }
 }

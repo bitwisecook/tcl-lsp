@@ -898,6 +898,13 @@ impl CommandRegistry {
             .and_then(|v| v.last().copied())
     }
 
+    /// Exact spelling lookup; unlike [`Self::get`], does not apply rooted
+    /// global-name fallback.
+    #[must_use]
+    pub fn get_exact(&self, name: &str) -> Option<&CommandSpec> {
+        self.by_name.get(name).and_then(|v| v.last().copied())
+    }
+
     /// Whether a **fresh interpreter** of this registry's dialect already holds
     /// a command at exactly `qualified_name` — the question `namespace
     /// import`'s "already exists" conflict asks, and the one `info commands
@@ -2335,10 +2342,205 @@ impl CommandRegistry {
     /// IRULE5007 placement checks ([`Traits::IRULES_TOP_LEVEL_ONLY`]).
     #[must_use]
     pub fn is_irules_top_level_only(&self, name: &str) -> bool {
-        self.by_name.get(name).is_some_and(|specs| {
-            specs
-                .iter()
-                .any(|s| s.traits.contains(Traits::IRULES_TOP_LEVEL_ONLY))
+        self.get(name)
+            .is_some_and(|spec| spec.traits.contains(Traits::IRULES_TOP_LEVEL_ONLY))
+    }
+
+    /// Apply the iRules command-placement contract to one resolved head.
+    ///
+    /// The only legal file-level forms carry
+    /// [`Traits::IRULES_TOP_LEVEL_ONLY`]. Every other invocation, including a
+    /// user-defined command absent from this registry, is executable and must
+    /// occur inside an event or procedure. An invalid nested top-level body is
+    /// not cascaded: its enclosing executable command already carries the
+    /// placement finding, while declaration forms nested there remain
+    /// independently reportable.
+    #[must_use]
+    pub fn irules_command_placement(
+        &self,
+        name: &str,
+        context: crate::events::IrulesExecutionContext,
+    ) -> crate::events::IrulesCommandPlacement {
+        use crate::events::{IrulesCommandPlacement, IrulesExecutionContext};
+
+        if self.is_irules_top_level_only(name) {
+            return if context == IrulesExecutionContext::TopLevel {
+                IrulesCommandPlacement::Allowed
+            } else {
+                IrulesCommandPlacement::RequiresTopLevel
+            };
+        }
+        match context {
+            IrulesExecutionContext::TopLevel => IrulesCommandPlacement::RequiresEventOrProcedure,
+            IrulesExecutionContext::EventBody
+            | IrulesExecutionContext::ProcedureBody
+            | IrulesExecutionContext::InvalidNestedBody => IrulesCommandPlacement::Allowed,
+        }
+    }
+
+    /// Validate and classify one invocation on iRules' top-level declaration
+    /// surface. Arity, argument layout, declaration traits, and known-event
+    /// membership are decided here so compiler/tooling consumers cannot admit
+    /// different executable regions.
+    #[must_use]
+    pub fn irules_top_level_declaration(
+        &self,
+        name: &str,
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
+        events: &crate::events::EventRegistry,
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let declaration = self.irules_top_level_declaration_shape(name, arguments)?;
+        match &declaration {
+            Declaration::Event { event, .. } if !events.is_known(event) => None,
+            Declaration::Event { .. }
+            | Declaration::Procedure { .. }
+            | Declaration::Priority { .. }
+            | Declaration::Timing { .. } => Some(declaration),
+        }
+    }
+
+    /// Validate an iRules file-level declaration without requiring an event
+    /// selector to be known.
+    ///
+    /// This is the source-aware declaration owner used by lowering, symbols,
+    /// diagnostics, and inventories. It deliberately accepts an unknown event
+    /// with a valid declaration shape so diagnostics can report that selector;
+    /// executable inventories use [`Self::irules_top_level_declaration`],
+    /// which additionally requires the event registry membership.
+    #[must_use]
+    pub fn irules_top_level_declaration_shape(
+        &self,
+        name: &str,
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let args = arguments.values();
+        let spec = self.get(name)?;
+        let argument_count = u16::try_from(args.len()).ok()?;
+        if !spec.arity.accepts(argument_count)
+            || self.irules_command_placement(name, crate::events::IrulesExecutionContext::TopLevel)
+                != crate::events::IrulesCommandPlacement::Allowed
+        {
+            return None;
+        }
+        if let Some(effect) = self.irules_top_level_effect(name, args) {
+            return Some(effect);
+        }
+        let bodies = self.arg_indices_for_role(name, args, crate::ArgRole::Body);
+        let [body_index] = bodies.as_slice() else {
+            return None;
+        };
+        if !arguments.is_braced_literal(*body_index) {
+            return None;
+        }
+        if spec.traits.contains(crate::Traits::IS_EVENT_HANDLER) {
+            return self.irules_event_declaration_shape(arguments);
+        }
+        if spec.traits.contains(crate::Traits::DEFINES_PROCEDURE) {
+            let names = self.arg_indices_for_role(name, args, crate::ArgRole::Name);
+            let [name_index] = names.as_slice() else {
+                return None;
+            };
+            return Some(Declaration::Procedure {
+                name_index: *name_index,
+                body_index: *body_index,
+            });
+        }
+        None
+    }
+
+    /// Parse a stateful iRules file-level declaration through its spec-owned
+    /// effect descriptor.
+    #[must_use]
+    pub fn irules_top_level_effect(
+        &self,
+        name: &str,
+        args: &[&str],
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let spec = self.get(name)?;
+        let argument_count = u16::try_from(args.len()).ok()?;
+        if !spec.arity.accepts(argument_count) {
+            return None;
+        }
+        match spec.irules_top_level_effect {
+            Some(crate::events::IrulesTopLevelEffect::Priority) => {
+                let [value] = args else { return None };
+                let value = value.parse::<u16>().ok()?;
+                (value <= 1000).then_some(Declaration::Priority { value })
+            }
+            Some(crate::events::IrulesTopLevelEffect::Timing) => {
+                let [value] = args else { return None };
+                let enabled = match *value {
+                    "on" | "enable" => true,
+                    "off" | "disable" => false,
+                    _ => return None,
+                };
+                Some(Declaration::Timing { enabled })
+            }
+            None => None,
+        }
+    }
+
+    /// Validate the shared iRules event-handler argument grammar independent
+    /// of its resolved registry spelling.
+    #[must_use]
+    pub fn irules_event_declaration(
+        &self,
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
+        events: &crate::events::EventRegistry,
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        let declaration = self.irules_event_declaration_shape(arguments)?;
+        let crate::events::IrulesTopLevelDeclaration::Event { event, .. } = &declaration else {
+            return None;
+        };
+        events.is_known(event).then_some(declaration)
+    }
+
+    /// Validate event-handler layout without requiring the event name to be
+    /// known. Diagnostic consumers use this to report an otherwise valid
+    /// top-level declaration whose event selector is unknown.
+    #[must_use]
+    pub fn irules_event_declaration_shape(
+        &self,
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
+    ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+        let args = arguments.values();
+        let (body_index, priority) = match args {
+            [_, _] => (1, None),
+            [_, "priority", value, _] => {
+                let priority = value
+                    .parse::<u16>()
+                    .ok()
+                    .filter(|priority| *priority <= 1000)?;
+                (3, Some(priority))
+            }
+            [_, "timing", value, _] => {
+                matches!(*value, "on" | "off" | "enable" | "disable").then_some((3, None))?
+            }
+            [_, "priority", priority, "timing", timing, _] => {
+                let priority = priority
+                    .parse::<u16>()
+                    .ok()
+                    .filter(|priority| *priority <= 1000)?;
+                matches!(*timing, "on" | "off" | "enable" | "disable")
+                    .then_some((5, Some(priority)))?
+            }
+            _ => return None,
+        };
+        if !arguments.is_braced_literal(body_index) {
+            return None;
+        }
+        let event = args.first()?.to_uppercase();
+        Some(Declaration::Event {
+            event,
+            body_index,
+            priority,
         })
     }
 
@@ -3543,7 +3745,11 @@ impl CommandRegistry {
         name: &str,
         first_arg: Option<&str>,
     ) -> Option<CommandTableEffect> {
-        let spec = self.get(name)?;
+        // Command-table mutations are executable behaviour, so they must use
+        // this registry's profile-visible command surface. In particular,
+        // iRules intentionally has no `rename` or `interp`, even though the
+        // dialect-agnostic catalogue knows their Tcl specs.
+        let spec = self.spec_for_this_registry(name)?;
         first_arg
             .and_then(|word| spec.subcommand(word))
             .and_then(|sub| sub.command_table_effect)
@@ -6916,6 +7122,183 @@ mod tests {
                 spelling: "not-a-registry-command",
             })
         );
+    }
+
+    #[test]
+    fn irules_placement_contract_owns_declaration_and_execution_contexts() {
+        use crate::events::{IrulesCommandPlacement as Placement, IrulesExecutionContext as Ctx};
+
+        let registry = crate::registry_for_dialect("f5-irules");
+        for declaration in ["when", "proc", "timing", "priority"] {
+            assert_eq!(
+                registry.irules_command_placement(declaration, Ctx::TopLevel),
+                Placement::Allowed,
+                "{declaration} is an iRules top-level declaration"
+            );
+            assert_eq!(
+                registry.irules_command_placement(declaration, Ctx::EventBody),
+                Placement::RequiresTopLevel,
+                "{declaration} cannot be nested in an event"
+            );
+            assert_eq!(
+                registry.irules_command_placement(declaration, Ctx::ProcedureBody),
+                Placement::RequiresTopLevel,
+                "{declaration} cannot be nested in a proc"
+            );
+        }
+        for executable in ["set", "HTTP::uri", "call", "user_proc"] {
+            assert_eq!(
+                registry.irules_command_placement(executable, Ctx::TopLevel),
+                Placement::RequiresEventOrProcedure,
+                "{executable} cannot execute at iRules top level"
+            );
+            assert_eq!(
+                registry.irules_command_placement(executable, Ctx::EventBody),
+                Placement::Allowed
+            );
+            assert_eq!(
+                registry.irules_command_placement(executable, Ctx::ProcedureBody),
+                Placement::Allowed
+            );
+        }
+    }
+
+    #[test]
+    fn irules_declaration_owner_requires_braced_source_bodies() {
+        use crate::events::IrulesTopLevelDeclaration as Declaration;
+
+        let registry = crate::registry_for_dialect("f5-irules");
+        let events = crate::events::EventRegistry::build();
+        let declaration = |name: &str, args: &[&str]| {
+            let body_index = if name == "proc" {
+                2
+            } else {
+                args.len().saturating_sub(1)
+            };
+            let tokens = args
+                .iter()
+                .enumerate()
+                .map(|(index, _)| {
+                    tcl_lexer::Token::new(
+                        if index == body_index {
+                            tcl_lexer::TokenType::Str
+                        } else {
+                            tcl_lexer::TokenType::Esc
+                        },
+                        tcl_lexer::Span::empty(0),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let single = vec![true; args.len()];
+            let closed = tokens
+                .iter()
+                .map(|token| token.kind == tcl_lexer::TokenType::Str)
+                .collect::<Vec<_>>();
+            registry.irules_top_level_declaration(
+                name,
+                crate::events::IrulesDeclarationArguments::new(args, &tokens, &single, &closed)
+                    .expect("parallel source-word views"),
+                &events,
+            )
+        };
+        assert!(matches!(
+            declaration("when", &["HTTP_REQUEST", "set x 1"]),
+            Some(Declaration::Event { .. })
+        ));
+        assert!(matches!(
+            declaration("::when", &["HTTP_REQUEST", "set x 1"]),
+            Some(Declaration::Event { .. })
+        ));
+        assert!(declaration("when", &["BOGUS_EVENT", "pool x"]).is_none());
+        for valid in [
+            &["HTTP_REQUEST", "body"][..],
+            &["HTTP_REQUEST", "priority", "100", "body"][..],
+            &["HTTP_REQUEST", "timing", "on", "body"][..],
+            &[
+                "HTTP_REQUEST",
+                "priority",
+                "100",
+                "timing",
+                "disable",
+                "body",
+            ][..],
+            &["HTTP_REQUEST", "priority", "0", "body"][..],
+            &["HTTP_REQUEST", "priority", "1000", "body"][..],
+        ] {
+            assert!(declaration("when", valid).is_some());
+        }
+        for invalid in [
+            &["HTTP_REQUEST"][..],
+            &["HTTP_REQUEST", "body", "trailing"][..],
+            &["HTTP_REQUEST", "priority", "bad", "body"][..],
+            &["HTTP_REQUEST", "priority", "-1", "body"][..],
+            &["HTTP_REQUEST", "priority", "1001", "body"][..],
+            &["HTTP_REQUEST", "timing", "maybe", "body"][..],
+            &["HTTP_REQUEST", "timing", "on", "priority", "100", "body"][..],
+        ] {
+            assert!(declaration("when", invalid).is_none());
+        }
+        assert!(matches!(
+            declaration("proc", &["p", "", "return"]),
+            Some(Declaration::Procedure { .. })
+        ));
+        for value in ["0", "500", "1000"] {
+            assert_eq!(
+                declaration("priority", &[value]),
+                Some(Declaration::Priority {
+                    value: value.parse().unwrap()
+                })
+            );
+        }
+        for invalid in ["-1", "1001", "bad"] {
+            assert!(declaration("priority", &[invalid]).is_none());
+        }
+        assert_eq!(
+            declaration("timing", &["enable"]),
+            Some(Declaration::Timing { enabled: true })
+        );
+        for malformed in [&["p", ""][..], &["p", "", "return", "extra"][..]] {
+            assert!(declaration("proc", malformed).is_none());
+        }
+    }
+
+    #[test]
+    fn irules_declaration_owner_rejects_bare_and_quoted_source_bodies() {
+        let registry = crate::registry_for_dialect("f5-irules");
+        for (name, args, body_index) in [
+            ("when", &["HTTP_REQUEST", "set x 1"][..], 1),
+            ("proc", &["p", "", "return"][..], 2),
+        ] {
+            let mut tokens =
+                vec![
+                    tcl_lexer::Token::new(tcl_lexer::TokenType::Esc, tcl_lexer::Span::empty(0),);
+                    args.len()
+                ];
+            let single = vec![true; args.len()];
+            let closed = vec![false; args.len()];
+            for (kind, in_quote) in [
+                (tcl_lexer::TokenType::Esc, false),
+                (tcl_lexer::TokenType::Esc, true),
+                // Lexer recovery uses Str for `{body` at EOF; the separate
+                // closed-brace fact must keep it out of declarations too.
+                (tcl_lexer::TokenType::Str, false),
+            ] {
+                tokens[body_index] = tcl_lexer::Token {
+                    kind,
+                    in_quote,
+                    ..tokens[body_index]
+                };
+                let arguments =
+                    crate::events::IrulesDeclarationArguments::new(args, &tokens, &single, &closed)
+                        .expect("parallel source-word views");
+                assert!(
+                    registry
+                        .irules_top_level_declaration_shape(name, arguments)
+                        .is_none(),
+                    "{name} must reject a non-closed-braced body"
+                );
+            }
+        }
     }
 
     #[test]

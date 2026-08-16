@@ -140,7 +140,7 @@
 | IRULE5004 | irules | `DNS::return` without `return`. | ✓ |
 | IRULE5005 | irules | Direct proc invocation without `call` — use `call proc_name`. | ✓ |
 | IRULE5006 | irules | Top-level-only command used inside a nested body. | ✓ |
-| IRULE5007 | irules | Event-context command used at top level outside a `when` block. | ✓ |
+| IRULE5007 | irules | Executable command used on iRules' declaration-only top level. | ✓ |
 | IRULE6001 | irules | `global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`. | ✓ |
 | IRULE3001 | irules_security | Tainted data in HTTP response body. | ✓ |
 | IRULE3002 | irules_security | Tainted data in HTTP header or cookie value. | ✓ |

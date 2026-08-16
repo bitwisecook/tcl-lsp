@@ -1,4 +1,4 @@
-# KCS: IRULE5007 — Why does the analyser warn about an event command outside a when block?
+# KCS: IRULE5007 — Why does the analyser reject executable code at iRules top level?
 
 > **Audience:** User
 > **Type:** Diagnostic
@@ -13,15 +13,15 @@ default, dialect:irule
 
 ## Question
 
-Why does the analyser flag an event-context command used at the top level outside a `when` block?
+Why does the analyser flag an executable command at the top level of an iRule?
 
 ## Why
 
-Commands like `HTTP::uri` require an active event context; calling them at the top level raises a runtime error.
+iRules top level is a declaration surface. Only `when`, `proc`, `timing`, and `priority` are permitted there. Executable commands must be inside a `when` event body or a top-level `proc`; user procs must then be invoked with `call`.
 
 ## Symptoms
 
-- A squiggle appears under the command, with the message "event-context command used outside when block".
+- A squiggle appears under an executable top-level command.
 
 ## Example that triggers it
 
@@ -29,11 +29,11 @@ Commands like `HTTP::uri` require an active event context; calling them at the t
 set uri [HTTP::uri]
 ```
 
-The analyser reports **`IRULE5007`** because `HTTP::uri` is called at the top level with no event context.
+The analyser reports **`IRULE5007`** because `set` is executable and appears at the declaration-only top level.
 
 ## Fix
 
-Wrap the command in an appropriate `when` block:
+Move executable code into an appropriate `when` block:
 
 ```tcl
 when HTTP_REQUEST {

@@ -41,10 +41,10 @@ use tcl_compiler::analyser::Analyser;
 /// welded to its closing brace.  Every larger shape in this file reduces to it.
 const MINIMAL: &str = "if {1} {puts hi}\u{200b}\n";
 
-/// The corpus file's shape — `when` → `if` → `switch`, with a run of
-/// zero-width spaces after every opening and closing brace.  Kept because the
-/// original panic needed two levels of body nesting to reach the failing
-/// slice, and the minimised case exercises only one.
+/// The corpus file's shape — `when` → `if` → `switch`, with zero-width spaces
+/// inside and after nested braces. The outer declaration remains a single
+/// braced word, so this stays an executable iRule while retaining the
+/// boundary shape that caused the original panic.
 const NESTED: &str = concat!(
     "when CACHE_REQUEST {\u{200b}\u{200b}\u{200b}\u{200b}\n",
     "  if {\u{200b}\u{200b}\u{200b}\u{200b} [CACHE::age] > 60 }\u{200b}\u{200b}\u{200b}\u{200b} \
@@ -56,7 +56,7 @@ const NESTED: &str = concat!(
     "      }\u{200b}\u{200b}\u{200b}\u{200b}\n",
     "    }\u{200b}\u{200b}\u{200b}\u{200b}\n",
     "  }\u{200b}\u{200b}\u{200b}\u{200b}\n",
-    "}\u{200b}\u{200b}\u{200b}\u{200b}",
+    "}\n",
 );
 
 /// Analyse `src` and assert every span it reports is sliceable out of `src`.

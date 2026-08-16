@@ -9,6 +9,12 @@
 #
 # Depends on: ::state::event_ctl (from state_layers.tcl)
 #
+# Boundary contract (issue #1472): this embedded Tcl runtime is deliberately
+# self-hosted and cannot call Rust. Its `when` header recognition is a narrow
+# loader carve-out; Rust consumers must use `tcl-irules::when_blocks`.
+# `rust/tcl-irule-test/src/embedded.rs::itest_core_when_loader_contract` is the
+# drift gate: it requires this declaration and the loader's header grammar.
+#
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 
 namespace eval ::itest {

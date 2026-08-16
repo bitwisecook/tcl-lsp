@@ -22,7 +22,10 @@
 //! layer, connection side, required profiles, flow properties,
 //! and canonical firing order.
 
+use std::borrow::Cow;
+
 use rustc_hash::{FxHashMap, FxHashSet};
+use tcl_lexer::{LexerConfig, Token, TokenType};
 
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::side_effects::ConnectionSide;
@@ -182,6 +185,164 @@ pub const BIGIP_EVENT_HANDLER_PRIORITY: EventHandlerPriority = EventHandlerPrior
     default_priority: 500,
     warn_when_implicit: false,
 };
+
+/// Lexical execution context of an iRules command invocation.
+///
+/// The analyser owns the structural classification; the registry owns which
+/// command traits are legal in each context. Nested control-flow bodies inherit
+/// their enclosing event or procedure context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesExecutionContext {
+    /// File-level declaration surface.
+    TopLevel,
+    /// A `when EVENT` body, including its nested control flow.
+    EventBody,
+    /// A top-level `proc` body, including its nested control flow.
+    ProcedureBody,
+    /// A body reached from an already-invalid top-level executable command.
+    InvalidNestedBody,
+}
+
+/// A fully valid declaration on iRules' declaration-only file surface.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IrulesTopLevelDeclaration {
+    /// A known event handler and its registry-owned body argument.
+    Event {
+        /// Canonical uppercase event name.
+        event: String,
+        /// Zero-based argument index of the handler body.
+        body_index: usize,
+        /// Explicit handler priority, when the declaration supplied one.
+        priority: Option<u16>,
+    },
+    /// A procedure definition and its registry-owned name/body arguments.
+    Procedure {
+        /// Zero-based argument index of the procedure name.
+        name_index: usize,
+        /// Zero-based argument index of the procedure body.
+        body_index: usize,
+    },
+    /// Change the inherited priority for subsequent event declarations.
+    Priority {
+        /// Valid BIG-IP priority (`0..=1000`).
+        value: u16,
+    },
+    /// Toggle timing statistics for subsequent event declarations.
+    Timing {
+        /// Whether timing is enabled.
+        enabled: bool,
+    },
+}
+
+/// Source-structure facts for the arguments of an iRules declaration.
+///
+/// Declaration syntax is not determined by Tcl argument values alone: both
+/// `when EVENT {body}` and `proc name {args} {body}` require their body to be
+/// one braced source word.  The registry owns that requirement, while callers
+/// supply the lexer facts that distinguish a braced word from a bare, quoted,
+/// or compound one.
+#[derive(Debug, Clone, Copy)]
+pub struct IrulesDeclarationArguments<'a> {
+    values: &'a [&'a str],
+    tokens: &'a [Token],
+    single_tokens: &'a [bool],
+    closed_braced_tokens: &'a [bool],
+}
+
+impl<'a> IrulesDeclarationArguments<'a> {
+    /// Construct a source-aware declaration argument view.
+    ///
+    /// Returns `None` unless every value has exactly one representative token
+    /// and one single-token fact.
+    #[must_use]
+    pub fn new(
+        values: &'a [&'a str],
+        tokens: &'a [Token],
+        single_tokens: &'a [bool],
+        closed_braced_tokens: &'a [bool],
+    ) -> Option<Self> {
+        (values.len() == tokens.len()
+            && values.len() == single_tokens.len()
+            && values.len() == closed_braced_tokens.len())
+        .then_some(Self {
+            values,
+            tokens,
+            single_tokens,
+            closed_braced_tokens,
+        })
+    }
+
+    /// Decoded Tcl argument values, in source order.
+    #[must_use]
+    pub const fn values(self) -> &'a [&'a str] {
+        self.values
+    }
+
+    /// Whether `index` is exactly one *closed* braced literal source word.
+    #[must_use]
+    pub fn is_braced_literal(self, index: usize) -> bool {
+        self.single_tokens.get(index).copied().unwrap_or(false)
+            && self
+                .tokens
+                .get(index)
+                .is_some_and(|token| token.kind == TokenType::Str)
+            && self
+                .closed_braced_tokens
+                .get(index)
+                .copied()
+                .unwrap_or(false)
+    }
+}
+
+/// Determine which declaration argument words are closed braced literals.
+///
+/// A lexer [`TokenType::Str`] represents both `{body}` and recovery's
+/// unterminated `{body`, so this source fact is deliberately separate from
+/// token kind.  Callers retain the resulting parallel vector and hand it to
+/// [`IrulesDeclarationArguments::new`], keeping declaration admission
+/// identical across lowering, analysis, identity, and inventories.
+#[must_use]
+pub fn closed_braced_argument_words(
+    source: &str,
+    tokens: &[Token],
+    single_tokens: &[bool],
+) -> Option<Vec<bool>> {
+    (tokens.len() == single_tokens.len()).then(|| {
+        tokens
+            .iter()
+            .zip(single_tokens)
+            .map(|(token, single)| {
+                *single
+                    && token.kind == TokenType::Str
+                    && tcl_lexer::word_span_at(source, token.span)
+                        .end()
+                        .checked_sub(1)
+                        .and_then(|close| source.as_bytes().get(close as usize))
+                        == Some(&b'}')
+            })
+            .collect()
+    })
+}
+
+/// Stateful effect of an iRules-only top-level declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesTopLevelEffect {
+    /// `priority N` changes the inherited priority of following handlers.
+    Priority,
+    /// `timing on|off|enable|disable` changes timing collection.
+    Timing,
+}
+
+/// Result of applying the registry-owned iRules placement contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrulesCommandPlacement {
+    /// The invocation is permitted in this context.
+    Allowed,
+    /// The command is a declaration form and must be at file top level.
+    RequiresTopLevel,
+    /// The command is executable and must be inside an event or procedure.
+    RequiresEventOrProcedure,
+}
 
 const HTTP_BOOTSTRAP_EVENTS: &[DataCollectionBootstrap] = &[
     DataCollectionBootstrap {
@@ -967,50 +1128,191 @@ impl EventRegistry {
     }
 }
 
-/// Scan the distinct `when EVENT` handler names from `source` — a
-/// regex-free scan matching the shape `\bwhen\s+([A-Z_][A-Z0-9_]*)`.
-/// Names are returned in first-seen order (deduplicated); the caller orders
-/// them canonically via [`EventRegistry::order_events`].
+/// Parse top-level iRules event handlers through the shared syntax owner.
+#[must_use]
+pub fn top_level_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let resolver = WrittenHeadResolver;
+    top_level_when_handlers_with_registry_and_head_resolver(
+        source,
+        crate::registry_for_dialect("f5-irules"),
+        &resolver,
+    )
+}
+
+/// Resolve a written command head at its absolute document offset.
+///
+/// The registry owns the top-level script boundary because command specs
+/// declare which words are executable scripts. It cannot itself infer Tcl
+/// command-table mutations, so a compiler or editor that has such facts
+/// supplies them here.
+/// An empty answer deliberately means a proven rebound: it cannot resolve a
+/// registry spec or open a script surface.
+pub trait CommandHeadResolver {
+    /// Return the effective registry spelling for `written` at `offset`.
+    fn resolve<'a>(&'a self, written: &str, offset: u32) -> Cow<'a, str>;
+}
+
+/// The lexical fallback for consumers without document identity facts.
+struct WrittenHeadResolver;
+
+impl CommandHeadResolver for WrittenHeadResolver {
+    fn resolve<'a>(&'a self, written: &str, _offset: u32) -> Cow<'a, str> {
+        Cow::Owned(written.to_owned())
+    }
+}
+
+/// Whether an effective head opens the shared event-handler boundary grammar.
+///
+/// This is exclusively a registry trait on the effective, offset-resolved
+/// command binding. In particular, a Tcl user proc spelled `when` is not an
+/// iRules event handler merely because its written head happens to match.
+fn is_event_handler_head(registry: &crate::CommandRegistry, resolved: &str) -> bool {
+    registry
+        .get(resolved)
+        .is_some_and(|spec| spec.traits.contains(crate::Traits::IS_EVENT_HANDLER))
+}
+
+/// Parse top-level event handlers after resolving each command head.
+///
+/// Handler layout remains syntax-owned, while the registry decides whether the
+/// effective command carries [`crate::Traits::IS_EVENT_HANDLER`].
+#[must_use]
+pub fn top_level_when_handlers_with_registry_and_head_resolver(
+    source: &str,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn CommandHeadResolver,
+) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let config = registry.profile().map_or_else(
+        || LexerConfig::for_file_dialect("f5-irules"),
+        |profile| LexerConfig::from_grammar(profile.grammar),
+    );
+    let events = EventRegistry::build();
+    let mut handlers = tcl_syntax::event_handler::event_handlers_with_head_predicate(
+        source,
+        config,
+        |written, offset| {
+            let effective_head = resolver.resolve(written, offset);
+            is_event_handler_head(registry, effective_head.as_ref())
+        },
+    );
+    handlers.retain(|handler| {
+        let args: Vec<&str> = handler.arguments.iter().map(String::as_str).collect();
+        crate::events::IrulesDeclarationArguments::new(
+            &args,
+            &handler.argument_tokens,
+            &handler.argument_single_tokens,
+            &handler.argument_closed_braced_tokens,
+        )
+        .and_then(|arguments| registry.irules_event_declaration(arguments, &events))
+        .is_some()
+    });
+    apply_inherited_priorities(source, config, registry, resolver, &mut handlers);
+    handlers
+}
+
+fn apply_inherited_priorities(
+    source: &str,
+    config: LexerConfig,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn CommandHeadResolver,
+    handlers: &mut [tcl_syntax::event_handler::EventHandler],
+) {
+    use tcl_lexer::{SourceMap, word_span_at};
+
+    let sm = SourceMap::new(source);
+    let mut inherited = BIGIP_EVENT_HANDLER_PRIORITY.default_priority;
+    let mut next_handler = 0usize;
+    for command in tcl_syntax::event_handler::script_commands(source, config) {
+        let Some([head]) = command.words.first().map(Vec::as_slice) else {
+            continue;
+        };
+        let offset = word_span_at(source, head.span).start();
+        while handlers
+            .get(next_handler)
+            .is_some_and(|handler| handler.span.start() < offset)
+        {
+            next_handler += 1;
+        }
+        if let Some(handler) = handlers
+            .get_mut(next_handler)
+            .filter(|handler| handler.span.start() == offset)
+        {
+            handler.effective_priority = handler
+                .priority
+                .and_then(|value| u16::try_from(value).ok())
+                .unwrap_or(inherited);
+            next_handler += 1;
+            continue;
+        }
+        let effective = resolver.resolve(sm.token_text(*head), offset);
+        let name = effective.as_ref();
+        let Some(args) = command
+            .words
+            .iter()
+            .skip(1)
+            .map(|word| match word.as_slice() {
+                [token] => Some(sm.token_text(*token)),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            continue;
+        };
+        if let Some(IrulesTopLevelDeclaration::Priority { value }) =
+            registry.irules_top_level_effect(name, &args)
+        {
+            inherited = value;
+        }
+    }
+}
+
+/// Parse syntactically valid top-level event declarations without filtering
+/// unknown event names. This is exclusively for unknown-event diagnostics;
+/// executable inventories must use [`top_level_when_handlers_with_registry_and_head_resolver`].
+#[must_use]
+pub fn top_level_when_handler_candidates_with_registry_and_head_resolver(
+    source: &str,
+    registry: &crate::CommandRegistry,
+    resolver: &dyn CommandHeadResolver,
+) -> Vec<tcl_syntax::event_handler::EventHandler> {
+    let config = registry.profile().map_or_else(
+        || LexerConfig::for_file_dialect("f5-irules"),
+        |profile| LexerConfig::from_grammar(profile.grammar),
+    );
+    tcl_syntax::event_handler::event_handlers_with_head_predicate(
+        source,
+        config,
+        |written, offset| {
+            let effective_head = resolver.resolve(written, offset);
+            is_event_handler_head(registry, effective_head.as_ref())
+        },
+    )
+    .into_iter()
+    .filter(|handler| {
+        let args: Vec<&str> = handler.arguments.iter().map(String::as_str).collect();
+        crate::events::IrulesDeclarationArguments::new(
+            &args,
+            &handler.argument_tokens,
+            &handler.argument_single_tokens,
+            &handler.argument_closed_braced_tokens,
+        )
+        .and_then(|arguments| registry.irules_event_declaration_shape(arguments))
+        .is_some()
+    })
+    .collect()
+}
+
+/// Scan distinct top-level event handlers through the shared Tcl syntax
+/// owner. Names are normalised to upper case and returned in first-seen order;
+/// the caller orders them canonically via [`EventRegistry::order_events`].
 #[must_use]
 pub fn scan_when_events(source: &str) -> Vec<String> {
-    fn is_word(b: u8) -> bool {
-        b.is_ascii_alphanumeric() || b == b'_'
-    }
-    fn is_upper_start(b: u8) -> bool {
-        b.is_ascii_uppercase() || b == b'_'
-    }
-    fn is_upper_rest(b: u8) -> bool {
-        b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_'
-    }
-
-    let bytes = source.as_bytes();
-    let mut out: Vec<String> = Vec::new();
-    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    let mut i = 0usize;
-    while i + 4 <= bytes.len() {
-        // `\bwhen`: the four chars "when" with a word boundary before.
-        if &bytes[i..i + 4] == b"when" && (i == 0 || !is_word(bytes[i - 1])) {
-            let mut j = i + 4;
-            // `\s+`
-            let ws_start = j;
-            while j < bytes.len() && bytes[j].is_ascii_whitespace() {
-                j += 1;
-            }
-            if j > ws_start && j < bytes.len() && is_upper_start(bytes[j]) {
-                let name_start = j;
-                j += 1;
-                while j < bytes.len() && is_upper_rest(bytes[j]) {
-                    j += 1;
-                }
-                let name = &source[name_start..j];
-                if seen.insert(name) {
-                    out.push(name.to_owned());
-                }
-                i = j;
-                continue;
-            }
+    let mut seen = FxHashSet::default();
+    let mut out = Vec::new();
+    for handler in top_level_when_handlers(source) {
+        if seen.insert(handler.event.clone()) {
+            out.push(handler.event);
         }
-        i += 1;
     }
     out
 }
@@ -4141,5 +4443,126 @@ mod tests {
         let reg = EventRegistry::build();
         assert!(!reg.flow_chains().is_empty());
         assert_eq!(reg.flow_chains()[0].chain_id, "plain_tcp");
+    }
+
+    #[test]
+    fn event_scan_uses_top_level_rooted_normalised_owner() {
+        assert_eq!(
+            scan_when_events("::when http_request { if {1} { :::when client_data {} } }"),
+            ["HTTP_REQUEST"]
+        );
+    }
+
+    #[test]
+    fn event_scan_ignores_nested_script_surfaces() {
+        let source = r#"
+            set payload {when CLIENT_DATA {}}
+            set quoted "when SERVER_DATA {}"
+            # when RULE_INIT {}
+            ::when http_request { if {1} { :::when client_data {} } }
+        "#;
+        assert_eq!(scan_when_events(source), ["HTTP_REQUEST"]);
+    }
+
+    #[test]
+    fn event_scan_ignores_case_and_unavailable_apply_when_words() {
+        let registry = crate::registry_for_dialect("f5-irules");
+        let source = r"
+            switch -- $x { a { when CLIENT_DATA {} } default { when SERVER_DATA {} } }
+            apply {{} { when HTTP_REQUEST {} }}
+            set inert {when RULE_INIT {}}
+        ";
+        let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            registry,
+            &WrittenHeadResolver,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn non_irules_definition_bodies_are_not_event_handlers() {
+        let tcl = crate::registry_for_dialect("tcl9.0");
+        let source = r"
+            oo::class create C {
+                method m {} { when HTTP_REQUEST {} }
+                self { method n {} { when CLIENT_DATA {} } }
+                property p -get { when SERVER_DATA {} }
+            }
+        ";
+        let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            tcl,
+            &WrittenHeadResolver,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
+        assert!(
+            events.is_empty(),
+            "Tcl's user-level `when` is not an iRules handler"
+        );
+
+        let source = r"
+            snit::type S { method m {} { when RULE_INIT {} } }
+            itcl::class I { public method m {} { when CLIENT_ACCEPTED {} } }
+        ";
+        let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            crate::registry_for_dialect("tcl8.6"),
+            &WrittenHeadResolver,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
+        assert!(
+            events.is_empty(),
+            "non-iRules dialects have no event-handler trait"
+        );
+    }
+
+    #[test]
+    fn a_user_proc_named_when_is_not_an_event_handler() {
+        let source = r"
+            proc when {event body} { puts $event }
+            when HTTP_REQUEST {}
+        ";
+        let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
+            source,
+            crate::registry_for_dialect("tcl9.0"),
+            &WrittenHeadResolver,
+        )
+        .into_iter()
+        .map(|handler| handler.event)
+        .collect();
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn declaration_source_facts_distinguish_closed_and_unterminated_braces() {
+        let closed = "when HTTP_REQUEST { pool live }";
+        let unterminated = "when HTTP_REQUEST { pool inert";
+        for (source, expected) in [(closed, true), (unterminated, false)] {
+            let command = tcl_syntax::event_handler::script_commands(
+                source,
+                LexerConfig::for_file_dialect("f5-irules"),
+            )
+            .into_iter()
+            .next()
+            .expect("one recovered command");
+            let tokens: Vec<Token> = command.words.iter().skip(1).map(|word| word[0]).collect();
+            let single: Vec<bool> = command
+                .words
+                .iter()
+                .skip(1)
+                .map(|word| word.len() == 1)
+                .collect();
+            let facts = closed_braced_argument_words(source, &tokens, &single)
+                .expect("parallel argument facts");
+            assert_eq!(facts.last().copied(), Some(expected), "{source:?}");
+        }
     }
 }

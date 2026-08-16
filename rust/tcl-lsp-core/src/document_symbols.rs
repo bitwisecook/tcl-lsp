@@ -1976,6 +1976,25 @@ mod tests {
     }
 
     #[test]
+    fn irule_event_outline_ignores_unavailable_mutators() {
+        let src = concat!(
+            "interp alias {} event {} when\n",
+            "event HTTP_REQUEST {}\n",
+            "rename when old_when\n",
+            "::when CLIENT_DATA {}\n",
+        );
+        let symbols = document_symbols(src, IRULES);
+        assert_eq!(
+            symbols
+                .iter()
+                .filter(|symbol| symbol.kind == SymbolKind::Event)
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["CLIENT_DATA"]
+        );
+    }
+
+    #[test]
     fn event_handler_range_spans_the_body_and_selects_the_event_name() {
         let src = "when HTTP_REQUEST {\n    set host [HTTP::host]\n}\n";
         let symbols = document_symbols(src, IRULES);
@@ -2005,9 +2024,9 @@ mod tests {
     }
 
     #[test]
-    fn nested_handlers_nest_in_the_outline() {
-        // A `when` inside a `when` is legal iRules; the inner handler is a
-        // child, not a sibling with an overlapping range.
+    fn invalid_nested_handler_is_not_an_outline_event() {
+        // `when` is strictly top-level in iRules. Its invalid nested spelling
+        // must not manufacture a second event in the outline.
         let src = concat!(
             "when CLIENT_ACCEPTED {\n",
             "    when HTTP_REQUEST {\n",
@@ -2018,8 +2037,51 @@ mod tests {
         let symbols = document_symbols(src, IRULES);
         assert_eq!(names(&symbols), vec!["CLIENT_ACCEPTED"]);
         let outer = &symbols[0];
-        assert_eq!(names(&outer.children), vec!["HTTP_REQUEST"]);
-        assert_eq!(names(&outer.children[0].children), vec!["deep"]);
+        assert!(
+            outer.children.is_empty(),
+            "the invalid nested handler body is inert data"
+        );
+        assert!(
+            outer
+                .children
+                .iter()
+                .all(|symbol| symbol.kind != SymbolKind::Event)
+        );
+    }
+
+    #[test]
+    fn irules_outline_requires_braced_declaration_bodies() {
+        let symbols = document_symbols(
+            "proc bare_proc {} return\n\
+             proc quoted_proc {} \"return\"\n\
+             proc malformed {} { return } extra\n\
+             proc valid_proc {} { return }\n\
+             when CLIENT_DATA bare_body\n\
+             when SERVER_DATA \"quoted body\"\n\
+             when HTTP_REQUEST {}",
+            IRULES,
+        );
+        let all = flat(&symbols);
+        assert!(
+            all.contains(&("valid_proc".to_owned(), SymbolKind::Function)),
+            "{all:?}"
+        );
+        assert!(
+            all.contains(&("HTTP_REQUEST".to_owned(), SymbolKind::Event)),
+            "{all:?}"
+        );
+        for invalid in [
+            "bare_proc",
+            "quoted_proc",
+            "malformed",
+            "CLIENT_DATA",
+            "SERVER_DATA",
+        ] {
+            assert!(
+                !all.iter().any(|(name, _)| name == invalid),
+                "non-braced or malformed declaration leaked into outline: {all:?}"
+            );
+        }
     }
 
     #[test]

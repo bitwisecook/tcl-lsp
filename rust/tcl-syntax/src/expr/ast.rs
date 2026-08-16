@@ -382,6 +382,35 @@ impl ExprNode {
         result
     }
 
+    /// Every direct variable-reference range in this parsed expression.
+    ///
+    /// Offsets retain the expression lexer's inclusive-end convention. A
+    /// command substitution remains an opaque Tcl-script boundary: variables
+    /// inside it belong to the script walker that executes that command, not
+    /// to the surrounding expression. Quoted-string substitutions are exposed
+    /// separately by [`Self::quoted_string_spans`], because their Tcl word
+    /// grammar needs the resolved lexer profile.
+    #[must_use]
+    pub fn variable_spans(&self) -> Vec<(ExprOffset, ExprOffset)> {
+        let mut out = Vec::new();
+        self.collect_variable_spans(&mut out);
+        out
+    }
+
+    /// Every double-quoted string operand's inclusive source range.
+    ///
+    /// A quoted operand is evaluated as a Tcl substitution context by
+    /// `expr`; a braced operand is not. The expression lexer intentionally
+    /// keeps both forms as opaque strings, so the profile-aware substitution
+    /// owner uses these raw source ranges to re-enter only quoted interiors
+    /// through the shared Tcl lexer.
+    #[must_use]
+    pub fn quoted_string_spans(&self) -> Vec<(ExprOffset, ExprOffset)> {
+        let mut out = Vec::new();
+        self.collect_quoted_string_spans(&mut out);
+        out
+    }
+
     /// Collect the raw text of every command substitution in this expr AST
     /// (each an `[cmd …]` form, brackets included).  Used to recover the side
     /// effects / reads of command substitutions evaluated inside an
@@ -473,6 +502,67 @@ impl ExprNode {
                 }
             }
             Self::Var { .. } | Self::Literal { .. } | Self::String { .. } | Self::Raw { .. } => {}
+        }
+    }
+
+    fn collect_variable_spans(&self, out: &mut Vec<(ExprOffset, ExprOffset)>) {
+        match self {
+            Self::Var { start, end, .. } => out.push((*start, *end)),
+            Self::Binary { left, right, .. } => {
+                left.collect_variable_spans(out);
+                right.collect_variable_spans(out);
+            }
+            Self::Unary { operand, .. } => operand.collect_variable_spans(out),
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                condition.collect_variable_spans(out);
+                true_branch.collect_variable_spans(out);
+                false_branch.collect_variable_spans(out);
+            }
+            Self::Call { args, .. } => {
+                for arg in args {
+                    arg.collect_variable_spans(out);
+                }
+            }
+            Self::Command { .. }
+            | Self::Literal { .. }
+            | Self::String { .. }
+            | Self::Raw { .. } => {}
+        }
+    }
+
+    fn collect_quoted_string_spans(&self, out: &mut Vec<(ExprOffset, ExprOffset)>) {
+        match self {
+            Self::String { text, start, end } if text.starts_with('"') => {
+                out.push((*start, *end));
+            }
+            Self::Binary { left, right, .. } => {
+                left.collect_quoted_string_spans(out);
+                right.collect_quoted_string_spans(out);
+            }
+            Self::Unary { operand, .. } => operand.collect_quoted_string_spans(out),
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                condition.collect_quoted_string_spans(out);
+                true_branch.collect_quoted_string_spans(out);
+                false_branch.collect_quoted_string_spans(out);
+            }
+            Self::Call { args, .. } => {
+                for arg in args {
+                    arg.collect_quoted_string_spans(out);
+                }
+            }
+            Self::Command { .. }
+            | Self::Literal { .. }
+            | Self::String { .. }
+            | Self::Var { .. }
+            | Self::Raw { .. } => {}
         }
     }
 

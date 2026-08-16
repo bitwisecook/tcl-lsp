@@ -40,6 +40,8 @@
 //!   answered from a bare byte offset, for callers holding source and an
 //!   offset rather than a token (it skips `\`-escapes and whole `[…]`
 //!   command substitutions).
+//! - [`command_substitution_end`] — byte offset just past a complete `[…]`
+//!   command substitution, including Tcl's nested-script/comment rules.
 //! - [`word_closer_offset_at`], [`word_span_at`] — the same closer
 //!   question for **any** delimited word (`${name}` included) answered
 //!   from the word's own [`Span`], for callers that kept a span but not
@@ -75,8 +77,8 @@ pub use highlight::{
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
 pub use ranges::{
-    close_quote_offset, word_append_offset, word_closer_offset, word_closer_offset_at,
-    word_end_position, word_span, word_span_at,
+    close_quote_offset, command_substitution_end, word_append_offset, word_closer_offset,
+    word_closer_offset_at, word_end_position, word_span, word_span_at,
 };
 pub use source_map::SourceMap;
 pub use span::Span;
@@ -94,6 +96,33 @@ pub use substitution::{
 // grammar axis shares it.
 pub use tcl_dialect::{BracedVarStyle, EscapeSyntax};
 pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
+
+/// Return the physical line numbers whose first non-horizontal-whitespace
+/// character is a Tcl comment token.
+///
+/// The lexer is the authority for whether `#` starts a comment: it is only a
+/// comment at command position, and never while a braced, quoted, or bracketed
+/// word is open. Inline command-position comments after a semicolon are not
+/// returned because they do not occupy a comment line by themselves.
+#[must_use]
+pub fn comment_line_starts(source: &str, config: LexerConfig) -> Vec<u32> {
+    let line_index = LineIndex::new(source);
+    let Ok(tokens) = Lexer::with_config(source, config).tokenise_all() else {
+        return Vec::new();
+    };
+    tokens
+        .into_iter()
+        .filter(|token| token.kind == TokenType::Comment)
+        .filter_map(|token| {
+            let start = usize::try_from(token.span.start()).ok()?;
+            let line_start = source[..start].rfind('\n').map_or(0, |offset| offset + 1);
+            source[line_start..start]
+                .bytes()
+                .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | 0x0b | 0x0c))
+                .then(|| line_index.line_at(token.span.start()))
+        })
+        .collect()
+}
 
 /// Crate version string.
 ///

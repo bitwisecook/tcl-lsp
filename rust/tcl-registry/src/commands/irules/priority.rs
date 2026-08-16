@@ -23,7 +23,8 @@ pub const fn spec() -> CommandSpec {
         name: "priority",
         traits: Traits::IRULES_TOP_LEVEL_ONLY.union(Traits::SETS_EVENT_PRIORITY),
         dialects: Some(DialectSet::IRULES),
-        arity: Arity::at_least(0),
+        arity: Arity::exact(1),
+        irules_top_level_effect: Some(IrulesTopLevelEffect::Priority),
         hover: Some(HoverSnippet {
             summary: "Sets the order of execution for iRule events.",
             synopsis: &["priority EVENT_PRIORITY"],

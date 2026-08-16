@@ -45,6 +45,7 @@ tcl-bigip = { path = "../../tcl-bigip" }
 tcl-lexer = { path = "../../tcl-lexer", features = ["html"] }
 # IR-based control-flow diagram → Mermaid, for the iRule flowchart.
 tcl-diagram = { path = "../../tcl-diagram" }
+tcl-compiler = { path = "../../tcl-compiler" }
 tcl-registry = { path = "../../tcl-registry" }
 # F5 master-key (`f5mku`) secret decryption. `default-features = false` drops
 # the `rand`/getrandom salt path (only `encrypt` needs it), keeping the wasm

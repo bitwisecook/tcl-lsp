@@ -510,6 +510,20 @@ fn top_level_method_is_not_an_oo_body() {
 }
 
 #[test]
+fn alias_to_user_proc_named_method_does_not_tokenise_data_as_a_member_body() {
+    // Tclsh executes the user `method` proc through `define_method`; the
+    // final braced argument is never evaluated as a definition-member body.
+    let src = "proc method {name parameters body} {\n    return \"$name:$parameters:$body\"\n}\ninterp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        # inert data\n        puts must-not-run\n    }\n}\n";
+    let toks = decode(src, "tcl9.0");
+    assert!(
+        !toks
+            .iter()
+            .any(|t| t.ttype == "function" && tok_text(src, t) == "puts"),
+        "the user proc's braced data must not tokenise its `puts` as executable: {toks:?}"
+    );
+}
+
+#[test]
 fn oo_define_body_form_recurses_method_bodies() {
     // The `oo::define Cls { … }` script form is an outer OO definition body
     // too — method bodies inside it must recurse.

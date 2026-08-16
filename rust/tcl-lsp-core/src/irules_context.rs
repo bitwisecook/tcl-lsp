@@ -18,169 +18,140 @@
 
 //! Shared iRules `when`-context detection.
 //!
-//! Both `find_enclosing_when_event` and `scan_file_events` feed the
-//! context-aware snippet templates: `find_enclosing_when_event`
-//! supplies the `current_event` top-level guard (event templates only
-//! offer outside any `when` block) and `scan_file_events` supplies
+//! [`EventHandlerFacts`] feeds the context-aware snippet templates:
+//! `enclosing_event` supplies the `current_event` top-level guard (event
+//! templates only offer outside any `when` block) and `file_events` supplies
 //! `file_events` (event templates decline when their event is already
-//! declared).
+//! declared). The compatibility helpers below each construct a short-lived
+//! inventory, while callers that need both facts reuse one inventory.
 //!
 //! Two deliberate design choices, both documented here:
 //!
 //! * The conf-wrapped `embedded_rules` mode (scoping the search to the
 //!   rule body containing the cursor in a BIG-IP `.conf` wrapper) is not
 //!   modelled — the raw iRule body is analysed directly.
-//! * `scan_file_events` walks the segmenter rather than a
-//!   `\bwhen\s+([A-Z_]…)` regex (the project never parses Tcl with
-//!   regex).  Both collect every `when EVENT` at any brace nesting; they
-//!   differ only on the pathological case of the literal text `when X`
-//!   sitting in a position that is *not* a command word (a comment or a
-//!   non-script string), which the parse-accurate walk correctly skips.
+//! * Discovery uses the registry's top-level script-boundary walker rather
+//!   than a `\bwhen\s+([A-Z_]…)` regex (the project never parses Tcl with
+//!   regex). It accepts only an offset-resolved command whose active dialect
+//!   registry marks it as an event handler, so a user Tcl proc named `when`
+//!   is never misclassified.
 
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_core_types::RecursionLimit;
-use tcl_lexer::{LexerConfig, LineIndex, TokenType};
+use tcl_lexer::LineIndex;
 
-/// Cap on brace-nesting depth [`scan_when_context`]/[`collect_when_events`]
-/// will descend into, mirroring the compiler analyser's `MAX_BODY_DEPTH` so
-/// deeply (but validly) nested code still resolves `when`-context / event
-/// lists correctly while pathological/adversarial nesting can't blow the
-/// native stack — see
-/// `docs/design/compiler/recursive-descent-depth-limits.md`.
-const MAX_WHEN_SCAN_DEPTH: RecursionLimit = RecursionLimit(256);
+/// One request-local inventory of resolved iRules event-handler boundaries.
+///
+/// The constructor builds the document's [`HeadIdentityMap`]
+/// (`tcl_compiler::head_identity::HeadIdentityMap`) exactly once, then hands
+/// it to the registry's top-level boundary owner. Callers can derive both the
+/// enclosing event and the deduplicated file inventory without a global cache
+/// or a second identity scan.
+pub struct EventHandlerFacts {
+    handlers: Vec<tcl_irules::WhenBlock>,
+    line_index: LineIndex,
+}
+
+impl EventHandlerFacts {
+    /// Build resolved event-handler boundaries for one request/document and
+    /// canonical profile.
+    #[must_use]
+    pub fn for_profile(source: &str, profile: &'static tcl_dialect::DialectProfile) -> Self {
+        let handlers = if profile.is_irules() {
+            build_event_handlers(source, profile)
+        } else {
+            Vec::new()
+        };
+        Self {
+            handlers,
+            line_index: LineIndex::new(source),
+        }
+    }
+
+    /// Build resolved event-handler boundaries for one request/document.
+    ///
+    /// This name-based convenience entry point canonicalises once, then
+    /// delegates all policy to [`DialectProfile::is_irules`].
+    #[must_use]
+    pub fn new(source: &str, dialect: &str) -> Self {
+        Self::for_profile(source, tcl_dialect::DialectProfile::by_name(dialect))
+    }
+
+    /// The top-level event handler enclosing `line` (0-based), if any.
+    #[must_use]
+    pub fn enclosing_event(&self, line: u32) -> Option<String> {
+        self.handlers
+            .iter()
+            .filter(|block| {
+                let start = self.line_index.line_at(block.span.start());
+                let end = self.line_index.line_at(block.span.end());
+                start <= line && line <= end
+            })
+            .min_by_key(|block| block.span.end() - block.span.start())
+            .map(|block| block.event.clone())
+    }
+
+    /// Every distinct resolved event name, uppercased and sorted.
+    #[must_use]
+    pub fn file_events(&self) -> Vec<String> {
+        let mut events: Vec<String> = self
+            .handlers
+            .iter()
+            .map(|block| block.event.clone())
+            .collect();
+        events.sort();
+        events.dedup();
+        events
+    }
+}
+
+/// The one expensive identity-and-boundary construction for an iRules file.
+///
+/// Keeping this separate from `EventHandlerFacts` construction makes the
+/// sharing contract testable: a second map/boundary traversal is another
+/// call to this function, not merely another cheap view of its output.
+fn build_event_handlers(
+    source: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Vec<tcl_irules::WhenBlock> {
+    #[cfg(test)]
+    EXPENSIVE_BUILD_COUNT.with(|count| count.set(count.get() + 1));
+
+    let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+    let registry = tcl_registry::registry_for_profile(profile);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+    let events = tcl_registry::events::EventRegistry::build();
+    tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
+        source,
+        registry,
+        &identities,
+    )
+    .into_iter()
+    .filter(|handler| events.is_known(&handler.event))
+    .collect()
+}
+
+#[cfg(test)]
+thread_local! {
+    static EXPENSIVE_BUILD_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn expensive_build_count() -> usize {
+    EXPENSIVE_BUILD_COUNT.with(std::cell::Cell::get)
+}
 
 /// Find the enclosing `when EVENT { … }` event at `line` (0-based), or
-/// `None` at the top level.  The innermost enclosing event wins (nested
-/// `when` blocks shadow their parents).
+/// `None` at the top level.
 #[must_use]
 pub fn find_enclosing_when_event(source: &str, line: u32, dialect: &str) -> Option<String> {
-    if source.is_empty() {
-        return None;
-    }
-    let line_index = LineIndex::new(source);
-    scan_when_context(source, source, 0, line, dialect, &line_index, 0)
+    EventHandlerFacts::new(source, dialect).enclosing_event(line)
 }
 
 /// Every distinct `when EVENT` name declared in `source` (uppercased,
-/// sorted), at any brace nesting.
+/// sorted), at top level only.
 #[must_use]
 pub fn scan_file_events(source: &str, dialect: &str) -> Vec<String> {
-    let mut events = Vec::new();
-    collect_when_events(source, source, 0, dialect, &mut events, 0);
-    events.sort();
-    events.dedup();
-    events
-}
-
-/// Recursively search `text` (a slice of `full_source` starting at byte
-/// `base`) for the `when` block whose braced body's line range contains
-/// `cursor_line`, descending into nested bodies so the innermost match
-/// wins.
-///
-/// `depth` is the nesting level of this call (0 at the top); past
-/// [`MAX_WHEN_SCAN_DEPTH`] this stops descending into nested bodies rather
-/// than recursing further.
-fn scan_when_context(
-    full_source: &str,
-    text: &str,
-    base: u32,
-    cursor_line: u32,
-    dialect: &str,
-    li: &LineIndex,
-    depth: u32,
-) -> Option<String> {
-    let mut best = None;
-    let cmds = segment_commands_with_offset_and_config(
-        text,
-        base,
-        LexerConfig::for_file_dialect(dialect).at_depth(depth),
-    );
-    for cmd in &cmds {
-        if cmd.texts.first().map(String::as_str) != Some("when") || cmd.texts.len() < 2 {
-            continue;
-        }
-        // The braced body is the first `Str` argument word (barewords —
-        // including the event name — are `Esc`).
-        let Some(body_tok) = cmd.arg_tokens().iter().find(|t| t.kind == TokenType::Str) else {
-            continue;
-        };
-        let start_line = li.line_at(body_tok.span.start());
-        let end_line = li.line_at(body_tok.span.end());
-        if cursor_line < start_line || cursor_line > end_line {
-            continue;
-        }
-        best = Some(cmd.texts[1].to_uppercase());
-        // Descend into the braced body for a deeper nested `when`.
-        if !MAX_WHEN_SCAN_DEPTH.exceeded(depth)
-            && let Some((inner, inner_base)) = brace_body(full_source, body_tok)
-            && let Some(nested) = scan_when_context(
-                full_source,
-                inner,
-                inner_base,
-                cursor_line,
-                dialect,
-                li,
-                depth + 1,
-            )
-        {
-            best = Some(nested);
-        }
-    }
-    best
-}
-
-/// Walk every command in `text`, recording each `when EVENT`, and
-/// recurse into every braced word so nested `when` blocks (and `when`
-/// commands buried in other blocks) are all collected.
-///
-/// `depth` is the nesting level of this call (0 at the top); past
-/// [`MAX_WHEN_SCAN_DEPTH`] this stops descending into nested bodies rather
-/// than recursing further.
-fn collect_when_events(
-    full: &str,
-    text: &str,
-    base: u32,
-    dialect: &str,
-    out: &mut Vec<String>,
-    depth: u32,
-) {
-    if MAX_WHEN_SCAN_DEPTH.exceeded(depth) {
-        return;
-    }
-    let cmds = segment_commands_with_offset_and_config(
-        text,
-        base,
-        LexerConfig::for_file_dialect(dialect).at_depth(depth),
-    );
-    for cmd in &cmds {
-        if cmd.texts.first().map(String::as_str) == Some("when") && cmd.texts.len() >= 2 {
-            out.push(cmd.texts[1].to_uppercase());
-        }
-        for tok in &cmd.argv {
-            if tok.kind == TokenType::Str
-                && let Some((inner, inner_base)) = brace_body(full, tok)
-            {
-                collect_when_events(full, inner, inner_base, dialect, out, depth + 1);
-            }
-        }
-    }
-}
-
-/// Inner-content slice of a braced `Str` token plus its absolute base
-/// offset, or `None` when the span is degenerate / out of bounds.  The
-/// span starts at `{` (skipped via `content_offset`) and, for a
-/// non-degenerate brace, ends just before the closing `}`.
-fn brace_body<'a>(full: &'a str, tok: &tcl_lexer::Token) -> Option<(&'a str, u32)> {
-    let inner_start = tok.span.start() + u32::from(tok.content_offset);
-    let inner_end = tok.span.end();
-    let (s, e) = (
-        usize::try_from(inner_start).ok()?,
-        usize::try_from(inner_end).ok()?,
-    );
-    if s > e || e > full.len() || !full.is_char_boundary(s) || !full.is_char_boundary(e) {
-        return None;
-    }
-    Some((&full[s..e], inner_start))
+    EventHandlerFacts::new(source, dialect).file_events()
 }
 
 #[cfg(test)]
@@ -188,6 +159,53 @@ mod tests {
     use super::*;
 
     const D: &str = "f5-irules";
+
+    #[test]
+    fn inert_when_text_is_neither_context_nor_file_event() {
+        let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
+        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
+        assert_eq!(find_enclosing_when_event(src, 0, D), None);
+        assert_eq!(find_enclosing_when_event(src, 1, D), None);
+    }
+
+    #[test]
+    fn unknown_event_is_not_an_editor_execution_context() {
+        let src = "when BOGUS_EVENT {\n  pool /Common/inert\n}\nwhen HTTP_REQUEST {}";
+        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
+        assert_eq!(find_enclosing_when_event(src, 1, D), None);
+    }
+
+    #[test]
+    fn event_inventory_shares_exact_handler_layout_validation() {
+        let src = concat!(
+            "when HTTP_REQUEST {} trailing\n",
+            "when CLIENT_ACCEPTED pool\n",
+            "when CLIENT_DATA timing on {}\n",
+            "when SERVER_DATA priority 20 timing disable {}\n",
+            "when HTTP_RESPONSE timing on priority 20 {}\n",
+        );
+        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA", "SERVER_DATA"]);
+    }
+
+    #[test]
+    fn case_and_unavailable_apply_when_words_are_not_events() {
+        let src = "switch -- $x { a { when CLIENT_DATA {} } }\napply {{} { when HTTP_REQUEST {} }}";
+        assert!(scan_file_events(src, D).is_empty());
+    }
+
+    #[test]
+    fn context_inventory_ignores_unavailable_irules_mutators() {
+        let src = "interp alias {} event {} when\n\
+                   rename when event\n\
+                   event HTTP_REQUEST { set x 1 }\n\
+                   ::when CLIENT_DATA { set y 1 }\n";
+        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA"]);
+        assert_eq!(find_enclosing_when_event(src, 2, D), None);
+        assert_eq!(
+            find_enclosing_when_event(src, 3, D),
+            Some("CLIENT_DATA".to_owned())
+        );
+    }
 
     #[test]
     fn top_level_after_close_has_no_event() {
@@ -226,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn innermost_nested_event_wins() {
+    fn nested_when_stays_in_outer_event_context() {
         // `find_enclosing` descends only into `when` bodies, so the inner
         // `when` is nested directly inside the outer one.
         let src =
@@ -234,7 +252,7 @@ mod tests {
         // Line 2 sits inside the nested CLIENT_DATA body.
         assert_eq!(
             find_enclosing_when_event(src, 2, D),
-            Some("CLIENT_DATA".to_string())
+            Some("HTTP_REQUEST".to_string())
         );
         // Line 4 is in the outer body, past the nested block's close.
         assert_eq!(
@@ -253,12 +271,19 @@ mod tests {
     }
 
     #[test]
-    fn scan_finds_nested_events() {
+    fn scan_ignores_nested_when_words() {
         let src = "when HTTP_REQUEST {\n    if {1} {\n        when CLIENT_DATA { log local0. x }\n    }\n}\n";
+        assert_eq!(scan_file_events(src, D), vec!["HTTP_REQUEST".to_string()]);
+    }
+
+    #[test]
+    fn rooted_nested_when_stays_in_outer_event_context() {
+        let src = "::when http_request {\n  if {1} {\n    :::when client_data {\n      log local0. x\n    }\n  }\n}\n";
         assert_eq!(
-            scan_file_events(src, D),
-            vec!["CLIENT_DATA".to_string(), "HTTP_REQUEST".to_string()]
+            find_enclosing_when_event(src, 3, D),
+            Some("HTTP_REQUEST".to_string())
         );
+        assert_eq!(scan_file_events(src, D), vec!["HTTP_REQUEST".to_string()]);
     }
 
     #[test]
@@ -267,12 +292,10 @@ mod tests {
         assert!(scan_file_events("", D).is_empty());
     }
 
-    /// Regression coverage for issue #996: `scan_when_context` and
-    /// `collect_when_events` recurse once per nested braced body, with no
-    /// depth cap before this fix. Reachable from completion/code-actions
-    /// on essentially every keystroke, so pathologically deep `when`/`if`
-    /// nesting must not crash the server. The assertion is that both
-    /// return at all, not what they return.
+    /// Regression coverage for issue #996: top-level boundary discovery must
+    /// remain bounded on pathologically deep inert nested text. It is reached
+    /// by completion/code-actions on essentially every keystroke. The
+    /// assertion is that both request-local views return, not their contents.
     #[test]
     fn deeply_nested_bodies_survive_when_scanning() {
         const DEPTH: usize = 2000;
@@ -288,5 +311,31 @@ mod tests {
 
         let _ = find_enclosing_when_event(&src, 1, D);
         let _ = scan_file_events(&src, D);
+    }
+
+    #[test]
+    fn one_fact_inventory_serves_context_and_file_events() {
+        let before = expensive_build_count();
+        let facts = EventHandlerFacts::for_profile(
+            "when HTTP_REQUEST { set x 1 }",
+            tcl_dialect::DialectProfile::irules(),
+        );
+        assert_eq!(facts.enclosing_event(0), Some("HTTP_REQUEST".to_owned()));
+        assert_eq!(facts.file_events(), ["HTTP_REQUEST"]);
+        assert_eq!(
+            expensive_build_count(),
+            before + 1,
+            "one request-local inventory performs one identity/boundary build"
+        );
+    }
+
+    #[test]
+    fn canonical_irules_profile_and_aliases_build_event_facts() {
+        for dialect in ["f5-irules", "irules", "tcl-irule"] {
+            let facts = EventHandlerFacts::new("when HTTP_REQUEST {}", dialect);
+            assert_eq!(facts.file_events(), ["HTTP_REQUEST"], "{dialect}");
+        }
+        let tcl = EventHandlerFacts::new("when HTTP_REQUEST {}", "tcl9.0");
+        assert!(tcl.file_events().is_empty());
     }
 }

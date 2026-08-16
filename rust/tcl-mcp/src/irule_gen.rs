@@ -30,7 +30,6 @@
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
-use std::sync::LazyLock;
 
 use regex::Regex;
 use serde_json::{Value, json};
@@ -42,12 +41,6 @@ const MULTI_TMM_HINT: &str = "This iRule uses patterns that behave differently a
      The generated test includes a multi-TMM scenario using fakeCMP \
      distribution.  Use ::orch::fakecmp_suggest_sources to plan which \
      client addresses hit which TMMs.";
-
-/// Top-level bareword commands `_extract_irule_commands` probes for.
-const TOPLEVEL_CMDS: &[&str] = &[
-    "pool", "node", "snat", "snatpool", "reject", "drop", "discard", "class", "table", "persist",
-    "event", "log", "after", "virtual",
-];
 
 /// Events implying an HTTP profile (`_infer_profiles`).
 const HTTP_EVENTS: &[&str] = &[
@@ -87,22 +80,6 @@ const HOT_EVENTS: &[&str] = &[
     "DNS_RESPONSE",
 ];
 
-static IRULE_CMD_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\b([A-Z][A-Z0-9]*::[a-z_][a-z0-9_]*)\b").expect("valid regex"));
-static POOL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\bpool\s+(\S+)").expect("valid regex"));
-static CLASS_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\bclass\s+(?:match|lookup)\s+\S+\s+\S+\s+(\S+)").expect("valid regex")
-});
-static STATIC_VAR_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?:set\s+|[\$])static::(\w+)").expect("valid regex"));
-static SET_INCR_STATIC_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\b(?:set|incr)\s+static::").expect("valid regex"));
-static COUNTER_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\bincr\s+(?:static::\w+|\$?\w*count\w*)").expect("valid regex"));
-static TABLE_STATE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\btable\s+(?:incr|set|add)").expect("valid regex"));
-
 /// Object references pulled out of an iRule (`_extract_object_refs`).
 ///
 /// `nodes` and `virtuals` could also be collected, but the `generate_irule_test`
@@ -127,14 +104,31 @@ struct Variables {
 pub fn generate_irule_test(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
 
-    let ordered_events = EventRegistry::build().order_events_for_file(source);
+    // Discover handlers once at the request boundary. Lower-level registry
+    // code only orders these owner-derived names and never re-scans source.
+    let when_blocks = tcl_irules::when_blocks(source);
+    let event_registry = EventRegistry::build();
+    let mut seen_events = BTreeSet::new();
+    let event_names: Vec<String> = when_blocks
+        .iter()
+        .map(|block| block.event.clone())
+        .filter(|event| event_registry.is_known(event))
+        .filter(|event| seen_events.insert(event.clone()))
+        .collect();
+    let ordered_events = event_registry.order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
-    let commands_used = extract_irule_commands(source);
-    let objects = extract_object_refs(source);
-    let variables = extract_variables(source);
+    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    // Build the event-rooted executable closure once for this request.  Every
+    // execution-sensitive output below consumes this exact proof of liveness;
+    // re-building it for object references could make setup disagree with the
+    // command/static/multi-TMM inventory after either walker evolves.
+    let closure = tcl_irules::irules_executable_commands(source, registry);
+    let commands_used = extract_irule_commands(&closure);
+    let objects = extract_object_refs(source, registry, &closure);
+    let variables = extract_variables(&closure);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
-    let multi_tmm = needs_multi_tmm(source, &commands_used, &variables);
+    let multi_tmm = needs_multi_tmm(&closure, &variables);
 
     let ctx = ScriptContext {
         basename: "irule.tcl",
@@ -174,66 +168,36 @@ pub fn generate_irule_test(args: &Value) -> Value {
 
 // ── Extractors ────────────────────────────────────────────────────────
 
-/// Extract the iRule command names used in `source` (`_extract_irule_commands`):
-/// `NS::cmd` tokens plus any bareword top-level commands, sorted + deduped.
-fn extract_irule_commands(source: &str) -> Vec<String> {
-    let mut commands: BTreeSet<String> = BTreeSet::new();
-    for cap in IRULE_CMD_RE.captures_iter(source) {
-        commands.insert(cap[1].to_owned());
-    }
-    for &cmd in TOPLEVEL_CMDS {
-        // `\b<cmd>\b` — the toplevel names are all `\w`, so word boundaries
-        // reduce to surrounding non-word characters.
-        if word_present(source, cmd) {
-            commands.insert(cmd.to_owned());
-        }
-    }
-    commands.into_iter().collect()
+/// Extract executable iRule command identities, sorted and deduplicated.
+fn extract_irule_commands(commands: &[tcl_irules::IrulesExecutableCommand]) -> Vec<String> {
+    commands
+        .iter()
+        .map(|fact| fact.command.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
-/// True when `word` appears in `text` bounded by non-word characters on both
-/// sides (equivalent to `re.search(r"\bword\b", text)` for `\w` words).
-fn word_present(text: &str, word: &str) -> bool {
-    let bytes = text.as_bytes();
-    let wlen = word.len();
-    let mut start = 0;
-    while let Some(pos) = text[start..].find(word) {
-        let idx = start + pos;
-        let before_ok = idx == 0 || !is_word_byte(bytes[idx - 1]);
-        let after = idx + wlen;
-        let after_ok = after >= bytes.len() || !is_word_byte(bytes[after]);
-        if before_ok && after_ok {
-            return true;
-        }
-        start = idx + 1;
-    }
-    false
-}
-
-fn is_word_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
-}
-
-/// Strip Tcl syntax characters from a reference (`_clean_ref`).
-fn clean_ref(raw: &str) -> &str {
-    raw.trim_matches(|c| matches!(c, '{' | '}' | '[' | ']' | '"' | '\''))
-}
-
-/// Extract pool / data-group / node / virtual references (`_extract_object_refs`).
-fn extract_object_refs(source: &str) -> ObjectRefs {
+/// Extract pool / data-group references from this request's executable closure.
+fn extract_object_refs(
+    source: &str,
+    registry: &tcl_registry::CommandRegistry,
+    closure: &[tcl_irules::IrulesExecutableCommand],
+) -> ObjectRefs {
     let mut pools: BTreeSet<String> = BTreeSet::new();
     let mut datagroups: BTreeSet<String> = BTreeSet::new();
-
-    for cap in POOL_RE.captures_iter(source) {
-        let name = clean_ref(&cap[1]);
-        if !name.is_empty() && !name.starts_with('$') && name != "member" {
-            pools.insert(name.to_owned());
-        }
-    }
-    for cap in CLASS_RE.captures_iter(source) {
-        let name = clean_ref(&cap[1]);
-        if !name.is_empty() && !name.starts_with('$') {
-            datagroups.insert(name.to_owned());
+    // The shared reference owner consumes the event-rooted executable closure
+    // itself, so invalid top-level/nested declarations and dormant procedures
+    // cannot seed test setup.  Do not reclassify reachability by checking
+    // whether a reference happens to sit inside a handler's physical body:
+    // reached helper procedures live outside that body.
+    for reference in
+        tcl_irules::extract_irules_object_references_in_closure(source, None, registry, closure)
+    {
+        if reference.category == tcl_irules::IrulesObjectReferenceCategory::Pool {
+            pools.insert(reference.name);
+        } else if reference.category == tcl_irules::IrulesObjectReferenceCategory::DataGroup {
+            datagroups.insert(reference.name);
         }
     }
 
@@ -244,10 +208,20 @@ fn extract_object_refs(source: &str) -> ObjectRefs {
 }
 
 /// Extract `static::` variable names (`_extract_variables`), sorted + deduped.
-fn extract_variables(source: &str) -> Variables {
+fn extract_variables(commands: &[tcl_irules::IrulesExecutableCommand]) -> Variables {
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
-    for cap in STATIC_VAR_RE.captures_iter(source) {
-        static_vars.insert(cap[1].to_owned());
+    for fact in commands {
+        if fact.command == "set"
+            && let Some(name) = fact.args.first()
+            && name.starts_with("static::")
+        {
+            static_vars.insert(name.trim_start_matches("static::").to_owned());
+        }
+        for name in &fact.variable_names {
+            if name.starts_with("static::") {
+                static_vars.insert(name.trim_start_matches("static::").to_owned());
+            }
+        }
     }
     Variables {
         static_vars: static_vars.into_iter().collect(),
@@ -277,49 +251,36 @@ fn infer_profiles(events: &[String]) -> Vec<String> {
 
 /// Detect whether an iRule should be tested in multi-TMM mode
 /// (`_needs_multi_tmm`).
-fn needs_multi_tmm(source: &str, commands_used: &[String], variables: &Variables) -> bool {
+fn needs_multi_tmm(
+    commands: &[tcl_irules::IrulesExecutableCommand],
+    variables: &Variables,
+) -> bool {
     let has_static_vars = !variables.static_vars.is_empty();
-    let uses_table = commands_used.iter().any(|c| c == "table");
-
-    // Pattern 1: static:: written in a hot event body.
-    let static_in_hot = HOT_EVENTS.iter().any(|event| {
-        event_body(source, event).is_some_and(|body| SET_INCR_STATIC_RE.is_match(body))
+    let static_in_hot = commands.iter().any(|fact| {
+        fact.event
+            .as_deref()
+            .is_some_and(|event| HOT_EVENTS.contains(&event))
+            && matches!(fact.command.as_str(), "set" | "incr")
+            && fact
+                .args
+                .first()
+                .is_some_and(|arg| arg.starts_with("static::"))
+    });
+    let has_counter = commands.iter().any(|fact| {
+        fact.command == "incr"
+            && fact.args.first().is_some_and(|arg| {
+                arg.starts_with("static::") || arg.to_ascii_lowercase().contains("count")
+            })
+    });
+    let uses_shared_table = commands.iter().any(|fact| {
+        fact.command == "table"
+            && fact
+                .args
+                .first()
+                .is_some_and(|arg| matches!(arg.as_str(), "incr" | "set" | "add"))
     });
 
-    // Pattern 2: rate-limiting / counter patterns.
-    let has_counter = COUNTER_RE.is_match(source);
-
-    // Pattern 3: table used for shared state.
-    let uses_shared_table = uses_table && TABLE_STATE_RE.is_match(source);
-
     static_in_hot || (has_counter && has_static_vars) || uses_shared_table
-}
-
-/// The (rough) body of a `when EVENT { ... }` block — the first `{` after the
-/// event name to its first `}`. Mirrors the non-greedy
-/// `when\s+EVENT\s*\{(.*?)\}` heuristic (stops at the first `}`).
-fn event_body<'a>(source: &'a str, event: &str) -> Option<&'a str> {
-    let mut search_from = 0;
-    while let Some(rel) = source[search_from..].find("when") {
-        let when_idx = search_from + rel;
-        // Require a word boundary before "when".
-        if when_idx > 0 && is_word_byte(source.as_bytes()[when_idx - 1]) {
-            search_from = when_idx + 4;
-            continue;
-        }
-        let after_when = &source[when_idx + 4..];
-        let trimmed = after_when.trim_start();
-        if let Some(rest) = trimmed.strip_prefix(event) {
-            let rest = rest.trim_start();
-            if let Some(body) = rest.strip_prefix('{') {
-                // `.*?\}` stops at the first `}` in the body.
-                let end = body.find('}').unwrap_or(body.len());
-                return Some(&body[..end]);
-            }
-        }
-        search_from = when_idx + 4;
-    }
-    None
 }
 
 // ── Test-script rendering ─────────────────────────────────────────────
@@ -1022,6 +983,27 @@ fn build_multi_tmm_block(test_name: &str, ctx: &ScriptContext) -> String {
 mod tests {
     use super::*;
 
+    fn reset_request_closure_builds() {
+        tcl_irules::reset_executable_closure_builds_for_tests();
+    }
+
+    fn request_closure_builds() -> usize {
+        tcl_irules::executable_closure_builds_for_tests()
+    }
+
+    fn registry() -> &'static tcl_registry::CommandRegistry {
+        tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules())
+    }
+
+    fn executable(src: &str) -> Vec<tcl_irules::IrulesExecutableCommand> {
+        tcl_irules::irules_executable_commands(src, registry())
+    }
+
+    fn object_refs(src: &str) -> ObjectRefs {
+        let closure = executable(src);
+        extract_object_refs(src, registry(), &closure)
+    }
+
     fn if_cond(condition: &str) -> Value {
         json!({"kind": "if", "condition": condition})
     }
@@ -1114,6 +1096,305 @@ mod tests {
         assert!(
             lines.iter().any(|l| l.contains(r#"-uri "/admin""#)),
             "{lines:?}"
+        );
+    }
+
+    #[test]
+    fn extractors_ignore_commented_out_handlers() {
+        let src = "# when HTTP_REQUEST { pool stale }\nwhen HTTP_REQUEST { pool live }\n";
+        let commands = executable(src);
+        assert_eq!(object_refs(src).pools, vec!["live".to_owned()]);
+        assert!(!extract_irule_commands(&commands).contains(&"stale".to_owned()));
+    }
+
+    #[test]
+    fn extractors_ignore_commented_pool_inside_live_handler() {
+        let src = "when HTTP_REQUEST {\n # pool stale\n pool live\n}\n";
+        assert_eq!(object_refs(src).pools, vec!["live".to_owned()]);
+    }
+
+    #[test]
+    fn object_refs_ignore_inline_comments_and_pool_like_data() {
+        let src = "when HTTP_REQUEST {\n set x 1; # pool stale\n set quoted \"pool quoted\"\n set braced {pool braced}\n pool live\n}\n";
+        assert_eq!(object_refs(src).pools, vec!["live".to_owned()]);
+    }
+
+    #[test]
+    fn object_refs_recurse_into_if_and_command_substitution() {
+        let src = "when HTTP_REQUEST { if {1} { pool nested_pool }; set hit [class match [HTTP::uri] equals uri_dg] }";
+        let refs = object_refs(src);
+        assert_eq!(refs.pools, vec!["nested_pool".to_owned()]);
+        assert!(refs.datagroups.contains(&"uri_dg".to_owned()));
+    }
+
+    #[test]
+    fn generated_test_inventory_keeps_data_groups_from_braced_expressions() {
+        let src = "when HTTP_REQUEST { if {[class match [HTTP::uri] equals expr_dg]} { pool selected_pool } }";
+        let refs = object_refs(src);
+        assert_eq!(refs.pools, ["selected_pool"]);
+        assert_eq!(refs.datagroups, ["expr_dg"]);
+    }
+
+    #[test]
+    fn generated_test_sets_up_live_braced_expression_and_quoted_operand_static_variables() {
+        let generated = generate_irule_test(&json!({
+            "source": concat!(
+                "when HTTP_REQUEST {\n",
+                "  if {$static::maintenance} { return }\n",
+                "  if {\"$static::quoted\" eq {${static::braced_data}}} {}\n",
+                "  if {$static::broken +} {}\n",
+                "}\n",
+            ),
+        }));
+        let script = generated["test_script"]
+            .as_str()
+            .expect("generated test script");
+        assert!(
+            script.contains("::orch::configure_static maintenance \"\""),
+            "a live braced expression read needs generated setup: {script}"
+        );
+        assert!(
+            script.contains("::orch::configure_static quoted \"\""),
+            "a quoted operand evaluated by expr needs generated setup: {script}"
+        );
+        for inert in ["braced_data", "broken"] {
+            assert!(
+                !script.contains(&format!("::orch::configure_static {inert} ")),
+                "inert or malformed expression variable leaked into setup: {script}"
+            );
+        }
+    }
+
+    #[test]
+    fn generated_inventory_keeps_quoted_substitutions_before_an_expr_error() {
+        // Tcl 8.6 and 9 substitute the quoted word before `if` rejects its
+        // trailing operator. The braced form reaches expr as literal source,
+        // so its malformed expression must not seed generated setup.
+        let generated = generate_irule_test(&json!({
+            "source": concat!(
+                "when HTTP_REQUEST {\n",
+                "  if \"[class match [HTTP::uri] equals quoted_dg] +\" {}\n",
+                "  if {[class match [HTTP::host] equals braced_dg] +} {}\n",
+                "}\n",
+            ),
+        }));
+        assert_eq!(generated["datagroups"], json!(["quoted_dg"]));
+        let commands = generated["commands_used"].as_array().unwrap();
+        for command in ["class", "HTTP::uri"] {
+            assert!(
+                commands.iter().any(|value| value == command),
+                "quoted pre-expression command {command:?} missing: {commands:?}"
+            );
+        }
+        assert!(
+            !commands.iter().any(|value| value == "HTTP::host"),
+            "braced malformed expression must not run substitutions: {commands:?}"
+        );
+    }
+
+    #[test]
+    fn object_refs_ignore_unavailable_aliases_and_keep_qualified_commands() {
+        let src = "interp alias {} choose {} pool\nrename class group\nwhen HTTP_REQUEST { choose aliased_pool; ::pool qualified_pool; group match x equals aliased_dg }";
+        let refs = object_refs(src);
+        assert!(!refs.pools.contains(&"aliased_pool".to_owned()));
+        assert!(refs.pools.contains(&"qualified_pool".to_owned()));
+        assert!(!refs.datagroups.contains(&"aliased_dg".to_owned()));
+    }
+
+    #[test]
+    fn executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions() {
+        let inert = "when HTTP_REQUEST {\n # set static::ghost 1; HTTP::respond 200; pool stale; table incr key\n set q {HTTP::respond 201; pool inert; table incr key; set static::data 1}\n set r \"pool quoted; set static::quoted 1\"\n set x [HTTP::uri]\n pool live\n}\n";
+        let commands = executable(inert);
+        let names = extract_irule_commands(&commands);
+        assert!(names.contains(&"HTTP::uri".to_owned()), "{names:?}");
+        assert!(names.contains(&"pool".to_owned()), "{names:?}");
+        assert!(!names.contains(&"HTTP::respond".to_owned()), "{names:?}");
+        assert!(!names.contains(&"table".to_owned()), "{names:?}");
+        let variables = extract_variables(&commands);
+        assert!(
+            variables.static_vars.is_empty(),
+            "{:?}",
+            variables.static_vars
+        );
+        assert!(!needs_multi_tmm(&commands, &variables));
+        assert_eq!(object_refs(inert).pools, ["live"]);
+
+        let live = "when HTTP_REQUEST { set static::hits 0; incr static::hits; table incr key; HTTP::respond 200 }";
+        let commands = executable(live);
+        let variables = extract_variables(&commands);
+        assert_eq!(variables.static_vars, ["hits"]);
+        assert!(needs_multi_tmm(&commands, &variables));
+    }
+
+    #[test]
+    fn executable_inventory_includes_proc_bodies_and_excludes_invalid_regions() {
+        let src = concat!(
+            "pool top_level_stale\n",
+            "proc helper {} { pool proc_pool; set x [class match value equals proc_dg] }\n",
+            "when HTTP_REQUEST { call helper; switch -- x { x { pool event_pool } }; when CLIENT_DATA { pool nested_stale } }\n",
+        );
+        let commands = executable(src);
+        let refs = object_refs(src);
+        assert_eq!(refs.pools, ["event_pool", "proc_pool"], "{commands:?}");
+        assert_eq!(refs.datagroups, ["proc_dg"]);
+        assert!(!extract_irule_commands(&commands).contains(&"when".to_owned()));
+    }
+
+    #[test]
+    fn generated_object_setup_follows_the_shared_event_closure() {
+        let src = concat!(
+            "proc helper {} { pool helper_pool }\n",
+            "proc dormant {} { pool dormant_pool }\n",
+            "when HTTP_REQUEST { call helper; dormant; pool event_pool }\n",
+            "when CLIENT_DATA { pool other_event_pool }\n",
+        );
+        let refs = object_refs(src);
+        assert_eq!(
+            refs.pools,
+            ["event_pool", "helper_pool", "other_event_pool"],
+            "the aggregate owner includes each event root and only reached helpers"
+        );
+        assert!(
+            !refs.pools.contains(&"dormant_pool".to_owned()),
+            "a direct procedure-looking call cannot make dormant setup live"
+        );
+    }
+
+    #[test]
+    fn called_helper_static_write_preserves_hot_event_for_multi_tmm() {
+        let generated = generate_irule_test(&json!({
+            "source": concat!(
+                "proc helper {} { set static::flag 1 }\n",
+                "when HTTP_REQUEST { call helper }\n",
+            ),
+        }));
+        assert_eq!(generated["multi_tmm_detected"], json!(true));
+        assert!(
+            generated["test_script"]
+                .as_str()
+                .is_some_and(|script| script.contains("fakeCMP distributes clients across TMMs")),
+            "a hot event's called helper write needs the multi-TMM scaffold"
+        );
+    }
+
+    #[test]
+    fn generator_builds_one_request_closure_for_every_execution_sensitive_output() {
+        let src = concat!(
+            "proc ::rooted_helper {} { pool helper_pool; call chain_helper }\n",
+            "proc chain_helper {} { set selected [class match [HTTP::uri] equals helper_dg]; call ::rooted_helper }\n",
+            "proc dormant {} { pool dormant_pool; set static::dormant 1; table incr dormant }\n",
+            "when HTTP_REQUEST { pool first_pool; set static::hits 0; call rooted_helper; dormant; apply {{} { pool lambda_pool; set static::lambda 1 }}; when CLIENT_DATA { pool nested_other_event_pool; set static::nested 1 } }\n",
+            "when http_request { pool second_pool; incr static::hits }\n",
+        );
+
+        reset_request_closure_builds();
+        let generated = generate_irule_test(&json!({"source": src}));
+
+        assert_eq!(
+            request_closure_builds(),
+            1,
+            "one request must construct exactly one event-rooted closure"
+        );
+        assert_eq!(generated["events"], json!(["HTTP_REQUEST"]));
+        assert_eq!(
+            generated["pools"],
+            json!(["first_pool", "helper_pool", "second_pool"]),
+            "both same-event roots and the rooted call cycle share one closure"
+        );
+        assert_eq!(generated["datagroups"], json!(["helper_dg"]));
+        assert_eq!(generated["multi_tmm_detected"], json!(true));
+
+        let commands = generated["commands_used"].as_array().unwrap();
+        for name in ["HTTP::uri", "call", "class", "incr", "pool", "set"] {
+            assert!(
+                commands.iter().any(|value| value == name),
+                "live closure command {name:?} missing: {commands:?}"
+            );
+        }
+
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(script.contains("::orch::configure_static hits"), "{script}");
+        for inert in ["dormant_pool", "lambda_pool", "nested_other_event_pool"] {
+            assert!(
+                !generated["pools"].to_string().contains(inert)
+                    && !generated["datagroups"].to_string().contains(inert)
+                    && !script.contains(&format!("::orch::add_pool {inert}")),
+                "dormant/direct/lambda/nested-other-event pool leaked into setup: {inert:?}\n{script}"
+            );
+        }
+        for inert in ["dormant", "lambda", "nested"] {
+            assert!(
+                !script.contains(&format!("::orch::configure_static {inert}")),
+                "dormant/direct/lambda/nested-other-event static leaked into setup: {inert:?}\n{script}"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_events_and_malformed_procs_are_inert_for_generated_inventory() {
+        let src = concat!(
+            "when BOGUS_EVENT { pool bogus; set static::bogus 1; table incr bogus }\n",
+            "proc missing {}\n",
+            "proc extra {} { pool malformed } trailing\n",
+            "proc valid {} { pool valid_proc }\n",
+            "when HTTP_REQUEST { call valid; pool valid_event }\n",
+        );
+        let generated = generate_irule_test(&json!({"source": src}));
+        assert_eq!(generated["events"], json!(["HTTP_REQUEST"]));
+        assert_eq!(generated["pools"], json!(["valid_event", "valid_proc"]));
+        assert_eq!(generated["commands_used"], json!(["call", "pool"]));
+        assert_eq!(generated["multi_tmm_detected"], json!(false));
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(
+            !script.contains("::orch::configure_static bogus"),
+            "{script}"
+        );
+        assert!(!script.contains("::orch::add_pool bogus"), "{script}");
+        assert!(!script.contains("::orch::add_pool malformed"), "{script}");
+    }
+
+    #[test]
+    fn generated_event_inventory_uses_exact_shared_handler_grammar() {
+        let src = concat!(
+            "when HTTP_REQUEST { pool malformed } trailing\n",
+            "when CLIENT_ACCEPTED pool\n",
+            "when CLIENT_DATA timing on { pool timed }\n",
+            "when SERVER_DATA priority 10 timing disable { pool ordered }\n",
+            "when HTTP_RESPONSE timing on priority 10 { pool wrong_order }\n",
+        );
+        let generated = generate_irule_test(&json!({"source": src}));
+        assert_eq!(generated["events"], json!(["CLIENT_DATA", "SERVER_DATA"]));
+        assert_eq!(generated["pools"], json!(["ordered", "timed"]));
+    }
+
+    #[test]
+    fn scaffold_deduplicates_events_and_sets_up_registry_classified_pools() {
+        let src = concat!(
+            "interp alias {} members {} active_members\n",
+            "interp alias {} retry {} LB::reselect\n",
+            "interp alias {} logger {} HSL::open\n",
+            "when HTTP_REQUEST { set n [members /Common/active] }\n",
+            "when HTTP_REQUEST { retry pool /Common/fallback }\n",
+            "when CLIENT_ACCEPTED { set h [::logger -proto UDP -pool /Common/logging] }\n",
+        );
+        let generated = generate_irule_test(&json!({"source": src}));
+        assert_eq!(
+            generated["events"],
+            json!(["CLIENT_ACCEPTED", "HTTP_REQUEST"])
+        );
+        assert_eq!(generated["pools"], json!(["/Common/active"]));
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(
+            script.contains("::orch::add_pool /Common/active "),
+            "{script}"
+        );
+        assert!(
+            !script.contains("::orch::add_pool /Common/fallback "),
+            "{script}"
+        );
+        assert!(
+            !script.contains("::orch::add_pool /Common/logging "),
+            "{script}"
         );
     }
 }

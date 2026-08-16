@@ -166,8 +166,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     // not be author-editable, add it here and to `COMMAND_SPEC` as
     // `Surface::Excluded("why")` and skip the first two.
     let CommandSpec {
-        name: _,
-        traits: _,
+        name: _, traits: _,
         dialects: _,
         arity: _,
         arg_roles: _,
@@ -219,6 +218,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         data_collection: _,
         side_switch_target: _,
         event_handler_priority: _,
+        irules_top_level_effect: _,
         options: _,
         option_constraints: _,
         reserved_trailing_words: _,
@@ -349,6 +349,10 @@ pub const COMMAND_SPEC: &[Field] = &[
     f(
         "event_handler_priority",
         Surface::Key("event_handler_priority"),
+    ),
+    f(
+        "irules_top_level_effect",
+        Surface::Key("irules_top_level_effect"),
     ),
     f("options", Surface::Key("options")),
     f("option_constraints", Surface::Key("option_constraints")),

@@ -778,7 +778,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
   {
     code: "IRULE5007",
     section: "irules",
-    description: "Event-context command used at top level outside a `when` block.",
+    description: "Executable command used on iRules' declaration-only top level.",
     defaultEnabled: true,
   },
   {

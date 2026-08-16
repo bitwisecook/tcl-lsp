@@ -24,7 +24,7 @@
   "ltm"
  ],
  [
-  "when HTTP_REQUEST {\n  if {[class match [HTTP::host] equals dg]} {\n    pool p\n  }\n}\n",
+  "when HTTP_REQUEST {\n  if [class match [HTTP::host] equals dg] {\n    pool p\n  }\n}\n",
   "ltm"
  ],
  [

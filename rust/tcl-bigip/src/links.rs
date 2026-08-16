@@ -247,6 +247,32 @@ mod tests {
     }
 
     #[test]
+    fn irule_links_follow_reached_helpers_but_not_dormant_procedures() {
+        let source = concat!(
+            "ltm pool /Common/helper_pool { }\n",
+            "ltm pool /Common/dormant_pool { }\n",
+            "ltm rule /Common/r {\n",
+            "proc helper {} { pool /Common/helper_pool }\n",
+            "proc dormant {} { pool /Common/dormant_pool }\n",
+            "when HTTP_REQUEST { call helper; dormant }\n",
+            "}\n",
+        );
+        let links = document_links(source);
+        assert!(
+            links
+                .iter()
+                .any(|link| link.tooltip == "Go to /Common/helper_pool"),
+            "reached helper reference must participate in BIG-IP links: {links:?}"
+        );
+        assert!(
+            !links
+                .iter()
+                .any(|link| link.tooltip == "Go to /Common/dormant_pool"),
+            "dormant procedure data must not create a graph edge: {links:?}"
+        );
+    }
+
+    #[test]
     fn property_value_emits_bounded_link_to_target() {
         let source = "ltm monitor http /Common/http_probe { }\nltm pool /Common/web_pool {\n    monitor /Common/http_probe\n}\n";
         let links = document_links(source);

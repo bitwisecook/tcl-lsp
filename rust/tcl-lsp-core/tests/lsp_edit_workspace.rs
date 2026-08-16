@@ -524,7 +524,7 @@ fn minify_compact_preserves_append_accumulator() {
 
 fn tcl_ctx<'a>(partial: &'a str, vars: &'a [String]) -> SnippetContext<'a> {
     SnippetContext {
-        dialect: "tcl8.6",
+        profile: tcl_dialect::DialectProfile::by_name("tcl8.6"),
         indent_unit: "    ",
         scope_vars: vars,
         partial,
@@ -598,7 +598,7 @@ fn snippets_irules_templates_hidden_in_plain_tcl_dialect() {
 fn snippets_irules_event_templates_offered_in_irules_dialect() {
     let events: Vec<String> = Vec::new();
     let ctx = SnippetContext {
-        dialect: "f5-irules",
+        profile: tcl_dialect::DialectProfile::irules(),
         indent_unit: "    ",
         scope_vars: &[],
         partial: "irule",
@@ -619,7 +619,7 @@ fn snippets_irules_event_template_declines_when_event_present() {
     // template declines (offers nothing for that prefix).
     let events = vec!["RULE_INIT".to_string()];
     let ctx = SnippetContext {
-        dialect: "f5-irules",
+        profile: tcl_dialect::DialectProfile::irules(),
         indent_unit: "    ",
         scope_vars: &[],
         partial: "irule-rule-init",
@@ -730,6 +730,7 @@ fn style_orchestrator_merges_checks_and_respects_disabled_set() {
         &no_disable(),
         &no_suppress(),
         None,
+        "tcl9.0",
     );
     let codes: HashSet<&str> = all.iter().map(|d| d.code).collect();
     assert!(codes.contains("W111"), "{all:?}");
@@ -744,6 +745,7 @@ fn style_orchestrator_merges_checks_and_respects_disabled_set() {
         &disabled,
         &no_suppress(),
         None,
+        "tcl9.0",
     );
     assert!(filtered.iter().all(|d| d.code != "W112"), "{filtered:?}");
     assert!(
@@ -765,6 +767,7 @@ fn style_orchestrator_honours_line_suppression_for_line_codes() {
         &no_disable(),
         &suppressed,
         None,
+        "tcl9.0",
     );
     assert!(
         diags.iter().all(|d| d.code != "W112"),

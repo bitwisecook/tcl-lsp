@@ -172,7 +172,9 @@ pub fn member_body_indices(
     command: &str,
     args: &[&str],
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, None, ArgRole::Body)
+    // The registry owns this irregular structural layout. Keeping this thin
+    // forwarding function avoids a second Flat/Wrapper/FlagKeyed dispatcher.
+    grammar.member_body_indices_in(command, args, tcl_dialect::DialectSet::all())
 }
 
 /// Profile-aware [`member_body_indices`].
@@ -183,7 +185,7 @@ pub fn member_body_indices_in(
     args: &[&str],
     dialect: tcl_dialect::DialectSet,
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, Some(dialect), ArgRole::Body)
+    grammar.member_body_indices_in(command, args, dialect)
 }
 
 /// Parameter-list argument indices for a member call under `grammar` (a

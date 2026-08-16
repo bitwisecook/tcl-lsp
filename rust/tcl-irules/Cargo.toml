@@ -27,6 +27,11 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+# Request-level integration tests can assert that a consumer builds exactly one
+# executable closure without carrying counters in production builds.
+test-instrumentation = []
+
 [dependencies]
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }

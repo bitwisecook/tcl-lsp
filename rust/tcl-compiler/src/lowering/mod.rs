@@ -25,6 +25,7 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::TokenType;
+use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
@@ -747,6 +748,14 @@ pub struct Lowerer<'r> {
     class_instance_vars: HashMap<String, HashSet<String>>,
     /// Event handler occurrence counts (for `when` numbering).
     when_counts: HashMap<String, u32>,
+    /// The registry-owned iRules execution placement of the script currently
+    /// being lowered.  This is deliberately distinct from `proc_depth`:
+    /// control-flow bodies inherit an event/procedure context, whereas a body
+    /// opened by a top-level executable statement is invalid declaration
+    /// territory and must not manufacture `when` / `proc` procedures.
+    irules_execution_context: IrulesExecutionContext,
+    /// Priority inherited by subsequent top-level iRules event declarations.
+    irules_priority: u16,
     /// Monotonic counter for synthetic *body unit* names (`apply` lambdas and
     /// `namespace eval` bodies), so each registers under a unique qualified
     /// name in [`Module::body_units`]. Deterministic in source order, so the
@@ -877,6 +886,8 @@ impl<'r> Lowerer<'r> {
             aliases: CommandAliasMap::new(),
             class_instance_vars: HashMap::new(),
             when_counts: HashMap::new(),
+            irules_execution_context: IrulesExecutionContext::TopLevel,
+            irules_priority: 500,
             body_unit_count: 0,
             in_namespace_eval: false,
             registry,
@@ -1000,13 +1011,62 @@ impl<'r> Lowerer<'r> {
     /// Depth-guarded the same way as [`Self::lower_script`] — see its doc
     /// comment.
     fn lower_body(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
+        let context = self.nested_irules_execution_context();
+        self.lower_body_in_irules_context(text, base_offset, namespace, context)
+    }
+
+    /// Lower a body while explicitly preserving the registry-owned iRules
+    /// execution context.  `when` / `proc` declarations use this to install
+    /// their event/procedure frame; ordinary script-bearing commands use
+    /// [`Self::lower_body`], which derives the nested context instead.
+    fn lower_body_in_irules_context(
+        &mut self,
+        text: &str,
+        base_offset: u32,
+        namespace: &str,
+        context: IrulesExecutionContext,
+    ) -> Script {
+        let previous = std::mem::replace(&mut self.irules_execution_context, context);
         self.nest_depth += 1;
-        if MAX_LOWER_NEST_DEPTH.exceeded(self.nest_depth) {
+        let result = if MAX_LOWER_NEST_DEPTH.exceeded(self.nest_depth) {
             self.nest_depth -= 1;
-            return over_depth_script(base_offset, text.len());
+            over_depth_script(base_offset, text.len())
+        } else {
+            let result = self.lower_body_inner(text, base_offset, namespace);
+            self.nest_depth -= 1;
+            result
+        };
+        self.irules_execution_context = previous;
+        result
+    }
+
+    /// Which iRules placement a nested script inherits.  A control-flow or
+    /// callback body within an event/procedure keeps that live frame; a body
+    /// reached from a top-level executable command remains invalid rather
+    /// than gaining the power to declare a handler or procedure.
+    const fn nested_irules_execution_context(&self) -> IrulesExecutionContext {
+        match self.irules_execution_context {
+            IrulesExecutionContext::TopLevel | IrulesExecutionContext::InvalidNestedBody => {
+                IrulesExecutionContext::InvalidNestedBody
+            }
+            IrulesExecutionContext::EventBody => IrulesExecutionContext::EventBody,
+            IrulesExecutionContext::ProcedureBody => IrulesExecutionContext::ProcedureBody,
         }
-        let result = self.lower_body_inner(text, base_offset, namespace);
-        self.nest_depth -= 1;
+    }
+
+    /// Run one synthesized script in a known iRules execution context.  A
+    /// materialised proc body has no source token to route through
+    /// [`Self::lower_body_in_irules_context`], but it still must not treat a
+    /// nested declaration as a file-level one.
+    fn lower_script_in_irules_context(
+        &mut self,
+        source: &str,
+        namespace: &str,
+        context: IrulesExecutionContext,
+    ) -> Script {
+        let previous = std::mem::replace(&mut self.irules_execution_context, context);
+        let result = self.lower_script(source, namespace);
+        self.irules_execution_context = previous;
         result
     }
 
@@ -1407,11 +1467,7 @@ impl<'r> Lowerer<'r> {
             // at least three token slices (the body needs to
             // be a real token, not synthesised whitespace).
             LoweringHookId::Proc => {
-                if args.len() == 3 && seg.arg_tokens().len() >= 3 {
-                    Some(self.lower_proc(seg, namespace))
-                } else {
-                    None
-                }
+                self.try_lower_proc_declaration(seg, namespace, resolved.canonical_command)
             }
             // `namespace eval ns body` — the subcommand match
             // is already handled by `resolve_call`, so the
@@ -1457,11 +1513,7 @@ impl<'r> Lowerer<'r> {
             // misconfiguration; the dialect needs to match the
             // source.
             LoweringHookId::When => {
-                if args.len() >= 2 && seg.arg_tokens().len() >= 2 {
-                    Some(self.lower_when(seg, namespace))
-                } else {
-                    None
-                }
+                self.try_lower_when_declaration(seg, namespace, resolved.canonical_command)
             }
             // `foreachLine varName filename body` — Tcl 9.0
             // (TIP 670).  Always registered in `build_default()`
@@ -1500,6 +1552,91 @@ impl<'r> Lowerer<'r> {
         }
     }
 
+    fn try_lower_proc_declaration(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        canonical_command: &str,
+    ) -> Option<Statement> {
+        if seg.args().len() != 3 || seg.arg_tokens().len() < 3 {
+            return None;
+        }
+        if self
+            .registry
+            .profile()
+            .is_some_and(tcl_dialect::DialectProfile::is_irules)
+        {
+            if self
+                .registry
+                .irules_command_placement(canonical_command, self.irules_execution_context)
+                != IrulesCommandPlacement::Allowed
+            {
+                return None;
+            }
+            let arg_refs: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            let closed = tcl_registry::events::closed_braced_argument_words(
+                &self.source,
+                seg.arg_tokens(),
+                seg.arg_single_token(),
+            )?;
+            let declaration = tcl_registry::events::IrulesDeclarationArguments::new(
+                &arg_refs,
+                seg.arg_tokens(),
+                seg.arg_single_token(),
+                &closed,
+            )
+            .and_then(|arguments| {
+                self.registry
+                    .irules_top_level_declaration_shape(canonical_command, arguments)
+            });
+            if !matches!(
+                declaration,
+                Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+            ) {
+                return None;
+            }
+        }
+        Some(self.lower_proc(seg, namespace))
+    }
+
+    fn try_lower_when_declaration(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        canonical_command: &str,
+    ) -> Option<Statement> {
+        if self
+            .registry
+            .irules_command_placement(canonical_command, self.irules_execution_context)
+            != IrulesCommandPlacement::Allowed
+        {
+            return None;
+        }
+        let arg_refs: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let closed = tcl_registry::events::closed_braced_argument_words(
+            &self.source,
+            seg.arg_tokens(),
+            seg.arg_single_token(),
+        )?;
+        let arguments = tcl_registry::events::IrulesDeclarationArguments::new(
+            &arg_refs,
+            seg.arg_tokens(),
+            seg.arg_single_token(),
+            &closed,
+        )?;
+        let tcl_registry::events::IrulesTopLevelDeclaration::Event {
+            event,
+            body_index,
+            priority,
+        } = self
+            .registry
+            .irules_top_level_declaration_shape(canonical_command, arguments)?
+        else {
+            return None;
+        };
+        Some(self.lower_when(seg, namespace, &event, body_index, priority))
+    }
+
     /// Lower a single command.
     fn lower_command(&mut self, seg: &SegmentedCommand, namespace: &str) -> Option<Statement> {
         if seg.texts.is_empty() {
@@ -1508,6 +1645,20 @@ impl<'r> Lowerer<'r> {
 
         let cmd_name = seg.name();
         let args = seg.args();
+
+        if self.irules_execution_context == IrulesExecutionContext::TopLevel {
+            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            if let Some(resolved) = self.registry.resolve_invocation(
+                cmd_name,
+                &arg_refs,
+                self.registry.own_availability_mask(),
+            ) && let Some(tcl_registry::events::IrulesTopLevelDeclaration::Priority { value }) =
+                self.registry
+                    .irules_top_level_effect(resolved.canonical_command, &arg_refs)
+            {
+                self.irules_priority = value;
+            }
+        }
 
         // Detect `interp alias {} name {} target ?args?` and static
         // `rename oldName newName` — both feed the same alias table, since
@@ -1627,7 +1778,6 @@ impl<'r> Lowerer<'r> {
                 tokens: Some(Self::cmd_tokens(seg)),
             };
         }
-
         // Phase 2: dynamic proc name resolution.
         let (proc_name_owned, args_owned, name_was_substituted) =
             match self.resolve_dynamic_proc_name(seg, args_borrow) {
@@ -1636,7 +1786,6 @@ impl<'r> Lowerer<'r> {
             };
         let args: &[String] = &args_owned;
         let proc_name = &proc_name_owned;
-
         // Phase 3: dynamic body / params check, plus body
         // materialisation via the const-map.
         let (materialised_body, body_is_dynamic, body_offset) =
@@ -1670,47 +1819,13 @@ impl<'r> Lowerer<'r> {
         let body_namespace = proc_body_namespace(&qualified, namespace);
         let body_namespace: &str = &body_namespace;
         let body_text = &args[2];
-        // Fresh const-map frame for the nested proc body.
-        // ``lower_body`` would otherwise inherit the enclosing
-        // scope's tracked scalars — correct for control-flow
-        // bodies (if / catch / loops share the frame) but unsound
-        // for ``proc`` bodies, which have their own runtime frame.
-        // Pushing an empty frame here means the inner ``lower_body``
-        // clones an empty parent, giving the proc body a clean
-        // slate.
-        self.proc_depth += 1;
-        self.const_map_stack.push(HashMap::new());
-        let body = if let Some(text) = materialised_body {
-            self.lower_script(&text, body_namespace)
-        } else if body_is_dynamic {
-            // Dynamic body, no materialisation possible — but the
-            // proc name resolved via the const-map (otherwise we'd
-            // have bailed above).  Leave the Procedure body empty
-            // so static analysis doesn't try to compile the literal
-            // ``$body`` source text as a script.  The runtime
-            // ``proc`` Statement::Call below carries the actual body bytes.
-            Script::default()
-        } else if let Some(cache) = self
-            .body_cache
-            .filter(|_| self.proc_depth == 1 && body_cache_eligible(body_text))
-        {
-            // SRV-INCREMENTAL Task 3: a top-level proc's static body is lowered in
-            // isolation through the memo (offset 0) and rebased to its real offset.
-            // Gated per-body on [`body_cache_eligible`]: a body free of the
-            // cross-item constructs the isolated lowering would drop lowers
-            // byte-identically to the in-place `lower_body` (the const-map is a fresh
-            // empty frame here, so a literal body has no cross-item dependency) — so a
-            // context-carrying sibling no longer disables the cache for this one.
-            // Guarded by the corpus differential gates (`file_analysis_corpus` /
-            // `compiler_check_corpus` / `per_item_corpus`).
-            let mut s = cache(body_text, body_namespace);
-            crate::lattice_rebase::rebase_script(&mut s, i64::from(body_offset));
-            s
-        } else {
-            self.lower_body(body_text, body_offset, body_namespace)
-        };
-        self.const_map_stack.pop();
-        self.proc_depth -= 1;
+        let body = self.lower_proc_body(
+            materialised_body,
+            body_is_dynamic,
+            body_text,
+            body_offset,
+            body_namespace,
+        );
 
         // A `proc` defined inside a TclOO method body is created
         // at method-call time in the global namespace, not at script
@@ -1751,6 +1866,55 @@ impl<'r> Lowerer<'r> {
             tokens: Some(Self::cmd_tokens(seg)),
             foreach_groups: None,
         }
+    }
+
+    /// Lower one procedure body in its fresh procedure frame.
+    fn lower_proc_body(
+        &mut self,
+        materialised_body: Option<String>,
+        body_is_dynamic: bool,
+        body_text: &str,
+        body_offset: u32,
+        body_namespace: &str,
+    ) -> Script {
+        // ``lower_body`` otherwise inherits the enclosing scope's tracked
+        // scalars, which is sound for control flow but not a proc's fresh
+        // runtime frame.
+        self.proc_depth += 1;
+        self.const_map_stack.push(HashMap::new());
+        let body = if let Some(text) = materialised_body {
+            self.lower_script_in_irules_context(
+                &text,
+                body_namespace,
+                IrulesExecutionContext::ProcedureBody,
+            )
+        } else if body_is_dynamic {
+            // The resolved body value is dynamic; retain the runtime call but
+            // do not compile the literal `$body` spelling as Tcl source.
+            Script::default()
+        } else if let Some(cache) = self.body_cache.filter(|_| {
+            self.proc_depth == 1
+                && !self
+                    .registry
+                    .profile()
+                    .is_some_and(tcl_dialect::DialectProfile::is_irules)
+                && body_cache_eligible(body_text)
+        }) {
+            // Only context-free Tcl bodies can use the offset-zero body cache.
+            let mut script = cache(body_text, body_namespace);
+            crate::lattice_rebase::rebase_script(&mut script, i64::from(body_offset));
+            script
+        } else {
+            self.lower_body_in_irules_context(
+                body_text,
+                body_offset,
+                body_namespace,
+                IrulesExecutionContext::ProcedureBody,
+            )
+        };
+        self.const_map_stack.pop();
+        self.proc_depth -= 1;
+        body
     }
 
     /// Resolve a proc name that may be a `$var` / `[cmd]` substitution.
@@ -1875,11 +2039,16 @@ impl<'r> Lowerer<'r> {
         Ok((materialised_body, body_is_dynamic, body_offset))
     }
 
-    /// Lower `when EVENT ?priority N? body`.
-    fn lower_when(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+    /// Lower a registry-validated iRules event declaration.
+    fn lower_when(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        event_name: &str,
+        body_idx: usize,
+        priority: Option<u16>,
+    ) -> Statement {
         let args = seg.args();
-        let event_name = &args[0];
-        let body_idx = args.len() - 1;
         let body_tok = seg.arg_tokens()[body_idx];
         // The rebase below is truthful only for a body word that is its source
         // region verbatim — see [`Self::guarded_body_text`].
@@ -1895,24 +2064,19 @@ impl<'r> Lowerer<'r> {
         // slate.
         self.proc_depth += 1;
         self.const_map_stack.push(HashMap::new());
-        let body = self.lower_body(body_text, body_offset, namespace);
+        let body = self.lower_body_in_irules_context(
+            body_text,
+            body_offset,
+            namespace,
+            IrulesExecutionContext::EventBody,
+        );
         self.const_map_stack.pop();
         self.proc_depth -= 1;
 
-        let mut base_priority: u32 = 500;
-        if args.len() >= 4
-            && args[1] == "priority"
-            && let Ok(p) = args[2].parse::<u32>()
-        {
-            base_priority = p;
-        }
+        let base_priority = u32::from(priority.unwrap_or(self.irules_priority));
 
-        let n = self
-            .when_counts
-            .get(event_name.as_str())
-            .copied()
-            .unwrap_or(0);
-        *self.when_counts.entry(event_name.clone()).or_insert(0) += 1;
+        let n = self.when_counts.get(event_name).copied().unwrap_or(0);
+        *self.when_counts.entry(event_name.to_owned()).or_insert(0) += 1;
         let qualified = if n == 0 {
             format!("::when::{event_name}")
         } else {
@@ -1922,7 +2086,7 @@ impl<'r> Lowerer<'r> {
         self.module.procedures.insert(
             qualified.clone(),
             Procedure {
-                name: event_name.clone(),
+                name: event_name.to_owned(),
                 qualified_name: qualified,
                 params: vec![],
                 span: seg.span,
@@ -3294,6 +3458,7 @@ pub fn lower_proc_body_isolated(
 ) -> Script {
     let mut lowerer = Lowerer::with_config(registry, config).with_dialect(dialect);
     lowerer.proc_depth += 1;
+    lowerer.irules_execution_context = IrulesExecutionContext::ProcedureBody;
     lowerer.const_map_stack.push(HashMap::new());
     let body = lowerer.lower_body(body_text, 0, namespace);
     lowerer.const_map_stack.pop();
@@ -3959,6 +4124,113 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn irules_event_priorities_follow_file_state_and_keep_repeated_handlers() {
+        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let registry = tcl_registry::registry_for_profile(profile);
+        let module = lower_to_ir_with_config(
+            "priority 700\n\
+             when HTTP_REQUEST {}\n\
+             priority 400\n\
+             when HTTP_REQUEST {}\n\
+             when HTTP_REQUEST priority 200 {}\n\
+             when HTTP_REQUEST {}",
+            registry,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+
+        let priorities: Vec<_> = [
+            "::when::HTTP_REQUEST",
+            "::when::HTTP_REQUEST#1",
+            "::when::HTTP_REQUEST#2",
+            "::when::HTTP_REQUEST#3",
+        ]
+        .into_iter()
+        .map(|name| module.procedures[name].base_priority)
+        .collect();
+        assert_eq!(priorities, [700, 400, 200, 400]);
+    }
+
+    #[test]
+    fn irules_declaration_body_shape_gates_lowered_regions() {
+        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let registry = tcl_registry::registry_for_profile(profile);
+        let module = lower_to_ir_with_config(
+            "when HTTP_REQUEST priority 1001 {}\n\
+             when HTTP_REQUEST bare_body\n\
+             when CLIENT_DATA \"quoted body\"\n\
+             proc bare_proc {} bare_body\n\
+             proc quoted_proc {} \"return\"\n\
+             proc valid_proc {} { return }\n\
+             when NOT_A_REAL_EVENT {}\n\
+             when HTTP_REQUEST priority 200 {}\n\
+             when HTTP_REQUEST {}",
+            registry,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+
+        assert!(
+            module.procedures.contains_key("::when::NOT_A_REAL_EVENT"),
+            "a syntactically valid unknown event is lowered so the XC translator can report it"
+        );
+        for name in ["::when::CLIENT_DATA", "::bare_proc", "::quoted_proc"] {
+            assert!(
+                !module.procedures.contains_key(name),
+                "a non-braced declaration body must not open {name}"
+            );
+        }
+        assert!(module.procedures.contains_key("::valid_proc"));
+        let request = [
+            module.procedures["::when::HTTP_REQUEST"].base_priority,
+            module.procedures["::when::HTTP_REQUEST#1"].base_priority,
+        ];
+        assert_eq!(request, [200, 500], "valid repeated handlers keep priority");
+    }
+
+    #[test]
+    fn irules_declarations_only_lower_at_the_file_surface() {
+        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let registry = tcl_registry::registry_for_profile(profile);
+        let module = lower_to_ir_with_config(
+            "if {1} {\n\
+                 when CLIENT_DATA { pool top_level_nested_when }\n\
+                 proc top_level_nested_proc {} { pool top_level_nested_proc }\n\
+             }\n\
+             when HTTP_REQUEST {\n\
+                 if {1} {\n\
+                     when SERVER_DATA { pool event_nested_when }\n\
+                     proc event_nested_proc {} { pool event_nested_proc }\n\
+                 }\n\
+                 pool live_event\n\
+             }\n\
+             proc helper {} {\n\
+                 if {1} {\n\
+                     when HTTP_RESPONSE { pool proc_nested_when }\n\
+                     proc proc_nested_proc {} { pool proc_nested_proc }\n\
+                 }\n\
+                 pool live_proc\n\
+             }\n",
+            registry,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+
+        for absent in [
+            "::when::CLIENT_DATA",
+            "::when::SERVER_DATA",
+            "::when::HTTP_RESPONSE",
+            "::top_level_nested_proc",
+            "::event_nested_proc",
+            "::proc_nested_proc",
+        ] {
+            assert!(
+                !module.procedures.contains_key(absent),
+                "nested declaration must remain inert: {absent}"
+            );
+        }
+        assert!(module.procedures.contains_key("::when::HTTP_REQUEST"));
+        assert!(module.procedures.contains_key("::helper"));
     }
 
     #[test]

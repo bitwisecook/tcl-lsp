@@ -357,6 +357,7 @@ fn xtask_dispatches(main: &str, command: &str) -> bool {
         "audit-option-dialects" => "AuditOptionDialects",
         "command-backing" => "WasmBacking",
         "diag-tables" => "DiagTables",
+        "gen-ai-diagnostics" => "GenAiDiagnostics",
         "owner-resolution" => "OwnerResolution",
         _ => return false,
     };

@@ -88,9 +88,33 @@ pub(super) fn bidi_control_diagnostics_with_suppressions(
 pub fn filtered_bidi_control_diagnostics<S: BuildHasher>(
     source: &str,
     user_disabled: &HashSet<String, S>,
+    dialect: &str,
 ) -> Vec<Diagnostic> {
     let mut disabled = super::utils::parse_file_suppression(source);
     disabled.extend(user_disabled.iter().cloned());
-    let suppressed_lines = super::utils::parse_noqa_line_suppressions(source);
+    let suppressed_lines = super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect);
     bidi_control_diagnostics_with_suppressions(source, &disabled, &suppressed_lines)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+
+    #[test]
+    fn nested_switch_arm_noqa_suppresses_the_following_source_diagnostic() {
+        let source = "set result [switch $kind {\n    alpha {\n        # noqa: W305\n        puts \"\u{202e}\"\n    }\n}]\n";
+        assert_eq!(bidi_control_diagnostics(source).len(), 1);
+        assert!(
+            filtered_bidi_control_diagnostics(source, &HashSet::new(), "tcl9.0").is_empty(),
+            "the case-list arm's noqa must reach the next physical line"
+        );
+    }
+
+    #[test]
+    fn alias_declared_proc_body_noqa_suppresses_the_following_source_diagnostic() {
+        let source = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
+        assert!(filtered_bidi_control_diagnostics(source, &HashSet::new(), "tcl9.0").is_empty());
+    }
 }

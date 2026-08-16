@@ -121,7 +121,12 @@ pub fn folding_ranges(
         &mut seen,
         &mut ranges,
     );
-    collect_comment_folds(source, &mut seen, &mut ranges);
+    collect_comment_folds(
+        source,
+        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        &mut seen,
+        &mut ranges,
+    );
     collect_continuation_folds(source, &line_index, &mut seen, &mut ranges);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
@@ -233,14 +238,30 @@ fn collect_scope_folds(
 /// it sits in Tcl source or in a `.conf`.
 pub(crate) fn collect_comment_folds(
     source: &str,
+    config: tcl_lexer::LexerConfig,
+    seen: &mut FxHashSet<(u32, u32)>,
+    ranges: &mut Vec<FoldingRange>,
+) {
+    let comment_lines = tcl_lexer::comment_line_starts(source, config)
+        .into_iter()
+        .collect();
+    collect_comment_folds_from_facts(source, 0, &comment_lines, seen, ranges);
+}
+
+/// Collect comment folds from one script region. Nested regions are reached
+/// only through registry-declared body arguments, so a braced data literal is
+/// never mistaken for executable Tcl source.
+pub(crate) fn collect_comment_folds_from_facts(
+    source: &str,
+    base_line: u32,
+    comment_lines: &FxHashSet<u32>,
     seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
     let lines: Vec<&str> = source.split('\n').collect();
     let mut block_start: Option<usize> = None;
-    for (i, line) in lines.iter().enumerate() {
-        let stripped = line.trim_start();
-        if stripped.starts_with('#') {
+    for (i, _) in lines.iter().enumerate() {
+        if comment_lines.contains(&u32::try_from(i).expect("line index fits u32")) {
             if block_start.is_none() {
                 block_start = Some(i);
             }
@@ -248,8 +269,10 @@ pub(crate) fn collect_comment_folds(
             if let Some(start) = block_start
                 && i - start >= 2
             {
-                let s = u32::try_from(start).expect("line index fits u32");
-                let e = u32::try_from(i - 1).expect("line index fits u32");
+                let s =
+                    base_line.saturating_add(u32::try_from(start).expect("line index fits u32"));
+                let e =
+                    base_line.saturating_add(u32::try_from(i - 1).expect("line index fits u32"));
                 if seen.insert((s, e)) {
                     ranges.push(FoldingRange {
                         start_line: s,
@@ -265,8 +288,8 @@ pub(crate) fn collect_comment_folds(
     if let Some(start) = block_start {
         let end = lines.len().saturating_sub(1);
         if end > start {
-            let s = u32::try_from(start).expect("line index fits u32");
-            let e = u32::try_from(end).expect("line index fits u32");
+            let s = base_line.saturating_add(u32::try_from(start).expect("line index fits u32"));
+            let e = base_line.saturating_add(u32::try_from(end).expect("line index fits u32"));
             if seen.insert((s, e)) {
                 ranges.push(FoldingRange {
                     start_line: s,
@@ -401,6 +424,11 @@ fn collect_body_folds(
         base_offset,
         ctx.config.at_depth(depth),
     );
+    let base_line = ctx.line_index.line_at(base_offset);
+    let comment_lines = tcl_lexer::comment_line_starts(body_source, ctx.config.at_depth(depth))
+        .into_iter()
+        .collect();
+    collect_comment_folds_from_facts(body_source, base_line, &comment_lines, ctx.seen, ctx.ranges);
     for cmd in &commands {
         if cmd.argv.is_empty() {
             continue;
@@ -660,10 +688,15 @@ fn collect_clause_folds(
         let Some(body) = clause.body else {
             continue;
         };
-        // `Element::start` includes the opening `{` and `Element::end` sits
-        // *at* the closing `}` — the lexer's own inner-end convention, so the
-        // span drops straight into the shared emitter.
-        let (abs_start, abs_end) = (content_start + body.start, content_start + body.end);
+        // Preserve the syntax owner's lexer-compatible arm range: it starts
+        // at `{` and ends at the closing brace. The content range below then
+        // excludes exactly the opener, without every consumer guessing at
+        // boundary arithmetic.
+        let token_range = body.token_range();
+        let (abs_start, abs_end) = (
+            content_start + token_range.start,
+            content_start + token_range.end,
+        );
         let (Ok(start), Ok(end)) = (u32::try_from(abs_start), u32::try_from(abs_end)) else {
             continue;
         };
@@ -681,11 +714,13 @@ fn collect_clause_folds(
         if !body.braced {
             continue;
         }
-        let inner_start = abs_start + 1;
-        if abs_end <= inner_start {
+        let content_range = body.content_range();
+        let inner_start = content_start + content_range.start;
+        let inner_end = content_start + content_range.end;
+        if inner_end <= inner_start {
             continue;
         }
-        let Some(arm) = ctx.original_source.get(inner_start..abs_end) else {
+        let Some(arm) = ctx.original_source.get(inner_start..inner_end) else {
             continue;
         };
         let Ok(base) = u32::try_from(inner_start) else {
@@ -947,6 +982,13 @@ mod tests {
         let ranges = folding_ranges_default(source, "tcl8.6");
         let comments = fold_lines(&ranges, FoldKind::Comment);
         assert_eq!(comments, vec![(0, 2)]);
+    }
+
+    #[test]
+    fn braced_data_comment_lines_do_not_fold() {
+        let src = "set help {\n# data one\n# data two\n# data three\n}\n";
+        let ranges = folding_ranges(src, "tcl9.0", &registry());
+        assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
     }
 
     #[test]

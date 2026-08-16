@@ -78,6 +78,8 @@
 //! a position, and guessing one of the two is exactly the fallback-to-spelling
 //! this module exists to remove.
 
+use std::borrow::Cow;
+
 use crate::alias::{detect_interp_alias, detect_interp_alias_delete, detect_rename};
 use crate::segmenter::segment_commands_with_offset_and_config;
 use rustc_hash::FxHashMap;
@@ -95,6 +97,22 @@ pub enum HeadIdentity<'a> {
     /// does not model: a `rename` moved the built-in away, a user `proc`
     /// redefined it, or an alias bound it to an unresolvable target.  No
     /// registry grammar applies.
+    Rebound,
+}
+
+/// A binding fact without borrowing the head spelling supplied by the caller.
+///
+/// This is the cross-crate form of [`HeadIdentityMap`] lookup: a consumer can
+/// preserve its own written text when no fact applies, while a resolved target
+/// borrows from the map. That separation avoids making a syntax/registry
+/// caller manufacture compiler-owned copies merely to compare a command head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeadBinding<'a> {
+    /// No applicable fact; the written spelling remains the identity.
+    Unchanged,
+    /// A proven alias/import/rename target.
+    Command(&'a str),
+    /// The spelling was provably rebound away from registry semantics.
     Rebound,
 }
 
@@ -206,15 +224,30 @@ impl HeadIdentityMap {
     /// With no applicable fact the head keeps its own spelling.
     #[must_use]
     pub fn resolve<'a>(&'a self, head: &'a str, at: u32) -> HeadIdentity<'a> {
+        match self.binding_at(head, at) {
+            HeadBinding::Unchanged => HeadIdentity::Command(head),
+            HeadBinding::Command(name) => HeadIdentity::Command(name),
+            HeadBinding::Rebound => HeadIdentity::Rebound,
+        }
+    }
+
+    /// The command-table fact applicable to `head` at `at`, if any.
+    ///
+    /// Unlike [`Self::resolve`], this never borrows the caller's spelling, so
+    /// registry-owned recursive walkers can use it through
+    /// [`tcl_registry::events::CommandHeadResolver`] without a dependency from
+    /// the registry back into the compiler.
+    #[must_use]
+    pub fn binding_at(&self, head: &str, at: u32) -> HeadBinding<'_> {
         let Some(facts) = self.facts.get(head) else {
-            return HeadIdentity::Command(head);
+            return HeadBinding::Unchanged;
         };
         let Some(fact) = facts.iter().filter(|f| f.from <= at).max_by_key(|f| f.from) else {
-            return HeadIdentity::Command(head);
+            return HeadBinding::Unchanged;
         };
         fact.target
             .as_deref()
-            .map_or(HeadIdentity::Rebound, HeadIdentity::Command)
+            .map_or(HeadBinding::Rebound, HeadBinding::Command)
     }
 
     /// The effective identity of `head` when the call's byte offset is not
@@ -295,6 +328,16 @@ impl HeadIdentityMap {
     }
 }
 
+impl tcl_registry::events::CommandHeadResolver for HeadIdentityMap {
+    fn resolve<'a>(&'a self, written: &str, offset: u32) -> Cow<'a, str> {
+        match self.binding_at(written, offset) {
+            HeadBinding::Unchanged => Cow::Owned(written.to_owned()),
+            HeadBinding::Command(name) => Cow::Borrowed(name),
+            HeadBinding::Rebound => Cow::Borrowed(""),
+        }
+    }
+}
+
 /// Whether `word` is a name this scan may treat as a static command spelling.
 fn is_static_name(word: &str) -> bool {
     !word.is_empty() && !is_dynamic_word(word) && !word.contains(char::is_whitespace)
@@ -349,10 +392,71 @@ pub fn command_head_identities_with_config(
         match effect {
             CommandTableEffect::RenamesCommands => record_rename(&mut map, args, at, registry),
             CommandTableEffect::CreatesAliases => record_alias(&mut map, args, at, registry),
-            CommandTableEffect::DefinesProcedure => record_proc(&mut map, args, at, registry),
+            CommandTableEffect::DefinesProcedure
+                if valid_irules_procedure_declaration(source, seg, registry) =>
+            {
+                record_proc(&mut map, args, at, registry);
+            }
+            CommandTableEffect::DefinesProcedure => {}
         }
     }
     map
+}
+
+/// Whether this top-level segmented `proc` can actually create an iRules
+/// procedure declaration.  iRules keeps Tcl's `proc` spelling but restricts
+/// it to the shared declaration surface; a malformed or unterminated body is
+/// not executable and therefore must not poison command-head identity for the
+/// rest of the document.  Other profiles retain ordinary Tcl's historical
+/// name-only identity semantics.
+fn valid_irules_procedure_declaration(
+    source: &str,
+    seg: &crate::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+) -> bool {
+    if !registry
+        .profile()
+        .is_some_and(tcl_dialect::DialectProfile::is_irules)
+    {
+        return true;
+    }
+    let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+    let Some(closed) = tcl_registry::events::closed_braced_argument_words(
+        source,
+        seg.arg_tokens(),
+        seg.arg_single_token(),
+    ) else {
+        return false;
+    };
+    let Some(arguments) = tcl_registry::events::IrulesDeclarationArguments::new(
+        &args,
+        seg.arg_tokens(),
+        seg.arg_single_token(),
+        &closed,
+    ) else {
+        return false;
+    };
+    matches!(
+        registry.irules_top_level_declaration_shape(seg.name(), arguments),
+        Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
+    )
+}
+
+/// Whether this profile's command table actually exposes `name`.
+///
+/// `CommandRegistry::get` is deliberately dialect-agnostic for diagnostics
+/// such as W002. Identity facts instead model an executed statement, so an
+/// unavailable Tcl command (notably iRules' disabled `interp`, `rename`, and
+/// `namespace`) must produce no fact.
+fn command_is_available(registry: &CommandRegistry, name: &str) -> bool {
+    registry.profile().map_or_else(
+        || registry.get(name).is_some(),
+        |profile| {
+            registry
+                .get_for_dialect(name, profile.availability_mask)
+                .is_some()
+        },
+    )
 }
 
 /// `rename OLD NEW` — `NEW` inherits `OLD`'s identity and `OLD` stops existing;
@@ -410,7 +514,9 @@ fn inherited_target(
 ) -> Option<String> {
     match map.resolve(source, at) {
         HeadIdentity::Rebound => None,
-        HeadIdentity::Command(name) => registry.get(name).map(|_| name.to_owned()),
+        HeadIdentity::Command(name) => {
+            command_is_available(registry, name).then(|| name.to_owned())
+        }
     }
 }
 
@@ -472,7 +578,7 @@ fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &C
         // the global-namespace shadow is stated here.
         return;
     }
-    if registry.get(name).is_some() || map.resolves_to_a_command(name, at) {
+    if command_is_available(registry, name) || map.resolves_to_a_command(name, at) {
         map.record_both_spellings(name, None, at);
     }
 }
@@ -495,6 +601,9 @@ fn imported_command_aliases(
     registry: &CommandRegistry,
 ) -> FxHashMap<String, (String, u32)> {
     let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
+    if !command_is_available(registry, "namespace") {
+        return aliases;
+    }
     // Wholesale imports (`ns::*`) and single-name imports (`ns::name`), each
     // tagged with the byte offset of its `namespace import` statement so an
     // alias only applies to heads at or after it (source order).  Only
@@ -542,7 +651,7 @@ fn imported_command_aliases(
             let Some((ns, tail)) = name.rsplit_once("::") else {
                 continue;
             };
-            if tail.is_empty() || registry.get(tail).is_some() {
+            if tail.is_empty() || command_is_available(registry, tail) {
                 continue;
             }
             let ns = ns.trim_start_matches(':');
@@ -554,19 +663,22 @@ fn imported_command_aliases(
             else {
                 continue;
             };
-            if registry.get(name).is_some_and(|s| s.is_namespace_exported) {
+            if command_is_available(registry, name)
+                && registry.get(name).is_some_and(|s| s.is_namespace_exported)
+            {
                 record(tail.to_string(), name.to_string(), off);
             }
         }
     }
     // Single-name imports.
     for (ns, name, off) in &import_one {
-        if registry.get(name).is_some() {
+        if command_is_available(registry, name) {
             continue;
         }
         let qualified = format!("{ns}::{name}");
         if registry
             .get(&qualified)
+            .filter(|_| command_is_available(registry, &qualified))
             .is_some_and(|s| s.is_namespace_exported)
         {
             record(name.clone(), qualified, *off);
@@ -582,6 +694,11 @@ mod tests {
     fn map_for(src: &str) -> HeadIdentityMap {
         let registry = tcl_registry::registry_for_dialect("tcl");
         command_head_identities(src, "tcl", registry)
+    }
+
+    fn irules_map_for(src: &str) -> HeadIdentityMap {
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        command_head_identities(src, "f5-irules", registry)
     }
 
     /// Offset just past the first line of `src`, i.e. "after statement 1".
@@ -867,5 +984,82 @@ mod tests {
         // every registry query answer "unknown" without a variant check.
         let registry = tcl_registry::registry_for_dialect("tcl");
         assert!(registry.get(HeadIdentity::Rebound.spec_name()).is_none());
+    }
+
+    #[test]
+    fn irules_proc_identity_requires_a_closed_declaration_body() {
+        // In iRules, unlike generic Tcl, only a real file-level declaration
+        // takes over a command identity.  These malformed spellings must not
+        // hide the following event handler.
+        for src in [
+            "proc when {} bare\nwhen HTTP_REQUEST {}\n",
+            "proc when {} \"quoted\"\nwhen HTTP_REQUEST {}\n",
+            "proc when {} {closed} trailing\nwhen HTTP_REQUEST {}\n",
+            // The unterminated body consumes the tail as Tcl recovery does;
+            // it still must not leave a persistent `when` rebinding behind.
+            "proc when {} {unterminated",
+        ] {
+            let map = irules_map_for(src);
+            assert_eq!(
+                map.resolve("when", u32::MAX),
+                HeadIdentity::Command("when"),
+                "malformed iRules proc poisoned `when`: {src:?}"
+            );
+        }
+
+        let valid = irules_map_for("proc when {args} {}\nwhen HTTP_REQUEST {}\n");
+        assert_eq!(valid.resolve("when", u32::MAX), HeadIdentity::Rebound);
+
+        // Generic Tcl deliberately preserves its existing `proc` binding
+        // behaviour; the iRules declaration gate is profile-specific.
+        let generic = map_for("proc format {} bare\nformat %d 1\n");
+        assert_eq!(generic.resolve("format", u32::MAX), HeadIdentity::Rebound);
+    }
+
+    #[test]
+    fn unavailable_irules_mutators_do_not_change_event_identity() {
+        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let profile = registry.profile().expect("dialect registry has a profile");
+        for command in ["interp", "rename", "namespace"] {
+            assert!(
+                registry
+                    .get_for_dialect(command, profile.availability_mask)
+                    .is_none(),
+                "F5 K36322151 disables {command} in iRules"
+            );
+        }
+        let events = tcl_registry::events::EventRegistry::build();
+        let profiles = tcl_registry::profiles::ProfileRegistry::build();
+        // F5 K36322151: iRules disables `interp`, `rename`, and `namespace`.
+        // Their Tcl shapes are data/error commands here, never identity facts.
+        let source = "interp alias {} event {} when\nrename when event\nnamespace import ::x::*\nwhen HTTP_REQUEST {}\n";
+        let identities = command_head_identities(source, "f5-irules", registry);
+        assert!(
+            identities.is_empty(),
+            "disabled commands must not produce command-identity facts"
+        );
+        let inferred =
+            tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(
+                source,
+                &events,
+                &profiles,
+                registry,
+                &identities,
+            );
+        assert!(inferred.contains(&"HTTP".to_owned()));
+
+        // `proc` is available, so a genuine, executable rebinding still
+        // removes the registry event-handler grammar.
+        let rebound = "proc when {args} {}\nwhen HTTP_REQUEST {}\n";
+        let identities = command_head_identities(rebound, "f5-irules", registry);
+        let inferred =
+            tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(
+                rebound,
+                &events,
+                &profiles,
+                registry,
+                &identities,
+            );
+        assert!(!inferred.contains(&"HTTP".to_owned()));
     }
 }

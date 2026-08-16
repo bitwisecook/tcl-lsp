@@ -157,6 +157,60 @@ fn context_no_irules_found_exits_1() {
     assert_eq!(stderr, "error: no iRules found in input\n");
 }
 
+#[test]
+fn trace_keeps_data_group_from_braced_expression_command() {
+    let source = "when HTTP_REQUEST { if {[class match [HTTP::host] equals braced_dg]} { pool selected_pool } }";
+    let (code, output, stderr) = run(&[
+        "irule",
+        "trace",
+        "HTTP_REQUEST",
+        "--source",
+        source,
+        "--json",
+    ]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert!(
+        output.contains("\"name\": \"braced_dg\""),
+        "the trace must retain the braced-expression data-group: {output}",
+    );
+}
+
+#[test]
+fn trace_uses_the_event_closure_not_the_first_handler_body() {
+    let source = concat!(
+        "proc helper {} { pool helper_pool }\n",
+        "proc dormant {} { pool dormant_pool }\n",
+        "when HTTP_REQUEST { pool first_pool; call helper; dormant }\n",
+        "when HTTP_REQUEST { pool second_pool }\n",
+        "when CLIENT_DATA { pool other_event_pool; call dormant }\n",
+    );
+    let (code, output, stderr) = run(&[
+        "irule",
+        "trace",
+        "HTTP_REQUEST",
+        "--source",
+        source,
+        "--json",
+    ]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    for pool in ["helper_pool", "first_pool", "second_pool"] {
+        assert!(
+            output.contains(&format!("\"name\": \"{pool}\"")),
+            "{output}"
+        );
+    }
+    for dormant in ["dormant_pool", "other_event_pool"] {
+        assert!(
+            !output.contains(&format!("\"name\": \"{dormant}\"")),
+            "{output}"
+        );
+    }
+    assert!(
+        output.contains("\"commandCount\": 4"),
+        "two handler pools, call, and reached helper pool: {output}"
+    );
+}
+
 // `--help` must work for every sub, all of which are fully implemented.
 
 #[test]

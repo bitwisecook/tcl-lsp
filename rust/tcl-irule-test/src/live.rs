@@ -491,6 +491,71 @@ mod tests {
         );
     }
 
+    /// Executable parity corpus for the self-hosted Tcl loader boundary.
+    /// Priority/timing are loader-only modifiers; event discovery must match
+    /// the canonical Rust walker for complete ordinary handlers.
+    #[test]
+    fn itest_loader_event_registration_matches_rust_when_blocks() {
+        let source = "# when IGNORED { nope }\nwhen HTTP_REQUEST priority 20 { # body comment\n set ::parity_first one }\nwhen CLIENT_ACCEPTED timing on { set ::parity_nested {nested { braces }} }\nwhen HTTP_REQUEST { set ::parity_second two }\n";
+        let expected: std::collections::BTreeSet<_> = tcl_irules::when_blocks(source)
+            .into_iter()
+            .map(|block| block.event)
+            .collect();
+        let mut session = LiveSession::new(&lib_dir()).expect("session");
+        scenario(&mut session);
+        session.load_irule(source).expect("load parity corpus");
+        let actual: std::collections::BTreeSet<_> = session
+            .eval("::itest::registered_events")
+            .expect("registered events")
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(actual, expected);
+        // Registration records preserve multiplicity and priority, rather
+        // than merely proving that each event name appears once.
+        let records = session
+            .eval("array get ::itest::event_handlers")
+            .expect("records");
+        assert_eq!(
+            records.matches("::_irh_HTTP_REQUEST_").count(),
+            2,
+            "{records}"
+        );
+        assert_eq!(
+            records.matches("::_irh_CLIENT_ACCEPTED_").count(),
+            1,
+            "{records}"
+        );
+        assert!(records.contains("20"), "priority record missing: {records}");
+        assert!(
+            records.contains("500"),
+            "default-priority record missing: {records}"
+        );
+        session
+            .eval("::itest::fire_event HTTP_REQUEST")
+            .expect("fire HTTP");
+        session
+            .eval("::itest::fire_event CLIENT_ACCEPTED")
+            .expect("fire client");
+        assert_eq!(session.eval("set ::parity_first").unwrap(), "one");
+        assert_eq!(session.eval("set ::parity_second").unwrap(), "two");
+        assert_eq!(
+            session.eval("set ::parity_nested").unwrap(),
+            "nested { braces }"
+        );
+
+        // Tcl's braced-word scanner is quote-blind: the `}` inside quotes
+        // closes the handler body, leaving a malformed trailing word. Both
+        // boundary owners therefore abstain rather than inventing a complete
+        // handler from invalid source.
+        let quoted_close = "when RULE_INIT { log local0. \"quoted }\" }";
+        assert!(tcl_irules::when_blocks(quoted_close).is_empty());
+        assert!(
+            session.load_irule(quoted_close).is_err(),
+            "pinned loader carve-out"
+        );
+    }
+
     /// Every `class match` operator scenario on one session: the hit, the
     /// miss, `starts_with` / `equals` / `ends_with`, and the leading `--`.
     /// `scenario()` clears the data-group table between them, so each

@@ -43,6 +43,7 @@ tcl-spec-studio = { path = "../tcl-spec-studio" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-bigip = { path = "../tcl-bigip" }
+tcl-irules = { path = "../tcl-irules" }
 tcl-cli = { path = "../tcl-cli" }
 # `spec_import` runs the same local-snapshot pipeline `tcl spec import` does.
 # It is in the support crate, not in `tcl-cli`, precisely so this binary gains
@@ -57,6 +58,11 @@ rmcp = { version = "3", features = ["server", "transport-io"] }
 # the workspace uses (tcl-lsp-server, f5-cli) — no API or advisory here needs a
 # tighter requirement, and the lockfile carries the exact version.
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
+
+[dev-dependencies]
+# Enables the request-local closure counter only while this crate's unit tests
+# are linked; normal `tcl-mcp` builds carry no instrumentation.
+tcl-irules = { path = "../tcl-irules", features = ["test-instrumentation"] }
 
 [lints]
 workspace = true

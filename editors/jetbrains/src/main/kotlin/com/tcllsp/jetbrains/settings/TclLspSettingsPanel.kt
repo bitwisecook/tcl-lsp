@@ -228,7 +228,7 @@ class TclLspSettingsPanel {
     private val diagIRULE5004 = JBCheckBox("IRULE5004: DNS::return without return")
     private val diagIRULE5005 = JBCheckBox("IRULE5005: Direct proc invocation without call")
     private val diagIRULE5006 = JBCheckBox("IRULE5006: Top-level-only command used inside a nested body")
-    private val diagIRULE5007 = JBCheckBox("IRULE5007: Event-context command used at top level outside a wh...")
+    private val diagIRULE5007 = JBCheckBox("IRULE5007: Executable command used on iRules' declaration-only ...")
     private val diagIRULE3001 = JBCheckBox("IRULE3001: Tainted data in HTTP response body")
     private val diagIRULE3002 = JBCheckBox("IRULE3002: Tainted data in HTTP header or cookie value")
     private val diagIRULE3003 = JBCheckBox("IRULE3003: Tainted data in log command")
