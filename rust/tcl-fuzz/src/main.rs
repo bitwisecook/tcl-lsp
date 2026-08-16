@@ -452,6 +452,13 @@ fn run_campaign(
         }
     });
     let _ = std::fs::remove_dir_all(&scratch);
+    let stats = match stats {
+        Ok(stats) => stats,
+        Err(error) => {
+            eprintln!("error: recording finding: {error}");
+            return std::process::ExitCode::from(2);
+        }
+    };
     print_stats(&stats);
     // Exit non-zero when a divergence was found, so CI can gate on it.
     if stats.findings() > 0 {
@@ -472,8 +479,12 @@ struct ReplaySelection {
 /// Load a seed only when its registry already exists. Looking for a recorded
 /// release must never create empty namespaces for every supported release.
 fn load_existing_finding(dir: &Path, seed: u64) -> Result<Option<Finding>, String> {
-    if !dir.exists() {
-        return Ok(None);
+    match dir.try_exists() {
+        Ok(false) => return Ok(None),
+        Ok(true) => {}
+        Err(error) => {
+            return Err(format!("checking findings dir {}: {error}", dir.display()));
+        }
     }
     Registry::open(dir)
         .map_err(|error| format!("opening findings dir {}: {error}", dir.display()))
@@ -1645,6 +1656,34 @@ mod tests {
         let error = select_replay(&base, args, seed).unwrap_err();
         assert!(error.contains("loading finding 37"));
         assert!(error.contains("finding-37.json"));
+    }
+
+    #[test]
+    fn replay_refuses_orphan_and_staged_record_companions() {
+        let args = pair_args(Engine::RuntimeRust, Engine::Tclvm, None);
+        let seed = 38;
+        for (name, write, is_json) in [
+            ("tcl-orphan", "finding-38.tcl", false),
+            ("json-orphan", "finding-38.json", true),
+            ("staged", "finding-38.tcl.stage", false),
+        ] {
+            let base = replay_tmp(name);
+            let dir = pair_findings_dir(&base, args.reference, args.subject, None);
+            std::fs::create_dir_all(&dir).unwrap();
+            let contents = if is_json {
+                serde_json::to_vec_pretty(&finding(seed, TclVersion::V8_6)).unwrap()
+            } else {
+                b"puts interrupted".to_vec()
+            };
+            std::fs::write(dir.join(write), contents).unwrap();
+
+            let error = select_replay(&base, args, seed).unwrap_err();
+            assert!(
+                error.contains("incomplete or interrupted paired record"),
+                "{name}: {error}"
+            );
+            let _ = std::fs::remove_dir_all(&base);
+        }
     }
 
     #[test]
