@@ -56,26 +56,35 @@ default.
 
 ## Performance across the 2.1 pre-releases
 
-These graphs include every published `2.1.x` pre-release from `v2.1.0` through
-`v2.1.19`. There is no `v2.1.2` point because that version was never released.
-The benchmark corpus, scope, and revision are fixed across the series.
+These graphs cover every measured `2.1.x` pre-release from `v2.1.0` through
+`v2.1.19`, run by `scripts/perf/` against a pinned 113-file corpus (scope
+`small`, revision `1`). The corpus, scope, and revision are fixed across the
+whole series, so the lines are comparable with each other.
 
-Runs through `v2.1.16` were recorded on the maintainer's Apple M1 Max; later
-runs use four-core GitHub Linux runners. The host change is visible in the
-series, so compare CPU and wall time within a host era rather than treating the
-boundary as a product-only delta. The raw result and generated summary are
-attached to this release.
+There is no `v2.1.2` point: that version was never released.
+
+**`2.1.19` is this release**: it is the bright blue line — and the rightmost
+bar in each group — in every graph below. Earlier releases are drawn in grey
+and fade with age.
+
+The series spans more than one measurement host — Apple M1 Max (darwin-arm64);
+AMD EPYC 9V74 80-Core Processor (linux-x86_64); AMD EPYC 7763 64-Core
+Processor (linux-x86_64). Wall time and CPU are properties of the machine as
+much as of the build, so compare within a host era rather than reading the
+boundary as a product change. Resident memory is far less host-sensitive.
 
 ### Resident memory
 
-![Resident memory across all 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-memory.svg)
+![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-memory.svg)
 
 ### CPU utilisation
 
-![CPU utilisation across all 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-cpu.svg)
+![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-cpu.svg)
 
 ### Per-check wall time
 
-![Per-check wall time across all 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-walltime.svg)
+![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-walltime.svg)
 
-[Benchmark table and method notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-summary.md)
+[Benchmark table and method
+notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-summary.md)
+— the raw result JSON is attached to this release as `perf-2.1.19.json`.
