@@ -4071,7 +4071,7 @@ impl Vm {
         if self.trace_in_progress.get()
             || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
         {
-            return self.dispatch_words_inner(f, words);
+            return self.dispatch_words_inner(f, words, None);
         }
         self.dispatch_words_traced(f, words)
     }
@@ -4147,10 +4147,10 @@ impl Vm {
         }
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: sidecar,
+            key: sidecar.clone(),
             step_scopes: pushed,
         };
-        match self.dispatch_words_inner(f, words) {
+        match self.dispatch_words_inner(f, words, Some(&sidecar)) {
             Ok(Some(tick)) => {
                 match &tick {
                     // The body runs on a pushed frame: the context rides
@@ -4344,11 +4344,20 @@ impl Vm {
         &mut self,
         f: &mut Frame,
         words: &[Value],
+        sidecar_handle: Option<&CommandSidecarHandle>,
     ) -> Result<Option<Tick>, Completion<Value>> {
         let name = words[0].to_str();
         match self.lookup_command(&name) {
             Some(Command::Proc(p)) => {
-                let p = self.ensure_proc_ready(p);
+                let sidecar = self
+                    .resolve_command_fqn(self.current_ns(), &name)
+                    .map(CommandSidecarKey::visible);
+                // A traced dispatch re-resolves after its callbacks. Keep the
+                // handle only when it still identifies that resolved binding;
+                // a callback may have renamed or replaced the original key.
+                let sidecar_handle =
+                    sidecar_handle.filter(|handle| handle.key().as_ref() == sidecar.as_ref());
+                let p = self.ensure_proc_ready_in(p, sidecar.as_ref(), sidecar_handle);
                 Ok(Some(Tick::Call {
                     proc: p,
                     argv: words[1..].to_vec(),
@@ -4456,7 +4465,7 @@ impl Vm {
         if self.trace_in_progress.get()
             || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty())
         {
-            return self.invoke_command_inner(name, argv);
+            return self.invoke_command_inner(name, argv, None);
         }
         let key = self
             .resolve_command_fqn(self.current_ns(), name)
@@ -4518,10 +4527,10 @@ impl Vm {
         }
         let ctx = ExecLeaveCtx {
             cmd_string,
-            key: sidecar,
+            key: sidecar.clone(),
             step_scopes: pushed,
         };
-        let c = self.invoke_command_inner(name, argv);
+        let c = self.invoke_command_inner(name, argv, Some(&sidecar));
         match self.finish_exec_leave(&ctx, &c) {
             Some(replacement) => replacement,
             None => c,
@@ -4685,9 +4694,21 @@ impl Vm {
     }
 
     /// The untraced invoke body — see [`Self::invoke_command`].
-    fn invoke_command_inner(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+    fn invoke_command_inner(
+        &mut self,
+        name: &str,
+        argv: &[Value],
+        sidecar_handle: Option<&CommandSidecarHandle>,
+    ) -> Completion<Value> {
         match self.lookup_command(name) {
-            Some(command) => self.invoke_resolved_command_inner(name, command, argv, None, None),
+            Some(command) => {
+                let sidecar = self
+                    .resolve_command_fqn(self.current_ns(), name)
+                    .map(CommandSidecarKey::visible);
+                let sidecar_handle =
+                    sidecar_handle.filter(|handle| handle.key().as_ref() == sidecar.as_ref());
+                self.invoke_resolved_command_inner(name, command, argv, sidecar, sidecar_handle)
+            }
             None if name != "unknown" => {
                 if let Some(handler) = self.ns_unknown_handler() {
                     let mut handler_words = handler;

@@ -4620,15 +4620,6 @@ impl Vm {
         Rc::new(fresh)
     }
 
-    /// [`Self::ensure_proc_traced`], memoised: a proc looked up from the
-    /// `commands` table (an ordinary named call, as opposed to an ephemeral
-    /// `apply`/TclOO-method `ProcDef`) has its recompiled body reinstalled
-    /// under its own key, so later calls while the same trace-deopt epoch
-    /// holds reuse the compiled body instead of recompiling on every call.
-    pub(crate) fn ensure_proc_ready(&mut self, proc: Rc<ProcDef>) -> Rc<ProcDef> {
-        self.ensure_proc_ready_in(proc, None, None)
-    }
-
     /// Refresh a stored procedure and memoise it in the command domain from
     /// which this invocation was resolved. Hidden and visible commands may
     /// share the same spelling, so publishing by `ProcDef::name` would leak a
@@ -6547,6 +6538,32 @@ mod family_b_tests {
         assert_eq!(result.result.to_str().as_ref(), "hidden");
         assert!(!vm.hidden_commands.contains_key("held"));
         assert_eq!(eval_value(&mut vm, "p"), "hidden");
+    }
+
+    #[test]
+    fn imported_proc_profile_refresh_updates_the_resolved_import_not_its_source_name() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(TestCompiler));
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        assert_eq!(
+            eval_value(
+                &mut vm,
+                "namespace eval src {proc p {} {return original}; namespace export p}; \\
+                 namespace eval dst {namespace import ::src::p}; \\
+                 rename ::src::p ::src::q; proc ::src::p {} {return replacement}",
+            ),
+            ""
+        );
+
+        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        assert_eq!(eval_value(&mut vm, "::dst::p"), "original");
+        assert_eq!(eval_value(&mut vm, "::src::p"), "replacement");
+        assert_eq!(eval_value(&mut vm, "::src::q"), "original");
+        assert!(matches!(
+            vm.commands.get("dst::p"),
+            Some(Command::Proc(proc))
+                if proc.compiled_profile_generation == vm.profile_generation
+        ));
     }
 
     struct TestNative;

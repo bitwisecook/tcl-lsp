@@ -1522,3 +1522,29 @@ fn deleted_hidden_enter_trace_matches_real_tclsh() {
         }
     }
 }
+
+/// An imported proc owns its local binding even after its source has been
+/// renamed. Refreshing trace-stale bytecode must update that exact resolved
+/// import, never the `ProcDef` source name, which may now name a replacement.
+#[test]
+fn imported_proc_refresh_preserves_renamed_source_replacement() {
+    let src = concat!(
+        "namespace eval src {proc p {} {return original}; namespace export p}\n",
+        "namespace eval dst {namespace import ::src::p}\n",
+        "rename ::src::p ::src::q\n",
+        "proc ::src::p {} {return replacement}\n",
+        "proc noop args {}\n",
+        "trace add execution ::dst::p enterstep noop\n",
+        "puts [list [::dst::p] [::src::p] [::src::q] [namespace origin ::dst::p]]\n",
+    );
+    let want = "original replacement original ::src::q";
+    assert_eq!(profile_output(src, DialectProfile::by_name("tcl8.6")), want);
+    for (env, names) in [
+        ("TCLSH86", &["tclsh8.6"][..]),
+        ("TCLSH90", &["tclsh9.0"][..]),
+    ] {
+        if let Some(out) = tclsh_output(env, names, src) {
+            assert_eq!(out, want, "[{env}] imported proc refresh");
+        }
+    }
+}
