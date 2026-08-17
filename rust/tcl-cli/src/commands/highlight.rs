@@ -36,14 +36,14 @@ const DEFAULT_TAB_WIDTH: usize = 4;
 /// `tcl highlight` — emit syntax-highlighted source (ANSI or HTML).
 pub fn run_highlight(input: &InputArgs, format: &str, colour: &ColourArgs) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let target = OutputTarget::from_arg(input.output.as_deref());
 
     let mut out = if format == "html" {
-        highlight_html(&source, &dialect)
+        highlight_html(&source, dialect.name)
     } else if resolve_use_colour(colour.colour, colour.no_colour, &target) {
-        highlight_ansi(&source, &dialect)
+        highlight_ansi(&source, dialect.name)
     } else {
         source
     };

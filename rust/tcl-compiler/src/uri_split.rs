@@ -1002,7 +1002,7 @@ pub fn find_uri_split_suggestions<S, B>(
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     executable_blocks: &HashSet<BlockId, B>,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning>
 where
     S: std::hash::BuildHasher,
@@ -1078,7 +1078,10 @@ mod tests {
 
     /// Run the IRULE3103 pass over `source` under the iRules dialect.
     fn warnings_for(source: &str) -> Vec<TaintWarning> {
-        warnings_for_dialect(source, Some("f5-irules"))
+        warnings_for_dialect(
+            source,
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        )
     }
 
     /// Regression coverage for issue #996: `walk_expr` recurses once per
@@ -1120,7 +1123,10 @@ mod tests {
         walk_expr(&node, &uses, ctx, &mut hits, 0);
     }
 
-    fn warnings_for_dialect(source: &str, dialect: Option<&str>) -> Vec<TaintWarning> {
+    fn warnings_for_dialect(
+        source: &str,
+        dialect: Option<&tcl_dialect::DialectProfile>,
+    ) -> Vec<TaintWarning> {
         let r = registry();
         let cu = CompilationUnit::build_for(source, &r, false);
         let mut out: Vec<TaintWarning> = Vec::new();
@@ -1296,7 +1302,7 @@ set parts [split [HTTP::uri /path] "?"]"#,
         let ws = warnings_for_dialect(
             r#"set x "foo"
 set parts [split $x "?"]"#,
-            Some("tcl"),
+            Some(tcl_dialect::DialectProfile::by_name("tcl")),
         );
         assert!(ws.is_empty());
     }

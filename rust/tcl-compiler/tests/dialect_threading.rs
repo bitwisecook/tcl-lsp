@@ -38,6 +38,7 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{BinOp, ExprNode};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::{lower_to_ir_with_config, lower_to_ir_with_dialect};
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::registry_for_dialect;
 
 const IRULES: &str = "f5-irules";
@@ -160,6 +161,34 @@ fn build_for_dialect_folds_a_word_operator_branch() {
         blind_folded, 0,
         "a dialect-blind build has no word operator to fold"
     );
+}
+
+/// The resolved-profile entry point must carry the same iRules fold policy as
+/// the string compatibility entry point.  This is the path used by CLI/LSP
+/// callers after dialect detection and guards against a profile being reduced
+/// to the plain fallback between registry construction and SCCP.
+#[test]
+fn build_for_profile_folds_a_word_operator_branch() {
+    let registry = registry_for_dialect(IRULES);
+    let profile = tcl_dialect::DialectProfile::by_name(IRULES);
+    let unit = CompilationUnit::build_for_profile(CONSTANT_WORD_OP, registry, false, profile);
+    assert!(
+        unit.functions()
+            .any(|function| !function.sccp.constant_branches.is_empty()),
+        "a resolved f5-irules profile must retain the word-operator fold policy"
+    );
+}
+
+/// `tk` is an additive command-surface bit rather than a catalogue profile.
+/// The compatibility entry point must retain it in the unit instead of
+/// canonicalising the input to the plain fallback profile's `tcl` name.
+#[test]
+fn build_for_dialect_retains_the_tk_set_only_bit() {
+    let registry = registry_for_dialect("tk");
+    let unit = CompilationUnit::build_for_dialect("button .b\n", registry, false, "tk");
+
+    assert_eq!(unit.ir_module.dialect.as_deref(), Some("tk"));
+    assert_eq!(unit.top_level.semantic_facts.dialect(), DialectSet::TK);
 }
 
 // I230 — TP / TN / FP / FN

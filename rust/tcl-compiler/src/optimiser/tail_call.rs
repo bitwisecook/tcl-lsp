@@ -84,14 +84,14 @@ const LASSIGN_DIALECTS: &[&str] = &[
 /// Whether `tailcall` is available in `dialect`.  `None` (no dialect
 /// info on the context — only set by the public-API entry points
 /// that don't carry one) defaults to **enabled**.
-fn tailcall_supported(dialect: Option<&str>) -> bool {
-    dialect.is_none_or(|d| TAILCALL_DIALECTS.contains(&d))
+fn tailcall_supported(dialect: Option<&tcl_dialect::DialectProfile>) -> bool {
+    dialect.is_none_or(|profile| TAILCALL_DIALECTS.contains(&profile.name))
 }
 
 /// Whether `lassign` is available in `dialect`.  Same `None`-means-
 /// enabled fallback as [`tailcall_supported`].
-fn lassign_supported(dialect: Option<&str>) -> bool {
-    dialect.is_none_or(|d| LASSIGN_DIALECTS.contains(&d))
+fn lassign_supported(dialect: Option<&tcl_dialect::DialectProfile>) -> bool {
+    dialect.is_none_or(|profile| LASSIGN_DIALECTS.contains(&profile.name))
 }
 
 /// Run the tail-call detection pass. Emits `O121` for every
@@ -716,7 +716,7 @@ mod tests {
         let mut ctx = PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
-            Some(dialect),
+            Some(tcl_dialect::DialectProfile::by_name(dialect)),
         );
         ctx.registry = Some(&reg);
         run(&mut ctx, &cu);

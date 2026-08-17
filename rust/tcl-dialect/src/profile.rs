@@ -894,6 +894,30 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     help_terms: &[],
 };
 
+/// Set-only `tk` ingress: modern Tcl behaviour plus the Tk availability bit.
+/// This is deliberately not part of [`DialectProfile::all`] or
+/// [`DialectProfile::find`].
+static TK_PROFILE: DialectProfile = DialectProfile {
+    name: "tk",
+    aliases: &[],
+    vendor_bit: None,
+    availability_mask: DialectSet::TK_AND_TCL,
+    base_layers: &[],
+    grammar_union: DialectSet::TK_AND_TCL,
+    version_ceiling: None,
+    signature_base: None,
+    runtime_base: None,
+    leading_zero_is_octal: Ternary::Inert,
+    expr_grammar_base: None,
+    grammar: GRAMMAR_TCL9X,
+    operators_as_commands: true,
+    tcloo: true,
+    has_fixed_ensembles: false,
+    vm_runtime_version: TclVersion::V9_0,
+    libraries: LIBS_TCL86_PLUS,
+    help_terms: &["tk"],
+};
+
 impl DialectProfile {
     /// The release this profile's *runtime* behaviour follows, if it names one.
     ///
@@ -936,6 +960,27 @@ impl DialectProfile {
         Self::find(name).unwrap_or(&PLAIN_TCL)
     }
 
+    /// Resolve the command-availability fact for an ingest dialect name.
+    ///
+    /// Profiles own the base Tcl and vendor availability semantics, while a
+    /// few typed [`DialectSet`] inputs describe an additive library surface
+    /// rather than a selectable profile.  In particular, `tk` intentionally
+    /// resolves to the plain Tcl profile (it must not appear in the editor's
+    /// profile catalog), but a `wish` document still has the `TK` command
+    /// surface.  Compose the parsed input bit here, at the one string ingress
+    /// boundary, so consumers carry a typed fact rather than recover that
+    /// distinction with spelling checks.
+    ///
+    /// Catalogued names and aliases are unchanged: their parsed bit is already
+    /// represented by the resolved profile's mask, including iRules' bare
+    /// security-gated `IRULES` mask.
+    #[must_use]
+    pub fn availability_for_name(name: &str) -> DialectSet {
+        Self::by_name(name)
+            .availability_mask
+            .union(DialectSet::parse(name).unwrap_or_else(DialectSet::empty))
+    }
+
     /// Resolve an *optional* dialect-name string: `None` and unknown names
     /// both land on [`Self::plain_tcl`]. The ingest-boundary form of
     /// [`Self::by_name`] for callers holding `Option<&str>`.
@@ -954,6 +999,21 @@ impl DialectProfile {
             .find(|p| p.name == name || p.aliases.contains(&name))
     }
 
+    /// Resolve a known ingress name, including additive set-only dialects.
+    ///
+    /// Most names resolve to an interned catalog profile through [`Self::find`].
+    /// Some valid ingress names instead describe an additive command surface;
+    /// they need a typed profile so version- and availability-aware consumers
+    /// do not silently fall back to their unknown-dialect defaults.
+    #[must_use]
+    pub fn resolve_known(name: &str) -> Option<&'static DialectProfile> {
+        Self::find(name).or_else(|| {
+            DialectSet::parse(name)
+                .filter(|&set| set == DialectSet::TK)
+                .map(|_| Self::tk())
+        })
+    }
+
     /// The `f5-irules` profile — an explicit handle for the hardcoded
     /// iRules lookups (event checks, taint, the iRules test framework).
     #[must_use]
@@ -966,6 +1026,18 @@ impl DialectProfile {
     #[must_use]
     pub fn plain_tcl() -> &'static DialectProfile {
         &PLAIN_TCL
+    }
+
+    /// The additive Tk-only ingress profile.
+    ///
+    /// Tk is intentionally absent from the selectable profile catalogue: it
+    /// is a library surface layered onto Tcl rather than a runtime with its
+    /// own release semantics. CLI/LSP compatibility inputs still need a
+    /// resolved identity, though, so this profile carries the typed `TK` bit
+    /// while retaining the permissive Tcl behaviour of that ingress.
+    #[must_use]
+    pub fn tk() -> &'static DialectProfile {
+        &TK_PROFILE
     }
 
     /// Whether this profile is the permissive unknown-dialect fallback
@@ -997,7 +1069,7 @@ impl DialectProfile {
     /// is the *fold* policy.
     #[must_use]
     pub fn const_fold_version(&self) -> Option<TclVersion> {
-        TclVersion::from_dialect(Some(self.name))
+        TclVersion::from_profile(self)
     }
 
     /// The [`LibraryPin`] this profile declares for `package`, if any
@@ -1260,6 +1332,21 @@ mod tests {
             );
         }
         assert!(DialectProfile::find("nonsense").is_none());
+        assert!(DialectProfile::resolve_known("nonsense").is_none());
+    }
+
+    #[test]
+    fn resolve_known_preserves_set_only_tk_identity() {
+        assert!(std::ptr::eq(
+            DialectProfile::resolve_known("tk").expect("Tk is a recognised ingress"),
+            DialectProfile::tk()
+        ));
+        assert_eq!(
+            DialectProfile::resolve_known("f5-irules")
+                .expect("catalogued dialect")
+                .name,
+            "f5-irules"
+        );
     }
 
     #[test]
@@ -1269,6 +1356,31 @@ mod tests {
             DialectProfile::plain_tcl()
         ));
         assert_eq!(DialectProfile::by_opt_name(Some("expect")).name, "expect");
+    }
+
+    #[test]
+    fn ingress_availability_preserves_the_tk_library_bit() {
+        // Tk deliberately remains a library pin rather than an editor-visible
+        // catalog profile, but an explicit `tk` / wish document must retain
+        // the typed command-surface fact through profile resolution.
+        assert_eq!(DialectProfile::by_name("tk").name, "tcl");
+        assert_eq!(
+            DialectProfile::availability_for_name("tk"),
+            DialectProfile::plain_tcl()
+                .availability_mask
+                .union(DialectSet::TK)
+        );
+        // A canonical profile and a legacy alias keep their profile-owned
+        // security mask; composing ingress facts must not re-admit Tcl bits
+        // for the iRules sandbox.
+        assert_eq!(
+            DialectProfile::availability_for_name("f5-irules"),
+            DialectSet::IRULES
+        );
+        assert_eq!(
+            DialectProfile::availability_for_name("irules"),
+            DialectSet::IRULES
+        );
     }
 
     #[test]

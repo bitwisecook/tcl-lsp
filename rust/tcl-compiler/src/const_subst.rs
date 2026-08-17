@@ -51,6 +51,7 @@
 //! frame) declines the fold; a wrong constant is a miscompile, a missed one
 //! only a lost optimisation.
 
+use tcl_dialect::TclVersion;
 use tcl_registry::{CommandRegistry, CommandSpec};
 
 use crate::naming::normalise_var_name;
@@ -67,9 +68,9 @@ const MAX_CONST_SUBST_DEPTH: u32 = 16;
 pub struct ConstSubstCtx<'a> {
     /// Command / subcommand specs — the fold callbacks live here.
     pub registry: &'a CommandRegistry,
-    /// Dialect name forwarded to versioned folds (`const_fold_versioned`);
-    /// `None` when the consumer has no dialect context.
-    pub dialect: Option<&'a str>,
+    /// Resolved Tcl release forwarded to versioned folds
+    /// (`const_fold_versioned`); `None` when the consumer has no release fact.
+    pub version: Option<TclVersion>,
     /// The fully-qualified class defining the enclosing `TclOO` method
     /// implementation, when the consumer *proved* the frame (instance-side
     /// method of a statically-named, never-renamed class). Enables the
@@ -122,7 +123,7 @@ impl ConstSubstCtx<'_> {
         }
         if spec.subcommands.is_empty() {
             let arg_refs: Vec<&str> = rest.iter().map(String::as_str).collect();
-            spec.run_const_fold(&arg_refs, self.dialect)
+            spec.run_const_fold(&arg_refs, self.version)
         } else {
             // Subcommand-dispatched builtin (`string`, `namespace`, …): the
             // fold lives on the matching subcommand and sees the args after
@@ -130,7 +131,7 @@ impl ConstSubstCtx<'_> {
             let (sub, sub_rest) = rest.split_first()?;
             let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
             spec.resolve_subcommand(sub)?
-                .run_const_fold(&arg_refs, self.dialect)
+                .run_const_fold(&arg_refs, self.version)
         }
     }
 
@@ -306,7 +307,7 @@ mod tests {
     ) -> ConstSubstCtx<'a> {
         ConstSubstCtx {
             registry,
-            dialect: None,
+            version: None,
             defining_class: None,
             trusts,
             lookup_var: lookup,

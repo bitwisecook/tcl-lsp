@@ -285,7 +285,7 @@ pub fn run_diff(
     right: Option<&Path>,
     left_source: Option<&str>,
     right_source: Option<&str>,
-    dialect: Option<&str>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     show: &[String],
     json_out: bool,
     output: Option<&Path>,
@@ -324,15 +324,14 @@ pub fn run_diff(
     // pipelines rather than two sources. Detected from the left-hand (baseline)
     // input unless `--dialect` names one.
     let dialect = combined_effective_dialect(&left_docs, dialect);
-    let dialect = dialect.as_str();
-    let registry = registry_for_dialect(dialect);
+    let registry = registry_for_dialect(dialect.name);
     let left_index = LineIndex::new(&left_src);
     let right_index = LineIndex::new(&right_src);
 
     let mut results: Vec<(String, bool, Vec<String>)> = Vec::new();
     for layer in &layers {
-        let lp = layer_payload(layer, &left_src, dialect, &registry, &left_index)?;
-        let rp = layer_payload(layer, &right_src, dialect, &registry, &right_index)?;
+        let lp = layer_payload(layer, &left_src, dialect.name, &registry, &left_index)?;
+        let rp = layer_payload(layer, &right_src, dialect.name, &registry, &right_index)?;
         let (equal, lines) = compute_layer_diff(layer, &lp, &rp, &left_name, &right_name);
         results.push(((*layer).to_owned(), equal, lines));
     }
@@ -341,7 +340,7 @@ pub fn run_diff(
     write_diff_result(
         &target,
         json_out,
-        dialect,
+        dialect.name,
         &left_name,
         &right_name,
         &left_docs,
@@ -436,7 +435,7 @@ mod tests {
             None,
             Some("set x 1"),
             Some("set x 2"),
-            Some("tcl8.6"),
+            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
             &show,
             true,
             None,
@@ -449,7 +448,7 @@ mod tests {
             None,
             None,
             Some("set x 2"),
-            Some("tcl8.6"),
+            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
             &show,
             true,
             None,

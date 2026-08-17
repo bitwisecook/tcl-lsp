@@ -2046,7 +2046,7 @@ mod tests {
             .expect("string is subcommand");
         assert!(sub.const_fold_versioned.is_some());
         assert_eq!(
-            sub.run_const_fold(&["alpha", "abc"], Some("tcl9.0"))
+            sub.run_const_fold(&["alpha", "abc"], Some(tcl_dialect::TclVersion::V9_0))
                 .as_deref(),
             Some("1")
         );
@@ -2124,7 +2124,7 @@ mod tests {
         let fold = |args: &[&str]| {
             spec.subcommand("match")
                 .unwrap()
-                .run_const_fold(args, Some("tcl9.0"))
+                .run_const_fold(args, Some(tcl_dialect::TclVersion::V9_0))
         };
         assert_eq!(fold(&["::*", "::clay"]), Some("1".to_owned()));
         assert_eq!(fold(&["::*", "clay"]), Some("0".to_owned()));

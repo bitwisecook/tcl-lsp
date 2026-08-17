@@ -67,7 +67,7 @@ mod tokens;
 
 pub use expr_lexer::{
     ExprToken, ExprTokenType, math_functions as expr_math_functions, tokenise_expr,
-    tokenise_expr_checked,
+    tokenise_expr_checked, tokenise_expr_checked_for_profile, tokenise_expr_for_profile,
 };
 #[cfg(feature = "html")]
 pub use highlight::{

@@ -39,6 +39,7 @@ use std::time::Instant;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::optimiser::optimise_unit;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 
 fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
@@ -90,6 +91,7 @@ fn encode_interproc(cu: &CompilationUnit) -> usize {
 fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
     let dialect = "tcl8.6";
+    let profile = DialectProfile::by_name(dialect);
     let reg = registry(dialect);
     let cfg = tcl_lexer::LexerConfig::for_dialect(dialect);
 
@@ -113,12 +115,12 @@ fn main() {
             continue;
         };
         let cu = CompilationUnit::build_for_with_config(&src, &reg, false, cfg)
-            .with_interprocedural(&reg, Some(dialect));
+            .with_interprocedural(&reg, Some(profile));
         let n_procs = cu.procedures.len();
         let iters = 20u32;
         let t0 = Instant::now();
         for _ in 0..iters {
-            std::hint::black_box(optimise_unit(&cu, &reg, Some(dialect)));
+            std::hint::black_box(optimise_unit(&cu, &reg, Some(profile)));
         }
         let opt_ms = t0.elapsed().as_secs_f64() * 1000.0 / f64::from(iters);
         let t1 = Instant::now();
@@ -154,7 +156,7 @@ fn main() {
             continue;
         }
         let cu = CompilationUnit::build_for_with_config(&src, &reg, false, cfg)
-            .with_interprocedural(&reg, Some(dialect));
+            .with_interprocedural(&reg, Some(profile));
         let Some(base_ia) = &cu.interproc else {
             continue;
         };
@@ -181,7 +183,7 @@ fn main() {
             let mut edited = src.clone();
             edited.insert(pos, ' ');
             let cu2 = CompilationUnit::build_for_with_config(&edited, &reg, false, cfg)
-                .with_interprocedural(&reg, Some(dialect));
+                .with_interprocedural(&reg, Some(profile));
             let Some(ia2) = &cu2.interproc else { continue };
             total_edits += 1;
             if base_ia == ia2 {

@@ -159,8 +159,8 @@ pub(super) const TK_PACKAGE: &str = "Tk";
 /// [`Analyser::flush_tk_geometry_diagnostics`] discards everything the walk
 /// buffered unless the exact activation fact holds.
 #[must_use]
-pub(super) fn tk_checks_could_apply(source: &str, dialect: &str) -> bool {
-    dialect == "tk" || source.contains(TK_PACKAGE)
+pub(super) fn tk_checks_could_apply(source: &str, availability: tcl_dialect::DialectSet) -> bool {
+    availability.contains(tcl_dialect::DialectSet::TK) || source.contains(TK_PACKAGE)
 }
 
 /// Return `true` if `path` matches Tcl/Tk widget-path syntax — a leading

@@ -44,7 +44,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use tcl_dialect::{DialectProfile, NumberSyntax, TclVersion};
-use tcl_lexer::{ExprToken, ExprTokenType, tokenise_expr_checked};
+use tcl_lexer::{ExprToken, ExprTokenType};
 
 use crate::expr::ast::{BinOp, ExprNode, UnaryOp};
 use crate::naming::normalise_var_name;
@@ -439,21 +439,35 @@ impl<'a> PrattParser<'a> {
 /// profile, so without this a runtime built for 8.6 would *parse* `0o17` as a
 /// number and then fail to *read* it as one, leaving the literal to evaluate to
 /// its own text — the silent-wrong-answer shape this whole change removes.
-pub(super) fn numbers_for(dialect: Option<&str>, profile: &DialectProfile) -> NumberSyntax {
-    if dialect.is_some() {
-        NumberSyntax::of_profile(Some(profile))
+pub(super) fn numbers_for(
+    profile: Option<&DialectProfile>,
+    resolved: &DialectProfile,
+) -> NumberSyntax {
+    if profile.is_some() {
+        NumberSyntax::of_profile(Some(resolved))
     } else {
         crate::number::runtime_syntax()
     }
 }
 
 #[must_use]
+/// Parse from a compatibility dialect-name boundary.
+///
+/// Typed callers should use [`parse_expr_for_profile`].
 pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
+    parse_expr_for_profile(source, dialect.map(DialectProfile::by_name))
+}
+
+/// Parse under an already-resolved dialect profile.
+#[must_use]
+pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) -> ExprNode {
     // Resolve the dialect string to its interned profile once and thread the
     // canonical name down — so the grammar branch in the expr lexer and the
     // cache key below can never disagree about what a given spelling means.
-    let profile = DialectProfile::by_opt_name(dialect);
-    let (raw_tokens, has_unknown) = tokenise_expr_checked(source, Some(profile.name));
+    let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
+        DialectProfile::by_name(profile.name)
+    });
+    let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
 
     if has_unknown {
         return ExprNode::Raw {
@@ -474,8 +488,8 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
 
     let mut parser = PrattParser::new(
         &tokens,
-        numbers_for(dialect, profile),
-        profile.expr_grammar_base,
+        numbers_for(profile, resolved),
+        resolved.expr_grammar_base,
     );
     match parser.expression(0) {
         Ok(result) if parser.pos >= tokens.len() => result,
@@ -579,16 +593,30 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
 /// on every iteration); use the un-cached [`parse_expr`] from
 /// once-per-invocation analyser sites.
 #[must_use]
+/// Cached parse from a compatibility dialect-name boundary.
+///
+/// Typed callers should use [`parse_expr_cached_for_profile`].
 pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
-    let profile = DialectProfile::by_opt_name(dialect);
-    let key: ExprCacheKey = (source.to_owned(), profile.name);
+    parse_expr_cached_for_profile(source, dialect.map(DialectProfile::by_name))
+}
+
+/// Cached expression parse under an already-resolved profile.
+#[must_use]
+pub fn parse_expr_cached_for_profile(
+    source: &str,
+    profile: Option<&DialectProfile>,
+) -> Arc<ExprNode> {
+    let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
+        DialectProfile::by_name(profile.name)
+    });
+    let key: ExprCacheKey = (source.to_owned(), resolved.name);
     {
         let mut cache = expr_cache().lock().expect("expr cache mutex poisoned");
         if let Some(hit) = cache.get(&key) {
             return hit;
         }
     }
-    let parsed = Arc::new(parse_expr(source, dialect));
+    let parsed = Arc::new(parse_expr_for_profile(source, profile));
     {
         let mut cache = expr_cache().lock().expect("expr cache mutex poisoned");
         // A concurrent caller may have populated the same key

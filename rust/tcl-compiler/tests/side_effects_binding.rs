@@ -90,7 +90,7 @@ fn classify(
     reg: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> CommandSideEffects {
     let owned: Vec<String> = args.iter().map(|s| (*s).to_owned()).collect();
     classify_side_effects(reg, command, &owned, dialect, None)
@@ -354,7 +354,12 @@ fn classify_set_static_var_irules() {
     // f5-dialect: `static::` is an iRules scope marker; the var is system-wide
     // (ConnectionSide::Global).
     let reg = irules_registry();
-    let r = classify(&reg, "set", &["static::counter", "0"], Some("irules"));
+    let r = classify(
+        &reg,
+        "set",
+        &["static::counter", "0"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     let e = only_effect(&r);
     assert_eq!(e.scope, StorageScope::Static);
     assert_eq!(e.connection_side, ConnectionSide::Global);
@@ -365,7 +370,12 @@ fn classify_set_static_var_irules() {
 fn classify_set_static_var_f5_irules() {
     // Same, under the `f5-irules` dialect alias. // f5-dialect.
     let reg = irules_registry();
-    let r = classify(&reg, "set", &["static::counter", "0"], Some("f5-irules"));
+    let r = classify(
+        &reg,
+        "set",
+        &["static::counter", "0"],
+        Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+    );
     let e = only_effect(&r);
     assert_eq!(e.scope, StorageScope::Static);
     assert_eq!(e.connection_side, ConnectionSide::Global);
@@ -425,7 +435,12 @@ fn classify_table_set() {
     // at Unknown. The load-bearing facts hold: it writes the SESSION_TABLE
     // target on BOTH sides.
     let reg = irules_registry();
-    let r = classify(&reg, "table", &["set", "mykey", "myval"], Some("irules"));
+    let r = classify(
+        &reg,
+        "table",
+        &["set", "mykey", "myval"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     assert!(r.writes_any());
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::SessionTable);
@@ -438,7 +453,12 @@ fn classify_table_set() {
 fn classify_table_lookup() {
     // f5-dialect. `table lookup` is a pure read of the SESSION_TABLE target.
     let reg = irules_registry();
-    let r = classify(&reg, "table", &["lookup", "mykey"], Some("irules"));
+    let r = classify(
+        &reg,
+        "table",
+        &["lookup", "mykey"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     let e = only_effect(&r);
     assert!(e.reads);
     assert!(!e.writes);
@@ -453,7 +473,12 @@ fn classify_table_lookup() {
 fn classify_pool_selection() {
     // f5-dialect.
     let reg = irules_registry();
-    let r = classify(&reg, "pool", &["mypool"], Some("irules"));
+    let r = classify(
+        &reg,
+        "pool",
+        &["mypool"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     assert!(r.writes_target(SideEffectTarget::PoolSelection));
     let e = only_effect(&r);
     assert_eq!(e.connection_side, ConnectionSide::Server);
@@ -463,7 +488,12 @@ fn classify_pool_selection() {
 fn classify_node_selection() {
     // f5-dialect.
     let reg = irules_registry();
-    let r = classify(&reg, "node", &["10.0.0.1"], Some("irules"));
+    let r = classify(
+        &reg,
+        "node",
+        &["10.0.0.1"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     assert!(r.writes_target(SideEffectTarget::NodeSelection));
 }
 
@@ -471,7 +501,12 @@ fn classify_node_selection() {
 fn classify_snat_selection() {
     // f5-dialect.
     let reg = irules_registry();
-    let r = classify(&reg, "snat", &["automap"], Some("irules"));
+    let r = classify(
+        &reg,
+        "snat",
+        &["automap"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     assert!(r.writes_target(SideEffectTarget::SnatSelection));
 }
 
@@ -488,7 +523,12 @@ fn classify_class_lookup() {
     // The DataGroup read is reachable via the command-level hint only when no
     // pure subcommand matches; assert the registry actually carries it so the
     // hint is not dead metadata.
-    let unknown_sub = classify(&reg, "class", &["__nosuchsub", "x"], Some("irules"));
+    let unknown_sub = classify(
+        &reg,
+        "class",
+        &["__nosuchsub", "x"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     assert!(unknown_sub.reads_target(SideEffectTarget::DataGroup));
 }
 
@@ -497,7 +537,12 @@ fn classify_persist_command() {
     // f5-dialect. Hint-derived effect ⇒ scope left at default. Target +
     // client-side context hold.
     let reg = irules_registry();
-    let r = classify(&reg, "persist", &["source_addr"], Some("irules"));
+    let r = classify(
+        &reg,
+        "persist",
+        &["source_addr"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::PersistenceTable);
     assert_eq!(e.connection_side, ConnectionSide::Client);
@@ -508,7 +553,12 @@ fn classify_persist_command() {
 fn classify_session_add() {
     // f5-dialect.
     let reg = irules_registry();
-    let r = classify(&reg, "session", &["add", "key", "val"], Some("irules"));
+    let r = classify(
+        &reg,
+        "session",
+        &["add", "key", "val"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::PersistenceTable);
     assert!(e.writes);
@@ -523,7 +573,12 @@ fn classify_session_lookup() {
     // the persistence table is still exercised by `session add` (a mutator
     // subcommand) below.
     let reg = irules_registry();
-    let r = classify(&reg, "session", &["lookup", "key"], Some("irules"));
+    let r = classify(
+        &reg,
+        "session",
+        &["lookup", "key"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     assert!(
         r.pure,
         "session lookup resolves via the pure-subcommand path"
@@ -538,7 +593,12 @@ fn classify_http_header_read() {
     // f5-dialect. Hint-derived effects don't set `namespace`; assert the read +
     // HttpHeader target instead.
     let reg = irules_registry();
-    let r = classify(&reg, "HTTP::header", &["value", "Host"], Some("irules"));
+    let r = classify(
+        &reg,
+        "HTTP::header",
+        &["value", "Host"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     let e = only_effect(&r);
     assert!(e.reads);
     assert_eq!(e.target, SideEffectTarget::HttpHeader);
@@ -556,7 +616,12 @@ fn classify_http_uri_normalized_getter_is_read_only() {
     // target *is* exercised via the `URI::path` conformance row, which does
     // carry the hint.)
     let reg = irules_registry();
-    let r = classify(&reg, "HTTP::uri", &["-normalized"], Some("f5-irules"));
+    let r = classify(
+        &reg,
+        "HTTP::uri",
+        &["-normalized"],
+        Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+    );
     assert!(r.pure, "HTTP::uri -normalized is a pure getter");
     assert!(!r.writes_any(), "a getter must not write");
 }
@@ -565,10 +630,15 @@ fn classify_http_uri_normalized_getter_is_read_only() {
 fn classify_dialect_propagation() {
     // The active dialect is stamped onto both the result and each effect.
     let reg = irules_registry();
-    let r = classify(&reg, "set", &["x", "1"], Some("irules"));
-    assert_eq!(r.dialect.as_deref(), Some("irules"));
+    let r = classify(
+        &reg,
+        "set",
+        &["x", "1"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
+    assert_eq!(r.dialect.as_deref(), Some("f5-irules"));
     let e = only_effect(&r);
-    assert_eq!(e.dialect.as_deref(), Some("irules"));
+    assert_eq!(e.dialect.as_deref(), Some("f5-irules"));
 }
 
 #[test]
@@ -587,11 +657,16 @@ fn classify_command_level_hint_is_applied() {
     // f5-dialect. `HTTP2::disable` carries a command-level Http2State write hint
     // on BOTH sides.
     let reg = irules_registry();
-    let r = classify(&reg, "HTTP2::disable", &[], Some("irules"));
+    let r = classify(
+        &reg,
+        "HTTP2::disable",
+        &[],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     assert!(r.writes_target(SideEffectTarget::Http2State));
     let e = only_effect(&r);
     assert_eq!(e.connection_side, ConnectionSide::Both);
-    assert_eq!(e.dialect.as_deref(), Some("irules"));
+    assert_eq!(e.dialect.as_deref(), Some("f5-irules"));
 }
 
 #[test]
@@ -603,7 +678,7 @@ fn classify_subcommand_hint_overrides_command_level() {
         &reg,
         "HTTP::header",
         &["replace", "Host", "example.com"],
-        Some("irules"),
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
     );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::HttpHeader);
@@ -614,7 +689,12 @@ fn classify_subcommand_hint_overrides_command_level() {
 fn classify_hint_precedence_beats_fallback() {
     // f5-dialect. `call my_proc` reads the PROC_DEFINITION and does not write.
     let reg = irules_registry();
-    let r = classify(&reg, "call", &["my_proc"], Some("irules"));
+    let r = classify(
+        &reg,
+        "call",
+        &["my_proc"],
+        Some(tcl_dialect::DialectProfile::by_name("irules")),
+    );
     assert!(r.reads_target(SideEffectTarget::ProcDefinition));
     assert!(!r.writes_any());
 }
@@ -640,7 +720,12 @@ fn classify_hint_with_unspecified_dialect_preserves_shape() {
 fn classify_close_in_tcl_is_file_io() {
     // tclsh: `close $fd` closes a channel (file I/O), no F5 connection context.
     let reg = irules_registry();
-    let r = classify(&reg, "close", &["$fd"], Some("tcl8.6"));
+    let r = classify(
+        &reg,
+        "close",
+        &["$fd"],
+        Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+    );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::FileIo);
     assert_eq!(e.connection_side, ConnectionSide::None);
@@ -651,7 +736,12 @@ fn classify_close_in_irules_is_connection_control() {
     // f5-dialect. Under iRules, bare `close` tears down the proxied connection
     // on BOTH sides (ConnectionControl), not a file channel.
     let reg = irules_registry();
-    let r = classify(&reg, "close", &[], Some("f5-irules"));
+    let r = classify(
+        &reg,
+        "close",
+        &[],
+        Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+    );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::ConnectionControl);
     assert_eq!(e.connection_side, ConnectionSide::Both);
@@ -663,7 +753,12 @@ fn classify_file_io_does_not_kill_unknown_region() {
     // so it must NOT register as an UNKNOWN_STATE write that would kill GVN
     // facts.
     let reg = irules_registry();
-    let r = classify(&reg, "puts", &["hello"], Some("tcl8.6"));
+    let r = classify(
+        &reg,
+        "puts",
+        &["hello"],
+        Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+    );
     let (_reads, writes) = r.to_effect_regions();
     assert_eq!(writes, EffectRegion::NONE);
 }
@@ -676,7 +771,7 @@ fn classify_file_io_does_not_kill_unknown_region() {
 fn assert_conformance_target(
     reg: &CommandRegistry,
     command: &str,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     expected: SideEffectTarget,
 ) {
     let r = classify(reg, command, &[], dialect);
@@ -718,7 +813,12 @@ fn conformance_irules_protocol_namespace_targets() {
         ("URI::path", SideEffectTarget::HttpUri),
     ];
     for (cmd, target) in rows {
-        assert_conformance_target(&reg, cmd, Some("irules"), *target);
+        assert_conformance_target(
+            &reg,
+            cmd,
+            Some(tcl_dialect::DialectProfile::by_name("irules")),
+            *target,
+        );
     }
 }
 
@@ -760,7 +860,12 @@ fn hinted_irules_commands_return_non_unknown_effects() {
         "redirect",
     ];
     for cmd in cmds {
-        let r = classify(&reg, cmd, &[], Some("irules"));
+        let r = classify(
+            &reg,
+            cmd,
+            &[],
+            Some(tcl_dialect::DialectProfile::by_name("irules")),
+        );
         assert!(!r.effects.is_empty(), "{cmd}: expected non-empty effects");
     }
 }

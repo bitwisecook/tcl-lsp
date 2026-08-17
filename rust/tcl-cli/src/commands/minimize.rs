@@ -96,10 +96,10 @@ pub enum MinimizeError {
 }
 
 /// Whether `code` fires anywhere in `source` under `dialect`.
-fn fires(source: &str, code: &str, dialect: &str) -> bool {
+fn fires(source: &str, code: &str, dialect: &tcl_dialect::DialectProfile) -> bool {
     Analyser::new()
-        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect))
-        .analyse(source, dialect)
+        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name))
+        .analyse(source, dialect.name)
         .diagnostics
         .iter()
         .any(|d| d.code.as_str() == code)
@@ -298,7 +298,7 @@ pub fn minimize_diagnostic(
     source: &str,
     code: &str,
     rename: bool,
-    dialect: &str,
+    dialect: &tcl_dialect::DialectProfile,
 ) -> Result<MinimizeResult, MinimizeError> {
     let original_lines = source.matches('\n').count() + 1;
     if !fires(source, code, dialect) {
@@ -372,11 +372,12 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
     let rename = !no_rename;
 
     let mut results: Vec<MinimizeItem> = Vec::new();
+    let explicit_dialect = input.dialect_profile()?;
     for document in &documents {
         // Per document, like `diag`: the reproducer is reduced under the same
         // dialect the diagnostic was reported under.
-        let dialect = document.effective_dialect(input.dialect.as_deref());
-        match minimize_diagnostic(&document.source, code, rename, &dialect) {
+        let dialect = document.effective_dialect(explicit_dialect);
+        match minimize_diagnostic(&document.source, code, rename, dialect) {
             Ok(r) => results.push(MinimizeItem {
                 file: document.label.clone(),
                 code: r.code,

@@ -440,7 +440,7 @@ fn opt_detects_the_irules_dialect_without_the_flag() {
     ]))
     .expect("utf-8 output");
     assert!(
-        detected.contains("if {1}") && detected.contains("O101"),
+        detected.contains("O112") && detected.contains("HTTP::respond 200"),
         "the detected dialect must fold the word-operator condition: {detected}"
     );
     assert_eq!(

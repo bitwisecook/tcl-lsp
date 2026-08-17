@@ -2321,8 +2321,8 @@ mod tests {
     /// As [`infer_str`] but parses under `dialect` (the iRules string
     /// predicates only tokenise as operators in the iRules dialect) and reads
     /// numerals under that dialect's grammar.
-    fn infer_str_dialect(src: &str, dialect: Option<&str>) -> TypeLattice {
-        let node = crate::parse_expr(src, dialect);
+    fn infer_str_dialect(src: &str, dialect: Option<&tcl_dialect::DialectProfile>) -> TypeLattice {
+        let node = crate::parse_expr(src, dialect.map(|profile| profile.name));
         infer_expr_type(
             &node,
             &HashMap::new(),
@@ -2434,7 +2434,7 @@ mod tests {
             "$s matches_glob \"x*\"",
             "$s matches_regex \"x.\"",
         ] {
-            let t = infer_str_dialect(src, Some("f5-irules"));
+            let t = infer_str_dialect(src, Some(tcl_dialect::DialectProfile::by_name("f5-irules")));
             assert_eq!(
                 t.tcl_type(),
                 Some(TclType::Boolean),

@@ -321,12 +321,12 @@ fn is_integer_string(text: &str) -> bool {
 /// substitution, or any domain error (match `eval_tcl_expr`'s
 /// conservative "give up, use runtime form" contract).
 #[must_use]
-pub fn try_fold_expr(expr: &str, dialect: Option<&str>) -> Option<String> {
+pub fn try_fold_expr(expr: &str, dialect: Option<&tcl_dialect::DialectProfile>) -> Option<String> {
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let node = parse_expr(trimmed, dialect);
+    let node = parse_expr(trimmed, dialect.map(|profile| profile.name));
     if matches!(node, ExprNode::Raw { .. }) {
         return None;
     }
@@ -365,14 +365,14 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
     expr: &str,
     constants: &std::collections::HashMap<String, String, S>,
     braced: bool,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Option<String> {
     use crate::tcl_expr_eval::EnvValue;
     let trimmed = expr.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let node = parse_expr(trimmed, dialect);
+    let node = parse_expr(trimmed, dialect.map(|profile| profile.name));
     if matches!(node, ExprNode::Raw { .. }) {
         return None;
     }
@@ -384,7 +384,7 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
             || is_numeric_string_under(
                 value,
                 Some(tcl_dialect::NumberSyntax::of_profile(Some(
-                    tcl_dialect::DialectProfile::by_opt_name(dialect),
+                    dialect.unwrap_or(tcl_dialect::DialectProfile::plain_tcl()),
                 ))),
             )
         {
@@ -469,9 +469,9 @@ pub struct SubstitutionResult {
 pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
     expr: &str,
     constants: &std::collections::HashMap<String, String, S>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> SubstitutionResult {
-    let tokens = tokenise_expr(expr, dialect);
+    let tokens = tokenise_expr(expr, dialect.map(|profile| profile.name));
     let mut pieces: Vec<String> = Vec::new();
     let mut cursor: usize = 0;
     let mut changed = false;

@@ -638,7 +638,7 @@ pub fn classify_side_effects(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     callee_summary: Option<&CalleeSummary>,
 ) -> CommandSideEffects {
     if let Some(summary) = callee_summary {
@@ -657,7 +657,7 @@ pub fn classify_side_effects(
         return CommandSideEffects {
             effects: vec![SideEffect::new(SideEffectTarget::Unknown, true, true)],
             dynamic_barrier: true,
-            dialect: dialect.map(str::to_owned),
+            dialect: dialect.map(|profile| profile.name.to_owned()),
             ..CommandSideEffects::default()
         };
     }
@@ -669,7 +669,7 @@ pub fn classify_side_effects(
         return CommandSideEffects {
             pure: true,
             deterministic: true,
-            dialect: dialect.map(str::to_owned),
+            dialect: dialect.map(|profile| profile.name.to_owned()),
             ..CommandSideEffects::default()
         };
     }
@@ -707,7 +707,7 @@ pub fn classify_side_effects(
                 effects,
                 pure: true,
                 deterministic: true,
-                dialect: dialect.map(str::to_owned),
+                dialect: dialect.map(|profile| profile.name.to_owned()),
                 ..CommandSideEffects::default()
             };
         }
@@ -729,7 +729,7 @@ pub fn classify_side_effects(
         return CommandSideEffects {
             pure: true,
             deterministic: true,
-            dialect: dialect.map(str::to_owned),
+            dialect: dialect.map(|profile| profile.name.to_owned()),
             ..CommandSideEffects::default()
         };
     }
@@ -749,7 +749,7 @@ pub fn classify_side_effects(
         }
         return CommandSideEffects {
             effects: vec![SideEffect::new(SideEffectTarget::Variable, true, true)],
-            dialect: dialect.map(str::to_owned),
+            dialect: dialect.map(|profile| profile.name.to_owned()),
             ..CommandSideEffects::default()
         };
     }
@@ -758,10 +758,10 @@ pub fn classify_side_effects(
     if spec.traits.contains(Traits::DEFINES_PROCEDURE) {
         let mut e = SideEffect::new(SideEffectTarget::ProcDefinition, false, true);
         e.scope = StorageScope::Namespace;
-        e.dialect = dialect.map(str::to_owned);
+        e.dialect = dialect.map(|profile| profile.name.to_owned());
         return CommandSideEffects {
             effects: vec![e],
-            dialect: dialect.map(str::to_owned),
+            dialect: dialect.map(|profile| profile.name.to_owned()),
             ..CommandSideEffects::default()
         };
     }
@@ -784,7 +784,7 @@ pub fn classify_side_effects(
                 e.namespace = ns;
                 e.key = Some(name.to_owned());
             }
-            e.dialect = dialect.map(str::to_owned);
+            e.dialect = dialect.map(|profile| profile.name.to_owned());
             e
         };
         // No named target (`unset`, `unset -nocomplain`, `unset --`) is a
@@ -800,7 +800,7 @@ pub fn classify_side_effects(
         };
         return CommandSideEffects {
             effects,
-            dialect: dialect.map(str::to_owned),
+            dialect: dialect.map(|profile| profile.name.to_owned()),
             ..CommandSideEffects::default()
         };
     }
@@ -814,7 +814,7 @@ pub fn classify_side_effects(
     if let Some(effects) = dialect_side_effect_hints(registry, command, effective_sub, dialect) {
         return CommandSideEffects {
             effects,
-            dialect: dialect.map(str::to_owned),
+            dialect: dialect.map(|profile| profile.name.to_owned()),
             ..CommandSideEffects::default()
         };
     }
@@ -827,7 +827,7 @@ pub fn classify_side_effects(
 /// [`CommandSideEffects`].
 fn classify_from_callee_summary(
     summary: &CalleeSummary,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> CommandSideEffects {
     let reads = summary.effect_reads;
     let writes = summary.effect_writes;
@@ -865,7 +865,7 @@ fn classify_from_callee_summary(
         pure: summary.pure,
         deterministic: summary.pure,
         dynamic_barrier: false,
-        dialect: dialect.map(str::to_owned),
+        dialect: dialect.map(|profile| profile.name.to_owned()),
     }
 }
 
@@ -883,7 +883,7 @@ fn classify_variable_assignment(
     args: &[String],
     idx: usize,
     traits: Traits,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> CommandSideEffects {
     let varname = &args[idx];
     let (scope, ns) = scope_from_varname(varname);
@@ -912,7 +912,7 @@ fn classify_variable_assignment(
     effect.scope = scope;
     effect.connection_side = side;
     effect.namespace = ns;
-    effect.dialect = dialect.map(str::to_owned);
+    effect.dialect = dialect.map(|profile| profile.name.to_owned());
     effect.key = Some(varname.clone());
 
     let mut effects = vec![effect];
@@ -926,18 +926,19 @@ fn classify_variable_assignment(
     // actually exists.
     if is_write {
         let base = crate::naming::normalise_var_name(varname);
-        if let Some(target) =
-            tcl_registry::special_vars::special_var_write_effect(base, dialect.unwrap_or(""))
-        {
+        if let Some(target) = tcl_registry::special_vars::special_var_write_effect(
+            base,
+            dialect.map_or("", |profile| profile.name),
+        ) {
             let mut extra = SideEffect::new(lift_registry_target(target), false, true);
-            extra.dialect = dialect.map(str::to_owned);
+            extra.dialect = dialect.map(|profile| profile.name.to_owned());
             effects.push(extra);
         }
     }
 
     CommandSideEffects {
         effects,
-        dialect: dialect.map(str::to_owned),
+        dialect: dialect.map(|profile| profile.name.to_owned()),
         ..CommandSideEffects::default()
     }
 }
@@ -1019,10 +1020,13 @@ fn lift_registry_side(s: RegistryConnectionSide) -> ConnectionSide {
 /// is supplied. The registry hint carries only
 /// `target`/`reads`/`writes`/`connection_side`; the remaining fields
 /// stay at their defaults.
-fn lift_registry_effect(e: RegistrySideEffect, dialect: Option<&str>) -> SideEffect {
+fn lift_registry_effect(
+    e: RegistrySideEffect,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+) -> SideEffect {
     let mut effect = SideEffect::new(lift_registry_target(e.target), e.reads, e.writes);
     effect.connection_side = lift_registry_side(e.connection_side);
-    effect.dialect = dialect.map(str::to_owned);
+    effect.dialect = dialect.map(|profile| profile.name.to_owned());
     effect
 }
 
@@ -1032,20 +1036,17 @@ fn lift_registry_effect(e: RegistrySideEffect, dialect: Option<&str>) -> SideEff
 /// dialect string fails to parse to a known [`DialectSet`] (e.g. the
 /// bare `"tcl"` family alias) only universal (`dialects = None`) specs
 /// qualify — an unknown name intersects no explicit dialect set.
-fn spec_in_dialect(spec: &CommandSpec, filter: Option<&str>) -> bool {
+fn spec_in_dialect(spec: &CommandSpec, filter: Option<&tcl_dialect::DialectProfile>) -> bool {
     match filter {
         None => true,
         // Profile availability: composed mask + the iRules disable list
         // (§9 — a banned command's hints never fire under f5-irules). A
         // name with no catalog profile (`tk`) keeps the conservative
         // universal-spec-only rule.
-        Some(name) => match tcl_dialect::DialectProfile::find(name) {
-            Some(profile) => {
-                use tcl_registry::ProfileQueries;
-                profile.is_available(spec)
-            }
-            None => spec.dialects.is_none(),
-        },
+        Some(profile) => {
+            use tcl_registry::ProfileQueries;
+            profile.is_available(spec)
+        }
     }
 }
 
@@ -1061,16 +1062,10 @@ fn dialect_side_effect_hints(
     registry: &CommandRegistry,
     command: &str,
     subcommand: Option<&str>,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Option<Vec<SideEffect>> {
-    // lookup_dialect is "f5-irules" when dialect == "irules", else dialect.
-    let filter = match dialect {
-        Some("irules") => Some("f5-irules"),
-        other => other,
-    };
-
     for spec in registry.specs(command).iter().rev() {
-        if !spec_in_dialect(spec, filter) {
+        if !spec_in_dialect(spec, dialect) {
             continue;
         }
         if let Some(sub_name) = subcommand
@@ -1096,10 +1091,10 @@ fn dialect_side_effect_hints(
     None
 }
 
-fn fallback_unknown_write(dialect: Option<&str>) -> CommandSideEffects {
+fn fallback_unknown_write(dialect: Option<&tcl_dialect::DialectProfile>) -> CommandSideEffects {
     CommandSideEffects {
         effects: vec![SideEffect::new(SideEffectTarget::Unknown, true, true)],
-        dialect: dialect.map(str::to_owned),
+        dialect: dialect.map(|profile| profile.name.to_owned()),
         ..CommandSideEffects::default()
     }
 }
@@ -1472,7 +1467,7 @@ mod tests {
             &registry,
             "set",
             &["static::counter".into(), "0".into()],
-            Some("irules"),
+            Some(tcl_dialect::DialectProfile::by_name("irules")),
             None,
         );
         let eff = &cse.effects[0];
@@ -1487,7 +1482,7 @@ mod tests {
             &registry,
             "set",
             &["local".into(), "0".into()],
-            Some("irules"),
+            Some(tcl_dialect::DialectProfile::by_name("irules")),
             None,
         );
         let eff = &cse.effects[0];
@@ -1562,7 +1557,7 @@ mod tests {
             &registry,
             "HTTP::header",
             &["value".into(), "Host".into()],
-            Some("f5-irules"),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
             None,
         );
         assert!(getter.pure, "HTTP::header getter should stay pure");
@@ -1576,7 +1571,7 @@ mod tests {
             &registry,
             "HTTP::header",
             &["insert".into(), "X-Foo".into(), "y".into()],
-            Some("f5-irules"),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
             None,
         );
         assert!(
@@ -1608,7 +1603,13 @@ mod tests {
             (EffectRegion::NONE, EffectRegion::NONE)
         );
         // Under a Tcl dialect the irules spec is gated out → UNKNOWN write.
-        let tcl = classify_side_effects(&registry, "log", &["hi".into()], Some("tcl8.6"), None);
+        let tcl = classify_side_effects(
+            &registry,
+            "log",
+            &["hi".into()],
+            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            None,
+        );
         assert!(!tcl.pure);
         assert_eq!(tcl.effects[0].target, SideEffectTarget::Unknown);
         assert_eq!(

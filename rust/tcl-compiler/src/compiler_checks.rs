@@ -256,7 +256,7 @@ fn shift(fu: &FunctionUnit, mut d: Diagnostic) -> Diagnostic {
 pub fn run_all_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<Diagnostic> {
     run_all_checks_with_generic_patterns(cu, registry, dialect, None)
 }
@@ -269,7 +269,7 @@ pub fn run_all_checks(
 pub fn run_all_checks_with_generic_patterns(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     generic_patterns: Option<&[String]>,
 ) -> Vec<Diagnostic> {
     let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
@@ -283,7 +283,7 @@ pub fn run_all_checks_with_generic_patterns(
 pub fn run_all_checks_with_solved(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     solved: &crate::taint_interproc::InterprocTaintResult,
 ) -> Vec<Diagnostic> {
     run_all_checks_with_solved_and_patterns(cu, registry, dialect, solved, None)
@@ -295,7 +295,7 @@ pub fn run_all_checks_with_solved(
 pub fn run_all_checks_with_solved_and_patterns(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     solved: &crate::taint_interproc::InterprocTaintResult,
     generic_patterns: Option<&[String]>,
 ) -> Vec<Diagnostic> {
@@ -348,7 +348,7 @@ pub fn run_all_checks_with_solved_and_patterns(
 pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
@@ -384,7 +384,7 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
 pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
@@ -443,7 +443,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
 pub fn push_taint_and_module_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     solved: &crate::taint_interproc::InterprocTaintResult,
     generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
@@ -558,10 +558,15 @@ pub fn push_taint_and_module_checks(
 fn push_irules_flow_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
 ) {
+    // Every iRules security/flow check receives the resolved availability
+    // fact, so a legacy alias cannot be treated differently by a later pass.
+    let dialect = dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
+        profile.availability_mask
+    });
     for w in find_unguarded_drop_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
@@ -642,7 +647,11 @@ mod tests {
             false,
             "tcl9.0",
         );
-        let diags = run_all_checks(&cu, &registry(), Some("tcl9.0"));
+        let diags = run_all_checks(
+            &cu,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("tcl9.0")),
+        );
         let o105: Vec<_> = diags
             .iter()
             .filter(|diagnostic| diagnostic.code.as_str() == "O105")
@@ -783,8 +792,15 @@ mod tests {
             &registry(),
             false,
         )
-        .with_interprocedural(&registry(), Some("f5-irules"));
-        let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
+        .with_interprocedural(
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
+        let diagnostics = run_all_checks(
+            &cu,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
         assert!(
             diagnostics
                 .iter()
@@ -796,8 +812,15 @@ mod tests {
     #[test]
     fn run_all_checks_reports_irule3101_end_to_end() {
         let cu = CompilationUnit::build_for("HTTP::uri foo", &registry(), false)
-            .with_interprocedural(&registry(), Some("f5-irules"));
-        let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
+            .with_interprocedural(
+                &registry(),
+                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            );
+        let diagnostics = run_all_checks(
+            &cu,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
         assert!(
             diagnostics
                 .iter()
@@ -814,8 +837,15 @@ mod tests {
             &registry(),
             false,
         )
-        .with_interprocedural(&registry(), Some("f5-irules"));
-        let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
+        .with_interprocedural(
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
+        let diagnostics = run_all_checks(
+            &cu,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
         let hit = diagnostics
             .iter()
             .find(|d| d.code == DiagCode::S110)
@@ -847,8 +877,15 @@ mod tests {
         // wider span. `run_all_checks` must therefore stay silent — the
         // analyser end-to-end assertion lives alongside.
         let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry(), false)
-            .with_interprocedural(&registry(), Some("f5-irules"));
-        let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
+            .with_interprocedural(
+                &registry(),
+                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            );
+        let diagnostics = run_all_checks(
+            &cu,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
         assert!(
             diagnostics.iter().all(|d| d.code != DiagCode::Irule3102),
             "run_all_checks must not double-report IRULE3102: {diagnostics:?}"
@@ -881,9 +918,15 @@ mod tests {
         // must not trigger a high-severity error).
         let src = "HTTP::uri foo";
 
-        let irules_cu = CompilationUnit::build_for(src, &registry(), false)
-            .with_interprocedural(&registry(), Some("f5-irules"));
-        let irules_diags = run_all_checks(&irules_cu, &registry(), Some("f5-irules"));
+        let irules_cu = CompilationUnit::build_for(src, &registry(), false).with_interprocedural(
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
+        let irules_diags = run_all_checks(
+            &irules_cu,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
         assert!(
             irules_diags.iter().any(|d| d.code == DiagCode::Irule3101),
             "expected IRULE3101 under f5-irules dialect, got {irules_diags:?}",

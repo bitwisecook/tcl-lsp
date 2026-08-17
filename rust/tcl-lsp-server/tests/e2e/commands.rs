@@ -171,6 +171,31 @@ fn optimise_returns_optimisation_offers() {
 }
 
 #[test]
+fn optimise_document_preserves_set_only_tk_profile() {
+    // Tk is a valid additive dialect surface, but it is intentionally absent
+    // from the catalog. The optimiser must receive its typed profile rather
+    // than `None`, whose unknown-dialect fallback would offer Tcl 8.6's
+    // `tailcall` rewrite for this recursive Tk script.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tk");
+    lsp.open_ready_lang(&uri, "proc recurse {} { recurse }\n", "tk");
+    let result = lsp.execute_command("tcl-lsp.optimiseDocument", json!([uri, "full"]));
+    let codes = result
+        .get("optimisations")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.get("code").and_then(Value::as_str))
+        .collect::<std::collections::BTreeSet<_>>();
+    assert!(
+        !codes.contains("O121"),
+        "Tk must not offer tailcall: {result:?}"
+    );
+    assert!(source(&result).contains("recurse"), "{result:?}");
+    assert!(!source(&result).contains("tailcall"), "{result:?}");
+}
+
+#[test]
 fn optimise_document_does_not_forward_across_a_variable_trace() {
     // Regression for a confirmed silent miscompile: `tcl-lsp.optimiseDocument`
     // (`profile: "full"`) previously rewrote this to `puts 5`, dropping the

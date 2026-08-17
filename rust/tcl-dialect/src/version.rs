@@ -20,6 +20,8 @@
 //! three-valued policy type for behaviours a non-Tcl profile has no
 //! opinion on.
 
+use crate::DialectProfile;
+
 /// How Tcl converts a Unicode string representation to binary bytes.
 ///
 /// Tcl 8.x keeps the historic one-byte conversion: each character contributes
@@ -107,20 +109,27 @@ impl TclVersion {
     /// than rebuilding the vocabulary beside their own parser.
     pub const ALL: [Self; 5] = [Self::V8_4, Self::V8_5, Self::V8_6, Self::V9_0, Self::V9_1];
 
-    /// Map an optimiser dialect string (`"tcl8.4"` … `"tcl9.1"`) to a version,
-    /// or `None` for an unversioned (`"tcl"`), non-Tcl (`"f5-irules"`), or
-    /// unknown dialect — in which case a versioned fold must return only the
-    /// dialect-invariant subset every release shares.
+    /// Compatibility parser for a dialect name at an external boundary.
+    ///
+    /// Typed compiler and registry paths use [`Self::from_profile`]. An
+    /// unversioned (`"tcl"`), non-Tcl (`"f5-irules"`), or unknown name has no
+    /// fold version, so versioned folds return only their invariant subset.
     #[must_use]
     pub fn from_dialect(dialect: Option<&str>) -> Option<Self> {
-        match dialect {
-            Some("tcl8.4") => Some(Self::V8_4),
-            Some("tcl8.5") => Some(Self::V8_5),
-            Some("tcl8.6") => Some(Self::V8_6),
-            Some("tcl9.0") => Some(Self::V9_0),
+        dialect.and_then(|name| Self::from_profile(DialectProfile::by_name(name)))
+    }
+
+    /// Return the release fact represented by an already-resolved profile.
+    #[must_use]
+    pub fn from_profile(profile: &DialectProfile) -> Option<Self> {
+        match profile.name {
+            "tcl8.4" => Some(Self::V8_4),
+            "tcl8.5" => Some(Self::V8_5),
+            "tcl8.6" => Some(Self::V8_6),
+            "tcl9.0" => Some(Self::V9_0),
             // 9.1 must not fall through to `None` (which degrades a versioned
             // fold to the dialect-invariant subset) — it behaves as 9.0+.
-            Some("tcl9.1") => Some(Self::V9_1),
+            "tcl9.1" => Some(Self::V9_1),
             _ => None,
         }
     }

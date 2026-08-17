@@ -89,7 +89,7 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .collect();
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -7250,6 +7250,28 @@ mod const_cmd_subst_set_rhs {
             resolutions_of(&r, "${ns}"),
             ["::tc::setdef"],
             "the folded constant must drive head resolution"
+        );
+    }
+
+    #[test]
+    fn a_vendor_profile_abstains_from_version_sensitive_const_substitution() {
+        // FP guard: iRules has a real Tcl runtime version, but its profile's
+        // const-fold projection is deliberately unknown until versioned
+        // folds are verified for that shell.  The version-sensitive
+        // `format %d 010` therefore must stay unresolved rather than being
+        // folded as Tcl 8.4/9.0 semantics.
+        let src = concat!(
+            "namespace eval tc { proc setdef {a b} { return 1 } }\n",
+            "proc user {} {\n",
+            "    set value [format %d 010]\n",
+            "    ${value}::setdef x y\n",
+            "}\n",
+        );
+        let r = analysis(src, "f5-irules");
+        assert_eq!(
+            resolutions_of(&r, "${value}"),
+            ["::${value}::setdef"],
+            "a version-sensitive vendor fold must abstain"
         );
     }
 

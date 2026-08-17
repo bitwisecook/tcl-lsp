@@ -96,7 +96,7 @@ const IR: &str = "f5-irules";
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     find_taint_warnings_for_cu(&cu, registry, dialect_opt)
 }
 

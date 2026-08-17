@@ -146,7 +146,7 @@ struct Row {
 /// very claim issue #977 is about.
 fn cross_file_call_site_evidence(
     documents: &[InputDocument],
-    dialect_override: Option<&str>,
+    dialect_override: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<CallSiteEvidence> {
     if documents.len() < 2 {
         return None;
@@ -154,7 +154,7 @@ fn cross_file_call_site_evidence(
     let mut known: HashSet<String> = HashSet::new();
     for document in documents {
         let dialect = document.effective_dialect(dialect_override);
-        known.extend(document_proc_names(document, &dialect));
+        known.extend(document_proc_names(document, dialect));
     }
     // Naming several files on one command line asserts they are one program,
     // so an unenumerable dispatch in any of them may reach any of their
@@ -167,8 +167,8 @@ fn cross_file_call_site_evidence(
         let dialect = document.effective_dialect(dialect_override);
         merged.merge_from(&tcl_compiler::unit_scope::scan_source_call_sites(
             &document.source,
-            &registry_for_dialect(&dialect),
-            &dialect,
+            &registry_for_dialect(dialect.name),
+            dialect.name,
             &known,
             &reach,
         ));
@@ -178,10 +178,13 @@ fn cross_file_call_site_evidence(
 
 /// The qualified names of every procedure `document` declares, from the same
 /// [`tcl_compiler::signature_scan`] the analyser and the LSP index use.
-fn document_proc_names(document: &InputDocument, dialect: &str) -> Vec<String> {
+fn document_proc_names(
+    document: &InputDocument,
+    dialect: &tcl_dialect::DialectProfile,
+) -> Vec<String> {
     tcl_compiler::signature_scan::extract_signatures(
         &document.source,
-        &registry_for_dialect(dialect),
+        &registry_for_dialect(dialect.name),
     )
     .procs
     .into_keys()
@@ -198,7 +201,7 @@ fn document_proc_names(document: &InputDocument, dialect: &str) -> Vec<String> {
 /// `(line, column, code)` order; `disabled` removes `--disable`d codes.
 fn collect_rows(
     document: &InputDocument,
-    dialect: &str,
+    dialect: &tcl_dialect::DialectProfile,
     disabled: &HashSet<String>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> Vec<Row> {
@@ -238,14 +241,14 @@ fn collect_rows(
     // compiler-checks pass below.  `LexerConfig::default()` matches what
     // `emit_cfg_ssa_diagnostics` builds for itself, mirroring the server's
     // `set_cu_override` seam in `tcl_lsp_db::file_analysis_incremental`.
-    let registry = registry_for_dialect(dialect);
+    let registry = registry_for_dialect(dialect.name);
     let analysis_cu = std::sync::Arc::new(CompilationUnit::build_with_options(
         source,
         UnitBuildOptions {
             registry: &registry,
             defer_top_level: false,
             config: tcl_lexer::LexerConfig::default(),
-            dialect,
+            dialect: dialect.name,
             external_call_sites,
         },
     ));
@@ -253,9 +256,9 @@ fn collect_rows(
     let file_path = document.path.as_deref().map(|p| p.display().to_string());
     let mut analyser = Analyser::new()
         .with_file_path(file_path)
-        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect));
+        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name));
     analyser.set_cu_override(std::sync::Arc::clone(&analysis_cu));
-    let result = analyser.analyse(source, dialect);
+    let result = analyser.analyse(source, dialect.name);
     for d in &result.diagnostics {
         if disabled.contains(d.code.as_str()) {
             continue;
@@ -277,7 +280,7 @@ fn collect_rows(
     // iRules braces), which coincides with the analyser tail's default for
     // every dialect but `tcl8.4` / `f5-irules` — reuse the unit above when it
     // does, exactly as the server's shared `compilation_unit` query does.
-    let checks_config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    let checks_config = tcl_lexer::LexerConfig::for_dialect(dialect.name);
     let checks_cu = if checks_config == tcl_lexer::LexerConfig::default() {
         std::sync::Arc::clone(&analysis_cu)
     } else {
@@ -287,13 +290,13 @@ fn collect_rows(
                 registry: &registry,
                 defer_top_level: false,
                 config: checks_config,
-                dialect,
+                dialect: dialect.name,
                 external_call_sites,
             },
         ))
     };
     let cu = checks_cu.as_ref();
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let dialect_opt = Some(dialect);
     for d in run_all_checks(cu, &registry, dialect_opt) {
         if d.code.is_optimisation() || disabled.contains(d.code.as_str()) {
             continue;
@@ -323,14 +326,15 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     let mut problem_count = 0usize;
     let mut diagnostic_count = 0usize;
 
-    let evidence = cross_file_call_site_evidence(&documents, input.dialect.as_deref());
+    let explicit_dialect = input.dialect_profile()?;
+    let evidence = cross_file_call_site_evidence(&documents, explicit_dialect);
     for document in &documents {
-        let dialect = document.effective_dialect(input.dialect.as_deref());
-        let declared = document_proc_names(document, &dialect);
+        let dialect = document.effective_dialect(explicit_dialect);
+        let declared = document_proc_names(document, dialect);
         let slice = evidence
             .as_ref()
             .map(|all| all.slice_for(declared.iter().map(String::as_str)));
-        let rows = collect_rows(document, &dialect, &disabled, slice.as_ref());
+        let rows = collect_rows(document, dialect, &disabled, slice.as_ref());
         let mut items = Vec::with_capacity(rows.len());
         for r in rows {
             diagnostic_count += 1;
@@ -385,14 +389,15 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     let disabled = resolve_disabled(&diag.disable, &diag.enable);
 
     let mut errors: Vec<ValidateError> = Vec::new();
-    let evidence = cross_file_call_site_evidence(&documents, input.dialect.as_deref());
+    let explicit_dialect = input.dialect_profile()?;
+    let evidence = cross_file_call_site_evidence(&documents, explicit_dialect);
     for document in &documents {
-        let dialect = document.effective_dialect(input.dialect.as_deref());
-        let declared = document_proc_names(document, &dialect);
+        let dialect = document.effective_dialect(explicit_dialect);
+        let declared = document_proc_names(document, dialect);
         let slice = evidence
             .as_ref()
             .map(|all| all.slice_for(declared.iter().map(String::as_str)));
-        for r in collect_rows(document, &dialect, &disabled, slice.as_ref()) {
+        for r in collect_rows(document, dialect, &disabled, slice.as_ref()) {
             if r.severity == Severity::Error {
                 errors.push(ValidateError {
                     file: document.label.clone(),

@@ -60,15 +60,14 @@ pub fn optimise(source: &str, registry: &CommandRegistry) -> Vec<Optimisation> {
 pub fn optimise_with_dialect(
     source: &str,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
-    let cu = CompilationUnit::build_for_with_config(
-        source,
-        registry,
-        false,
-        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
-    )
-    .with_interprocedural(registry, dialect);
+    let profile = match dialect {
+        Some(profile) => profile,
+        None => tcl_dialect::DialectProfile::plain_tcl(),
+    };
+    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
+        .with_interprocedural(registry, dialect);
     optimise_unit(&cu, registry, dialect)
 }
 
@@ -83,7 +82,7 @@ pub fn optimise_with_dialect(
 pub fn optimise_unit(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let raw = optimise_unit_raw(cu, registry, dialect);
     finalise_optimisations(&raw, cu, registry, dialect)
@@ -132,7 +131,7 @@ fn sort_optimisations(opts: &mut [Optimisation]) {
 fn build_pass_context<'a>(
     cu: &'a CompilationUnit,
     registry: &'a CommandRegistry,
-    dialect: Option<&'a str>,
+    dialect: Option<&'a tcl_dialect::DialectProfile>,
 ) -> PassContext<'a> {
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
@@ -175,7 +174,7 @@ fn build_pass_context<'a>(
 pub fn optimise_unit_raw(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let mut ctx = build_pass_context(cu, registry, dialect);
     run_passes(&mut ctx, cu, &PassId::all());
@@ -201,7 +200,7 @@ pub fn finalise_optimisations(
     raw: &[Optimisation],
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let mut selected = select_non_overlapping(raw);
     // Couple constant propagation with dead-store removal: a `set x <const>`
@@ -413,7 +412,7 @@ fn in_string_or_braces(bytes: &[u8], pos: usize) -> bool {
 fn couple_propagated_const_dead_stores(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     selected: &mut Vec<Optimisation>,
 ) {
     if crate::taint::is_irules_dialect(dialect) {
@@ -791,7 +790,7 @@ fn renumber_groups(opts: &mut [Optimisation]) {
 pub fn find_dead_stores(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<DeadStore> {
     let mut ctx = build_pass_context(cu, registry, dialect);
     run_passes(&mut ctx, cu, &PassId::all());
@@ -809,7 +808,7 @@ pub fn find_dead_stores(
 pub fn optimise_by_pass(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<(PassId, Vec<Optimisation>)> {
     let mut ctx = build_pass_context(cu, registry, dialect);
     let mut by_pass = Vec::new();
@@ -821,15 +820,30 @@ pub fn optimise_by_pass(
     by_pass
 }
 
-/// Build, run every pass, and return the full *unfiltered*
-/// optimisation list (no overlap resolution). Exposed mainly for
-/// tests that want to inspect raw per-pass output before the
-/// manager's arbitration.
+/// Compatibility entry point for test and external dialect-name callers.
+///
+/// Typed callers should use [`optimise_raw_for_profile`].
 #[must_use]
 pub fn optimise_raw(
     source: &str,
     registry: &CommandRegistry,
     dialect: Option<&str>,
+) -> Vec<Optimisation> {
+    optimise_raw_for_profile(
+        source,
+        registry,
+        dialect.map(tcl_dialect::DialectProfile::by_name),
+    )
+}
+
+/// Build, run every pass, and return the full *unfiltered* optimisation list
+/// (no overlap resolution) under an already-resolved profile. Exposed mainly
+/// for tests that inspect raw per-pass output before manager arbitration.
+#[must_use]
+pub fn optimise_raw_for_profile(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     // Split the raw CU build to avoid `with_interprocedural`'s taint
     // re-run (irrelevant for `optimise_raw`'s test callers) — but `cu.interproc`
@@ -842,12 +856,12 @@ pub fn optimise_raw(
         source,
         registry,
         false,
-        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
     );
     let object_types = crate::object_types::object_handle_classes(&cu, registry);
     let identities = crate::head_identity::command_head_identities_with_config(
         &cu.source,
-        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
         registry,
     );
     let ia = build_interprocedural_analysis(
@@ -913,7 +927,7 @@ pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> Stri
 pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
     source: &str,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     max_iterations: usize,
     disabled: &std::collections::HashSet<String, S>,
 ) -> (String, Vec<Optimisation>, usize) {
@@ -948,7 +962,7 @@ pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
 pub fn optimise_source_multipass(
     source: &str,
     registry: &CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     max_iterations: usize,
 ) -> (String, Vec<Optimisation>) {
     let mut current = source.to_owned();
@@ -993,7 +1007,11 @@ mod tests {
     #[test]
     fn cross_event_vars_reach_code_sinking_before_elimination() {
         let source = "when HTTP_REQUEST {\n    if {$cond} { set n 1 } else { set n 2 }\n    set flag $n\n    if {$n > 1} { log local0. $flag }\n}\nwhen HTTP_RESPONSE { log local0. $flag }\n";
-        let opts = optimise_with_dialect(source, &registry(), Some("f5-irules"));
+        let opts = optimise_with_dialect(
+            source,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
         assert!(
             opts.iter().all(|opt| {
                 opt.code != DiagCode::O125
@@ -1352,13 +1370,21 @@ mod tests {
     fn dialect_gated_passes_observe_active_dialect() {
         // irules-only O124 should fire when dialect = f5-irules.
         let src = "proc ::dead {} { return 1 }\nwhen HTTP_REQUEST { set x 0 }\n";
-        let opts = optimise_with_dialect(src, &registry(), Some("f5-irules"));
+        let opts = optimise_with_dialect(
+            src,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        );
         assert!(
             opts.iter().any(|o| o.code == DiagCode::O124),
             "expected O124 in irules dialect, got {opts:?}",
         );
         // And should NOT fire for plain tcl.
-        let tcl_opts = optimise_with_dialect(src, &registry(), Some("tcl"));
+        let tcl_opts = optimise_with_dialect(
+            src,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("tcl")),
+        );
         assert!(
             tcl_opts.iter().all(|o| o.code != DiagCode::O124),
             "O124 should be gated on irules dialect, got {tcl_opts:?}",

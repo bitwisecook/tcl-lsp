@@ -89,7 +89,7 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .collect();
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -110,7 +110,7 @@ fn fires(src: &str, dialect: &str, code: &str) -> bool {
 fn all_codes(src: &str, dialect: &str) -> Vec<String> {
     let registry = registry_for_dialect(dialect);
     let cu = CompilationUnit::build_for(src, registry, false);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     let mut v: Vec<String> = Analyser::new()
         .analyse(src, dialect)
         .diagnostics
@@ -134,7 +134,7 @@ fn all_codes(src: &str, dialect: &str) -> Vec<String> {
 /// Copied from `src/analyser/diagnostics/fp/rch.rs::o107_fires`.
 fn o107_fires(src: &str, dialect: &str) -> bool {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code == DiagCode::O107)
@@ -143,7 +143,7 @@ fn o107_fires(src: &str, dialect: &str) -> bool {
 /// True if any optimisation with `code` fires on `src`.
 fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code.as_str() == code)

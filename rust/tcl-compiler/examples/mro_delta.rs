@@ -52,6 +52,7 @@ use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::analyser::types::{ClassDef, Diagnostic};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_core_types::DiagCode;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 
 fn collect_tcl_files(root: &Path, out: &mut Vec<PathBuf>) {
@@ -93,8 +94,8 @@ fn analyse_file(path: &Path, reg: &CommandRegistry) -> Option<FileData> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut a = Analyser::new();
         let result = a.analyse(&src, "tcl8.6");
-        let cu =
-            CompilationUnit::build_for(&src, reg, false).with_interprocedural(reg, Some("tcl8.6"));
+        let cu = CompilationUnit::build_for(&src, reg, false)
+            .with_interprocedural(reg, Some(DialectProfile::by_name("tcl8.6")));
         let ns = NsContext::from_result(&result);
         FileData {
             path: path.to_path_buf(),

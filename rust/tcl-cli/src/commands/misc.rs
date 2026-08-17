@@ -84,12 +84,12 @@ struct LegacyPayload {
 /// `tcl find-legacy` — report legacy patterns eligible for modernisation.
 pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
 
     let result = Analyser::new()
-        .with_pack_overlay(tcl_cli_support::spec_pack_key(&dialect))
-        .analyse(&source, &dialect);
+        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name))
+        .analyse(&source, dialect.name);
     let line_index = LineIndex::new(&source);
 
     let issues: Vec<LegacyIssue> = result
@@ -113,7 +113,7 @@ pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     if json {
         let payload = LegacyPayload {
             count: issues.len(),
-            dialect: dialect.clone(),
+            dialect: dialect.name.to_owned(),
             issues,
         };
         let rendered = ensure_ascii(&serde_json::to_string_pretty(&payload)?);

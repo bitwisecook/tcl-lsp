@@ -741,7 +741,10 @@ mod compilation_unit_build {
         // The interprocedural pass attaches a summary and re-runs taint on every
         // unit; the unit must still be well-formed afterwards.
         let cu = build("proc src {} { return [exec cat /etc/passwd] }\nproc f {} { set x [src] }")
-            .with_interprocedural(registry_for_dialect(D), Some(D));
+            .with_interprocedural(
+                registry_for_dialect(D),
+                Some(tcl_dialect::DialectProfile::by_name(D)),
+            );
         assert!(
             cu.interproc.is_some(),
             "interproc summary must be populated"

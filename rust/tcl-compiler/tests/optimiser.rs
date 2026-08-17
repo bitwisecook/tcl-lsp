@@ -62,7 +62,7 @@ const TCL: &str = "tcl8.6";
 /// Every `Oxxx` code emitted by a single optimiser pass over `src`.
 fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     optimise_with_dialect(src, registry, d)
         .iter()
         .map(|o| o.code.as_str().to_owned())
@@ -77,14 +77,14 @@ fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
 /// Apply all (non-hint) optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
 /// `(code, replacement)` pairs from the optimiser for `src`.
 fn opt_rewrites(src: &str, dialect: &str) -> Vec<(String, String)> {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     optimise_with_dialect(src, registry, d)
         .into_iter()
         .map(|o| (o.code.as_str().to_owned(), o.replacement.clone()))
@@ -137,7 +137,7 @@ fn propagation_and_constant_folding_core() {
     let (reassign_out, _) = optimise_source_multipass(
         "set a 1\nset a 5\nset b [expr {$a + 2}]",
         registry,
-        Some(TCL),
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
         10,
     );
     assert_eq!(reassign_out.trim_start_matches('\n'), "set b 7");
@@ -488,10 +488,12 @@ fn irules_word_operators_fold_through_sccp() {
     // A known-constant subject: the lattice resolves `$x` to `abcde` and the
     // word operator folds, collapsing the condition to a literal.
     let contains = "when HTTP_REQUEST {\n    set x \"abcde\"\n    if {$x contains \"cd\"} {\n        pool p1\n    }\n}";
+    let contains_out = optimised(contains, IR);
     assert!(
-        optimised(contains, IR).contains("if {1}"),
-        "`contains` on a known constant must fold under f5-irules; got {:?}",
-        optimised(contains, IR)
+        opt_fires(contains, IR, "O112")
+            && contains_out.contains("pool p1")
+            && !contains_out.contains("contains"),
+        "`contains` on a known constant must fold under f5-irules; got {contains_out:?}"
     );
     // Control: `eq`, an operator plain Tcl shares, folds on the identical
     // shape — the two dialect halves now agree.
@@ -500,10 +502,12 @@ fn irules_word_operators_fold_through_sccp() {
 
     // A provably-false subject folds the other way.
     let miss = "when HTTP_REQUEST {\n    set x \"abcde\"\n    if {$x contains \"zz\"} {\n        pool p1\n    }\n}";
+    let miss_out = optimised(miss, IR);
     assert!(
-        optimised(miss, IR).contains("if {0}"),
-        "a provably-false `contains` must fold to 0; got {:?}",
-        optimised(miss, IR)
+        opt_fires(miss, IR, "O112")
+            && !miss_out.contains("pool p1")
+            && !miss_out.contains("contains"),
+        "a provably-false `contains` must fold to 0; got {miss_out:?}"
     );
 
     // TN: plain Tcl has no word operators, so the same text must not fold —
@@ -639,7 +643,12 @@ fn structure_elimination_nesting_via_multipass() {
     assert!(pass1.contains("set alive 2"));
     assert!(opt_count(nested, TCL, "O112") >= 1);
     let registry = registry_for_dialect(TCL);
-    let (fixed, _) = optimise_source_multipass(nested, registry, Some(TCL), 10);
+    let (fixed, _) = optimise_source_multipass(
+        nested,
+        registry,
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        10,
+    );
     assert!(!fixed.contains("set dead 1"));
     assert!(fixed.contains("set alive 2"));
 }
@@ -1346,10 +1355,14 @@ fn accumulator_hint_o123() {
 
     // The O123 finding is hint-only (informational, not an applied rewrite).
     let registry = registry_for_dialect(TCL);
-    let o123: Vec<_> = optimise_with_dialect(fac, registry, Some(TCL))
-        .into_iter()
-        .filter(|o| o.code.as_str() == "O123")
-        .collect();
+    let o123: Vec<_> = optimise_with_dialect(
+        fac,
+        registry,
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+    )
+    .into_iter()
+    .filter(|o| o.code.as_str() == "O123")
+    .collect();
     assert_eq!(o123.len(), 1);
     assert!(o123[0].hint_only);
 
@@ -1409,10 +1422,14 @@ fn unused_irule_procs_o124() {
     // Multiple unused procs ⇒ two O124, naming each.
     let multi = "proc used {} {\n    return 1\n}\n\nproc unused_a {} {\n    return 2\n}\n\nproc unused_b {} {\n    return 3\n}\n\nwhen HTTP_REQUEST {\n    set val [call used]\n}";
     let registry = registry_for_dialect(IR);
-    let o124s: Vec<_> = optimise_with_dialect(multi, registry, Some(IR))
-        .into_iter()
-        .filter(|o| o.code.as_str() == "O124")
-        .collect();
+    let o124s: Vec<_> = optimise_with_dialect(
+        multi,
+        registry,
+        Some(tcl_dialect::DialectProfile::by_name(IR)),
+    )
+    .into_iter()
+    .filter(|o| o.code.as_str() == "O124")
+    .collect();
     assert_eq!(o124s.len(), 2);
     assert!(o124s.iter().any(|o| o.message.contains("unused_a")));
     assert!(o124s.iter().any(|o| o.message.contains("unused_b")));
@@ -1575,7 +1592,12 @@ fn multipass_string_build_collapses_to_literal() {
     // tclsh: the proc returns "Hello World" either way.
     let registry = registry_for_dialect(TCL);
     let src = "proc build_banner {} {\n    set msg {Hello}\n    append msg { }\n    append msg World\n    return $msg\n}\n";
-    let (out, _) = optimise_source_multipass(src, registry, Some(TCL), 10);
+    let (out, _) = optimise_source_multipass(
+        src,
+        registry,
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        10,
+    );
     assert!(out.contains("return {Hello World}"));
     assert!(!out.contains("append"));
     assert!(!out.contains("set msg"));
@@ -1592,7 +1614,14 @@ mod cross_event_dse {
 
     fn optimised(src: &str) -> String {
         let reg = registry_for_dialect("f5-irules");
-        apply_optimisations(src, &optimise_with_dialect(src, reg, Some("f5-irules")))
+        apply_optimisations(
+            src,
+            &optimise_with_dialect(
+                src,
+                reg,
+                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            ),
+        )
     }
 
     #[test]
@@ -1763,14 +1792,20 @@ fn gvn_offers_under_sccp(src: &str) -> (usize, usize) {
     let fu = &cu.top_level;
     let executable = &fu.sccp.executable_blocks;
     (
-        tcl_compiler::gvn::find_loop_invariants(registry, &fu.cfg, &fu.ssa, executable, Some(TCL))
-            .len(),
+        tcl_compiler::gvn::find_loop_invariants(
+            registry,
+            &fu.cfg,
+            &fu.ssa,
+            executable,
+            Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        )
+        .len(),
         tcl_compiler::gvn::find_partial_redundancies(
             registry,
             &fu.cfg,
             &fu.ssa,
             executable,
-            Some(TCL),
+            Some(tcl_dialect::DialectProfile::by_name(TCL)),
         )
         .len(),
     )
@@ -1837,12 +1872,21 @@ fn production_gvn_entries_read_the_sccp_executable_fact_issue_1385() {
         "the reproducer must actually contain SCCP-dead blocks"
     );
     assert!(
-        tcl_compiler::gvn::find_loop_invariants_for_function(registry, fu, Some(TCL)).is_empty(),
+        tcl_compiler::gvn::find_loop_invariants_for_function(
+            registry,
+            fu,
+            Some(tcl_dialect::DialectProfile::by_name(TCL))
+        )
+        .is_empty(),
         "O106 must not fire inside SCCP-dead code"
     );
     assert!(
-        tcl_compiler::gvn::find_partial_redundancies_for_function(registry, fu, Some(TCL))
-            .is_empty(),
+        tcl_compiler::gvn::find_partial_redundancies_for_function(
+            registry,
+            fu,
+            Some(tcl_dialect::DialectProfile::by_name(TCL))
+        )
+        .is_empty(),
         "O105-PRE must not fire inside SCCP-dead code"
     );
 }

@@ -76,10 +76,14 @@ fn line_of(line_index: &LineIndex, offset: u32) -> u32 {
 ///
 /// Runs unconditionally (every dialect),
 /// each entry at depth 0 with its 1-based line.
-fn detect_event_entries(source: &str, line_index: &LineIndex, dialect: &str) -> Vec<SymbolEntry> {
-    let registry = registry_for_dialect(dialect);
+fn detect_event_entries(
+    source: &str,
+    line_index: &LineIndex,
+    dialect: &tcl_dialect::DialectProfile,
+) -> Vec<SymbolEntry> {
+    let registry = registry_for_dialect(dialect.name);
     let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, &registry);
+        tcl_compiler::head_identity::command_head_identities(source, dialect.name, &registry);
     let mut entries = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for handler in tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
@@ -164,14 +168,14 @@ fn collect_scope_entries(
 /// iRules `when` events) across the combined input.
 pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let result = Analyser::new()
-        .with_pack_overlay(tcl_cli_support::spec_pack_key(&dialect))
-        .analyse(&source, &dialect);
+        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name))
+        .analyse(&source, dialect.name);
     let line_index = LineIndex::new(&source);
 
-    let mut entries = detect_event_entries(&source, &line_index, &dialect);
+    let mut entries = detect_event_entries(&source, &line_index, dialect);
     collect_scope_entries(&result.global_scope, 0, &line_index, &mut entries);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
@@ -179,7 +183,7 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     if json {
         let payload = SymbolsPayload {
             count: entries.len(),
-            dialect: dialect.clone(),
+            dialect: dialect.name.to_owned(),
             inputs: documents.iter().map(|d| d.label.clone()).collect(),
             symbols: entries,
         };
@@ -279,9 +283,9 @@ fn append_symbolgraph_scope(lines: &mut Vec<String>, scope: &Value, depth: usize
 /// `tcl symbolgraph` — scope hierarchy with proc/variable references.
 pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let data = graphs::symbol_graph(&source, &dialect);
+    let data = graphs::symbol_graph(&source, dialect.name);
 
     let summary = data.get("summary").cloned().unwrap_or_else(|| json!({}));
     let count = |key: &str| summary.get(key).and_then(Value::as_i64).unwrap_or(0);
@@ -316,10 +320,10 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
 #[allow(clippy::similar_names)] // caller / callee mirror the domain
 pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&dialect);
-    let data = graphs::call_graph(&source, &registry, &dialect);
+    let registry = registry_for_dialect(dialect.name);
+    let data = graphs::call_graph(&source, &registry, dialect.name);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -405,10 +409,10 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 /// side-effect classification.
 pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&dialect);
-    let data = graphs::dataflow_graph(&source, &registry, &dialect);
+    let registry = registry_for_dialect(dialect.name);
+    let data = graphs::dataflow_graph(&source, &registry, dialect.name);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -456,7 +460,11 @@ mod tests {
     #[test]
     fn event_symbols_use_top_level_rooted_normalised_owner() {
         let source = "::when http_request {\n  if {1} { :::when client_data {} }\n}";
-        let entries = detect_event_entries(source, &LineIndex::new(source), "f5-irules");
+        let entries = detect_event_entries(
+            source,
+            &LineIndex::new(source),
+            tcl_dialect::DialectProfile::irules(),
+        );
         assert_eq!(
             entries
                 .iter()
@@ -469,7 +477,11 @@ mod tests {
     #[test]
     fn event_symbols_ignore_inert_braced_and_quoted_when_text() {
         let source = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
-        let entries = detect_event_entries(source, &LineIndex::new(source), "f5-irules");
+        let entries = detect_event_entries(
+            source,
+            &LineIndex::new(source),
+            tcl_dialect::DialectProfile::irules(),
+        );
         assert_eq!(
             entries
                 .iter()

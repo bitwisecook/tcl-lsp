@@ -84,11 +84,11 @@ pub fn run_format(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&dialect);
+    let registry = registry_for_dialect(dialect.name);
 
-    let config = format_config(&dialect, indent_size, indent_style, max_line_length);
+    let config = format_config(dialect.name, indent_size, indent_style, max_line_length);
 
     // `formatting_with` returns a single whole-document edit, or an empty Vec
     // when the source is already canonical.
@@ -100,7 +100,13 @@ pub fn run_format(
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(&target, &formatted, use_colour, DEFAULT_TAB_WIDTH, &dialect)?;
+    write_highlighted_output(
+        &target,
+        &formatted,
+        use_colour,
+        DEFAULT_TAB_WIDTH,
+        dialect.name,
+    )?;
     Ok(0)
 }
 
@@ -116,9 +122,9 @@ pub fn run_opt(
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&dialect);
+    let registry = registry_for_dialect(dialect.name);
 
     let profile = OptimisationProfile::parse(profile);
     let mut disabled: HashSet<String> = profile_to_disabled(profile)
@@ -148,7 +154,7 @@ pub fn run_opt(
     let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
         &source,
         &registry,
-        Some(dialect.as_str()),
+        Some(dialect),
         profile.max_iterations(),
         &disabled,
     );
@@ -172,7 +178,13 @@ pub fn run_opt(
     }
 
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, &dialect)?;
+    write_highlighted_output(
+        &target,
+        &rendered,
+        use_colour,
+        DEFAULT_TAB_WIDTH,
+        dialect.name,
+    )?;
 
     if !target.is_stdout() {
         eprintln!(
@@ -239,27 +251,38 @@ pub fn run_minify(
         isolated,
     } = options;
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let dialect = combined_effective_dialect(&documents, input.dialect.as_deref());
+    let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(&dialect);
+    let registry = registry_for_dialect(dialect.name);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
 
     let (rendered, map) = match tier {
         MinifyTier::Aggressive => {
-            let result =
-                minify_tcl_aggressive_with(&source, &dialect, isolated, &registry, abbreviations);
+            let result = minify_tcl_aggressive_with(
+                &source,
+                dialect.name,
+                isolated,
+                &registry,
+                abbreviations,
+            );
             (result.source, Some(result.symbol_map))
         }
         MinifyTier::Compact => {
-            let (minified, sm) = minify_tcl_compact(&source, &dialect, isolated, &registry);
+            let (minified, sm) = minify_tcl_compact(&source, dialect.name, isolated, &registry);
             (minified, Some(sm))
         }
-        MinifyTier::Default => (minify_tcl(&source, &dialect, &registry), None),
+        MinifyTier::Default => (minify_tcl(&source, dialect.name, &registry), None),
     };
 
-    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, &dialect)?;
+    write_highlighted_output(
+        &target,
+        &rendered,
+        use_colour,
+        DEFAULT_TAB_WIDTH,
+        dialect.name,
+    )?;
 
     if let Some(path) = symbol_map {
         // Always honour `--symbol-map FILE`, even for plain minify (which does

@@ -352,7 +352,9 @@ impl Analyser {
         // overflow is separately bounded by the lowering depth guards;
         // `catch_unwind` cannot contain a SIGABRT.)
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let dialect_opt = dialect_owned.as_deref();
+            let dialect_opt = dialect_owned
+                .as_deref()
+                .and_then(tcl_dialect::DialectProfile::find);
             // Build under the analyser's own dialect, not a blind default: the
             // lowering needs it to parse a dialect-only operator (an iRules
             // `contains` condition) as an operator, and the lattice pipeline
@@ -371,7 +373,7 @@ impl Analyser {
                     registry,
                     defer_top_level: false,
                     config: tcl_lexer::LexerConfig::default(),
-                    dialect: dialect_opt.unwrap_or_default(),
+                    dialect: dialect_opt.map_or("", |profile| profile.name),
                     external_call_sites: None,
                 },
             )
@@ -472,7 +474,7 @@ impl Analyser {
             let ia = crate::interprocedural::build_interprocedural_analysis(
                 &cu.ir_module,
                 registry,
-                Some(self.dialect()),
+                Some(tcl_dialect::DialectProfile::by_name(self.dialect())),
                 crate::interprocedural::ObjectTypeMap::none(),
                 &self.head_identities,
             );

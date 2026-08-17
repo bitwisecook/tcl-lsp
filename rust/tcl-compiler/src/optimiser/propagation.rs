@@ -160,7 +160,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 fn statement_may_have_untracked_effects(
     stmt: &Statement,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     traced: &std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
 ) -> bool {
@@ -478,7 +478,6 @@ fn report_load_forward(
 fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     use crate::memory_ssa::compute_aliases;
     use std::collections::BTreeSet;
-    use tcl_dialect::DialectProfile;
 
     // Like O102, O127 moves a value across statements. A dynamic or opaque
     // variable name can change either the stored name or a name read by the
@@ -494,10 +493,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Aliasing facts depend on the selected registry profile. Without an
     // explicit profile this optimisation cannot prove its alias safety gate,
     // so it abstains rather than interpreting every dialect at once.
-    let Some(dialect) = ctx
-        .dialect
-        .map(|name| DialectProfile::by_name(name).availability_mask)
-    else {
+    let Some(dialect) = ctx.dialect.map(|profile| profile.availability_mask) else {
         return;
     };
 
@@ -2079,7 +2075,8 @@ fn try_fold_return_terminator(
                 .strip_prefix('{')
                 .and_then(|b| b.strip_suffix('}'))
                 .unwrap_or(body);
-            let body_node = crate::expr_parser::parse_expr(body, ctx.dialect);
+            let body_node =
+                crate::expr_parser::parse_expr(body, ctx.dialect.map(|profile| profile.name));
             if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(&body_node, procedures)
                 && let Some(folded) =
                     super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
@@ -2185,7 +2182,7 @@ fn try_substitute_assign_expr(
     // the substituted expression is fully constant we can emit
     // the unwrapped ``set name VALUE`` form directly. Otherwise
     // keep the expression wrapper around the substituted text.
-    let parsed = parse_expr(&result.text, ctx.dialect);
+    let parsed = parse_expr(&result.text, ctx.dialect.map(|profile| profile.name));
     let env = Env::new();
     let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if let Some(val) = eval_tcl_expr_with_octal_and_dialect(&parsed, &env, octal, ctx.dialect) {
@@ -2279,7 +2276,7 @@ fn try_o101_expr_arg_fold(
     // `::tcl::mathfunc::<name>` proc anywhere in the module means folding
     // it would use builtin semantics that no longer apply.
     if super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(
-        &crate::expr_parser::parse_expr(body, ctx.dialect),
+        &crate::expr_parser::parse_expr(body, ctx.dialect.map(|profile| profile.name)),
         procedures,
     ) {
         return None;
@@ -2446,7 +2443,7 @@ fn try_o103_proc_fold(
             callee,
             &summary.params,
             &args,
-            crate::tcl_expr_eval::FoldPolicy::for_dialect(
+            crate::tcl_expr_eval::FoldPolicy::for_profile(
                 ctx.dialect
                     .and_then(crate::tcl_expr_eval::leading_zero_is_octal),
                 ctx.dialect,
@@ -2499,7 +2496,7 @@ fn try_o129_fold(
     mutations: &crate::command_binding::ModuleCommandMutations,
     constants: &std::collections::HashMap<String, String>,
     inner: &str,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     oo: Option<&OoFrame>,
 ) -> Option<String> {
     let folded = fold_builtin_cmd_subst_raw(registry, mutations, constants, inner, dialect, oo)?;
@@ -2526,14 +2523,14 @@ fn fold_builtin_cmd_subst_raw(
     mutations: &crate::command_binding::ModuleCommandMutations,
     constants: &std::collections::HashMap<String, String>,
     inner: &str,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     oo: Option<&OoFrame>,
 ) -> Option<String> {
     let trusts = |name: &str| mutations.trusts(name);
     let lookup = |name: &str| constants.get(name).cloned();
     crate::const_subst::ConstSubstCtx {
         registry,
-        dialect,
+        version: dialect.and_then(tcl_dialect::DialectProfile::const_fold_version),
         defining_class: oo.map(|f| f.defining_class.as_str()),
         trusts: &trusts,
         lookup_var: &lookup,
@@ -2551,14 +2548,14 @@ fn literal_words(
     constants: &std::collections::HashMap<String, String>,
     registry: &tcl_registry::CommandRegistry,
     mutations: &crate::command_binding::ModuleCommandMutations,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     oo: Option<&OoFrame>,
 ) -> Option<Vec<String>> {
     let trusts = |name: &str| mutations.trusts(name);
     let lookup = |name: &str| constants.get(name).cloned();
     crate::const_subst::ConstSubstCtx {
         registry,
-        dialect,
+        version: dialect.and_then(tcl_dialect::DialectProfile::const_fold_version),
         defining_class: oo.map(|f| f.defining_class.as_str()),
         trusts: &trusts,
         lookup_var: &lookup,
@@ -3169,10 +3166,14 @@ mod tests {
     /// threaded — needed for the O127 store-to-load-forwarding pass,
     /// which bails without a registry.
     fn o127(source: &str) -> Vec<Optimisation> {
-        crate::optimiser::optimise_raw(source, &registry(), Some("tcl8.6"))
-            .into_iter()
-            .filter(|o| o.code == DiagCode::O127)
-            .collect()
+        crate::optimiser::optimise_raw_for_profile(
+            source,
+            &registry(),
+            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+        )
+        .into_iter()
+        .filter(|o| o.code == DiagCode::O127)
+        .collect()
     }
 
     #[test]

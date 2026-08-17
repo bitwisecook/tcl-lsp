@@ -51,7 +51,7 @@ struct NotFoundPayload {
 /// `tcl command-info` — look up registry metadata for one command.
 pub fn run_command_info(
     command: &str,
-    dialect: &str,
+    dialect: &DialectProfile,
     json: bool,
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
@@ -59,8 +59,7 @@ pub fn run_command_info(
     if query.is_empty() {
         anyhow::bail!("command name is required");
     }
-    let registry = registry_for_dialect(dialect);
-    let profile = DialectProfile::by_name(dialect);
+    let registry = registry_for_dialect(dialect.name);
     let target = OutputTarget::from_arg(output);
 
     // Exact match, then a case-insensitive fallback (mirrors
@@ -68,14 +67,14 @@ pub fn run_command_info(
     // that exists in the data but is unavailable under `dialect` — banned
     // in iRules, version-gated above the profile's base — reports
     // not-found for that dialect.
-    let resolved_name: Option<String> = if profile.resolve_command(&registry, query).is_some() {
+    let resolved_name: Option<String> = if dialect.resolve_command(&registry, query).is_some() {
         Some(query.to_owned())
     } else {
         let lowered = query.to_lowercase();
         registry
             .command_names()
             .find(|c| {
-                c.to_lowercase() == lowered && profile.resolve_command(&registry, c).is_some()
+                c.to_lowercase() == lowered && dialect.resolve_command(&registry, c).is_some()
             })
             .map(str::to_owned)
     };
@@ -85,7 +84,7 @@ pub fn run_command_info(
             let payload = NotFoundPayload {
                 found: false,
                 command: query.to_owned(),
-                dialect: dialect.to_owned(),
+                dialect: dialect.name.to_owned(),
             };
             write_text_output(
                 &target,
@@ -94,13 +93,13 @@ pub fn run_command_info(
         } else {
             write_text_output(
                 &target,
-                &format!("command not found: {query} (dialect={dialect})"),
+                &format!("command not found: {query} (dialect={})", dialect.name),
             )?;
         }
         return Ok(1);
     };
 
-    let spec = profile
+    let spec = dialect
         .resolve_command(&registry, &resolved_name)
         .expect("resolved command spec");
     let summary = spec
@@ -114,7 +113,7 @@ pub fn run_command_info(
         .unwrap_or_default();
     // §5.2 option gating (intersects + version ceiling) — the same rule
     // hover/completion/the snapshot use.
-    let mut switches: Vec<String> = profile
+    let mut switches: Vec<String> = dialect
         .available_option_names(spec)
         .into_iter()
         .map(str::to_owned)
@@ -128,7 +127,7 @@ pub fn run_command_info(
         let payload = FoundPayload {
             found: true,
             command: resolved_name.clone(),
-            dialect: dialect.to_owned(),
+            dialect: dialect.name.to_owned(),
             summary,
             synopsis,
             switches,
@@ -143,7 +142,7 @@ pub fn run_command_info(
 
     let mut lines = vec![
         format!("command: {resolved_name}"),
-        format!("dialect: {dialect}"),
+        format!("dialect: {}", dialect.name),
     ];
     if !summary.is_empty() {
         lines.push(format!("summary: {summary}"));

@@ -1464,7 +1464,12 @@ fn collect_materialisable_slots(
             &function.cfg,
             &function.ssa,
             &function.sccp.values,
-            numbers_for_dialect(unit.ir_module.dialect.as_deref()),
+            numbers_for_dialect(
+                unit.ir_module
+                    .dialect
+                    .as_deref()
+                    .map(tcl_dialect::DialectProfile::by_name),
+            ),
         );
         for key in ssa_value_keys(function, unit.ir_module.procedures.get(qname)) {
             let identity = SsaValueIdentity {

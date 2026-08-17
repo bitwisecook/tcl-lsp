@@ -33,6 +33,7 @@ use std::time::Instant;
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyser::types::{AnalysisResult, Diagnostic};
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 
 fn gather_tcl(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
@@ -301,20 +302,21 @@ fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
         s.elapsed().as_secs_f64() * 1000.0 / f64::from(n)
     };
     let cfg = LexerConfig::for_dialect(dialect);
+    let profile = DialectProfile::by_name(dialect);
     let t_cu = time(&|| {
         let _ = CompilationUnit::build_for_with_config(&src, &reg, false, cfg);
     });
     let t_cu_ip = time(&|| {
         let _ = CompilationUnit::build_for_with_config(&src, &reg, false, cfg)
-            .with_interprocedural(&reg, Some(dialect));
+            .with_interprocedural(&reg, Some(profile));
     });
     let t_checks = time(&|| {
         let cu = CompilationUnit::build_for_with_config(&src, &reg, false, cfg)
-            .with_interprocedural(&reg, Some(dialect));
-        let _ = run_all_checks(&cu, &reg, Some(dialect));
+            .with_interprocedural(&reg, Some(profile));
+        let _ = run_all_checks(&cu, &reg, Some(profile));
     });
     let t_opt = time(&|| {
-        let _ = optimise_with_dialect(&src, &reg, Some(dialect));
+        let _ = optimise_with_dialect(&src, &reg, Some(profile));
     });
     let nprocs = CompilationUnit::build_for_with_config(&src, &reg, false, cfg)
         .procedures

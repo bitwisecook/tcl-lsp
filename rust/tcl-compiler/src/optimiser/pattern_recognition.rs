@@ -135,10 +135,12 @@ const SET_PACK_MIN_GROUP: usize = 3;
 fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
     // Tcl 9.0 prefers individual `set`s; 8.5 / 8.6 get `lassign`; older
     // (and dialect-unset) fall back to the universally-valid `foreach`.
-    if ctx.dialect == Some("tcl9.0") {
+    if ctx.dialect.is_some_and(|profile| profile.name == "tcl9.0") {
         return;
     }
-    let use_lassign = matches!(ctx.dialect, Some("tcl8.5" | "tcl8.6"));
+    let use_lassign = ctx
+        .dialect
+        .is_some_and(|profile| matches!(profile.name, "tcl8.5" | "tcl8.6"));
     let stmts = &script.statements;
 
     let mut i = 0;
@@ -589,7 +591,7 @@ mod tests {
         let mut ctx = super::super::PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
-            Some("tcl8.6"),
+            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
         );
         run(&mut ctx, &cu);
         assert!(
@@ -607,7 +609,7 @@ mod tests {
         let mut ctx = super::super::PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
-            Some("tcl9.0"),
+            Some(tcl_dialect::DialectProfile::by_name("tcl9.0")),
         );
         run(&mut ctx, &cu);
         assert!(

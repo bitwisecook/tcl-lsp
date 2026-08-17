@@ -851,7 +851,7 @@ impl FunctionUnit {
         &self,
         registry: &CommandRegistry,
         ia: &InterproceduralAnalysis,
-        dialect: Option<&str>,
+        dialect: Option<&tcl_dialect::DialectProfile>,
     ) -> HashMap<ValueKey, TaintLattice> {
         propagate_taints(
             &TaintGraph::new(&self.cfg, &self.ssa, &self.sccp),
@@ -1285,8 +1285,9 @@ impl CompilationUnit {
         )
     }
 
-    /// Build for a document whose dialect is known — the entry point every
-    /// production consumer holding a dialect string should use.
+    /// Compatibility entry point for a host which has not yet resolved its
+    /// dialect name. New compiler-facing callers should resolve at their
+    /// boundary and use [`Self::build_for_profile`].
     ///
     /// Derives the lexer config from `dialect`
     /// ([`tcl_lexer::LexerConfig::for_dialect`]) *and* records the dialect in
@@ -1304,13 +1305,51 @@ impl CompilationUnit {
         defer_top_level: bool,
         dialect: &str,
     ) -> Self {
+        let profile = tcl_dialect::DialectProfile::by_name(dialect);
+        // Most names canonicalise through the profile catalogue.  Additive
+        // set-only names (currently `tk`) intentionally resolve to the plain
+        // fallback profile, though, so retain the recognized ingress spelling
+        // long enough for `build_with` to parse its semantic dialect bit.
+        let effective_dialect =
+            if profile.is_fallback() && tcl_dialect::DialectSet::parse(dialect).is_some() {
+                dialect
+            } else {
+                profile.name
+            };
         Self::build_with(
             source,
             UnitBuildOptions {
                 registry,
                 defer_top_level,
-                config: tcl_lexer::LexerConfig::for_dialect(dialect),
-                dialect,
+                config: tcl_lexer::LexerConfig::for_dialect(effective_dialect),
+                dialect: effective_dialect,
+                external_call_sites: None,
+            },
+            None,
+            None,
+        )
+    }
+
+    /// Build for an already-resolved dialect profile.
+    ///
+    /// Keeping the profile through this boundary prevents an alias spelling
+    /// from selecting a lexer configuration different from the lowering and
+    /// analysis facts. The string compatibility wrapper above resolves once
+    /// and delegates here.
+    #[must_use]
+    pub fn build_for_profile(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+        profile: &tcl_dialect::DialectProfile,
+    ) -> Self {
+        Self::build_with(
+            source,
+            UnitBuildOptions {
+                registry,
+                defer_top_level,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: profile.name,
                 external_call_sites: None,
             },
             None,
@@ -1691,7 +1730,7 @@ impl CompilationUnit {
     pub fn with_interprocedural(
         mut self,
         registry: &CommandRegistry,
-        dialect: Option<&str>,
+        dialect: Option<&tcl_dialect::DialectProfile>,
     ) -> Self {
         // Object-handle → class map (SSA/VTA-derived) so a `$g walk … -command
         // cb` instance-method callback becomes a call-graph / reachability edge.
@@ -1700,7 +1739,7 @@ impl CompilationUnit {
         // classifies a rebound head as the command it is (issue #1275).
         let identities = crate::head_identity::command_head_identities_with_config(
             &self.source,
-            tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+            tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
             registry,
         );
         let interproc = crate::interprocedural::build_interprocedural_analysis(
@@ -1761,7 +1800,7 @@ impl CompilationUnit {
     pub fn with_interprocedural_memoized(
         mut self,
         registry: &CommandRegistry,
-        dialect: Option<&str>,
+        dialect: Option<&tcl_dialect::DialectProfile>,
         taint_cb: &mut TaintCascadeCallback<'_>,
     ) -> Self {
         let object_types = crate::object_types::object_handle_classes(&self, registry);
@@ -1769,7 +1808,7 @@ impl CompilationUnit {
         // classifies a rebound head as the command it is (issue #1275).
         let identities = crate::head_identity::command_head_identities_with_config(
             &self.source,
-            tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+            tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
             registry,
         );
         let interproc = crate::interprocedural::build_interprocedural_analysis(

@@ -297,12 +297,14 @@ impl Analyser {
         // Evaluated one gate at a time (rather than as one `||` chain) so the
         // telemetry can name which fired — these are checked in cheapest-first
         // order, so the split costs nothing.
+        let profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
         let entry_gate = if tcl_lexer::script_is_complete(source) {
             if source.contains("tcl-lsp: stub") {
                 Some(PerItemFallback::StubDirective)
-            } else if super::utils::has_sidecar_stubs(self.file_path.as_deref(), dialect) {
+            } else if super::utils::has_sidecar_stubs(self.file_path.as_deref(), profile) {
                 Some(PerItemFallback::SidecarStub)
-            } else if dialect == "tk" {
+            } else if availability.contains(tcl_dialect::DialectSet::TK) {
                 Some(PerItemFallback::TkActive)
             } else {
                 None
@@ -442,7 +444,8 @@ impl Analyser {
         self.profile = tcl_dialect::DialectProfile::by_name(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_dialect = dialect == "tk";
+        self.tk_dialect = tcl_dialect::DialectProfile::availability_for_name(dialect)
+            .contains(tcl_dialect::DialectSet::TK);
         // The per-item path deliberately accumulates **no** Tk state, unlike
         // `analyse` / `analyse_chunked` / `analyse_commands`.  Everything the
         // accumulation feeds is discarded unless Tk turns out to be active, and

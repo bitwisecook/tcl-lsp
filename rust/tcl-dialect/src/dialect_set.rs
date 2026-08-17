@@ -233,7 +233,11 @@ impl DialectSet {
             "tcl8.6" => Self::TCL86,
             "tcl9.0" => Self::TCL90,
             "tcl9.1" => Self::TCL91,
-            "f5-irules" => Self::IRULES,
+            // Keep historic iRules spellings at this ingress boundary. The
+            // typed set is passed through compiler and registry APIs, so an
+            // alias cannot survive far enough for a security gate to disagree
+            // with the profile catalogue.
+            "f5-irules" | "irules" | "tcl-irule" => Self::IRULES,
             "f5-iapps" => Self::IAPPS,
             "tk" => Self::TK,
             "expect" => Self::EXPECT,
@@ -564,6 +568,15 @@ mod tests {
         assert!(!DialectSet::is_irules_dialect(Some("f5-iapps")));
         assert!(!DialectSet::is_irules_dialect(Some("f5-bigip")));
         assert!(!DialectSet::is_irules_dialect(None));
+    }
+
+    #[test]
+    fn parse_canonicalises_irules_aliases() {
+        for spelling in ["f5-irules", "irules", "tcl-irule"] {
+            let dialect = DialectSet::parse(spelling).expect("registered iRules spelling");
+            assert_eq!(dialect, DialectSet::IRULES);
+            assert_eq!(dialect.canonical_name(), Some("f5-irules"));
+        }
     }
 
     #[test]

@@ -83,6 +83,18 @@ pub struct InputArgs {
     pub output: Option<PathBuf>,
 }
 
+impl InputArgs {
+    /// Resolve the optional CLI spelling once at the ingest boundary.
+    ///
+    /// Every verb receives the canonical profile, so aliases such as
+    /// `irules` cannot leak into string-keyed downstream checks.
+    pub fn dialect_profile(
+        &self,
+    ) -> Result<Option<&'static tcl_dialect::DialectProfile>, tcl_cli_support::CliError> {
+        tcl_cli_support::resolve_dialect(self.dialect.as_deref())
+    }
+}
+
 /// Paired `--colour` / `--no-colour` toggle (resolved against config + TTY).
 #[derive(Debug, Args)]
 pub struct ColourArgs {

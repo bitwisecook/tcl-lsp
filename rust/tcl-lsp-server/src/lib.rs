@@ -4395,6 +4395,36 @@ pub struct Backend {
     store: Arc<dyn vfs::SourceStore>,
 }
 
+/// A known editor language ID after its ingress spelling has been resolved.
+///
+/// Most IDs map to a full catalog profile; `tk` is a library-shell dialect
+/// represented directly by its singleton [`DialectSet`] bit until the catalog
+/// grows a dedicated profile. Keeping both cases typed prevents the language
+/// ID table from leaking a raw dialect string into server routing.
+#[derive(Clone, Copy)]
+enum LanguageDialect {
+    Profile(&'static tcl_dialect::DialectProfile),
+    Set(DialectSet),
+}
+
+impl LanguageDialect {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Profile(profile) => profile.name,
+            Self::Set(set) => set
+                .canonical_name()
+                .expect("language-id dialect sets are singleton bits"),
+        }
+    }
+
+    fn is_explicit_non_tcl(self) -> bool {
+        match self {
+            Self::Profile(profile) => !profile.name.starts_with("tcl"),
+            Self::Set(_) => true,
+        }
+    }
+}
+
 /// Every per-document-URI cache [`Backend`] holds, borrowed as one group.
 ///
 /// Built only by [`Backend::per_uri_caches`] — whose exhaustive destructuring of
@@ -5964,7 +5994,7 @@ impl Backend {
         // harness open ``bigip.conf`` with ``languageId: "tcl"`` and still
         // get the BIG-IP path (parse / outline + general-Tcl-diagnostic
         // suppression).
-        let explicit_non_tcl = matches!(lang_dialect, Some(d) if !d.starts_with("tcl"));
+        let explicit_non_tcl = lang_dialect.is_some_and(LanguageDialect::is_explicit_non_tcl);
         if !explicit_non_tcl && core_bigip::is_bigip_conf_name(uri.as_str()) {
             return "f5-bigip".to_owned();
         }
@@ -6014,7 +6044,7 @@ impl Backend {
         if language_id != "tcl"
             && let Some(d) = lang_dialect
         {
-            return d.to_owned();
+            return d.name().to_owned();
         }
         if let Some(d) = folder_dialect_for(uri, folder_dialects) {
             return d;
@@ -6026,7 +6056,8 @@ impl Backend {
     /// signal every BIG-IP-specific branch (analysis suppression,
     /// config outline) keys on.
     fn is_bigip_dialect(dialect: &str) -> bool {
-        dialect == "f5-bigip"
+        tcl_dialect::DialectProfile::find(dialect)
+            .is_some_and(|profile| profile.availability_mask.contains(DialectSet::BIGIP))
     }
 
     /// Look up the per-folder dialect override for `uri`,
@@ -6037,7 +6068,7 @@ impl Backend {
     }
 
     /// Map an LSP ``languageId`` string to a dialect name accepted
-    /// by ``DialectSet::parse`` / the providers' ``dialect`` arg.
+    /// by the dialect catalog / the providers' ``dialect`` arg.
     ///
     /// Recognises the editor-extension language ids
     /// (``tcl-irule`` → ``f5-irules``, etc.) plus the canonical
@@ -6045,7 +6076,7 @@ impl Backend {
     /// (``f5-irules``, ``tcl9.0``, …).  Returns ``None`` when the
     /// language id does not name a known dialect — the caller falls
     /// back to the session default.
-    fn dialect_from_language_id(language_id: &str) -> Option<&'static str> {
+    fn dialect_from_language_id(language_id: &str) -> Option<LanguageDialect> {
         // Group editor language ids alongside the canonical dialect
         // name they map to so callers in either world land on the
         // string the registry / provider trait expects.
@@ -6086,15 +6117,12 @@ impl Backend {
             "tk" => "tk",
             _ => return None,
         };
-        // Sanity-check the mapped string is something the registry accepts;
-        // guards against typos in the table. A catalog profile (the EDA shells
-        // included — they are packaged dialects with no DialectSet bit) or a
-        // parseable library shell (`tk`).
-        debug_assert!(
-            tcl_dialect::DialectProfile::find(mapped).is_some()
-                || DialectSet::parse(mapped).is_some()
-        );
-        Some(mapped)
+        // The table is an editor-ID ingress boundary. It resolves straight to
+        // the interned profile so aliases and command consumers cannot retain
+        // a free-text dialect spelling after this point.
+        tcl_dialect::DialectProfile::find(mapped)
+            .map(LanguageDialect::Profile)
+            .or_else(|| DialectSet::parse(mapped).map(LanguageDialect::Set))
     }
 
     /// Barrier: block until every document-sync notification the client sent
@@ -10656,7 +10684,7 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
-            let dialect_opt = Some(dialect.as_str());
+            let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
             let (source, opts) = if profile == "full" {
                 tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
             } else {
@@ -25969,30 +25997,36 @@ mod tests {
     #[test]
     fn dialect_from_language_id_recognises_editor_ids() {
         assert_eq!(
-            Backend::dialect_from_language_id("tcl-irule"),
+            Backend::dialect_from_language_id("tcl-irule").map(LanguageDialect::name),
             Some("f5-irules"),
         );
         assert_eq!(
-            Backend::dialect_from_language_id("tcl-iapp"),
+            Backend::dialect_from_language_id("tcl-iapp").map(LanguageDialect::name),
             Some("f5-iapps"),
         );
         // APL presentation files are an iApp sublanguage → f5-iapps.
         assert_eq!(
-            Backend::dialect_from_language_id("tcl-apl"),
+            Backend::dialect_from_language_id("tcl-apl").map(LanguageDialect::name),
             Some("f5-iapps"),
         );
-        assert_eq!(Backend::dialect_from_language_id("tcl"), Some("tcl8.6"));
+        assert_eq!(
+            Backend::dialect_from_language_id("tcl").map(LanguageDialect::name),
+            Some("tcl8.6")
+        );
     }
 
     #[test]
     fn dialect_from_language_id_passes_through_canonical_names() {
         assert_eq!(
-            Backend::dialect_from_language_id("f5-irules"),
+            Backend::dialect_from_language_id("f5-irules").map(LanguageDialect::name),
             Some("f5-irules"),
         );
-        assert_eq!(Backend::dialect_from_language_id("tcl9.0"), Some("tcl9.0"),);
         assert_eq!(
-            Backend::dialect_from_language_id("synopsys-eda-tcl"),
+            Backend::dialect_from_language_id("tcl9.0").map(LanguageDialect::name),
+            Some("tcl9.0"),
+        );
+        assert_eq!(
+            Backend::dialect_from_language_id("synopsys-eda-tcl").map(LanguageDialect::name),
             Some("synopsys-eda-tcl"),
         );
     }
@@ -26012,12 +26046,12 @@ mod tests {
             ("tcl91", "tcl9.1"),
         ] {
             assert_eq!(
-                Backend::dialect_from_language_id(undotted),
+                Backend::dialect_from_language_id(undotted).map(LanguageDialect::name),
                 Some(dotted),
                 "undotted VS Code language id `{undotted}` should map to dialect `{dotted}`",
             );
             assert_eq!(
-                Backend::dialect_from_language_id(dotted),
+                Backend::dialect_from_language_id(dotted).map(LanguageDialect::name),
                 Some(dotted),
                 "dotted language id `{dotted}` must keep working for non-VS Code editors",
             );
@@ -35233,5 +35267,12 @@ mod tests {
         assert_eq!(cross[0].to.name, "::helper");
         assert_eq!(cross[0].to.uri, lib);
         assert_eq!(cross[0].from_ranges.len(), 1, "{cross:?}");
+    }
+
+    #[test]
+    fn bigip_routing_uses_the_profile_availability_fact() {
+        assert!(Backend::is_bigip_dialect("f5-bigip"));
+        assert!(!Backend::is_bigip_dialect("f5-irules"));
+        assert!(!Backend::is_bigip_dialect("not-a-real-dialect"));
     }
 }

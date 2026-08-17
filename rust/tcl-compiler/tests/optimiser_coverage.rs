@@ -74,7 +74,7 @@ const IR: &str = "f5-irules";
 /// Sorted, de-duplicated `Oxxx` codes emitted by a single optimiser pass.
 fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     let mut v: Vec<String> = optimise_with_dialect(src, registry, d)
         .iter()
         .map(|o| o.code.as_str().to_owned())
@@ -87,7 +87,7 @@ fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
 /// True if any optimisation with `code` fires on `src` under `dialect`.
 fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code.as_str() == code)
@@ -101,14 +101,14 @@ fn opt_absent(src: &str, dialect: &str, code: &str) -> bool {
 /// Apply all optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
 /// True if any emitted code is in `wanted`.
 fn opt_any_of(src: &str, dialect: &str, wanted: &[&str]) -> bool {
     let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then_some(dialect);
+    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| wanted.contains(&o.code.as_str()))
@@ -125,7 +125,12 @@ fn legacy_gvn_codes(src: &str) -> Vec<String> {
     let cu = CompilationUnit::build_for(src, registry, false);
     let mut v: Vec<String> = Vec::new();
     for function in cu.analysable_functions() {
-        for redundancy in find_redundancies(registry, &function.cfg, &function.ssa, Some(TCL)) {
+        for redundancy in find_redundancies(
+            registry,
+            &function.cfg,
+            &function.ssa,
+            Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        ) {
             v.push(redundancy.code.as_str().to_owned());
         }
     }
@@ -194,7 +199,7 @@ fn o100_constant_propagation() {
     let (reassign, _) = optimise_source_multipass(
         "set a 1\nset a 2\nset b [expr {$a + 1}]",
         registry,
-        Some(TCL),
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
         10,
     );
     assert!(reassign.contains("set b 3"));
@@ -1474,7 +1479,12 @@ fn o112_nested_via_multipass() {
     let nested = "if {1} {\n    if {0} {\n        set dead 1\n    }\n    set alive 2\n}";
     assert!(optimised(nested, TCL).contains("set alive 2"));
     let registry = registry_for_dialect(TCL);
-    let (fixed, _) = optimise_source_multipass(nested, registry, Some(TCL), 10);
+    let (fixed, _) = optimise_source_multipass(
+        nested,
+        registry,
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        10,
+    );
     assert!(!fixed.contains("set dead 1"));
     assert!(fixed.contains("set alive 2"));
 }
@@ -1848,7 +1858,11 @@ fn apply_optimisations_edge_cases() {
     // expr span) are permitted before application; `apply_optimisations` resolves
     // them, which the value assertions above already exercise.
     let src = "set a 1\nset b [expr {$a + 2}]\nset c [expr {$a + 3}]";
-    let opts = optimise_with_dialect(src, registry, Some(TCL));
+    let opts = optimise_with_dialect(
+        src,
+        registry,
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+    );
     let starts: Vec<u32> = opts.iter().map(|o| o.span.start()).collect();
     let mut sorted = starts.clone();
     sorted.sort_unstable();
@@ -2325,7 +2339,12 @@ fn profile_directive_and_multipass() {
     // returns "Hello World" either way.
     let registry = registry_for_dialect(TCL);
     let build = "proc build_banner {} {\n    set msg {Hello}\n    append msg { }\n    append msg World\n    return $msg\n}\n";
-    let (mp, _) = optimise_source_multipass(build, registry, Some(TCL), 10);
+    let (mp, _) = optimise_source_multipass(
+        build,
+        registry,
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        10,
+    );
     assert!(mp.contains("return {Hello World}"));
     assert!(!mp.contains("append"));
     assert!(!mp.contains("set msg"));

@@ -582,7 +582,7 @@ static EMPTY_OBJECT_TYPES: std::sync::LazyLock<HashMap<String, HashSet<String>>>
 pub fn build_interprocedural_analysis(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::head_identity::HeadIdentityMap,
 ) -> InterproceduralAnalysis {
@@ -659,7 +659,7 @@ fn build_method_summaries(
     ir_module: &crate::ir::Module,
     known: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     identities: &crate::head_identity::HeadIdentityMap,
     procs: ProcFixpoints<'_>,
 ) -> HashMap<String, MethodSummary> {
@@ -800,7 +800,7 @@ struct MethodScan<'a> {
     mqname: &'a str,
     method_known: &'a HashSet<String>,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: Option<&'a str>,
+    dialect: Option<&'a tcl_dialect::DialectProfile>,
     identities: &'a crate::head_identity::HeadIdentityMap,
 }
 
@@ -990,7 +990,7 @@ fn scan_all_procs(
     ir_module: &crate::ir::Module,
     known: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
     object_types: &HashMap<String, HashSet<String>>,
     identities: &crate::head_identity::HeadIdentityMap,
 ) -> HashMap<String, LocalFacts> {
@@ -1020,7 +1020,7 @@ struct ProcScan<'a> {
     proc: &'a crate::ir::Procedure,
     known: &'a HashSet<String>,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: Option<&'a str>,
+    dialect: Option<&'a tcl_dialect::DialectProfile>,
     object_types: &'a HashMap<String, HashSet<String>>,
     identities: &'a crate::head_identity::HeadIdentityMap,
 }
@@ -1293,7 +1293,7 @@ struct ScanCtx<'a> {
     caller: &'a str,
     known: &'a HashSet<String>,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: Option<&'a str>,
+    dialect: Option<&'a tcl_dialect::DialectProfile>,
     params: &'a HashSet<String>,
     /// Object-handle → candidate class names for this module
     /// ([`crate::object_types::object_handle_classes`]), so a `$g walk …
@@ -1939,7 +1939,7 @@ fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts
     }
     let lexer = tcl_lexer::Lexer::with_source_map(
         tcl_lexer::SourceMap::new(text),
-        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
     );
     let Ok(tokens) = lexer.tokenise_all() else {
         return;
@@ -1984,7 +1984,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
     let commands = crate::segmenter::segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
     );
     for cmd in commands {
         // Skip empty / non-literal command names — they're not
@@ -2515,7 +2515,7 @@ mod tests {
         let ia = build_interprocedural_analysis(
             &ir,
             registry,
-            Some(dialect),
+            Some(tcl_dialect::DialectProfile::by_name(dialect)),
             ObjectTypeMap::none(),
             crate::head_identity::HeadIdentityMap::none(),
         );
@@ -2930,7 +2930,7 @@ mod tests {
             &registry,
             false,
         )
-        .with_interprocedural(&registry, Some("tcl9.0"));
+        .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl9.0")));
         let summary = &cu.interproc.as_ref().expect("interproc").procedures["::build"];
         assert!(
             summary.direct_calls.iter().any(|c| c == "::onNode"),
@@ -3614,7 +3614,7 @@ mod effect_propagation_tests {
             let ia = build_interprocedural_analysis(
                 &module,
                 &reg,
-                Some("f5-irules"),
+                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
                 ObjectTypeMap::none(),
                 crate::head_identity::HeadIdentityMap::none(),
             );
@@ -3631,7 +3631,7 @@ mod effect_propagation_tests {
         let ia = build_interprocedural_analysis(
             &module,
             &reg,
-            Some("f5-irules"),
+            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
             ObjectTypeMap::none(),
             crate::head_identity::HeadIdentityMap::none(),
         );

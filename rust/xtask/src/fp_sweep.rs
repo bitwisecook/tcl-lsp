@@ -475,12 +475,14 @@ fn shape_key(message: &str) -> String {
 /// 3. [`style_diagnostics`] — the pure-text W111/W112/W115/W118 checks,
 ///    which read raw source and are not part of either compiler pass.
 fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing>) {
-    let dialect = doc
+    let profile = doc
         .dialect_override
-        .map_or_else(|| doc.input.effective_dialect(None), str::to_owned);
-    let registry = registry_for_dialect(&dialect);
+        .and_then(tcl_dialect::DialectProfile::find)
+        .unwrap_or_else(|| doc.input.effective_dialect(None));
+    let dialect = profile.name;
+    let registry = registry_for_dialect(dialect);
     let line_index = LineIndex::new(&doc.input.source);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
+    let dialect_opt = Some(profile);
 
     let mut push = |code: DiagCode, span: tcl_lexer::Span, message: String| {
         if !wanted.contains(&code) {
@@ -490,7 +492,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         out.push(Firing {
             code,
             file: doc.input.label.clone(),
-            dialect: dialect.clone(),
+            dialect: dialect.to_owned(),
             line: pos.line + 1 + doc.line_offset,
             column: pos.character.get() + 1,
             message,
@@ -504,14 +506,14 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             registry,
             defer_top_level: false,
             config: tcl_lexer::LexerConfig::default(),
-            dialect: &dialect,
+            dialect,
             external_call_sites: None,
         },
     ));
     let mut analyser =
         Analyser::new().with_file_path(doc.input.path.as_ref().map(|p| p.display().to_string()));
     analyser.set_cu_override(Arc::clone(&analysis_cu));
-    let result = analyser.analyse(&doc.input.source, &dialect);
+    let result = analyser.analyse(&doc.input.source, dialect);
     for d in &result.diagnostics {
         push(d.code, d.span, d.message.clone());
     }
@@ -523,8 +525,8 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_dialect(&dialect),
-            dialect: &dialect,
+            config: tcl_lexer::LexerConfig::for_dialect(dialect),
+            dialect,
             external_call_sites: None,
         },
     )
@@ -554,7 +556,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         &no_disabled,
         &no_suppressed,
         Some(&doc.input.decode),
-        &dialect,
+        dialect,
     ) {
         let Ok(code) = DiagCode::from_str(d.code) else {
             continue;
@@ -565,7 +567,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         out.push(Firing {
             code,
             file: doc.input.label.clone(),
-            dialect: dialect.clone(),
+            dialect: dialect.to_owned(),
             line: d.range.start_line + 1 + doc.line_offset,
             column: d.range.start_character + 1,
             message: d.message,
