@@ -1,42 +1,44 @@
-# _mock_stubs.tcl -- AUTO-GENERATED stub action table for iRule commands
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 #
-# DO NOT EDIT.  Regenerate from compiler/registry via xtask (the former
-# `python -m tooling.irule_test.codegen_mock_stubs` generator was retired with
-# the Python tree; see docs history).
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# These entries provide minimal mock behaviour for iRule commands that do not
-# have hand-written mocks in command_mocks.tcl.  Formerly each command had its
-# own generated stub proc (`proc <name> {args} { log_decision <cat> <act> ...
-# }`); defining ~1500 such procs cost ~9.7 s of VM proc-body compilation on
-# every fresh session.  They are now a single data table consumed by the one
-# generic `::itest::cmd::_stub` proc below and wired up on demand by
-# `::itest::cmd::register_all`, which is behaviourally identical (same decision
-# log) but parses as one list literal instead of ~1500 proc bodies.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
 #
-# Source: compiler/registry/
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# _mock_stubs.tcl -- AUTO-GENERATED from tcl-registry by `cargo xtask gen-irule-test-data`
+#
+# DO NOT EDIT. Regenerate with:
+#   cargo xtask gen-irule-test-data
+#
+# The action table covers registry commands that do not have a hand-written
+# mock proc in command_mocks.tcl.
 
 namespace eval ::itest::cmd {
 
-    # Generic stub used for every registry command lacking a hand-written mock.
-    # Logs the call under its (category, action) exactly as the former per-
-    # command stub procs did, then returns the empty string.
+    # One generic fallback for registry-only commands.
     proc _stub {cat action args} {
         ::itest::log_decision $cat $action $args
         return ""
     }
 
-    # Map: mock-proc-name (the `_mock_proc_name` spelling) -> {category action}
-    # for every registry command without a hand-written mock.  register_all
-    # probes this table with the same name it uses to probe for hand-written
-    # mock procs, so hand-written mocks continue to take precedence.
+    # Map: _mock_proc_name tail -> {decision category action}.
     variable _stub_actions
     array set _stub_actions {
     aaa_acct_result {aaa acct_result}
     aaa_acct_send {aaa acct_send}
     aaa_auth_result {aaa auth_result}
     aaa_auth_send {aaa auth_send}
+    access2_access2_proc {access2 access2_proc}
     access_acl {access acl}
     access_disable {access disable}
     access_enable {access enable}
@@ -52,7 +54,6 @@ namespace eval ::itest::cmd {
     access_session {access session}
     access_user {access user}
     access_uuid {access uuid}
-    access2_access2_proc {access2 access2_proc}
     acl_action {acl action}
     acl_eval {acl eval}
     adapt_allow {adapt allow}
@@ -238,6 +239,145 @@ namespace eval ::itest::cmd {
     classify_disable {classify disable}
     classify_urlcat {classify urlcat}
     classify_username {classify username}
+    cmd_accumulate {toplevel accumulate}
+    cmd_active_members {toplevel active_members}
+    cmd_active_nodes {toplevel active_nodes}
+    cmd_append {toplevel append}
+    cmd_array {toplevel array}
+    cmd_b64decode {toplevel b64decode}
+    cmd_b64encode {toplevel b64encode}
+    cmd_binary {toplevel binary}
+    cmd_break {toplevel break}
+    cmd_call {toplevel call}
+    cmd_catch {toplevel catch}
+    cmd_check {toplevel check}
+    cmd_client_addr {toplevel client_addr}
+    cmd_client_port {toplevel client_port}
+    cmd_clientside {toplevel clientside}
+    cmd_clock {toplevel clock}
+    cmd_clone {toplevel clone}
+    cmd_close {toplevel close}
+    cmd_concat {toplevel concat}
+    cmd_connect {toplevel connect}
+    cmd_continue {toplevel continue}
+    cmd_cpu {toplevel cpu}
+    cmd_crc32 {toplevel crc32}
+    cmd_decode_uri {toplevel decode_uri}
+    cmd_domain {toplevel domain}
+    cmd_encoding {toplevel encoding}
+    cmd_error {toplevel error}
+    cmd_eval {toplevel eval}
+    cmd_expr {toplevel expr}
+    cmd_fasthash {toplevel fasthash}
+    cmd_findclass {toplevel findclass}
+    cmd_findstr {toplevel findstr}
+    cmd_for {toplevel for}
+    cmd_foreach {toplevel foreach}
+    cmd_format {toplevel format}
+    cmd_forward {toplevel forward}
+    cmd_getfield {toplevel getfield}
+    cmd_global {toplevel global}
+    cmd_html_encode {toplevel html_encode}
+    cmd_html_escape {toplevel html_escape}
+    cmd_htmlencode {toplevel htmlencode}
+    cmd_htonl {toplevel htonl}
+    cmd_htons {toplevel htons}
+    cmd_http_client_ip {toplevel http_client_ip}
+    cmd_http_content_len_max {toplevel http_content_len_max}
+    cmd_http_cookie {toplevel http_cookie}
+    cmd_http_header {toplevel http_header}
+    cmd_http_host {toplevel http_host}
+    cmd_http_method {toplevel http_method}
+    cmd_http_uri {toplevel http_uri}
+    cmd_http_version {toplevel http_version}
+    cmd_if {toplevel if}
+    cmd_ifile {toplevel ifile}
+    cmd_imid {toplevel imid}
+    cmd_incr {toplevel incr}
+    cmd_info {toplevel info}
+    cmd_ip_addr {toplevel ip_addr}
+    cmd_ip_protocol {toplevel ip_protocol}
+    cmd_ip_tos {toplevel ip_tos}
+    cmd_ip_ttl {toplevel ip_ttl}
+    cmd_join {toplevel join}
+    cmd_lappend {toplevel lappend}
+    cmd_lasthop {toplevel lasthop}
+    cmd_lindex {toplevel lindex}
+    cmd_link_qos {toplevel link_qos}
+    cmd_linsert {toplevel linsert}
+    cmd_list {toplevel list}
+    cmd_listen {toplevel listen}
+    cmd_llength {toplevel llength}
+    cmd_llookup {toplevel llookup}
+    cmd_local_addr {toplevel local_addr}
+    cmd_local_port {toplevel local_port}
+    cmd_lrange {toplevel lrange}
+    cmd_lreplace {toplevel lreplace}
+    cmd_lsearch {toplevel lsearch}
+    cmd_lset {toplevel lset}
+    cmd_lsort {toplevel lsort}
+    cmd_matchclass {toplevel matchclass}
+    cmd_md4 {toplevel md4}
+    cmd_md5 {toplevel md5}
+    cmd_members {toplevel members}
+    cmd_nexthop {toplevel nexthop}
+    cmd_nodes {toplevel nodes}
+    cmd_ntohl {toplevel ntohl}
+    cmd_ntohs {toplevel ntohs}
+    cmd_peer {toplevel peer}
+    cmd_pem_dtos {toplevel pem_dtos}
+    cmd_priority {toplevel priority}
+    cmd_proc {toplevel proc}
+    cmd_radius_authenticate {toplevel radius_authenticate}
+    cmd_rateclass {toplevel rateclass}
+    cmd_recv {toplevel recv}
+    cmd_redirect {toplevel redirect}
+    cmd_regexp {toplevel regexp}
+    cmd_regsub {toplevel regsub}
+    cmd_relate_client {toplevel relate_client}
+    cmd_relate_server {toplevel relate_server}
+    cmd_remote_addr {toplevel remote_addr}
+    cmd_remote_port {toplevel remote_port}
+    cmd_return {toplevel return}
+    cmd_rmd160 {toplevel rmd160}
+    cmd_scan {toplevel scan}
+    cmd_send {toplevel send}
+    cmd_server_addr {toplevel server_addr}
+    cmd_server_port {toplevel server_port}
+    cmd_serverside {toplevel serverside}
+    cmd_session {toplevel session}
+    cmd_set {toplevel set}
+    cmd_sha1 {toplevel sha1}
+    cmd_sha256 {toplevel sha256}
+    cmd_sha384 {toplevel sha384}
+    cmd_sha512 {toplevel sha512}
+    cmd_sharedvar {toplevel sharedvar}
+    cmd_split {toplevel split}
+    cmd_string {toplevel string}
+    cmd_subst {toplevel subst}
+    cmd_substr {toplevel substr}
+    cmd_switch {toplevel switch}
+    cmd_tcpdump {toplevel tcpdump}
+    cmd_timing {toplevel timing}
+    cmd_trace {toplevel trace}
+    cmd_traffic_group {toplevel traffic_group}
+    cmd_translate {toplevel translate}
+    cmd_uniq_ordered_ip_list {toplevel uniq_ordered_ip_list}
+    cmd_uniq_sorted_ip_list {toplevel uniq_sorted_ip_list}
+    cmd_unset {toplevel unset}
+    cmd_uplevel {toplevel uplevel}
+    cmd_upvar {toplevel upvar}
+    cmd_urlcatblindquery {toplevel urlcatblindquery}
+    cmd_urlcatquery {toplevel urlcatquery}
+    cmd_use {toplevel use}
+    cmd_variable {toplevel variable}
+    cmd_vlan_id {toplevel vlan_id}
+    cmd_when {toplevel when}
+    cmd_whereis {toplevel whereis}
+    cmd_while {toplevel while}
+    cmd_xff_list {toplevel xff_list}
+    cmd_xff_uniq_ordered_ip_list {toplevel xff_uniq_ordered_ip_list}
+    cmd_xff_uniq_sorted_ip_list {toplevel xff_uniq_sorted_ip_list}
     compress_buffer_size {compress buffer_size}
     compress_disable {compress disable}
     compress_enable {compress enable}
@@ -398,12 +538,6 @@ namespace eval ::itest::cmd {
     html_enable {html enable}
     html_encode {html encode}
     html_tag {html tag}
-    http_passthrough_reason {http passthrough_reason}
-    http_password {http password}
-    http_proxy {http proxy}
-    http_reject_reason {http reject_reason}
-    http_response {http response}
-    http_username {http username}
     http2_active {http2 active}
     http2_concurrency {http2 concurrency}
     http2_disable {http2 disable}
@@ -412,6 +546,12 @@ namespace eval ::itest::cmd {
     http2_push {http2 push}
     http2_requests {http2 requests}
     http2_version {http2 version}
+    http_passthrough_reason {http passthrough_reason}
+    http_password {http password}
+    http_proxy {http proxy}
+    http_reject_reason {http reject_reason}
+    http_response {http response}
+    http_username {http username}
     httplog_disable {httplog disable}
     httplog_enable {httplog enable}
     icap_header {icap header}
@@ -575,6 +715,7 @@ namespace eval ::itest::cmd {
     pem_flow {pem flow}
     pem_session {pem session}
     pem_subscriber {pem subscriber}
+    pkg_create {pkg create}
     plugin_disable {plugin disable}
     plugin_enable {plugin enable}
     policy_controls {policy controls}
@@ -622,10 +763,6 @@ namespace eval ::itest::cmd {
     psc_subscriber_id {psc subscriber_id}
     psc_tower_id {psc tower_id}
     psc_user_name {psc user_name}
-    psm_disable {psm disable}
-    psm_enable {psm enable}
-    psm_disable {psm disable}
-    psm_enable {psm enable}
     psm_disable {psm disable}
     psm_enable {psm enable}
     qoe_disable {qoe disable}
@@ -875,638 +1012,7 @@ namespace eval ::itest::cmd {
     xml_release {xml release}
     xml_soap {xml soap}
     xml_subscribe {xml subscribe}
-    base64_decode {base64 decode}
-    base64_encode {base64 encode}
-    cmdline_getArgv0 {cmdline getArgv0}
-    cmdline_getKnownOpt {cmdline getKnownOpt}
-    cmdline_getKnownOptions {cmdline getKnownOptions}
-    cmdline_getfiles {cmdline getfiles}
-    cmdline_getopt {cmdline getopt}
-    cmdline_getoptions {cmdline getoptions}
-    cmdline_typedGetopt {cmdline typedGetopt}
-    cmdline_typedGetoptions {cmdline typedGetoptions}
-    cmdline_typedUsage {cmdline typedUsage}
-    cmdline_usage {cmdline usage}
-    csv_iscomplete {csv iscomplete}
-    csv_join {csv join}
-    csv_joinlist {csv joinlist}
-    csv_joinmatrix {csv joinmatrix}
-    csv_read2matrix {csv read2matrix}
-    csv_read2queue {csv read2queue}
-    csv_report {csv report}
-    csv_split {csv split}
-    csv_split2matrix {csv split2matrix}
-    csv_split2queue {csv split2queue}
-    csv_writematrix {csv writematrix}
-    csv_writequeue {csv writequeue}
-    dns_address {dns address}
-    dns_cleanup {dns cleanup}
-    dns_cname {dns cname}
-    dns_configure {dns configure}
-    dns_dump {dns dump}
-    dns_error {dns error}
-    dns_errorcode {dns errorcode}
-    dns_name {dns name}
-    dns_reset {dns reset}
-    dns_resolve {dns resolve}
-    dns_result {dns result}
-    dns_status {dns status}
-    dns_wait {dns wait}
-    fileutil_appendToFile {fileutil appendToFile}
-    fileutil_cat {fileutil cat}
-    fileutil_fileType {fileutil fileType}
-    fileutil_find {fileutil find}
-    fileutil_findByPattern {fileutil findByPattern}
-    fileutil_foreachLine {fileutil foreachLine}
-    fileutil_fullnormalize {fileutil fullnormalize}
-    fileutil_grep {fileutil grep}
-    fileutil_insertIntoFile {fileutil insertIntoFile}
-    fileutil_install {fileutil install}
-    fileutil_jail {fileutil jail}
-    fileutil_lexnormalize {fileutil lexnormalize}
-    fileutil_maketempdir {fileutil maketempdir}
-    fileutil_relative {fileutil relative}
-    fileutil_relativeUrl {fileutil relativeUrl}
-    fileutil_removeFromFile {fileutil removeFromFile}
-    fileutil_replaceInFile {fileutil replaceInFile}
-    fileutil_stripN {fileutil stripN}
-    fileutil_stripPwd {fileutil stripPwd}
-    fileutil_tempdir {fileutil tempdir}
-    fileutil_tempdirReset {fileutil tempdirReset}
-    fileutil_tempfile {fileutil tempfile}
-    fileutil_test {fileutil test}
-    fileutil_touch {fileutil touch}
-    fileutil_updateInPlace {fileutil updateInPlace}
-    fileutil_writeFile {fileutil writeFile}
-    html_html_entities {html html_entities}
-    html_tagstrip {html tagstrip}
-    http_cleanup {http cleanup}
-    http_code {http code}
-    http_config {http config}
-    http_cookiejar {http cookiejar}
-    http_data {http data}
-    http_error {http error}
-    http_formatQuery {http formatQuery}
-    http_geturl {http geturl}
-    http_meta {http meta}
-    http_ncode {http ncode}
-    http_postError {http postError}
-    http_quoteString {http quoteString}
-    http_reasonPhrase {http reasonPhrase}
-    http_register {http register}
-    http_registerError {http registerError}
-    http_requestHeaderValue {http requestHeaderValue}
-    http_requestHeaders {http requestHeaders}
-    http_requestLine {http requestLine}
-    http_reset {http reset}
-    http_responseBody {http responseBody}
-    http_responseCode {http responseCode}
-    http_responseHeaderValue {http responseHeaderValue}
-    http_responseHeaders {http responseHeaders}
-    http_responseInfo {http responseInfo}
-    http_responseLine {http responseLine}
-    http_size {http size}
-    http_unregister {http unregister}
-    http_wait {http wait}
-    ip_collapse {ip collapse}
-    ip_contract {ip contract}
-    ip_equal {ip equal}
-    ip_is {ip is}
-    ip_mask {ip mask}
-    ip_normalize {ip normalize}
-    ip_prefix {ip prefix}
-    ip_subtract {ip subtract}
-    ip_type {ip type}
-    ip_version {ip version}
-    json_dict2json {json dict2json}
-    json_json2dict {json json2dict}
-    json_list2json {json list2json}
-    json_many_json2dict {json many-json2dict}
-    json_string2json {json string2json}
-    json_validate {json validate}
-    logger_disable {logger disable}
-    logger_enable {logger enable}
-    logger_import {logger import}
-    logger_init {logger init}
-    logger_initNamespace {logger initNamespace}
-    logger_levels {logger levels}
-    logger_servicecmd {logger servicecmd}
-    logger_services {logger services}
-    logger_setlevel {logger setlevel}
-    logger_walk {logger walk}
-    math_analyse_Kruskal_Wallis {math analyse-Kruskal-Wallis}
-    math_autocorr {math autocorr}
-    math_basic_stats {math basic-stats}
-    math_control_Rchart {math control-Rchart}
-    math_control_xbar {math control-xbar}
-    math_corr {math corr}
-    math_crosscorr {math crosscorr}
-    math_filter {math filter}
-    math_group_rank {math group-rank}
-    math_histogram {math histogram}
-    math_histogram_alt {math histogram-alt}
-    math_interval_mean_stdev {math interval-mean-stdev}
-    math_lillieforsFit {math lillieforsFit}
-    math_linear_model {math linear-model}
-    math_linear_residuals {math linear-residuals}
-    math_map {math map}
-    math_max {math max}
-    math_mean {math mean}
-    math_mean_histogram_limits {math mean-histogram-limits}
-    math_median {math median}
-    math_min {math min}
-    math_minmax_histogram_limits {math minmax-histogram-limits}
-    math_number {math number}
-    math_print_2x2 {math print-2x2}
-    math_pstdev {math pstdev}
-    math_pvar {math pvar}
-    math_quantiles {math quantiles}
-    math_samplescount {math samplescount}
-    math_spearman_rank {math spearman-rank}
-    math_spearman_rank_extended {math spearman-rank-extended}
-    math_stdev {math stdev}
-    math_t_test_mean {math t-test-mean}
-    math_test_2x2 {math test-2x2}
-    math_test_Duckworth {math test-Duckworth}
-    math_test_Dunnett {math test-Dunnett}
-    math_test_Kruskal_Wallis {math test-Kruskal-Wallis}
-    math_test_Rchart {math test-Rchart}
-    math_test_Tukey_range {math test-Tukey-range}
-    math_test_Wilcoxon {math test-Wilcoxon}
-    math_test_anova_F {math test-anova-F}
-    math_test_normal {math test-normal}
-    math_test_xbar {math test-xbar}
-    math_var {math var}
-    md5_md5 {md5 md5}
-    mime_buildmessage {mime buildmessage}
-    mime_copymessage {mime copymessage}
-    mime_field_decode {mime field_decode}
-    mime_finalize {mime finalize}
-    mime_getContentType {mime getContentType}
-    mime_getTransferEncoding {mime getTransferEncoding}
-    mime_getbody {mime getbody}
-    mime_getheader {mime getheader}
-    mime_getproperty {mime getproperty}
-    mime_getsize {mime getsize}
-    mime_initialize {mime initialize}
-    mime_mapencoding {mime mapencoding}
-    mime_parseaddress {mime parseaddress}
-    mime_parsedatetime {mime parsedatetime}
-    mime_reversemapencoding {mime reversemapencoding}
-    mime_setheader {mime setheader}
-    mime_uniqueID {mime uniqueID}
-    mime_word_decode {mime word_decode}
-    mime_word_encode {mime word_encode}
-    msgcat_mc {msgcat mc}
-    msgcat_mcexists {msgcat mcexists}
-    msgcat_mcflmset {msgcat mcflmset}
-    msgcat_mcflset {msgcat mcflset}
-    msgcat_mcforgetpackage {msgcat mcforgetpackage}
-    msgcat_mcload {msgcat mcload}
-    msgcat_mcloadedlocales {msgcat mcloadedlocales}
-    msgcat_mclocale {msgcat mclocale}
-    msgcat_mcmax {msgcat mcmax}
-    msgcat_mcmset {msgcat mcmset}
-    msgcat_mcn {msgcat mcn}
-    msgcat_mcpackageconfig {msgcat mcpackageconfig}
-    msgcat_mcpackagelocale {msgcat mcpackagelocale}
-    msgcat_mcpackagenamespaceget {msgcat mcpackagenamespaceget}
-    msgcat_mcpreferences {msgcat mcpreferences}
-    msgcat_mcset {msgcat mcset}
-    msgcat_mcunknown {msgcat mcunknown}
-    msgcat_mcutil {msgcat mcutil}
-    pkg_create {pkg create}
-    platform_generic {platform generic}
-    platform_identify {platform identify}
-    platform_patterns {platform patterns}
-    platform_generic {platform generic}
-    platform_identify {platform identify}
-    safe_interpAddToAccessPath {safe interpAddToAccessPath}
-    safe_interpConfigure {safe interpConfigure}
-    safe_interpCreate {safe interpCreate}
-    safe_interpDelete {safe interpDelete}
-    safe_interpFindInAccessPath {safe interpFindInAccessPath}
-    safe_interpInit {safe interpInit}
-    safe_setLogCmd {safe setLogCmd}
-    safe_setSyncMode {safe setSyncMode}
-    sha1_sha1 {sha1 sha1}
-    sha2_sha256 {sha2 sha256}
-    smtp_sendmessage {smtp sendmessage}
-    snit_compile {snit compile}
-    snit_macro {snit macro}
-    snit_method {snit method}
-    snit_type {snit type}
-    snit_typemethod {snit typemethod}
-    snit_widget {snit widget}
-    snit_widgetadaptor {snit widgetadaptor}
-    struct_list {struct list}
-    struct_queue {struct queue}
-    struct_set {struct set}
-    struct_stack {struct stack}
-    tcl_OptKeyDelete {tcl OptKeyDelete}
-    tcl_OptKeyError {tcl OptKeyError}
-    tcl_OptKeyParse {tcl OptKeyParse}
-    tcl_OptKeyRegister {tcl OptKeyRegister}
-    tcl_OptParse {tcl OptParse}
-    tcl_OptProc {tcl OptProc}
-    tcl_OptProcArgGiven {tcl OptProcArgGiven}
-    tcl_decode {tcl decode}
-    tcl_encode {tcl encode}
-    tcl_path {tcl path}
-    tcl_roots {tcl roots}
-    tcltest_bytestring {tcltest bytestring}
-    tcltest_cleanupTests {tcltest cleanupTests}
-    tcltest_configure {tcltest configure}
-    tcltest_customMatch {tcltest customMatch}
-    tcltest_debug {tcltest debug}
-    tcltest_errorChannel {tcltest errorChannel}
-    tcltest_errorFile {tcltest errorFile}
-    tcltest_getMatchingFiles {tcltest getMatchingFiles}
-    tcltest_interpreter {tcltest interpreter}
-    tcltest_limitConstraints {tcltest limitConstraints}
-    tcltest_loadFile {tcltest loadFile}
-    tcltest_loadScript {tcltest loadScript}
-    tcltest_loadTestedCommands {tcltest loadTestedCommands}
-    tcltest_mainThread {tcltest mainThread}
-    tcltest_makeDirectory {tcltest makeDirectory}
-    tcltest_makeFile {tcltest makeFile}
-    tcltest_match {tcltest match}
-    tcltest_matchDirectories {tcltest matchDirectories}
-    tcltest_matchFiles {tcltest matchFiles}
-    tcltest_normalizeMsg {tcltest normalizeMsg}
-    tcltest_normalizePath {tcltest normalizePath}
-    tcltest_outputChannel {tcltest outputChannel}
-    tcltest_outputFile {tcltest outputFile}
-    tcltest_preserveCore {tcltest preserveCore}
-    tcltest_removeDirectory {tcltest removeDirectory}
-    tcltest_removeFile {tcltest removeFile}
-    tcltest_restoreState {tcltest restoreState}
-    tcltest_runAllTests {tcltest runAllTests}
-    tcltest_saveState {tcltest saveState}
-    tcltest_singleProcess {tcltest singleProcess}
-    tcltest_skip {tcltest skip}
-    tcltest_skipDirectories {tcltest skipDirectories}
-    tcltest_skipFiles {tcltest skipFiles}
-    tcltest_temporaryDirectory {tcltest temporaryDirectory}
-    tcltest_test {tcltest test}
-    tcltest_testConstraint {tcltest testConstraint}
-    tcltest_testsDirectory {tcltest testsDirectory}
-    tcltest_threadReap {tcltest threadReap}
-    tcltest_verbose {tcltest verbose}
-    tcltest_viewFile {tcltest viewFile}
-    tcltest_workingDirectory {tcltest workingDirectory}
-    textutil_adjust {textutil adjust}
-    textutil_blank {textutil blank}
-    textutil_cap {textutil cap}
-    textutil_capEachWord {textutil capEachWord}
-    textutil_chop {textutil chop}
-    textutil_indent {textutil indent}
-    textutil_longestCommonPrefix {textutil longestCommonPrefix}
-    textutil_longestCommonPrefixList {textutil longestCommonPrefixList}
-    textutil_splitn {textutil splitn}
-    textutil_splitx {textutil splitx}
-    textutil_strRepeat {textutil strRepeat}
-    textutil_tabify {textutil tabify}
-    textutil_tabify2 {textutil tabify2}
-    textutil_tail {textutil tail}
-    textutil_trim {textutil trim}
-    textutil_trimEmptyHeading {textutil trimEmptyHeading}
-    textutil_trimPrefix {textutil trimPrefix}
-    textutil_trimleft {textutil trimleft}
-    textutil_trimright {textutil trimright}
-    textutil_uncap {textutil uncap}
-    textutil_undent {textutil undent}
-    textutil_untabify {textutil untabify}
-    textutil_untabify2 {textutil untabify2}
-    ttk_button {ttk button}
-    ttk_combobox {ttk combobox}
-    ttk_entry {ttk entry}
-    ttk_frame {ttk frame}
-    ttk_label {ttk label}
-    ttk_notebook {ttk notebook}
-    ttk_progressbar {ttk progressbar}
-    ttk_scale {ttk scale}
-    ttk_separator {ttk separator}
-    ttk_sizegrip {ttk sizegrip}
-    ttk_style {ttk style}
-    ttk_treeview {ttk treeview}
-    uri_canonicalize {uri canonicalize}
-    uri_geturl {uri geturl}
-    uri_isrelative {uri isrelative}
-    uri_join {uri join}
-    uri_register {uri register}
-    uri_resolve {uri resolve}
-    uri_setQuirkOption {uri setQuirkOption}
-    uri_split {uri split}
-    uuid_uuid {uuid uuid}
-    yaml_dict2yaml {yaml dict2yaml}
-    yaml_huddle2yaml {yaml huddle2yaml}
-    yaml_list2yaml {yaml list2yaml}
-    yaml_setOptions {yaml setOptions}
-    yaml_yaml2dict {yaml yaml2dict}
-    yaml_yaml2huddle {yaml yaml2huddle}
-    cmd_accumulate {toplevel accumulate}
-    cmd_active_members {toplevel active_members}
-    cmd_active_nodes {toplevel active_nodes}
-    cmd_append {toplevel append}
-    cmd_apply {toplevel apply}
-    cmd_array {toplevel array}
-    cmd_b64decode {toplevel b64decode}
-    cmd_b64encode {toplevel b64encode}
-    cmd_bell {toplevel bell}
-    cmd_binary {toplevel binary}
-    cmd_bind {toplevel bind}
-    cmd_break {toplevel break}
-    cmd_button {toplevel button}
-    cmd_call {toplevel call}
-    cmd_canvas {toplevel canvas}
-    cmd_catch {toplevel catch}
-    cmd_chan {toplevel chan}
-    cmd_check {toplevel check}
-    cmd_checkbutton {toplevel checkbutton}
-    cmd_client_addr {toplevel client_addr}
-    cmd_client_port {toplevel client_port}
-    cmd_clientside {toplevel clientside}
-    cmd_clipboard {toplevel clipboard}
-    cmd_clock {toplevel clock}
-    cmd_clone {toplevel clone}
-    cmd_close {toplevel close}
-    cmd_concat {toplevel concat}
-    cmd_connect {toplevel connect}
-    cmd_const {toplevel const}
-    cmd_continue {toplevel continue}
-    cmd_cpu {toplevel cpu}
-    cmd_crc32 {toplevel crc32}
-    cmd_decode_uri {toplevel decode_uri}
-    cmd_destroy {toplevel destroy}
-    cmd_domain {toplevel domain}
-    cmd_encoding {toplevel encoding}
-    cmd_entry {toplevel entry}
-    cmd_error {toplevel error}
-    cmd_eval {toplevel eval}
-    cmd_expr {toplevel expr}
-    cmd_fasthash {toplevel fasthash}
-    cmd_findclass {toplevel findclass}
-    cmd_findstr {toplevel findstr}
-    cmd_focus {toplevel focus}
-    cmd_font {toplevel font}
-    cmd_for {toplevel for}
-    cmd_foreach {toplevel foreach}
-    cmd_format {toplevel format}
-    cmd_forward {toplevel forward}
-    cmd_frame {toplevel frame}
-    cmd_getfield {toplevel getfield}
-    cmd_gettimes {toplevel gettimes}
-    cmd_global {toplevel global}
-    cmd_grab {toplevel grab}
-    cmd_grid {toplevel grid}
-    cmd_history {toplevel history}
-    cmd_html_encode {toplevel html_encode}
-    cmd_html_escape {toplevel html_escape}
-    cmd_htmlencode {toplevel htmlencode}
-    cmd_htonl {toplevel htonl}
-    cmd_htons {toplevel htons}
-    cmd_http_client_ip {toplevel http_client_ip}
-    cmd_http_content_len_max {toplevel http_content_len_max}
-    cmd_http_cookie {toplevel http_cookie}
-    cmd_http_header {toplevel http_header}
-    cmd_http_host {toplevel http_host}
-    cmd_http_method {toplevel http_method}
-    cmd_http_uri {toplevel http_uri}
-    cmd_http_version {toplevel http_version}
-    cmd_if {toplevel if}
-    cmd_ifile {toplevel ifile}
-    cmd_image {toplevel image}
-    cmd_imid {toplevel imid}
-    cmd_incr {toplevel incr}
-    cmd_info {toplevel info}
-    cmd_ip_addr {toplevel ip_addr}
-    cmd_ip_protocol {toplevel ip_protocol}
-    cmd_ip_tos {toplevel ip_tos}
-    cmd_ip_ttl {toplevel ip_ttl}
-    cmd_join {toplevel join}
-    cmd_label {toplevel label}
-    cmd_labelframe {toplevel labelframe}
-    cmd_lappend {toplevel lappend}
-    cmd_lasthop {toplevel lasthop}
-    cmd_lgen {toplevel lgen}
-    cmd_lindex {toplevel lindex}
-    cmd_link_qos {toplevel link_qos}
-    cmd_linsert {toplevel linsert}
-    cmd_list {toplevel list}
-    cmd_listbox {toplevel listbox}
-    cmd_listen {toplevel listen}
-    cmd_llength {toplevel llength}
-    cmd_llookup {toplevel llookup}
-    cmd_local_addr {toplevel local_addr}
-    cmd_local_port {toplevel local_port}
-    cmd_lower {toplevel lower}
-    cmd_lrange {toplevel lrange}
-    cmd_lrepeat {toplevel lrepeat}
-    cmd_lreplace {toplevel lreplace}
-    cmd_lreverse {toplevel lreverse}
-    cmd_lsearch {toplevel lsearch}
-    cmd_lset {toplevel lset}
-    cmd_lsort {toplevel lsort}
-    cmd_lstring {toplevel lstring}
-    cmd_matchclass {toplevel matchclass}
-    cmd_md4 {toplevel md4}
-    cmd_md5 {toplevel md5}
-    cmd_members {toplevel members}
-    cmd_menu {toplevel menu}
-    cmd_menubutton {toplevel menubutton}
-    cmd_message {toplevel message}
-    cmd_nexthop {toplevel nexthop}
-    cmd_nodes {toplevel nodes}
-    cmd_noop {toplevel noop}
-    cmd_ntohl {toplevel ntohl}
-    cmd_ntohs {toplevel ntohs}
-    cmd_option {toplevel option}
-    cmd_pack {toplevel pack}
-    cmd_panedwindow {toplevel panedwindow}
-    cmd_parray {toplevel parray}
-    cmd_peer {toplevel peer}
-    cmd_pem_dtos {toplevel pem_dtos}
-    cmd_pkg_mkIndex {toplevel pkg_mkIndex}
-    cmd_place {toplevel place}
-    cmd_priority {toplevel priority}
-    cmd_proc {toplevel proc}
-    cmd_puts {toplevel puts}
-    cmd_radiobutton {toplevel radiobutton}
-    cmd_radius_authenticate {toplevel radius_authenticate}
-    cmd_raise {toplevel raise}
-    cmd_rateclass {toplevel rateclass}
-    cmd_read {toplevel read}
-    cmd_recv {toplevel recv}
-    cmd_redirect {toplevel redirect}
-    cmd_regexp {toplevel regexp}
-    cmd_regsub {toplevel regsub}
-    cmd_relate_client {toplevel relate_client}
-    cmd_relate_server {toplevel relate_server}
-    cmd_remote_addr {toplevel remote_addr}
-    cmd_remote_port {toplevel remote_port}
-    cmd_return {toplevel return}
-    cmd_rmd160 {toplevel rmd160}
-    cmd_scale {toplevel scale}
-    cmd_scan {toplevel scan}
-    cmd_scrollbar {toplevel scrollbar}
-    cmd_selection {toplevel selection}
-    cmd_send {toplevel send}
-    cmd_server_addr {toplevel server_addr}
-    cmd_server_port {toplevel server_port}
-    cmd_serverside {toplevel serverside}
-    cmd_session {toplevel session}
-    cmd_set {toplevel set}
-    cmd_sha1 {toplevel sha1}
-    cmd_sha256 {toplevel sha256}
-    cmd_sha384 {toplevel sha384}
-    cmd_sha512 {toplevel sha512}
-    cmd_sharedvar {toplevel sharedvar}
-    cmd_spinbox {toplevel spinbox}
-    cmd_split {toplevel split}
-    cmd_string {toplevel string}
-    cmd_subst {toplevel subst}
-    cmd_substr {toplevel substr}
-    cmd_switch {toplevel switch}
-    cmd_tcl_endOfWord {toplevel tcl_endOfWord}
-    cmd_tcl_startOfNextWord {toplevel tcl_startOfNextWord}
-    cmd_tcl_startOfPreviousWord {toplevel tcl_startOfPreviousWord}
-    cmd_tcl_wordBreakAfter {toplevel tcl_wordBreakAfter}
-    cmd_tcl_wordBreakBefore {toplevel tcl_wordBreakBefore}
-    cmd_tcpdump {toplevel tcpdump}
-    cmd_testapplylambda {toplevel testapplylambda}
-    cmd_testappverifierpresent {toplevel testappverifierpresent}
-    cmd_testasync {toplevel testasync}
-    cmd_testbigdata {toplevel testbigdata}
-    cmd_testbignumobj {toplevel testbignumobj}
-    cmd_testbooleanobj {toplevel testbooleanobj}
-    cmd_testbumpinterpepoch {toplevel testbumpinterpepoch}
-    cmd_testbytestring {toplevel testbytestring}
-    cmd_testchannel {toplevel testchannel}
-    cmd_testchannelevent {toplevel testchannelevent}
-    cmd_testcmdinfo {toplevel testcmdinfo}
-    cmd_testcmdtoken {toplevel testcmdtoken}
-    cmd_testcmdtrace {toplevel testcmdtrace}
-    cmd_testconcatobj {toplevel testconcatobj}
-    cmd_testcpuid {toplevel testcpuid}
-    cmd_testcreatecommand {toplevel testcreatecommand}
-    cmd_testdcall {toplevel testdcall}
-    cmd_testdel {toplevel testdel}
-    cmd_testdelassocdata {toplevel testdelassocdata}
-    cmd_testdoubledigits {toplevel testdoubledigits}
-    cmd_testdoubleobj {toplevel testdoubleobj}
-    cmd_testdstring {toplevel testdstring}
-    cmd_testencoding {toplevel testencoding}
-    cmd_testevalex {toplevel testevalex}
-    cmd_testevalobjv {toplevel testevalobjv}
-    cmd_testevent {toplevel testevent}
-    cmd_testexithandler {toplevel testexithandler}
-    cmd_testexitmainloop {toplevel testexitmainloop}
-    cmd_testexprdouble {toplevel testexprdouble}
-    cmd_testexprdoubleobj {toplevel testexprdoubleobj}
-    cmd_testexprlong {toplevel testexprlong}
-    cmd_testexprlongobj {toplevel testexprlongobj}
-    cmd_testexprparser {toplevel testexprparser}
-    cmd_testexprstring {toplevel testexprstring}
-    cmd_testfevent {toplevel testfevent}
-    cmd_testfile {toplevel testfile}
-    cmd_testfilelink {toplevel testfilelink}
-    cmd_testfilesystem {toplevel testfilesystem}
-    cmd_testfindfirst {toplevel testfindfirst}
-    cmd_testfindlast {toplevel testfindlast}
-    cmd_testfstildeexpand {toplevel testfstildeexpand}
-    cmd_testgetassocdata {toplevel testgetassocdata}
-    cmd_testgetindexfromobjstruct {toplevel testgetindexfromobjstruct}
-    cmd_testgetint {toplevel testgetint}
-    cmd_testgetintforindex {toplevel testgetintforindex}
-    cmd_testgetplatform {toplevel testgetplatform}
-    cmd_testgetunichar {toplevel testgetunichar}
-    cmd_testgetvarfullname {toplevel testgetvarfullname}
-    cmd_testhandlecount {toplevel testhandlecount}
-    cmd_testhashsystemhash {toplevel testhashsystemhash}
-    cmd_testindexobj {toplevel testindexobj}
-    cmd_testinterpdelete {toplevel testinterpdelete}
-    cmd_testinterpresolver {toplevel testinterpresolver}
-    cmd_testintobj {toplevel testintobj}
-    cmd_testlink {toplevel testlink}
-    cmd_testlinkarray {toplevel testlinkarray}
-    cmd_testlistobj {toplevel testlistobj}
-    cmd_testlistrep {toplevel testlistrep}
-    cmd_testlocale {toplevel testlocale}
-    cmd_testlongsize {toplevel testlongsize}
-    cmd_testlutil {toplevel testlutil}
-    cmd_testmainthread {toplevel testmainthread}
-    cmd_testmsb {toplevel testmsb}
-    cmd_testnrelevels {toplevel testnrelevels}
-    cmd_testnreunwind {toplevel testnreunwind}
-    cmd_testnumutfchars {toplevel testnumutfchars}
-    cmd_testobj {toplevel testobj}
-    cmd_testpanic {toplevel testpanic}
-    cmd_testparseargs {toplevel testparseargs}
-    cmd_testparser {toplevel testparser}
-    cmd_testparsevar {toplevel testparsevar}
-    cmd_testparsevarname {toplevel testparsevarname}
-    cmd_testpreferstable {toplevel testpreferstable}
-    cmd_testprint {toplevel testprint}
-    cmd_testpurebytesobj {toplevel testpurebytesobj}
-    cmd_testregexp {toplevel testregexp}
-    cmd_testreturn {toplevel testreturn}
-    cmd_testsaveresult {toplevel testsaveresult}
-    cmd_testservicemode {toplevel testservicemode}
-    cmd_testset2 {toplevel testset2}
-    cmd_testsetassocdata {toplevel testsetassocdata}
-    cmd_testsetbytearraylength {toplevel testsetbytearraylength}
-    cmd_testseterr {toplevel testseterr}
-    cmd_testseterrorcode {toplevel testseterrorcode}
-    cmd_testsetmainloop {toplevel testsetmainloop}
-    cmd_testsetnoerr {toplevel testsetnoerr}
-    cmd_testsetobjerrorcode {toplevel testsetobjerrorcode}
-    cmd_testsetplatform {toplevel testsetplatform}
-    cmd_testsimplefilesystem {toplevel testsimplefilesystem}
-    cmd_testsize {toplevel testsize}
-    cmd_testsocket {toplevel testsocket}
-    cmd_teststaticlibrary {toplevel teststaticlibrary}
-    cmd_teststaticpkg {toplevel teststaticpkg}
-    cmd_teststringbytes {toplevel teststringbytes}
-    cmd_teststringobj {toplevel teststringobj}
-    cmd_testtranslatefilename {toplevel testtranslatefilename}
-    cmd_testuniclass {toplevel testuniclass}
-    cmd_testupvar {toplevel testupvar}
-    cmd_testutfnext {toplevel testutfnext}
-    cmd_testutfprev {toplevel testutfprev}
-    cmd_testwrongnumargs {toplevel testwrongnumargs}
-    cmd_text {toplevel text}
-    cmd_timing {toplevel timing}
-    cmd_tk {toplevel tk}
-    cmd_tk_chooseColor {toplevel tk_chooseColor}
-    cmd_tk_chooseDirectory {toplevel tk_chooseDirectory}
-    cmd_tk_getOpenFile {toplevel tk_getOpenFile}
-    cmd_tk_getSaveFile {toplevel tk_getSaveFile}
-    cmd_tk_messageBox {toplevel tk_messageBox}
-    cmd_tk_popup {toplevel tk_popup}
-    cmd_toplevel {toplevel toplevel}
-    cmd_trace {toplevel trace}
-    cmd_traffic_group {toplevel traffic_group}
-    cmd_translate {toplevel translate}
-    cmd_uniq_ordered_ip_list {toplevel uniq_ordered_ip_list}
-    cmd_uniq_sorted_ip_list {toplevel uniq_sorted_ip_list}
-    cmd_unset {toplevel unset}
-    cmd_uplevel {toplevel uplevel}
-    cmd_upvar {toplevel upvar}
-    cmd_urlcatblindquery {toplevel urlcatblindquery}
-    cmd_urlcatquery {toplevel urlcatquery}
-    cmd_use {toplevel use}
-    cmd_variable {toplevel variable}
-    cmd_vlan_id {toplevel vlan_id}
-    cmd_when {toplevel when}
-    cmd_whereis {toplevel whereis}
-    cmd_while {toplevel while}
-    cmd_winfo {toplevel winfo}
-    cmd_wm {toplevel wm}
-    cmd_xff_list {toplevel xff_list}
-    cmd_xff_uniq_ordered_ip_list {toplevel xff_uniq_ordered_ip_list}
-    cmd_xff_uniq_sorted_ip_list {toplevel xff_uniq_sorted_ip_list}
     }
 }
 
-# Total stub actions generated: 1473
+# Total stub actions generated: 978

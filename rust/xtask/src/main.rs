@@ -64,6 +64,7 @@ mod gen_ai;
 mod gen_editor_catalogs;
 mod gen_editor_dialects;
 mod gen_editor_settings;
+mod gen_irule_test_data;
 mod gen_jetbrains;
 mod gen_tmlanguage_keywords;
 mod gen_vscode_package;
@@ -155,6 +156,14 @@ enum Command {
     /// Generate selectable editor dialect lists from `DialectProfile::all`.
     GenEditorDialects {
         /// Verify the committed projections are in sync instead of rewriting them.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the registry-backed iRule-test Tcl event and mock-stub data.
+    GenIruleTestData {
+        /// Verify the committed Tcl assets are in sync instead of rewriting
+        /// them; exit non-zero on drift.
         #[arg(long)]
         check: bool,
     },
@@ -318,6 +327,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::DiagEmissionCheck => Ok(diag_emission::run()),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
+        Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),
         Command::GenTmlanguageKeywords { check } => gen_tmlanguage_keywords::run(check),
         Command::GenEditorSettings { check } => gen_editor_settings::run(check),

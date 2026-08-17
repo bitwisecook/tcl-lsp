@@ -187,7 +187,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data tcltest-sweep tcltest-sweep-check
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data tcltest-sweep tcltest-sweep-check
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
@@ -195,7 +195,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Coverage
 .PHONY: coverage coverage-ext
 # Compile + codegen + generated assets
-.PHONY: compile codegen generate check-generated gen-editor-settings check-editor-settings copy-canonical npm-env logo
+.PHONY: compile codegen generate check-generated gen-editor-settings check-editor-settings gen-irule-test-data copy-canonical npm-env logo
 .PHONY: update-source-data check-source-data
 # Compiler explorer (WASM GUI)
 .PHONY: explorer-wasm explorer-build compiler-explorer-gui
@@ -603,7 +603,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-number-drift xtask-command-backing xtask-option-registry-drift xtask-sslictcl-data ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-number-drift xtask-command-backing xtask-option-registry-drift xtask-sslictcl-data ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match DialectProfile::all
 	@echo "==> Checking generated editor dialect lists (cargo xtask)"
@@ -640,6 +640,10 @@ xtask-diag-emission-check: ## Verify every non-internal, non-reserved DiagCode h
 xtask-gen-editor-catalogs: ## Verify the Zed/VS Code editor catalogs are in sync with the registry (drift gate)
 	@echo "==> Checking generated editor catalogs are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
+
+xtask-gen-irule-test-data: ## Verify generated iRule-test Tcl event/mock data is in sync with the registry (drift gate)
+	@echo "==> Checking generated iRule-test data is in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-irule-test-data --check
 
 xtask-gen-zed-queries: ## Verify the generated Zed tree-sitter highlight queries are in sync with the registry (drift gate)
 	@echo "==> Checking generated Zed highlight queries are in sync (cargo xtask)"
@@ -1326,11 +1330,15 @@ _TMLANGUAGE_KEYWORD_DEPS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rus
 _TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json editors/sublime-text/Tcl.sublime-syntax
 $(_TMLANGUAGE_KEYWORD_OUTPUTS): $(_TMLANGUAGE_KEYWORD_DEPS)
 
-generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) ## Regenerate editor catalogs, dialect projections, and lexical grammars
+generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
 	@echo "==> Generating editor dialect projections (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects
 	@echo "==> Generating TextMate keyword grammars (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords
+
+gen-irule-test-data: ## Generate iRule-test Tcl assets from the Rust registries
+	@echo "==> Generating iRule-test data (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-irule-test-data
 
 check-generated: ## Verify generated catalogs are up to date
 	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"
@@ -1368,7 +1376,7 @@ logo: ## Render docs/*.svg logos to the committed 8-bit PNGs (light + dark)
 
 # Unified codegen — regenerate ALL generated files from registries
 
-codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalogs + editor settings + AI prompts)
+codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalogs + editor settings + AI prompts + iRule-test data)
 
 # Compiler Explorer (WASM GUI)
 #
