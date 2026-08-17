@@ -303,33 +303,62 @@ pub fn run() -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// Remove fenced code blocks (triple-backtick and tilde fences) so links
-/// inside code examples are not validated. An unterminated fence extends
-/// to EOF.
+/// Remove fenced code blocks (backtick and tilde fences) so links inside code
+/// examples are not validated. An unterminated fence extends to EOF.
 fn strip_fenced_code(text: &str) -> String {
     let mut out = String::new();
-    let mut in_fence = false;
-    let mut marker = "";
+    let mut fence = None;
     for line in text.split_inclusive('\n') {
-        let stripped = line.trim_start();
-        if in_fence {
-            if stripped.starts_with(marker) {
-                in_fence = false;
-                marker = "";
+        let Some(stripped) = fence_line(line) else {
+            out.push_str(line);
+            continue;
+        };
+        if let Some((marker, length)) = fence {
+            if closes_fence(stripped, marker, length) {
+                fence = None;
             }
             // Drop the line either way (the fence body and its closer).
-        } else if stripped.starts_with("```") || stripped.starts_with("~~~") {
-            in_fence = true;
-            marker = if stripped.starts_with("```") {
-                "```"
-            } else {
-                "~~~"
-            };
+        } else if let Some(opening) = opening_fence(stripped) {
+            fence = Some(opening);
         } else {
             out.push_str(line);
         }
     }
     out
+}
+
+/// Return a possible `CommonMark` fence line after at most three leading spaces.
+/// Four spaces make an indented code block instead, and tabs do not count as
+/// fence indentation.
+fn fence_line(line: &str) -> Option<&str> {
+    let spaces = line.bytes().take_while(|byte| *byte == b' ').count();
+    (spaces <= 3).then_some(&line[spaces..])
+}
+
+/// The delimiter character and length of a Markdown opening fence.
+fn opening_fence(line: &str) -> Option<(char, usize)> {
+    let marker = line.chars().next()?;
+    if !matches!(marker, '`' | '~') {
+        return None;
+    }
+    let length = line.chars().take_while(|ch| *ch == marker).count();
+    if length < 3 {
+        return None;
+    }
+    let rest = &line[marker.len_utf8() * length..];
+    // CommonMark permits an info string after either marker, except that a
+    // backtick fence's info string cannot itself contain a backtick.
+    (marker != '`' || !rest.contains('`')).then_some((marker, length))
+}
+
+/// Whether `line` is a valid close for a fence with this delimiter and length.
+///
+/// A shorter fence cannot close a longer opening fence: four backticks are
+/// commonly used to show a triple-backtick example.  A closing fence also has
+/// no info string, unlike an opener.
+fn closes_fence(line: &str, marker: char, opening_length: usize) -> bool {
+    let length = line.chars().take_while(|ch| *ch == marker).count();
+    length >= opening_length && line[marker.len_utf8() * length..].trim().is_empty()
 }
 
 /// The set of link targets in a markdown file, each truncated at the
@@ -834,6 +863,23 @@ mod tests {
         assert!(stripped.contains("keep2"));
         assert!(!stripped.contains("hidden"));
         assert!(!stripped.contains("trailing"));
+    }
+
+    #[test]
+    fn longer_fence_keeps_shorter_fence_example_hidden() {
+        let md = "before\n````md\n```\n# Fake heading\n```\n````\n# Real heading\n";
+        let stripped = strip_fenced_code(md);
+        assert!(!stripped.contains("Fake heading"));
+        assert!(stripped.contains("Real heading"));
+        let headings = heading_slugs(md);
+        assert!(!headings.contains("fake-heading"));
+        assert!(headings.contains("real-heading"));
+    }
+
+    #[test]
+    fn indented_code_block_is_not_treated_as_a_fence() {
+        let md = "    ```\n# A real heading\n";
+        assert!(strip_fenced_code(md).contains("# A real heading"));
     }
 
     #[test]
