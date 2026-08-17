@@ -163,6 +163,22 @@ fn build_for_dialect_folds_a_word_operator_branch() {
     );
 }
 
+/// The resolved-profile entry point must carry the same iRules fold policy as
+/// the string compatibility entry point.  This is the path used by CLI/LSP
+/// callers after dialect detection and guards against a profile being reduced
+/// to the plain fallback between registry construction and SCCP.
+#[test]
+fn build_for_profile_folds_a_word_operator_branch() {
+    let registry = registry_for_dialect(IRULES);
+    let profile = tcl_dialect::DialectProfile::by_name(IRULES);
+    let unit = CompilationUnit::build_for_profile(CONSTANT_WORD_OP, registry, false, profile);
+    assert!(
+        unit.functions()
+            .any(|function| !function.sccp.constant_branches.is_empty()),
+        "a resolved f5-irules profile must retain the word-operator fold policy"
+    );
+}
+
 /// `tk` is an additive command-surface bit rather than a catalogue profile.
 /// The compatibility entry point must retain it in the unit instead of
 /// canonicalising the input to the plain fallback profile's `tcl` name.

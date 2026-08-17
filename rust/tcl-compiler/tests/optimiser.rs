@@ -488,10 +488,12 @@ fn irules_word_operators_fold_through_sccp() {
     // A known-constant subject: the lattice resolves `$x` to `abcde` and the
     // word operator folds, collapsing the condition to a literal.
     let contains = "when HTTP_REQUEST {\n    set x \"abcde\"\n    if {$x contains \"cd\"} {\n        pool p1\n    }\n}";
+    let contains_out = optimised(contains, IR);
     assert!(
-        optimised(contains, IR).contains("if {1}"),
-        "`contains` on a known constant must fold under f5-irules; got {:?}",
-        optimised(contains, IR)
+        opt_fires(contains, IR, "O112")
+            && contains_out.contains("pool p1")
+            && !contains_out.contains("contains"),
+        "`contains` on a known constant must fold under f5-irules; got {contains_out:?}"
     );
     // Control: `eq`, an operator plain Tcl shares, folds on the identical
     // shape — the two dialect halves now agree.
@@ -500,10 +502,12 @@ fn irules_word_operators_fold_through_sccp() {
 
     // A provably-false subject folds the other way.
     let miss = "when HTTP_REQUEST {\n    set x \"abcde\"\n    if {$x contains \"zz\"} {\n        pool p1\n    }\n}";
+    let miss_out = optimised(miss, IR);
     assert!(
-        optimised(miss, IR).contains("if {0}"),
-        "a provably-false `contains` must fold to 0; got {:?}",
-        optimised(miss, IR)
+        opt_fires(miss, IR, "O112")
+            && !miss_out.contains("pool p1")
+            && !miss_out.contains("contains"),
+        "a provably-false `contains` must fold to 0; got {miss_out:?}"
     );
 
     // TN: plain Tcl has no word operators, so the same text must not fold —
