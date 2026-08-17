@@ -296,6 +296,18 @@ pub fn is_readable_at_startup(name: &str, dialect: &str) -> bool {
     special_var(name).is_some_and(|v| v.readable_at_startup_in(resolved))
 }
 
+/// Whether `name` is eagerly bound before user code in the default startup
+/// context for `dialect`.
+///
+/// Unlike [`is_readable_at_startup`], this excludes a read trace such as Tcl
+/// 8.x `tcl_precision`: an initial read is valid there, but a first `unset`
+/// still fails until that trace has materialised a value.
+#[must_use]
+pub fn is_initially_bound(name: &str, dialect: &str) -> bool {
+    let resolved = resolve_dialect(dialect);
+    special_var(name).is_some_and(|v| v.initially_bound.intersects(resolved))
+}
+
 /// Whether reading `name` in `dialect` invokes a registry-declared Tcl read
 /// trace which can materialise the value again after `unset`.  Unlike
 /// [`is_readable_at_startup`], this intentionally excludes eager startup
@@ -932,6 +944,8 @@ mod tests {
         );
         assert!(is_readable_at_startup("tcl_precision", "tcl8.6"));
         assert!(!is_readable_at_startup("tcl_precision", "tcl9.0"));
+        assert!(!is_initially_bound("tcl_precision", "tcl8.6"));
+        assert!(is_initially_bound("argv", "tcl8.6"));
         assert!(is_lazily_readable("tcl_precision", "tcl8.6"));
         assert!(!is_lazily_readable("tcl_precision", "tcl9.0"));
         assert!(!is_lazily_readable("argv", "tcl8.6"));

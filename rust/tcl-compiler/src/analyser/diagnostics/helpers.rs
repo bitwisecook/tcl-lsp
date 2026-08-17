@@ -319,8 +319,40 @@ pub(super) struct PhiUndefCtx<'a> {
     pub exists_guards: &'a [(String, BlockId)],
     /// Startup bindings exist only in the document's initial global frame.
     pub initial_global: bool,
+    /// Locals that registry metadata says alias the interpreter's global
+    /// namespace in this function (`global name`).
+    pub global_aliases: &'a HashSet<String>,
     pub dialect: &'a str,
     pub ssa: &'a crate::ssa::SsaFunction,
+}
+
+/// Return the registry spelling for a potential startup variable, removing
+/// only Tcl's global marker.  A named namespace (`::pkg::name`) deliberately
+/// remains qualified and cannot accidentally inherit a global startup fact.
+pub(super) fn startup_var_name(name: &str) -> &str {
+    let normalised = crate::naming::normalise_var_name(name);
+    normalised.strip_prefix("::").unwrap_or(normalised)
+}
+
+/// Whether `name` resolves to the interpreter's global binding in this
+/// analysis frame.  The `global`-alias set comes from a registry trait, so a
+/// new dialect spelling can opt in without a command-name branch here.
+pub(super) fn has_global_startup_binding(
+    name: &str,
+    initial_global: bool,
+    global_aliases: &HashSet<String>,
+) -> bool {
+    if initial_global || crate::naming::normalise_var_name(name).starts_with("::") {
+        return true;
+    }
+    let startup_name = startup_var_name(name);
+    global_aliases.iter().any(|alias| {
+        let alias_normalised = crate::naming::normalise_var_name(alias);
+        alias_normalised
+            .strip_prefix("::")
+            .unwrap_or(alias_normalised)
+            == startup_name
+    })
 }
 
 /// Phi-from-undef trace.  A use's SSA version > 0 normally proves a prior
@@ -348,13 +380,14 @@ pub(super) fn phi_can_undef(
         executable_edges,
         exists_guards,
         initial_global,
+        global_aliases,
         dialect,
         ssa,
     } = ctx;
-    let normalised = crate::naming::normalise_var_name(name);
-    let startup_name = normalised.strip_prefix("::").unwrap_or(normalised);
+    let startup_name = startup_var_name(name);
+    let global_binding = has_global_startup_binding(name, *initial_global, global_aliases);
     let rematerialises_after_unset =
-        *initial_global && tcl_registry::special_vars::is_lazily_readable(startup_name, dialect);
+        global_binding && tcl_registry::special_vars::is_lazily_readable(startup_name, dialect);
     let key = (name.to_string(), version);
     if killed.contains(&key) {
         // A Tcl read trace is not an eager startup fact: `unset` removes the
@@ -370,7 +403,7 @@ pub(super) fn phi_can_undef(
         // conditional write otherwise makes a merge with the startup version
         // look undefined.  `unset` still wins below for real killed versions,
         // and procedure-local frames never set `initial_global`.
-        return !(*initial_global
+        return !(global_binding
             && tcl_registry::special_vars::is_readable_at_startup(startup_name, dialect));
     }
     if seen.contains(&key) {
@@ -851,6 +884,7 @@ pub(super) fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
     initial_global: bool,
+    global_aliases: &HashSet<String>,
     dialect: &str,
 ) -> UndefSuppression {
     let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
@@ -866,6 +900,7 @@ pub(super) fn build_undef_suppression(
         executable_edges: &fu.sccp.executable_edges,
         exists_guards: &exists_guards,
         initial_global,
+        global_aliases,
         dialect,
         ssa: &fu.ssa,
     };

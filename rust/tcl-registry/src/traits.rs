@@ -279,6 +279,12 @@ declare_traits! {
     ReadsBeforeWrite => READS_BEFORE_WRITE;
     /// Creates a scope alias — upvar-like binding (`upvar`, `global`, `variable`).
     CreatesScopeAlias => CREATES_SCOPE_ALIAS;
+    /// Creates an alias to the interpreter's global namespace (`global`).
+    ///
+    /// This refines [`Traits::CREATES_SCOPE_ALIAS`] for consumers that need
+    /// to distinguish a global binding from a namespace or caller-frame
+    /// alias.  Alias recognition and target layout remain registry-owned.
+    AliasesGlobal => ALIASES_GLOBAL;
     /// Creates a runtime control-flow barrier (`eval`, `uplevel`, `upvar`).
     CreatesBarrier => CREATES_BARRIER;
 

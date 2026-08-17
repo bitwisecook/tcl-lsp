@@ -858,6 +858,10 @@ impl Analyser {
         );
         let scope_aliases =
             crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg, scan_registry);
+        let global_aliases = crate::optimiser::elimination::scan_global_scope_aliases(
+            &function_unit.cfg,
+            scan_registry,
+        );
         let mut textually_referenced =
             crate::optimiser::elimination::collect_textual_var_references(
                 &self.source,
@@ -906,14 +910,20 @@ impl Analyser {
             } else {
                 function_unit.sccp.executable_blocks.clone()
             };
-        let supp =
-            build_undef_suppression(function_unit, &considered, initial_global, self.dialect());
+        let supp = build_undef_suppression(
+            function_unit,
+            &considered,
+            initial_global,
+            &global_aliases,
+            self.dialect(),
+        );
         let exists_guards = collect_existence_guards(function_unit);
         let rbs_params: HashSet<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();
         let read_before_set_ctx = dataflow::ReadBeforeSetCtx {
             initial_global,
+            global_aliases: &global_aliases,
             defined_vars: &defined,
             scope_aliases: &scope_aliases,
             extra_known_defined,
@@ -927,6 +937,7 @@ impl Analyser {
             function_unit,
             &dataflow::ReturnUndefCtx {
                 initial_global,
+                global_aliases: &global_aliases,
                 dialect: self.dialect(),
                 params: &rbs_params,
                 exists_guards: &exists_guards,

@@ -111,6 +111,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::CREATES_BARRIER
             | Traits::CREATES_SCOPE_ALIAS
+            | Traits::ALIASES_GLOBAL
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::FRAME_HASH_BUILTIN,
         // `global ?varName ...?` in Tcl 8.6/9.0/9.1 (and Expect/Synopsys/

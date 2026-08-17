@@ -167,6 +167,7 @@ covers the compiler-facing ones.
 | `CONTROL_FLOW` | Command is a control-flow statement (break, continue, return) |
 | `NEEDS_START_CMD` | Bytecode control flow: needs a `startCmd` instruction |
 | `CREATES_SCOPE_ALIAS` | Creates a scope alias (upvar-like binding) |
+| `ALIASES_GLOBAL` | Refines `CREATES_SCOPE_ALIAS`: binds the interpreter global namespace |
 | `STRUCTURALLY_CHECKED_ARITY` | Registry `arity` is a descriptive floor only; a `clause_shape_check` hook owns real arity + shape validation, so the generic E002/E003 floor/ceiling check steps aside (`if`) |
 
 Traits compose across levels: a `SubCommand` carries its own `traits`, and

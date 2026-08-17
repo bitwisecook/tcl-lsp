@@ -63,6 +63,7 @@ struct PhiUndefIndex<'a> {
 /// emitters from acquiring separate, subtly divergent entry-scope contracts.
 pub(super) struct ReadBeforeSetCtx<'a> {
     pub initial_global: bool,
+    pub global_aliases: &'a HashSet<String>,
     pub defined_vars: &'a HashSet<String>,
     pub scope_aliases: &'a HashSet<String>,
     pub extra_known_defined: &'a HashSet<String>,
@@ -71,6 +72,7 @@ pub(super) struct ReadBeforeSetCtx<'a> {
 
 pub(super) struct ReturnUndefCtx<'a> {
     pub initial_global: bool,
+    pub global_aliases: &'a HashSet<String>,
     pub dialect: &'a str,
     pub params: &'a HashSet<&'a str>,
     pub exists_guards: &'a [(String, crate::cfg::BlockId)],
@@ -79,6 +81,45 @@ pub(super) struct ReturnUndefCtx<'a> {
     pub defined_vars: &'a HashSet<String>,
     pub considered: &'a HashSet<crate::cfg::BlockId>,
     pub supp: &'a UndefSuppression,
+}
+
+/// Registry-owned startup lifecycle facts for one SSA variable version.
+#[derive(Clone, Copy)]
+struct StartupReadFacts {
+    readable: bool,
+    initially_bound: bool,
+    lazy_read: bool,
+}
+
+fn startup_read_facts(
+    name: &str,
+    version: crate::ssa::Version,
+    killed: bool,
+    initial_global: bool,
+    global_aliases: &HashSet<String>,
+    dialect: &str,
+) -> StartupReadFacts {
+    let global_binding =
+        super::helpers::has_global_startup_binding(name, initial_global, global_aliases);
+    let startup_name = super::helpers::startup_var_name(name);
+    StartupReadFacts {
+        readable: global_binding
+            && version == 0
+            && !killed
+            && tcl_registry::special_vars::is_readable_at_startup(startup_name, dialect),
+        initially_bound: global_binding
+            && version == 0
+            && tcl_registry::special_vars::is_initially_bound(startup_name, dialect),
+        lazy_read: global_binding
+            && tcl_registry::special_vars::is_lazily_readable(startup_name, dialect),
+    }
+}
+
+/// Facts used while recording the read sites of one undef def-use chain.
+struct W210ChainCtx<'a> {
+    exists_guards: &'a [(String, crate::cfg::BlockId)],
+    supp: &'a UndefSuppression,
+    startup: StartupReadFacts,
 }
 
 impl Analyser {
@@ -1106,13 +1147,15 @@ file; this call falls through to the 'unknown' handler."
             // Tcl 8.x's registry-declared `tcl_precision` read trace
             // recreates its value after `unset`; an eager startup binding
             // (for example argv) deliberately does not get this exemption.
-            if ctx.initial_global
-                && ctx.supp.killed.contains(&chain.key)
-                && tcl_registry::special_vars::is_lazily_readable(
-                    crate::naming::normalise_var_name(var),
-                    self.dialect(),
-                )
-            {
+            let startup = startup_read_facts(
+                var,
+                *version,
+                ctx.supp.killed.contains(&chain.key),
+                ctx.initial_global,
+                ctx.global_aliases,
+                self.dialect(),
+            );
+            if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
                 continue;
             }
             // `SPECIAL_VARS` distinguishes recognised runtime-sensitive names
@@ -1120,16 +1163,6 @@ file; this call falls through to the 'unknown' handler."
             // user code. That entry fact belongs only to this document's
             // initial global frame and version zero: local shadows and a
             // version killed by `unset` are still genuine W210 reads.
-            if ctx.initial_global
-                && *version == 0
-                && !ctx.supp.killed.contains(&chain.key)
-                && tcl_registry::special_vars::is_readable_at_startup(
-                    crate::naming::normalise_var_name(var),
-                    self.dialect(),
-                )
-            {
-                continue;
-            }
             // An element read (`$arr(a)`) of an array whose *base* is
             // defined, aliased, or a parameter anywhere in the function
             // stays silent: which elements a dynamic write / whole-array
@@ -1192,7 +1225,16 @@ file; this call falls through to the 'unknown' handler."
             if ctx.supp.suppresses(var) {
                 continue;
             }
-            self.record_chain_w210_uses(fu, chain, &exists_guards, ctx.supp, &mut w210_min);
+            self.record_chain_w210_uses(
+                fu,
+                chain,
+                &W210ChainCtx {
+                    exists_guards: &exists_guards,
+                    supp: ctx.supp,
+                    startup,
+                },
+                &mut w210_min,
+            );
         }
 
         let mut entries: Vec<(String, tcl_lexer::Span)> = w210_min.into_iter().collect();
@@ -1221,8 +1263,7 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         chain: &crate::def_use::DefUseChain,
-        exists_guards: &[(String, crate::cfg::BlockId)],
-        supp: &UndefSuppression,
+        ctx: &W210ChainCtx<'_>,
         w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
     ) {
         use crate::def_use::UseKind;
@@ -1247,7 +1288,7 @@ file; this call falls through to the 'unknown' handler."
             // `UndefSuppression::loop_entry_only_undef`): we assume a may-run
             // loop runs, matching C Tcl. A read *inside* the loop body still
             // fires.
-            if supp.after_loop_defined(&chain.key, &use_site.block) {
+            if ctx.supp.after_loop_defined(&chain.key, &use_site.block) {
                 continue;
             }
             let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
@@ -1291,7 +1332,7 @@ file; this call falls through to the 'unknown' handler."
             }
             // Skip the existence-query word itself and
             // reads narrowed by an enclosing `[info exists X]` guard.
-            if existence_exempt(stmt_opt, var, exists_guards, &fu.ssa, &use_site.block) {
+            if existence_exempt(stmt_opt, var, ctx.exists_guards, &fu.ssa, &use_site.block) {
                 continue;
             }
             // ``unset`` without ``-nocomplain`` → W213.
@@ -1304,6 +1345,21 @@ file; this call falls through to the 'unknown' handler."
                 && command == "unset"
                 && !args.iter().any(|a| a == "-nocomplain")
             {
+                // Eager startup bindings (`argv`, `tcl_version`, …) already
+                // exist when their first `unset` runs. A lazy read trace is
+                // different: its first `unset` still errors until an earlier
+                // actual read has materialised its value in this block.
+                if ctx.startup.initially_bound
+                    || (ctx.startup.lazy_read
+                        && chain.uses.iter().any(|prior| {
+                            prior.block == use_site.block
+                                && prior.statement_index >= 0
+                                && prior.statement_index < use_site.statement_index
+                                && prior.class != crate::ssa::UseClass::Quoted
+                        }))
+                {
+                    continue;
+                }
                 let message = format!(
                     "Variable '{var}' may not exist; \
                          use 'unset -nocomplain' to suppress the error",
@@ -1327,6 +1383,13 @@ file; this call falls through to the 'unknown' handler."
             // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
             // `incr` of its own target) is not read-before-set.
             if use_site_safe_initialises(stmt_opt, var) {
+                continue;
+            }
+            // This is an ordinary initial read, not the destructive `unset`
+            // target handled above.  Its startup fact is registry-owned and
+            // applies to the initial global frame, a qualified global, or a
+            // registry-declared global alias — never a same-named local.
+            if ctx.startup.readable {
                 continue;
             }
             // Anchor at the `$var` read token; fall back to the command
@@ -1488,6 +1551,7 @@ file; this call falls through to the 'unknown' handler."
             executable_edges: &fu.sccp.executable_edges,
             exists_guards: ctx.exists_guards,
             initial_global: ctx.initial_global,
+            global_aliases: ctx.global_aliases,
             dialect: ctx.dialect,
             ssa: &fu.ssa,
         };

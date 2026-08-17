@@ -5861,6 +5861,82 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
 }
 
 #[test]
+fn w210_startup_read_trace_respects_global_alias_and_unset_lifecycle() {
+    // The trace belongs to the global storage cell even when that cell is
+    // reached through `global` or an explicit `::` spelling.  A same-named
+    // procedure local remains an ordinary local and must not inherit it.
+    for src in [
+        "proc global_lazy {} { global tcl_precision; set seen $tcl_precision; unset tcl_precision; puts $tcl_precision }\n",
+        "proc global_lazy_return {} { global tcl_precision; set seen $tcl_precision; unset tcl_precision; return $tcl_precision }\n",
+        "set seen $::tcl_precision\nunset ::tcl_precision\nputs $::tcl_precision\n",
+    ] {
+        let result = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "Tcl 8 global read trace must rematerialise for {src:?}: {:?}",
+            result.diagnostics
+        );
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W213),
+            "a prior Tcl 8 trace read makes its unset valid for {src:?}: {:?}",
+            result.diagnostics
+        );
+    }
+    let result = Analyser::new().analyse(
+        "proc local_lazy {} { unset tcl_precision; puts $tcl_precision }\n",
+        "tcl8.6",
+    );
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+        "a same-named procedure local must remain undefined: {:?}",
+        result.diagnostics
+    );
+
+    // Readability through a trace is not eager existence.  In a fresh Tcl 8
+    // interpreter `unset tcl_precision` itself errors; once an ordinary read
+    // has materialised it, the unset is valid.  Eager argv is valid to unset
+    // immediately, yet its later read remains W210.
+    let fresh_unset = Analyser::new().analyse("unset tcl_precision\n", "tcl8.6");
+    assert!(
+        fresh_unset
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W213),
+        "a fresh lazy trace must not be mistaken for an eager binding: {:?}",
+        fresh_unset.diagnostics
+    );
+    let materialised_unset = Analyser::new().analyse(
+        "set observed $tcl_precision\nunset tcl_precision\n",
+        "tcl8.6",
+    );
+    assert!(
+        !materialised_unset
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W213),
+        "a prior trace read must make its unset valid: {:?}",
+        materialised_unset.diagnostics
+    );
+    let eager_unset = Analyser::new().analyse("unset argv\nputs $argv\n", "tcl8.6");
+    assert!(
+        !eager_unset
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W213),
+        "an eagerly-bound startup global is safe to unset: {:?}",
+        eager_unset.diagnostics
+    );
+    assert!(
+        eager_unset
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
+        "the later argv read must still see the deletion: {:?}",
+        eager_unset.diagnostics
+    );
+}
+
+#[test]
 fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
     // A helper proc ``init`` writes ``::counter`` via ``set``,
     // so the top-level read should not flag W210 — the proc

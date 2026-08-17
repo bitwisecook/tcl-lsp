@@ -54,6 +54,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("byte_compiled", Traits::BYTE_COMPILED),
     ("configures_channel", Traits::CONFIGURES_CHANNEL),
     ("creates_dynamic_barrier", Traits::CREATES_DYNAMIC_BARRIER),
+    ("aliases_global", Traits::ALIASES_GLOBAL),
     ("creates_scope_alias", Traits::CREATES_SCOPE_ALIAS),
     ("cse_candidate", Traits::CSE_CANDIDATE),
     ("defines_procedure", Traits::DEFINES_PROCEDURE),
