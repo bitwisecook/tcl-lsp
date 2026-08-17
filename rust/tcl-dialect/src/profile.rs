@@ -999,6 +999,21 @@ impl DialectProfile {
             .find(|p| p.name == name || p.aliases.contains(&name))
     }
 
+    /// Resolve a known ingress name, including additive set-only dialects.
+    ///
+    /// Most names resolve to an interned catalog profile through [`Self::find`].
+    /// Some valid ingress names instead describe an additive command surface;
+    /// they need a typed profile so version- and availability-aware consumers
+    /// do not silently fall back to their unknown-dialect defaults.
+    #[must_use]
+    pub fn resolve_known(name: &str) -> Option<&'static DialectProfile> {
+        Self::find(name).or_else(|| {
+            DialectSet::parse(name)
+                .filter(|&set| set == DialectSet::TK)
+                .map(|_| Self::tk())
+        })
+    }
+
     /// The `f5-irules` profile — an explicit handle for the hardcoded
     /// iRules lookups (event checks, taint, the iRules test framework).
     #[must_use]
@@ -1317,6 +1332,21 @@ mod tests {
             );
         }
         assert!(DialectProfile::find("nonsense").is_none());
+        assert!(DialectProfile::resolve_known("nonsense").is_none());
+    }
+
+    #[test]
+    fn resolve_known_preserves_set_only_tk_identity() {
+        assert!(std::ptr::eq(
+            DialectProfile::resolve_known("tk").expect("Tk is a recognised ingress"),
+            DialectProfile::tk()
+        ));
+        assert_eq!(
+            DialectProfile::resolve_known("f5-irules")
+                .expect("catalogued dialect")
+                .name,
+            "f5-irules"
+        );
     }
 
     #[test]

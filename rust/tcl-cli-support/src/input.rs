@@ -22,7 +22,7 @@
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::DialectProfile;
 use tcl_lsp_core::source_decode::{DecodeReport, decode_source, encoding_integrity_diagnostics};
 use tcl_lsp_core::source_style::StyleDiagnostic;
 
@@ -187,17 +187,11 @@ pub fn combined_effective_dialect(
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
         .map(|name| {
-            DialectProfile::find(name)
-                .or_else(|| {
-                    DialectSet::parse(name)
-                        .filter(|&set| set == DialectSet::TK)
-                        .map(|_| DialectProfile::tk())
-                })
-                .ok_or_else(|| {
-                    CliError::input(format!(
-                        "unknown dialect `{name}`; use a registered dialect name or alias"
-                    ))
-                })
+            DialectProfile::resolve_known(name).ok_or_else(|| {
+                CliError::input(format!(
+                    "unknown dialect `{name}`; use a registered dialect name or alias"
+                ))
+            })
         })
         .transpose()
 }
