@@ -1094,7 +1094,7 @@ fn serialise_world_ssa(result: &ExplorerResult) -> Value {
 pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::find(&result.dialect);
+    let dialect = DialectProfile::resolve_known(&result.dialect);
     let mut all = find_redundancies_for_cu(&result.unit, registry, dialect);
     all.extend(find_partial_redundancies_for_cu(
         &result.unit,
@@ -1145,7 +1145,7 @@ fn taint_severity(code: &str) -> &'static str {
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::find(&result.dialect);
+    let dialect = DialectProfile::resolve_known(&result.dialect);
     let out: Vec<Value> = find_taint_warnings_for_cu(&result.unit, registry, dialect)
         .iter()
         .map(|w| {
@@ -1197,7 +1197,7 @@ pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, sourc
     let passes: Vec<Value> = optimise_by_pass(
         &result.unit,
         registry,
-        DialectProfile::find(&result.dialect),
+        DialectProfile::resolve_known(&result.dialect),
     )
     .iter()
     .map(|(pass, opts)| {
@@ -2077,7 +2077,7 @@ fn serialise_memory_ssa(memory: &MemorySsaFunction) -> Value {
 pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::find(&result.dialect);
+    let dialect = DialectProfile::resolve_known(&result.dialect);
     let cu = &result.unit;
     let mut warnings = find_unnormalised_getter_warnings(
         cu,
@@ -2660,7 +2660,7 @@ fn serialise_source_map_units(result: &ExplorerResult) -> Value {
 fn serialise_stats(result: &ExplorerResult) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::find(&result.dialect);
+    let dialect = DialectProfile::resolve_known(&result.dialect);
 
     let unreachable: usize = result
         .all_snapshots()
@@ -2773,7 +2773,7 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::find(&result.dialect);
+    let dialect = DialectProfile::resolve_known(&result.dialect);
     let mut anns: Vec<Ann> = Vec::new();
 
     // Barriers (IR walk).
@@ -3168,6 +3168,22 @@ mod tests {
                 .iter()
                 .any(|v| v["id"] == "greentree"),
             "greentree tab must be dropped"
+        );
+    }
+
+    #[test]
+    fn optimiser_passes_preserve_set_only_tk_profile() {
+        let result = run_pipeline("proc recurse {} { recurse }\n", "tk");
+        let serialised = serialise_result(&result);
+        let passes = serialised["optimiserPasses"]
+            .as_array()
+            .expect("optimiser passes");
+        assert!(
+            !passes
+                .iter()
+                .flat_map(|pass| { pass["optimisations"].as_array().into_iter().flatten() })
+                .any(|optimisation| optimisation["code"] == "O121"),
+            "Tk must not offer tailcall: {passes:?}"
         );
     }
 
