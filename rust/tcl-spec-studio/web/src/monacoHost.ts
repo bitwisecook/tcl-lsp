@@ -86,6 +86,9 @@ const EXPLORER_URI = "file:///__tcl_compiler_explorer__/source.tcl";
 /** How long keystrokes settle before the change is pushed on. */
 const SETTLE_MS = 120;
 
+/** The readiness probe must degrade rather than leave the editor mount hung. */
+const LSP_READINESS_TIMEOUT_MS = 10_000;
+
 /** Whether a Monaco instance has already had the languages registered. */
 let languagesRegistered = false;
 
@@ -197,10 +200,7 @@ function positionOf(text: string, needle: string): { line: number; character: nu
  * one registration each and the model's own URI decides which document the
  * request names.
  */
-function registerProviders(
-  client: LspClient,
-  semanticTokensApplied: (uri: string, tokenCount: number) => void,
-): void {
+function registerProviders(client: LspClient): void {
   const legend: monaco.languages.SemanticTokensLegend = {
     // Semantic-token legends contain token *identifiers*, not TextMate
     // scopes. Monaco's built-in themes already colour the standard LSP names
@@ -215,9 +215,21 @@ function registerProviders(
     monaco.languages.registerDocumentSemanticTokensProvider(language, {
       getLegend: () => legend,
       provideDocumentSemanticTokens: async (model) => {
+        // The headless deployment test can turn off Monaco's consumer without
+        // touching the transport.  That mutation proves the readiness probe
+        // below is an explicit LSP request, rather than an accidental pass
+        // because Monaco happened to schedule this provider first.
+        if (
+          (
+            globalThis as typeof globalThis & {
+              __tclSpecStudioTestSuppressMonacoSemanticProvider?: boolean;
+            }
+          ).__tclSpecStudioTestSuppressMonacoSemanticProvider
+        ) {
+          return null;
+        }
         const reply = await client.semanticTokens(model.uri.toString());
         if (!reply) return null;
-        semanticTokensApplied(model.uri.toString(), reply.data.length);
         return { data: Uint32Array.from(reply.data), resultId: reply.resultId };
       },
       releaseDocumentSemanticTokens: () => {
@@ -527,16 +539,11 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     .addEventListener?.("change", () => monaco.editor.setTheme(currentTheme()));
 
   let client: LspClient | null = null;
-  let resolveDslSemanticTokens: ((tokenCount: number) => void) | undefined;
-  const dslSemanticTokens = new Promise<number>((resolve) => {
-    resolveDslSemanticTokens = resolve;
-  });
+  let lspReady = false;
   try {
     options.report("starting the language server…");
     client = await startLspClient(options.workerUrl);
-    registerProviders(client, (uri, tokenCount) => {
-      if (uri === DSL_URI) resolveDslSemanticTokens?.(tokenCount);
-    });
+    registerProviders(client);
   } catch (e) {
     options.report(
       `the language server could not start (${e instanceof Error ? e.message : String(e)}) — ` +
@@ -551,25 +558,31 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
   const stub = new OutputSurface(options.stub, STUB_URI, TCL_LANGUAGE, "spectcl", client);
 
   if (client) {
-    // `initialize` proves only that the worker booted. Exercise an opened
-    // document before claiming the LSP is usable: a URI scheme or transport
-    // regression otherwise leaves a green status beside an editor with no
-    // tokens, hover, or diagnostics.
+    // `initialize` proves only that the worker booted. `Surface` sent didOpen
+    // above, so explicitly request the pack's tokens now, in protocol order.
+    // Monaco's semantic-token controller is intentionally asynchronous and
+    // may decline to schedule a request while its tab is initially hidden;
+    // making readiness depend on that implementation detail turned a healthy
+    // Pages deployment into a two-minute false failure. Monaco still consumes
+    // the same provider for on-screen colouring, but that is verified
+    // separately by the browser boot check.
     try {
-      const tokenCount = await Promise.race([
-        dslSemanticTokens,
+      const semanticTokens = await Promise.race([
+        client.semanticTokens(DSL_URI),
         new Promise<never>((_resolve, reject) =>
           window.setTimeout(
-            () => reject(new Error("Monaco did not request semantic tokens for the pack")),
-            10_000,
+            () => reject(new Error("the pack document semantic-token request timed out")),
+            LSP_READINESS_TIMEOUT_MS,
           ),
         ),
       ]);
+      const tokenCount = semanticTokens?.data.length ?? 0;
       if (!tokenCount) throw new Error("the pack document returned no semantic tokens");
       const hoverAt = positionOf(options.dsl.textarea.value, "speclib");
       if (hoverAt && !(await client.hover(DSL_URI, hoverAt.line, hoverAt.character))) {
         throw new Error("the pack document returned no hover information");
       }
+      lspReady = true;
       options.report("the Tcl language server is running in this page", "ok");
     } catch (e) {
       options.report(
@@ -586,7 +599,6 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     else if (uri === stub.documentUri) stub.setDiagnostics(items);
   });
 
-  const ready = client !== null;
   return {
     setDslText: (text) => dsl.setText(text),
     setSampleText: (text) => sample.setText(text),
@@ -600,7 +612,7 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
       stub.layout();
     },
     get lspReady() {
-      return ready;
+      return lspReady;
     },
   };
 }
@@ -631,7 +643,7 @@ export async function mountTclEditor(options: TclEditorOptions): Promise<{
   let client: LspClient | null = null;
   try {
     client = await startLspClient(options.workerUrl);
-    registerProviders(client, () => {});
+    registerProviders(client);
   } catch (error) {
     options.report?.(
       `language server unavailable: ${error instanceof Error ? error.message : String(error)}`,
