@@ -188,13 +188,15 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
                 )]
             })
             .unwrap_or_default();
-        analyser.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::E006,
-            span,
-            message: format!("Invalid formal parameter list: {error}"),
-            severity: Severity::Error,
-            fixes,
-        });
+        analyser.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::E006,
+                span,
+                format!("Invalid formal parameter list: {error}"),
+                Severity::Error,
+            )
+            .with_fixes(fixes),
+        );
     }
 }
 
@@ -237,13 +239,15 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
                 )]
             })
             .unwrap_or_default();
-        analyser.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::E006,
-            span,
-            message: format!("Invalid formal parameter list: {error}"),
-            severity: Severity::Error,
-            fixes,
-        });
+        analyser.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::E006,
+                span,
+                format!("Invalid formal parameter list: {error}"),
+                Severity::Error,
+            )
+            .with_fixes(fixes),
+        );
     }
 }
 
@@ -372,16 +376,15 @@ pub(super) fn arity_verdict(
         return None;
     }
     if !positional_any_expand && nargs_min < min {
-        Some(crate::analyser::types::Diagnostic {
-            code: DiagCode::E002,
+        Some(crate::analyser::types::Diagnostic::new(
+            DiagCode::E002,
             span,
-            message: format!(
+            format!(
                 "Too few arguments for '{display_name}': expected at least {min}, \
 got {nargs_min}{usage_suffix}"
             ),
-            severity: Severity::Error,
-            fixes: Vec::new(),
-        })
+            Severity::Error,
+        ))
     } else if !arity.is_unlimited() && nargs_min > max {
         // Highlight only the surplus arguments when the caller could
         // isolate them (the whole command otherwise), and offer to delete
@@ -402,31 +405,32 @@ got {nargs_min}{usage_suffix}"
             ),
             None => (span, Vec::new()),
         };
-        Some(crate::analyser::types::Diagnostic {
-            code: DiagCode::E003,
-            span: e003_span,
-            message: format!(
-                "Too many arguments for '{display_name}': expected at most {max}, \
+        Some(
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::E003,
+                e003_span,
+                format!(
+                    "Too many arguments for '{display_name}': expected at most {max}, \
 got {nargs_min}{usage_suffix}"
-            ),
-            severity: Severity::Error,
-            fixes,
-        })
+                ),
+                Severity::Error,
+            )
+            .with_fixes(fixes),
+        )
     } else if !positional_any_expand
         && arity.step != 0
         && !(nargs_min - min).is_multiple_of(usize::from(arity.step))
     {
-        Some(crate::analyser::types::Diagnostic {
-            code: DiagCode::E005,
+        Some(crate::analyser::types::Diagnostic::new(
+            DiagCode::E005,
             span,
-            message: format!(
+            format!(
                 "Wrong argument-count shape for '{display_name}': expected {}, \
 got {nargs_min}{usage_suffix}",
                 describe_step_shape(arity)
             ),
-            severity: Severity::Error,
-            fixes: Vec::new(),
-        })
+            Severity::Error,
+        ))
     } else {
         None
     }
@@ -799,13 +803,13 @@ impl Analyser {
                     format!("Remove invalid member(s) {invalid_description}"),
                 )]
             });
-        let diagnostic = crate::analyser::types::Diagnostic {
-            code: DiagCode::W146,
+        let diagnostic = crate::analyser::types::Diagnostic::new(
+            DiagCode::W146,
             span,
             message,
-            severity: Severity::Warning,
-            fixes,
-        };
+            Severity::Warning,
+        )
+        .with_fixes(fixes);
         let namespace = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
         self.pending_arity
@@ -881,13 +885,12 @@ impl Analyser {
         let suffix = registry.get(bare).map_or(String::new(), |spec| {
             dialect_availability_suffix(spec.dialects)
         });
-        let diag = super::types::Diagnostic {
-            code: DiagCode::W002,
-            span: cmd_tok.span,
-            message: format!("'{cmd_name}' is disabled in the active dialect profile{suffix}"),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        };
+        let diag = crate::analyser::types::Diagnostic::new(
+            DiagCode::W002,
+            cmd_tok.span,
+            format!("'{cmd_name}' is disabled in the active dialect profile{suffix}"),
+            Severity::Warning,
+        );
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
         self.pending_disabled_commands
@@ -1124,13 +1127,13 @@ impl Analyser {
             cmd_name.to_string(),
             ns,
             enforce_order,
-            super::types::Diagnostic {
-                code: DiagCode::W001,
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::W001,
                 span,
                 message,
-                severity: Severity::Warning,
-                fixes,
-            },
+                Severity::Warning,
+            )
+            .with_fixes(fixes),
         ));
     }
 
@@ -1182,13 +1185,15 @@ impl Analyser {
                 safety: crate::irules_checks::FixSafety::RequiresReview,
             })
             .collect();
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W145,
-            span,
-            message: format!("Ambiguous abbreviation '{word}' for '{cmd_name}': matches {listed}."),
-            severity: Severity::Warning,
-            fixes,
-        });
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::W145,
+                span,
+                format!("Ambiguous abbreviation '{word}' for '{cmd_name}': matches {listed}."),
+                Severity::Warning,
+            )
+            .with_fixes(fixes),
+        );
     }
 
     /// Whether `cmd_name subcommand_name …` is a call into an ensemble
@@ -1320,15 +1325,12 @@ impl Analyser {
                     dialect_availability_suffix(sub.dialects.or(spec.dialects))
                 })
         });
-        let diag = super::types::Diagnostic {
-            code: DiagCode::W002,
+        let diag = crate::analyser::types::Diagnostic::new(
+            DiagCode::W002,
             span,
-            message: format!(
-                "'{cmd_name} {first_arg}' is disabled in the active dialect profile{suffix}"
-            ),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        };
+            format!("'{cmd_name} {first_arg}' is disabled in the active dialect profile{suffix}"),
+            Severity::Warning,
+        );
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
         self.pending_disabled_commands
@@ -1461,13 +1463,12 @@ impl Analyser {
                         cmd_name.to_string(),
                         ns,
                         enforce_order,
-                        super::types::Diagnostic {
-                            code: DiagCode::E001,
-                            span: cmd_tok.span,
-                            message: format!("'{cmd_name}' requires a subcommand"),
-                            severity: Severity::Error,
-                            fixes: Vec::new(),
-                        },
+                        crate::analyser::types::Diagnostic::new(
+                            DiagCode::E001,
+                            cmd_tok.span,
+                            format!("'{cmd_name}' requires a subcommand"),
+                            Severity::Error,
+                        ),
                     ));
                     return;
                 };
@@ -1696,13 +1697,12 @@ impl Analyser {
             .join(", ");
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        let diagnostic = super::types::Diagnostic {
-            code: DiagCode::W147,
-            span: tcl_lexer::Span::new(first.start(), second.end()),
-            message: format!("Options {names} cannot be used together for '{display_name}'"),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        };
+        let diagnostic = crate::analyser::types::Diagnostic::new(
+            DiagCode::W147,
+            tcl_lexer::Span::new(first.start(), second.end()),
+            format!("Options {names} cannot be used together for '{display_name}'"),
+            Severity::Warning,
+        );
         if constraint.lifecycle.is_unspecified() {
             self.pending_arity
                 .push((resolution_name.to_string(), ns, enforce_order, diagnostic));
@@ -2743,13 +2743,10 @@ impl Analyser {
 
         let fixes = self.e004_fixes(args, arg_tokens, error);
 
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::E004,
-            span,
-            message,
-            severity: Severity::Error,
-            fixes,
-        });
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(DiagCode::E004, span, message, Severity::Error)
+                .with_fixes(fixes),
+        );
     }
 
     /// **W142.** Runs a resolved command's [`tcl_registry::CommandSpec::context_gate`]
@@ -2773,13 +2770,14 @@ impl Analyser {
         let Some(message) = gate(&arg_strs, self.current_event.is_some()) else {
             return;
         };
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W142,
-            span: cmd_tok.span,
-            message: message.to_string(),
-            severity: Severity::Warning,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W142,
+                cmd_tok.span,
+                message.to_string(),
+                Severity::Warning,
+            ));
     }
 
     /// Code fixes for [`Self::emit_e004_clause_shape_diagnostic`]. See
@@ -3005,13 +3003,10 @@ impl Analyser {
 
         let (severity, message, origin) =
             self.classify_w304(tok, is_dynamic, looks_like_option, &command_label);
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W304,
-            span: diag_span,
-            message,
-            severity,
-            fixes,
-        });
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(DiagCode::W304, diag_span, message, severity)
+                .with_fixes(fixes),
+        );
         if let Some(origin_diag) = origin {
             self.result.diagnostics.push(origin_diag);
         }
@@ -3083,16 +3078,18 @@ impl Analyser {
             }]
         })
         .unwrap_or_default();
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W217,
-            span: diag_span,
-            message: "`unset` unsets no variable here — `-nocomplain` / `--` are consumed as \
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::W217,
+                diag_span,
+                "`unset` unsets no variable here — `-nocomplain` / `--` are consumed as \
 options. To unset a variable whose name begins with `-`, put `--` before it \
 (e.g. `unset -- -nocomplain`)."
-                .to_string(),
-            severity: Severity::Warning,
-            fixes,
-        });
+                    .to_string(),
+                Severity::Warning,
+            )
+            .with_fixes(fixes),
+        );
     }
 
     /// Emit the per-item path's pending W304 diagnostics, classifying each
@@ -3106,13 +3103,15 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         let pending = std::mem::take(&mut self.pending_w304);
         for (tok, command_label, fixes, diag_span) in pending {
             let (severity, message, origin) = self.classify_w304(tok, true, false, &command_label);
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W304,
-                span: diag_span,
-                message,
-                severity,
-                fixes,
-            });
+            self.result.diagnostics.push(
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::W304,
+                    diag_span,
+                    message,
+                    severity,
+                )
+                .with_fixes(fixes),
+            );
             if let Some(origin_diag) = origin {
                 self.result.diagnostics.push(origin_diag);
             }
@@ -3144,7 +3143,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
     /// registered command; W117 when a stub expr function/operator name
     /// collides with a built-in `expr` function or operator.
     pub(in crate::analyser) fn emit_w116_w117_stub_shadows(&mut self) {
-        use super::types::{Diagnostic, Severity};
+        use super::types::Severity;
 
         if self.result.stub_commands.is_empty() && self.result.stub_expr_defs.is_empty() {
             return;
@@ -3166,13 +3165,14 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                 .map(|s| (s.name.clone(), s.range))
                 .collect();
             for (name, span) in hits {
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::W116,
-                    span,
-                    message: format!("Stub command '{name}' shadows built-in command."),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W116,
+                        span,
+                        format!("Stub command '{name}' shadows built-in command."),
+                        Severity::Warning,
+                    ));
             }
         }
 
@@ -3197,15 +3197,16 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                 } else {
                     "operator"
                 };
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::W117,
-                    span,
-                    message: format!(
-                        "Stub expression {kind_label} '{name}' shadows built-in {kind_label}."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W117,
+                        span,
+                        format!(
+                            "Stub expression {kind_label} '{name}' shadows built-in {kind_label}."
+                        ),
+                        Severity::Warning,
+                    ));
             }
         }
     }
@@ -3250,13 +3251,15 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         } else {
             Vec::new()
         };
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::Irule2002,
-            span: cmd_tok.span,
-            message: format!("'{cmd_name}' is deprecated in iRules. Use '{replacement}' instead."),
-            severity: Severity::Warning,
-            fixes,
-        });
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule2002,
+                cmd_tok.span,
+                format!("'{cmd_name}' is deprecated in iRules. Use '{replacement}' instead."),
+                Severity::Warning,
+            )
+            .with_fixes(fixes),
+        );
     }
 
     /// **W143.** Warn on a direct call into a private, undocumented
@@ -3327,13 +3330,13 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
             }
             _ => Vec::new(),
         };
-        let diag = super::types::Diagnostic {
-            code: DiagCode::W143,
-            span: cmd_tok.span,
+        let diag = crate::analyser::types::Diagnostic::new(
+            DiagCode::W143,
+            cmd_tok.span,
             message,
-            severity: Severity::Warning,
-            fixes,
-        };
+            Severity::Warning,
+        )
+        .with_fixes(fixes);
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
         self.pending_w143
@@ -3472,15 +3475,17 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
                 }]
             })
             .unwrap_or_default();
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::Irule2001,
-            span: cmd_tok.span,
-            message: "'matchclass' is deprecated since BIG-IP v10. \
+        self.result.diagnostics.push(
+            crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule2001,
+                cmd_tok.span,
+                "'matchclass' is deprecated since BIG-IP v10. \
 Use 'class match <item> <operator> <class>' instead."
-                .to_string(),
-            severity: Severity::Warning,
-            fixes,
-        });
+                    .to_string(),
+                Severity::Warning,
+            )
+            .with_fixes(fixes),
+        );
     }
 
     /// Classify the positional value for W304: tristate severity,
@@ -3521,16 +3526,15 @@ This value is reported at INFO because '{var_text}' currently resolves to \
 static literal '{resolved_text}'. Keep '--' to guard against future \
 option-injection regressions if the variable changes."
                     );
-                    let origin = super::types::Diagnostic {
-                        code: DiagCode::W304,
-                        span: resolved_span,
-                        message: format!(
+                    let origin = crate::analyser::types::Diagnostic::new(
+                        DiagCode::W304,
+                        resolved_span,
+                        format!(
                             "'{var_text}' is currently assigned static \
 literal '{resolved_text}' here; this is why the diagnostic is INFO."
                         ),
-                        severity: Severity::Suggestion,
-                        fixes: Vec::new(),
-                    };
+                        Severity::Suggestion,
+                    );
                     return (Severity::Suggestion, message, Some(origin));
                 }
             }
@@ -3753,17 +3757,17 @@ before this value so it is treated as data, not an option."
                     let sub_suffix = sub_name.map_or(String::new(), |n| format!(" {n}"));
                     let consumed = 1 + opt.value_word_count(args, i);
                     let fixes = self.w004_remove_option_fix(arg, arg_tokens, i, consumed);
-                    let diag = super::types::Diagnostic {
-                        code: DiagCode::W004,
+                    let diag = crate::analyser::types::Diagnostic::new(
+                        DiagCode::W004,
                         span,
-                        message: format!(
+                        format!(
                             "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
 in the active dialect ({}).",
                             self.dialect()
                         ),
-                        severity: Severity::Warning,
-                        fixes,
-                    };
+                        Severity::Warning,
+                    )
+                    .with_fixes(fixes);
                     let ns = self.command_resolution_namespace(scope_path);
                     let enforce_order = !self.scope_path_in_proc_body(scope_path);
                     self.pending_arity
@@ -3829,15 +3833,14 @@ in the active dialect ({}).",
                 safety: crate::irules_checks::FixSafety::RequiresReview,
             })
             .collect();
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W145,
-            span,
-            message: format!(
+        self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+    DiagCode::W145,
+    span,
+    format!(
                 "Ambiguous abbreviation '{word}' for '{cmd_name}{sub_suffix}': matches {listed}."
             ),
-            severity: Severity::Warning,
-            fixes,
-        });
+    Severity::Warning,
+).with_fixes(fixes));
     }
 
     /// Build the "remove option" fix for a W004 candidate: deletes the flag
@@ -4013,17 +4016,16 @@ in the active dialect ({}).",
                     safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W003,
-                span: op_span,
-                message: format!(
+            self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+    DiagCode::W003,
+    op_span,
+    format!(
                     "Expression operator '{op_name}' is not available in dialect '{}'; requires {}.",
                     self.dialect(),
                     w003_tip_citation(op_name)
                 ),
-                severity: Severity::Warning,
-                fixes,
-            });
+    Severity::Warning,
+).with_fixes(fixes));
         }
     }
 
@@ -4045,16 +4047,15 @@ in the active dialect ({}).",
                 continue;
             };
             if since > ceiling {
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W002,
-                    span,
-                    message: format!(
+                self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+    DiagCode::W002,
+    span,
+    format!(
                         "'::tcl::mathfunc::{name}' is disabled in the active dialect profile ('{}')",
                         self.dialect()
                     ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+    Severity::Warning,
+));
             }
         }
     }
@@ -4095,21 +4096,20 @@ in the active dialect ({}).",
             let Some(op_name) = gated_operator_name(word, base, is_irules) else {
                 continue;
             };
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W003,
-                span: tok.span,
-                message: format!(
+            self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
+    DiagCode::W003,
+    tok.span,
+    format!(
                     "Expression operator '{op_name}' is not available in dialect '{}'; requires {}.",
                     self.dialect(),
                     w003_tip_citation(op_name)
                 ),
-                severity: Severity::Warning,
-                // The unbraced multi-word form has no single local
+    Severity::Warning,
+).with_fixes(// The unbraced multi-word form has no single local
                 // span to rewrite in place without also re-bracing
                 // the whole expression (W100's concern, not this
                 // one) — left unfixed.
-                fixes: Vec::new(),
-            });
+Vec::new()));
         }
     }
 

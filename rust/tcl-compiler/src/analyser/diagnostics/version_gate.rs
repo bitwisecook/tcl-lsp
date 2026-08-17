@@ -747,13 +747,15 @@ impl Analyser {
                 .flatten()
                 .into_iter()
                 .collect();
-            new_diags.push(Diagnostic {
-                code,
-                span: site.span,
-                message,
-                severity: Severity::Warning,
-                fixes,
-            });
+            new_diags.push(
+                crate::analyser::types::Diagnostic::new(
+                    code,
+                    site.span,
+                    message,
+                    Severity::Warning,
+                )
+                .with_fixes(fixes),
+            );
         }
         self.result.diagnostics.extend(new_diags);
     }
@@ -1157,19 +1159,18 @@ impl Analyser {
             if site.min <= effective {
                 continue;
             }
-            new_diags.push(Diagnostic {
-                code: site.code,
-                span: site.span,
-                message: format!(
+            new_diags.push(crate::analyser::types::Diagnostic::new(
+                site.code,
+                site.span,
+                format!(
                     "{} requires Tcl {} but {} provides {}.",
                     site.what,
                     site.min.as_package_version(),
                     self.profile.name,
                     effective.as_package_version()
                 ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+                Severity::Warning,
+            ));
         }
         self.result.diagnostics.extend(new_diags);
     }

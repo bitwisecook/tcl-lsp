@@ -95,7 +95,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::Token;
 
 use super::state::Analyser;
-use super::types::{Diagnostic, Severity};
+use super::types::Severity;
 
 /// Per-parent geometry-manager usage accumulated during the walk so
 /// TK1001 can be decided post-walk.
@@ -261,15 +261,13 @@ impl Analyser {
                 && parent != "."
                 && !self.tk_parent_widget_exists(&domain, resolved, parent)
             {
-                self.tk_pending_diags.push(Diagnostic {
-                    code: DiagCode::Tk1002,
-                    span: cmd_tok.span,
-                    message: format!(
-                        "Widget path '{path}' references non-existent parent '{parent}'."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                self.tk_pending_diags
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::Tk1002,
+                        cmd_tok.span,
+                        format!("Widget path '{path}' references non-existent parent '{parent}'."),
+                        Severity::Warning,
+                    ));
             }
 
             self.tk_domain_state(&domain, resolved)
@@ -410,13 +408,15 @@ impl Analyser {
                     safety: crate::irules_checks::FixSafety::RequiresReview,
                 });
             }
-            self.tk_pending_diags.push(Diagnostic {
-                code: DiagCode::Tk1003,
-                span,
-                message,
-                severity: Severity::Hint,
-                fixes,
-            });
+            self.tk_pending_diags.push(
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::Tk1003,
+                    span,
+                    message,
+                    Severity::Hint,
+                )
+                .with_fixes(fixes),
+            );
         }
     }
 
@@ -499,16 +499,17 @@ impl Analyser {
                     continue;
                 };
                 for (_manager, span) in &usage.sites {
-                    self.result.diagnostics.push(Diagnostic {
-                        code: DiagCode::Tk1001,
-                        span: *span,
-                        message: format!(
-                            "Geometry manager conflict: cannot mix '{first}' and '{second}' \
+                    self.result
+                        .diagnostics
+                        .push(crate::analyser::types::Diagnostic::new(
+                            DiagCode::Tk1001,
+                            *span,
+                            format!(
+                                "Geometry manager conflict: cannot mix '{first}' and '{second}' \
                              in the same parent '{parent}'."
-                        ),
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+                            ),
+                            Severity::Warning,
+                        ));
                 }
             }
         }

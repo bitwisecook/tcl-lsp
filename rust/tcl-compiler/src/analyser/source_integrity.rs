@@ -32,10 +32,10 @@ pub fn bidi_control_diagnostics(source: &str) -> Vec<Diagnostic> {
             let name = bidi_control_name(ch)?;
             let start = u32::try_from(offset).unwrap_or(u32::MAX);
             let len = u32::try_from(ch.len_utf8()).unwrap_or(0);
-            Some(Diagnostic {
-                code: DiagCode::W305,
-                span: Span::new(start, start.saturating_add(len)),
-                message: format!(
+            Some(crate::analyser::types::Diagnostic::new(
+    DiagCode::W305,
+    Span::new(start, start.saturating_add(len)),
+    format!(
                     "Bidirectional formatting control U+{:04X} {name} — this makes the surrounding \
                      source render in a different order from the one it is parsed and executed in, \
                      so a reviewer can approve code that does something other than what their editor \
@@ -43,9 +43,8 @@ pub fn bidi_control_diagnostics(source: &str) -> Vec<Diagnostic> {
                      an escape (`\\u{:04X}`) if the character is genuinely part of the data.",
                     ch as u32, ch as u32,
                 ),
-                severity: Severity::Error,
-                fixes: Vec::new(),
-            })
+    Severity::Error,
+))
         })
         .collect()
 }

@@ -1991,7 +1991,7 @@ impl Analyser {
         site_span: Span,
         scope_path: &[usize],
     ) {
-        use super::types::{Diagnostic, Severity};
+        use super::types::Severity;
         use crate::naming::is_brace_substitutable;
         use std::borrow::Cow;
 
@@ -2067,13 +2067,14 @@ impl Analyser {
                 use std::fmt::Write as _;
                 let _ = write!(message, "; did you mean '{best}'?");
             }
-            self.result.diagnostics.push(Diagnostic {
-                code: DiagCode::W215,
-                span: site_span,
-                message,
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W215,
+                    site_span,
+                    message,
+                    Severity::Warning,
+                ));
         }
 
         if let Some(elem) = element {
@@ -2083,17 +2084,18 @@ impl Analyser {
                 Cow::Borrowed(elem)
             };
             if runtime_element.contains(')') {
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::W215,
-                    span: site_span,
-                    message: "array element index contains ')'; the element can be created \
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W215,
+                        site_span,
+                        "array element index contains ')'; the element can be created \
                               and read via ``set arr(idx) ...`` / ``[set \"arr(idx)\"]``, but \
                               is not reachable via $-substitution (``$arr(idx)`` reads up \
                               to the first ``)`` and stops there)"
-                        .to_string(),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                            .to_string(),
+                        Severity::Warning,
+                    ));
             }
         }
     }

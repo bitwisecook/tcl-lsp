@@ -54,7 +54,7 @@ use tcl_lexer::{Span, Token};
 use tcl_registry::{CommandRegistry, SubCommand};
 
 use super::super::state::Analyser;
-use super::super::types::{Diagnostic, Severity};
+use super::super::types::Severity;
 use super::validity::arity_verdict;
 
 /// `configure`/`cget` are universal on every Tk widget instance (baked into
@@ -189,16 +189,17 @@ impl Analyser {
                 .iter()
                 .find(|s: &&SubCommand| s.name == site.subcommand)
             else {
-                self.result.diagnostics.push(Diagnostic {
-                    code: DiagCode::W001,
-                    span: site.subcommand_span,
-                    message: format!(
-                        "Unknown subcommand '{}' for widget '{class}'",
-                        site.subcommand
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W001,
+                        site.subcommand_span,
+                        format!(
+                            "Unknown subcommand '{}' for widget '{class}'",
+                            site.subcommand
+                        ),
+                        Severity::Warning,
+                    ));
                 continue;
             };
             if site.has_expand {

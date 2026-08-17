@@ -135,16 +135,17 @@ impl Analyser {
                 if !rebound.contains(&nqn(command)) {
                     continue; // never bound here → an ordinary external command
                 }
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W128,
-                    span: *span,
-                    message: format!(
-                        "Command '{command}' was renamed or deleted earlier in this \
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W128,
+                        *span,
+                        format!(
+                            "Command '{command}' was renamed or deleted earlier in this \
 file; this call falls through to the 'unknown' handler."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                        ),
+                        Severity::Warning,
+                    ));
             }
         }
     }
@@ -410,13 +411,14 @@ file; this call falls through to the 'unknown' handler."
             if let Some(similar) = find_case_mismatch(var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W220,
-                span,
-                message,
-                severity: Severity::Hint,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W220,
+                    span,
+                    message,
+                    Severity::Hint,
+                ));
         }
     }
 
@@ -688,13 +690,14 @@ file; this call falls through to the 'unknown' handler."
             if let Some(similar) = find_case_mismatch(&var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W211,
-                span,
-                message,
-                severity: Severity::Hint,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W211,
+                    span,
+                    message,
+                    Severity::Hint,
+                ));
         }
     }
 
@@ -773,13 +776,14 @@ file; this call falls through to the 'unknown' handler."
                      with static value '{pretty}'; \
                      did you mean to assign a different variable?"
                 );
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::H300,
-                    span,
-                    message,
-                    severity: Severity::Hint,
-                    fixes: Vec::new(),
-                });
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::H300,
+                        span,
+                        message,
+                        Severity::Hint,
+                    ));
             }
         }
     }
@@ -942,13 +946,14 @@ file; this call falls through to the 'unknown' handler."
                 "Parameter '{param}' of proc '{name}' is unused",
                 name = ir_proc.qualified_name,
             );
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W214,
-                span: param_spans.get(idx).copied().unwrap_or(ir_proc.span),
-                message,
-                severity: Severity::Hint,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W214,
+                    param_spans.get(idx).copied().unwrap_or(ir_proc.span),
+                    message,
+                    Severity::Hint,
+                ));
         }
     }
 
@@ -1165,13 +1170,14 @@ file; this call falls through to the 'unknown' handler."
             if let Some(similar) = undefined_var_suggestion(&var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W210,
-                span,
-                message,
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W210,
+                    span,
+                    message,
+                    Severity::Warning,
+                ));
         }
     }
 
@@ -1277,13 +1283,15 @@ file; this call falls through to the 'unknown' handler."
                 // the same fix the LSP layer synthesises, now carried on the
                 // diagnostic itself so every editor surfaces it uniformly.
                 let (diag_span, fixes) = w213_span_and_fix(fu, tokens.as_ref(), var, span);
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W213,
-                    span: diag_span,
-                    message,
-                    severity: Severity::Warning,
-                    fixes,
-                });
+                self.result.diagnostics.push(
+                    crate::analyser::types::Diagnostic::new(
+                        DiagCode::W213,
+                        diag_span,
+                        message,
+                        Severity::Warning,
+                    )
+                    .with_fixes(fixes),
+                );
                 continue;
             }
             // A use site that itself safely initialises the variable
@@ -1410,13 +1418,14 @@ file; this call falls through to the 'unknown' handler."
                 if let Some(similar) = undefined_var_suggestion(&name, defined_vars) {
                     let _ = write!(message, "; did you mean '{similar}'?");
                 }
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: DiagCode::W210,
-                    span,
-                    message,
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W210,
+                        span,
+                        message,
+                        Severity::Warning,
+                    ));
             }
         }
     }
@@ -1602,13 +1611,14 @@ file; this call falls through to the 'unknown' handler."
                     if let Some(similar) = undefined_var_suggestion(name, defined_vars) {
                         let _ = write!(message, "; did you mean '{similar}'?");
                     }
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: DiagCode::W210,
-                        span,
-                        message,
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+                    self.result
+                        .diagnostics
+                        .push(crate::analyser::types::Diagnostic::new(
+                            DiagCode::W210,
+                            span,
+                            message,
+                            Severity::Warning,
+                        ));
                 }
             }
         }
@@ -1786,15 +1796,16 @@ file; this call falls through to the 'unknown' handler."
                 (DiagCode::I230, msg)
             };
 
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code,
-                span,
-                message,
-                // I230/I231 are observational (LSP `Information`);
-                // they previously collapsed to `Hint`.
-                severity: Severity::Info,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    code,
+                    span,
+                    message,
+                    // I230/I231 are observational (LSP `Information`);
+                    // they previously collapsed to `Hint`.
+                    Severity::Info,
+                ));
         }
     }
 
@@ -1852,14 +1863,15 @@ file; this call falls through to the 'unknown' handler."
                     cb.condition,
                 )
             };
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::I230,
-                span,
-                message,
-                // I230 is observational (LSP `Information`).
-                severity: Severity::Info,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::I230,
+                    span,
+                    message,
+                    // I230 is observational (LSP `Information`).
+                    Severity::Info,
+                ));
         }
     }
 
@@ -1950,13 +1962,14 @@ file; this call falls through to the 'unknown' handler."
                             "Variable '${name}' passed as channel to '{command}' \
                              has type {type_label}, not CHANNEL.",
                         );
-                        self.result.diagnostics.push(super::types::Diagnostic {
-                            code: DiagCode::W126,
-                            span: arg_span,
-                            message,
-                            severity: Severity::Warning,
-                            fixes: Vec::new(),
-                        });
+                        self.result
+                            .diagnostics
+                            .push(crate::analyser::types::Diagnostic::new(
+                                DiagCode::W126,
+                                arg_span,
+                                message,
+                                Severity::Warning,
+                            ));
                     } else {
                         // Literal — strip surrounding braces / quotes.
                         let literal = arg_text
@@ -1974,13 +1987,14 @@ file; this call falls through to the 'unknown' handler."
                             "String literal '{literal}' used as channel argument to \
                              '{command}' — expected a channel from open/socket/chan create.",
                         );
-                        self.result.diagnostics.push(super::types::Diagnostic {
-                            code: DiagCode::W126,
-                            span: arg_span,
-                            message,
-                            severity: Severity::Warning,
-                            fixes: Vec::new(),
-                        });
+                        self.result
+                            .diagnostics
+                            .push(crate::analyser::types::Diagnostic::new(
+                                DiagCode::W126,
+                                arg_span,
+                                message,
+                                Severity::Warning,
+                            ));
                     }
                 }
             }
@@ -2046,15 +2060,16 @@ file; this call falls through to the 'unknown' handler."
             } else {
                 "Modulo"
             };
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: DiagCode::W233,
-                span,
-                message: format!(
-                    "{verb} by a provably-zero divisor — raises 'divide by zero' at runtime."
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W233,
+                    span,
+                    format!(
+                        "{verb} by a provably-zero divisor — raises 'divide by zero' at runtime."
+                    ),
+                    Severity::Warning,
+                ));
         }
     }
 
@@ -2114,16 +2129,17 @@ file; this call falls through to the 'unknown' handler."
             } else {
                 "silently returns the empty string"
             };
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code: f.code,
-                span: fu.abs_span(f.span),
-                message: format!(
-                    "{}: index ${} {rng}, {bound} \u{2014} {outcome}.",
-                    f.command, f.index_var
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    f.code,
+                    fu.abs_span(f.span),
+                    format!(
+                        "{}: index ${} {rng}, {bound} \u{2014} {outcome}.",
+                        f.command, f.index_var
+                    ),
+                    Severity::Warning,
+                ));
         }
     }
 
@@ -2277,13 +2293,14 @@ file; this call falls through to the 'unknown' handler."
                 None
             })
             .unwrap_or(stmt_span);
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: DiagCode::W124,
-            span,
-            message: message.to_string(),
-            severity,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W124,
+                span,
+                message.to_string(),
+                severity,
+            ));
     }
 
     /// IRULE4005 — racy ``static::`` cross-event flow.
@@ -2327,13 +2344,14 @@ file; this call falls through to the 'unknown' handler."
                          the same virtual server; concurrent writes can produce unpredictable \
                          results."
                     );
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: DiagCode::Irule4005,
-                        span,
-                        message,
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
+                    self.result
+                        .diagnostics
+                        .push(crate::analyser::types::Diagnostic::new(
+                            DiagCode::Irule4005,
+                            span,
+                            message,
+                            Severity::Warning,
+                        ));
                 }
             }
         }

@@ -2006,13 +2006,14 @@ impl Analyser {
                 // Any unexpected lexer warning → catch-all E200.
                 _ => DiagCode::E200,
             };
-            self.result.diagnostics.push(super::types::Diagnostic {
-                code,
-                span: Span::new(w.offset, w.offset),
-                message: w.message,
-                severity: super::types::Severity::Error,
-                fixes: Vec::new(),
-            });
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    code,
+                    Span::new(w.offset, w.offset),
+                    w.message,
+                    super::types::Severity::Error,
+                ));
         }
     }
 

@@ -466,16 +466,17 @@ impl Analyser {
         if definer_disabled || self.oo_member_available(grammar, subcmd) {
             return;
         }
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: tcl_core_types::DiagCode::W002,
-            span: tok.span,
-            message: format!(
-                "'{subcmd}' is disabled in the active dialect profile ('{}')",
-                self.dialect()
-            ),
-            severity: super::types::Severity::Warning,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                tcl_core_types::DiagCode::W002,
+                tok.span,
+                format!(
+                    "'{subcmd}' is disabled in the active dialect profile ('{}')",
+                    self.dialect()
+                ),
+                super::types::Severity::Warning,
+            ));
     }
 
     /// Emit W002 for a recognised optional member argument that exists in the
@@ -505,17 +506,18 @@ impl Analyser {
         let Some(tok) = arg_tokens.get(usize::from(position)) else {
             return false;
         };
-        self.result.diagnostics.push(super::types::Diagnostic {
-            code: tcl_core_types::DiagCode::W002,
-            span: tok.span,
-            message: format!(
-                "'{}' is disabled in the active dialect profile ('{}')",
-                option.value,
-                self.dialect()
-            ),
-            severity: super::types::Severity::Warning,
-            fixes: Vec::new(),
-        });
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                tcl_core_types::DiagCode::W002,
+                tok.span,
+                format!(
+                    "'{}' is disabled in the active dialect profile ('{}')",
+                    option.value,
+                    self.dialect()
+                ),
+                super::types::Severity::Warning,
+            ));
         true
     }
 
