@@ -104,24 +104,24 @@ impl Campaign<'_> {
         base_seed: u64,
         iterations: u64,
         mut progress: impl FnMut(u64, &Stats),
-    ) -> Stats {
+    ) -> std::io::Result<Stats> {
         let mut stats = Stats::default();
         for i in 0..iterations {
             let seed = base_seed.wrapping_add(i);
             stats.total += 1;
-            self.run_one(seed, &mut stats);
+            self.run_one(seed, &mut stats)?;
             progress(i + 1, &stats);
         }
-        stats
+        Ok(stats)
     }
 
     /// Generate, run, and compare a single seed, updating `stats` and recording
     /// any finding.
-    pub fn run_one(&self, seed: u64, stats: &mut Stats) -> Verdict {
+    pub fn run_one(&self, seed: u64, stats: &mut Stats) -> std::io::Result<Verdict> {
         let script = generate(seed, &self.config);
         let Ok(path) = write_script(&self.scratch, seed, &script) else {
             stats.skipped += 1;
-            return Verdict::Skipped;
+            return Ok(Verdict::Skipped);
         };
         let reference = run_backend(
             self.reference.binary,
@@ -154,10 +154,10 @@ impl Campaign<'_> {
                     versions: &self.versions,
                 },
             );
-            if self.registry.record(&finding).unwrap_or(false) {
+            if self.registry.record(&finding)? {
                 stats.new_findings += 1;
             }
         }
-        verdict
+        Ok(verdict)
     }
 }
