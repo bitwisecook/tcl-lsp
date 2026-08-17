@@ -894,6 +894,30 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     help_terms: &[],
 };
 
+/// Set-only `tk` ingress: modern Tcl behaviour plus the Tk availability bit.
+/// This is deliberately not part of [`DialectProfile::all`] or
+/// [`DialectProfile::find`].
+static TK_PROFILE: DialectProfile = DialectProfile {
+    name: "tk",
+    aliases: &[],
+    vendor_bit: None,
+    availability_mask: DialectSet::TK_AND_TCL,
+    base_layers: &[],
+    grammar_union: DialectSet::TK_AND_TCL,
+    version_ceiling: None,
+    signature_base: None,
+    runtime_base: None,
+    leading_zero_is_octal: Ternary::Inert,
+    expr_grammar_base: None,
+    grammar: GRAMMAR_TCL9X,
+    operators_as_commands: true,
+    tcloo: true,
+    has_fixed_ensembles: false,
+    vm_runtime_version: TclVersion::V9_0,
+    libraries: LIBS_TCL86_PLUS,
+    help_terms: &["tk"],
+};
+
 impl DialectProfile {
     /// The release this profile's *runtime* behaviour follows, if it names one.
     ///
@@ -987,6 +1011,18 @@ impl DialectProfile {
     #[must_use]
     pub fn plain_tcl() -> &'static DialectProfile {
         &PLAIN_TCL
+    }
+
+    /// The additive Tk-only ingress profile.
+    ///
+    /// Tk is intentionally absent from the selectable profile catalogue: it
+    /// is a library surface layered onto Tcl rather than a runtime with its
+    /// own release semantics. CLI/LSP compatibility inputs still need a
+    /// resolved identity, though, so this profile carries the typed `TK` bit
+    /// while retaining the permissive Tcl behaviour of that ingress.
+    #[must_use]
+    pub fn tk() -> &'static DialectProfile {
+        &TK_PROFILE
     }
 
     /// Whether this profile is the permissive unknown-dialect fallback

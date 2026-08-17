@@ -2530,7 +2530,7 @@ fn fold_builtin_cmd_subst_raw(
     let lookup = |name: &str| constants.get(name).cloned();
     crate::const_subst::ConstSubstCtx {
         registry,
-        version: dialect.and_then(tcl_dialect::DialectProfile::runtime_version),
+        version: dialect.and_then(tcl_dialect::DialectProfile::const_fold_version),
         defining_class: oo.map(|f| f.defining_class.as_str()),
         trusts: &trusts,
         lookup_var: &lookup,
@@ -2555,7 +2555,7 @@ fn literal_words(
     let lookup = |name: &str| constants.get(name).cloned();
     crate::const_subst::ConstSubstCtx {
         registry,
-        version: dialect.and_then(tcl_dialect::DialectProfile::runtime_version),
+        version: dialect.and_then(tcl_dialect::DialectProfile::const_fold_version),
         defining_class: oo.map(|f| f.defining_class.as_str()),
         trusts: &trusts,
         lookup_var: &lookup,

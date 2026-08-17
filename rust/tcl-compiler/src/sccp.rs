@@ -1688,7 +1688,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
                 registry: f.registry,
                 version: f
                     .dialect
-                    .and_then(tcl_dialect::DialectProfile::runtime_version),
+                    .and_then(tcl_dialect::DialectProfile::const_fold_version),
                 defining_class: f.defining_class,
                 trusts: &trusts,
                 lookup_var: &lookup,

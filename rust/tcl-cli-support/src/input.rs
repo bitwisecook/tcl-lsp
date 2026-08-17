@@ -22,7 +22,7 @@
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
-use tcl_dialect::DialectProfile;
+use tcl_dialect::{DialectProfile, DialectSet};
 use tcl_lsp_core::source_decode::{DecodeReport, decode_source, encoding_integrity_diagnostics};
 use tcl_lsp_core::source_style::StyleDiagnostic;
 
@@ -180,15 +180,24 @@ pub fn combined_effective_dialect(
 /// This is the CLI ingest boundary: an unrecognised spelling is an input
 /// error, never an accidental fallback to plain Tcl. Registered aliases are
 /// accepted through [`DialectProfile::find`] and become the catalog's one
-/// canonical profile before any command-specific behaviour runs.
+/// canonical profile before any command-specific behaviour runs. A recognised
+/// set-only ingress name (currently `tk`) has no catalog profile by design, so
+/// it is accepted through [`DialectSet::parse`] and resolved to the typed
+/// additive profile that carries its identity through downstream consumers.
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
         .map(|name| {
-            DialectProfile::find(name).ok_or_else(|| {
-                CliError::input(format!(
-                    "unknown dialect `{name}`; use a registered dialect name or alias"
-                ))
-            })
+            DialectProfile::find(name)
+                .or_else(|| {
+                    DialectSet::parse(name)
+                        .filter(|&set| set == DialectSet::TK)
+                        .map(|_| DialectProfile::tk())
+                })
+                .ok_or_else(|| {
+                    CliError::input(format!(
+                        "unknown dialect `{name}`; use a registered dialect name or alias"
+                    ))
+                })
         })
         .transpose()
 }
@@ -412,6 +421,7 @@ fn expand_user(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::resolve_dialect;
+    use tcl_dialect::{DialectProfile, DialectSet};
 
     #[test]
     fn explicit_irules_alias_resolves_to_the_canonical_profile() {
@@ -420,6 +430,17 @@ mod tests {
             .expect("an explicit dialect resolves");
         assert_eq!(profile.name, "f5-irules");
         assert!(profile.is_irules());
+    }
+
+    #[test]
+    fn explicit_set_only_dialect_resolves_at_cli_ingress() {
+        let profile = resolve_dialect(Some("tk"))
+            .expect("recognized set-only dialect")
+            .expect("an explicit dialect resolves");
+        assert_eq!(profile.name, "tk");
+        assert!(!profile.is_fallback());
+        assert!(profile.hosts_tk());
+        assert!(DialectProfile::availability_for_name("tk").contains(DialectSet::TK));
     }
 
     #[test]
