@@ -41,6 +41,7 @@ use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir
 use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
 use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
+use tcl_syntax::list::{join_list, list_element};
 use tcl_vm::{Code, CompileError, CompileService, Vm};
 
 /// The framework files the orchestrator depends on, in source order — mirrors
@@ -237,7 +238,7 @@ impl LiveSession {
     /// Source a single file by absolute path through the VM's `source` (so the
     /// framework's `[file dirname [info script]]` lookups resolve correctly).
     fn source_file(&mut self, path: &Path) -> Result<(), SessionError> {
-        let script = format!("source {{{}}}", path.display());
+        let script = format!("source {}", list_element(&path.display().to_string()));
         self.eval(&script).map(|_| ())
     }
 
@@ -263,13 +264,13 @@ impl LiveSession {
         }
     }
 
-    /// Load an iRule into the orchestrator (`::orch::load_irule`). The source is
-    /// passed as a braced word, so it must be brace-balanced (iRule bodies are).
+    /// Load an iRule into the orchestrator (`::orch::load_irule`) as one Tcl
+    /// word. The shared list encoder preserves arbitrary source literally.
     ///
     /// # Errors
     /// Propagates an orchestrator/compile error.
     pub fn load_irule(&mut self, source: &str) -> Result<(), SessionError> {
-        self.eval(&format!("::orch::load_irule {{{source}}}"))
+        self.eval(&format!("::orch::load_irule {}", list_element(source)))
             .map(|_| ())
     }
 
@@ -300,8 +301,8 @@ impl LiveSession {
     /// # Errors
     /// Propagates an orchestrator error.
     pub fn fire_sequence(&mut self, events: &[&str]) -> Result<String, SessionError> {
-        let joined = events.join(" ");
-        self.eval(&format!("::orch::fire_sequence {{{joined}}}"))
+        let joined = join_list(events);
+        self.eval(&format!("::orch::fire_sequence {}", list_element(&joined)))
     }
 
     /// Register a data-group for `class match` lookups
@@ -317,7 +318,10 @@ impl LiveSession {
         records: &str,
     ) -> Result<(), SessionError> {
         self.eval(&format!(
-            "::orch::add_datagroup {name} {dg_type} {{{records}}}"
+            "::orch::add_datagroup {} {} {}",
+            list_element(name),
+            list_element(dg_type),
+            list_element(records),
         ))
         .map(|_| ())
     }

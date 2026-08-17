@@ -47,6 +47,14 @@ const AI_TEMPLATES: &[(&str, &str)] = &[
         "ai/prompts/irules_system.md",
     ),
     (
+        "ai/prompts/tcl_system.md.j2",
+        "ai/claude/skills/_prompts/tcl_system.md",
+    ),
+    (
+        "ai/prompts/irules_system.md.j2",
+        "ai/claude/skills/_prompts/irules_system.md",
+    ),
+    (
         "ai/claude/skills/tcl-optimise/SKILL.md.j2",
         "ai/claude/skills/tcl-optimise/SKILL.md",
     ),
@@ -435,6 +443,33 @@ mod tests {
                 current, content,
                 "{rel} is stale — run `cargo xtask gen-ai-diagnostics`"
             );
+        }
+    }
+
+    #[test]
+    fn claude_prompt_copies_match_canonical_prompts() {
+        let artifacts = artifacts().expect("build AI artifacts");
+        for (canonical_path, copy_path) in [
+            (
+                "ai/prompts/tcl_system.md",
+                "ai/claude/skills/_prompts/tcl_system.md",
+            ),
+            (
+                "ai/prompts/irules_system.md",
+                "ai/claude/skills/_prompts/irules_system.md",
+            ),
+        ] {
+            let canonical = artifacts
+                .iter()
+                .find(|(path, _)| path == canonical_path)
+                .map(|(_, content)| content)
+                .expect("canonical prompt artifact");
+            let copy = artifacts
+                .iter()
+                .find(|(path, _)| path == copy_path)
+                .map(|(_, content)| content)
+                .expect("Claude prompt-copy artifact");
+            assert_eq!(copy, canonical, "{copy_path} must match {canonical_path}");
         }
     }
 

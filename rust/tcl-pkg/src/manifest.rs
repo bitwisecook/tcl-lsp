@@ -31,6 +31,7 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use regex::Regex;
+use tcl_lexer::{Lexer, LexerConfig, Token, TokenType};
 
 use crate::errors::TclPkgError;
 use crate::version::Version;
@@ -397,145 +398,83 @@ fn validate(ast: &ManifestAst, path: Option<&str>) -> Result<(), TclPkgError> {
 
 // Tcl script parsing (commands + words; no substitution)
 
-/// Split a manifest script into commands, each a list of words, applying Tcl
-/// grouping rules (braces, quotes, backslash, `#` comments, `;`/newline command
-/// separators) but no variable/command substitution.
+/// Split a manifest script into commands, each a list of literal words.
+///
+/// The lexer owns Tcl's structural grouping rules (including nested command
+/// substitutions in quotes). This loader deliberately only decodes grouping /
+/// backslashes afterwards: it never evaluates a variable or command
+/// substitution.
 fn parse_script(src: &str) -> Result<Vec<Vec<String>>, String> {
-    let chars: Vec<char> = src.chars().collect();
-    let len = chars.len();
-    let mut i = 0;
+    let tokens = Lexer::with_config(
+        src,
+        LexerConfig {
+            strict_quoting: true,
+            ..LexerConfig::default()
+        },
+    )
+    .tokenise_all()
+    .map_err(|err| err.to_string())?;
     let mut commands = Vec::new();
+    let mut words = Vec::new();
+    let mut word = Vec::new();
 
-    loop {
-        // Skip blank lines / leading separators between commands.
-        while i < len && matches!(chars[i], ' ' | '\t' | '\n' | '\r' | ';') {
-            i += 1;
-        }
-        if i >= len {
-            break;
-        }
-        // Comment runs to end of line (backslash-newline continues it).
-        if chars[i] == '#' {
-            while i < len {
-                if chars[i] == '\\' && i + 1 < len {
-                    i += 2;
-                    continue;
-                }
-                if chars[i] == '\n' {
-                    break;
-                }
-                i += 1;
+    for token in tokens {
+        match token.kind {
+            TokenType::Comment => {}
+            TokenType::Expand => {
+                return Err(
+                    "manifest expansion prefix `{*}` is not permitted in safe mode".to_string(),
+                );
             }
-            continue;
-        }
-
-        let mut words = Vec::new();
-        loop {
-            while i < len && matches!(chars[i], ' ' | '\t') {
-                i += 1;
+            TokenType::Sep => {
+                finish_word(src, &mut word, token.span.start() as usize, &mut words)?;
             }
-            if i >= len {
-                break;
-            }
-            match chars[i] {
-                '\n' | '\r' | ';' => {
-                    i += 1;
-                    break;
-                }
-                '{' => {
-                    let word = parse_brace(&chars, &mut i)?;
-                    words.push(word);
-                }
-                '"' => {
-                    let word = parse_quoted(&chars, &mut i)?;
-                    words.push(word);
-                }
-                _ => {
-                    let word = parse_bare(&chars, &mut i);
-                    words.push(word);
+            TokenType::Eol | TokenType::Eof => {
+                finish_word(src, &mut word, token.span.start() as usize, &mut words)?;
+                if !words.is_empty() {
+                    commands.push(std::mem::take(&mut words));
                 }
             }
-        }
-        if !words.is_empty() {
-            commands.push(words);
+            _ => word.push(token),
         }
     }
     Ok(commands)
 }
 
-fn parse_brace(chars: &[char], i: &mut usize) -> Result<String, String> {
-    let len = chars.len();
-    let mut depth = 1;
-    *i += 1; // consume '{'
-    let mut value = String::new();
-    while *i < len {
-        let c = chars[*i];
-        if c == '\\' && *i + 1 < len {
-            value.push('\\');
-            value.push(chars[*i + 1]);
-            *i += 2;
-            continue;
-        }
-        if c == '{' {
-            depth += 1;
-            value.push(c);
-            *i += 1;
-        } else if c == '}' {
-            depth -= 1;
-            if depth == 0 {
-                *i += 1;
-                return Ok(value);
-            }
-            value.push(c);
-            *i += 1;
-        } else {
-            value.push(c);
-            *i += 1;
-        }
+/// Finish one lexer-grouped word at a separator / command boundary.
+fn finish_word(
+    src: &str,
+    word: &mut Vec<Token>,
+    end: usize,
+    words: &mut Vec<String>,
+) -> Result<(), String> {
+    if word.is_empty() {
+        return Ok(());
     }
-    Err("missing close-brace".to_string())
-}
-
-fn parse_quoted(chars: &[char], i: &mut usize) -> Result<String, String> {
-    let len = chars.len();
-    *i += 1; // consume '"'
-    let mut raw = String::new();
-    while *i < len {
-        let c = chars[*i];
-        if c == '"' {
-            *i += 1;
-            return Ok(tcl_syntax::backslash::decode(&raw).into_owned());
-        }
-        if c == '\\' && *i + 1 < len {
-            raw.push('\\');
-            raw.push(chars[*i + 1]);
-            *i += 2;
-            continue;
-        }
-        raw.push(c);
-        *i += 1;
-    }
-    Err("missing \"".to_string())
-}
-
-fn parse_bare(chars: &[char], i: &mut usize) -> String {
-    let len = chars.len();
-    let mut raw = String::new();
-    while *i < len {
-        let c = chars[*i];
-        if matches!(c, ' ' | '\t' | '\n' | '\r' | ';') {
-            break;
-        }
-        if c == '\\' && *i + 1 < len {
-            raw.push('\\');
-            raw.push(chars[*i + 1]);
-            *i += 2;
-            continue;
-        }
-        raw.push(c);
-        *i += 1;
-    }
-    tcl_syntax::backslash::decode(&raw).into_owned()
+    let start = word[0].span.start() as usize;
+    let raw = src
+        .get(start..end)
+        .ok_or_else(|| "invalid lexer token span".to_string())?;
+    let value = if word.len() == 1 && word[0].kind == TokenType::Str {
+        raw.strip_prefix('{')
+            .and_then(|s| s.strip_suffix('}'))
+            .map_or_else(
+                || Err("missing close-brace".to_string()),
+                |s| Ok(s.to_owned()),
+            )?
+    } else if raw.starts_with('"') {
+        raw.strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .map_or_else(
+                || Err("missing \"".to_string()),
+                |s| Ok(tcl_syntax::backslash::decode(s).into_owned()),
+            )?
+    } else {
+        tcl_syntax::backslash::decode(raw).into_owned()
+    };
+    words.push(value);
+    word.clear();
+    Ok(())
 }
 
 #[cfg(test)]
@@ -707,5 +646,47 @@ mod tests {
         let ast = load("# a comment\npackage a ; version 1.0.0\n# trailing\n").unwrap();
         assert_eq!(ast.name, "a");
         assert_eq!(ast.version, Some(Version::parse("1.0.0").unwrap()));
+    }
+
+    #[test]
+    fn quoted_nested_command_substitution_is_one_literal_word() {
+        let ast = load(
+            r#"package a
+version 1.0.0
+description "See [string map {a b} \"note\"] for details"
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            ast.description,
+            r#"See [string map {a b} "note"] for details"#
+        );
+    }
+
+    #[test]
+    fn substitutions_remain_literal_in_safe_manifest_words() {
+        let ast = load(
+            r#"package a
+version 1.0.0
+description "$value [dangerous command]"
+"#,
+        )
+        .unwrap();
+        assert_eq!(ast.description, "$value [dangerous command]");
+    }
+
+    #[test]
+    fn expansion_prefix_is_rejected_in_safe_manifest_words() {
+        let err = load(
+            r"package a
+version 1.0.0
+description {*}$value
+",
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("expansion prefix `{*}` is not permitted")
+        );
     }
 }

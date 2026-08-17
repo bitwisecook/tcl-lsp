@@ -33,7 +33,7 @@
 
 use std::fmt::Write as _;
 
-use tcl_syntax::list::split_list_lenient;
+use tcl_syntax::list::{list_element, split_list_lenient};
 
 use crate::live::LiveSession;
 
@@ -124,7 +124,7 @@ pub fn simulate_irule(
         let member_list = members
             .iter()
             .filter(|m| !m.is_empty())
-            .map(|m| tcl_quote(m))
+            .map(|m| list_element(m))
             .collect::<Vec<_>>()
             .join(" ");
         if member_list.is_empty() {
@@ -132,7 +132,7 @@ pub fn simulate_irule(
         }
         guard!(sess.eval(&format!(
             "::orch::add_pool {} [list {member_list}]",
-            tcl_quote(name)
+            list_element(name)
         )));
     }
 
@@ -144,18 +144,22 @@ pub fn simulate_irule(
             &req.method
         };
         let uri = if req.uri.is_empty() { "/" } else { &req.uri };
-        let mut args = format!("-method {} -uri {}", tcl_quote(method), tcl_quote(uri));
+        let mut args = format!(
+            "-method {} -uri {}",
+            list_element(method),
+            list_element(uri)
+        );
         if !req.host.is_empty() {
-            let _ = write!(args, " -host {}", tcl_quote(&req.host));
+            let _ = write!(args, " -host {}", list_element(&req.host));
         }
         if !req.sni.is_empty() {
-            let _ = write!(args, " -sni {}", tcl_quote(&req.sni));
+            let _ = write!(args, " -sni {}", list_element(&req.sni));
         }
         if !req.headers.is_empty() {
             let hdr_tokens: Vec<String> = req
                 .headers
                 .iter()
-                .flat_map(|(k, v)| [tcl_quote(k), tcl_quote(v)])
+                .flat_map(|(k, v)| [list_element(k), list_element(v)])
                 .collect();
             let _ = write!(args, " -headers [list {}]", hdr_tokens.join(" "));
         }
@@ -183,21 +187,6 @@ pub fn simulate_irule(
         .is_ok_and(|v| v == "1" || v == "true");
     out.decisions = parse_decisions(&sess.decisions().unwrap_or_default());
     out.logs = parse_log_entries(&sess.logs().unwrap_or_default());
-    out
-}
-
-/// Quote `s` as a Tcl double-quoted word, escaping substitution / quoting
-/// metacharacters so an arbitrary captured value can't break the command.
-fn tcl_quote(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    for c in s.chars() {
-        if matches!(c, '$' | '[' | ']' | '"' | '\\') {
-            out.push('\\');
-        }
-        out.push(c);
-    }
-    out.push('"');
     out
 }
 
@@ -247,6 +236,24 @@ mod tests {
     fn empty_sources_reports_nothing_to_simulate() {
         let out = simulate_irule(&[], &[], &[], None);
         assert_eq!(out.error, "no iRules to simulate");
+    }
+
+    #[test]
+    fn simulator_values_use_the_shared_tcl_word_encoder() {
+        for value in [
+            "$variable",
+            "[command]",
+            "a \"quoted\" value",
+            r"path\\with\\slashes",
+            "unbalanced { brace",
+        ] {
+            let encoded = list_element(value);
+            assert_eq!(
+                tcl_syntax::list::split_list(&encoded).unwrap(),
+                [value],
+                "{value:?} must round-trip as one Tcl word"
+            );
+        }
     }
 
     #[test]

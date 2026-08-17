@@ -34,6 +34,7 @@ use std::fmt::Write as _;
 use regex::Regex;
 use serde_json::{Value, json};
 use tcl_registry::events::EventRegistry;
+use tcl_syntax::list::list_element;
 
 /// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected.
 const MULTI_TMM_HINT: &str = "This iRule uses patterns that behave differently across TMMs \
@@ -473,7 +474,10 @@ fn build_all_test_blocks(test_name: &str, ctx: &ScriptContext) -> Vec<String> {
 
 /// Render a single `::orch::test` block (`test_case.tcl.j2`).
 fn render_test_case(test_id: &str, desc: &str, body: &[String]) -> String {
-    let mut out = format!("::orch::test \"{test_id}\" \"{desc}\" -body {{\n");
+    let mut out = format!(
+        "::orch::test \"{test_id}\" {} -body {{\n",
+        list_element(desc)
+    );
     for line in body {
         if line.is_empty() {
             out.push('\n');
@@ -518,7 +522,6 @@ fn build_test_description(path: &Value) -> String {
     } else {
         format!("{cmd} when {}", parts.join(" and "))
     };
-    desc = desc.replace('"', "'").replace('\\', "");
     if desc.chars().count() > 80 {
         desc = desc.chars().take(77).collect::<String>() + "...";
     }
@@ -1006,6 +1009,26 @@ mod tests {
 
     fn if_cond(condition: &str) -> Value {
         json!({"kind": "if", "condition": condition})
+    }
+
+    #[test]
+    fn generated_description_is_one_inert_tcl_word() {
+        for description in [
+            "$suspicious",
+            "[HTTP::uri]",
+            "a \"quoted\" description",
+            r"path\\with\\slashes",
+            "unbalanced { brace",
+        ] {
+            let rendered = render_test_case("case", description, &[]);
+            assert!(
+                rendered.starts_with(&format!(
+                    "::orch::test \"case\" {} -body {{\n",
+                    list_element(description)
+                )),
+                "description must use the shared Tcl word encoder: {rendered:?}"
+            );
+        }
     }
 
     /// The URI hint must recognise the real iRules word operators
