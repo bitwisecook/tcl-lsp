@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, tcloo
+all-editors, diagnostic, analyser, command-walk
 
 ## Profiles
 

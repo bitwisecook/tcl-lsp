@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, analyser, tcl-lsp-cli, mcp
+all-editors, diagnostic, analyser, command-walk, tcl-lsp-cli, mcp
 
 ## Profiles
 

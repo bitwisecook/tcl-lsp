@@ -17,23 +17,23 @@ cross-references that the auto-generated content can't carry.
 
 | Looking for | Section |
 |---|---|
-| Grammar / parser rules | [Grammar](#grammar) |
-| Path access (`.foo.bar`, `[]`, subscripts) | [Path access](#path-access) |
-| Streams vs lists | [Streams and lists](#streams-and-lists) |
-| Pipe / assignment operators | [Operators](#operators) |
-| Variables and bindings | [Variables and let-bindings](#variables-and-let-bindings) |
-| Object literals | [Object construction](#object-construction) |
-| Conditionals and comma streams | [Control flow](#control-flow) |
-| All builtins (alphabetical) | [Builtin catalogue](#builtin-catalogue) |
-| Probes (`url_get`, `tls_handshake`, …) | [Network probes](#network-probes) |
-| Cert audit shape | [X.509 cert dict shape](#x509-cert-dict-shape) |
-| Reason taxonomy on failed probes | [Reason taxonomy](#reason-taxonomy) |
-| Read-from-file inputs (JSON, JSONL, CSV, f5log) | [External inputs](#external-inputs) |
-| TLS / monitor F5 KB articles | [F5 KB cross-reference](#f5-kb-cross-reference) |
-| Output formats (raw / paths / json / scf / tmsh) | [Output modes](#output-modes) |
-| Mutating queries (assignments, renames) | [Mutating queries](#mutating-queries) |
-| Edit-plan semantics + apply order | [Edit planning](#edit-planning) |
-| Worked example cookbook | [Examples](#examples) |
+| Grammar / parser rules | [Grammar](#grammar-grammar) |
+| Path access (`.foo.bar`, `[]`, subscripts) | [Path access](#path-access-path-access) |
+| Streams vs lists | [Streams and lists](#streams-and-lists-streams-and-lists) |
+| Pipe / assignment operators | [Operators](#operators-operators) |
+| Variables and bindings | [Variables and let-bindings](#variables-and-let-bindings-variables-and-let-bindings) |
+| Object literals | [Object construction](#object-construction-object-construction) |
+| Conditionals and comma streams | [Control flow](#control-flow-control-flow) |
+| All builtins (alphabetical) | [Builtin catalogue](#builtin-catalogue-builtin-catalogue) |
+| Probes (`url_get`, `tls_handshake`, …) | [Network probes](#network-probes-network-probes) |
+| Cert audit shape | [X.509 cert dict shape](#x509-cert-dict-shape-x509-cert-dict-shape) |
+| Reason taxonomy on failed probes | [Reason taxonomy](#reason-taxonomy-reason-taxonomy) |
+| Read-from-file inputs (JSON, JSONL, CSV, f5log) | [External inputs](#external-inputs-external-inputs) |
+| TLS / monitor F5 KB articles | [F5 KB cross-reference](#f5-kb-cross-reference-f5-kb-cross-reference) |
+| Output formats (raw / paths / json / scf / tmsh) | [Output modes](#output-modes-output-modes) |
+| Mutating queries (assignments, renames) | [Mutating queries](#mutating-queries-mutating-queries) |
+| Edit-plan semantics + apply order | [Edit planning](#edit-planning-edit-planning) |
+| Worked example cookbook | [Examples](#examples-examples) |
 
 ## Grammar {#grammar}
 
@@ -187,7 +187,7 @@ Major families:
   `http_header`, `http_body_json`
 - **network probes** (need `--enable-probes`) — `url_get`,
   `url_head`, `url_options`, `url_post` (not yet implemented —
-  see [Network probes](#network-probes)), `tls_handshake`, `ping`,
+  see [Network probes](#network-probes-network-probes)), `tls_handshake`, `ping`,
   `portping`, `traceroute`.  `dns` / `rev_dns` are ungated (they
   resolve without `--enable-probes`).
 - **cert / X.509** — `x509_parse`, `cert_load`,
@@ -288,7 +288,7 @@ SHA-256 hash (BIG-IP's TMSH surface).
   TLS handshake.
 - `url_get(url).peer_cert` — always `null` today: the live HTTP
   request path is not yet implemented (see
-  [Network probes](#network-probes)); use `tls_handshake` for a
+  [Network probes](#network-probes-network-probes)); use `tls_handshake` for a
   live peer certificate.
 
 ## External inputs {#external-inputs}
@@ -631,7 +631,7 @@ openssl x509 -in server.crt -noout -subject -issuer -dates -fingerprint -sha256
 ### Running a self-signed HTTPS server in Python {#python-https}
 
 For the cert-audit `tls_handshake` recipes (`url_get` is not yet
-implemented — see [Network probes](#network-probes)):
+implemented — see [Network probes](#network-probes-network-probes)):
 
 ```python
 # https_server.py
@@ -751,17 +751,17 @@ is the source-of-truth index for what lives where.
 | Grammar (parser, precedence, EBNF) | [`dsl.md`](dsl.md) + `f5 query --help-dsl` |
 | Every builtin with examples | [`builtins.md`](builtins.md) + `f5 query --help-builtins NAME` |
 | jq divergences | [`dsl.md`](dsl.md) §"Divergences from jq" |
-| Probe gate + reason taxonomy | [Reason taxonomy](#reason-taxonomy) section above |
-| Cert dict shape | [X.509 cert dict shape](#x509-cert-dict-shape) section above |
-| Mutating-query apply order | [Edit planning](#edit-planning) section above |
-| Stream vs list semantics | [Streams and lists](#streams-and-lists) section above |
-| Multi-source / `$name` bindings | [Variables and let-bindings](#variables-and-let-bindings) section above |
-| Object literals | [Object construction](#object-construction) section above |
-| If / elif / else | [Control flow](#control-flow) section above |
-| External inputs (JSON / CSV / f5log) | [External inputs](#external-inputs) section above |
-| Output rendering | [Output modes](#output-modes) section above |
+| Probe gate + reason taxonomy | [Reason taxonomy](#reason-taxonomy-reason-taxonomy) section above |
+| Cert dict shape | [X.509 cert dict shape](#x509-cert-dict-shape-x509-cert-dict-shape) section above |
+| Mutating-query apply order | [Edit planning](#edit-planning-edit-planning) section above |
+| Stream vs list semantics | [Streams and lists](#streams-and-lists-streams-and-lists) section above |
+| Multi-source / `$name` bindings | [Variables and let-bindings](#variables-and-let-bindings-variables-and-let-bindings) section above |
+| Object literals | [Object construction](#object-construction-object-construction) section above |
+| If / elif / else | [Control flow](#control-flow-control-flow) section above |
+| External inputs (JSON / CSV / f5log) | [External inputs](#external-inputs-external-inputs) section above |
+| Output rendering | [Output modes](#output-modes-output-modes) section above |
 | End-to-end cookbook | [`builtins.md`](builtins.md) + KCS HOW-TOs |
-| Operational recipes (setup, certs, servers) | [Operator handbook](#operator-handbook) section above |
+| Operational recipes (setup, certs, servers) | [Operator handbook](#operator-handbook-operator-handbook) section above |
 | F5 KB articles | [`f5-kb-monitor-articles.md`](f5-kb-monitor-articles.md) |
 | AI / MCP integration | the native `tcl-mcp` MCP server (`f5-query` skill) |
 | Programmatic / MCP access | [Programmatic access](#programmatic-access) section above |

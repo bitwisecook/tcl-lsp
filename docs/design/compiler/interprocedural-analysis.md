@@ -182,6 +182,6 @@ lands in both at once.
 
 ## Related docs
 
-- [Example 24 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-24-interprocedural-analysis--summary-construction)
+- [Example 23 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-23-interprocedural-analysis--summary-construction)
 - [GLOSSARY.md — ICIP](../../GLOSSARY.md#icip)
 - [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)

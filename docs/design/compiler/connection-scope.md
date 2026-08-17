@@ -70,6 +70,6 @@ Both suppress the warning if the variable flows across events.
 
 ## Related docs
 
-- [Example 25 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-25-connection-scope--cross-event-variable-flow-irules)
+- [Example 24 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-24-connection-scope--cross-event-variable-flow-irules)
 - [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
 - [kcs-side-effects-system.md](../../../docs/design/compiler/side-effects-system.md)

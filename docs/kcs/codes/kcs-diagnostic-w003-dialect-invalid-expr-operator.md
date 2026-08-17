@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, lowering
+all-editors, diagnostic, command-walk
 
 ## Profiles
 
@@ -63,5 +63,5 @@ Add `# noqa: W003` on the line **above** the offending command. Suppression is l
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [lowering](../../GLOSSARY.md#lowering)
+- [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `W002`, `W004`

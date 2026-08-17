@@ -3,6 +3,10 @@
 > **Audience:** User
 > **Type:** Diagnostic
 
+## Applies to
+
+all-editors, diagnostic, command-walk
+
 ## What does W148 mean?
 
 W148 marks a literal numeral whose spelling is valid in Tcl 9 but is not

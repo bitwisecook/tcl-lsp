@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, tclpkg
+all-editors, diagnostic
 
 ## Profiles
 

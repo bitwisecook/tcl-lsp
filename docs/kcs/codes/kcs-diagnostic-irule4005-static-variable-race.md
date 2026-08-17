@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, lowering
+all-editors, diagnostic, ssa
 
 ## Profiles
 

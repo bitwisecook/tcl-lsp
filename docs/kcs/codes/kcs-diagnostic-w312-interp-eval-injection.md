@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, diagnostic, lowering
+all-editors, diagnostic, command-walk
 
 ## Profiles
 
@@ -84,5 +84,5 @@ directive at the top of the file, or for a whole project with
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
-- [lowering](../../GLOSSARY.md#lowering)
+- [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `W101`, `W301`, `W309`, `T105`

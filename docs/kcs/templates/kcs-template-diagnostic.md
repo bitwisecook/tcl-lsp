@@ -16,8 +16,9 @@ all-editors, diagnostic, <compiler-pass-tag>
     canonical tag from docs/kcs/STYLE.md rule 11 (for example `ssa`,
     `sccp`, `taint`, `cfg`, `ipa`, `lexing`, `lowering`, `type-infer`).
     If more than one pass contributes, list them all.
-  - Nothing validates these tags, so an unrecognised one is indexed
-    rather than rejected. Check each against the rule 11 tables.
+  - `cargo xtask kcs-index-links` validates real diagnostic pages against
+    the rule 11 vocabulary. Check each tag against the table before adding
+    the page.
 -->
 
 ## Profiles

@@ -26,7 +26,7 @@ discovery had caught: dozens more unguarded walkers across `tcl-lexer`,
 `tcl-bigip-query`, `tcl-vm`, and `runtime/rust`, plus two more native
 binaries (`bpf-tcl`, `bigip-report-gen`) missing the same big-stack
 entry-point guard the first pass added elsewhere. That sweep is also what
-motivated **[the unified mechanism](#unified-mechanism-recursionlimit--recursionguard)**
+motivated **[the unified mechanism](#unified-mechanism-recursionlimitrecursionguard)**
 below: fixing this many call sites with one-off `const MAX_X_DEPTH: u32`
 copies at every site was already becoming inconsistent (some compared
 `depth > LIMIT`, others `depth >= LIMIT`, with the off-by-one worked out
@@ -393,7 +393,7 @@ new shared module for this tier.
 Both Tier 1 constants live in the new `tcl-compiler::depth_guard` module,
 the one new shared module this sweep added.
 
-**`tcl-vm`** (see also the [`RecursionGuard` exception](#unified-mechanism-recursionlimit--recursionguard)
+**`tcl-vm`** (see also the [`RecursionGuard` exception](#unified-mechanism-recursionlimitrecursionguard)
 above for why the two counter-based ones here don't use `RecursionGuard`):
 
 | Walker | Cap | Notes |
