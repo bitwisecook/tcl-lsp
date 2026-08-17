@@ -53,7 +53,7 @@ use std::collections::HashSet;
 
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::semantic_tokens::{full, legend_token_types, range};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::{ArgRole, Arity, CommandRegistry, CommandSpec, Traits, registry_for_dialect};
 
 fn reg() -> &'static CommandRegistry {
     registry_for_dialect("tcl8.6")
@@ -955,6 +955,118 @@ fn st_irules_declaration_body_shape_gates_event_and_proc_definition_tokens() {
         toks.iter()
             .any(|t| t.line == 5 && t.character == 5 && t.ttype == "function"),
         "the braced proc declaration must remain highlighted: {toks:?}"
+    );
+}
+
+#[test]
+fn st_irules_declaration_tokens_require_source_top_level() {
+    // The registry owns valid declaration shape, but only commands at the
+    // iRules file boundary are declarations. A `when` or `proc` nested in a
+    // body / command substitution may look shape-valid to the registry while
+    // being placement-invalid in an iRule.
+    let r = irules_registry();
+    let src = concat!(
+        "when HTTP_REQUEST {}\n",
+        "proc top_level {} {}\n",
+        "when HTTP_REQUEST { when CLIENT_DATA {} }\n",
+        "proc outer {} { when CLIENT_DATA {} }\n",
+        "set ignored [when HTTP_RESPONSE {}]\n",
+        "if {1} { proc inner {} {} }\n",
+    );
+    let toks = decode_with(src, "f5-irules", &r);
+
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 0 && t.character == 5 && t.ttype == "event"),
+        "a valid top-level handler must remain an event: {toks:?}",
+    );
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 1 && t.character == 5 && t.ttype == "function"),
+        "a valid top-level proc name must remain a definition: {toks:?}",
+    );
+
+    for (line, character) in [(2, 25), (3, 21), (4, 18)] {
+        let kind = toks
+            .iter()
+            .find(|t| t.line == line && t.character == character)
+            .map(|t| t.ttype.as_str());
+        assert_eq!(
+            kind,
+            Some("string"),
+            "nested `when` at {line}:{character} must not receive an event override: {toks:?}",
+        );
+    }
+    assert!(
+        !toks
+            .iter()
+            .any(|t| t.line == 5 && t.character == 14 && t.ttype == "function"),
+        "a nested iRules `proc` name must not receive a definition override: {toks:?}",
+    );
+}
+
+#[test]
+fn st_irules_custom_registry_proc_is_a_declaration() {
+    // A workspace `.tclspec` pack can add an iRules procedure definer.  The
+    // declaration-boundary scan must use that active registry, rather than
+    // the process-wide built-in iRules registry, to admit the name override.
+    let mut r = irules_registry();
+    r.insert(CommandSpec {
+        name: "custom_proc",
+        traits: Traits::DEFINES_PROCEDURE | Traits::IRULES_TOP_LEVEL_ONLY,
+        arity: Arity::exact(3),
+        arg_roles: &[
+            (0, ArgRole::Name),
+            (1, ArgRole::ParamList),
+            (2, ArgRole::Body),
+        ],
+        ..CommandSpec::DEFAULT
+    });
+    let src = "custom_proc declared {} { return }\n";
+    let toks = decode_with(src, "f5-irules", &r);
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 0 && t.character == 12 && t.ttype == "function"),
+        "the custom registry definer's name must be a function definition: {toks:?}",
+    );
+}
+
+#[test]
+fn st_irules_event_fallback_survives_generic_tcl_registry() {
+    // `when EVENT` has intentionally been event-coloured in generic Tcl
+    // buffers for years.  The active generic registry has no iRules `when`
+    // spec, so the declaration-boundary candidate set must retain the
+    // built-in iRules fallback as well as workspace extensions.
+    let src = "when HTTP_REQUEST {}\n";
+    let toks = decode(src, "tcl8.6");
+    assert_eq!(
+        toks.iter()
+            .find(|t| t.line == 0 && t.character == 5)
+            .map(|t| t.ttype.as_str()),
+        Some("event"),
+        "generic Tcl must retain dialect-independent event colouring: {toks:?}",
+    );
+}
+
+#[test]
+fn st_irules_declaration_boundary_tracks_resolved_head_identity() {
+    // The shared top-level boundary owner resolves command identity at the
+    // source offset: redefining `when` means the later spelling is no longer
+    // an iRules event handler, even though its words retain declaration shape.
+    let r = irules_registry();
+    let src = "proc when {args} {}\nwhen HTTP_REQUEST {}\n";
+    let toks = decode_with(src, "f5-irules", &r);
+    assert!(
+        toks.iter()
+            .any(|t| t.line == 0 && t.character == 5 && t.ttype == "function"),
+        "the redefining proc name remains a definition: {toks:?}",
+    );
+    assert_eq!(
+        toks.iter()
+            .find(|t| t.line == 1 && t.character == 5)
+            .map(|t| t.ttype.as_str()),
+        Some("string"),
+        "a rebound `when` must not receive an event override: {toks:?}",
     );
 }
 
