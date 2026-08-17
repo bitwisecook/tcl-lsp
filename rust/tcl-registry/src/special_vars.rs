@@ -296,6 +296,17 @@ pub fn is_readable_at_startup(name: &str, dialect: &str) -> bool {
     special_var(name).is_some_and(|v| v.readable_at_startup_in(resolved))
 }
 
+/// Whether reading `name` in `dialect` invokes a registry-declared Tcl read
+/// trace which can materialise the value again after `unset`.  Unlike
+/// [`is_readable_at_startup`], this intentionally excludes eager startup
+/// bindings such as `argv`: deleting those leaves an ordinary undefined Tcl
+/// variable.
+#[must_use]
+pub fn is_lazily_readable(name: &str, dialect: &str) -> bool {
+    let resolved = resolve_dialect(dialect);
+    special_var(name).is_some_and(|v| v.lazily_readable.intersects(resolved))
+}
+
 /// Whether a *write* to `name` in `dialect` is observed by the runtime — so
 /// `set NAME …` must not be flagged as a dead store (W220) or unused variable
 /// (W211) even when the script never reads `$NAME`. This is the fix for the
@@ -384,13 +395,16 @@ const TCL_PLATFORM_KEYS: &[SpecialVarKey] = &[
     },
     SpecialVarKey {
         key: "threaded",
-        dialects: DialectSet::TCL8X,
-        summary: "Present on Tcl 8.x builds configured with thread support.",
+        // Build conditional (`TCL_THREADS`), so no release-only profile can
+        // promise this key to ordinary user code.
+        dialects: DialectSet::empty(),
+        summary: "Present only on Tcl 8.x builds configured with thread support.",
     },
     SpecialVarKey {
         key: "debug",
-        dialects: DialectSet::TCL8X,
-        summary: "Present on Tcl 8.x Windows debug builds.",
+        // Windows debug-build conditional, likewise not a release fact.
+        dialects: DialectSet::empty(),
+        summary: "Present only on Tcl 8.x Windows debug builds.",
     },
     SpecialVarKey {
         key: "tmmVersion",
@@ -918,6 +932,9 @@ mod tests {
         );
         assert!(is_readable_at_startup("tcl_precision", "tcl8.6"));
         assert!(!is_readable_at_startup("tcl_precision", "tcl9.0"));
+        assert!(is_lazily_readable("tcl_precision", "tcl8.6"));
+        assert!(!is_lazily_readable("tcl_precision", "tcl9.0"));
+        assert!(!is_lazily_readable("argv", "tcl8.6"));
         // iApps uses its host Tcl interpreter profile, whereas the embedded
         // iRules runtime has only the explicitly evidenced metadata globals.
         assert!(is_readable_at_startup("argv", "f5-iapps"));

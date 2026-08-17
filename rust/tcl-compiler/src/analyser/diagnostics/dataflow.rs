@@ -1103,6 +1103,18 @@ file; this call falls through to the 'unknown' handler."
             if params.contains(var.as_str()) {
                 continue;
             }
+            // Tcl 8.x's registry-declared `tcl_precision` read trace
+            // recreates its value after `unset`; an eager startup binding
+            // (for example argv) deliberately does not get this exemption.
+            if ctx.initial_global
+                && ctx.supp.killed.contains(&chain.key)
+                && tcl_registry::special_vars::is_lazily_readable(
+                    crate::naming::normalise_var_name(var),
+                    self.dialect(),
+                )
+            {
+                continue;
+            }
             // `SPECIAL_VARS` distinguishes recognised runtime-sensitive names
             // from the subset the default host actually makes readable before
             // user code. That entry fact belongs only to this document's

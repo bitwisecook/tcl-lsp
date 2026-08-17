@@ -5837,6 +5837,27 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
         "an unset incoming must keep the phi possibly undefined: {:?}",
         result.diagnostics
     );
+
+    // `tcl_precision` is the Tcl 8.x registry-owned read-trace exception:
+    // unlike an eager startup binding, reading it after `unset` materialises
+    // its value again. Exercise both W210 consumers and the Tcl 9 boundary.
+    for src in [
+        "unset tcl_precision\nputs $tcl_precision\n",
+        "unset tcl_precision\nreturn $tcl_precision\n",
+    ] {
+        let result = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "Tcl 8 read trace must rematerialise after unset for {src:?}: {:?}",
+            result.diagnostics
+        );
+        let result = Analyser::new().analyse(src, "tcl9.0");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "Tcl 9 must not inherit Tcl 8 read-trace behaviour for {src:?}: {:?}",
+            result.diagnostics
+        );
+    }
 }
 
 #[test]

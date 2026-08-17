@@ -351,6 +351,18 @@ pub(super) fn phi_can_undef(
         dialect,
         ssa,
     } = ctx;
+    let normalised = crate::naming::normalise_var_name(name);
+    let startup_name = normalised.strip_prefix("::").unwrap_or(normalised);
+    let rematerialises_after_unset =
+        *initial_global && tcl_registry::special_vars::is_lazily_readable(startup_name, dialect);
+    let key = (name.to_string(), version);
+    if killed.contains(&key) {
+        // A Tcl read trace is not an eager startup fact: `unset` removes the
+        // current value, but a later read materialises it again.  Registry
+        // data confines this to `tcl_precision` on Tcl 8.x; eager bindings
+        // such as argv remain genuine W210 reads after `unset`.
+        return !rematerialises_after_unset;
+    }
     if version == 0 {
         // A version-zero incoming normally is the undef origin.  The default
         // Tcl host, however, binds a registry-declared subset before user
@@ -358,14 +370,8 @@ pub(super) fn phi_can_undef(
         // conditional write otherwise makes a merge with the startup version
         // look undefined.  `unset` still wins below for real killed versions,
         // and procedure-local frames never set `initial_global`.
-        let normalised = crate::naming::normalise_var_name(name);
-        let startup_name = normalised.strip_prefix("::").unwrap_or(normalised);
         return !(*initial_global
             && tcl_registry::special_vars::is_readable_at_startup(startup_name, dialect));
-    }
-    let key = (name.to_string(), version);
-    if killed.contains(&key) {
-        return true;
     }
     if seen.contains(&key) {
         // Cycle (loop-header phi): the DFS seed already accounted for the
