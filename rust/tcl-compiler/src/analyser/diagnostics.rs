@@ -279,6 +279,14 @@ fn when_proc_cross_event_names(
 }
 
 impl<'a> BodyFrame<'a> {
+    /// Whether this is the document's initial global frame. Startup bindings
+    /// apply only here; procedure and method locals with the same name remain
+    /// ordinary fresh Tcl variables.
+    #[must_use]
+    fn is_initial_global(self) -> bool {
+        matches!(self, Self::TopLevel)
+    }
+
     /// The [`crate::ir::Procedure`] backing this frame, or `None` when the
     /// body is not a procedure-shaped one.  The parameter-specific emitters
     /// (W214 unused-parameter, and the W210 read-before-set parameter
@@ -878,6 +886,7 @@ impl Analyser {
         // qualified name, so the name alone cannot tell them apart (see
         // [`BodyFrame`]).
         let ir_proc = frame.procedure();
+        let initial_global = frame.is_initial_global();
         let existence_frame = frame.existence_frame();
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(
@@ -897,25 +906,28 @@ impl Analyser {
             } else {
                 function_unit.sccp.executable_blocks.clone()
             };
-        let supp = build_undef_suppression(function_unit, &considered);
+        let supp =
+            build_undef_suppression(function_unit, &considered, initial_global, self.dialect());
         let exists_guards = collect_existence_guards(function_unit);
         let rbs_params: HashSet<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())
             .unwrap_or_default();
-        self.emit_read_before_set_diagnostics(
-            function_unit,
-            ir_proc,
-            &defined,
-            &scope_aliases,
+        let read_before_set_ctx = dataflow::ReadBeforeSetCtx {
+            initial_global,
+            defined_vars: &defined,
+            scope_aliases: &scope_aliases,
             extra_known_defined,
-            &supp,
-        );
+            supp: &supp,
+        };
+        self.emit_read_before_set_diagnostics(function_unit, ir_proc, &read_before_set_ctx);
         // Phi-from-undef on `return $v` reads (the def-use builder records
         // statement + branch-condition uses but NOT `Terminator::Return`
         // values).
         self.emit_return_phi_undef_w210(
             function_unit,
             &dataflow::ReturnUndefCtx {
+                initial_global,
+                dialect: self.dialect(),
                 params: &rbs_params,
                 exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,

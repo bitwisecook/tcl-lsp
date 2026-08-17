@@ -308,7 +308,8 @@ fn whole_unset_names(args: &[String]) -> FxHashSet<String> {
 
 /// Read-only context threaded unchanged through [`phi_can_undef`]'s recursion:
 /// the phi indices, the `unset`-killed set, the executable block / edge sets,
-/// the dominating existence guards, and the SSA function itself.
+/// the dominating existence guards, the registry-owned startup binding, and
+/// the SSA function itself.
 pub(super) struct PhiUndefCtx<'a> {
     pub phi_def: &'a PhiDefMap,
     pub phi_block: &'a PhiBlockMap,
@@ -316,6 +317,9 @@ pub(super) struct PhiUndefCtx<'a> {
     pub considered: &'a HashSet<BlockId>,
     pub executable_edges: &'a HashSet<(BlockId, BlockId)>,
     pub exists_guards: &'a [(String, BlockId)],
+    /// Startup bindings exist only in the document's initial global frame.
+    pub initial_global: bool,
+    pub dialect: &'a str,
     pub ssa: &'a crate::ssa::SsaFunction,
 }
 
@@ -343,10 +347,21 @@ pub(super) fn phi_can_undef(
         considered,
         executable_edges,
         exists_guards,
+        initial_global,
+        dialect,
         ssa,
     } = ctx;
     if version == 0 {
-        return true;
+        // A version-zero incoming normally is the undef origin.  The default
+        // Tcl host, however, binds a registry-declared subset before user
+        // code.  This must be decided while tracing phi incomings too: a
+        // conditional write otherwise makes a merge with the startup version
+        // look undefined.  `unset` still wins below for real killed versions,
+        // and procedure-local frames never set `initial_global`.
+        let normalised = crate::naming::normalise_var_name(name);
+        let startup_name = normalised.strip_prefix("::").unwrap_or(normalised);
+        return !(*initial_global
+            && tcl_registry::special_vars::is_readable_at_startup(startup_name, dialect));
     }
     let key = (name.to_string(), version);
     if killed.contains(&key) {
@@ -829,37 +844,33 @@ fn harvest_dict_with_suppression(
 pub(super) fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
+    initial_global: bool,
+    dialect: &str,
 ) -> UndefSuppression {
     let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
     let exists_guards = collect_existence_guards(fu);
+    let undef_ctx = PhiUndefCtx {
+        phi_def: &phi_def,
+        phi_block: &phi_block,
+        killed: &killed,
+        considered,
+        executable_edges: &fu.sccp.executable_edges,
+        exists_guards: &exists_guards,
+        initial_global,
+        dialect,
+        ssa: &fu.ssa,
+    };
     let mut can_undef: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
     for key in phi_def.keys() {
         let mut seen = FxHashSet::default();
-        let ctx = PhiUndefCtx {
-            phi_def: &phi_def,
-            phi_block: &phi_block,
-            killed: &killed,
-            considered,
-            executable_edges: &fu.sccp.executable_edges,
-            exists_guards: &exists_guards,
-            ssa: &fu.ssa,
-        };
-        if phi_can_undef(&key.0, key.1, &ctx, &mut seen) {
+        if phi_can_undef(&key.0, key.1, &undef_ctx, &mut seen) {
             can_undef.insert(key.clone());
         }
     }
-    let loop_entry_only_undef = build_loop_entry_only_undef(
-        fu,
-        considered,
-        &phi_def,
-        &phi_block,
-        &killed,
-        &exists_guards,
-        &can_undef,
-    );
+    let loop_entry_only_undef = build_loop_entry_only_undef(fu, &can_undef, &undef_ctx);
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
         script_concat_writes: collect_script_concat_writes(fu, considered),
@@ -910,27 +921,14 @@ pub(super) fn build_undef_suppression(
 /// and the read must keep firing.
 fn build_loop_entry_only_undef(
     fu: &crate::compilation_unit::FunctionUnit,
-    considered: &HashSet<BlockId>,
-    phi_def: &PhiDefMap,
-    phi_block: &PhiBlockMap,
-    killed: &FxHashSet<(String, crate::ssa::Version)>,
-    exists_guards: &[(String, BlockId)],
     can_undef: &FxHashSet<(String, crate::ssa::Version)>,
+    ctx: &PhiUndefCtx<'_>,
 ) -> FxHashMap<(String, crate::ssa::Version), FxHashSet<String>> {
     let mut out: FxHashMap<(String, crate::ssa::Version), FxHashSet<String>> = FxHashMap::default();
     if can_undef.is_empty() {
         return out;
     }
-    let forest = crate::loops::build_loop_forest(&fu.cfg, &fu.ssa, considered);
-    let ctx = PhiUndefCtx {
-        phi_def,
-        phi_block,
-        killed,
-        considered,
-        executable_edges: &fu.sccp.executable_edges,
-        exists_guards,
-        ssa: &fu.ssa,
-    };
+    let forest = crate::loops::build_loop_forest(&fu.cfg, &fu.ssa, ctx.considered);
     // Fixpoint over the loop forest so *nested* accumulators converge: an inner
     // loop whose body defines the variable is itself loop-entry-only-undef, so
     // for the enclosing loop its exit operand counts as defined (we assume both
@@ -968,7 +966,7 @@ fn build_loop_entry_only_undef(
                     // Only in-loop (back-edge) predecessors gate the verdict;
                     // the pre-header entry edge carries the zero-trip undef we
                     // assume away. Non-executable predecessors never read.
-                    if !considered.contains(&pred) {
+                    if !ctx.considered.contains(&pred) {
                         return true;
                     }
                     if !body_blocks.contains(fu.cfg.block_name(pred)) {
@@ -978,7 +976,7 @@ fn build_loop_entry_only_undef(
                         return true;
                     }
                     let mut seen = FxHashSet::default();
-                    !phi_can_undef(&name, ver_in, &ctx, &mut seen)
+                    !phi_can_undef(&name, ver_in, ctx, &mut seen)
                 });
                 if entry_only {
                     out.insert(key, body_blocks.clone());

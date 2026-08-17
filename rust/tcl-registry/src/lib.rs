@@ -273,9 +273,10 @@ pub use spec::{
     SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
-    SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, VarAccess, VarOrigin,
-    is_externally_read, is_special_var, special_var, special_var_in_dialect,
-    special_var_read_taint, special_var_write_effect, special_vars_for_dialect,
+    SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess,
+    VarOrigin, is_externally_read, is_readable_at_startup, is_special_var, special_var,
+    special_var_in_dialect, special_var_read_taint, special_var_write_effect,
+    special_vars_for_dialect,
 };
 pub use state_transition::{
     AbruptTransitionTransfer, CallerFrameSelection, ChildInterpreterSafety,
