@@ -409,6 +409,10 @@ pub const TRAITS: &[Variant] = &[
     v("DESTROYS_VARIABLE", "destroys a variable"),
     v("READS_BEFORE_WRITE", "reads its target before writing it"),
     v("CREATES_SCOPE_ALIAS", "creates an upvar-like scope alias"),
+    v(
+        "ALIASES_GLOBAL",
+        "creates an alias to the interpreter global namespace",
+    ),
     v("CREATES_BARRIER", "creates an analysis barrier"),
     v("EVALUATES_CODE", "evaluates its argument as code"),
     v("PERFORMS_SUBSTITUTION", "performs Tcl substitution"),
