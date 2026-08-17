@@ -1796,7 +1796,7 @@ fn build_unit_with_keys<'db>(
         registry, config, ..
     } = options;
     let dialect = options.dialect;
-    let dialect_opt = tcl_dialect::DialectProfile::find(dialect);
+    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
@@ -2020,7 +2020,7 @@ pub fn taint_cascade<'db>(
 ) -> Arc<HashMap<ValueKey, TaintLattice>> {
     let baseline = function_lattice(db, lattice_key);
     let dialect = summary_key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::find(dialect);
+    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
     let registry = db.registry(dialect);
 
     // Reconstruct the minimal summary: a stub per known name (resolution
@@ -2197,7 +2197,7 @@ pub fn proc_summary_cascade<'db>(
     let qname = lattice_key.qname(db);
     let params = lattice_key.params(db);
     let dialect = deps_key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::find(dialect);
+    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
     let registry = db.registry(dialect);
 
     // Reconstruct the minimal interproc summary (stub per known name + real
@@ -2257,7 +2257,7 @@ pub fn proc_summary_cascade<'db>(
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
     let dialect = key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::find(dialect);
+    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
     let registry = db.registry(dialect);
     // Per-procedure memo — procs have no implicit instance variables.
     Arc::new(tcl_compiler::compiler_checks::function_nontaint_checks(
@@ -2340,7 +2340,7 @@ pub fn proc_taint_solve<'db>(
     cfg: LexerCfgKey<'db>,
 ) -> Arc<CheckSolve> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::find(&dialect);
+    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
     let registry = db.registry(&dialect);
     let external = file.external_call_sites(db).clone();
     let (cu, lattice_keys) = build_unit_with_keys(
@@ -2472,7 +2472,7 @@ pub fn proc_taint_solve<'db>(
         &cu,
         &lattice_keys,
         registry,
-        tcl_dialect::DialectProfile::find(&dialect),
+        tcl_dialect::DialectProfile::resolve_known(&dialect),
     );
     Arc::new(CheckSolve {
         taints,
@@ -2683,7 +2683,7 @@ pub fn function_optimisations<'db>(
     let params = key.params(db).clone();
     let body = key.body(db).clone();
     let dialect = key.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::find(&dialect);
+    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
     let registry = db.registry(&dialect);
     let body_source = deps.body_source(db).clone();
 
@@ -3166,7 +3166,7 @@ pub fn compiler_check_diagnostics(
     config: AnalyserConfig,
 ) -> Arc<CompilerDiagnostics> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::find(&dialect);
+    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
     let registry = db.registry(&dialect);
     // Share the analyser tail's build via the [`compilation_unit`] query when the
     // dialect's lexer config matches the default (every dialect but `tcl8.4` /
@@ -3212,7 +3212,7 @@ pub fn compiler_check_diagnostics_uncached(
     generic_patterns: Option<&[String]>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
-    let dialect_opt = tcl_dialect::DialectProfile::find(dialect);
+    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
     let cu = CompilationUnit::build_with_options(
         text,
         UnitBuildOptions {
@@ -3227,7 +3227,7 @@ pub fn compiler_check_diagnostics_uncached(
     compiler_diagnostics_from_unit(
         &cu,
         registry,
-        tcl_dialect::DialectProfile::find(dialect),
+        tcl_dialect::DialectProfile::resolve_known(dialect),
         generic_patterns,
     )
 }

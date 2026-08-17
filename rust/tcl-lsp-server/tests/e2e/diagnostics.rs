@@ -90,6 +90,17 @@ fn unbraced_expr_is_w100() {
 }
 
 #[test]
+fn tk_diagnostics_do_not_offer_tailcall() {
+    // The memoised diagnostics path receives Tk as a set-only dialect. It must
+    // retain the typed profile rather than use the unknown-dialect optimiser
+    // default, which would incorrectly offer Tcl 8.6's O121 tailcall rewrite.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tk");
+    let diagnostics = lsp.open_ready_lang(&uri, "proc recurse {} { recurse }\n", "tk");
+    assert!(!has_code(&diagnostics, "O121"), "{diagnostics:?}");
+}
+
+#[test]
 fn catch_without_result_is_w302() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
