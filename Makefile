@@ -187,7 +187,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data tcltest-sweep tcltest-sweep-check
+.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data tcltest-sweep tcltest-sweep-check
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
@@ -603,7 +603,11 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-number-drift xtask-command-backing xtask-option-registry-drift xtask-sslictcl-data ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-number-drift xtask-command-backing xtask-option-registry-drift xtask-sslictcl-data ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+
+xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match DialectProfile::all
+	@echo "==> Checking generated editor dialect lists (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-dialects --check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"
@@ -1311,7 +1315,22 @@ editors/zed/languages/tcl/highlights.scm: $(_CATALOG_DEPS)
 	@echo "==> Generating Zed tree-sitter highlight queries (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-zed-queries
 
-generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm ## Regenerate editor catalog + Zed query files from the registry
+# These projections are owned by the crates their generators consume.  Keep
+# the ownership explicit so a `make generate` after a dialect, lexical grammar,
+# or command-registry change always refreshes every affected editor surface.
+_EDITOR_DIALECT_DEPS := $(shell find $(ROOT)rust/tcl-dialect/src $(ROOT)rust/xtask/src -name '*.rs')
+_EDITOR_DIALECT_OUTPUTS := editors/vscode/package.json editors/vscode/src/extension.ts editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt editors/sublime-text/plugin.py editors/sublime-text/README.md editors/sublime-text/sublime-package.json
+$(_EDITOR_DIALECT_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
+
+_TMLANGUAGE_KEYWORD_DEPS := $(shell find $(ROOT)rust/tcl-registry/src $(ROOT)rust/tcl-dialect/src $(ROOT)rust/tcl-syntax/src $(ROOT)rust/xtask/src -name '*.rs')
+_TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json editors/jetbrains/src/main/resources/syntaxes/tcl.tmLanguage.json editors/sublime-text/Tcl.sublime-syntax
+$(_TMLANGUAGE_KEYWORD_OUTPUTS): $(_TMLANGUAGE_KEYWORD_DEPS)
+
+generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) ## Regenerate editor catalogs, dialect projections, and lexical grammars
+	@echo "==> Generating editor dialect projections (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-dialects
+	@echo "==> Generating TextMate keyword grammars (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords
 
 check-generated: ## Verify generated catalogs are up to date
 	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"

@@ -257,6 +257,63 @@ suite("TextMate grammar: lmap is a control keyword, not a plain builtin (#862)",
   });
 });
 
+suite("TextMate grammar: generated lexical owners (#1469)", () => {
+  let grammar: vsctm.IGrammar;
+
+  suiteSetup(async () => {
+    const loaded = await makeRegistry().loadGrammar("source.tcl");
+    assert.ok(loaded, "source.tcl grammar should load");
+    grammar = loaded;
+  });
+
+  function scopesAt(line: string, index: number): string[] {
+    const token = grammar
+      .tokenizeLine(line, vsctm.INITIAL)
+      .tokens.find((candidate) => index >= candidate.startIndex && index < candidate.endIndex);
+    return token?.scopes ?? [];
+  }
+
+  test("Tcl 9 decimal prefix and digit separators are static-fallback numerals", () => {
+    const line = "set value 0d1__024";
+    const scopes = scopesAt(line, line.indexOf("0d"));
+    assert.ok(scopes.includes("constant.numeric.tcl"), scopes.join(", "));
+  });
+
+  test("colon runs keep a qualified variable in one variable token", () => {
+    const line = "puts $foo:::bar";
+    for (const offset of ["$foo", ":::bar"].map((part) => line.indexOf(part))) {
+      const scopes = scopesAt(line, offset);
+      assert.ok(scopes.includes("variable.other.tcl"), scopes.join(", "));
+    }
+  });
+
+  test("wide unicode and capped-octal escape bodies match lexer width rules", () => {
+    const unicode = 'puts "\\U0001F600"';
+    assert.ok(
+      scopesAt(unicode, unicode.indexOf("\\U")).includes("constant.character.escape.tcl"),
+      "\\U should be one escape token",
+    );
+    const octal = 'puts "\\777"';
+    const first = octal.indexOf("\\777");
+    assert.ok(
+      scopesAt(octal, first).includes("constant.character.escape.tcl"),
+      "the first two octal digits are an escape",
+    );
+    assert.ok(
+      !scopesAt(octal, first + 3).includes("constant.character.escape.tcl"),
+      "8.6+ leaves the third digit of \\777 outside the escape",
+    );
+  });
+
+  test("parenthesis backslash substitutions remain escape tokens", () => {
+    const line = 'puts "\\("';
+    assert.ok(
+      scopesAt(line, line.indexOf("\\(")).includes("constant.character.escape.tcl"),
+      "\\( should remain one escape token",
+    );
+  });
+});
+
 // Issue #903: the grammar is the paint the user sees before the server answers,
 // and the only paint anywhere the server never runs (GitHub/Linguist, a file too
 // large for semantic tokens, an editor with no extension). Where it disagrees

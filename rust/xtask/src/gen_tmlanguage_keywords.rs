@@ -37,12 +37,21 @@
 //!
 //! ## What is and isn't generated
 //!
-//! Only the three command-name regex alternations are generated; everything
-//! else in each grammar (comments, strings, numbers, variables, operators,
-//! punctuation, the `proc`/`method` name-capture rule, the `regexp`/`regsub`
-//! pattern highlighting) is a static, hand-authored template untouched by
-//! this generator — those rules match by *position* or *node shape*, not by
-//! command name, so the registry has nothing to say about them. Each target
+//! The three command-name regex alternations and the shared lexical regex
+//! bodies (numbers, backslash escapes, and unbraced variable names) are
+//! generated. Number / escape behaviour is projected from the modern grammar
+//! that [`tcl_dialect::NumberSyntax::of_profile`] /
+//! [`tcl_dialect::EscapeSyntax::of_profile`] designate for a grammar without a
+//! per-document profile; the `TextMate` formats cannot switch regexes when LSP
+//! configuration changes. The variable body comes from
+//! [`tcl_syntax::naming::textmate_variable_name_body`]. Thus the static
+//! fallback grammars remain one cross-editor projection instead of three
+//! hand-rolled lexical parsers (issue #1469).
+//!
+//! Comments, strings, operators, punctuation, the `proc`/`method`
+//! name-capture rule, and the `regexp`/`regsub` pattern highlighting remain
+//! static template text: those rules match by *position* or *node shape*, not
+//! by a shared lexical owner. Each target
 //! file is edited by locating the `"match"` (JSON) / `match:` (YAML) value
 //! that immediately follows each scope name and replacing only that value —
 //! not a full-file reserialisation — so unrelated formatting (e.g. the
@@ -118,9 +127,10 @@ use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
-use tcl_dialect::DialectSet;
+use tcl_dialect::{DialectSet, EscapeSyntax, NumberSyntax};
 use tcl_registry::CommandRegistry;
 use tcl_registry::traits::{CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC, Traits};
+use tcl_syntax::naming::textmate_variable_name_body;
 
 use crate::util::{self, repo_root};
 
@@ -174,6 +184,111 @@ struct Buckets {
     control: BTreeSet<String>,
     other: BTreeSet<String>,
     builtin: BTreeSet<String>,
+}
+
+/// Lexical patterns shared by the three TextMate-family formats. All strings
+/// are logical regexes (one backslash in memory); the JSON renderer escapes
+/// them while the YAML renderer keeps them literal in a single-quoted scalar.
+struct LexicalRegexes {
+    variable: String,
+    hex: String,
+    octal: String,
+    binary: String,
+    decimal: String,
+    escape: String,
+}
+
+/// A digit run under the shared numeral grammar. Tcl 9's `_` separator is
+/// allowed only *between* digits, with one-or-more underscores (the lexer
+/// accepts `1__000`); older grammars receive the bare digit class.
+fn digit_run(class: &str, syntax: NumberSyntax) -> String {
+    if syntax.allows_digit_separators() {
+        format!("{class}(?:{class}|_+{class})*")
+    } else {
+        format!("{class}+")
+    }
+}
+
+/// Render lexical regex bodies from the shared syntax owners. The grammar
+/// files have no dynamic hook for the LSP document's configured profile, so
+/// their common fallback follows the same permissive modern default as
+/// `LexerConfig::default`; dialect-specific analysis remains the LSP's job.
+fn lexical_regexes() -> LexicalRegexes {
+    let numbers = NumberSyntax::of_profile(None);
+    let escapes = EscapeSyntax::of_profile(None);
+    let hex_digits = digit_run("[0-9a-fA-F]", numbers);
+    let octal_digits = digit_run("[0-7]", numbers);
+    let binary_digits = digit_run("[01]", numbers);
+    let decimal_digits = digit_run("[0-9]", numbers);
+
+    let hex = format!(r"\b0[xX]{hex_digits}\b");
+    let octal = if numbers.has_binary_octal_prefix() {
+        format!(r"\b0[oO]{octal_digits}\b")
+    } else {
+        // A future oldest grammar could remove the explicit prefix. Keep the
+        // generated target syntactically valid rather than emitting an empty
+        // alternative, while the owner method remains the decision point.
+        r"(?!)".to_owned()
+    };
+    let binary = if numbers.has_binary_octal_prefix() {
+        format!(r"\b0[bB]{binary_digits}\b")
+    } else {
+        r"(?!)".to_owned()
+    };
+    let decimal_prefix = numbers
+        .has_decimal_prefix()
+        .then(|| format!(r"0[dD]{decimal_digits}"));
+    // Explicit `0d` is integer-only; ordinary decimal spelling may contain a
+    // fractional part and/or exponent. Keeping them separate prevents the
+    // grammar from colouring invalid `0d1.5` as a single numeric literal.
+    let ordinary_decimal =
+        format!(r"{decimal_digits}(?:\.{decimal_digits})?(?:[eE][+-]?{decimal_digits})?");
+    let decimal = match decimal_prefix {
+        Some(prefix) => format!(r"\b(?:{prefix}|{ordinary_decimal})\b"),
+        None => format!(r"\b{ordinary_decimal}\b"),
+    };
+
+    let hex_escape = match escapes.hex_escape_digits() {
+        Some(width) => format!(r"x[0-9a-fA-F]{{1,{width}}}"),
+        None => r"x[0-9a-fA-F]+".to_owned(),
+    };
+    // 8.6+ takes a third octal digit only when the first digit is 0–3. The
+    // `octal_takes_third_digit` owner says this directly, avoiding the old
+    // unsound flat `[0-7]{1,3}` grammar.
+    let octal_escape = if escapes.octal_takes_third_digit(0o37) {
+        if escapes.octal_takes_third_digit(0o40) {
+            r"[0-7]{1,3}".to_owned()
+        } else {
+            r"(?:[0-3][0-7]{0,2}|[4-7][0-7]?)".to_owned()
+        }
+    } else {
+        r"[0-7]{1,2}".to_owned()
+    };
+    // `hex_run` stops before the next digit once the accumulated prefix is
+    // above Tcl's `ParseHex` cap (0x10fff).  The generated grammars need the
+    // same boundary, not merely the same eight-digit maximum.  Since the cap
+    // is five hex digits wide, these three longer branches encode the finite
+    // states where the first over-cap digit is the sixth, seventh, or eighth;
+    // the final branch handles runs of five digits or fewer.  Branches are
+    // ordered longest-first so a still-valid prefix consumes the available
+    // next digit before the shorter fallback can win.
+    let wide = if escapes.has_wide_unicode() {
+        r"|U(?:(?:000[0-9a-fA-F]{4}|0010[0-9a-fA-F]{3})[0-9a-fA-F]|(?:00[0-9a-fA-F]{4}|010[0-9a-fA-F]{3})[0-9a-fA-F]|(?:0[0-9a-fA-F]{4}|10[0-9a-fA-F]{3})[0-9a-fA-F]|[0-9a-fA-F]{1,5})"
+    } else {
+        ""
+    };
+    let escape = format!(
+        r#"\\(?:[abfnrtv\\"{{}}()\[\]\$]|{octal_escape}|{hex_escape}|u[0-9a-fA-F]{{1,4}}{wide}|\n)"#
+    );
+
+    LexicalRegexes {
+        variable: format!(r"\${}(?:\([^)]*\))?", textmate_variable_name_body()),
+        hex,
+        octal,
+        binary,
+        decimal,
+        escape,
+    }
 }
 
 /// Classify every ambient (no `required_package`), `ALL_TCL`-dialect command
@@ -290,7 +405,9 @@ fn splice_json_match(
             None => bail!("unterminated JSON string after anchor {anchor:?}"),
         }
     }
-    let escaped = new_value.replace('\\', "\\\\");
+    // `new_value` is a logical regex. JSON needs both its backslashes and
+    // the literal double quote accepted by Tcl's `\\\"` escape class quoted.
+    let escaped = new_value.replace('\\', "\\\\").replace('"', "\\\"");
     let new_block = format!("{}{escaped}{}", &block[..val_start], &block[end..]);
     Ok(format!(
         "{}{new_block}{}",
@@ -347,6 +464,48 @@ fn render_tmlanguage_json(original: &str, b: &Buckets) -> Result<String> {
         let (block, offset) = (block.to_owned(), offset);
         text = splice_json_match(&text, &block, offset, anchor, &boundary_regex(words))?;
     }
+    let lexical = lexical_regexes();
+    for (start, end, anchor, regex) in [
+        (
+            "\"variable\": {",
+            "\"string-quoted\": {",
+            "\"variable.other.tcl\"",
+            lexical.variable.as_str(),
+        ),
+        (
+            "\"number\": {",
+            "\"escape\": {",
+            "\"constant.numeric.hex.tcl\"",
+            lexical.hex.as_str(),
+        ),
+        (
+            "\"number\": {",
+            "\"escape\": {",
+            "\"constant.numeric.octal.tcl\"",
+            lexical.octal.as_str(),
+        ),
+        (
+            "\"number\": {",
+            "\"escape\": {",
+            "\"constant.numeric.binary.tcl\"",
+            lexical.binary.as_str(),
+        ),
+        (
+            "\"number\": {",
+            "\"escape\": {",
+            "\"constant.numeric.tcl\"",
+            lexical.decimal.as_str(),
+        ),
+        (
+            "\"escape\": {",
+            "\n  }\n}",
+            "\"constant.character.escape.tcl\"",
+            lexical.escape.as_str(),
+        ),
+    ] {
+        let (block, offset) = bounded_block(&text, start, end)?;
+        text = splice_json_match(&text, block, offset, anchor, regex)?;
+    }
     Ok(text)
 }
 
@@ -362,6 +521,57 @@ fn render_sublime_syntax(original: &str, b: &Buckets) -> Result<String> {
         let (block, offset) = bounded_block(&text, "  keyword:\n", "  operator:\n")?;
         let (block, offset) = (block.to_owned(), offset);
         text = splice_yaml_match(&text, &block, offset, anchor, &boundary_regex(words))?;
+    }
+    let lexical = lexical_regexes();
+    for (start, end, anchor, regex) in [
+        (
+            "  variable:\n",
+            "  string-quoted:\n",
+            "scope: variable.other.tcl",
+            lexical.variable.as_str(),
+        ),
+        (
+            "  number:\n",
+            "  escape:\n",
+            "scope: constant.numeric.hex.tcl",
+            lexical.hex.as_str(),
+        ),
+        (
+            "  number:\n",
+            "  escape:\n",
+            "scope: constant.numeric.octal.tcl",
+            lexical.octal.as_str(),
+        ),
+        (
+            "  number:\n",
+            "  escape:\n",
+            "scope: constant.numeric.binary.tcl",
+            lexical.binary.as_str(),
+        ),
+        (
+            "  number:\n",
+            "  escape:\n",
+            "scope: constant.numeric.tcl",
+            lexical.decimal.as_str(),
+        ),
+        (
+            "  escape:\n",
+            "\n",
+            "scope: constant.character.escape.tcl",
+            lexical.escape.as_str(),
+        ),
+    ] {
+        let (block, offset) = if start == "  escape:\n" {
+            // `escape` is the last grammar context; unlike every other target
+            // there is no following context heading to use as a bound.
+            let offset = text
+                .find(start)
+                .with_context(|| format!("{start:?} not found"))?;
+            (&text[offset..], offset)
+        } else {
+            bounded_block(&text, start, end)?
+        };
+        text = splice_yaml_match(&text, block, offset, anchor, regex)?;
     }
     Ok(text)
 }
@@ -486,6 +696,45 @@ mod tests {
     }
 
     #[test]
+    fn lexical_projection_uses_shared_modern_number_escape_and_name_owners() {
+        let lexical = lexical_regexes();
+        // Tcl 9's explicit decimal prefix and separator runs must reach every
+        // static fallback grammar; these were absent from all three hand lists.
+        assert!(lexical.decimal.contains("0[dD]"));
+        assert!(lexical.decimal.contains("_+"));
+        // TIP 388's wide unicode form and its first-octal-digit cap are both
+        // lexical width rules, not merely decoded-value rules.
+        assert!(
+            lexical
+                .escape
+                .contains("U(?:(?:000[0-9a-fA-F]{4}|0010[0-9a-fA-F]{3})")
+        );
+        assert!(lexical.escape.contains("[0-3][0-7]{0,2}"));
+        assert!(lexical.escape.contains("[4-7][0-7]?"));
+        assert!(lexical.escape.contains("{}()"));
+        // Namespace separator runs use the shared naming fragment, not the
+        // former exactly-two-colon spelling.
+        assert!(lexical.variable.contains("[:]{2,}"));
+    }
+
+    #[test]
+    fn wide_unicode_projection_stops_at_parse_hex_cap() {
+        let lexical = lexical_regexes();
+        let re = regex::Regex::new(&lexical.escape).expect("generated escape regex is valid");
+        for (source, expected) in [
+            (r"\UFFFFFFFF", r"\UFFFFF"),
+            (r"\U00110000", r"\U0011000"),
+            (r"\U0010FFFF", r"\U0010FFFF"),
+        ] {
+            assert_eq!(
+                re.find(source).map(|m| m.as_str()),
+                Some(expected),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn committed_grammars_match_generated() {
         let root = repo_root();
         let reg = CommandRegistry::build_default();
@@ -544,5 +793,35 @@ mod tests {
             "fileTypes must stay on one line, or the splice guard is moot: {file_types}"
         );
         assert!(content.contains(file_types));
+    }
+
+    #[test]
+    fn lexical_splices_are_shared_by_all_three_grammar_formats() {
+        let root = repo_root();
+        let b = classify(&CommandRegistry::build_default());
+        let lexical = lexical_regexes();
+        for (rel, render) in [
+            (VSCODE_GRAMMAR, render_tmlanguage_json as RenderFn),
+            (JETBRAINS_GRAMMAR, render_tmlanguage_json),
+            (SUBLIME_GRAMMAR, render_sublime_syntax),
+        ] {
+            let original = fs::read_to_string(root.join(rel)).unwrap();
+            let rendered = render(&original, &b).unwrap();
+            assert_eq!(rendered, original, "{rel} is stale");
+            // The logical TextMate fragment is present directly in YAML, but
+            // JSON doubles every backslash. Check owner-specific bodies whose
+            // punctuation is invariant under that serialisation difference.
+            assert!(rendered.contains("0[dD]"), "{rel} lacks 0d");
+            assert!(rendered.contains("[:]{2,}"), "{rel} lacks colon runs");
+            assert!(
+                rendered.contains("U(?:(?:000[0-9a-fA-F]{4}|0010[0-9a-fA-F]{3})"),
+                "{rel} lacks capped \\U"
+            );
+            assert!(rendered.contains("[4-7][0-7]?"), "{rel} lacks octal cap");
+            assert!(
+                rendered.contains(&lexical.decimal.replace('\\', "\\\\"))
+                    || rendered.contains(&lexical.decimal)
+            );
+        }
     }
 }
