@@ -422,7 +422,11 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
         // authoring a pack needs no configuration at all.
         "tclspec" => "spectcl",
         "xdc" => "xilinx-eda-tcl",
-        "sdc" => "synopsys-eda-tcl",
+        // `.sdc` constraint files and `.upf` (IEEE 1801) power-intent files
+        // are both cross-vendor Tcl mapped to one representative profile;
+        // the ambient `sdc` / `upf` package pins (every EDA profile carries
+        // both) are what resolve their commands.
+        "sdc" | "upf" => "synopsys-eda-tcl",
         // Mentor/Questa simulation macro files (`.do` is Tcl).
         "do" => "mentor-eda-tcl",
         // Intel Quartus project / settings / IP files (Tcl-syntax).
@@ -916,6 +920,12 @@ mod detect_tests {
         assert_eq!(
             detect_dialect("x\n", Some("/p/genus.invs_setup.tcl"), DEF),
             "cadence-eda-tcl"
+        );
+        // IEEE 1801 UPF power intent — cross-vendor Tcl, same representative
+        // profile as `.sdc`.
+        assert_eq!(
+            detect_dialect("create_power_domain PD_top\n", Some("soc.upf"), DEF),
+            "synopsys-eda-tcl"
         );
         // `.svrf` (Calibre rule decks) is NOT Tcl — falls to the caller default.
         assert_eq!(

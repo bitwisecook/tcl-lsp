@@ -342,6 +342,11 @@ static CATALOG: [DialectProfile; 17] = [
                 ambient: true,
             },
             LibraryPin {
+                package: "upf",
+                version: LibraryVersion::Keyed(VersionKey::UpfVersion),
+                ambient: true,
+            },
+            LibraryPin {
                 package: "cadence-genus",
                 version: LibraryVersion::Keyed(VersionKey::ToolVersion),
                 ambient: true,
@@ -544,6 +549,11 @@ static CATALOG: [DialectProfile; 17] = [
                 ambient: true,
             },
             LibraryPin {
+                package: "upf",
+                version: LibraryVersion::Keyed(VersionKey::UpfVersion),
+                ambient: true,
+            },
+            LibraryPin {
                 package: "quartus-project",
                 version: LibraryVersion::Keyed(VersionKey::ToolVersion),
                 ambient: true,
@@ -605,6 +615,11 @@ static CATALOG: [DialectProfile; 17] = [
             LibraryPin {
                 package: "sdc",
                 version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "upf",
+                version: LibraryVersion::Keyed(VersionKey::UpfVersion),
                 ambient: true,
             },
             LibraryPin {
@@ -673,6 +688,11 @@ static CATALOG: [DialectProfile; 17] = [
             LibraryPin {
                 package: "sdc",
                 version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "upf",
+                version: LibraryVersion::Keyed(VersionKey::UpfVersion),
                 ambient: true,
             },
             LibraryPin {
@@ -857,6 +877,11 @@ static CATALOG: [DialectProfile; 17] = [
             LibraryPin {
                 package: "sdc",
                 version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "upf",
+                version: LibraryVersion::Keyed(VersionKey::UpfVersion),
                 ambient: true,
             },
             LibraryPin {
@@ -1176,12 +1201,18 @@ mod tests {
                     p.name
                 );
             }
-            // Every EDA shell keys sdc + its tool; both ambient.
+            // Every EDA shell keys sdc + upf + its tool; all ambient.
             if p.name.ends_with("-eda-tcl") {
                 assert!(
                     p.libraries.iter().any(|pin| pin.package == "sdc"
                         && pin.version == LibraryVersion::Keyed(VersionKey::SdcVersion)),
                     "{}: sdc keyed on SdcVersion",
+                    p.name
+                );
+                assert!(
+                    p.libraries.iter().any(|pin| pin.package == "upf"
+                        && pin.version == LibraryVersion::Keyed(VersionKey::UpfVersion)),
+                    "{}: upf keyed on UpfVersion",
                     p.name
                 );
                 assert!(

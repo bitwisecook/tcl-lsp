@@ -178,7 +178,9 @@ fn dialect_for(stem: &str) -> &'static str {
         // library is installed under every vendor shell, and one of them has
         // to be picked to exercise it.
         "eda_xilinx" | "sdc_base" => "xilinx-eda-tcl",
-        "eda_synopsys" => "synopsys-eda-tcl",
+        // `upf` is the same cross-vendor shape as `sdc_base`; it is exercised
+        // under the profile `.upf` files detect as, which is also Synopsys's.
+        "upf" | "eda_synopsys" => "synopsys-eda-tcl",
         "eda_cadence" => "cadence-eda-tcl",
         "eda_quartus" => "intel-quartus-eda-tcl",
         "eda_mentor" => "mentor-eda-tcl",
@@ -960,8 +962,8 @@ const BASELINE_HEADER: &str = "\
 # be deleted from here — the baseline cannot silently rot into a wildcard.
 #
 # THE LOAD-BEARING FACT, and the reason this file is not simply a mute-button:
-# `specs/` — the six bundled EDA loadables, the packs an installed tcl-lsp
-# actually loads — appears NOWHERE below. All 346 of their commands load
+# `specs/` — the seven bundled EDA loadables, the packs an installed tcl-lsp
+# actually loads — appears NOWHERE below. All 437 of their commands load
 # without a single notice. Every entry here belongs to a design artefact under
 # `docs/design/spec-dsl-examples/`, and each is a known, named gap rather than
 # a defect:

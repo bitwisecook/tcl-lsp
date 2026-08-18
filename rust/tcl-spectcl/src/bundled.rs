@@ -21,7 +21,7 @@
 //! `docs/design/spec-packs.md` puts the EDA vendor libraries here — "the EDA
 //! vendor libraries ship as bundled `.tclspec` loadables … so the loader path
 //! is exercised in production from day one rather than reserved for private
-//! packs" — and since the migration that is literally true: `sdc_base` and the
+//! packs" — and since the migration that is literally true: `sdc_base`, `upf` and the
 //! five vendor packs have no Rust modules behind them at all, so a `get_cells`
 //! or a `synth_design` reaches a registry only by way of [`crate::loader`].
 //!
@@ -82,10 +82,10 @@ pub fn load_from(dir: &Path) -> PackSet {
     crate::pack::load(&files)
 }
 
-/// The six shipped EDA loadables' `.tclspec` sources, compiled into the
+/// The seven shipped EDA loadables' `.tclspec` sources, compiled into the
 /// binary — see "The embedded fallback" above for why this exists.
 ///
-/// The same six files `specs/` ships, by `include_str!` on the identical
+/// The same seven files `specs/` ships, by `include_str!` on the identical
 /// path the crate's own tests resolve `specs/` from — not a hand-copied
 /// second source that could drift from the on-disk one.
 const EMBEDDED_PACKS: &[(&str, &str)] = &[
@@ -113,6 +113,7 @@ const EMBEDDED_PACKS: &[(&str, &str)] = &[
         "sdc_base.tclspec",
         include_str!("../../../specs/sdc_base.tclspec"),
     ),
+    ("upf.tclspec", include_str!("../../../specs/upf.tclspec")),
 ];
 
 /// Load [`EMBEDDED_PACKS`] as the bundled tier.
@@ -253,7 +254,7 @@ pub fn active_registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
 /// axis: hold it while you read it, drop it when done, and a later pack edit
 /// can retire this generation.
 ///
-/// The bundled tier carries *all six* EDA libraries regardless of dialect —
+/// The bundled tier carries *all seven* EDA libraries regardless of dialect —
 /// discovery cannot know which shell a document belongs to — and
 /// [`install`](crate::install) is what narrows them to the packages this
 /// profile ships ambient, so a Vivado registry never takes a Cadence
@@ -315,9 +316,10 @@ mod tests {
                 "eda_quartus",
                 "eda_synopsys",
                 "eda_xilinx",
-                "sdc_base"
+                "sdc_base",
+                "upf"
             ],
-            "the six EDA loadables"
+            "the seven EDA loadables"
         );
         let warnings: Vec<String> = set
             .notices
@@ -345,7 +347,7 @@ mod tests {
     /// `tcl-lsp-server-<triple>` release asset, or the Zed extension's
     /// runtime download of it.
     #[test]
-    fn the_embedded_packs_carry_the_same_six_eda_vendor_libraries() {
+    fn the_embedded_packs_carry_the_same_seven_eda_vendor_libraries() {
         let _cache = cache_guard();
         let set = load_embedded();
         let mut names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
@@ -358,9 +360,10 @@ mod tests {
                 "eda_quartus",
                 "eda_synopsys",
                 "eda_xilinx",
-                "sdc_base"
+                "sdc_base",
+                "upf"
             ],
-            "the six EDA loadables, embedded"
+            "the seven EDA loadables, embedded"
         );
         let warnings: Vec<String> = set
             .notices

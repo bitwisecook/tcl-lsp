@@ -1,0 +1,2188 @@
+# tcl-lsp — bundled SpecTcl loadable: IEEE 1801 (UPF, Unified Power Format),
+# the cross-vendor power-intent library every EDA shell reads.
+#
+# This pack IS the source of truth for these commands. Derived from IEEE Std
+# 1801-2024: Clause 6 (power intent commands, 6.3-6.63) and Clause 7 (power
+# management cell library commands, 7.2-7.7) — 67 commands, each block citing
+# its clause in `source`. Requested in issue #1560; the reporter supplied the
+# standard's command-reference text the specs were extracted from.
+#
+# Commands the 2024 standard marks "(legacy)" are kept — real power-intent
+# files still carry them — with a `Legacy:` summary and, where the standard
+# names the successor, a `deprecated_replacement`. No `introduced_version` /
+# `deprecated_version` stamps: this pack is derived from one revision of the
+# standard, and per-revision history without the earlier revisions in hand
+# would be guesswork (spec-author skill, "Deriving version ranges").
+#
+# Like `sdc` in sdc_base, the `upf` package is ambient in every EDA profile
+# (rust/tcl-dialect/src/profile.rs), and `.upf` files detect as the same
+# representative profile `.sdc` files do (rust/tcl-registry/src/dialects.rs).
+# The `required_package upf` gate below is what keeps these commands out of
+# plain-Tcl documents.
+#
+# Discovery: the **bundled** tier — `specs/` beside the server executable, or
+# wherever $TCL_LSP_SPEC_PACK_DIR points (rust/tcl-spectcl/src/discovery.rs).
+# Edit this file to change the specs; there is no generator to re-run.
+# Syntax: docs/design/spec-dsl-examples/README.md.
+
+speclib upf 1.0 {
+
+default dialects all-tcl
+default required_package upf
+
+command add_parameter {
+    arity 1..
+
+    option -type -takes type -values {buildtime runtime rate} -closed \
+           -detail {The type of parameter being defined.}
+    option -default -takes value \
+           -detail {The default value for the parameter (required).}
+    option -description -takes string \
+           -detail {A description of the parameter represented as a string.}
+
+    form Default {add_parameter parameter_name ?-type type? -default value ?-description string?}
+
+    hover {
+        summary {Define parameters for use within the power model.}
+        synopsis {add_parameter parameter_name ?-type type? -default value ?-description string?}
+        description {Defines parameters usable within a power model: typed parameters (-type buildtime, runtime, or rate) for system-level IP power modeling with floating-point default values, or untyped Tcl parameters that behave as special Tcl variables with any string default. Run-time and rate parameters can participate in a power function's sensitivity list, triggering recalculation on change; Tcl parameter defaults can be overridden via apply_power_model -parameters.}
+        returns {1 if successful; otherwise a TCL_ERROR is raised.}
+        example {add_parameter process -type buildtime \
+         -default 1.0 -description "Process Scaling Factor"
+add_parameter PDNAME -default "PD_PM"}
+        source {IEEE 1801-2024 §6.3}
+    }
+}
+
+command add_port_state {
+    arity 1..
+
+    option -state -takes port_state \
+           -detail {The name and value for a state of the supply port, given as a state name followed by a nominal voltage, a minimum and maximum pair, a minimum, nominal, and maximum triplet, or off (repeatable).}
+
+    form Default {add_port_state port_name ?-state {name state_value}...?}
+
+    hover {
+        summary {Legacy: Add states to a port.}
+        synopsis {add_port_state port_name ?-state {name state_value}...?}
+        description {Adds named state information to a supply port. If voltage values are given, the supply net state becomes FULL_ON with the value being the single nominal value or constrained within the minimum and maximum; if off is given instead, the supply net state becomes OFF. This is a legacy command; see 6.2 and Annex D.}
+        returns {The fully qualified name, from the current scope, of the created port; otherwise a TCL_ERROR is raised if any of the port states are not added.}
+        example {add_port_state VN1 \
+            -state {active_state 0.88 0.90 0.92} \
+            -state {off_state off}}
+        source {IEEE 1801-2024 §6.4}
+    }
+}
+
+command add_power_state {
+    arity 1..
+
+    option -supply -detail {Apply the command to a supply set or supply set handle of this name.}
+    option -domain -detail {Apply the command to a power domain of this name.}
+    option -group -detail {Apply the command to a power state group of this name.}
+    option -model -detail {Apply the command to a model of this name.}
+    option -instance -detail {Apply the command to an instance of this name.}
+    option -update \
+           -detail {Indicates this command provides additional information for a previous command with the same object_name executed in the same scope.}
+    option -state -takes state_block \
+           -detail {A braced block giving the state_name being defined or refined, optionally qualified by -logic_expr, -supply_expr, -power_expr, -simstate, and -legal or -illegal (repeatable).}
+    option -complete \
+           -detail {Specifies that all fundamental power states to be defined for this object have been defined, so any state that does not match a defined state is an illegal state.}
+
+    option_conflict {-supply -domain -group -model -instance}
+
+    form Default {add_power_state object_name ?-supply|-domain|-group|-model|-instance? ?-update? ?-state {state_name ?-logic_expr {boolean_expression}? ?-supply_expr {boolean_expression}? ?-power_expr {power_expression}? ?-simstate simstate? ?-legal|-illegal?}...? ?-complete?}
+
+    hover {
+        summary {Define power state(s) of an object.}
+        synopsis {add_power_state object_name ?-supply|-domain|-group|-model|-instance? ?-update? ?-state {state_name ?-logic_expr {boolean_expression}? ?-supply_expr {boolean_expression}? ?-power_expr {power_expression}? ?-simstate simstate? ?-legal|-illegal?}...? ?-complete?}
+        description {Defines one or more named power states for a supply set, power domain, composite domain, group, model, or instance, with model power states inherited by instances. Each state_name, optionally hierarchical so that it refines a previously defined definite state, is qualified by -logic_expr and -supply_expr for when the state is active, -power_expr for its power cost, -simstate for its simulation corruption behavior (supply sets only), and -legal or -illegal; -complete closes the set of fundamental states so that any unmatched state is illegal. The -simstate values are NORMAL, CORRUPT_ON_CHANGE, CORRUPT_STATE_ON_CHANGE, CORRUPT_STATE_ON_ACTIVITY, CORRUPT_ON_ACTIVITY, CORRUPT, and NOT_NORMAL.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {add_power_state PD.primary -supply \
+  -state {ON.TURBO}    ;# a refinement of the predefined ON state}
+        example {add_power_state CPU -model \
+  -state {ACTIVE \
+    -power_expr {UPF::power_functions::cpu \
+                {voltage frequency temperature IPC L1DAccess}}} \
+  -state {DORMANT \
+    -power_expr {0.01mW 0.0mW}}}
+        source {IEEE 1801-2024 §6.5}
+    }
+}
+
+command add_pst_state {
+    arity 1..
+
+    ;# NOTE(upf): the standard's Syntax block writes the value placeholder as
+    ;# table_name while its Arguments table writes pst_name; the Syntax spelling
+    ;# is used here.
+    option -pst -takes table_name \
+           -detail {The power state table (PST) to which this state applies (required).}
+    option -state -takes supply_states \
+           -detail {The list of supply net state names in the order of the -supplies listing of the create_pst command, where a * in place of a state name is a don't care for that supply (required).}
+
+    deprecated_replacement add_power_state
+
+    form Default {add_pst_state state_name -pst table_name -state supply_states}
+
+    hover {
+        summary {Legacy: Define the states of each of the supply nets for one possible state of the design.}
+        synopsis {add_pst_state state_name -pst table_name -state supply_states}
+        description {Assigns a name to one specific combination of supply net states for the power state table named by -pst, with each entry in -state supply_states corresponding positionally to the -supplies list given to create_pst and a * entry marking a don't care for that supply. This is a legacy command; see 6.2 and Annex D.}
+        returns {1 if successful; otherwise a TCL_ERROR is raised.}
+        example {create_pst pt -supplies {PN1 PN2 SOC/OTC/PN3}
+add_pst_state s3 -pst pt -state {s08 s09 off}}
+        source {IEEE 1801-2024 §6.6}
+    }
+}
+
+command add_state_transition {
+    arity 1..
+
+    option -supply -detail {Apply the command to a supply set or supply set handle of this name.}
+    option -domain -detail {Apply the command to a power domain of this name.}
+    option -group -detail {Apply the command to a power state group of this name.}
+    option -model -detail {Apply the command to a model of this name.}
+    option -instance -detail {Apply the command to an instance of this name.}
+    option -update \
+           -detail {Indicates this command provides additional information for a previous command with the same object_name executed in the same scope.}
+    option -transition -takes transition_block \
+           -detail {A braced block giving the transition_name and its endpoints, either as -from and -to lists of power state names or as -paired from_state and to_state pairs, plus -legal or -illegal (repeatable).}
+    option -complete \
+           -detail {Specifies that all state transitions to be defined for this object have been defined.}
+
+    option_conflict {-supply -domain -group -model -instance}
+
+    form Default {add_state_transition object_name ?-supply|-domain|-group|-model|-instance? ?-update? ?-transition {transition_name ?-from from_list -to to_list? ?-paired {{from_state to_state}...}? ?-legal|-illegal?}...? ?-complete?}
+
+    hover {
+        summary {Define named transitions among power states of an object.}
+        synopsis {add_state_transition object_name ?-supply|-domain|-group|-model|-instance? ?-update? ?-transition {transition_name ?-from from_list -to to_list? ?-paired {{from_state to_state}...}? ?-legal|-illegal?}...? ?-complete?}
+        description {Defines named transitions between the power states of a supply set, power domain, group, model, or instance, either as one-to-one, one-to-many, many-to-one, or many-to-many transitions via -from and -to lists, or as a set of one-to-one transitions via -paired. At least one of these two choices shall be specified for each named transition; an empty -from or -to list expands to all legal named power states of the object, transitions can be marked legal or illegal, the set can be extended with -update, and -complete closes it.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {add_state_transition PDA -domain \
+    -transition {turn_on -from OFF_MODE -to NORMAL_MODE} \
+    -transition {suspend -from NORMAL_MODE -to SLEEP_MODE} \
+    -transition {resume -from SLEEP_MODE -to NORMAL_MODE} \
+    -transition {turn_off -from NORMAL_MODE -to OFF_MODE}}
+        source {IEEE 1801-2024 §6.7}
+    }
+}
+
+command add_supply_state {
+    arity 1..
+
+    option -state -takes supply_state \
+           -detail {The name and value for a state of the supply object, given as a state name followed by a nominal voltage, a braced net state and nominal voltage pair, or off (repeatable).}
+
+    form Default {add_supply_state object_name ?-state {name state_value}...?}
+
+    hover {
+        summary {Add states to a supply port, a supply net, or a supply set function.}
+        synopsis {add_supply_state object_name ?-state {name state_value}...?}
+        description {Defines a named supply state for a supply port, supply net, or supply set function. If a voltage value is given without an explicit net state, the resulting supply net state is FULL_ON at that voltage; if off is given, the resulting supply net state is OFF.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {add_supply_state PD.primary.power \
+  -state {active_state 0.90} \
+  -state {partial_state {PARTIAL_ON 0.90}} \
+  -state {off_state off}}
+        source {IEEE 1801-2024 §6.8}
+    }
+}
+
+command apply_power_model {
+    arity 1..
+
+    option -elements -takes instance_name_list \
+           -detail {The list of instances to which the specified power model applies.}
+    option -supply_map -takes supply_map_pairs \
+           -detail {How the interface supply sets of the instance scope connect with supply sets in the current scope, as a list of {instance_scope_supply_set current_scope_supply_set} pairs.}
+    option -port_map -takes port_map_pairs \
+           -detail {How the interface logic or supply ports of the instance scope connect with logic or supply nets in the current scope, as a list of {instance_scope_port current_scope_net} pairs.}
+    option -parameters -takes parameter_pairs \
+           -detail {The binding of design objects to power model parameters, as a list of {param_name param_value} pairs, for system-level IP parameters or for overriding the default value of a Tcl parameter defined with add_parameter.}
+    option -update \
+           -detail {Indicates this command provides additional external connection information for instances to which the power model has already been applied.}
+
+    form Default {apply_power_model power_model_name ?-elements instance_name_list? ?-supply_map {{instance_scope_supply_set current_scope_supply_set}...}? ?-port_map {{instance_scope_port current_scope_net}...}? ?-parameters {{param_name param_value}...}? ?-update?}
+
+    hover {
+        summary {Bind power models to instances in the design and connect the interface supply set handles, logic ports, and supply ports of a previously loaded power model.}
+        synopsis {apply_power_model power_model_name ?-elements instance_name_list? ?-supply_map {{instance_scope_supply_set current_scope_supply_set}...}? ?-port_map {{instance_scope_port current_scope_net}...}? ?-parameters {{param_name param_value}...}? ?-update?}
+        description {Binds a previously defined power model to the cell instances named by -elements, either binding design objects to the model's parameters via -parameters for system-level IP power modeling, or executing the named power model's commands once per instance and wiring its interface supply set handles, logic ports, and supply ports to the instantiation scope via -supply_map and -port_map. Each -supply_map pair implies an associate_supply_set command and each -port_map pair implies a connect_logic_net or connect_supply_net command, which must be legal for the given pair; -update extends previously applied bindings with additional external connection information.}
+        returns {1 if successful; otherwise a TCL_ERROR is raised.}
+        example {apply_power_model upf_model -elements {I1 I2} \
+  -supply_map {{PD.ssh1 ss1} {PD.ssh2 ss2}} \
+  -port_map {{isolate_n iso}}}
+        source {IEEE 1801-2024 §6.9}
+    }
+}
+
+command associate_supply_set {
+    arity 1..
+
+    option -handle -takes supply_set_handle \
+           -detail {The rooted name of a supply set of a power domain, power switch, or strategy.}
+
+    form Default {associate_supply_set supply_set_name_list ?-handle supply_set_handle?}
+
+    hover {
+        summary {Associate two or more supply sets.}
+        synopsis {associate_supply_set supply_set_name_list ?-handle supply_set_handle?}
+        description {Associates two or more supply sets so that their corresponding functions are implicitly connected, making them electrically or virtually equivalent. Each name in supply_set_name_list, and the value of -handle, can be a supply set name created by create_supply_set or a dotted supply set handle referring to a supply set defined as part of a power domain, power switch, or strategy.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {associate_supply_set {AON_SS PD1.primary PD2.backup PD3.isolation}}
+        source {IEEE 1801-2024 §6.10}
+    }
+}
+
+command begin_power_model {
+    arity 1..
+
+    option -for -takes model_list \
+           -detail {The names of the models to which the power model applies.}
+
+    deprecated_replacement define_power_model
+
+    form Default {begin_power_model power_model_name ?-for model_list?}
+
+    hover {
+        summary {Legacy: Define a power model.}
+        synopsis {begin_power_model power_model_name ?-for model_list?}
+        description {Opens a power model block, closed by the next end_power_model command in the same UPF file, containing the UPF commands that describe the power intent of a model; the model is applied to instances with apply_power_model. A power model can represent a hard macro, a soft macro, an encapsulation of UPF for further modification, or a component power model for power consumption states. When -for is not specified, power_model_name shall also be a valid model name. This is a legacy command; define_power_model is the current command for defining a power model.}
+        returns {1 if successful; otherwise a TCL_ERROR is raised.}
+        example {begin_power_model upf_model -for cellA
+     create_power_domain PD1 -elements {.} -supply {ssh1} -supply {ssh2}
+     # other commands ...
+end_power_model}
+        source {IEEE 1801-2024 §6.11}
+    }
+}
+
+command bind_checker {
+    arity 1..
+
+    option -module -takes checker_name \
+           -detail {The name of a SystemVerilog module containing the verification code (required).}
+    option -elements -takes element_list -detail {The list of instances.}
+    option -bind_to -takes module \
+           -detail {The SystemVerilog module or VHDL entity for which all instances are the target of this command.}
+    option -arch -takes name \
+           -detail {The VHDL architecture name selected for the bound entity (only with -bind_to).}
+    option -ports -takes port_pairs \
+           -detail {Associates objects in the current scope to the checker's ports, as a list of {port_name ref} pairs where ref is a net, a UPF object, or a handle to the return value of a UPF Information Model API.}
+    option -parameters -takes parameter_pairs \
+           -detail {Specifies parameter values on the checker model, as a list of {param_name param_value} pairs whose values are constants.}
+
+    form Default {bind_checker instance_name -module checker_name ?-elements element_list? ?-bind_to module? ?-arch name? ?-ports {{port_name ref}...}? ?-parameters {{param_name param_value}...}?}
+
+    hover {
+        summary {Insert checker modules and bind them to instances.}
+        synopsis {bind_checker instance_name -module checker_name ?-elements element_list? ?-bind_to module? ?-arch name? ?-ports {{port_name ref}...}? ?-parameters {{param_name param_value}...}?}
+        description {Inserts SystemVerilog checker modules into a design without modifying design code, using the SystemVerilog bind directive, so that verification code is fully separated from the implementation. If -bind_to is given, an instance of the checker is created in every instance of that module or entity, otherwise only within the current scope; -ports wires checker ports to nets, UPF objects, or Information Model API handles, and -parameters sets constant parameter or generic values on the checker. This command is for verification only; implementation tools shall ignore it.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {bind_checker check_inst -module check \
+  -ports {{pd /top/PD}} \
+  -bind_to top}
+        source {IEEE 1801-2024 §6.12}
+    }
+}
+
+command connect_logic_net {
+    arity 1..
+
+    option -ports -takes port_list \
+           -detail {A list of ports on the interface of the current scope and/or on instances located in the current scope and its descendants (required).}
+    option -reconnect \
+           -detail {Allows a port already driven by a constant representing a default value to instead be driven by the control signal net_name.}
+
+    form Default {connect_logic_net net_name -ports port_list ?-reconnect?}
+
+    hover {
+        summary {Connect a logic net to logic ports.}
+        synopsis {connect_logic_net net_name -ports port_list ?-reconnect?}
+        description {Connects the specified logic net to the given ports, propagating the net through implicitly created ports and nets across the logic hierarchy of the descendant subtree of the current scope as needed. The net and the ports must be of compatible HDL type; SystemVerilog logic and VHDL std_ulogic are compatible with each other.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {connect_logic_net ena -ports {a U1/b}}
+        source {IEEE 1801-2024 §6.13}
+    }
+}
+
+command connect_supply_net {
+    arity 1..
+
+    option -elements -takes element_list \
+           -detail {A list of instance names to use for -pg_type, connecting the net only to ports of the specified instances.}
+    option -ports -takes port_list -detail {A list of rooted port names to connect to.}
+    option -pg_type -takes pg_type_list \
+           -detail {An indirect connection specification via the pg_type on the ports of the selected instances (repeatable).}
+    option -vcm -takes vcm_name \
+           -detail {A Value Conversion Method defining how values map between the UPF supply net and the HDL port in either direction, ignored for supply net to supply port connections of type upfSupplyTypeT.}
+    option -cells -takes cell_list \
+           -detail {A list of cells to use for -pg_type, connecting the net only to ports of instances of the specified cells.}
+    option -domain -takes domain_name \
+           -detail {The power domain to whose extent every instance being connected shall belong.}
+    option -vct -takes vct_name \
+           -detail {A Value Conversion Table defining how values map from UPF to an HDL model or vice versa, ignored for upfSupplyTypeT to upfSupplyTypeT connections (legacy).}
+
+    option_conflict {-ports -elements}
+    option_conflict {-ports -pg_type}
+    option_conflict {-ports -cells}
+    option_conflict {-ports -domain}
+
+    form Default {connect_supply_net net_name ?-elements element_list? ?-ports port_list? ?-pg_type pg_type_list...? ?-vcm vcm_name? ?-cells cell_list? ?-domain domain_name? ?-vct vct_name?}
+
+    hover {
+        summary {Connect a supply net to supply ports.}
+        synopsis {connect_supply_net net_name ?-elements element_list? ?-ports port_list? ?-pg_type pg_type_list...? ?-vcm vcm_name? ?-cells cell_list? ?-domain domain_name? ?-vct vct_name?}
+        description {Connects a supply net to the specified supply ports, propagating it through implicitly and automatically created ports and nets across the descendant subtree of the current scope, or of the -domain scope when one is given; this explicit connection has higher precedence than implicit and automatic connection semantics. Target ports are selected either explicitly with -ports or indirectly with -pg_type combined with the -cells, -domain, and -elements filters, while -vcm and the legacy -vct control HDL to UPF value conversion. It shall be an error if neither -ports nor -pg_type is specified, and if -ports is not specified then -pg_type and one or more of -cells, -domain, and -elements shall be.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {connect_supply_net fb -ports {jk jb}}
+        example {connect_supply_net mc -ports {rl} -vcm SV_TIED_HI}
+        source {IEEE 1801-2024 §6.14}
+    }
+}
+
+command connect_supply_set {
+    arity 1..
+
+    option -connect -takes connect_pair \
+           -detail {Defines automatic connectivity for one supply function of supply_set_ref as the ports having the given pg_type attributes, given as a {supply_function pg_type_list} pair and additive across repeated uses on the same supply function (repeatable).}
+    option -elements -takes element_list -detail {The list of instance names to add.}
+    option -exclude_elements -takes exclude_list \
+           -detail {The list of instances to exclude from the effective_element_list.}
+    option -transitive -takes boolean -values {TRUE FALSE} -closed \
+           -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+           -detail {Whether the connection is transitive, defaulting to TRUE both when the option is omitted and when it is given without a value.}
+
+    form Default {connect_supply_set supply_set_ref ?-connect {supply_function pg_type_list}...? ?-elements element_list? ?-exclude_elements exclude_list? ?-transitive ?TRUE|FALSE??}
+
+    hover {
+        summary {Connect a supply set to particular elements.}
+        synopsis {connect_supply_set supply_set_ref ?-connect {supply_function pg_type_list}...? ?-elements element_list? ?-exclude_elements exclude_list? ?-transitive ?TRUE|FALSE??}
+        description {Connects a supply set to the specified elements, propagating its nets through implicitly created ports and nets across the descendant subtree of the current scope, with higher precedence than implicit and automatic connection semantics. Element list filtering depends on whether supply_set_ref is a domain handle, which filters and populates elements by domain extent, or a strategy handle, which filters by the elements connected to the strategy's supply.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {connect_supply_set some_supply_set \
+  -elements {U1/U_mem} \
+  -connect {power primary_power} \
+  -connect {ground primary_ground}}
+        source {IEEE 1801-2024 §6.15}
+    }
+}
+
+command create_abstract_power_source {
+    arity 1..
+
+    option -output_supply_set -takes supply_set_pair \
+           -detail {Creates the output supply set handle of the power source, given as an output_ss_handle optionally followed by the supply_set_ref it is associated with.}
+    option -input_supply_set -takes supply_set_pair \
+           -detail {Creates an input supply set handle of the power source, given as an input_ss_handle optionally followed by the supply_set_ref it is associated with (repeatable).}
+    option -control_port -takes control_port_pair \
+           -detail {Creates a control input port on the power source, given as a port_name optionally followed by the net_name it connects to (repeatable).}
+    option -on_state -takes on_state_spec \
+           -detail {Defines an ON-triggering state, given as a state_name, an input_supply_set, and a braced boolean_expression, which contribute to the ON state defining expression by disjunction (repeatable).}
+    option -off_state -takes off_state_spec \
+           -detail {Defines the OFF-triggering state, given as a state_name and a braced boolean_expression; if omitted, an implicit off state true when no -on_state applies is added.}
+    option -supply_set -takes supply_set_ref \
+           -detail {A supply set associated with the power source, used to power the control and acknowledge circuitry.}
+    option -ack_port -takes ack_port_pair \
+           -detail {The acknowledge port on the power source and the logic net or port it connects to, given as a {port_name net_name} pair (repeatable).}
+    option -ack_delay -takes ack_delay_pair \
+           -detail {The acknowledge delay for a given acknowledge port, given as a {port_name delay} pair whose delay is a time unit or a natural integer and defaults to 0 (repeatable).}
+    option -ack_polarity -takes ack_polarity_pair \
+           -detail {The polarity of a given acknowledge port, given as a {port_name value} pair whose value is active_high or active_low and defaults to active_high (repeatable).}
+    option -power_switch -takes power_switch_list \
+           -detail {The rooted name(s) of the power switch associated with the abstract power source, intended to be used with -update.}
+    option -update \
+           -detail {Allows the addition of -power_switch to an existing power source of the same name.}
+
+    form Default {create_abstract_power_source power_source_name ?-output_supply_set {output_ss_handle ?supply_set_ref?}? ?-input_supply_set {input_ss_handle ?supply_set_ref?}...? ?-control_port {port_name ?net_name?}...? ?-on_state {state_name input_supply_set {boolean_expression}}...? ?-off_state {state_name {boolean_expression}}? ?-supply_set supply_set_ref? ?-ack_port {port_name net_name}...? ?-ack_delay {port_name delay}...? ?-ack_polarity {port_name active_high|active_low}...? ?-power_switch power_switch_list? ?-update?}
+
+    hover {
+        summary {Define abstract power source for supply sets.}
+        synopsis {create_abstract_power_source power_source_name ?-output_supply_set {output_ss_handle ?supply_set_ref?}? ?-input_supply_set {input_ss_handle ?supply_set_ref?}...? ?-control_port {port_name ?net_name?}...? ?-on_state {state_name input_supply_set {boolean_expression}}...? ?-off_state {state_name {boolean_expression}}? ?-supply_set supply_set_ref? ?-ack_port {port_name net_name}...? ?-ack_delay {port_name delay}...? ?-ack_polarity {port_name active_high|active_low}...? ?-power_switch power_switch_list? ?-update?}
+        description {Defines an abstract, supply set based model of a power source that controls the predefined ON and OFF states on its output supply set handle, intended to be refined into concrete power switches during implementation. -input_supply_set and -output_supply_set create the power source's supply set handles, -control_port creates the control inputs used in the -on_state and -off_state Boolean expressions that drive the ON and OFF trigger logic, -ack_port, -ack_delay, and -ack_polarity model acknowledge signaling, and -power_switch with -update refines the abstract source into one or more real power switches. If neither the -off_state nor an -on_state is active, or both are active at the same time, the predefined ERROR state is the current power state.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_abstract_power_source PSW \
+  -input_supply_set {input PDTop.primary} \
+  -output_supply_set {output PD1.primary} \
+  -supply_set PDTop.primary \
+  -control_port {en IP_FET_EN} \
+  -on_state {PSON input {!en}} \
+  -off_state {PSOFF en}}
+        example {create_abstract_power_source PSW \
+  -update \
+  -power_switch {SoCPSW_1}}
+        source {IEEE 1801-2024 §6.16}
+    }
+}
+
+command create_composite_domain {
+    arity 1..
+
+    option -subdomains -takes subdomain_list \
+        -detail {A list of rooted domain names, including any previously created composite domains.}
+    option -supply -takes supply_pair \
+        -detail {Braced pair {supply_set_handle ?supply_set_ref?} giving the supply set handle for the composite domain and the supply set it is associated with; only the primary handle may be specified.}
+    option -update -detail {Use -update if the composite_domain_name has already been defined.}
+
+    form Default {create_composite_domain composite_domain_name ?-subdomains subdomain_list? ?-supply {supply_set_handle ?supply_set_ref?}? ?-update?}
+
+    hover {
+        summary {Define a composite domain composed of one or more subdomains.}
+        synopsis {create_composite_domain composite_domain_name ?-subdomains subdomain_list? ?-supply {supply_set_handle ?supply_set_ref?}? ?-update?}
+        description {A composite power domain is a container grouping one or more power domains or other composite domains, with no corresponding physical silicon region. Power states and the primary supply set handle may be set on the composite domain itself, but most operations applied to it, such as defining a strategy, are propagated to and applied on each subdomain individually.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_composite_domain my_combo_domain_name \
+    -subdomains {a/pd1 b/pd2} \
+    -supply {primary could_be_on_ss}}
+        source {IEEE 1801-2024 §6.17}
+    }
+}
+
+command create_hdl2upf_vct {
+    arity 1..
+
+    option -hdl_type -takes hdl_type \
+        -detail {Braced pair {vhdl|sv ?typename?} naming the HDL type for which the value conversions are defined (required).}
+    option -table -takes value_map \
+        -detail {A list of braced {from_value to_value} pairs mapping values of the HDL type to UPF state type values (required).}
+
+    deprecated_replacement create_vcm
+
+    form Default {create_hdl2upf_vct vct_name -hdl_type {vhdl|sv ?typename?} -table {{from_value to_value}...}}
+
+    hover {
+        summary {Legacy: Define a VCT that can be used in converting HDL logic values into state type values.}
+        synopsis {create_hdl2upf_vct vct_name -hdl_type {vhdl|sv ?typename?} -table {{from_value to_value}...}}
+        description {The value conversion table maps the values of an HDL logic type to UPF supply net state type values, and is used when propagating values from an HDL port to a UPF supply net. The command does not verify that the set of HDL values is complete or compatible with any actual HDL port type. This is a legacy command; use create_vcm instead.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_hdl2upf_vct \
+    vlog2upf_vss \
+    -hdl_type {sv reg} \
+    -table {{X OFF} {0 FULL_ON} {1 OFF} {Z PARTIAL_ON}}}
+        source {IEEE 1801-2024 §6.18}
+    }
+}
+
+command create_logic_net {
+    arity 1
+
+    form Default {create_logic_net net_name_list}
+
+    hover {
+        summary {Create logic nets.}
+        synopsis {create_logic_net net_name_list}
+        description {Creates a logic net in the current scope, or identifies an existing logic net in the current scope, for each unique net named in net_name_list. The type of the net is determined by the language of the creating scope: logic for SystemVerilog, std_ulogic for VHDL.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_logic_net iso_ctrl}
+        source {IEEE 1801-2024 §6.19}
+    }
+}
+
+command create_logic_port {
+    arity 1..
+
+    option -direction -takes direction -values {in out inout} -closed \
+        -detail {The direction of the port; the default is in.}
+
+    form Default {create_logic_port port_name_list ?-direction in|out|inout?}
+
+    hover {
+        summary {Create logic ports.}
+        synopsis {create_logic_port port_name_list ?-direction in|out|inout?}
+        description {Creates a logic port in the current scope for each unique port named in port_name_list, with the type determined by the language of the scope: logic for SystemVerilog, std_ulogic for VHDL. The created port behaves like a module port of the same name and direction, so an isolation or level-shifter strategy for a power domain may apply to it regardless of command ordering, provided the port matches the criteria of the strategy.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_logic_port test_lp \
+    -direction out}
+        source {IEEE 1801-2024 §6.20}
+    }
+}
+
+command create_power_domain {
+    arity 1..
+
+    option -atomic -detail {Define the minimum extent of the power domain.}
+    option -elements -takes element_list -detail {The list of design elements to add.}
+    option -subdomains -takes domain_list -detail {A list of rooted domain names.}
+    option -exclude_elements -takes exclude_list \
+        -detail {The list of design elements to exclude from the effective_element_list.}
+    option -supply -takes supply_pair \
+        -detail {Braced pair {supply_set_handle ?supply_set_ref?} giving a supply set handle for the domain and the supply set it is associated with (repeatable).}
+    option -available_supplies -takes supply_set_ref_list \
+        -detail {A list of additional supply sets available in this domain for powering repeaters and the power management cells inserted without a UPF strategy.}
+    option -boundary_supplies -takes supply_set_ref_list \
+        -detail {A list of additional supply sets available for powering boundary cells inserted in this domain (only with -available_supplies).}
+    option -define_func_type -takes func_type_pair \
+        -detail {Braced pair {supply_function pg_type_list} defining automatic connectivity for a supply function of domain_name.primary having the given pg_type attributes (repeatable).}
+    option -update -detail {Use -update if the domain_name has already been defined.}
+
+    option_conflict {-elements -subdomains}
+
+    form Default {create_power_domain domain_name ?-atomic? ?-elements element_list? ?-subdomains domain_list? ?-exclude_elements exclude_list? ?-supply {supply_set_handle ?supply_set_ref?}...? ?-available_supplies supply_set_ref_list? ?-boundary_supplies supply_set_ref_list? ?-define_func_type {supply_function pg_type_list}...? ?-update?}
+
+    hover {
+        summary {Define a power domain and its characteristics.}
+        synopsis {create_power_domain domain_name ?-atomic? ?-elements element_list? ?-subdomains domain_list? ?-exclude_elements exclude_list? ?-supply {supply_set_handle ?supply_set_ref?}...? ?-available_supplies supply_set_ref_list? ?-boundary_supplies supply_set_ref_list? ?-define_func_type {supply_function pg_type_list}...? ?-update?}
+        description {A power domain is the set of design instances in its extent together with its primary and available supply sets; it may be marked atomic, fixing its minimum extent, or given subdomains, making it a composite container. The -available_supplies and -boundary_supplies options control which supply sets implementation tools may use to power repeaters, other power management cells, and boundary cells inserted into the domain without an explicit UPF strategy. The -elements option shall be used at least once in the specification of a power domain, either on the first invocation or during a subsequent update.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_power_domain PD1 -elements {top/U1} \
+    -supply {primary} \
+    -supply {mem_array mem_ss}}
+        example {create_power_domain PD3 -elements {top/U1/U2} \
+    -supply {primary} \
+    -available_supplies {ss_rep} \
+    -boundary_supplies {}}
+        source {IEEE 1801-2024 §6.21}
+    }
+}
+
+command create_power_state_group {
+    arity 1
+
+    form Default {create_power_state_group group_name}
+
+    hover {
+        summary {Create a name for a group of related power states.}
+        synopsis {create_power_state_group group_name}
+        description {Defines, in the current scope, a named group used to collect related power states declared elsewhere with add_power_state. The legal power states of the group describe which combinations of states of other objects in this scope or its descendant subtree may be simultaneously active, which can model a virtual multi-instance component without restructuring the design hierarchy.}
+        returns {The name of the created group.}
+        example {create_power_state_group CPU_cluster}
+        source {IEEE 1801-2024 §6.22}
+    }
+}
+
+command create_power_switch {
+    arity 1..
+
+    option -switch_type -takes switch_type -values {fine_grain coarse_grain both} -closed \
+        -detail {Which switch types this definition describes; the default is coarse_grain.}
+    option -output_supply_port -takes port_pair \
+        -detail {Braced pair {port_name ?supply_net_name?} naming the output supply port of the switch and the supply net it connects to; required unless -switch_type is fine_grain.}
+    option -input_supply_port -takes port_pair \
+        -detail {Braced pair {port_name ?supply_net_name?} naming an input supply port of the switch and the supply net it connects to (repeatable).}
+    option -control_port -takes port_pair \
+        -detail {Braced pair {port_name ?net_name?} naming a control port of the switch and the logic net it connects to (repeatable).}
+    option -on_state -takes state_spec \
+        -detail {Braced triple {state_name input_supply_port {boolean_expression}} naming a fully on state for the given input supply port (repeatable).}
+    option -off_state -takes state_expr \
+        -detail {Braced pair {state_name {boolean_expression}} naming an off state; if omitted it is the complement of the disjunction of all on, partial on, and error state expressions (repeatable).}
+    option -supply_set -takes supply_set_ref \
+        -detail {The supply set powering the internal logic and timing control circuitry of the switch.}
+    option -on_partial_state -takes state_spec \
+        -detail {Braced triple {state_name input_supply_port {boolean_expression}} naming a partial on, current limited state for the given input supply port (repeatable).}
+    option -error_state -takes state_expr \
+        -detail {Braced pair {state_name {boolean_expression}} naming an illegal control input condition (repeatable).}
+    option -ack_port -takes ack_spec \
+        -detail {Braced group {port_name net_name ?boolean_expression?} naming an acknowledge port, the logic net it connects to, and the acknowledge value (repeatable) (only with -supply_set).}
+    option -ack_delay -takes ack_delay_pair \
+        -detail {Braced pair {port_name delay} giving the acknowledge delay for an acknowledge port; the default is 0 (repeatable).}
+    option -instances -takes instance_list \
+        -detail {Technology leaf cell instances implementing all or part of the switch (legacy).}
+    option -update \
+        -detail {Allows -instances to add new instance names to a switch already defined in the same scope (legacy).}
+    option -domain -takes domain_name \
+        -detail {If specified, the scope of the switch instance is the scope of this domain (legacy).}
+
+    form Default {create_power_switch switch_name ?-switch_type fine_grain|coarse_grain|both? ?-output_supply_port {port_name ?supply_net_name?}? ?-input_supply_port {port_name ?supply_net_name?}...? ?-control_port {port_name ?net_name?}...? ?-on_state {state_name input_supply_port {boolean_expression}}...? ?-off_state {state_name {boolean_expression}}...? ?-supply_set supply_set_ref? ?-on_partial_state {state_name input_supply_port {boolean_expression}}...? ?-error_state {state_name {boolean_expression}}...? ?-ack_port {port_name net_name ?boolean_expression?}...? ?-ack_delay {port_name delay}...? ?-instances instance_list? ?-update? ?-domain domain_name?}
+
+    hover {
+        summary {Define a power switch.}
+        synopsis {create_power_switch switch_name ?-switch_type fine_grain|coarse_grain|both? ?-output_supply_port {port_name ?supply_net_name?}? ?-input_supply_port {port_name ?supply_net_name?}...? ?-control_port {port_name ?net_name?}...? ?-on_state {state_name input_supply_port {boolean_expression}}...? ?-off_state {state_name {boolean_expression}}...? ?-supply_set supply_set_ref? ?-on_partial_state {state_name input_supply_port {boolean_expression}}...? ?-error_state {state_name {boolean_expression}}...? ?-ack_port {port_name net_name ?boolean_expression?}...? ?-ack_delay {port_name delay}...? ?-instances instance_list? ?-update? ?-domain domain_name?}
+        description {Defines an abstract power switch model with one or more gated input supply ports and, for a coarse_grain or both switch, a single output supply port whose value is computed from the on, partial on, off, and error state Boolean conditions over the control ports of the switch. The abstract model can be bound to real HDL instances with -instances, and can expose an acknowledge port with -ack_port and -ack_delay reflecting when the switch has finished turning on or off.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_power_switch simple_switch \
+    -output_supply_port {vout} \
+    -input_supply_port {vin} \
+    -control_port {ss_ctrl} \
+    -on_state {ss_on vin {ss_ctrl}} \
+    -off_state {ss_off {!ss_ctrl}}}
+        source {IEEE 1801-2024 §6.23}
+    }
+}
+
+command create_pst {
+    arity 1..
+
+    option -supplies -takes supply_list \
+        -detail {The list of supply nets or ports to include in each power state of the design (required).}
+
+    deprecated_replacement add_power_state
+
+    form Default {create_pst table_name -supplies supply_list}
+
+    hover {
+        summary {Legacy: Create a power state table (PST).}
+        synopsis {create_pst table_name -supplies supply_list}
+        description {Defines a named power state table and an associated set of supply nets, for later use by add_pst_state commands enumerating the legal combinations of supply states of the design for synthesis, analysis, and optimization. create_pst can only be used with add_pst_state, and vice versa. This is a legacy command; add_power_state is the alternative mechanism for specifying power state information.}
+        returns {The name of the created PST.}
+        example {create_pst MyPowerStateTable -supplies {PN1 PN2 SOC/OTC/PN3}}
+        source {IEEE 1801-2024 §6.24}
+    }
+}
+
+command create_supply_net {
+    arity 1..
+
+    ;# NOTE(upf): -resolve is an open set - the four literals below, or the name
+    ;# of a user-defined resolution function - so no -closed.
+    option -resolve -takes resolve_method \
+        -values {unresolved one_hot parallel parallel_one_hot} \
+        -detail {How the state and voltage of the net are computed when it has multiple supply sources; the name of a user-defined resolution function is also accepted.}
+    option -virtual \
+        -detail {Mark the supply nets as virtual, so they are not present in the physical implementation and cannot power physical loads.}
+    option -tunneling -takes tunneling -values {FORCE INHIBIT AUTOMATIC} -closed \
+        -detail {Controls whether signal values driven from HDL ports on this net propagate to other connected HDL ports.}
+    option -domain -takes domain_name \
+        -detail {The domain in whose scope the supply net is created (legacy).}
+    option -reuse \
+        -detail {Extend the availability of a supply net previously defined for another domain into this domain (legacy) (only with -domain).}
+
+    form Default {create_supply_net net_name_list ?-resolve unresolved|one_hot|parallel|parallel_one_hot|resolution_function_name? ?-virtual? ?-tunneling FORCE|INHIBIT|AUTOMATIC? ?-domain domain_name? ?-reuse?}
+
+    hover {
+        summary {Create supply nets.}
+        synopsis {create_supply_net net_name_list ?-resolve unresolved|one_hot|parallel|parallel_one_hot|resolution_function_name? ?-virtual? ?-tunneling FORCE|INHIBIT|AUTOMATIC? ?-domain domain_name? ?-reuse?}
+        description {Creates one supply net per unique name in net_name_list, scoped to the current scope or, with -domain, to the scope of a specific power domain. The -resolve option picks how multiple simultaneous drivers on the net combine into a single state and voltage, and -tunneling controls whether values driven by HDL ports on the net propagate across other connected HDL ports.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_supply_net local_vdd_3 \
+    -resolve one_hot}
+        source {IEEE 1801-2024 §6.25}
+    }
+}
+
+command create_supply_port {
+    arity 1..
+
+    option -direction -takes direction -values {in out inout} -closed \
+        -detail {How state information propagates between the port and the nets connected to it; the default is in.}
+    option -virtual \
+        -detail {Mark the supply ports as virtual, so neither they nor the supply nets implicitly created for them are present in the physical implementation.}
+    option -domain -takes domain_name \
+        -detail {The domain where this port defines a supply net connection point (legacy).}
+
+    form Default {create_supply_port port_name_list ?-direction in|out|inout? ?-virtual? ?-domain domain_name?}
+
+    hover {
+        summary {Create supply ports.}
+        synopsis {create_supply_port port_name_list ?-direction in|out|inout? ?-virtual? ?-domain domain_name?}
+        description {Creates one supply port per unique name in port_name_list, at the scope of the power domain given by -domain or in the current scope otherwise. The -direction option determines the role of the LowConn and HighConn of the port as source or sink for supply state propagation; inout ports are used to connect resolved supply nets.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_supply_port VN -direction inout}
+        source {IEEE 1801-2024 §6.26}
+    }
+}
+
+command create_supply_set {
+    arity 1..
+
+    option -function -takes function_pair \
+        -detail {Braced pair {func_name net_name} associating a supply set function, one of power, ground, nwell, pwell, deepnwell, or deeppwell, with a supply net (repeatable).}
+    option -virtual \
+        -detail {Mark the supply set as virtual, so it is not present in the physical implementation, cannot be an available supply set for a domain, and cannot power any cell.}
+    option -update \
+        -detail {Use -update if the set_name has already been defined.}
+
+    form Default {create_supply_set set_name ?-function {func_name net_name}...? ?-virtual? ?-update?}
+
+    hover {
+        summary {Create or update a supply set, or update a supply set handle.}
+        synopsis {create_supply_set set_name ?-function {func_name net_name}...? ?-virtual? ?-update?}
+        description {A supply set is a collection of supply nets within the current scope, each serving one named function of the set, such as power or ground. With -update it also fills in the function and net associations of a supply set handle that was created implicitly or explicitly by create_power_domain. Referencing a previously created supply set or supply set handle without -update is an error, as is using -update for a supply set that has not been previously defined.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_supply_set relative_always_on_ss \
+    -function {power vdd} \
+    -function {ground vss}}
+        example {create_supply_set PD1.primary -update \
+    -function {nwell bias}}
+        source {IEEE 1801-2024 §6.27}
+    }
+}
+
+command create_upf2hdl_vct {
+    arity 1..
+
+    ;# NOTE(upf): -hdl_type's value is a braced list whose first word is closed
+    ;# (vhdl | sv) and whose optional second word is a free-form type name, so
+    ;# the value as a whole is open and carries no -values/-closed.
+    option -hdl_type -takes hdl_type \
+        -detail {The HDL type for which the value conversions are defined, given as a braced list of the language word vhdl or sv and an optional type name (required).}
+    option -table -takes value_map \
+        -detail {A list of UPF state type values to map to the values of the HDL type, written as {from_value to_value} pairs (required).}
+
+    deprecated_replacement create_vcm
+
+    form Default {create_upf2hdl_vct vct_name -hdl_type {vhdl|sv ?typename?} -table {{from_value to_value}...}}
+
+    hover {
+        summary {Legacy: Define a VCT that can be used in converting UPF supply_net_type values into HDL logic values.}
+        synopsis {create_upf2hdl_vct vct_name -hdl_type {vhdl|sv ?typename?} -table {{from_value to_value}...}}
+        description {Defines a Value Conversion Table that maps supply_net_type.state values to HDL logic values when a UPF supply state is propagated into a logic port defined in an HDL, providing a 1:1 conversion for each combination of the partially-on, on, and off states without checking compatibility with any HDL port type. The vct_name is referenced later by connect_supply_net, and predefined VCTs appear in Annex B. This legacy command is replaced by create_vcm, whose -conversion_direction upf2hdl option duplicates its behavior.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_upf2hdl_vct upf2vlog_vdd \
+    -hdl_type {sv} \
+    -table {{OFF X} {FULL_ON 1} {PARTIAL_ON 0}}
+create_upf2hdl_vct upf2vhdl_vss \
+    -hdl_type {vhdl std_logic} \
+    -table {{OFF 'X'} {FULL_ON '1'} {PARTIAL_ON 'H'}}}
+        source {IEEE 1801-2024 §6.28}
+    }
+}
+
+command create_upf_library {
+    arity 1..
+
+    option -contents -takes upf_commands -role Body \
+        -detail {Required argument that specifies objects contained in the new UPF library, given as a braced body holding only create_vcm and use_upf_library commands (required).}
+
+    form Default {create_upf_library upf_library_name -contents {upf_commands}}
+
+    hover {
+        summary {Create a UPF library.}
+        synopsis {create_upf_library upf_library_name -contents {upf_commands}}
+        description {Creates a new UPF library, and a Tcl namespace of the same name, whose body executes in a protected environment that cannot see external or global Tcl variables and whose own variables are not visible outside. Using use_upf_library inside -contents makes the used library's contents visible unqualified only within that create_upf_library command. Objects created inside the library may shadow same-named objects in the global IEEE library or a locally used library, and are disambiguated with a fully qualified dot-prefixed library name.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_upf_library myLib1 -contents {
+    create_vcm SV_2_UPF_1 . . .
+    create_vcm SV_2_UPF_2 . . .
+}}
+        source {IEEE 1801-2024 §6.29}
+    }
+}
+
+command create_vcm {
+    arity 1..
+
+    option -table -takes value_map \
+        -detail {A table of {from_value to_value} pairs defining the conversion, whose row grammar depends on the declared data type and direction; exactly one required of -table, -function, -model, and -vcms.}
+    ;# NOTE(upf): -hdl_type's value is a braced list whose first word is closed
+    ;# (vhdl | sv) and whose optional second word is an HDL type name drawn from
+    ;# a built-in list or a qualified package type, so the value stays open.
+    option -hdl_type -takes hdl_type \
+        -detail {Indicates the connected nettype and data type described by the table, given as a braced list of vhdl or sv and an optional HDL type name, and is required whenever -table is present (only with -table).}
+    option -conversion_direction -takes direction -values {hdl2upf upf2hdl} -closed \
+        -detail {Indicates the direction of the connection, either HDL to UPF or UPF to HDL, and is required whenever -table is present (only with -table).}
+    option -field -takes field_name \
+        -detail {The name of a field of a nettype or data type, dot-delimited for nested hierarchy, whose base type shall be a supported data type (only with -table).}
+    option -function -takes function_name \
+        -detail {Name of an HDL function, or a list of HDL functions, in a package available in the namespace of the simulation, specifying the conversions to be used for the VCM; exactly one required of -table, -function, -model, and -vcms.}
+    option -model -takes model_name \
+        -detail {Name of an HDL module or entity, simple or fully qualified, specifying the conversions to be used for the VCM; exactly one required of -table, -function, -model, and -vcms.}
+    option -parameters -takes parameter_list \
+        -detail {Optional parameters to be passed into a parameterized module, provided as a list of {name value} pairs (only with -model).}
+    option -vcms -takes ext_vcm_list \
+        -detail {A list of previously defined VCM names, forming a bundle that lets a collection of varying VCMs be referred to by a single handle; exactly one required of -table, -function, -model, and -vcms.}
+
+    option_conflict {-table -function}
+    option_conflict {-table -model}
+    option_conflict {-table -vcms}
+    option_conflict {-function -model}
+    option_conflict {-function -vcms}
+    option_conflict {-model -vcms}
+    option_conflict {-function -hdl_type}
+    option_conflict {-function -conversion_direction}
+    option_conflict {-function -field}
+    option_conflict {-function -parameters}
+    option_conflict {-model -hdl_type}
+    option_conflict {-model -conversion_direction}
+    option_conflict {-model -field}
+    option_conflict {-vcms -hdl_type}
+    option_conflict {-vcms -conversion_direction}
+    option_conflict {-vcms -field}
+    option_conflict {-vcms -parameters}
+
+    form Default {create_vcm vcm_name ?-table {{from_value to_value}...}? ?-hdl_type {vhdl|sv ?HDL_typename?}? ?-conversion_direction hdl2upf|upf2hdl? ?-field field_name? ?-function hdl_package::function_name? ?-model model_name? ?-parameters {{param_name param_value}...}? ?-vcms ext_vcm_list?}
+
+    hover {
+        summary {Describe a Value Conversion Method for connecting a UPF supply net type to an HDL port.}
+        synopsis {create_vcm vcm_name ?-table {{from_value to_value}...}? ?-hdl_type {vhdl|sv ?HDL_typename?}? ?-conversion_direction hdl2upf|upf2hdl? ?-field field_name? ?-function hdl_package::function_name? ?-model model_name? ?-parameters {{param_name param_value}...}? ?-vcms ext_vcm_list?}
+        description {Defines a named Value Conversion Method used to mediate connections between UPF supply nets and HDL ports, using exactly one of four mechanisms: a value-mapping table (-table, with required -hdl_type and -conversion_direction and optional -field), a conversion function (-function), an HDL module or entity (-model, optionally parameterized via -parameters), or a bundle of previously defined VCMs (-vcms). VCMs are global unless created inside a UPF library's -contents, and are referenced later by connect_supply_net or by name inside another create_vcm bundle.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_vcm VCTH2U -hdl_type { sv real } -conversion_direction hdl2upf\
+   -table { \
+          {{1.2 *}   {FULL_ON    1.2}} \
+          {{0.5 1.2} {PARTIAL_ON 1.0}} \
+          {{* 0.5}   {OFF           }} }
+create_vcm VCTHSNAP \
+   -function my_function_pkg::func_h2u_snap}
+        source {IEEE 1801-2024 §6.30}
+    }
+}
+
+command define_power_model {
+    arity 2..
+
+    ;# NOTE(upf): the braced UPF_commands body is the trailing word, so its
+    ;# index moves with the options actually written; the resolver assigns the
+    ;# Body role to the last word of any call that has one.
+    arg_role_resolver {words ctx} {
+        set n [llength $words]
+        if {$n >= 2} {
+            role [expr {$n - 1}] Body
+        }
+    }
+
+    option -for -takes model_list \
+        -detail {The names of the models to which the power model applies, defaulting to power_model_name itself when absent.}
+    option -implementation \
+        -detail {Allows only implementation UPF commands in the power model update (only with -update).}
+    option -update \
+        -detail {Allow additional UPF commands to be specified for a power model name that has already been defined.}
+    option -complete \
+        -detail {Marks the power model as complete, after which no further updates are allowed.}
+
+    form Default {define_power_model power_model_name ?-for model_list? ?-implementation? ?-update? ?-complete? {UPF_commands}}
+
+    hover {
+        summary {Define a power model.}
+        synopsis {define_power_model power_model_name ?-for model_list? ?-implementation? ?-update? ?-complete? {UPF_commands}}
+        description {Creates a named, reusable block of UPF commands describing the power intent of a model, executed later when apply_power_model runs it, in a protected environment isolated from outer and global Tcl variables in both directions like a Tcl proc body. Depending on the macro attributes set by apply_power_model on the target instance, the same definition describes already-implemented intent, yet-to-be-implemented intent, a plain encapsulation of UPF merged with the parent context, or a component power model for system power-consumption modeling. A power model can be parameterized with add_parameter and updated incrementally with -update until finalized with -complete, and cannot be nested inside another power model definition.}
+        returns {The value 1.}
+        example {define_power_model upf_model -for cellA {
+  create_power_domain PD1 -elements {.} -supply {ssh1} -supply {ssh2}
+  # other commands ...
+}}
+        source {IEEE 1801-2024 §6.31}
+    }
+}
+
+command end_power_model {
+    arity 0
+
+    deprecated_replacement define_power_model
+
+    form Default {end_power_model}
+
+    hover {
+        summary {Legacy: Terminate the definition of a power model.}
+        synopsis {end_power_model}
+        description {Terminates a power-model definition opened by begin_power_model; together the pair defines a power model containing other UPF commands, and the power model opened by the first begin_power_model is closed by the first subsequent end_power_model encountered in the same UPF file. The effect is analogous to define_power_model's braced-body form, which replaces this legacy pair.}
+        returns {The value 1.}
+        source {IEEE 1801-2024 §6.32}
+    }
+}
+
+command find_objects {
+    arity 1..
+
+    option -pattern -takes search_pattern \
+        -detail {The string used for searching, treated by default as a Tcl glob expression (required).}
+    option -object_type -takes object_type \
+        -values {model inst port supply_port net process} -closed \
+        -detail {Searches for objects of a specific type; by default instances, named processes, logic ports, and nets are all returned.}
+    option -direction -takes direction -values {in out inout} -closed \
+        -detail {Restricts the directions of the returned logic ports or supply ports when -object_type is port or supply_port.}
+    ;# NOTE(upf): -transitive's TRUE|FALSE value is itself optional -- absent
+    ;# means FALSE; the option-arity hook consumes the value word only when it
+    ;# is literally TRUE or FALSE, so the bare flag spelling is accepted.
+    ;# present without a value means TRUE -- a shape the option row cannot spell,
+    ;# so it is written as an ordinary value option with a closed value set.
+    option -transitive -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Searches the scope and its entire descendant subtree, stopping at leaf cells, defaulting to FALSE when absent and to TRUE when given without a value.}
+    option -regexp \
+        -detail {Enables support for regular expressions in the specified search pattern.}
+    option -exact \
+        -detail {Disallows wildcard expansion on the specified search pattern.}
+    option -ignore_case \
+        -detail {Performs case-insensitive searches; by default all matches are case sensitive.}
+    option -non_leaf \
+        -detail {Only non-leaf objects are returned, applicable to -object_type model, inst, port, and supply_port.}
+    option -leaf_only \
+        -detail {Only leaf-level objects are returned, applicable to -object_type model, inst, port, and supply_port.}
+    option -traverse_macros \
+        -detail {The search traverses through hard, soft, and refinable macros, which the search otherwise stops at as leaf cells.}
+    option -expand_to_bits \
+        -detail {Returns the names of individual bits of multi-bit objects that match the search criteria, and is ignored unless -object_type is port or net.}
+
+    option_conflict {-regexp -exact}
+    option_conflict {-non_leaf -leaf_only}
+    option_conflict {-traverse_macros -leaf_only}
+    option_conflict {-traverse_macros -non_leaf}
+
+    form Default {find_objects scope -pattern search_pattern ?-object_type model|inst|port|supply_port|net|process? ?-direction in|out|inout? ?-transitive ?TRUE|FALSE?? ?-regexp? ?-exact? ?-ignore_case? ?-non_leaf? ?-leaf_only? ?-traverse_macros? ?-expand_to_bits?}
+
+    hover {
+        summary {Find logic hierarchy objects within a scope.}
+        synopsis {find_objects scope -pattern search_pattern ?-object_type model|inst|port|supply_port|net|process? ?-direction in|out|inout? ?-transitive ?TRUE|FALSE?? ?-regexp? ?-exact? ?-ignore_case? ?-non_leaf? ?-leaf_only? ?-traverse_macros? ?-expand_to_bits?}
+        description {Searches the logic hierarchy under a given scope for instances, nets, ports, supply ports, or processes whose name matches a pattern -- a Tcl glob expression by default, or a regular expression with -regexp, or a literal with -exact -- optionally restricted by object type, port or supply-port direction, leaf or non-leaf status, and transitivity through the descendant subtree, which stops at leaf cells and macros unless -traverse_macros is given. The -expand_to_bits option additionally expands multi-bit port and net matches down to individual bit names. The search is restricted to the specified scope, which shall be the current scope or reside in or below it. The command is a query only and is not itself saved into output UPF, though its results can be embedded there by other commands.}
+        returns {A list of names, relative to the current scope, of the objects that match the search criteria, carrying just the object names without any indication of object type and possibly mixing more than one type, or the empty string when nothing matches.}
+        example {find_objects A/B/D -pattern *BW1* \
+   -object_type inst \
+   -transitive TRUE}
+        source {IEEE 1801-2024 §6.33}
+    }
+}
+
+command load_simstate_behavior {
+    arity 1..
+
+    option -file -takes file_list \
+        -detail {The list of files containing the set_simstate_behavior commands (required).}
+
+    side_effect FileIo -reads
+
+    form Default {load_simstate_behavior lib_name -file file_list}
+
+    hover {
+        summary {Load the simstate behavior defaults for a library.}
+        synopsis {load_simstate_behavior lib_name -file file_list}
+        description {Loads a UPF file that contains only set_simstate_behavior commands and applies them to the models in the tool-specific library named by lib_name. It shall be an error if lib_name cannot be resolved, if a file in file_list does not exist, if a model named in it cannot be found, if the set_simstate_behavior commands use the -lib argument, or if the files contain UPF commands other than set_simstate_behavior.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {load_simstate_behavior library1 -file simstate_file.upf}
+        source {IEEE 1801-2024 §6.34}
+    }
+}
+
+command load_upf {
+    arity 1..
+
+    option -scope -takes instance_name_list \
+        -detail {The list of instances where the UPF commands contained in upf_file_name are executed.}
+    option -hide_globals \
+        -detail {Enable global Tcl variables to be unmodified by load_upf, unless the global variable is passed in -parameters.}
+    option -parameters -takes parameter_list \
+        -detail {A list of formal arguments to the load_upf command, each a {parameter_name ?parameter_value?} pair.}
+    option -implementation \
+        -detail {Allows only implementation UPF commands in the file.}
+
+    side_effect FileIo -reads
+
+    form Default {load_upf upf_file_name ?-scope instance_name_list? ?-hide_globals? ?-parameters {{parameter_name ?parameter_value?}...}? ?-implementation?}
+
+    hover {
+        summary {Execute commands from the specified UPF file in the current scope or in the scope of each specified instance.}
+        synopsis {load_upf upf_file_name ?-scope instance_name_list? ?-hide_globals? ?-parameters {{parameter_name ?parameter_value?}...}? ?-implementation?}
+        description {Executes the commands in the given UPF file either in the current scope, or once per listed instance when -scope is given, each time temporarily setting the current scope, design top instance, and design top module to that instance, running the file, then reverting. The -hide_globals option isolates the global Tcl namespace from the loaded file, -parameters passes formal and optionally defaulted arguments into it, and -implementation restricts the file to implementation-only UPF commands. It shall be an error if -scope is used more than once to load a UPF file for a given instance, or for an instance to which apply_power_model is also applied.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {load_upf my.upf -scope {I1/I2 I3/I2}
+load_upf design.upf -scope inst_a/inst_b/inst_design \
+    -parameters {{N 64} {num_of_cores 4}}}
+        source {IEEE 1801-2024 §6.35}
+    }
+}
+
+command load_upf_library {
+    arity 1
+
+    side_effect FileIo -reads
+
+    form Default {load_upf_library upf_library_file}
+
+    hover {
+        summary {Execute commands from the specified UPF library file.}
+        synopsis {load_upf_library upf_library_file}
+        description {Executes the commands in the specified UPF library file, but only once per run even when the file is referenced from several places, so a file that defines UPF libraries with create_upf_library can safely be loaded more than once without redefinition errors. It shall be an error if the named file contains UPF commands other than create_upf_library. It does not prevent the same file from later being executed by load_upf or by the Tcl source command.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {load_upf_library extUPFlibrary.upf}
+        source {IEEE 1801-2024 §6.36}
+    }
+}
+
+command map_power_switch {
+    arity 1..
+
+    option -lib_cells -takes lib_cell_list \
+        -detail {A list of library cells (required).}
+    option -port_map -takes port_map \
+        -detail {A list of {mapped_model_port switch_port_or_supply_net_ref} pairs mapping each port on the model being mapped to a supply or logic port on the switch, or to a supply net from a supply set associated with the switch.}
+
+    form Default {map_power_switch switch_name_list -lib_cells lib_cell_list ?-port_map {{mapped_model_port switch_port_or_supply_net_ref}...}?}
+
+    hover {
+        summary {Specify which power-switch model is to be used for the implementation of the corresponding switch instance.}
+        synopsis {map_power_switch switch_name_list -lib_cells lib_cell_list ?-port_map {{mapped_model_port switch_port_or_supply_net_ref}...}?}
+        description {Explicitly specifies which power-switch library-cell model implements a given create_power_switch instance, and optionally maps model ports to switch ports or supply-net references rather than relying on automatic name-based association. When -port_map is omitted, ports of the switch instance are associated to library-cell ports by name matching, and it is then an error for any port on either side to remain unmapped. Manual mapping may cause the implementation to diverge from the RTL specification, which can defeat logical-equivalence checking.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {map_power_switch switch_sw1 \
+    -lib_cells {sw1} \
+    -port_map {
+                {inp1   vin1}
+                {inp2   vin2}
+                {outp   vout}
+                {c1     ctrl_small}
+                {c2     ctrl_large}
+              }}
+        source {IEEE 1801-2024 §6.37}
+    }
+}
+
+command map_repeater_cell {
+    arity 1..
+
+    option -domain -takes domain_name \
+        -detail {The domain for which the set_repeater strategy is defined (required).}
+    option -elements -takes element_list \
+        -detail {A list of ports from the repeater strategy to which the command applies, defaulting to the strategy's whole effective element list.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of ports from the repeater strategy to which this command does not apply.}
+    option -lib_cells -takes lib_cell_list \
+        -detail {A list of library cell names, which may name single-rail, dual-rail, or custom repeaters.}
+
+    form Default {map_repeater_cell repeater_strategy_name -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-lib_cells lib_cell_list?}
+
+    hover {
+        summary {Specify a list of implementation targets for repeaters.}
+        synopsis {map_repeater_cell repeater_strategy_name -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-lib_cells lib_cell_list?}
+        description {Gives user control, through -lib_cells, over the implementation choices for a repeater strategy previously defined with set_repeater, while -elements and -exclude_elements narrow which strategy ports the mapping applies to. It shall be an error if domain_name does not indicate a previously created power domain, if repeater_strategy_name does not exist, or if element_list is empty.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {map_repeater_cell my_rep1_pd1 -domain PD1 \
+    -elements {clk1 rst1 clkout1 rstout1} \
+    -lib_cells {aon_clk_bufx2}}
+        source {IEEE 1801-2024 §6.38}
+    }
+}
+
+command map_retention_cell {
+    arity 1..
+
+    option -domain -takes domain_name \
+        -detail {The domain in which the strategies are defined (required).}
+    option -elements -takes element_list \
+        -detail {A list of instances, named processes, state elements, or signal names whose respective sequential elements shall be mapped as specified.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of instances, named processes, state elements, or signal names whose respective sequential elements shall be excluded from mapping.}
+    option -lib_cells -takes lib_cell_list \
+        -detail {A list of library cell names, each having retention behavior and otherwise identical to the inferred RTL behavior of the underlying sequential element; at least one of -lib_cells, -lib_cell_type, and -lib_model_name is required.}
+    option -lib_cell_type -takes lib_cell_type \
+        -detail {The attribute of the library cells used to identify cells that have retention behavior and are otherwise identical to the inferred RTL behavior of the underlying sequential element; at least one of -lib_cells, -lib_cell_type, and -lib_model_name is required.}
+    option -lib_model_name -takes name \
+        -detail {The name of the library cell or behavioral model whose associated port connectivity is given by -port_map; at least one of -lib_cells, -lib_cell_type, and -lib_model_name is required.}
+    option -port_map -takes port_map \
+        -detail {The associated port connectivity for the named model, given as a list of {port_name net_ref} pairs (only with -lib_model_name).}
+
+    form Default {map_retention_cell retention_name_list -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-lib_cells lib_cell_list? ?-lib_cell_type lib_cell_type? ?-lib_model_name name -port_map {{port_name net_ref}...}?}
+
+    hover {
+        summary {Constrain implementation alternatives, or specify a functional model, for retention strategies.}
+        synopsis {map_retention_cell retention_name_list -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-lib_cells lib_cell_list? ?-lib_cell_type lib_cell_type? ?-lib_model_name name -port_map {{port_name net_ref}...}?}
+        description {Constrains which library cells, or which named behavioral or library model, may implement the retention registers inferred for the given retention strategies in a domain, and -- when -lib_model_name and -port_map are used -- substitutes an explicit verification model wired through -port_map in place of the default RTL-plus-retention-behavior verification semantic. When -lib_cells and -lib_cell_type are both specified, a cell from lib_cell_list that is also defined with the same type string in define_retention_cell -cell_type shall be used. It shall be an error if none of -lib_cells, -lib_cell_type, and -lib_model_name is specified. Manual mapping may make the implementation diverge from the RTL specification, potentially defeating logical-equivalence checking.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {map_retention_cell {my_PDA_ret_strat_1 \
+                       my_PDA_ret_strat_2 \
+                      my_PDA_ret_strat_3} \
+    -domain PowerDomainA \
+    -elements {foo/U1 foo/U2} \
+    -lib_cells {RETFFIMP1 RETFFIMP2} \
+    -lib_cell_type FF_CKLO}
+        source {IEEE 1801-2024 §6.39}
+    }
+}
+
+command map_retention_clamp_cell {
+    arity 1..
+
+    option -domain -takes domain_name \
+        -detail {The power domain on which the retention strategies specified in list_of_strategies are defined (required).}
+    option -clock_clamp_lib_cells -takes list_of_lib_cells \
+        -detail {A non-empty list of library cells, restricted to isolation or enable level-shifter cells, used to map clamp cells inserted on the clock path (required).}
+    option -async_clamp_lib_cells -takes list_of_lib_cells \
+        -detail {A non-empty list of library cells, restricted to isolation or enable level-shifter cells, used to map clamp cells inserted on the async set/reset path (required).}
+
+    form Default {map_retention_clamp_cell list_of_strategies -domain domain_name -clock_clamp_lib_cells list_of_clock_path_library_cells -async_clamp_lib_cells list_of_async_path_library_cells}
+
+    hover {
+        summary {Specify a list of library cells used for implementation of clamp cells for clock and async paths of retention strategies.}
+        synopsis {map_retention_clamp_cell list_of_strategies -domain domain_name -clock_clamp_lib_cells list_of_clock_path_library_cells -async_clamp_lib_cells list_of_async_path_library_cells}
+        description {Specifies, for one or more retention strategies on a domain, which library cells may be used to implement the clamp cells inserted on the clock path and on the async set/reset path of the resulting retention cells; only isolation or enable level-shifter library cells are allowed in either list. It shall be an error if domain_name is not found, or if none of the strategies listed in list_of_strategies are defined on domain_name.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_retention RET1 -domain PD1 ...
+map_retention_cell RET1 -domain PD1 -lib_cells {zpr_LC1}
+map_retention_clamp_cell {RET1} -domain PD1 \
+   -clock_clamp_lib_cells {LC1} \
+   -async_clamp_lib_cells {LC2}}
+        source {IEEE 1801-2024 §6.40}
+    }
+}
+
+command name_format {
+    arity 0..
+
+    option -isolation_prefix -takes pattern \
+        -detail {The pattern prepended in front of an existing signal or port name during the introduction of a new isolation cell, defaulting to the empty string.}
+    option -isolation_suffix -takes pattern \
+        -detail {The pattern appended to the end of an existing signal or port name during the introduction of a new isolation cell, defaulting to _UPF_ISO.}
+    option -level_shift_prefix -takes pattern \
+        -detail {The pattern prepended in front of an existing signal or port name during the introduction of a new level-shifter cell, defaulting to the empty string.}
+    option -level_shift_suffix -takes pattern \
+        -detail {The pattern appended to the end of an existing signal or port name during the introduction of a new level-shifter cell, defaulting to _UPF_LS.}
+    option -implicit_supply_suffix -takes string \
+        -detail {The string appended to an existing supply net or port name to create a unique name for an implicitly created supply net or port, defaulting to _UPF_IS.}
+    option -implicit_logic_prefix -takes string \
+        -detail {The string prepended in front of an existing logic net or port name to create a unique name for an implicitly created logic net or port, defaulting to NULL.}
+    option -implicit_logic_suffix -takes string \
+        -detail {The string appended to an existing logic net or port name to create a unique name for an implicitly created logic net or port, defaulting to _UPF_IL.}
+
+    form Default {name_format ?-isolation_prefix pattern? ?-isolation_suffix pattern? ?-level_shift_prefix pattern? ?-level_shift_suffix pattern? ?-implicit_supply_suffix string? ?-implicit_logic_prefix string? ?-implicit_logic_suffix string?}
+
+    hover {
+        summary {Define the format for constructing names of implicitly created objects.}
+        synopsis {name_format ?-isolation_prefix pattern? ?-isolation_suffix pattern? ?-level_shift_prefix pattern? ?-level_shift_suffix pattern? ?-implicit_supply_suffix string? ?-implicit_logic_prefix string? ?-implicit_logic_suffix string?}
+        description {Sets the prefix and suffix patterns used to synthesize names for implicitly created objects -- new isolation cells, level-shifter cells, and implicit supply or logic nets and ports -- by prepending any prefix and appending any suffix to the base name of the original port or net, combining multiple applicable affixes in alphabetical order of the option name and resolving generated-name collisions with a numeric instance index. Pattern strings may embed the reserved variables %d for the domain of the inserting strategy, %s for the name of that strategy, and %i for the instance index. It shall be an error to specify an affix more than once in a single call, and calling name_format with no options resets the name format to the default values.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {name_format -isolation_prefix "MY_ISO_" -isolation_suffix ""
+name_format -level_shift_prefix "shift_%d_%s_" -level_shift_suffix "%i_UPF_LS"}
+        source {IEEE 1801-2024 §6.41}
+    }
+}
+
+command save_upf {
+    arity 1..
+
+    option -scope -takes instance_name \
+        -detail {The scope relative to which the UPF commands are written, defaulting to the current scope.}
+
+    side_effect FileIo -writes
+
+    form Default {save_upf upf_file_name ?-scope instance_name?}
+
+    hover {
+        summary {Create a UPF file of the structures relative to the active or specified scope.}
+        synopsis {save_upf upf_file_name ?-scope instance_name?}
+        description {Writes the power intent constructed for a given scope -- the current scope by default, or the scope named by -scope -- into the specified UPF output file, producing one separate output file per call and running against the already-constructed power intent model. If save_upf is invoked for two scopes where one is an ancestor of the other, the ancestor's output file duplicates the descendant's information. It shall be an error if the scope named by -scope does not exist.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {save_upf test_suite1_Jan14 \
+    -scope top/proc_1}
+        source {IEEE 1801-2024 §6.42}
+    }
+}
+
+command set_correlated {
+    arity 0..
+
+    option -nets -takes supply_net_name_list \
+        -detail {A list of sublists with each sublist declaring which supply ports, nets, or supply-set functions to declare as correlated; exactly one of -nets and -sets is required.}
+    option -sets -takes supply_set_name_list \
+        -detail {A list of sublists with each sublist declaring which supply sets to declare as correlated; exactly one of -nets and -sets is required.}
+
+    option_conflict {-nets -sets}
+
+    form Default {set_correlated ?-nets {supply_net_name_list...}? ?-sets {supply_set_name_list...}?}
+
+    hover {
+        summary {Declare that supply nets' or sets' voltage variation ranges are to be treated as correlated when being compared.}
+        synopsis {set_correlated ?-nets {supply_net_name_list...}? ?-sets {supply_set_name_list...}?}
+        description {Declares that two or more supply ports, supply nets, or supply-set power and ground functions have correlated voltage-variation ranges, so that minimum is compared to minimum and maximum to maximum -- naming ports, nets, or supply-set functions directly with -nets, or naming supply sets with -sets so that their power and ground functions are correlated together. One or the other of these options, but not both, shall be specified. Supplies declared equivalent are always deemed correlated, but using set_correlated does not make supplies equivalent.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_correlated -nets {{VDD1 VDD2}}
+set_correlated -sets {{SS1 SS2}}}
+        source {IEEE 1801-2024 §6.43}
+    }
+}
+
+command set_design_attributes {
+    arity 0..
+
+    option -models -takes model_list \
+        -detail {A list of models to be attributed.}
+    option -elements -takes element_list \
+        -detail {A list of rooted names: instances, named processes, state elements, or signal names.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of rooted names to exclude from the effective element list (only with -elements).}
+    option -attribute -takes attribute_pair \
+        -detail {Associates the attribute name with the value of value for the specified models or elements, given as a {name value} pair (repeatable).}
+    ;# NOTE(upf): the four -is_* options take an optional TRUE|FALSE value --
+    ;# absent means TRUE; each option-arity hook consumes the value word only
+    ;# when it is literally TRUE or FALSE, so the bare flag spelling is
+    ;# accepted.
+    ;# FALSE, present without a value means TRUE -- a shape the option row cannot
+    ;# spell, so each is written as a value option over the closed TRUE/FALSE set.
+    option -is_soft_macro -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Marks the attributed models or elements as soft macros, defaulting to FALSE when absent and to TRUE when given without a value, equivalently to -attribute {UPF_is_soft_macro value}.}
+    option -is_hard_macro -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Marks the attributed models or elements as hard macros, defaulting to FALSE when absent and to TRUE when given without a value, equivalently to -attribute {UPF_is_hard_macro value}.}
+    option -is_refinable_macro -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Marks the attributed models or elements as refinable macros, defaulting to FALSE when absent and to TRUE when given without a value, equivalently to -attribute {UPF_is_refinable_macro value}.}
+    option -is_power_aware_model -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Marks the attributed models or elements as power aware models, defaulting to FALSE when absent and to TRUE when given without a value, equivalently to -attribute {UPF_is_power_aware_model value}.}
+    option -switch_cell_type -takes switch_cell_type -values {coarse_grain fine_grain} -closed \
+        -detail {Identifies the switch cell type of the model, equivalently to -attribute {UPF_switch_cell_type value}.}
+
+    form Default {set_design_attributes ?-models model_list? ?-elements element_list? ?-exclude_elements exclude_list? ?-attribute {name value}...? ?-is_soft_macro ?TRUE|FALSE?? ?-is_hard_macro ?TRUE|FALSE?? ?-is_refinable_macro ?TRUE|FALSE?? ?-is_power_aware_model ?TRUE|FALSE?? ?-switch_cell_type coarse_grain|fine_grain?}
+
+    hover {
+        summary {Apply attributes to models or instances.}
+        synopsis {set_design_attributes ?-models model_list? ?-elements element_list? ?-exclude_elements exclude_list? ?-attribute {name value}...? ?-is_soft_macro ?TRUE|FALSE?? ?-is_hard_macro ?TRUE|FALSE?? ?-is_refinable_macro ?TRUE|FALSE?? ?-is_power_aware_model ?TRUE|FALSE?? ?-switch_cell_type coarse_grain|fine_grain?}
+        description {Associates one or more attributes -- either predefined ones with dedicated shorthand options for UPF_is_hard_macro, UPF_is_soft_macro, UPF_is_refinable_macro, UPF_is_power_aware_model, and UPF_switch_cell_type, or arbitrary user-defined ones through -attribute -- with the specified models and elements, or defines a global attribute when neither -models nor -elements is given. When -models is specified, names given in -elements and -exclude_elements are resolved relative to those models. It shall be an error to specify -exclude_elements without -elements, or to specify no attribute at all.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_design_attributes -models {lock_cache} \
+   -attribute {UPF_is_soft_macro TRUE}
+set_design_attributes -models {.} \
+   -is_hard_macro}
+        source {IEEE 1801-2024 §6.44}
+    }
+}
+
+command set_design_top {
+    arity 1
+
+    form Default {set_design_top design_top_module}
+
+    hover {
+        summary {Specify the design top module.}
+        synopsis {set_design_top design_top_module}
+        description {Specifies the module for which this UPF file was written (see 4.3.7). It is not an error if the instance the UPF file is applied to is not an instance of the specified module; as long as the actual module has the same structure the file may still apply without error, although a tool may issue a warning.}
+        returns {The empty string.}
+        example {set_design_top ALU07}
+        source {IEEE 1801-2024 §6.45}
+    }
+}
+
+command set_domain_supply_net {
+    arity 1..
+
+    option -primary_power_net -takes supply_net_name \
+        -detail {The primary power supply net (required).}
+    option -primary_ground_net -takes supply_net_name \
+        -detail {The primary ground net (required).}
+
+    form Default {set_domain_supply_net domain_name -primary_power_net supply_net_name -primary_ground_net supply_net_name}
+
+    hover {
+        summary {Legacy: Set the default power and ground supply nets for a power domain.}
+        synopsis {set_domain_supply_net domain_name -primary_power_net supply_net_name -primary_ground_net supply_net_name}
+        description {Associates the power and ground supply nets with the primary supply set of the given power domain, so that the primary supply set's power and ground functions are associated with the corresponding supply nets. In current UPF the power and ground supply of a domain are set through supply sets instead, using create_supply_set with the power and ground functions followed by associate_supply_set -handle domain_name.primary, which this command is defined to be equivalent to.}
+        returns {1 if successful, or a TCL_ERROR is raised.}
+        example {set_domain_supply_net PD1 \
+    -primary_power_net PG1 \
+    -primary_ground_net PG0}
+        source {IEEE 1801-2024 §6.46}
+    }
+}
+
+command set_equivalent {
+    arity 0..
+
+    option -function_only \
+        -detail {Specifies that the supplies are functionally equivalent rather than electrically equivalent.}
+    option -interchangeable -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Specifies whether the functionally equivalent supplies are interchangeable, defaulting to TRUE both when the option is absent and when it is given without a value (only with -function_only).}
+    option -nets -takes supply_net_name_list \
+        -detail {A list of supply port and/or supply net names that are equivalent.}
+    option -sets -takes supply_set_name_list \
+        -detail {A list of supply set names that are equivalent.}
+
+    option_conflict {-nets -sets}
+
+    form Default {set_equivalent ?-function_only? ?-interchangeable ?TRUE|FALSE?? ?-nets supply_net_name_list? ?-sets supply_set_name_list?}
+
+    hover {
+        summary {Declare that supply nets or supply sets are electrically or functionally equivalent.}
+        synopsis {set_equivalent ?-function_only? ?-interchangeable ?TRUE|FALSE?? ?-nets supply_net_name_list? ?-sets supply_set_name_list?}
+        description {Declares that two or more supply sets or supply nets are equivalent (see 4.5.5). Without -function_only all non-virtual supplies named are declared electrically equivalent, and any virtual supplies among them are declared virtually equivalent instead; with -function_only the supplies are declared functionally equivalent only, interchangeable or non-interchangeable according to -interchangeable. One or the other of -nets and -sets, but not both, shall be specified.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_equivalent -nets { vss1 vss2 ground }}
+        example {set_equivalent -function_only -nets { vdd_wall vdd_battery }}
+        source {IEEE 1801-2024 §6.47}
+    }
+}
+
+command set_isolation {
+    arity 1..
+
+    option -domain -takes domain_name \
+        -detail {The power domain for which this strategy is defined (required).}
+    option -elements -takes element_list \
+        -detail {A list of instances or ports to which the strategy potentially applies.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of instances or ports to which the strategy does not apply.}
+    option -source -takes source_ref \
+        -detail {The name of a supply set or power domain on the driving side, where a domain name denotes the primary supply of that domain.}
+    option -sink -takes sink_ref \
+        -detail {The name of a supply set or power domain on the receiving side, where a domain name denotes the primary supply of that domain.}
+    option -diff_supply_only -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Indicates whether ports connected to other ports with the same supply should be isolated, defaulting to TRUE both when the option is absent and when it is given without a value.}
+    option -use_functional_equivalence -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Indicates whether to consider supply set equivalence irrespective of interchangeability, defaulting to TRUE both when the option is absent and when it is given without a value.}
+    option -applies_to -takes direction -values {inputs outputs both} -closed \
+        -detail {A filter that restricts the strategy to apply to ports based on their direction with respect to the domain.}
+    option -applies_to_boundary -takes boundary -values {lower upper both} -closed \
+        -detail {Restricts the application of the strategy to the specified boundary, defaulting to both.}
+    ;# NOTE(upf): the trailing `value` alternative is an open value literal, not a
+    ;# keyword, so this set is listed but not marked -closed.
+    option -applies_to_clamp -takes clamp_value -values {0 1 Z latch any value} \
+        -detail {A filter that restricts the strategy to apply only to ports with a particular clamp value requirement.}
+    option -no_isolation \
+        -detail {Specifies that isolation cells shall not be inserted on the specified ports.}
+    option -force_isolation \
+        -detail {Disables any implementation optimization involving isolation cells for this strategy, forcing redundant isolation or keeping floating or constant ports that have an isolation strategy defined for them.}
+    option -location -takes location -values {self other parent fanout} -closed \
+        -detail {The location in the logic hierarchy in which inferred isolation cells are placed, which determines the power domain they are inserted in, defaulting to self.}
+    ;# NOTE(upf): `value` is an open value literal and the option also accepts a
+    ;# braced list of these alternatives, so the set is listed but not -closed.
+    option -clamp_value -takes clamp_value -values {0 1 Z latch value} \
+        -detail {The value or values that the isolation cell can drive, given as a single alternative or as a braced list of them.}
+    option -isolation_signal -takes signal_list \
+        -detail {The isolation control signal for the isolation cell.}
+    ;# NOTE(upf): the option also accepts a braced list of high and low values, so
+    ;# the set is listed but not -closed.
+    option -isolation_sense -takes sense -values {high low} \
+        -detail {The active level of the isolation control signal for the isolation cell, defaulting to high (only with -isolation_signal).}
+    option -isolation_supply -takes supply_set_list \
+        -detail {The supply set that powers the isolation cell, given as a list of supply set names or as an empty list.}
+    option -name_prefix -takes pattern \
+        -detail {The name format prefix for generated isolation instances or nets related to implementation of the isolation strategy.}
+    option -name_suffix -takes pattern \
+        -detail {The name format suffix for generated isolation instances or nets related to implementation of the isolation strategy.}
+    option -instance -takes instance_port_pairs \
+        -detail {A braced list of pairs naming a technology leaf cell instance and the logic port that it isolates.}
+    option -async_set_reset -takes net_sense_pair \
+        -detail {A braced pair giving the rooted name of a logic net or port and its sensitivity, high or low, for the control signal acting as the set or reset of the isolation cell (only with -clamp_value latch).}
+    option -async_clamp_value -takes clamp_value -values {0 1} -closed \
+        -detail {Specifies whether the -async_set_reset option acts as a set or reset pin.}
+    option -update \
+        -detail {Indicates that this command provides additional information for a previous command with the same strategy_name and domain_name executed in the same scope.}
+    option -isolation_power_net -takes net_name \
+        -detail {The supply net used as the power for the isolation logic inferred by this strategy (legacy).}
+    option -isolation_ground_net -takes net_name \
+        -detail {The supply net used as the ground for the isolation logic inferred by this strategy (legacy).}
+    option -applies_to_sink_off_clamp -takes clamp_value -values {0 1 any Z latch value} \
+        -detail {A filter that restricts the strategy to apply only to ports with a particular sink off clamp value requirement (deprecated).}
+    option -applies_to_source_off_clamp -takes clamp_value -values {0 1 any Z latch value} \
+        -detail {A filter that restricts the strategy to apply only to ports with a particular source off clamp value requirement (deprecated).}
+
+    option_conflict {-no_isolation -force_isolation}
+    option_conflict {-no_isolation -isolation_signal}
+    option_conflict {-no_isolation -isolation_sense}
+    option_conflict {-no_isolation -instance}
+    option_conflict {-no_isolation -location}
+    option_conflict {-no_isolation -name_prefix}
+    option_conflict {-no_isolation -name_suffix}
+    option_conflict {-no_isolation -isolation_supply}
+    option_conflict {-no_isolation -isolation_power_net}
+    option_conflict {-no_isolation -isolation_ground_net}
+
+    form Default {set_isolation strategy_name -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-source source_domain_name|source_supply_ref? ?-sink sink_domain_name|sink_supply_ref? ?-diff_supply_only ?TRUE|FALSE?? ?-use_functional_equivalence ?TRUE|FALSE?? ?-applies_to inputs|outputs|both? ?-applies_to_boundary lower|upper|both? ?-applies_to_clamp 0|1|Z|latch|any|value? ?-no_isolation? ?-force_isolation? ?-location self|other|parent|fanout? ?-clamp_value clamp_value? ?-isolation_signal signal_list ?-isolation_sense high|low?? ?-isolation_supply supply_set_list? ?-name_prefix pattern? ?-name_suffix pattern? ?-instance {{instance_name port_name}...}? ?-async_set_reset {net_name high|low}? ?-async_clamp_value 0|1? ?-update? ?-isolation_power_net net_name? ?-isolation_ground_net net_name? ?-applies_to_sink_off_clamp 0|1|any|Z|latch|value? ?-applies_to_source_off_clamp 0|1|any|Z|latch|value?}
+
+    hover {
+        summary {Specify an isolation strategy.}
+        synopsis {set_isolation strategy_name -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-source source_domain_name|source_supply_ref? ?-sink sink_domain_name|sink_supply_ref? ?-diff_supply_only ?TRUE|FALSE?? ?-use_functional_equivalence ?TRUE|FALSE?? ?-applies_to inputs|outputs|both? ?-applies_to_boundary lower|upper|both? ?-applies_to_clamp 0|1|Z|latch|any|value? ?-no_isolation? ?-force_isolation? ?-location self|other|parent|fanout? ?-clamp_value clamp_value? ?-isolation_signal signal_list ?-isolation_sense high|low?? ?-isolation_supply supply_set_list? ?-name_prefix pattern? ?-name_suffix pattern? ?-instance {{instance_name port_name}...}? ?-async_set_reset {net_name high|low}? ?-async_clamp_value 0|1? ?-update? ?-isolation_power_net net_name? ?-isolation_ground_net net_name? ?-applies_to_sink_off_clamp 0|1|any|Z|latch|value? ?-applies_to_source_off_clamp 0|1|any|Z|latch|value?}
+        description {Defines an isolation strategy for ports on the interface of a power domain (see 6.21), applied per path at the domain boundary so that correct electrical and logical function is preserved across differing power states. The filter options -elements, -exclude_elements, -source, -sink, -diff_supply_only, -applies_to, -applies_to_clamp and -applies_to_boundary compute the effective element list of ports the strategy applies to, while -location, -clamp_value, -isolation_signal and -isolation_sense, -isolation_supply, -instance, -name_prefix, -name_suffix, -async_set_reset and -async_clamp_value control how and where the isolation cell is inferred and connected. -no_isolation suppresses isolation and -force_isolation forces it, and -update lets a later command add elements to a prior strategy of the same name and domain in the same scope.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_isolation parent_strategy \
+    -domain pda \
+    -elements {a b c d} \
+    -isolation_supply {pda_isolation_supply} \
+    -clamp_value {1} \
+    -applies_to outputs -sink pdb}
+        example {set_isolation parent_strategy -update \
+    -domain pda \
+    -isolation_signal cpu_iso \
+    -isolation_sense low -location parent}
+        source {IEEE 1801-2024 §6.48}
+    }
+}
+
+command set_level_shifter {
+    arity 1..
+
+    option -domain -takes domain_name \
+        -detail {The power domain for which this strategy is defined (required).}
+    option -elements -takes element_list \
+        -detail {A list of instances or ports to which the strategy potentially applies.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of instances or ports to which the strategy does not apply.}
+    option -source -takes source_ref \
+        -detail {The name of a supply set or power domain on the driving side, where a domain name denotes the primary supply of that domain.}
+    option -sink -takes sink_ref \
+        -detail {The name of a supply set or power domain on the receiving side, where a domain name denotes the primary supply of that domain.}
+    option -use_functional_equivalence -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Indicates whether to consider supply set equivalence irrespective of interchangeability, defaulting to TRUE both when the option is absent and when it is given without a value.}
+    option -applies_to -takes direction -values {inputs outputs both} -closed \
+        -detail {A filter that restricts the strategy to apply to ports based on their direction with respect to the domain.}
+    option -applies_to_boundary -takes boundary -values {lower upper both} -closed \
+        -detail {Restricts the application of the strategy to the specified boundary, defaulting to both.}
+    option -rule -takes rule -values {low_to_high high_to_low both} -closed \
+        -detail {A filter that restricts the strategy to apply only to ports that require a given level-shifter direction, defaulting to both.}
+    option -threshold -takes value \
+        -detail {A filter that restricts the strategy to apply only to ports that involve a voltage difference above a certain threshold, defaulting to 0.}
+    option -no_shift \
+        -detail {Specifies that level-shifter cells shall not be inserted on the specified ports.}
+    option -force_shift \
+        -detail {Disables any implementation optimization involving level-shifter cells for this strategy.}
+    option -location -takes location -values {self other parent fanout} -closed \
+        -detail {The location in the logic hierarchy in which inferred level-shifter cells are placed, which determines the power domain they are inserted in, defaulting to self.}
+    option -input_supply -takes supply_set_ref \
+        -detail {The supply set used to power the input portion of the level-shifter, defaulting to the supply of the driving logic.}
+    option -output_supply -takes supply_set_ref \
+        -detail {The supply set used to power the output portion of the level-shifter, defaulting to the supply of the receiving logic.}
+    option -internal_supply -takes supply_set_ref \
+        -detail {The supply set used to power internal circuits within the level-shifter, which has no default supply set.}
+    option -name_prefix -takes pattern \
+        -detail {The name format prefix for generated level-shifter instances or nets related to implementation of the level-shifter strategy.}
+    option -name_suffix -takes pattern \
+        -detail {The name format suffix for generated level-shifter instances or nets related to implementation of the level-shifter strategy.}
+    option -instance -takes instance_port_pairs \
+        -detail {A braced list of pairs naming a technology library leaf cell instance and the logic port that it level-shifts.}
+    option -update \
+        -detail {Indicates that this command provides additional information for a previous command with the same strategy_name and domain_name executed in the same scope.}
+
+    option_conflict {-no_shift -force_shift}
+    option_conflict {-no_shift -instance}
+    option_conflict {-no_shift -location}
+    option_conflict {-no_shift -name_prefix}
+    option_conflict {-no_shift -name_suffix}
+    option_conflict {-no_shift -input_supply}
+    option_conflict {-no_shift -output_supply}
+    option_conflict {-no_shift -internal_supply}
+
+    form Default {set_level_shifter strategy_name -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-source source_domain_name|source_supply_ref? ?-sink sink_domain_name|sink_supply_ref? ?-use_functional_equivalence ?TRUE|FALSE?? ?-applies_to inputs|outputs|both? ?-applies_to_boundary lower|upper|both? ?-rule low_to_high|high_to_low|both? ?-threshold value? ?-no_shift? ?-force_shift? ?-location self|other|parent|fanout? ?-input_supply supply_set_ref? ?-output_supply supply_set_ref? ?-internal_supply supply_set_ref? ?-name_prefix pattern? ?-name_suffix pattern? ?-instance {{instance_name port_name}...}? ?-update?}
+
+    hover {
+        summary {Specify a level-shifter strategy.}
+        synopsis {set_level_shifter strategy_name -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-source source_domain_name|source_supply_ref? ?-sink sink_domain_name|sink_supply_ref? ?-use_functional_equivalence ?TRUE|FALSE?? ?-applies_to inputs|outputs|both? ?-applies_to_boundary lower|upper|both? ?-rule low_to_high|high_to_low|both? ?-threshold value? ?-no_shift? ?-force_shift? ?-location self|other|parent|fanout? ?-input_supply supply_set_ref? ?-output_supply supply_set_ref? ?-internal_supply supply_set_ref? ?-name_prefix pattern? ?-name_suffix pattern? ?-instance {{instance_name port_name}...}? ?-update?}
+        description {Defines a level-shifter strategy for ports on the interface of a power domain (see 6.21), applied per path at the domain boundary to correct voltage differences between the driving and receiving supplies. The filter options -source, -sink, -applies_to, -rule, -threshold and -applies_to_boundary compute the effective element list of ports to which the strategy applies, while -location, -input_supply, -output_supply, -internal_supply, -instance, -name_prefix and -name_suffix control insertion and naming. -no_shift suppresses insertion and -force_shift forces it, and -update adds elements to a prior strategy of the same name and domain in the same scope.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_level_shifter shift_up -domain PowerDomainZ \
+    -applies_to inputs \
+    -source PowerDomainX.ss1 \
+    -threshold 0.02 \
+    -rule both}
+        example {set_level_shifter TurnOffDefaultLS -domain PD -no_shift}
+        source {IEEE 1801-2024 §6.49}
+    }
+}
+
+command set_partial_on_translation {
+    arity 1
+
+    arg 0 -values {OFF FULL_ON} -closed
+
+    form Default {set_partial_on_translation OFF|FULL_ON}
+
+    hover {
+        summary {Define the translation of PARTIAL_ON.}
+        synopsis {set_partial_on_translation OFF|FULL_ON}
+        description {Causes translation of PARTIAL_ON to FULL_ON or OFF, as specified by the argument, for purposes of evaluating the power state of supply sets and power domains. The translation applies before PARTIAL_ON is used in the evaluation of any Boolean expression (see 5.4) or PST state. It is an error to invoke this command with different values in the same UPF description.}
+        returns {The setting of the translation, or a TCL_ERROR is raised.}
+        example {set_partial_on_translation FULL_ON}
+        source {IEEE 1801-2024 §6.50}
+    }
+}
+
+command set_port_attributes {
+    arity 0..
+
+    option -model -takes name \
+        -detail {A module or library cell whose ports are to be attributed, where the value . denotes the model of the current scope.}
+    option -elements -takes element_list \
+        -detail {A list of instances whose ports are to be attributed, where the value . denotes the current scope.}
+    option -exclude_elements -takes element_exclude_list \
+        -detail {A list of instances whose ports are to be excluded from the command.}
+    option -ports -takes port_list \
+        -detail {A list of simple names or rooted names of ports to be attributed.}
+    option -exclude_ports -takes port_exclude_list \
+        -detail {A list of ports to be excluded from the command.}
+    ;# NOTE(upf): the option also accepts a braced list of these three values, so
+    ;# the set is listed but not -closed.
+    option -applies_to -takes direction -values {inputs outputs inouts} \
+        -detail {Indicates whether the specified input ports, output ports, inout ports, or any list of these three choices, are to be attributed.}
+    option -attribute -takes name_value_pair \
+        -detail {The attribute name and value pair to be associated with the specified ports (repeatable).}
+    ;# NOTE(upf): in this command's clamp options the trailing `value` alternative
+    ;# is an open value literal, not a keyword, so those sets are not -closed.
+    option -clamp_value -takes clamp_value -values {0 1 any Z latch value} \
+        -detail {The clamp requirement, equivalent to -attribute with the UPF_clamp_value attribute (see 5.6).}
+    option -async_clamp_value -takes clamp_value -values {0 1} -closed \
+        -detail {The async clamp requirement, equivalent to -attribute with the UPF_async_clamp_value attribute (see 5.6).}
+    option -driver_supply -takes supply_set_ref \
+        -detail {The supply set used by drivers of the port, equivalent to -attribute with the UPF_driver_supply attribute.}
+    option -receiver_supply -takes supply_set_ref \
+        -detail {The supply set used by receivers of the port, equivalent to -attribute with the UPF_receiver_supply attribute.}
+    option -literal_supply -takes supply_set_ref \
+        -detail {The supply set used to model a literal value associated with an instance port, equivalent to -attribute with the UPF_literal_supply attribute.}
+    option -pg_type -takes pg_type_value \
+        -detail {The pg_type of the port, equivalent to -attribute with the UPF_pg_type attribute.}
+    option -related_power_port -takes supply_port_name \
+        -detail {The power port for the attributed port, equivalent to -attribute with the UPF_related_power_port attribute (only with -related_ground_port).}
+    option -related_ground_port -takes supply_port_name \
+        -detail {The ground port for the attributed port, equivalent to -attribute with the UPF_related_ground_port attribute (only with -related_power_port).}
+    option -related_bias_ports -takes supply_port_name_list \
+        -detail {The bias ports for the attributed port, equivalent to -attribute with the UPF_related_bias_ports attribute (only with -related_power_port and -related_ground_port).}
+    option -feedthrough -takes feedthrough_name \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {$i < [llength $words] && ![string match -* [lindex $words $i]]} { consume 1 } else { consume 0 } } \
+        -detail {Indicates that the specified ports are connected together internally to form a feedthrough, equivalent to -attribute with the UPF_feedthrough attribute, and the name may be omitted.}
+    option -unconnected \
+        -detail {Indicates that the specified ports are not connected at all internally, equivalent to -attribute with UPF_unconnected set to TRUE.}
+    option -is_analog \
+        -detail {Indicates that the specified ports are analog ports, equivalent to -attribute with UPF_is_analog set to TRUE.}
+    option -is_isolated \
+        -detail {Indicates that the specified ports are internally isolated and do not require external isolation, equivalent to -attribute with UPF_is_isolated set to TRUE.}
+    option -sink_off_clamp -takes clamp_value -values {0 1 any Z latch value} \
+        -detail {The clamp requirement when the sink domain's primary supply is not NORMAL, equivalent to -attribute with the UPF_sink_off_clamp_value attribute (deprecated).}
+    option -source_off_clamp -takes clamp_value -values {0 1 any Z latch value} \
+        -detail {The clamp requirement when the source domain's primary supply is not NORMAL, equivalent to -attribute with the UPF_source_off_clamp_value attribute (deprecated).}
+
+    option_conflict {-model -elements}
+    option_conflict {-ports -elements}
+
+    form Default {set_port_attributes ?-model name? ?-elements element_list? ?-exclude_elements element_exclude_list? ?-ports port_list? ?-exclude_ports port_exclude_list? ?-applies_to inputs|outputs|inouts? ?-attribute {name value}...? ?-clamp_value 0|1|any|Z|latch|value? ?-async_clamp_value 0|1? ?-driver_supply supply_set_ref? ?-receiver_supply supply_set_ref? ?-literal_supply supply_set_ref? ?-pg_type pg_type_value? ?-related_power_port supply_port_name? ?-related_ground_port supply_port_name? ?-related_bias_ports supply_port_name_list? ?-feedthrough ?feedthrough_name?? ?-unconnected? ?-is_analog? ?-is_isolated? ?-sink_off_clamp 0|1|any|Z|latch|value? ?-source_off_clamp 0|1|any|Z|latch|value?}
+
+    hover {
+        summary {Define information on ports.}
+        synopsis {set_port_attributes ?-model name? ?-elements element_list? ?-exclude_elements element_exclude_list? ?-ports port_list? ?-exclude_ports port_exclude_list? ?-applies_to inputs|outputs|inouts? ?-attribute {name value}...? ?-clamp_value 0|1|any|Z|latch|value? ?-async_clamp_value 0|1? ?-driver_supply supply_set_ref? ?-receiver_supply supply_set_ref? ?-literal_supply supply_set_ref? ?-pg_type pg_type_value? ?-related_power_port supply_port_name? ?-related_ground_port supply_port_name? ?-related_bias_ports supply_port_name_list? ?-feedthrough ?feedthrough_name?? ?-unconnected? ?-is_analog? ?-is_isolated? ?-sink_off_clamp 0|1|any|Z|latch|value? ?-source_off_clamp 0|1|any|Z|latch|value?}
+        description {Associates information, either the built-in UPF attributes or user-defined attributes, with a set of ports. The target set is either all ports of a named model given by -model or the ports of specific instances and port names given by -elements and -ports, filtered by -exclude_elements, -exclude_ports and -applies_to. Most named options are shorthand for -attribute with the corresponding UPF attribute, and when several set_port_attributes commands apply to the same port the precedence rules of 5.7 determine which takes effect.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_port_attributes -model M -ports {outP} -clamp_value 1}
+        example {set_port_attributes -ports {i1/inP} -literal_supply /top/aonSS}
+        source {IEEE 1801-2024 §6.51}
+    }
+}
+
+command set_repeater {
+    arity 1..
+
+    option -domain -takes domain_name \
+        -detail {The power domain for which this strategy is defined (required).}
+    option -repeater_supply -takes supply_set_ref \
+        -detail {The supply set that powers the inserted buffer (required).}
+    option -elements -takes element_list \
+        -detail {A list of instances or ports to which the strategy potentially applies.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of instances or ports to which the strategy does not apply.}
+    option -source -takes source_ref \
+        -detail {The name of a supply set or power domain on the driving side, where a domain name denotes the primary supply of that domain.}
+    option -sink -takes sink_ref \
+        -detail {The name of a supply set or power domain on the receiving side, where a domain name denotes the primary supply of that domain.}
+    option -use_functional_equivalence -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Indicates whether to consider supply set equivalence irrespective of interchangeability, defaulting to TRUE both when the option is absent and when it is given without a value.}
+    option -applies_to -takes direction -values {inputs outputs both} -closed \
+        -detail {A filter that restricts the strategy to apply to ports based on their direction with respect to the domain.}
+    option -applies_to_boundary -takes boundary -values {lower upper both} -closed \
+        -detail {Restricts the application of the strategy to the specified boundary, defaulting to both.}
+    option -name_prefix -takes string \
+        -detail {The name format prefix for inserted buffer cell instances or nets.}
+    option -name_suffix -takes string \
+        -detail {The name format suffix for inserted buffer cell instances or nets.}
+    option -instance -takes instance_port_pairs \
+        -detail {A braced list of pairs naming a technology library leaf cell instance and the logic port that it buffers.}
+    option -update \
+        -detail {Indicates that this command provides additional information for a previous command with the same strategy_name and domain_name executed in the same scope.}
+
+    form Default {set_repeater strategy_name -domain domain_name -repeater_supply supply_set_ref ?-elements element_list? ?-exclude_elements exclude_list? ?-source source_domain_name|source_supply_ref? ?-sink sink_domain_name|sink_supply_ref? ?-use_functional_equivalence ?TRUE|FALSE?? ?-applies_to inputs|outputs|both? ?-applies_to_boundary lower|upper|both? ?-name_prefix string? ?-name_suffix string? ?-instance {{instance_name port_name}...}? ?-update?}
+
+    hover {
+        summary {Specify a repeater (buffer) strategy.}
+        synopsis {set_repeater strategy_name -domain domain_name -repeater_supply supply_set_ref ?-elements element_list? ?-exclude_elements exclude_list? ?-source source_domain_name|source_supply_ref? ?-sink sink_domain_name|sink_supply_ref? ?-use_functional_equivalence ?TRUE|FALSE?? ?-applies_to inputs|outputs|both? ?-applies_to_boundary lower|upper|both? ?-name_prefix string? ?-name_suffix string? ?-instance {{instance_name port_name}...}? ?-update?}
+        description {Defines a per-path repeater or buffer insertion strategy for ports on the interface of a power domain, powered by the supply set given with -repeater_supply. The effective set of ports the strategy targets is computed from -elements minus -exclude_elements, further filtered by -source, -sink, -applies_to and -applies_to_boundary, and only ports satisfying all specified filters are affected. When several strategies could apply to the same port or path, precedence resolution (5.7.3.3) picks the winner.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_repeater feedthrough_buffer1 -domain PD3 -applies_to outputs -repeater_supply ss1}
+        source {IEEE 1801-2024 §6.52}
+    }
+}
+
+command set_retention {
+    arity 1..
+
+    option -domain -takes domain_name \
+        -detail {The power domain for which this strategy is applied (required).}
+    option -elements -takes element_list \
+        -detail {A list of objects, which may be instances, a retention list name, named processes, state elements or signal names, to which this strategy is applied.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of objects of the same kinds that are not included in this strategy.}
+    option -applies_to -takes element_kind -values {flop latch any} -closed \
+        -detail {A filter that restricts the strategy to apply only to state elements of a given type, defaulting to any.}
+    option -retention_supply -takes ret_supply_set \
+        -detail {The supply set used to power the logic inferred by this retention strategy.}
+    option -no_retention \
+        -detail {Specifies that retention cells shall not be inferred on the specified sequential element.}
+    option -save_signal -takes net_sense_pair \
+        -detail {A braced pair giving the rooted name of a logic net or port and its active level or edge, one of high, low, posedge or negedge (only with -restore_signal).}
+    option -restore_signal -takes net_sense_pair \
+        -detail {A braced pair giving the rooted name of a logic net or port and its active level or edge, one of high, low, posedge or negedge (only with -save_signal).}
+    option -save_event_condition -takes boolean_expression \
+        -detail {A Boolean expression gating the save event, which is always True if not specified.}
+    option -restore_event_condition -takes boolean_expression \
+        -detail {A Boolean expression gating the restore event, which is always True if not specified.}
+    option -powerdown_period_condition -takes boolean_expression \
+        -detail {A Boolean expression that shall hold for the entire time the domain's primary power is OFF for the retained value to be preserved, and which is always True if not specified.}
+    option -restore_period_condition -takes boolean_expression \
+        -detail {A Boolean expression that shall hold throughout the restore period for the restore to succeed, and which is always True if not specified.}
+    option -async_set_reset_effect -takes effect -values {ignored retained_value output_value} -closed \
+        -detail {Defines how the reset and set signals affect the output and the retained value during the restore period, defaulting to ignored.}
+    option -use_retention_as_primary \
+        -detail {Specifies that the storage element and its output are powered by the retention supply.}
+    ;# NOTE(upf): the value is a braced list of these literals rather than a single
+    ;# word, so the vocabulary is listed but the argument is not marked -closed.
+    option -parameters -takes parameter_list \
+        -values {RET_SUP_COR NO_RET_SUP_COR SAV_RES_COR NO_SAV_RES_COR} \
+        -detail {Provides control over retention register corruption semantics, where RET_SUP_COR and NO_RET_SUP_COR may not both appear and neither may SAV_RES_COR and NO_SAV_RES_COR.}
+    option -instance -takes instance_signal_pairs \
+        -detail {A braced list of entries naming a technology library leaf cell instance and, optionally, the signal that it retains.}
+    option -update \
+        -detail {Indicates that this command provides additional information for a retention_name that has already been defined.}
+    option -retention_power_net -takes net_name \
+        -detail {The supply net used as the power for the retention logic inferred by this strategy (legacy).}
+    option -retention_ground_net -takes net_name \
+        -detail {The supply net used as the ground for the retention logic inferred by this strategy (legacy).}
+    option -save_condition -takes boolean_expression \
+        -detail {A Boolean expression whose default is True if -save_signal is specified and a don't care otherwise (legacy).}
+    option -restore_condition -takes boolean_expression \
+        -detail {A Boolean expression whose default is True if -restore_signal is specified and a don't care otherwise (legacy).}
+    option -retention_condition -takes boolean_expression \
+        -detail {A Boolean expression specifying retention behaviour for live-primary and live-secondary style retention (legacy).}
+
+    option_conflict {-restore_event_condition -restore_period_condition}
+
+    form Default {set_retention retention_name -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-applies_to flop|latch|any? ?-retention_supply ret_supply_set? ?-no_retention? ?-save_signal {logic_net high|low|posedge|negedge} -restore_signal {logic_net high|low|posedge|negedge}? ?-save_event_condition {boolean_expression}? ?-restore_event_condition {boolean_expression}? ?-powerdown_period_condition {boolean_expression}? ?-restore_period_condition {boolean_expression}? ?-async_set_reset_effect ignored|retained_value|output_value? ?-use_retention_as_primary? ?-parameters {RET_SUP_COR|NO_RET_SUP_COR|SAV_RES_COR|NO_SAV_RES_COR...}? ?-instance {{instance_name ?signal_name?}...}? ?-update? ?-retention_power_net net_name? ?-retention_ground_net net_name? ?-save_condition {boolean_expression}? ?-restore_condition {boolean_expression}? ?-retention_condition {boolean_expression}?}
+
+    hover {
+        summary {Specify a retention strategy.}
+        synopsis {set_retention retention_name -domain domain_name ?-elements element_list? ?-exclude_elements exclude_list? ?-applies_to flop|latch|any? ?-retention_supply ret_supply_set? ?-no_retention? ?-save_signal {logic_net high|low|posedge|negedge} -restore_signal {logic_net high|low|posedge|negedge}? ?-save_event_condition {boolean_expression}? ?-restore_event_condition {boolean_expression}? ?-powerdown_period_condition {boolean_expression}? ?-restore_period_condition {boolean_expression}? ?-async_set_reset_effect ignored|retained_value|output_value? ?-use_retention_as_primary? ?-parameters {RET_SUP_COR|NO_RET_SUP_COR|SAV_RES_COR|NO_SAV_RES_COR...}? ?-instance {{instance_name ?signal_name?}...}? ?-update? ?-retention_power_net net_name? ?-retention_ground_net net_name? ?-save_condition {boolean_expression}? ?-restore_condition {boolean_expression}? ?-retention_condition {boolean_expression}?}
+        description {Identifies a set of sequential elements within a power domain that require retention behaviour and specifies the save and restore control signals or conditions, the retention supply, and the corruption and behavioural parameters. The targeted set is computed from -elements minus -exclude_elements, either of which may reference instances, named processes, state elements, signal names or a named retention element list (see 6.54), and is filtered by -applies_to; precedence resolution (5.7) picks the applicable strategy when more than one could apply to the same element. The save and restore signals apply to balloon-style retention registers, while live-primary and live-secondary implementations specify retention behaviour through -retention_condition instead (see 6.53.1).}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_retention retCpu \
+  -domain           PDCPU \
+  -retention_supply PDCPU.ret \
+  -save_signal      {lRet negedge} \
+  -restore_signal   {lRet posedge} \
+  -elements         cpuRetList}
+        source {IEEE 1801-2024 §6.53}
+    }
+}
+
+command set_retention_elements {
+    arity 1..
+
+    option -elements -takes element_list \
+        -detail {A list of rooted names: instances, named processes, state elements, or signal names (required).}
+    option -applies_to -takes applies_to -values {required optional not_required not_optional} -closed \
+        -detail {Filter elements based on the UPF_retention attribute value.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of rooted names to exclude: instances, named processes, state elements, or signal names.}
+    option -retention_purpose -takes retention_purpose -values {required optional} -closed \
+        -detail {The intended retention use of retention_list_name; the default is required.}
+    option -transitive -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Apply the command to the specified scope or to that scope and all dependent subtrees, defaulting to TRUE both when the option is omitted and when it is given without a value (deprecated).}
+
+    form Default {set_retention_elements retention_list_name -elements element_list ?-applies_to required|optional|not_required|not_optional? ?-exclude_elements exclude_list? ?-retention_purpose required|optional? ?-transitive ?TRUE|FALSE??}
+
+    hover {
+        summary {Create a named list of elements whose collective state shall be maintained if retention is applied to any of the elements in the list.}
+        synopsis {set_retention_elements retention_list_name -elements element_list ?-applies_to required|optional|not_required|not_optional? ?-exclude_elements exclude_list? ?-retention_purpose required|optional? ?-transitive ?TRUE|FALSE??}
+        description {Defines a named retention element list whose member elements' state must be preserved collectively whenever retention is applied to any one of them. -applies_to filters the effective_element_list by the UPF_retention attribute value of each element, and the retained set is computed from -elements minus -exclude_elements per the transitive semantics of 5.9.2. It shall be an error if an element belonging to an element_list with retention purpose required is not retained by a retention strategy that does not specify -no_retention when another element in the same domain is retained.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_retention_elements ret_chk_list \
+   -elements {proc_1 sig_a}}
+        source {IEEE 1801-2024 §6.54}
+    }
+}
+
+command set_scope {
+    arity 1
+
+    form Default {set_scope instance}
+
+    hover {
+        summary {Specify the current scope.}
+        synopsis {set_scope instance}
+        description {Changes the current scope to the specified instance and returns the name of the previous scope as a design-relative hierarchical name. The instance name may be a simple name, a scope-relative hierarchical name, a design-relative hierarchical name, or one of the special symbols / (design top), . (unchanged), or .. (parent scope). It shall be an error if the instance name is .. and the current scope is equal to the current design top instance.}
+        returns {The current scope prior to execution of the command, as a design-relative hierarchical name.}
+        example {set_scope bot ;# changes current scope to /top/mid/bot (child of current scope)}
+        example {set_scope .. ;# changes current scope to /top (parent of current scope)}
+        source {IEEE 1801-2024 §6.55}
+    }
+}
+
+command set_simstate_behavior {
+    arity 1..
+
+    ;# NOTE(upf): the behaviour keyword (ENABLE | SIMSTATE_ONLY |
+    ;# PORT_CORR_ONLY | DISABLE) is positional in the standard's syntax block,
+    ;# but no fixed-index `arg` row is written: option-first spellings would
+    ;# shift its index, and a wrong index rejects legal calls. The closed set
+    ;# is stated in the form and description instead.
+
+    option -lib -takes name -detail {The library name.}
+    option -models -takes model_list -detail {One or more model names.}
+    option -elements -takes element_list -detail {A list of instances.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of instances to exclude from the effective_element_list, which requires that at least one of -models, -elements, or -lib is also specified.}
+
+    form Default {set_simstate_behavior ENABLE|SIMSTATE_ONLY|PORT_CORR_ONLY|DISABLE ?-lib name? ?-models model_list? ?-elements element_list? ?-exclude_elements exclude_list?}
+
+    hover {
+        summary {Specify the simulation simstate behavior for a model or library.}
+        synopsis {set_simstate_behavior ENABLE|SIMSTATE_ONLY|PORT_CORR_ONLY|DISABLE ?-lib name? ?-models model_list? ?-elements element_list? ?-exclude_elements exclude_list?}
+        description {Specifies simulation simstate and port-corruption behavior for the models and instances selected by the effective_element_list. The first positional keyword controls whether simstate semantics, port corruption semantics, both, or neither are active, as summarized in Table 13 and gated by the UPF_is_hard_macro attribute for port corruption. If -models is not defined and -lib is specified, the behavior is defined for all models in name and any names in element_list or exclude_list are relative to those models.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_simstate_behavior DISABLE \
+   -lib library1 \
+   -models ANDX7_power_aware}
+        example {set_simstate_behavior PORT_CORR_ONLY \
+   -lib library1 \
+   -models ANDX7_non_power_aware}
+        source {IEEE 1801-2024 §6.56}
+    }
+}
+
+command set_variation {
+    arity 0..
+
+    option -supply -takes supply_name_list \
+        -detail {A list of the names of the supply port, supply net, or supply set functions for which variation is being specified (required).}
+    option -range -takes range_pair \
+        -detail {Variation factors with respect to the nominal voltage, given as a pair {low_factor high_factor} of multipliers that give the low and high bounds of the variation range (required).}
+
+    form Default {set_variation -supply supply_name_list -range {low_factor high_factor}}
+
+    hover {
+        summary {Specify the variation range for a supply source.}
+        synopsis {set_variation -supply supply_name_list -range {low_factor high_factor}}
+        description {Specifies how far a supply source's voltage may vary below and above nominal, as multiplier bounds applied to the nominal voltage defined elsewhere. If unspecified, a supply is assumed to have no variation, equivalent to -range {1.0 1.0}. It shall be an error if different variation specifications are given for electrically equivalent supplies.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {set_variation -supply { vdd1 vdd2 } -range { 0.95 1.05 }}
+        source {IEEE 1801-2024 §6.57}
+    }
+}
+
+command sim_assertion_control {
+    arity 0..
+
+    option -elements -takes element_list -detail {The list of instances or assertions.}
+    option -exclude_elements -takes exclude_list \
+        -detail {The list of instances or assertions to which the command does not apply.}
+    option -domain -takes domain_name -detail {The domain in which to search for assertions for this command.}
+    option -model -takes model_name -detail {The module in which to search for assertions.}
+    option -controlling_domain -takes domain_name \
+        -detail {The domain whose primary supply set's simstate controls when the assertion control is active, defaulting to the domain containing each assertion.}
+    option -control_expr -takes boolean_expression \
+        -detail {An expression that enables the assertion control, with default value FALSE.}
+    option -type -takes type -values {reset suspend kill} -closed \
+        -detail {The type of assertion control; the default is reset.}
+    option -transitive -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Apply the command to the specified scope or to that scope and all dependent subtrees, defaulting to TRUE both when the option is omitted and when it is given without a value.}
+
+    option_conflict {-controlling_domain -control_expr}
+
+    form Default {sim_assertion_control ?-elements element_list? ?-exclude_elements exclude_list? ?-domain domain_name? ?-model model_name? ?-controlling_domain domain_name? ?-control_expr boolean_expression? ?-type reset|suspend|kill? ?-transitive ?TRUE|FALSE??}
+
+    hover {
+        summary {Control the behavior of assertions during low-power verification.}
+        synopsis {sim_assertion_control ?-elements element_list? ?-exclude_elements exclude_list? ?-domain domain_name? ?-model model_name? ?-controlling_domain domain_name? ?-control_expr boolean_expression? ?-type reset|suspend|kill? ?-transitive ?TRUE|FALSE??}
+        description {Disables, resets, or suspends assertions during low-power verification so that non-power-aware assertions can be used correctly in a power-aware environment. -type selects suspend, reset, or kill behavior, and -control_expr or -controlling_domain, or by default the domain containing the assertion, determine when the control is active based on whether the relevant primary supply is NORMAL. It shall be an error if both -controlling_domain and -control_expr are specified in the same command.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {sim_assertion_control -elements L1/clock_not_x -type kill}
+        example {sim_assertion_control -domain PD1 -type suspend}
+        source {IEEE 1801-2024 §6.58}
+    }
+}
+
+command sim_corruption_control {
+    arity 0..
+
+    option -type -takes type -values {real integer seq comb port process} -closed \
+        -detail {The type of design element to which the command applies (required).}
+    option -elements -takes element_list \
+        -detail {The list of design elements to which the corruption control applies.}
+    option -exclude_elements -takes exclude_list \
+        -detail {The list of design elements to which the command does not apply.}
+    option -model -takes model_name -detail {The HDL model to which the command will apply.}
+    option -domain -takes domain_name -detail {The domain in which the command will apply.}
+    option -transitive -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Apply the command to the specified scope or to that scope and all dependent subtrees, defaulting to TRUE both when the option is omitted and when it is given without a value.}
+
+    form Default {sim_corruption_control -type real|integer|seq|comb|port|process ?-elements element_list? ?-exclude_elements exclude_list? ?-model model_name? ?-domain domain_name? ?-transitive ?TRUE|FALSE??}
+
+    hover {
+        summary {Provide the ability to disable the corruption of a specific set of design elements or types of design elements.}
+        synopsis {sim_corruption_control -type real|integer|seq|comb|port|process ?-elements element_list? ?-exclude_elements exclude_list? ?-model model_name? ?-domain domain_name? ?-transitive ?TRUE|FALSE??}
+        description {Turns off corruption semantics for a specified type of design element, overriding simstate behavior, mainly to let behavioral modules such as real-number models function correctly in low-power simulation. If neither -elements nor -domain is specified, the command applies to all design elements of the specified type within the current scope. It is functional-verification-only and has no effect on implementation tools; it should be used with extreme caution outside of behavioral modules, as it can cause the simulation to differ from implementation.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {sim_corruption_control -type real \
+   -elements [find_objects . -pattern "L*" -object_type net] \
+   -exclude_elements [find_objects . -pattern "L1*" -object_type net]}
+        example {sim_corruption_control -domain PD1 -type integer}
+        source {IEEE 1801-2024 §6.59}
+    }
+}
+
+command sim_replay_control {
+    arity 0..
+
+    option -elements -takes element_list \
+        -detail {The list of initial blocks and hierarchical instances to which the command applies.}
+    option -exclude_elements -takes exclude_list \
+        -detail {The list of initial blocks and hierarchical instances to which the command does not apply.}
+    option -model -takes model_name -detail {The module in which to search for initial blocks.}
+    option -domain -takes domain_name -detail {The domain in which to search for initial blocks.}
+    option -controlling_domain -takes domain_name \
+        -detail {The domain whose primary supply set's simstate controls when the initial block is replayed, defaulting to the domain containing each initial block.}
+    option -transitive -takes boolean -values {TRUE FALSE} -closed \
+        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -detail {Apply the command to the specified scope or to that scope and all dependent subtrees, defaulting to TRUE both when the option is omitted and when it is given without a value.}
+
+    form Default {sim_replay_control ?-elements element_list? ?-exclude_elements exclude_list? ?-model model_name? ?-domain domain_name? ?-controlling_domain domain_name? ?-transitive ?TRUE|FALSE??}
+
+    hover {
+        summary {Specify initial blocks to be replayed when a domain powers up.}
+        synopsis {sim_replay_control ?-elements element_list? ?-exclude_elements exclude_list? ?-model model_name? ?-domain domain_name? ?-controlling_domain domain_name? ?-transitive ?TRUE|FALSE??}
+        description {Specifies which initial blocks are replayed when the simstate of the related supply set transitions from CORRUPT to NORMAL after time 0, triggered when the primary supply of the controlling or containing domain transitions to NORMAL. It shall be an error if neither -elements, -model, nor -domain is specified. It is functional-verification-only and has no effect on implementation tools.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {sim_replay_control \
+   -elements [find_objects . -pattern "L*" -object_type process] \
+   -exclude_elements [find_objects . -pattern "L1*" -object_type process]}
+        example {sim_replay_control -domain PD1}
+        source {IEEE 1801-2024 §6.60}
+    }
+}
+
+command upf_version {
+    ;# NOTE(upf): no `arg 0 -values` row is written. The standard names "4.0"
+    ;# as the value for IEEE 1801-2024 semantics but does not define any other
+    ;# value, nor how a tool handles UPF commands written for other versions,
+    ;# so the set is not unambiguously closed.
+    arity ..1
+
+    form Default {upf_version ?string?}
+
+    hover {
+        summary {Retrieve the version of UPF being used to interpret UPF commands and document the UPF version for which subsequent commands are written.}
+        synopsis {upf_version ?string?}
+        description {Returns a string representing the UPF version currently used by the tool reading the UPF file; when interpreting per the version defined by this standard, the returned value shall be the string 4.0. The optional string argument documents the UPF version for which the following UPF commands were written, and for commands intended per this standard that argument shall also be 4.0.}
+        returns {The version of UPF currently being used to interpret UPF commands.}
+        example {upf_version 4.0}
+        source {IEEE 1801-2024 §6.61}
+    }
+}
+
+command use_interface_cell {
+    arity 1..
+
+    option -strategy -takes list_of_isolation_level_shifter_strategies \
+        -detail {The isolation or level-shifter strategy, or a pair of isolation and level-shifter strategies, as defined by set_isolation and set_level_shifter (required).}
+    option -domain -takes domain_name \
+        -detail {The domain in which the strategies are defined (required).}
+    option -lib_cells -takes lib_cell_list -detail {A list of library cell names (required).}
+    option -port_map -takes port_net_pairs \
+        -detail {The port and the net connections, given as a list of {port net_ref} pairs, which shall not reference the data input port or the data output port.}
+    option -elements -takes element_list \
+        -detail {A list of ports from the specified strategies to which the command applies.}
+    option -exclude_elements -takes exclude_list \
+        -detail {A list of ports from the specified strategies to which this command does not apply.}
+    ;# NOTE(upf): the trailing `value` alternative is an open value literal, not
+    ;# a keyword, so this set is listed but not marked -closed.
+    option -applies_to_clamp -takes applies_to_clamp -values {0 1 Z latch value} \
+        -detail {Only ports that have the specified clamp value are mapped.}
+    option -force_function \
+        -detail {The first model in lib_cell_list is used as the functional specification of isolation behavior.}
+    option -inverter_supply_set -takes list \
+        -detail {The supply sets implicitly connected to any inversion logic required by an isolation signal connection.}
+
+    form Default {use_interface_cell interface_implementation_name -strategy list_of_isolation_level_shifter_strategies -domain domain_name -lib_cells lib_cell_list ?-port_map {{port net_ref}...}? ?-elements element_list? ?-exclude_elements exclude_list? ?-applies_to_clamp 0|1|Z|latch|value? ?-force_function? ?-inverter_supply_set list?}
+
+    hover {
+        summary {Specify the functional model and a list of implementation targets for isolation and level-shifter strategies.}
+        synopsis {use_interface_cell interface_implementation_name -strategy list_of_isolation_level_shifter_strategies -domain domain_name -lib_cells lib_cell_list ?-port_map {{port net_ref}...}? ?-elements element_list? ?-exclude_elements exclude_list? ?-applies_to_clamp 0|1|Z|latch|value? ?-force_function? ?-inverter_supply_set list?}
+        description {Associates a named interface-cell implementation with one or more isolation or level-shifter strategies in a domain, specifying candidate library cells, optional functional-model forcing, and explicit port-to-net mapping including symbolic net references for isolation and level-shifter supply and signal pins. When -force_function is specified the first model in lib_cell_list is used as the functional model and the isolation sense specification of the strategy is ignored. It shall be an error if more than one isolation strategy or more than one level-shifter strategy is specified.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {use_interface_cell my_interface -strategy {ISO1 LS1} -domain PD1 \
+  -lib_cells {combo1 combo2} \
+  -elements {top/moduleA/port1 top/moduleA/port2 top/moduleA/port3}}
+        source {IEEE 1801-2024 §6.62}
+    }
+}
+
+command use_upf_library {
+    arity 1
+
+    form Default {use_upf_library upf_library_name}
+
+    hover {
+        summary {Make the UPF objects inside a UPF library directly visible in the current scope.}
+        synopsis {use_upf_library upf_library_name}
+        description {Makes all UPF objects contained in the named UPF library visible by simple name within either the current UPF scope or the context of the enclosing create_upf_library block from which use_upf_library is called. It shall be an error if upf_library_name does not exist.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {create_upf_library myLibrary {
+   create_vcm VCM_V1 ...
+}
+use_upf_library myLibrary
+
+connect_supply_net VDD -ports { IP1_inst/VDD1 } \
+     -vcm VCM_V1}
+        source {IEEE 1801-2024 §6.63}
+    }
+}
+
+command define_always_on_cell {
+    arity 0..
+
+    option -cells -takes cell_list \
+        -detail {Identifies the specified cells as always-on cells (required).}
+    option -power -takes power_pin \
+        -detail {Identifies the power pin of the cell, which is the non-switchable power pin when -power_switchable is also specified (required).}
+    option -ground -takes ground_pin \
+        -detail {Identifies the ground pin of the cell, which is the non-switchable ground pin when -ground_switchable is also specified (required).}
+    option -power_switchable -takes pin \
+        -detail {The power pin to be connected via a rail connection to the switchable power supply.}
+    option -ground_switchable -takes pin \
+        -detail {The ground pin to be connected via a rail connection to the switchable ground supply.}
+    option -isolated_pins -takes list_of_pin_lists \
+        -detail {A list of pin lists, each grouping input pins isolated internally with the same isolation control signal.}
+    option -enable -takes expression_list \
+        -detail {One isolation control condition per pin list of -isolated_pins, using an empty string for a pin list that needs no control signal (only with -isolated_pins).}
+
+    form Default {define_always_on_cell -cells cell_list -power power_pin -ground ground_pin ?-power_switchable pin? ?-ground_switchable pin? ?-isolated_pins list_of_pin_lists ?-enable expression_list??}
+
+    hover {
+        summary {Identify always-on cells.}
+        synopsis {define_always_on_cell -cells cell_list -power power_pin -ground ground_pin ?-power_switchable pin? ?-ground_switchable pin? ?-isolated_pins list_of_pin_lists ?-enable expression_list??}
+        description {Identifies library cells that have more than one set of power and ground pins and that can remain functional even when the supply to the switchable power or ground pin is switched off. By default all input and output pins of the cell are related to the non-switchable power and ground pins. It shall be an error if neither -power_switchable nor -ground_switchable is specified.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {define_always_on_cell -cells aon_cell \
+   -power VDD_BACKUP -ground VSS -power_switchable VDD \
+   -isolated_pins {{pin1 pin2} {pin3}} -enable {!iso1 ""}}
+        example {define_always_on_cell -cells AND2_AON -power_switchable VDDSW \
+   -power VDD -ground VSS}
+        source {IEEE 1801-2024 §7.2}
+    }
+}
+
+command define_diode_clamp {
+    arity 0..
+
+    option -cells -takes cell_list \
+        -detail {Identifies cells as diode clamp cells, or pins of the specified cells as diode clamp pins (required).}
+    option -data_pins -takes pin_list \
+        -detail {A list of cell input pins that have built-in clamp diodes (required).}
+    option -type -takes type -values {power ground both} -closed \
+        -detail {The type of clamp diode associated with the data pins, where both means a power and ground clamp diode; the default is power.}
+    option -power -takes pin -detail {The cell pin that connects to the power net.}
+    option -ground -takes pin -detail {The cell pin that connects to the ground net.}
+
+    form Default {define_diode_clamp -cells cell_list -data_pins pin_list ?-type power|ground|both? ?-power pin? ?-ground pin?}
+
+    hover {
+        summary {Identify diode cells or cell pins with diode protection.}
+        synopsis {define_diode_clamp -cells cell_list -data_pins pin_list ?-type power|ground|both? ?-power pin? ?-ground pin?}
+        description {Identifies a list of library cells that are power clamp diode cells, ground clamp diode cells, power-and-ground diode clamp cells, or complex cells that have input pins with built-in clamp diodes. When -type is ground then -power is optional, when -type is power then -ground is optional, and when -type is both then both -power and -ground need to be specified. It shall be an error if neither -power nor -ground is specified.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {define_diode_clamp -cells cellA -data_pins in1 -type power -power VDD1}
+        source {IEEE 1801-2024 §7.3}
+    }
+}
+
+command define_isolation_cell {
+    arity 0..
+
+    option -cells -takes cell_list \
+        -detail {Identifies the specified cells as isolation cells (required).}
+    option -power -takes power_pin \
+        -detail {Identifies the power pin of the cell, which with -power_switchable is the non-switchable power pin of a multi-rail isolation cell.}
+    option -ground -takes ground_pin \
+        -detail {Identifies the ground pin of the cell, which with -ground_switchable is the non-switchable ground pin of a multi-rail isolation cell.}
+    option -enable -takes pin \
+        -detail {Identifies the specified cell pin as the isolation enable pin, whose polarity is set by the library cell function or, for a clamp-type cell, by the clamp output value.}
+    option -clamp_cell -takes clamp_cell -values {high low} -closed \
+        -detail {Indicates the specified cells are isolation clamp cells, a single PMOS or NMOS transistor with no logic function that clamps a net high or low when the enable pin is activated (only with -enable).}
+    option -pin_groups -takes pin_group_list \
+        -detail {A list of input-output paths for multi-bit isolation cells, each group giving one input pin, one output pin, and one optional enable pin.}
+    option -no_enable -takes no_enable -values {high low hold} -closed \
+        -detail {States the cell has no enable pin and gives the output value when the switchable supply is powered down, where hold means the pre-power-down logic value is held.}
+    option -always_on_pins -takes pin_list \
+        -detail {A list of cell pins related to the nonswitchable power and nonswitchable ground pins of the cell.}
+    option -aux_enables -takes ordered_pin_list \
+        -detail {Additional or auxiliary enable pins for the isolation cell, indexed from 1 with the -enable pin implicitly at index 0.}
+    option -power_switchable -takes power_pin \
+        -detail {Identifies the switchable power pin of a multi-rail isolation cell.}
+    option -ground_switchable -takes ground_pin \
+        -detail {Identifies the switchable ground pin of a multi-rail isolation cell.}
+    option -valid_location -takes valid_location -values {source sink on off any} -closed \
+        -detail {The valid location of the isolation cell; the default value is sink.}
+    option -non_dedicated \
+        -detail {Allows the specified cells to be used as normal cells, not for power-management purposes.}
+
+    option_conflict {-enable -pin_groups -no_enable}
+
+    form Default {define_isolation_cell -cells cell_list ?-power power_pin? ?-ground ground_pin? {-enable pin ?-clamp_cell high|low? | -pin_groups {{input_pin output_pin ?enable_pin?}...} | -no_enable high|low|hold} ?-always_on_pins pin_list? ?-aux_enables ordered_pin_list? ?-power_switchable power_pin? ?-ground_switchable ground_pin? ?-valid_location source|sink|on|off|any? ?-non_dedicated?}
+
+    hover {
+        summary {Identify isolation cells.}
+        synopsis {define_isolation_cell -cells cell_list ?-power power_pin? ?-ground ground_pin? {-enable pin ?-clamp_cell high|low? | -pin_groups {{input_pin output_pin ?enable_pin?}...} | -no_enable high|low|hold} ?-always_on_pins pin_list? ?-aux_enables ordered_pin_list? ?-power_switchable power_pin? ?-ground_switchable ground_pin? ?-valid_location source|sink|on|off|any? ?-non_dedicated?}
+        description {Identifies library cells usable for isolation in a power-gated design; exactly one of -enable, -pin_groups, or -no_enable shall be given. By default the output pin of a multi-rail isolation cell relates to the non-switchable power and ground pins and the non-enable input pin relates to the switchable power and ground pins. If -clamp_cell is high the only supply pin that can be specified is -power and if it is low the only supply pin that can be specified is -ground; for all other isolation cells both -power and -ground shall be specified, and it shall be an error if the same input or output pin appears in more than one -pin_groups group.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {define_isolation_cell -cells iso_cell1 -power VDD -ground GVSS \
+    -enable iso_en -valid_location any}
+        example {define_isolation_cell -cells mbit_iso1 \
+   -pin_groups {{datain1 dataout1 iso1} {datain2 dataout2 iso2}} \
+   -power VDD -ground VSS \
+   -valid_location sink}
+        source {IEEE 1801-2024 §7.4}
+    }
+}
+
+command define_level_shifter_cell {
+    arity 0..
+
+    option -cells -takes cell_list \
+        -detail {Identifies the specified cells as level-shifter cells (required).}
+    option -input_voltage_range -takes voltage_range_list \
+        -detail {A list of voltage ranges for the input source supply voltage the level-shifter can handle, specified only for power-shifting cells (only with -output_voltage_range).}
+    option -output_voltage_range -takes voltage_range_list \
+        -detail {A list of voltage ranges for the output destination power supply voltage, specified only for power-shifting cells (only with -input_voltage_range).}
+    option -ground_input_voltage_range -takes voltage_range_list \
+        -detail {A list of voltage ranges for the input source ground supply voltage, specified only for ground-shifting cells (only with -ground_output_voltage_range).}
+    option -ground_output_voltage_range -takes voltage_range_list \
+        -detail {A list of voltage ranges for the output destination ground supply voltage, specified only for ground-shifting cells (only with -ground_input_voltage_range).}
+    option -direction -takes direction -values {low_to_high high_to_low both} -closed \
+        -detail {Whether the level-shifter goes from lower to higher voltage swing, higher to lower, or both; the default is low_to_high.}
+    option -input_power_pin -takes power_pin \
+        -detail {Identifies the input power pin, usually specified for power shifting and used with -output_power_pin.}
+    option -output_power_pin -takes power_pin \
+        -detail {Identifies the output power pin, usually used with -input_power_pin.}
+    option -input_ground_pin -takes ground_pin \
+        -detail {Identifies the input ground pin, usually used with -output_ground_pin.}
+    option -output_ground_pin -takes ground_pin \
+        -detail {Identifies the output ground pin, usually used with -input_ground_pin.}
+    option -ground -takes ground_pin \
+        -detail {Identifies the ground pin of the cell, which can only be specified for level-shifters that only perform power shifting.}
+    option -power -takes power_pin \
+        -detail {Identifies the power pin of the cell, which can only be specified for level-shifters that only perform ground shifting.}
+    option -enable -takes pin \
+        -detail {Identifies the pin that prevents internal floating when the originating power domain's supply is off but the output-level power pin remains on.}
+    option -pin_groups -takes pin_group_list \
+        -detail {A list of input-output paths for multi-bit level-shifter cells, each group giving one input pin, one output pin, and one optional enable pin.}
+    option -valid_location -takes valid_location -values {source sink either any} -closed \
+        -detail {The valid location of the level-shifter cell; the default is sink.}
+    option -bypass_enable -takes expression \
+        -detail {When to bypass the voltage-shifting functionality, so that the cell behaves like a buffer when the expression is True.}
+    option -multi_stage -takes integer \
+        -detail {The stage of an N-stage multi-stage level-shifter to which this definition applies, numbered 1 through N with one command per stage.}
+
+    option_conflict {-enable -pin_groups}
+
+    ;# NOTE(upf): the standard phrases the supply-pin restrictions as "an error
+    ;# to use this option with -input_ground_pin and -output_ground_pin"; read
+    ;# pairwise here, because -input_ground_pin and -output_ground_pin are
+    ;# themselves a legal pair, as are -input_power_pin and -output_power_pin.
+    option_conflict {-ground -input_ground_pin}
+    option_conflict {-ground -output_ground_pin}
+    option_conflict {-power -input_power_pin}
+    option_conflict {-power -output_power_pin}
+
+    form Default {define_level_shifter_cell -cells cell_list ?-input_voltage_range {{lower_bound upper_bound}...}? ?-output_voltage_range {{lower_bound upper_bound}...}? ?-ground_input_voltage_range {{lower_bound upper_bound}...}? ?-ground_output_voltage_range {{lower_bound upper_bound}...}? ?-direction low_to_high|high_to_low|both? ?-input_power_pin power_pin? ?-output_power_pin power_pin? ?-input_ground_pin ground_pin? ?-output_ground_pin ground_pin? ?-ground ground_pin? ?-power power_pin? ?-enable pin | -pin_groups {{input_pin output_pin ?enable_pin?}...}? ?-valid_location source|sink|either|any? ?-bypass_enable expression? ?-multi_stage integer?}
+
+    hover {
+        summary {Identify level-shifter cells.}
+        synopsis {define_level_shifter_cell -cells cell_list ?-input_voltage_range {{lower_bound upper_bound}...}? ?-output_voltage_range {{lower_bound upper_bound}...}? ?-ground_input_voltage_range {{lower_bound upper_bound}...}? ?-ground_output_voltage_range {{lower_bound upper_bound}...}? ?-direction low_to_high|high_to_low|both? ?-input_power_pin power_pin? ?-output_power_pin power_pin? ?-input_ground_pin ground_pin? ?-output_ground_pin ground_pin? ?-ground ground_pin? ?-power power_pin? ?-enable pin | -pin_groups {{input_pin output_pin ?enable_pin?}...}? ?-valid_location source|sink|either|any? ?-bypass_enable expression? ?-multi_stage integer?}
+        description {Identifies library cells to use as level-shifter cells, describing voltage-range compatibility for power-shifting and ground-shifting, the default relation of enable and output pins to the output power and ground pins, and the placement rules of -valid_location. If a list of voltage ranges is specified for the input supply voltage, a list with the same number of elements shall also be specified for the output supply voltage. It shall be an error if neither -input_voltage_range nor -ground_input_voltage_range is specified, and it shall be an error if the same input or output pin appears in more than one -pin_groups group.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {define_level_shifter_cell \
+    -cells LSHL \
+    -input_voltage_range {{1.0 1.0}} \
+    -output_voltage_range {{0.8 0.8}} \
+    -direction high_to_low \
+    -input_power_pin VH -ground G}
+        example {define_level_shifter_cell -cells mbit_en_ls \
+    -pin_groups {{datain1 els_dataout1 en1} {datain2 els_dataout2 en2}}}
+        source {IEEE 1801-2024 §7.5}
+    }
+}
+
+command define_power_switch_cell {
+    arity 0..
+
+    option -cells -takes cell_list \
+        -detail {Identifies the specified cells as power-switch cells (required).}
+    option -type -takes type -values {footer header} -closed \
+        -detail {Whether the power-switch cell is a header or footer cell (required).}
+    option -stage_1_enable -takes expression \
+        -detail {A simple Boolean expression of the input pin specifying when the switch cell driven by that pin is turned on or off (required).}
+    option -stage_1_output -takes expression \
+        -detail {Whether the output pin in the expression is the buffered or inverted output of the -stage_1_enable input pin, used in-design to chain another switch cell in series (only with -stage_1_enable).}
+    option -power_switchable -takes power_pin \
+        -detail {Identifies the output power pin of a header cell, which shall be connected to a switchable power net.}
+    option -power -takes power_pin \
+        -detail {Identifies the input power pin of the cell (only with -power_switchable).}
+    option -ground_switchable -takes ground_pin \
+        -detail {Identifies the output ground pin of a footer cell, which shall be connected to a switchable ground net.}
+    option -ground -takes ground_pin \
+        -detail {Identifies the input ground pin of the cell (only with -ground_switchable).}
+    option -stage_2_enable -takes expression \
+        -detail {The same as -stage_1_enable but for the second switch stage, where the switch is on only when both stage expressions are True.}
+    option -stage_2_output -takes expression \
+        -detail {The same as -stage_1_output but for the second switch stage (only with -stage_2_enable).}
+    option -always_on_pins -takes ordered_pin_list \
+        -detail {A list of cell pins related to the input power and ground pins of the cell.}
+    option -gate_bias_pin -takes power_pin \
+        -detail {Identifies a power pin that provides the supply used to drive the gate input of the switch cell.}
+
+    ;# NOTE(upf): both conflicts come from the syntax block's required two-way
+    ;# choice between the header branch and the footer branch; the standard
+    ;# states no separate "It shall be an error if" sentence for them.
+    option_conflict {-power_switchable -ground_switchable}
+    option_conflict {-power -ground}
+
+    form Default {define_power_switch_cell -cells cell_list -type footer|header -stage_1_enable expression ?-stage_1_output expression? {-power_switchable power_pin -power power_pin | -ground_switchable ground_pin -ground ground_pin} ?-stage_2_enable expression ?-stage_2_output expression?? ?-always_on_pins ordered_pin_list? ?-gate_bias_pin power_pin?}
+
+    hover {
+        summary {Identify a power switch or ground-switch cell.}
+        synopsis {define_power_switch_cell -cells cell_list -type footer|header -stage_1_enable expression ?-stage_1_output expression? {-power_switchable power_pin -power power_pin | -ground_switchable ground_pin -ground ground_pin} ?-stage_2_enable expression ?-stage_2_output expression?? ?-always_on_pins ordered_pin_list? ?-gate_bias_pin power_pin?}
+        description {Identifies library cells to use as power-switch cells, where -type distinguishes a header cell that cuts off the power side from a footer cell that cuts off the ground side. Either -power_switchable with -power or -ground_switchable with -ground shall be specified. The input-enable and output-enable pins of these cells are related to the non-switchable power and ground pins, and a cell can be modeled as a one-stage or two-stage switch.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        example {define_power_switch_cell -cells 2stage_switch \
+    -stage_1_enable !I1 -stage_1_output O1 \
+    -stage_2_enable I2 -stage_2_output !O2 \
+    -type header}
+        source {IEEE 1801-2024 §7.6}
+    }
+}
+
+command define_retention_cell {
+    arity 0..
+
+    option -cells -takes cell_list \
+        -detail {Identifies the specified cells as state retention cells (required).}
+    option -power -takes power_pin \
+        -detail {Identifies the power pin of the cell, which is the non-switchable power pin when -power_switchable is also specified (required).}
+    option -ground -takes ground_pin \
+        -detail {Identifies the ground pin of the cell, which is the non-switchable ground pin when -ground_switchable is also specified (required).}
+    option -cell_type -takes string \
+        -detail {A user-defined name grouping the specified cells into a class of retention cells sharing the same retention behavior, as requested through the -lib_cell_type option of map_retention_cell.}
+    option -always_on_pins -takes pin_list \
+        -detail {A list of cell pins related to the nonswitchable power and ground pins of the cells.}
+    ;# NOTE(upf): -restore_function and -save_function take a pin name paired
+    ;# with one of high, low, posedge or negedge, so the closed literal set
+    ;# covers only the second element of the pair and the row stays open.
+    option -restore_function -takes pin_function \
+        -detail {The pin name and the polarity or edge sensitivity, one of high, low, posedge or negedge, of the restore pin that enables the cell to restore the saved value after exiting power shut-off mode.}
+    option -save_function -takes pin_function \
+        -detail {The pin name and the polarity or edge sensitivity, one of high, low, posedge or negedge, of the save pin that enables the cell to save the current value before entering retention mode.}
+    option -restore_check -takes expression \
+        -detail {The additional condition under which the states of the sequential elements can be restored, which shall be True when the restore event occurs.}
+    option -save_check -takes expression \
+        -detail {The additional condition under which the states of the sequential elements can be saved, which shall be True when the save event occurs.}
+    option -retention_check -takes expression \
+        -detail {An additional condition to meet between the primary supply being switched off and powered on again for the retention operation to be successful.}
+    option -hold_check -takes pin_list \
+        -detail {A list of pins that must maintain the same logic value during the retention period, from the save event to the restore event.}
+    option -always_on_components -takes component_list \
+        -detail {A list of component names in the corresponding simulation model that are powered by the nonswitchable power and ground pins.}
+    option -power_switchable -takes power_pin \
+        -detail {Identifies the switchable power pin, usable for retention in a power domain shut off via power switches.}
+    option -ground_switchable -takes ground_pin \
+        -detail {Identifies the switchable ground pin, usable for retention in a power domain shut off via ground switches.}
+
+    form Default {define_retention_cell -cells cell_list -power power_pin -ground ground_pin ?-cell_type string? ?-always_on_pins pin_list? ?-restore_function {pin high|low|posedge|negedge}? ?-save_function {pin high|low|posedge|negedge}? ?-restore_check expression? ?-save_check expression? ?-retention_check expression? ?-hold_check pin_list? ?-always_on_components component_list? ?-power_switchable power_pin? ?-ground_switchable ground_pin?}
+
+    hover {
+        summary {Identify state retention cells.}
+        synopsis {define_retention_cell -cells cell_list -power power_pin -ground ground_pin ?-cell_type string? ?-always_on_pins pin_list? ?-restore_function {pin high|low|posedge|negedge}? ?-save_function {pin high|low|posedge|negedge}? ?-restore_check expression? ?-save_check expression? ?-retention_check expression? ?-hold_check pin_list? ?-always_on_components component_list? ?-power_switchable power_pin? ?-ground_switchable ground_pin?}
+        description {Identifies library cells to use as retention cells; by default all pins of the cell are related to the switchable power and ground pins unless otherwise specified. When neither -save_function nor -restore_function is specified, the current value is always saved before entering retention mode and the saved value is restored when the primary power is restored. It shall be an error if the save and restore functions both identify the same pin with the same polarity or edge sensitivity, or if the conditions specified in -save_check, -restore_check, or -retention_check conflict with -hold_check.}
+        returns {The empty string if successful; otherwise a TCL_ERROR is raised.}
+        source {IEEE 1801-2024 §7.7}
+    }
+}
+}

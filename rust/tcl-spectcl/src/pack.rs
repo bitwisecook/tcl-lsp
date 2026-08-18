@@ -201,7 +201,7 @@ pub(crate) fn read_sources(files: &[PackFile]) -> (Vec<(PackFile, String)>, Vec<
 /// `tcl-lsp-server-<triple>` / `tcl-mcp-<triple>` / `tcl-<triple>` /
 /// `f5-query-<triple>` release asset, until something stages one there —
 /// the VSIX/JetBrains/Sublime bundles, a dev checkout, or
-/// `TCL_LSP_SPEC_PACK_DIR`) has the six shipped `.tclspec` sources compiled
+/// `TCL_LSP_SPEC_PACK_DIR`) has the seven shipped `.tclspec` sources compiled
 /// in via `include_str!` but nowhere on disk to point a [`PackFile`] at.
 /// Everything past "read the bytes" — cache lookup, `speclib` grouping,
 /// tier-shadowing, duplicate-command detection, the content key — is

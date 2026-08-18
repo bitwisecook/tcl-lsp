@@ -721,19 +721,6 @@ command set_implementation_design {
     }
 }
 
-command set_operating_conditions {
-    dialects tcl8.6
-    required_package synopsys-dc
-
-    form Default {set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?}
-
-    hover {
-        summary {Set operating conditions for timing.}
-        synopsis {set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?}
-        source {F5}
-    }
-}
-
 command set_reference_design {
     dialects tcl8.6
     arity 1
