@@ -2026,23 +2026,42 @@ fn retire_slot(slots: &mut HashMap<Uri, DiagSlot>, uri: &Uri) {
 /// Wait until `uri`'s scheduled diagnostics generation has stayed unchanged
 /// for one full debounce window.  Returns that stable generation, or `None`
 /// when the slot disappeared or no longer has work.
+///
+/// When no work remains, this retires the worker's slot while still holding
+/// the slot-map lock.  That makes observing a clean slot and releasing its
+/// worker claim one transition: an edit that follows either sees a removed /
+/// non-running slot and starts a new worker, or is folded into the still-live
+/// worker before it makes that decision.
 async fn stable_diagnostics_generation(
     slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     uri: &Uri,
 ) -> Option<u64> {
     loop {
         let generation = {
-            let guard = slots.lock().await;
-            let slot = guard.get(uri)?;
-            slot.dirty.then_some(slot.generation)?
+            let mut guard = slots.lock().await;
+            let Some((dirty, generation)) =
+                guard.get(uri).map(|slot| (slot.dirty, slot.generation))
+            else {
+                return None;
+            };
+            if !dirty {
+                retire_slot(&mut guard, uri);
+                return None;
+            }
+            generation
         };
         crate::rt::sleep(DIAGNOSTICS_DEBOUNCE).await;
-        let guard = slots.lock().await;
-        let slot = guard.get(uri)?;
-        if !slot.dirty {
+        let mut guard = slots.lock().await;
+        let Some((dirty, current_generation)) =
+            guard.get(uri).map(|slot| (slot.dirty, slot.generation))
+        else {
+            return None;
+        };
+        if !dirty {
+            retire_slot(&mut guard, uri);
             return None;
         }
-        if slot.generation == generation {
+        if current_generation == generation {
             return Some(generation);
         }
     }
@@ -2062,7 +2081,6 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // cancel fresh reads; a reader waiting on a shared query can then
             // hold `set_text` for seconds and pin the global edit-order barrier.
             let Some(generation) = stable_diagnostics_generation(&slots, &uri).await else {
-                retire_slot(&mut *slots.lock().await, &uri);
                 return;
             };
             let inputs = {
@@ -21888,6 +21906,43 @@ mod tests {
             .expect("debounce waiter should settle after the burst")
             .expect("debounce waiter task panicked");
         assert_eq!(generation, Some(3));
+    }
+
+    /// A clean slot must be retired before the debounce waiter yields.  A
+    /// subsequent edit then sees no active worker claim and can start one;
+    /// retiring only after the waiter returned left a gap where that edit set
+    /// `dirty` behind the still-running worker and no future worker was spawned.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn diagnostics_clean_slot_retires_before_waiter_returns() {
+        let uri = Uri::from_str("file:///retire-clean-slot.tcl").unwrap();
+        let slots = Arc::new(Mutex::new(HashMap::new()));
+        slots.lock().await.insert(
+            uri.clone(),
+            DiagSlot {
+                running: true,
+                ..DiagSlot::default()
+            },
+        );
+
+        assert_eq!(stable_diagnostics_generation(&slots, &uri).await, None);
+
+        // This mirrors `schedule_diagnostics_impl`'s worker-start decision for
+        // an edit arriving immediately after the clean observation.
+        let starts_worker = {
+            let mut guard = slots.lock().await;
+            let slot = guard.entry(uri).or_insert_with(DiagSlot::default);
+            slot.mark_dirty();
+            if slot.running {
+                false
+            } else {
+                slot.running = true;
+                true
+            }
+        };
+        assert!(
+            starts_worker,
+            "an edit after clean-slot retirement must start a diagnostics worker"
+        );
     }
 
     fn lifted_diag(code: &str, range: Range) -> Diagnostic {
