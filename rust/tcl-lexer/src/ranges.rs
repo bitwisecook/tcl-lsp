@@ -51,6 +51,8 @@
 //! [`Span`]: crate::Span
 //! [`SourceMap`]: crate::SourceMap
 
+use tcl_dialect::BracedVarStyle;
+
 use crate::source_map::SourceMap;
 use crate::substitution::{backslash_escape_end, is_line_continuation};
 use crate::tokens::{ByteCol, SourcePosition, Token};
@@ -62,6 +64,76 @@ const fn closer_for(opener: u8) -> Option<u8> {
         b'{' => Some(b'}'),
         b'[' => Some(b']'),
         _ => None,
+    }
+}
+
+/// Byte offset of the `}` that closes a `${…}` variable reference whose **name
+/// starts at `name_start`** (the byte just past the `${`), or `None` when the
+/// form is unterminated.
+///
+/// This is the one release-aware `${…}` close rule. `Tcl_ParseVarName` changed
+/// between the 8.x family and 9.x, and the difference is observable:
+///
+/// - [`BracedVarStyle::Tcl9Nesting`] (9.0.4 `tclParse.c:1315`) tracks nested
+///   `{…}` pairs and consumes `\X` as an inert two-character unit, so
+///   `${a{b}c}` names the variable `a{b}c` and `${a\}b}` names `a\}b`.
+/// - [`BracedVarStyle::FirstClose`] (8.6.16 `tclParse.c:1398`) ends the name at
+///   the **first** literal `}` with no nesting and no backslash processing, so
+///   `${a{b}c}` names `a{b` and `c}` is ordinary word text.
+///
+/// Every consumer that has to find that `}` — the lexer's own `parse_var` and
+/// array-index scans, both `subst` engines — resolves it here rather than
+/// re-implementing a scan, because an engine that hard-codes one release's rule
+/// answers `subst {${a{b}c}}` wrongly on the other (issue #1457).
+///
+/// `src` need not be valid UTF-8; the scan reacts only to ASCII bytes, and the
+/// 9.x backslash pair consumes a whole UTF-8 character so it matches the
+/// lexer's `char`-based walk byte for byte.
+#[must_use]
+pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle) -> Option<usize> {
+    let n = src.len();
+    let mut i = name_start;
+    if !style.nests() {
+        // 8.x: scan to the first literal `}`; `{` and `\` are name characters.
+        while i < n && src[i] != b'}' {
+            i += 1;
+        }
+        return (i < n).then_some(i);
+    }
+    let mut depth: u32 = 0;
+    while i < n {
+        match src[i] {
+            b'}' if depth == 0 => return Some(i),
+            b'{' => {
+                depth += 1;
+                i += 1;
+            }
+            b'}' => {
+                depth -= 1;
+                i += 1;
+            }
+            b'\\' => {
+                // The backslash and the following *character* are one inert
+                // unit, so an escaped `}` does not close the reference.
+                i += 1;
+                if i < n {
+                    i += utf8_char_len(src[i]);
+                }
+            }
+            b => i += utf8_char_len(b),
+        }
+    }
+    None
+}
+
+/// Byte length of the UTF-8 character whose lead byte is `b` (1 for ASCII and
+/// for a stray continuation byte, so the scan always advances).
+const fn utf8_char_len(b: u8) -> usize {
+    match b {
+        0x00..=0x7f | 0x80..=0xbf => 1,
+        0xc0..=0xdf => 2,
+        0xe0..=0xef => 3,
+        _ => 4,
     }
 }
 
@@ -491,6 +563,54 @@ pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usi
 mod tests {
     use super::*;
     use crate::{Lexer, SourceMap, Span, TokenType};
+
+
+    /// The `${…}` close rule (issue #1457). `Tcl_ParseVarName` delimits the
+    /// brace form differently in the 8.x family (`tclParse.c(8.6.16):1398` —
+    /// first literal `}`) and in 9.x (`tclParse.c(9.0.4):1315` — brace depth
+    /// plus inert `\X` pairs). Both `subst` engines and the lexer's own
+    /// `parse_var` resolve the form here.
+    #[test]
+    fn braced_var_name_end_follows_the_release_rule() {
+        let end = |src: &str, style| braced_var_name_end(src.as_bytes(), 2, style);
+        use BracedVarStyle::{FirstClose, Tcl9Nesting};
+
+        // A plain name closes at the same place under both rules.
+        assert_eq!(end("${abc}", Tcl9Nesting), Some(5));
+        assert_eq!(end("${abc}", FirstClose), Some(5));
+        // `${}` — the variable literally named "" — closes immediately.
+        assert_eq!(end("${}", Tcl9Nesting), Some(2));
+        assert_eq!(end("${}", FirstClose), Some(2));
+
+        // Nested braces: 9.x balances them, 8.x stops at the first `}`.
+        assert_eq!(end("${a{b}c}", Tcl9Nesting), Some(7)); // name `a{b}c`
+        assert_eq!(end("${a{b}c}", FirstClose), Some(5)); // name `a{b`
+        // Two levels deep.
+        assert_eq!(end("${a{b{c}d}e}", Tcl9Nesting), Some(11));
+        assert_eq!(end("${a{b{c}d}e}", FirstClose), Some(7));
+
+        // An escaped `}` is inert in 9.x only.
+        assert_eq!(end(r"${a\}b}", Tcl9Nesting), Some(6)); // name `a\}b`
+        assert_eq!(end(r"${a\}b}", FirstClose), Some(4)); // name `a\`
+
+        // Unterminated forms have no closer under either rule.
+        assert_eq!(end("${abc", Tcl9Nesting), None);
+        assert_eq!(end("${abc", FirstClose), None);
+        assert_eq!(end("${a{b", Tcl9Nesting), None);
+        // …but 8.x still finds a `}` that 9.x consumes as nesting.
+        assert_eq!(end("${a{b}", Tcl9Nesting), None);
+        assert_eq!(end("${a{b}", FirstClose), Some(5));
+        // A trailing lone backslash swallows nothing further in 9.x.
+        assert_eq!(end(r"${a\", Tcl9Nesting), None);
+
+        // Multi-byte text is walked a whole character at a time, so a
+        // continuation byte can never be mistaken for a delimiter.
+        assert_eq!(end("${aéb}", Tcl9Nesting), Some(6));
+        assert_eq!(end("${aéb}", FirstClose), Some(6));
+        // A backslash before a multi-byte character consumes the whole
+        // character, matching the lexer's `char`-based walk.
+        assert_eq!(end("${a\\é}", Tcl9Nesting), Some(6));
+    }
 
     /// Lex `src` and return the first non-trivia token (the word under test).
     fn first_word(src: &str) -> Token {

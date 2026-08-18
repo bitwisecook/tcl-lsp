@@ -32,6 +32,8 @@
 
 use tcl_runtime_api::Code;
 
+use tcl_dialect::BracedVarStyle;
+
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
@@ -324,7 +326,7 @@ enum VarFlow {
 
 /// Substitute one `$name` / `${name}` / `$name(index)` reference at `s[at]`.
 fn subst_var(vm: &mut Vm, s: &str, at: usize) -> Result<VarFlow, TclError> {
-    let Some(vr) = parse_var_ref_parts(s, at) else {
+    let Some(vr) = parse_var_ref_parts(s, at, vm.braced_var_style()) else {
         return Ok(VarFlow::Literal);
     };
     let Some(raw_index) = vr.index else {
@@ -393,7 +395,7 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
                 }
             }
             b'$' if i + 1 < n => {
-                if let Some(vr) = parse_var_ref_parts(idx, i) {
+                if let Some(vr) = parse_var_ref_parts(idx, i, vm.braced_var_style()) {
                     let v = match vr.index {
                         None => read_var(vm, vr.base)?,
                         // A nested array index recurses; control flow from it
@@ -442,12 +444,17 @@ struct VarRef<'a> {
 
 /// Parse a `$`-variable reference starting at `s[at]` (`$name`, `${name}`,
 /// `$name(idx)`).
-fn parse_var_ref_parts(s: &str, at: usize) -> Option<VarRef<'_>> {
+///
+/// `braced_var` is the release's `${…}` close rule, resolved through the one
+/// shared owner: the 8.x family ends the name at the first literal `}` while
+/// 9.x counts nested braces and skips `\X` pairs, so `subst {${a{b}c}}` errors
+/// on `a{b` under 8.6 and reads `a{b}c` under 9.0 (issue #1457). Hard-coding
+/// either rule gives the wrong answer on the other release.
+fn parse_var_ref_parts(s: &str, at: usize, braced_var: BracedVarStyle) -> Option<VarRef<'_>> {
     let b = s.as_bytes();
     let n = b.len();
     if b.get(at + 1) == Some(&b'{') {
-        let rel = s[at + 2..].find('}')?;
-        let close = at + 2 + rel;
+        let close = tcl_lexer::braced_var_name_end(b, at + 2, braced_var)?;
         return Some(VarRef {
             base: &s[at + 2..close],
             index: None,
@@ -557,7 +564,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{command_end, parse_var_ref_parts, subst_command, whole_braced};
+    use super::{BracedVarStyle, command_end, parse_var_ref_parts, subst_command, whole_braced};
     use crate::interp::Vm;
 
     /// `subst_command` with only backslash substitution enabled.
@@ -596,11 +603,13 @@ mod tests {
             ("$::a:::b", "::a:::b", 8),
             ("$foo:::", "foo:::", 7),
         ] {
-            let parsed = parse_var_ref_parts(source, 0).expect("variable reference");
+            let parsed = parse_var_ref_parts(source, 0, BracedVarStyle::Tcl9Nesting)
+                .expect("variable reference");
             assert_eq!(parsed.base, base);
             assert_eq!(parsed.next, next);
         }
-        let parsed = parse_var_ref_parts("$a:::b(k)", 0).expect("array reference");
+        let parsed = parse_var_ref_parts("$a:::b(k)", 0, BracedVarStyle::Tcl9Nesting)
+            .expect("array reference");
         assert_eq!(parsed.base, "a:::b");
         assert_eq!(parsed.index, Some("k"));
     }

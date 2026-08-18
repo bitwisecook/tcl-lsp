@@ -748,47 +748,7 @@ impl<'src> Lexer<'src> {
         if self.current_byte() == Some(b'{') {
             self.pos += 1; // skip '{'
             let content_start = self.pos;
-            if self.config.braced_var.nests() {
-                // Tcl 9 rule (tcl9.0.1 `tclParse.c`, Tcl_ParseVarName): track
-                // nested `{…}` pairs and consume `\X` as an inert
-                // two-character unit, closing on the balancing `}`.
-                let mut brace_depth: u32 = 0;
-                while let Some(ch) = self.current_char() {
-                    match ch {
-                        '}' if brace_depth == 0 => break,
-                        '{' => {
-                            brace_depth += 1;
-                            self.pos += 1;
-                        }
-                        '}' => {
-                            brace_depth -= 1;
-                            self.pos += 1;
-                        }
-                        '\\' => {
-                            // Consume the backslash and, if present, the
-                            // following char as a literal pair.
-                            self.pos += 1;
-                            if let Some(next) = self.current_char() {
-                                self.pos +=
-                                    u32::try_from(next.len_utf8()).expect("char len fits u32");
-                            }
-                        }
-                        _ => {
-                            self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                        }
-                    }
-                }
-            } else {
-                // Tcl 8.x rule (8.6.14 `tclParse.c:1466`, tclsh-verified):
-                // the name is everything up to the FIRST literal `}` — no
-                // nesting, no backslash processing (`${a{b}c}` names `a{b`).
-                while let Some(ch) = self.current_char() {
-                    if ch == '}' {
-                        break;
-                    }
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                }
-            }
+            self.skip_braced_var_name_body();
             let content_empty = self.pos == content_start;
             let has_close_brace = self.current_byte() == Some(b'}');
             let span_end = if content_empty && has_close_brace {
@@ -951,35 +911,9 @@ impl<'src> Lexer<'src> {
         self.pos += 1; // skip '$'
         if self.current_byte() == Some(b'{') {
             self.pos += 1;
-            // Same dialect-gated delimiting as `parse_var`'s braced branch:
-            // Tcl 9 tracks nesting and skips `\X` pairs; 8.x stops at the
-            // first literal `}`.
-            let mut brace_depth: u32 = 0;
-            while let Some(ch) = self.current_char() {
-                match ch {
-                    '}' if brace_depth == 0 => {
-                        self.pos += 1;
-                        break;
-                    }
-                    '{' if self.config.braced_var.nests() => {
-                        brace_depth += 1;
-                        self.pos += 1;
-                    }
-                    '}' => {
-                        // Only reachable with nesting mode (depth > 0).
-                        brace_depth -= 1;
-                        self.pos += 1;
-                    }
-                    '\\' if self.config.braced_var.nests() => {
-                        self.pos += 1;
-                        if let Some(next) = self.current_char() {
-                            self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
-                        }
-                    }
-                    _ => {
-                        self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                    }
-                }
+            self.skip_braced_var_name_body();
+            if self.current_byte() == Some(b'}') {
+                self.pos += 1;
             }
             return Ok(());
         }
@@ -1361,36 +1295,27 @@ impl<'src> Lexer<'src> {
     /// name does not fool its delimiter counter (issue 163).
     fn skip_braced_var_name(&mut self) {
         self.pos += 2; // skip '${'
-        // Dialect-gated delimiting, mirroring `parse_var`'s braced branch:
-        // Tcl 9 tracks nested `{…}` and `\X` pairs; 8.x stops at the first
-        // literal `}`.
-        let mut brace_depth: u32 = 0;
-        while let Some(inner) = self.current_char() {
-            match inner {
-                '}' if brace_depth == 0 => {
-                    self.pos += 1;
-                    break;
-                }
-                '{' if self.config.braced_var.nests() => {
-                    brace_depth += 1;
-                    self.pos += 1;
-                }
-                '}' => {
-                    // Only reachable in nesting mode (depth > 0).
-                    brace_depth -= 1;
-                    self.pos += 1;
-                }
-                '\\' if self.config.braced_var.nests() => {
-                    self.pos += 1;
-                    if let Some(next) = self.current_char() {
-                        self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
-                    }
-                }
-                _ => {
-                    self.pos += u32::try_from(inner.len_utf8()).expect("char len fits u32");
-                }
-            }
+        self.skip_braced_var_name_body();
+        if self.current_byte() == Some(b'}') {
+            self.pos += 1;
         }
+    }
+
+    /// Advance from the first byte of a `${…}` variable **name** to the `}`
+    /// that closes it (or to end-of-input when the form is unterminated),
+    /// leaving `pos` *on* the closer.
+    ///
+    /// The release-aware close rule itself lives in
+    /// [`crate::ranges::braced_var_name_end`], the one owner both `subst`
+    /// engines resolve `${…}` through as well (issue #1457).
+    fn skip_braced_var_name_body(&mut self) {
+        let end = crate::ranges::braced_var_name_end(
+            self.source().as_bytes(),
+            self.pos as usize,
+            self.config.braced_var,
+        )
+        .unwrap_or_else(|| self.source().len());
+        self.pos = u32::try_from(end).expect("source offset fits u32");
     }
 
     /// Advance one character/escape while inside a command-position comment

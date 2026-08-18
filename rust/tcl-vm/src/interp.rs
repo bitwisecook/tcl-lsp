@@ -1133,6 +1133,17 @@ impl Vm {
         self.dialect_profile
     }
 
+    /// The release's `${…}` close rule — `Tcl_ParseVarName`'s brace-form
+    /// delimiting, which the 8.x family and 9.x disagree about.
+    ///
+    /// Read from the same `DialectProfile::grammar` the compile path's
+    /// `LexerConfig` comes from, so the interpreted `subst` engine and the
+    /// compiled word path cannot answer `${a{b}c}` differently (issue #1457).
+    #[must_use]
+    pub(crate) fn braced_var_style(&self) -> tcl_dialect::BracedVarStyle {
+        self.dialect_profile.grammar.braced_var
+    }
+
     /// Generation of the dialect profile used to compile dynamic bytecode.
     #[must_use]
     pub(crate) fn profile_generation(&self) -> u64 {

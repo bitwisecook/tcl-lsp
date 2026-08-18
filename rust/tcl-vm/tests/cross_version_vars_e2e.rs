@@ -515,3 +515,75 @@ fn foreach_completion_vectors_match_real_tclsh() {
         eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
     }
 }
+
+
+/// The `${…}` close rule is release-specific, and `subst` must follow it.
+///
+/// `Tcl_ParseVarName` delimits the brace form differently across the supported
+/// range: 8.4–8.6 (`tclParse.c(8.6.16):1398`) end the name at the **first**
+/// literal `}`, while 9.0+ (`tclParse.c(9.0.4):1315`) count nested `{…}` and
+/// consume `\X` as an inert pair. So `subst {${a{b}c}}` reads variable `a{b`
+/// under 8.x — an error, since the variable is named `a{b}c` — and reads
+/// `a{b}c` under 9.x.
+///
+/// The VM's `subst` engine scanned to the first `}` unconditionally, so it gave
+/// the 8.x answer at *every* release (issue #1457). Both engines now resolve
+/// the form through the one owner, `tcl_lexer::braced_var_name_end`.
+const BRACED_VAR_SUBST_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {subst {${a{b}c}}} m]} { puts \"error:$m\" } else { puts \"ok:$m\" }\n",
+);
+
+/// The other half of the same rule: an escaped `}` is inert under the 9.x rule
+/// only, so `${a\}b}` names `a\}b` there and `a\` under 8.x.
+const BRACED_VAR_ESCAPE_SCRIPT: &str = concat!(
+    "set {a\\}b} ESC\n",
+    "if {[catch {subst {${a\\}b}}} m]} { puts \"error:$m\" } else { puts \"ok:$m\" }\n",
+);
+
+#[test]
+fn subst_braced_var_close_rule_follows_the_emulated_release() {
+    // 8.x family: the name is `a{b`, which no variable is called.
+    for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+        assert_eq!(
+            vm_output(BRACED_VAR_SUBST_SCRIPT, version),
+            "error:can't read \"a{b\": no such variable",
+            "{version:?} must use the 8.x first-close rule"
+        );
+    }
+    // 9.x: nested braces balance, so the whole `a{b}c` is the name.
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(BRACED_VAR_SUBST_SCRIPT, version),
+            "ok:WORLD",
+            "{version:?} must use the 9.x nesting rule"
+        );
+    }
+    assert_eq!(
+        vm_output(BRACED_VAR_ESCAPE_SCRIPT, TclVersion::V9_0),
+        "ok:ESC",
+        "9.x consumes an escaped close-brace as an inert pair"
+    );
+    assert!(
+        vm_output(BRACED_VAR_ESCAPE_SCRIPT, TclVersion::V8_6).starts_with("error:"),
+        "8.x closes the name at the first literal close-brace"
+    );
+}
+
+#[test]
+fn braced_var_close_rule_matches_real_tclsh() {
+    let mut ran = 0;
+    for script in [BRACED_VAR_SUBST_SCRIPT, BRACED_VAR_ESCAPE_SCRIPT] {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V8_6));
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V9_0));
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
+    }
+}

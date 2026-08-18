@@ -52,7 +52,7 @@
 use std::borrow::Cow;
 
 use tcl_core_types::RecursionLimit;
-use tcl_lexer::{EscapeSyntax, Lexer, SourceMap, Token, TokenType};
+use tcl_lexer::{EscapeSyntax, Lexer, LexerConfig, SourceMap, Token, TokenType};
 
 /// How a word was delimited in the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -205,9 +205,9 @@ pub fn scan_parts(
     do_vars: bool,
     do_cmds: bool,
     do_bs: bool,
-    escapes: EscapeSyntax,
+    config: LexerConfig,
 ) -> WordBody<'_> {
-    scan_parts_at_depth(src, do_vars, do_cmds, do_bs, escapes, 0)
+    scan_parts_at_depth(src, do_vars, do_cmds, do_bs, config, 0)
 }
 
 /// [`scan_parts`]'s implementation, threading the `$name(index)` nesting
@@ -222,9 +222,10 @@ fn scan_parts_at_depth(
     do_vars: bool,
     do_cmds: bool,
     do_bs: bool,
-    escapes: EscapeSyntax,
+    config: LexerConfig,
     depth: u32,
 ) -> WordBody<'_> {
+    let escapes = config.escapes;
     let len = src.len();
     let triggered = src
         .iter()
@@ -251,13 +252,15 @@ fn scan_parts_at_depth(
             flush_text(&mut parts, src, lit_start, i, do_bs, escapes);
             i += 1;
             if src[i] == b'{' {
-                // ${name}
+                // `${name}` — the close rule is release-specific
+                // (`Tcl_ParseVarName`): 8.x ends the name at the first literal
+                // `}`, 9.x counts nested braces and skips `\X` pairs, so
+                // `subst {${a{b}c}}` reads `a{b` under 8.6 and `a{b}c` under
+                // 9.0 (issue #1457). Resolved through the one shared owner.
                 i += 1;
                 let ns = i;
-                while i < len && src[i] != b'}' {
-                    i += 1;
-                }
-                let ne = i;
+                let ne = tcl_lexer::braced_var_name_end(src, ns, config.braced_var).unwrap_or(len);
+                i = ne;
                 if i < len {
                     i += 1; // consume `}`
                 }
@@ -291,7 +294,7 @@ fn scan_parts_at_depth(
                             do_vars,
                             do_cmds,
                             do_bs,
-                            escapes,
+                            config,
                             depth + 1,
                         ) {
                             WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
@@ -431,7 +434,7 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
                 &mut words,
                 &mut word_toks,
                 &mut expand,
-                config.escapes,
+                config,
             ),
             TokenType::Comment => {} // a comment is an empty command
             TokenType::Expand => {
@@ -445,7 +448,7 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
                     &mut words,
                     &mut word_toks,
                     &mut expand,
-                    config.escapes,
+                    config,
                 );
                 if !words.is_empty() {
                     cmds.push(Command {
@@ -498,13 +501,13 @@ fn flush_word<'s>(
     words: &mut Vec<Word<'s>>,
     word_toks: &mut Vec<Token>,
     expand: &mut bool,
-    escapes: EscapeSyntax,
+    config: LexerConfig,
 ) {
     if word_toks.is_empty() {
         *expand = false; // a stray `{*}` with no following word (shouldn't happen)
         return;
     }
-    words.push(build_word(sm, src, word_toks, *expand, escapes));
+    words.push(build_word(sm, src, word_toks, *expand, config));
     word_toks.clear();
     *expand = false;
 }
@@ -514,8 +517,9 @@ fn build_word<'s>(
     src: &'s [u8],
     toks: &[Token],
     expand: bool,
-    escapes: EscapeSyntax,
+    config: LexerConfig,
 ) -> Word<'s> {
+    let escapes = config.escapes;
     // A single braced token is a literal word (no substitution) — except a
     // backslash-newline line continuation, the one backslash sequence a braced
     // word collapses (to a single space, swallowing following spaces/tabs), as
@@ -567,7 +571,7 @@ fn build_word<'s>(
             TokenType::Var => parts.push(WordPart::Variable(parse_var_ref(
                 bytes,
                 t.content_offset == 2,
-                escapes,
+                config,
             ))),
             TokenType::Cmd => parts.push(WordPart::Command(bytes)),
             _ => {}
@@ -604,12 +608,12 @@ fn build_word<'s>(
 /// Parse a `Var` token's content into name + optional array index. `braced`
 /// (the `${name}` form) suppresses index parsing (the whole content is the
 /// name); for `$arr(idx)` the index is itself substituted.
-fn parse_var_ref(bytes: &[u8], braced: bool, escapes: EscapeSyntax) -> VarRef<'_> {
+fn parse_var_ref(bytes: &[u8], braced: bool, config: LexerConfig) -> VarRef<'_> {
     if !braced && bytes.last() == Some(&b')') {
         if let Some(open) = bytes.iter().position(|&c| c == b'(') {
             let name = &bytes[..open];
             let idx = &bytes[open + 1..bytes.len() - 1];
-            let index = match scan_parts(idx, true, true, true, escapes) {
+            let index = match scan_parts(idx, true, true, true, config) {
                 WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                 WordBody::Parts(p) => p,
             };
@@ -1043,7 +1047,7 @@ mod tests {
         for _ in 0..DEPTH {
             src.push(')');
         }
-        let _ = scan_parts(src.as_bytes(), true, true, true, EscapeSyntax::default());
+        let _ = scan_parts(src.as_bytes(), true, true, true, LexerConfig::default());
     }
 
     /// A moderately nested array index (well under `MAX_SCAN_PARTS_DEPTH`)
@@ -1058,7 +1062,7 @@ mod tests {
     #[test]
     fn moderately_nested_array_index_still_scans_fully() {
         // $a($b($c(1)))
-        let body = scan_parts(b"$a($b($c(1)))", true, true, true, EscapeSyntax::default());
+        let body = scan_parts(b"$a($b($c(1)))", true, true, true, LexerConfig::default());
         assert_eq!(
             body,
             WordBody::Parts(vec![
