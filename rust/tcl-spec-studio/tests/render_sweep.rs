@@ -44,7 +44,7 @@
 //! # …and revert both when done.
 //! ```
 
-use tcl_spec_studio::{BROWSABLE_DIALECTS, command_names, draft, load_command, render_rs};
+use tcl_spec_studio::{browsable_dialects, command_names, draft, load_command, render_rs};
 
 /// Whether every delimiter in `source` is balanced, ignoring the contents of
 /// string literals and line comments (where a stray brace is legitimate prose).
@@ -94,7 +94,7 @@ fn delimiters_balanced(source: &str) -> bool {
 #[test]
 fn every_command_in_every_dialect_renders() {
     let mut rendered = 0usize;
-    for (dialect, _) in BROWSABLE_DIALECTS {
+    for (dialect, _) in browsable_dialects() {
         for name in command_names(dialect) {
             let Some(value) = load_command(name, dialect) else {
                 panic!("{name} is listed in {dialect} but does not load");

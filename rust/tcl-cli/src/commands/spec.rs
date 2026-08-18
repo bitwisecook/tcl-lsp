@@ -81,7 +81,9 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
 /// is re-loaded through the real loader so a pack that was clean stays
 /// provably clean.
 pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
-    use tcl_spectcl::{KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, load_pack};
+    use tcl_spectcl::{
+        KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, load_pack, speclib_version_span,
+    };
 
     let mut behind = 0u32;
     let mut skipped = 0u32;
@@ -89,9 +91,11 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
         let source = std::fs::read_to_string(file)
             .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", file.display()))?;
         // The speclib statement is the pack's one loader directive; the
-        // version is its third word. Matching the line textually keeps the
-        // edit byte-minimal — everything else in the file is untouched.
-        let Some((prefix, version, rest)) = split_speclib_version(&source) else {
+        // version is its third word, located through the loader's own word
+        // segmentation so `{1.0}` and `"1.0"` decode exactly as `load_pack`
+        // reads them. The rewrite replaces only the word's content — the
+        // author's delimiters and everything else in the file are untouched.
+        let Some((range, version)) = speclib_version_span(&source) else {
             println!(
                 "{}: no `speclib <name> <version>` line found — skipped",
                 file.display()
@@ -103,7 +107,7 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
             println!("{}: already declares vocabulary {version}", file.display());
             continue;
         }
-        if !KNOWN_VOCABULARY_VERSIONS.contains(&version) {
+        if !KNOWN_VOCABULARY_VERSIONS.contains(&version.as_str()) {
             // `speclib mylib 0.15` never named a vocabulary — most often the
             // library's own release in the wrong slot. Rewriting it would
             // destroy that (wrong, but meaningful) word silently.
@@ -123,7 +127,8 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
             );
             continue;
         }
-        let upgraded = format!("{prefix}{NEWEST_VOCABULARY_VERSION}{rest}");
+        let mut upgraded = source.clone();
+        upgraded.replace_range(range, NEWEST_VOCABULARY_VERSION);
         let pack = load_pack(&upgraded);
         std::fs::write(file, &upgraded)
             .map_err(|e| anyhow::anyhow!("cannot write {}: {e}", file.display()))?;
@@ -136,49 +141,6 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
         );
     }
     Ok(u8::from(skipped > 0 || (args.check && behind > 0)))
-}
-
-/// Split `source` at the `speclib` line's version word: `(before, version,
-/// after)`. The first line whose first word is `speclib` wins, matching the
-/// loader's own reading of the pack.
-fn split_speclib_version(source: &str) -> Option<(&str, &str, &str)> {
-    let mut offset = 0usize;
-    for line in source.split_inclusive('\n') {
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("speclib") {
-            let mut words = trimmed.split_whitespace();
-            let _speclib = words.next()?;
-            let _name = words.next()?;
-            let version = words.next()?;
-            if version == "{" {
-                return None;
-            }
-            let line_start = offset + (line.len() - trimmed.len());
-            let version_off = trimmed.find(version)?;
-            // `find` could hit an earlier identical substring only if the
-            // name contained the version verbatim; search after the name
-            // instead.
-            let after_name = {
-                let name_end = trimmed.find(char::is_whitespace).unwrap_or(trimmed.len());
-                let tail = &trimmed[name_end..];
-                let ws = tail.len() - tail.trim_start().len();
-                name_end + ws
-            };
-            let tail = &trimmed[after_name..];
-            let name_len = tail.find(char::is_whitespace).unwrap_or(tail.len());
-            let ver_rel = {
-                let tail2 = &tail[name_len..];
-                let ws = tail2.len() - tail2.trim_start().len();
-                after_name + name_len + ws
-            };
-            let _ = version_off;
-            let start = line_start + ver_rel;
-            let end = start + version.len();
-            return Some((&source[..start], &source[start..end], &source[end..]));
-        }
-        offset += line.len();
-    }
-    None
 }
 
 /// `tcl spec import` — derive version ranges from several releases.

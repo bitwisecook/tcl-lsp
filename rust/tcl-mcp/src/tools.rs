@@ -85,11 +85,29 @@ pub(crate) fn declared_dialect(args: &Value) -> String {
 }
 
 fn set_dialect(args: &Value) -> Value {
-    let requested = arg_str(args, "dialect").to_owned();
+    let requested = arg_str(args, "dialect");
+    // Aliases (`irules`, `tclspec`, …) resolve here, so the session holds the
+    // canonical name `resolve_dialect` matches against `KNOWN_DIALECTS`.
+    let Some(profile) = DialectProfile::find(requested) else {
+        return json!({
+            "error": format!(
+                "Unknown dialect '{requested}'; valid dialects: {}",
+                dialect_names().join(", ")
+            ),
+            "valid_dialects": dialect_names(),
+        });
+    };
+    let resolved = profile.name.to_owned();
     let mut guard = session_dialect().lock().expect("session dialect lock");
-    let previous = std::mem::replace(&mut *guard, requested.clone());
-    let changed = previous != requested;
-    json!({ "dialect": requested, "previous": previous, "changed": changed })
+    let previous = std::mem::replace(&mut *guard, resolved.clone());
+    let changed = previous != resolved;
+    json!({
+        "dialect": resolved,
+        "display_name": profile.display_name,
+        "requested": requested,
+        "previous": previous,
+        "changed": changed,
+    })
 }
 
 fn arg_str<'a>(args: &'a Value, key: &str) -> &'a str {
@@ -1246,9 +1264,41 @@ struct ToolDef {
 
 type Param = (&'static str, &'static str, &'static str);
 
+/// The property name every dialect-taking tool spells its dialect argument
+/// with. [`input_schema`] keys the catalog enum off it, so a tool advertises
+/// the full dialect list by naming its parameter rather than by repeating the
+/// catalog per tool.
+const DIALECT_PARAM: &str = "dialect";
+
+/// Every canonical dialect name, in catalog order.
+fn dialect_names() -> Vec<&'static str> {
+    DialectProfile::all().iter().map(|p| p.name).collect()
+}
+
+/// The schema for a dialect-valued property: the catalog as a JSON-Schema
+/// `enum`, plus the `name — display_name` pairs appended to `desc` so a model
+/// reading only the description still sees what each name means.
+///
+/// The `enum` lists canonical names only; [`DialectProfile::find`] keeps
+/// accepting registered aliases at runtime.
+fn dialect_schema(desc: &str) -> Value {
+    let pairs: Vec<String> = DialectProfile::all()
+        .iter()
+        .map(|p| format!("{} — {}", p.name, p.display_name))
+        .collect();
+    json!({
+        "type": "string",
+        "description": format!(
+            "{desc}. Canonical names: {}. Registered aliases are accepted too.",
+            pairs.join("; ")
+        ),
+        "enum": dialect_names(),
+    })
+}
+
 const SRC: Param = ("source", "string", "Tcl or iRules source code");
 const DIALECT: Param = (
-    "dialect",
+    DIALECT_PARAM,
     "string",
     "Language dialect; auto-detected if empty",
 );
@@ -1635,7 +1685,7 @@ const TOOLS: &[ToolDef] = &[
         name: "set_dialect",
         description: "Set the session default dialect used when a tool's dialect is auto-detected.",
         params: &[(
-            "dialect",
+            DIALECT_PARAM,
             "string",
             "Dialect to make the session default (e.g. f5-irules, tcl9.0)",
         )],
@@ -1705,7 +1755,11 @@ const TOOLS: &[ToolDef] = &[
         description: "Search the KCS feature knowledge base (empty topic → full catalogue).",
         params: &[
             ("topic", "string", "Search query; empty lists all features"),
-            ("dialect", "string", "Filter features by dialect (optional)"),
+            (
+                DIALECT_PARAM,
+                "string",
+                "Filter features by dialect (optional)",
+            ),
             ("limit", "integer", "Max matches (default 20)"),
         ],
         required: &[],
@@ -1799,7 +1853,7 @@ const TOOLS: &[ToolDef] = &[
                 "SpecTcl pack source text (the contents of a .tclspec file)",
             ),
             (
-                "dialect",
+                DIALECT_PARAM,
                 "string",
                 "Dialect whose shipped registry to check names against; defaults to the session dialect",
             ),
@@ -1817,7 +1871,7 @@ const TOOLS: &[ToolDef] = &[
                 "One entry per release, each {\"version\": \"1.2\", \"path\": \"/path/to/that/release\"} where path is a local directory, .zip or .tar.gz; order does not matter",
             ),
             (
-                "dialect",
+                DIALECT_PARAM,
                 "string",
                 "Dialect every snapshot is analysed as; defaults to the session dialect",
             ),
@@ -1842,10 +1896,12 @@ const TOOLS: &[ToolDef] = &[
 fn input_schema(t: &ToolDef) -> Value {
     let mut properties = Map::new();
     for (name, ty, desc) in t.params {
-        properties.insert(
-            (*name).to_owned(),
-            json!({ "type": ty, "description": desc }),
-        );
+        let schema = if *name == DIALECT_PARAM {
+            dialect_schema(desc)
+        } else {
+            json!({ "type": ty, "description": desc })
+        };
+        properties.insert((*name).to_owned(), schema);
     }
     json!({
         "type": "object",
@@ -1870,6 +1926,119 @@ pub fn dispatch(name: &str, args: &Value) -> Option<Value> {
         .iter()
         .find(|t| t.name == name)
         .map(|t| (t.handler)(args))
+}
+
+#[cfg(test)]
+mod dialect_param_tests {
+    use super::*;
+
+    /// Serialise the tests that move the session dialect — it is process
+    /// state shared by the whole parallel test binary — and restore it on
+    /// drop, so neither test order nor interleaving can change what another
+    /// test's auto-detected dialect resolves to.
+    struct SessionDialectGuard {
+        saved: String,
+        _serialised: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl SessionDialectGuard {
+        fn new() -> Self {
+            static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+            let serialised = match SERIAL.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            Self {
+                saved: session_dialect().lock().expect("session lock").clone(),
+                _serialised: serialised,
+            }
+        }
+    }
+
+    impl Drop for SessionDialectGuard {
+        fn drop(&mut self) {
+            self.saved
+                .clone_into(&mut session_dialect().lock().expect("session lock"));
+        }
+    }
+
+    fn dialect_property(tool: &str) -> Value {
+        let (_, _, schema) = tool_schemas()
+            .into_iter()
+            .find(|(name, _, _)| *name == tool)
+            .expect("tool in catalogue");
+        schema["properties"][DIALECT_PARAM].clone()
+    }
+
+    #[test]
+    fn every_dialect_taking_tool_advertises_the_whole_catalogue() {
+        let catalogue: Vec<Value> = DialectProfile::all()
+            .iter()
+            .map(|p| json!(p.name))
+            .collect();
+        let mut checked = 0;
+        for (name, _, schema) in tool_schemas() {
+            let Some(property) = schema["properties"].get(DIALECT_PARAM) else {
+                continue;
+            };
+            assert_eq!(property["enum"], Value::Array(catalogue.clone()), "{name}");
+            let description = property["description"].as_str().unwrap_or_default();
+            for profile in DialectProfile::all() {
+                assert!(
+                    description.contains(&format!("{} — {}", profile.name, profile.display_name)),
+                    "{name}: {description}"
+                );
+            }
+            checked += 1;
+        }
+        assert!(checked >= 4, "expected several dialect-taking tools");
+    }
+
+    #[test]
+    fn set_dialect_canonicalises_an_alias() {
+        let _guard = SessionDialectGuard::new();
+        let result = dispatch("set_dialect", &json!({ "dialect": "irules" })).expect("tool");
+        assert_eq!(result["dialect"], "f5-irules");
+        assert_eq!(result["display_name"], "F5 iRules");
+        assert_eq!(result["requested"], "irules");
+        assert_eq!(
+            session_dialect().lock().expect("session lock").as_str(),
+            "f5-irules"
+        );
+    }
+
+    #[test]
+    fn set_dialect_rejects_an_unknown_name_without_changing_the_session() {
+        let _guard = SessionDialectGuard::new();
+        let before = session_dialect().lock().expect("session lock").clone();
+        let result = dispatch("set_dialect", &json!({ "dialect": "klingon" })).expect("tool");
+        let error = result["error"].as_str().expect("error message");
+        assert!(error.contains("klingon"), "{error}");
+        assert!(error.contains("f5-irules"), "{error}");
+        assert_eq!(
+            result["valid_dialects"],
+            json!(
+                DialectProfile::all()
+                    .iter()
+                    .map(|p| p.name)
+                    .collect::<Vec<_>>()
+            )
+        );
+        assert_eq!(*session_dialect().lock().expect("session lock"), before);
+    }
+
+    #[test]
+    fn dialect_enum_lists_canonical_names_only() {
+        let property = dialect_property("analyze");
+        let names: Vec<&str> = property["enum"]
+            .as_array()
+            .expect("enum")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        assert!(names.contains(&"f5-irules"));
+        assert!(!names.contains(&"irules"), "aliases stay out of the enum");
+    }
 }
 
 #[cfg(test)]

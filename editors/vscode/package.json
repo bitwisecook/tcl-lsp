@@ -59,28 +59,48 @@
           ".tk",
           ".itcl",
           ".tm",
-          ".test",
-          ".tclspec",
-          ".upf"
+          ".test"
         ],
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl-irule",
+        "id": "tcl-cadence",
         "aliases": [
-          "iRule",
-          "irule"
+          "Cadence EDA Tcl",
+          "cadence"
         ],
         "extensions": [
-          ".irul",
-          ".irule"
+          ".globals"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-expect",
+        "aliases": [
+          "Expect",
+          "expect"
+        ],
+        "extensions": [
+          ".exp",
+          ".expect"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-bigip",
+        "aliases": [
+          "F5 BIG-IP",
+          "bigip"
+        ],
+        "extensions": [
+          ".scf"
         ],
         "configuration": "./language-configuration.json"
       },
       {
         "id": "tcl-iapp",
         "aliases": [
-          "iApp",
+          "F5 iApps",
           "iapp"
         ],
         "extensions": [
@@ -91,35 +111,80 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl-apl",
+        "id": "tcl-irule",
         "aliases": [
-          "iApp APL",
-          "apl",
-          "presentation"
+          "F5 iRules",
+          "irule"
         ],
         "extensions": [
-          ".apl"
+          ".irul",
+          ".irule",
+          ".irules"
         ],
-        "filenames": [
-          "presentation"
-        ],
-        "configuration": "./apl-language-configuration.json"
+        "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl-bigip",
+        "id": "tcl-tmsh",
         "aliases": [
-          "BIG-IP Config",
-          "bigip"
-        ],
-        "filenames": [
-          "bigip.conf",
-          "bigip_base.conf",
-          "bigip_gtm.conf",
-          "bigip_script.conf",
-          "bigip_user.conf"
+          "F5 tmsh Scripts",
+          "tmsh"
         ],
         "extensions": [
-          ".scf"
+          ".tmsh"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-quartus",
+        "aliases": [
+          "Intel Quartus EDA Tcl",
+          "quartus"
+        ],
+        "extensions": [
+          ".qsf",
+          ".qpf",
+          ".qip"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-mentor",
+        "aliases": [
+          "Mentor EDA Tcl",
+          "mentor"
+        ],
+        "extensions": [
+          ".do"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-microchip",
+        "aliases": [
+          "Microchip Libero EDA Tcl",
+          "microchip"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tclspec",
+        "aliases": [
+          "SpecTcl"
+        ],
+        "extensions": [
+          ".tclspec"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "tcl-synopsys",
+        "aliases": [
+          "Synopsys EDA Tcl",
+          "synopsys"
+        ],
+        "extensions": [
+          ".sdc",
+          ".upf"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -159,55 +224,30 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl-synopsys",
-        "aliases": [
-          "Synopsys EDA Tcl",
-          "synopsys"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl-cadence",
-        "aliases": [
-          "Cadence EDA Tcl",
-          "cadence"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
         "id": "tcl-xilinx",
         "aliases": [
           "Xilinx EDA Tcl",
           "xilinx"
         ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl-quartus",
-        "aliases": [
-          "Intel Quartus Tcl",
-          "quartus"
+        "extensions": [
+          ".xdc"
         ],
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "tcl-mentor",
+        "id": "tcl-apl",
         "aliases": [
-          "Mentor EDA Tcl",
-          "mentor"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "tcl-expect",
-        "aliases": [
-          "Expect",
-          "expect"
+          "iApp APL",
+          "apl",
+          "presentation"
         ],
         "extensions": [
-          ".exp"
+          ".apl"
         ],
-        "configuration": "./language-configuration.json"
+        "filenames": [
+          "presentation"
+        ],
+        "configuration": "./apl-language-configuration.json"
       }
     ],
     "grammars": [
@@ -294,6 +334,21 @@
       },
       {
         "language": "tcl-expect",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-tmsh",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tcl-microchip",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "tclspec",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       }

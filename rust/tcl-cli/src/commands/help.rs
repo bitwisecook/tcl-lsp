@@ -367,6 +367,19 @@ fn search_result_json(feature: &Feature) -> Value {
     Value::Object(obj)
 }
 
+/// Prefix a text rendering with one header line naming an active `--dialect`
+/// filter, so a filtered listing is not read as the whole catalogue. `None`
+/// (`--dialect all`) filters nothing and gets no header.
+fn with_dialect_header(dialect: Option<&DialectProfile>, body: String) -> String {
+    match dialect {
+        Some(profile) => format!(
+            "dialect filter: {} [{}]\n{body}",
+            profile.display_name, profile.name
+        ),
+        None => body,
+    }
+}
+
 /// Render the catalogue as text.
 fn render_catalogue(catalogue: &[(String, Vec<Feature>)]) -> String {
     if catalogue.is_empty() {
@@ -478,7 +491,10 @@ fn run_help_inner(
         if json {
             write_text_output(&target, &catalogue_json(&catalogue))?;
         } else {
-            write_text_output(&target, &render_catalogue(&catalogue))?;
+            write_text_output(
+                &target,
+                &with_dialect_header(dialect, render_catalogue(&catalogue)),
+            )?;
         }
         return Ok(u8::from(catalogue.is_empty()));
     }
@@ -499,7 +515,10 @@ fn run_help_inner(
     } else if results.is_empty() {
         eprintln!("no KCS help matches for '{query_str}'");
     } else {
-        write_text_output(&target, &render_search_results(&results, query_str))?;
+        write_text_output(
+            &target,
+            &with_dialect_header(dialect, render_search_results(&results, query_str)),
+        )?;
     }
 
     if !results.is_empty() {

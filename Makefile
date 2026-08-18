@@ -609,9 +609,9 @@ xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match Diale
 	@echo "==> Checking generated editor dialect lists (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects --check
 
-xtask-editor-extensions: ## Verify pack-declared file extensions are registered in every editor manifest (drift gate)
-	@echo "==> Checking pack-declared file extensions against editor manifests (cargo xtask)"
-	cd $(ROOT) && cargo xtask editor-extensions
+xtask-editor-extensions: ## Verify the editors' extension/language lists match the dialect catalog + bundled packs (drift gate)
+	@echo "==> Checking editor extension/language lists against the dialect catalog (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-extensions --check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"

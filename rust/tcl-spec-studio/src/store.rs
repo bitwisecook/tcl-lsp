@@ -90,7 +90,7 @@ use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::CommandRegistry;
 use tcl_registry::cache::registry_for_dialect;
-use tcl_spectcl::loader::{self, HookOwner, HookSource, Notice, Pack};
+use tcl_spectcl::loader::{self, FileExtension, HookOwner, HookSource, Notice, Pack};
 use tcl_spectcl::pack::{MergedPack, PackSet};
 
 use crate::draft::{self, Draft};
@@ -113,15 +113,13 @@ impl Builtins {
     /// lookup in the server resolves one.
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
-        // `BROWSABLE_DIALECTS` holds the `&'static str` the caller means; an
-        // unknown name still resolves (to the default profile), and keeping a
-        // `'static` label avoids an allocation per query.
-        let label = crate::BROWSABLE_DIALECTS
-            .iter()
-            .find(|(name, _)| *name == dialect)
-            .map_or("tcl9.0", |(name, _)| *name);
+        // The catalogue holds the `&'static str` the caller means, alias
+        // spellings canonicalised onto it; a name with no profile at all
+        // resolves to the dialect the picker starts on, and keeping a
+        // `'static` name avoids an allocation per query.
+        let dialect = DialectProfile::find(dialect).map_or("tcl9.0", |profile| profile.name);
         Self {
-            dialect: label,
+            dialect,
             registry: registry_for_dialect(dialect),
         }
     }
@@ -249,6 +247,21 @@ impl PackStore {
     #[must_use]
     pub fn dsl_version(&self) -> &str {
         &self.pack.dsl_version
+    }
+
+    /// The human-readable name the document declares (`display_name {IEEE
+    /// 1801 UPF}`), if any — what a surface calls the library rather than the
+    /// `speclib` word a script types.
+    #[must_use]
+    pub fn display_name(&self) -> Option<&str> {
+        self.pack.display_name.as_deref()
+    }
+
+    /// The file extensions the document declares its language is written
+    /// under, in declaration order.
+    #[must_use]
+    pub fn file_extensions(&self) -> &[FileExtension] {
+        &self.pack.file_extensions
     }
 
     /// Everything the loader dropped on the way in.
@@ -844,6 +857,10 @@ impl<'a> Resolution<'a> {
             "origin": origin.key(),
             "editable": origin.pack_wins() || pack.is_some(),
             "dialect": self.builtins.dialect(),
+            // Prefixed: in a *command* view every unprefixed key is the
+            // command's, and `pack` is already this command's pack draft.
+            "pack_display_name": self.store.display_name(),
+            "pack_file_extensions": file_extensions_json(self.store.file_extensions()),
             "override": self.store.overrides_shipped(name),
             "effective": effective,
             "pack": pack,
@@ -922,6 +939,8 @@ impl<'a> Resolution<'a> {
             .count();
         json!({
             "pack": self.store.name(),
+            "display_name": self.store.display_name(),
+            "file_extensions": file_extensions_json(self.store.file_extensions()),
             "dsl_version": self.store.dsl_version(),
             "dialect": self.builtins.dialect(),
             "commands": self.pack_index(),
@@ -1002,6 +1021,23 @@ impl<'a> Resolution<'a> {
 // ---------------------------------------------------------------------------
 // JSON helpers
 // ---------------------------------------------------------------------------
+
+/// The pack's `file_extension` rows as a surface reads them: what the file
+/// type is called and where a file of it routes, minus the declaring line
+/// (which only the DSL pane's notices need).
+fn file_extensions_json(rows: &[FileExtension]) -> Value {
+    Value::Array(
+        rows.iter()
+            .map(|row| {
+                json!({
+                    "extension": row.extension,
+                    "display_name": row.display_name,
+                    "dialect": row.dialect,
+                })
+            })
+            .collect(),
+    )
+}
 
 fn notices_json(notices: &[&Notice]) -> Value {
     Value::Array(
@@ -1313,6 +1349,40 @@ command farewell {
             store.draft("greet").and_then(|d| d.get("name")),
             Some(&json!("greet"))
         );
+    }
+
+    #[test]
+    fn the_views_carry_what_the_pack_calls_itself_and_its_files() {
+        let source = "speclib upf 1.1 {\ndisplay_name {IEEE 1801 UPF}\n\
+file_extension upf -name {Unified Power Format} -dialect synopsys-eda-tcl\n\
+command add_parameter {\narity 1..\n}\n}\n";
+        let store = PackStore::from_source(source);
+        let resolution = Resolution::new(Builtins::for_dialect("synopsys-eda-tcl"), &store);
+
+        let view = resolution.store_view();
+        assert_eq!(view["display_name"], json!("IEEE 1801 UPF"));
+        assert_eq!(
+            view["file_extensions"],
+            json!([{
+                "extension": "upf",
+                "display_name": "Unified Power Format",
+                "dialect": "synopsys-eda-tcl",
+            }])
+        );
+
+        let command = resolution
+            .view("add_parameter")
+            .expect("the pack's command");
+        assert_eq!(command["pack_display_name"], json!("IEEE 1801 UPF"));
+        assert_eq!(command["pack_file_extensions"], view["file_extensions"]);
+    }
+
+    #[test]
+    fn a_pack_that_names_neither_reports_neither() {
+        let store = PackStore::from_source(PACK);
+        let view = Resolution::new(Builtins::for_dialect("tcl9.0"), &store).store_view();
+        assert_eq!(view["display_name"], Value::Null);
+        assert_eq!(view["file_extensions"], json!([]));
     }
 
     #[test]

@@ -19,9 +19,10 @@ directive on line 1:
 ```
 
 Available dialects: `tcl8.4`, `tcl8.5`, `tcl8.6` (default), `tcl9.0`,
-`f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `synopsys-eda-tcl`,
-`cadence-eda-tcl`, `xilinx-eda-tcl`, `intel-quartus-eda-tcl`,
-`mentor-eda-tcl`, `expect`.
+`tcl9.1`, `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `bpf`,
+`expect`, `spectcl`, `cadence-eda-tcl`, `intel-quartus-eda-tcl`,
+`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`,
+`xilinx-eda-tcl`.
 
 Diagnostics affected by dialect are marked with a `[dialect]` tag below.
 

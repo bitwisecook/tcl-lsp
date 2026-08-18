@@ -154,9 +154,15 @@ enum Command {
         check: bool,
     },
 
-    /// Verify every pack-declared file extension (`file_extension` rows in
-    /// `specs/*.tclspec`) is registered in the shipped editor integrations.
-    EditorExtensions,
+    /// Generate the editors' registered file-extension / language lists from
+    /// the `DialectProfile` catalog plus the bundled packs' `file_extension`
+    /// rows.
+    GenEditorExtensions {
+        /// Verify the committed manifests are in sync instead of rewriting
+        /// them; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
 
     /// Generate selectable editor dialect lists from `DialectProfile::all`.
     GenEditorDialects {
@@ -331,7 +337,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::DiagTables { check } => diag_tables::run(check),
         Command::DiagEmissionCheck => Ok(diag_emission::run()),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
-        Command::EditorExtensions => editor_extensions::run(),
+        Command::GenEditorExtensions { check } => editor_extensions::run(check),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),

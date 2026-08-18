@@ -127,6 +127,17 @@ const GRAMMAR_IRULES: LexerGrammar = LexerGrammar {
     escapes: EscapeSyntax::Tcl84,
 };
 
+/// One filename extension a dialect owns, with its human-facing name —
+/// the catalog analogue of a `SpecTcl` pack's
+/// `file_extension upf -name {Unified Power Format}` row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DialectFileExtension {
+    /// Lower-case extension without the leading dot (`"xdc"`).
+    pub extension: &'static str,
+    /// What the file type is called (`"Xilinx Design Constraints"`).
+    pub display_name: &'static str,
+}
+
 /// One resolved dialect. `'static`, interned in [`DialectProfile::all`],
 /// keyed by canonical name.
 ///
@@ -152,6 +163,34 @@ pub struct DialectProfile {
     /// the canonical spelling the way the string-keyed tables used to
     /// (design doc §2.4).
     pub aliases: &'static [&'static str],
+    /// The full human-facing name shown in settings menus and pickers
+    /// (`"Synopsys EDA Tcl"`, `"Tcl 8.6"`). The catalog is the single
+    /// source for editor presentation: `cargo xtask gen-editor-dialects`
+    /// projects this into every editor's dialect list, so adding a
+    /// profile ships its label everywhere at once.
+    pub display_name: &'static str,
+    /// A compact label for tight UI (the compiler-explorer dropdown,
+    /// status bars): `"Synopsys EDA"`, `"iRules"`. Never empty — repeats
+    /// [`Self::display_name`] where no shorter form exists.
+    pub short_name: &'static str,
+    /// The editor language id this dialect's files open under, where the
+    /// editors keep a dedicated language (`"tcl-synopsys"`, `"tcl84"`).
+    /// Undotted by contract — VS Code splits `configurationDefaults`
+    /// override keys on `.` (issue #1122). `None` = no dedicated editor
+    /// language; the dialect's files (if any) ride the plain `tcl`
+    /// language and server-side detection routes them.
+    pub editor_language_id: Option<&'static str>,
+    /// The filename extensions this dialect owns, each with its
+    /// human-facing name (`xdc` / "Xilinx Design Constraints"). This is
+    /// the source of truth its consumers project: extension→dialect
+    /// routing (`tcl-registry`'s `dialect_from_extension` fallback), the
+    /// editors' registered extension lists (`cargo xtask
+    /// gen-editor-extensions`), and any UI that names a file type.
+    /// Lower-case, no leading dot, unique across the catalog. `SpecTcl`
+    /// packs can register further extensions at load time
+    /// (`file_extension` rows) — those layer on top of, and are consulted
+    /// before, this static set.
+    pub file_extensions: &'static [DialectFileExtension],
     /// Native tag of this dialect's own command surface, if any (`IRULES`,
     /// `IAPPS`, `EXPECT`, an EDA vendor, `BPF`). `None` for the plain
     /// Tcl-version profiles, the config-only dialects, and the permissive
@@ -297,6 +336,10 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "bpf",
         aliases: &[],
+        display_name: "BPF",
+        short_name: "BPF",
+        editor_language_id: None,
+        file_extensions: &[],
         vendor_bit: Some(DialectSet::BPF),
         availability_mask: DialectSet::TCL90.union(DialectSet::BPF),
         base_layers: &[DialectSet::BPF],
@@ -317,6 +360,13 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "cadence-eda-tcl",
         aliases: &[],
+        display_name: "Cadence EDA Tcl",
+        short_name: "Cadence EDA",
+        editor_language_id: Some("tcl-cadence"),
+        file_extensions: &[DialectFileExtension {
+            extension: "globals",
+            display_name: "Innovus/Genus Globals",
+        }],
         vendor_bit: None,
         // Innovus/Genus embed an 8.4-safe Tcl core: real Cadence scripts
         // systematically avoid dict/lassign/`{*}` (the 8.5 additions), and no
@@ -382,6 +432,19 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "expect",
         aliases: &[],
+        display_name: "Expect",
+        short_name: "Expect",
+        editor_language_id: Some("tcl-expect"),
+        file_extensions: &[
+            DialectFileExtension {
+                extension: "exp",
+                display_name: "Expect Script",
+            },
+            DialectFileExtension {
+                extension: "expect",
+                display_name: "Expect Script",
+            },
+        ],
         vendor_bit: Some(DialectSet::EXPECT),
         availability_mask: DialectSet::TCL86.union(DialectSet::EXPECT),
         base_layers: &[DialectSet::EXPECT],
@@ -412,6 +475,13 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "f5-bigip",
         aliases: &[],
+        display_name: "F5 BIG-IP",
+        short_name: "BIG-IP",
+        editor_language_id: Some("tcl-bigip"),
+        file_extensions: &[DialectFileExtension {
+            extension: "scf",
+            display_name: "BIG-IP Single Configuration File",
+        }],
         vendor_bit: Some(DialectSet::BIGIP),
         availability_mask: DialectSet::BIGIP,
         base_layers: &[DialectSet::BIGIP],
@@ -440,6 +510,23 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "f5-iapps",
         aliases: &[],
+        display_name: "F5 iApps",
+        short_name: "iApps",
+        editor_language_id: Some("tcl-iapp"),
+        file_extensions: &[
+            DialectFileExtension {
+                extension: "iapp",
+                display_name: "F5 iApp Template",
+            },
+            DialectFileExtension {
+                extension: "iappimpl",
+                display_name: "F5 iApp Implementation",
+            },
+            DialectFileExtension {
+                extension: "impl",
+                display_name: "F5 iApp Implementation",
+            },
+        ],
         vendor_bit: Some(DialectSet::IAPPS),
         availability_mask: DialectSet::TCL85.union(DialectSet::IAPPS),
         base_layers: &[DialectSet::IAPPS],
@@ -474,6 +561,23 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "f5-irules",
         aliases: &["irules", "tcl-irule"],
+        display_name: "F5 iRules",
+        short_name: "iRules",
+        editor_language_id: Some("tcl-irule"),
+        file_extensions: &[
+            DialectFileExtension {
+                extension: "irul",
+                display_name: "F5 iRule",
+            },
+            DialectFileExtension {
+                extension: "irule",
+                display_name: "F5 iRule",
+            },
+            DialectFileExtension {
+                extension: "irules",
+                display_name: "F5 iRule",
+            },
+        ],
         vendor_bit: Some(DialectSet::IRULES),
         availability_mask: DialectSet::IRULES,
         base_layers: &[DialectSet::IRULES],
@@ -504,6 +608,13 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "f5-tmsh",
         aliases: &[],
+        display_name: "F5 tmsh Scripts",
+        short_name: "tmsh",
+        editor_language_id: Some("tcl-tmsh"),
+        file_extensions: &[DialectFileExtension {
+            extension: "tmsh",
+            display_name: "F5 tmsh Script",
+        }],
         vendor_bit: Some(DialectSet::TMSH),
         availability_mask: DialectSet::TCL85.union(DialectSet::TMSH),
         base_layers: &[DialectSet::TMSH],
@@ -528,6 +639,23 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "intel-quartus-eda-tcl",
         aliases: &[],
+        display_name: "Intel Quartus EDA Tcl",
+        short_name: "Intel Quartus",
+        editor_language_id: Some("tcl-quartus"),
+        file_extensions: &[
+            DialectFileExtension {
+                extension: "qsf",
+                display_name: "Quartus Settings File",
+            },
+            DialectFileExtension {
+                extension: "qpf",
+                display_name: "Quartus Project File",
+            },
+            DialectFileExtension {
+                extension: "qip",
+                display_name: "Quartus IP File",
+            },
+        ],
         vendor_bit: None,
         availability_mask: DialectSet::TCL85,
         base_layers: &[DialectSet::TCL85],
@@ -594,6 +722,13 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "mentor-eda-tcl",
         aliases: &[],
+        display_name: "Mentor EDA Tcl",
+        short_name: "Mentor EDA",
+        editor_language_id: Some("tcl-mentor"),
+        file_extensions: &[DialectFileExtension {
+            extension: "do",
+            display_name: "ModelSim/Questa Do Script",
+        }],
         vendor_bit: None,
         // Modern Questa/ModelSim embeds Tcl 8.6 (owner decision; the July-2026
         // EDA study — bundled `tcl8.6` library paths). Older ModelSim shipped
@@ -643,6 +778,10 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "microchip-libero-eda-tcl",
         aliases: &[],
+        display_name: "Microchip Libero EDA Tcl",
+        short_name: "Microchip Libero",
+        editor_language_id: Some("tcl-microchip"),
+        file_extensions: &[],
         vendor_bit: None,
         // Libero SoC's embedded interpreter is an 8.5-era core (the v11.x
         // reference documents plain-8.5 idiom and none of the 8.6 additions;
@@ -699,6 +838,13 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "spectcl",
         aliases: &["tcl-spec", "tclspec"],
+        display_name: "SpecTcl",
+        short_name: "SpecTcl",
+        editor_language_id: Some("tclspec"),
+        file_extensions: &[DialectFileExtension {
+            extension: "tclspec",
+            display_name: "SpecTcl Command Pack",
+        }],
         vendor_bit: Some(DialectSet::SPECTCL),
         availability_mask: DialectSet::TCL90.union(DialectSet::SPECTCL),
         base_layers: &[DialectSet::SPECTCL],
@@ -719,6 +865,19 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "synopsys-eda-tcl",
         aliases: &[],
+        display_name: "Synopsys EDA Tcl",
+        short_name: "Synopsys EDA",
+        editor_language_id: Some("tcl-synopsys"),
+        file_extensions: &[
+            DialectFileExtension {
+                extension: "sdc",
+                display_name: "Synopsys Design Constraints",
+            },
+            DialectFileExtension {
+                extension: "upf",
+                display_name: "Unified Power Format",
+            },
+        ],
         vendor_bit: None,
         availability_mask: DialectSet::TCL86,
         base_layers: &[DialectSet::TCL86],
@@ -782,6 +941,10 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "tcl8.4",
         aliases: &[],
+        display_name: "Tcl 8.4",
+        short_name: "Tcl 8.4",
+        editor_language_id: Some("tcl84"),
+        file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL84,
         // The version "pack" loads no specs, but registering the version bit
@@ -810,6 +973,10 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "tcl8.5",
         aliases: &[],
+        display_name: "Tcl 8.5",
+        short_name: "Tcl 8.5",
+        editor_language_id: Some("tcl85"),
+        file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL85,
         // The version "pack" loads no specs, but registering the version bit
@@ -834,6 +1001,10 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "tcl8.6",
         aliases: &[],
+        display_name: "Tcl 8.6",
+        short_name: "Tcl 8.6",
+        editor_language_id: Some("tcl86"),
+        file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL86,
         // The version "pack" loads no specs, but registering the version bit
@@ -858,6 +1029,10 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "tcl9.0",
         aliases: &[],
+        display_name: "Tcl 9.0",
+        short_name: "Tcl 9.0",
+        editor_language_id: Some("tcl90"),
+        file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL90,
         // The version "pack" loads no specs, but registering the version bit
@@ -884,6 +1059,10 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "tcl9.1",
         aliases: &[],
+        display_name: "Tcl 9.1",
+        short_name: "Tcl 9.1",
+        editor_language_id: Some("tcl91"),
+        file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL91,
         // The version "pack" loads no specs, but registering the version bit
@@ -908,6 +1087,13 @@ static CATALOG: [DialectProfile; 18] = [
     DialectProfile {
         name: "xilinx-eda-tcl",
         aliases: &[],
+        display_name: "Xilinx EDA Tcl",
+        short_name: "Xilinx EDA",
+        editor_language_id: Some("tcl-xilinx"),
+        file_extensions: &[DialectFileExtension {
+            extension: "xdc",
+            display_name: "Xilinx Design Constraints",
+        }],
         vendor_bit: None,
         availability_mask: DialectSet::TCL85,
         base_layers: &[DialectSet::TCL85],
@@ -950,6 +1136,10 @@ static CATALOG: [DialectProfile; 18] = [
 static PLAIN_TCL: DialectProfile = DialectProfile {
     name: "tcl",
     aliases: &[],
+    display_name: "Tcl",
+    short_name: "Tcl",
+    editor_language_id: None,
+    file_extensions: &[],
     vendor_bit: None,
     availability_mask: DialectSet::ALL_TCL,
     base_layers: &[],
@@ -974,6 +1164,10 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
 static TK_PROFILE: DialectProfile = DialectProfile {
     name: "tk",
     aliases: &[],
+    display_name: "Tk",
+    short_name: "Tk",
+    editor_language_id: None,
+    file_extensions: &[],
     vendor_bit: None,
     availability_mask: DialectSet::TK_AND_TCL,
     base_layers: &[],
@@ -1923,5 +2117,62 @@ mod tests {
             DialectProfile::by_name("tcl8.4").const_fold_version(),
             Some(TclVersion::V8_4)
         );
+    }
+
+    #[test]
+    fn presentation_fields_follow_the_catalog_shape() {
+        let mut seen_ext: Vec<&str> = Vec::new();
+        let mut seen_lang: Vec<&str> = Vec::new();
+        for p in all_with_fallback() {
+            assert!(!p.display_name.is_empty(), "{}: display_name", p.name);
+            assert!(!p.short_name.is_empty(), "{}: short_name", p.name);
+            if let Some(lang) = p.editor_language_id {
+                // Undotted by contract (issue #1122), and unique: two
+                // dialects can't claim the same editor language.
+                assert!(
+                    !lang.contains('.'),
+                    "{}: language id {lang:?} has a dot",
+                    p.name
+                );
+                assert!(
+                    !seen_lang.contains(&lang),
+                    "{}: language id {lang:?} reused",
+                    p.name
+                );
+                seen_lang.push(lang);
+            }
+            for row in p.file_extensions {
+                assert!(
+                    !row.extension.is_empty()
+                        && !row.extension.starts_with('.')
+                        && row.extension.chars().all(|c| c.is_ascii_lowercase()),
+                    "{}: extension {:?} must be lower-case with no dot",
+                    p.name,
+                    row.extension
+                );
+                assert!(
+                    !row.display_name.is_empty(),
+                    "{}: {} name",
+                    p.name,
+                    row.extension
+                );
+                // Extension routing is a function: one owner per extension
+                // across the whole catalog.
+                assert!(
+                    !seen_ext.contains(&row.extension),
+                    "{}: extension {:?} owned twice",
+                    p.name,
+                    row.extension
+                );
+                seen_ext.push(row.extension);
+                // A dialect that owns file extensions must give the editors
+                // somewhere to register them.
+                assert!(
+                    p.editor_language_id.is_some() || p.name == "tcl",
+                    "{}: owns extensions but has no editor language",
+                    p.name
+                );
+            }
+        }
     }
 }

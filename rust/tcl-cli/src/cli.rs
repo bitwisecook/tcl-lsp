@@ -28,7 +28,45 @@
 
 use std::path::PathBuf;
 
+use clap::builder::{PossibleValue, PossibleValuesParser};
 use clap::{Args, Parser, Subcommand};
+use tcl_dialect::DialectProfile;
+
+/// The enumerated `--dialect` values, projected from the profile catalog: one
+/// visible entry per canonical profile carrying its `display_name` as the
+/// value help, plus the additive `tk` ingress, with every registered alias
+/// (`irules`, `tcl-irule`) accepted but hidden.
+///
+/// This is exactly the set [`tcl_cli_support::resolve_dialect`] resolves, so
+/// enumerating it in `--help` narrows nothing: an unrecognised spelling was
+/// already an input error, it is now reported with the list of names.
+fn dialect_possible_values() -> Vec<PossibleValue> {
+    let tk = DialectProfile::tk();
+    DialectProfile::all()
+        .iter()
+        .map(|profile| {
+            PossibleValue::new(profile.name)
+                .help(profile.display_name)
+                .aliases(profile.aliases.iter().copied())
+        })
+        .chain(std::iter::once(
+            PossibleValue::new(tk.name).help(tk.display_name),
+        ))
+        .collect()
+}
+
+/// Value parser for a `--dialect` argument naming one profile.
+fn dialect_parser() -> PossibleValuesParser {
+    PossibleValuesParser::new(dialect_possible_values())
+}
+
+/// Value parser for `tcl help --dialect`, which also takes its `all` default —
+/// "match every dialect", not a profile.
+fn dialect_filter_parser() -> PossibleValuesParser {
+    let mut values = vec![PossibleValue::new("all").help("Every dialect (no filtering)")];
+    values.extend(dialect_possible_values());
+    PossibleValuesParser::new(values)
+}
 
 /// Unified Tcl toolchain CLI.
 #[derive(Debug, Parser)]
@@ -71,7 +109,7 @@ pub struct InputArgs {
     /// the whole invocation by the verbs that combine their inputs into one
     /// source (transforms, graphs, explore, compile) via
     /// [`tcl_cli_support::combined_effective_dialect`].
-    #[arg(long, value_name = "DIALECT")]
+    #[arg(long, value_name = "DIALECT", value_parser = dialect_parser())]
     pub dialect: Option<String>,
 
     /// Do not recurse into input directories.
@@ -171,7 +209,7 @@ pub enum Command {
         /// Dialect profile. Defaults to auto-detection over the left-hand
         /// input (directive, shebang, content signals, then extension),
         /// falling back to tcl8.6.
-        #[arg(long, value_name = "DIALECT")]
+        #[arg(long, value_name = "DIALECT", value_parser = dialect_parser())]
         dialect: Option<String>,
         /// Layers to show.
         #[arg(
@@ -252,7 +290,7 @@ pub enum Command {
         #[arg(value_name = "COMMAND")]
         command: String,
         /// Dialect profile for command metadata lookup.
-        #[arg(long, default_value = "tcl8.6", value_name = "DIALECT")]
+        #[arg(long, default_value = "tcl8.6", value_name = "DIALECT", value_parser = dialect_parser())]
         dialect: String,
         #[arg(long)]
         json: bool,
@@ -267,7 +305,7 @@ pub enum Command {
         #[arg(value_name = "QUERY")]
         query: Vec<String>,
         /// Filter help matches by dialect context.
-        #[arg(long, default_value = "all", value_name = "DIALECT")]
+        #[arg(long, default_value = "all", value_name = "DIALECT", value_parser = dialect_filter_parser())]
         dialect: String,
         /// Maximum number of help search matches.
         #[arg(long, default_value_t = 20, value_name = "N")]
@@ -340,7 +378,7 @@ pub enum Command {
     #[command(visible_aliases = ["registrydump", "dump-registry"])]
     RegistryDump {
         /// Dialect profile to snapshot.
-        #[arg(long, default_value = "tcl8.6", value_name = "DIALECT")]
+        #[arg(long, default_value = "tcl8.6", value_name = "DIALECT", value_parser = dialect_parser())]
         dialect: String,
         /// Snapshot every dialect instead of one.
         #[arg(long = "all-dialects", conflicts_with = "dialect")]

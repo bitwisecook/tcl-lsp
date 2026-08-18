@@ -28,24 +28,29 @@
 // ids are therefore undotted (`tcl84`, not `tcl8.4`); the *dialect* strings
 // they map to keep their dots (`tcl8.4`), which is a different namespace.
 
+// @generated:language-ids:begin -- cargo xtask gen-editor-extensions
 export const TCL_LANGUAGE_IDS = new Set([
   "tcl",
-  "tcl-irule",
-  "tcl-iapp",
-  "tcl-apl",
+  "tcl-cadence",
+  "tcl-expect",
   "tcl-bigip",
+  "tcl-iapp",
+  "tcl-irule",
+  "tcl-tmsh",
+  "tcl-quartus",
+  "tcl-mentor",
+  "tcl-microchip",
+  "tclspec",
+  "tcl-synopsys",
   "tcl84",
   "tcl85",
   "tcl86",
   "tcl90",
   "tcl91",
-  "tcl-synopsys",
-  "tcl-cadence",
   "tcl-xilinx",
-  "tcl-quartus",
-  "tcl-mentor",
-  "tcl-expect",
+  "tcl-apl",
 ]);
+// @generated:language-ids:end
 
 export function isTclLanguage(languageId: string): boolean {
   return TCL_LANGUAGE_IDS.has(languageId);

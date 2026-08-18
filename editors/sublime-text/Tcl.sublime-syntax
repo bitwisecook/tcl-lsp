@@ -11,8 +11,27 @@ file_extensions:
   - tk
   - itcl
   - tm
+  - test
+  - globals
+  - exp
+  - expect
+  - scf
+  - iapp
+  - iappimpl
+  - impl
+  - irul
+  - irule
+  - irules
+  - tmsh
+  - qsf
+  - qpf
+  - qip
+  - do
   - tclspec
+  - sdc
   - upf
+  - xdc
+  - apl
 
 first_line_match: '^#!.*(?:tclsh|wish)'
 

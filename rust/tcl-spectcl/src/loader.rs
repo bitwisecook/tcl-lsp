@@ -335,6 +335,34 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
     statements(source, 1)
 }
 
+/// Locate the top-level `speclib` statement's version word: the byte range
+/// of the word's *content* (inside any braces/quotes, so a rewrite keeps
+/// the author's delimiters) and its decoded text.
+///
+/// This is the hook `tcl spec upgrade` rewrites through. It must read words
+/// exactly the way [`load_pack`] does — same lexer, same segmentation — so
+/// `speclib demo {1.0} { … }` and `speclib demo "1.0" { … }` decode to
+/// `1.0` here just as they do at load.
+#[must_use]
+pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, String)> {
+    let source_map = SourceMap::new(source);
+    let (document, _warnings) = build_document(source, LexerConfig::default());
+    for segment in segments_from_document(document, &source_map) {
+        if segment.texts.first().map(String::as_str) != Some("speclib") {
+            continue;
+        }
+        let text = segment.texts.get(2)?.clone();
+        let token = segment.argv.get(2)?;
+        // Word tokens exclude the closing delimiter from `span.end` and
+        // carry the opening one via `content_offset`, so
+        // `start + content_offset .. end` is exactly the content range for
+        // wrapped and bare words alike.
+        let start = token.span.start() as usize + usize::from(token.content_offset);
+        return Some((start..token.span.end() as usize, text));
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------
 // Leaking — a loaded pack lives as long as the process, like a shipped spec
 // ---------------------------------------------------------------------------

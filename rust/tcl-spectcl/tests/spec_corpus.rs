@@ -1114,8 +1114,8 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
             let (corpus_files, tmp) = corpus(&root);
             let packs = inventory(&root);
             assert!(
-                packs.len() >= 22,
-                "the repository ships 22 .tclspec files (6 bundled + 11 ports + 5 external); \
+                packs.len() >= 24,
+                "the repository ships 24 .tclspec files (8 bundled + 11 ports + 5 external); \
              found {}",
                 packs.len()
             );

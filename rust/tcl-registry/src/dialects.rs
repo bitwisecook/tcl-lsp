@@ -404,15 +404,20 @@ static PACK_EXTENSION_DIALECTS: std::sync::RwLock<
 /// Publish extension routing declared by loaded packs. Keys are lower-case
 /// extensions without the leading dot; values must be canonical profile
 /// names (the loader validates them against the profile catalogue).
+///
+/// **Snapshot semantics**: each call replaces the whole routing table with
+/// the new generation, so a workspace-pack reload that dropped a
+/// `file_extension` row retires that route immediately — an insert-merge
+/// would pin the stale dialect until the process restarted. Callers
+/// therefore always pass the *complete* pack set's pairs, which
+/// `PackSet::extension_dialects` (the one producer) does by construction.
 pub fn register_pack_extension_dialects(pairs: impl IntoIterator<Item = (String, &'static str)>) {
+    let map: std::collections::HashMap<String, &'static str> = pairs.into_iter().collect();
     let mut guard = match PACK_EXTENSION_DIALECTS.write() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    let map = guard.get_or_insert_with(std::collections::HashMap::new);
-    for (ext, dialect) in pairs {
-        map.insert(ext, dialect);
-    }
+    *guard = Some(map);
 }
 
 /// The pack-declared dialect for `ext`, if any pack registered one.
@@ -424,12 +429,36 @@ fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
     guard.as_ref()?.get(ext).copied()
 }
 
+/// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalog —
+/// the `file_extensions` axis each profile declares (`xdc` →
+/// `xilinx-eda-tcl`). Built once; the catalog's invariant tests guarantee
+/// one owner per extension.
+fn catalog_extension_dialect(ext: &str) -> Option<&'static str> {
+    static MAP: std::sync::OnceLock<std::collections::HashMap<&'static str, &'static str>> =
+        std::sync::OnceLock::new();
+    MAP.get_or_init(|| {
+        let mut map = std::collections::HashMap::new();
+        for profile in tcl_dialect::DialectProfile::all() {
+            for row in profile.file_extensions {
+                map.insert(row.extension, profile.name);
+            }
+        }
+        map
+    })
+    .get(ext)
+    .copied()
+}
+
 /// The dialect implied by a filename extension, or `None` when the extension
 /// is generic (`.tcl`) or unknown — in which case content heuristics decide.
 ///
 /// Pack-declared routing ([`register_pack_extension_dialects`]) is consulted
-/// first, so a loaded pack owns its extensions; the static arms below are
-/// the no-packs fallback and the home of everything no pack declares.
+/// first, so a loaded pack owns its extensions; the
+/// [`tcl_dialect::DialectProfile`] catalog's per-profile `file_extensions`
+/// are the no-packs fallback and the home of everything no pack declares.
+/// Deliberate non-mappings stay deliberate: `.svrf` (Calibre rule decks) is
+/// a declarative DSL, not Tcl, so it falls through to content/default; the
+/// generic `.tcl` and HDL extensions let content decide.
 #[must_use]
 pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
     let base = filename
@@ -451,34 +480,7 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
     if let Some(dialect) = pack_extension_dialect(ext) {
         return Some(dialect);
     }
-    Some(match ext {
-        "irul" | "irule" | "irules" => "f5-irules",
-        "iapp" => "f5-iapps",
-        "tmsh" => "f5-tmsh",
-        "exp" | "expect" => "expect",
-        // A SpecTcl command pack. The extension is what activates the pack's
-        // own statement vocabulary, which is why `spec-packs.md` calls for
-        // "file-type registration across every editor integration": with it,
-        // authoring a pack needs no configuration at all.
-        "tclspec" => "spectcl",
-        "xdc" => "xilinx-eda-tcl",
-        // `.sdc` constraint files and `.upf` (IEEE 1801) power-intent files
-        // are both cross-vendor Tcl mapped to one representative profile;
-        // the ambient `sdc` / `upf` package pins (every EDA profile carries
-        // both) are what resolve their commands.
-        "sdc" | "upf" => "synopsys-eda-tcl",
-        // Mentor/Questa simulation macro files (`.do` is Tcl).
-        "do" => "mentor-eda-tcl",
-        // Intel Quartus project / settings / IP files (Tcl-syntax).
-        "qsf" | "qpf" | "qip" => "intel-quartus-eda-tcl",
-        // Cadence Innovus/Genus `.globals` (Tcl-syntax, written by saveDesign).
-        "globals" => "cadence-eda-tcl",
-        // NOTE: `.svrf` (Calibre DRC/LVS rule decks) is a declarative DSL, not
-        // Tcl — deliberately NOT mapped, so it falls through to content/default
-        // rather than being forced to an EDA Tcl dialect.
-        // Generic `.tcl`, HDL (`.sv`/`.svh`), or unknown → let content decide.
-        _ => return None,
-    })
+    catalog_extension_dialect(ext)
 }
 
 /// Truncate `source` to at most [`DETECT_SCAN_BYTES`] on a UTF-8 char boundary.

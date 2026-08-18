@@ -6044,10 +6044,7 @@ impl Backend {
         // Code extension, or the canonical `f5-bigip`) selects the BIG-IP
         // config dialect even when the basename is not a canonical
         // `bigip*.conf` name — e.g. a user who manually picks the BIG-IP
-        // language mode on a differently-named config file. `f5-bigip` is a
-        // custom config format, not a `DialectSet`-parseable Tcl dialect, so it
-        // is resolved here rather than via `dialect_from_language_id` (which is
-        // restricted to Tcl dialects by its `debug_assert`). Mirrors the
+        // language mode on a differently-named config file. Mirrors the
         // BIG-IP routing the `is_bigip_conf_name` basename branch below feeds.
         if matches!(language_id, "tcl-bigip" | "f5-bigip") {
             return "f5-bigip".to_owned();
@@ -6144,52 +6141,47 @@ impl Backend {
     /// language id does not name a known dialect — the caller falls
     /// back to the session default.
     fn dialect_from_language_id(language_id: &str) -> Option<LanguageDialect> {
-        // Group editor language ids alongside the canonical dialect
-        // name they map to so callers in either world land on the
-        // string the registry / provider trait expects.
+        // The catalog already carries both spellings a profile answers to: its
+        // canonical name (`tcl9.0`, `synopsys-eda-tcl` — what the MCP bridge
+        // and direct callers pass) and its `editor_language_id` (`tcl90`,
+        // `tcl-synopsys` — what the editor integrations contribute; the
+        // version-pinned ids are undotted there because a language id
+        // containing a `.` cannot carry a `configurationDefaults` override,
+        // issue #1122). Reading them from the catalog keeps a new profile
+        // resolvable here the day it is added.
+        if let Some(profile) = tcl_dialect::DialectProfile::all().iter().find(|profile| {
+            profile.name == language_id
+                || profile
+                    .editor_language_id
+                    .is_some_and(|id| id == language_id)
+        }) {
+            return Some(LanguageDialect::Profile(profile));
+        }
+        // The remaining spellings are *not* catalog data: ids the catalog has
+        // no field for, kept because editors and older configurations still
+        // send them.
         let mapped = match language_id {
-            // The version-pinned ids come in two spellings. The VS Code
-            // extension contributes the *undotted* `tcl84` … `tcl91` because a
-            // language id containing a `.` cannot carry a
-            // `configurationDefaults` override (VS Code splits the key on the
-            // dot and throws, dropping the rest of the block — issue #1122).
-            // Every other editor integration (Neovim, Sublime, JetBrains,
-            // Emacs, Helix) still sends the dotted form, as do direct/MCP
-            // callers passing a canonical dialect name, so both are accepted.
-            "tcl" | "tcl8.6" | "tcl86" => "tcl8.6",
-            "tcl8.4" | "tcl84" => "tcl8.4",
-            "tcl8.5" | "tcl85" => "tcl8.5",
-            "tcl9.0" | "tcl90" => "tcl9.0",
-            "tcl9.1" | "tcl91" => "tcl9.1",
-            "tcl-irule" | "f5-irules" => "f5-irules",
+            // Every editor sends the bare `tcl` id for a plain `.tcl` buffer;
+            // it names no version, and 8.6 is the fallback the rest of the
+            // resolution chain is written against.
+            "tcl" => "tcl8.6",
             // `tcl-apl` is the APL (iApp presentation language) editor id — an
             // iApp sublanguage, so it analyses as `f5-iapps` rather than
             // falling through to the default Tcl dialect.
-            "tcl-iapp" | "f5-iapps" | "tcl-apl" => "f5-iapps",
-            // First-class profiles (D8/D7): tmsh scripts and the bpf
-            // framework dialect analyse under their own profiles.
-            "tcl-tmsh" | "f5-tmsh" => "f5-tmsh",
-            "tcl-bpf" | "bpf" => "bpf",
-            "tcl-expect" | "expect" => "expect",
-            "tcl-synopsys" | "synopsys-eda-tcl" => "synopsys-eda-tcl",
-            "tcl-cadence" | "cadence-eda-tcl" => "cadence-eda-tcl",
-            "tcl-xilinx" | "xilinx-eda-tcl" => "xilinx-eda-tcl",
-            "tcl-quartus" | "intel-quartus-eda-tcl" => "intel-quartus-eda-tcl",
-            "tcl-mentor" | "mentor-eda-tcl" => "mentor-eda-tcl",
-            "tcl-libero" | "tcl-microchip" | "microchip-libero-eda-tcl" => {
-                "microchip-libero-eda-tcl"
-            }
-            // SpecTcl command packs (`.tclspec`). The editor extensions
-            // contribute `tclspec` as the language id; `tcl-spec` matches the
-            // `tcl-…` shape every other integration id uses, and `spectcl` is
-            // the canonical dialect name direct / MCP callers pass.
-            "tclspec" | "tcl-spec" | "spectcl" => "spectcl",
+            "tcl-apl" => "f5-iapps",
+            "tcl-bpf" => "bpf",
+            "tcl-libero" => "microchip-libero-eda-tcl",
+            // `tcl-spec` matches the `tcl-…` shape the other integration ids
+            // use; the catalog's own id for SpecTcl packs is `tclspec`.
+            "tcl-spec" => "spectcl",
+            // Tk is a library surface, not a selectable profile, so it has no
+            // catalog entry — it resolves to its bare `DialectSet` bit below.
             "tk" => "tk",
             _ => return None,
         };
-        // The table is an editor-ID ingress boundary. It resolves straight to
-        // the interned profile so aliases and command consumers cannot retain
-        // a free-text dialect spelling after this point.
+        // This is an editor-ID ingress boundary. It resolves straight to the
+        // interned profile so aliases and command consumers cannot retain a
+        // free-text dialect spelling after this point.
         tcl_dialect::DialectProfile::find(mapped)
             .map(LanguageDialect::Profile)
             .or_else(|| DialectSet::parse(mapped).map(LanguageDialect::Set))
@@ -11124,6 +11116,10 @@ impl Backend {
             },
             None => self.session_dialect().await,
         };
+        // The catalog's labels for the resolved dialect, so a status bar or
+        // picker can render it without keeping its own name table. `null` for a
+        // name the catalog does not know (an unrecognised configured value).
+        let dialect_profile = tcl_dialect::DialectProfile::find(&dialect);
         // Whether a `tclLsp.dialect` was actually configured for this URI — by
         // the folder it sits under, or session-wide — as opposed to the
         // built-in fallback that a never-configured session reports.  A
@@ -11213,6 +11209,8 @@ impl Backend {
             "uri": uri_str,
             "folder_uri": folder_uri,
             "dialect": dialect,
+            "dialect_display_name": dialect_profile.map(|profile| profile.display_name),
+            "dialect_short_name": dialect_profile.map(|profile| profile.short_name),
             "dialect_explicitly_set": dialect_explicitly_set,
             // The deliberate session override, when one is in force — `null`
             // otherwise. Observable so a caller (and the e2e suite) can tell a
@@ -11254,7 +11252,7 @@ impl Backend {
         if !tcl_dialect::available_dialects().contains(&dialect) {
             return Ok(Some(serde_json::json!({
                 "success": false,
-                "error": format!("unknown dialect: {dialect}"),
+                "error": unknown_dialect_error(dialect),
             })));
         }
         *self.default_dialect.lock().await = dialect.to_owned();
@@ -11290,7 +11288,7 @@ impl Backend {
         {
             return Ok(Some(serde_json::json!({
                 "success": false,
-                "error": format!("unknown dialect: {dialect}"),
+                "error": unknown_dialect_error(dialect),
             })));
         }
         *self.session_dialect_override.lock().await = requested.map(str::to_owned);
@@ -11298,6 +11296,39 @@ impl Backend {
         Ok(Some(
             serde_json::json!({ "success": true, "dialect": requested }),
         ))
+    }
+
+    /// Handle `tcl-lsp.listDialects`: the dialect catalog as presentation data
+    /// — canonical `name` (the spelling `tcl-lsp.setDialect` and
+    /// `tclLsp.dialect` take), the full and compact labels, the dedicated
+    /// editor language id (`null` where the dialect has none) and the file
+    /// extensions it owns, each with its human-facing name.
+    ///
+    /// The VS Code extension gets this list projected into its manifest at
+    /// build time (`cargo xtask gen-editor-dialects`); every other editor asks
+    /// for it here, so a dialect picker or status bar never has to hardcode one.
+    fn list_dialects_command() -> serde_json::Value {
+        serde_json::Value::Array(
+            tcl_dialect::DialectProfile::all()
+                .iter()
+                .map(|profile| {
+                    serde_json::json!({
+                        "name": profile.name,
+                        "display_name": profile.display_name,
+                        "short_name": profile.short_name,
+                        "editor_language_id": profile.editor_language_id,
+                        "file_extensions": profile
+                            .file_extensions
+                            .iter()
+                            .map(|ext| serde_json::json!({
+                                "extension": ext.extension,
+                                "display_name": ext.display_name,
+                            }))
+                            .collect::<Vec<serde_json::Value>>(),
+                    })
+                })
+                .collect::<Vec<serde_json::Value>>(),
+        )
     }
 
     /// Handle `tcl-lsp.compilerExplorer`: run the compiler pipeline
@@ -17182,6 +17213,7 @@ impl LanguageServer for Backend {
             )),
             "tcl-lsp.exportConfig" => Ok(Some(self.export_config_command().await)),
             "tcl-lsp.listTclInstallations" => Ok(Some(self.list_tcl_installations_command().await)),
+            "tcl-lsp.listDialects" => Ok(Some(Self::list_dialects_command())),
             "tcl-lsp.setDialect" => self.set_dialect_command(&params.arguments).await,
             "tcl-lsp.setSessionDialectOverride" => {
                 self.set_session_dialect_override_command(&params.arguments)
@@ -18652,6 +18684,18 @@ fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
         NonAsciiMode::Common => "common",
     };
     serde_json::Value::String(label.to_owned())
+}
+
+/// The rejection message for a dialect-setting command, naming every canonical
+/// dialect the catalog offers so the caller can correct the spelling from the
+/// error alone rather than having to ask for the list separately.
+fn unknown_dialect_error(dialect: &str) -> String {
+    let valid = tcl_dialect::DialectProfile::all()
+        .iter()
+        .map(|profile| profile.name)
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("unknown dialect: {dialect} (valid dialects: {valid})")
 }
 
 /// Extract `tclLsp.style.nonAscii` from an LSP settings payload, accepting
@@ -21642,6 +21686,7 @@ fn build_server_capabilities(
                 "tcl-lsp.suggestPackagesForSymbol".to_owned(),
                 "tcl-lsp.exportConfig".to_owned(),
                 "tcl-lsp.listTclInstallations".to_owned(),
+                "tcl-lsp.listDialects".to_owned(),
                 "tcl-lsp.setDialect".to_owned(),
                 "tcl-lsp.setSessionDialectOverride".to_owned(),
                 "tcl-lsp.compilerExplorer".to_owned(),
@@ -26207,9 +26252,154 @@ mod tests {
     fn dialect_from_language_id_returns_none_for_unknown_ids() {
         assert!(Backend::dialect_from_language_id("plaintext").is_none());
         assert!(Backend::dialect_from_language_id("").is_none());
-        // ``tcl-bigip`` is a BIG-IP config language id with no Tcl
-        // dialect counterpart — falls back to the session default.
-        assert!(Backend::dialect_from_language_id("tcl-bigip").is_none());
+        assert!(Backend::dialect_from_language_id("irules").is_none());
+    }
+
+    /// `f5-bigip` is a catalog profile like any other, so the catalog-first
+    /// lookup answers for its ids. `dialect_for_open_sync` never reaches this
+    /// function for them — its BIG-IP branch returns first — and resolves them
+    /// to the same `f5-bigip` either way.
+    #[test]
+    fn dialect_from_language_id_resolves_the_bigip_ids_like_dialect_for_open() {
+        for id in ["tcl-bigip", "f5-bigip"] {
+            assert_eq!(
+                Backend::dialect_from_language_id(id).map(LanguageDialect::name),
+                Some("f5-bigip"),
+                "`{id}` names the BIG-IP profile",
+            );
+        }
+    }
+
+    /// The full input set the hand-maintained language-id table used to accept,
+    /// with the dialect each input resolved to. The table is now catalog-driven
+    /// (plus a fallback for the spellings the catalog has no field for), and
+    /// every one of these inputs must still resolve identically.
+    #[test]
+    fn dialect_from_language_id_accepts_every_legacy_spelling() {
+        for (language_id, dialect) in [
+            ("tcl", "tcl8.6"),
+            ("tcl8.6", "tcl8.6"),
+            ("tcl86", "tcl8.6"),
+            ("tcl8.4", "tcl8.4"),
+            ("tcl84", "tcl8.4"),
+            ("tcl8.5", "tcl8.5"),
+            ("tcl85", "tcl8.5"),
+            ("tcl9.0", "tcl9.0"),
+            ("tcl90", "tcl9.0"),
+            ("tcl9.1", "tcl9.1"),
+            ("tcl91", "tcl9.1"),
+            ("tcl-irule", "f5-irules"),
+            ("f5-irules", "f5-irules"),
+            ("tcl-iapp", "f5-iapps"),
+            ("f5-iapps", "f5-iapps"),
+            ("tcl-apl", "f5-iapps"),
+            ("tcl-tmsh", "f5-tmsh"),
+            ("f5-tmsh", "f5-tmsh"),
+            ("tcl-bpf", "bpf"),
+            ("bpf", "bpf"),
+            ("tcl-expect", "expect"),
+            ("expect", "expect"),
+            ("tcl-synopsys", "synopsys-eda-tcl"),
+            ("synopsys-eda-tcl", "synopsys-eda-tcl"),
+            ("tcl-cadence", "cadence-eda-tcl"),
+            ("cadence-eda-tcl", "cadence-eda-tcl"),
+            ("tcl-xilinx", "xilinx-eda-tcl"),
+            ("xilinx-eda-tcl", "xilinx-eda-tcl"),
+            ("tcl-quartus", "intel-quartus-eda-tcl"),
+            ("intel-quartus-eda-tcl", "intel-quartus-eda-tcl"),
+            ("tcl-mentor", "mentor-eda-tcl"),
+            ("mentor-eda-tcl", "mentor-eda-tcl"),
+            ("tcl-libero", "microchip-libero-eda-tcl"),
+            ("tcl-microchip", "microchip-libero-eda-tcl"),
+            ("microchip-libero-eda-tcl", "microchip-libero-eda-tcl"),
+            ("tclspec", "spectcl"),
+            ("tcl-spec", "spectcl"),
+            ("spectcl", "spectcl"),
+            ("tk", "tk"),
+        ] {
+            assert_eq!(
+                Backend::dialect_from_language_id(language_id).map(LanguageDialect::name),
+                Some(dialect),
+                "language id `{language_id}` must still resolve to `{dialect}`",
+            );
+        }
+    }
+
+    /// Every canonical dialect name reaches its own profile through the
+    /// catalog-first lookup — including any profile added after this test was
+    /// written, which the old hand-maintained table would have missed.
+    #[test]
+    fn dialect_from_language_id_covers_the_whole_catalog() {
+        for profile in tcl_dialect::DialectProfile::all() {
+            assert_eq!(
+                Backend::dialect_from_language_id(profile.name).map(LanguageDialect::name),
+                Some(profile.name),
+            );
+            if let Some(editor_id) = profile.editor_language_id {
+                assert_eq!(
+                    Backend::dialect_from_language_id(editor_id).map(LanguageDialect::name),
+                    Some(profile.name),
+                    "editor language id `{editor_id}` must resolve to `{}`",
+                    profile.name,
+                );
+            }
+        }
+    }
+
+    /// `tcl-lsp.listDialects` reports the whole catalog with the presentation
+    /// fields an editor needs to build a picker without its own name table.
+    #[test]
+    fn list_dialects_command_reports_the_catalog_with_presentation_fields() {
+        let value = Backend::list_dialects_command();
+        let entries = value.as_array().expect("an array of dialects");
+        assert_eq!(entries.len(), tcl_dialect::DialectProfile::all().len());
+        for (entry, profile) in entries.iter().zip(tcl_dialect::DialectProfile::all()) {
+            assert_eq!(entry["name"], profile.name);
+            assert_eq!(entry["display_name"], profile.display_name);
+            assert_eq!(entry["short_name"], profile.short_name);
+            match profile.editor_language_id {
+                Some(id) => assert_eq!(entry["editor_language_id"], id),
+                None => assert!(entry["editor_language_id"].is_null()),
+            }
+            let extensions = entry["file_extensions"]
+                .as_array()
+                .expect("file_extensions is an array");
+            assert_eq!(extensions.len(), profile.file_extensions.len());
+            for (reported, ext) in extensions.iter().zip(profile.file_extensions) {
+                assert_eq!(reported["extension"], ext.extension);
+                assert_eq!(reported["display_name"], ext.display_name);
+            }
+        }
+
+        let irules = entries
+            .iter()
+            .find(|entry| entry["name"] == "f5-irules")
+            .expect("the catalog carries f5-irules");
+        assert_eq!(irules["editor_language_id"], "tcl-irule");
+        assert!(
+            irules["file_extensions"]
+                .as_array()
+                .is_some_and(|exts| !exts.is_empty()),
+            "iRules owns file extensions",
+        );
+    }
+
+    /// The unknown-dialect rejection names the valid set, so a caller can fix
+    /// the spelling from the error alone.
+    #[test]
+    fn unknown_dialect_error_lists_every_canonical_name() {
+        let message = unknown_dialect_error("tcl8.7");
+        assert!(
+            message.starts_with("unknown dialect: tcl8.7"),
+            "the rejected name comes first: {message}",
+        );
+        for profile in tcl_dialect::DialectProfile::all() {
+            assert!(
+                message.contains(profile.name),
+                "`{}` must appear in the valid list: {message}",
+                profile.name,
+            );
+        }
     }
 
     /// The folding-range lift maps `FoldKind::Comment` to the LSP
